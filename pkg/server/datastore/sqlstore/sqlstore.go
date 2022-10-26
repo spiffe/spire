@@ -1779,16 +1779,15 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 	}
 
 	newRegisteredEntry := RegisteredEntry{
-		EntryID:     entryID,
-		SpiffeID:    entry.SpiffeId,
-		ParentID:    entry.ParentId,
-		TTL:         entry.X509SvidTtl,
-		Admin:       entry.Admin,
-		Downstream:  entry.Downstream,
-		Expiry:      entry.EntryExpiry,
-		StoreSvid:   entry.StoreSvid,
-		X509SvidTTL: entry.X509SvidTtl,
-		JWTSvidTTL:  entry.JwtSvidTtl,
+		EntryID:    entryID,
+		SpiffeID:   entry.SpiffeId,
+		ParentID:   entry.ParentId,
+		TTL:        entry.X509SvidTtl,
+		Admin:      entry.Admin,
+		Downstream: entry.Downstream,
+		Expiry:     entry.EntryExpiry,
+		StoreSvid:  entry.StoreSvid,
+		JWTSvidTTL: entry.JwtSvidTtl,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -1910,7 +1909,6 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	x509_svid_ttl AS reg_x509_svid_ttl,
 	jwt_svid_ttl AS reg_jwt_svid_ttl
 FROM
 	registered_entries
@@ -1919,7 +1917,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1932,7 +1930,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1940,7 +1938,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -1972,7 +1970,6 @@ SELECT
 	NULL ::integer AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	x509_svid_ttl AS reg_x509_svid_ttl,
 	jwt_svid_ttl AS reg_jwt_svid_ttl
 FROM
 	registered_entries
@@ -1981,7 +1978,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -1994,7 +1991,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2002,7 +1999,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2031,7 +2028,6 @@ SELECT
 	D.id AS dns_name_id,
 	D.value AS dns_name,
 	E.revision_number,
-	E.x509_svid_ttl AS reg_x509_svid_ttl,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl
 FROM
 	registered_entries E
@@ -2071,7 +2067,6 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	x509_svid_ttl AS reg_x509_svid_ttl,
 	jwt_svid_ttl AS reg_jwt_svid_ttl
 FROM
 	registered_entries
@@ -2080,7 +2075,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2093,7 +2088,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2101,7 +2096,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2320,7 +2315,6 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	x509_svid_ttl AS reg_x509_svid_ttl,
 	jwt_svid_ttl AS reg_jwt_svid_ttl
 FROM
 	registered_entries
@@ -2332,7 +2326,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2347,7 +2341,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
 FROM
 	dns_names
 `)
@@ -2358,7 +2352,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2401,7 +2395,6 @@ SELECT
 	NULL ::integer AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	x509_svid_ttl AS reg_x509_svid_ttl,
 	jwt_svid_ttl AS reg_jwt_svid_ttl
 FROM
 	registered_entries
@@ -2413,7 +2406,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2428,7 +2421,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
 FROM
 	dns_names
 `)
@@ -2439,7 +2432,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -2486,7 +2479,6 @@ SELECT
 	D.id AS dns_name_id,
 	D.value AS dns_name,
 	E.revision_number,
-	E.x509_svid_ttl AS reg_x509_svid_ttl,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl
 FROM
 	registered_entries E
@@ -2543,7 +2535,6 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	x509_svid_ttl AS reg_x509_svid_ttl,
 	jwt_svid_ttl AS reg_jwt_svid_ttl
 FROM
 	registered_entries
@@ -2555,7 +2546,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2570,7 +2561,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
 FROM
 	dns_names
 `)
@@ -2581,7 +2572,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -3036,7 +3027,6 @@ type entryRow struct {
 	DNSNameID      sql.NullInt64
 	DNSName        sql.NullString
 	RevisionNumber sql.NullInt64
-	RegX509SvidTTL sql.NullInt64
 	RegJwtSvidTTL  sql.NullInt64
 }
 
@@ -3058,7 +3048,6 @@ func scanEntryRow(rs *sql.Rows, r *entryRow) error {
 		&r.DNSNameID,
 		&r.DNSName,
 		&r.RevisionNumber,
-		&r.RegX509SvidTTL,
 		&r.RegJwtSvidTTL,
 	))
 }
@@ -3107,10 +3096,7 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		entry.FederatesWith = append(entry.FederatesWith, r.TrustDomain.String)
 	}
 
-	// Default to X509SvidTTL database value. If not found then try TTL database value
-	if r.RegX509SvidTTL.Valid {
-		entry.X509SvidTtl = int32(r.RegX509SvidTTL.Int64)
-	} else if r.RegTTL.Valid {
+	if r.RegTTL.Valid {
 		entry.X509SvidTtl = int32(r.RegTTL.Int64)
 	}
 
@@ -3207,9 +3193,6 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 	}
 	if mask == nil || mask.EntryExpiry {
 		entry.Expiry = e.EntryExpiry
-	}
-	if mask == nil || mask.X509SvidTtl {
-		entry.X509SvidTTL = e.X509SvidTtl
 	}
 	if mask == nil || mask.JwtSvidTtl {
 		entry.JWTSvidTTL = e.JwtSvidTtl
@@ -3689,18 +3672,12 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		federatesWith = append(federatesWith, bundle.TrustDomain)
 	}
 
-	// Determine appropriate X509 TTL
-	x509SvidTTL := model.X509SvidTTL
-	if x509SvidTTL <= 0 {
-		x509SvidTTL = model.TTL
-	}
-
 	return &common.RegistrationEntry{
 		EntryId:        model.EntryID,
 		Selectors:      selectors,
 		SpiffeId:       model.SpiffeID,
 		ParentId:       model.ParentID,
-		X509SvidTtl:    x509SvidTTL,
+		X509SvidTtl:    model.TTL,
 		FederatesWith:  federatesWith,
 		Admin:          model.Admin,
 		Downstream:     model.Downstream,
