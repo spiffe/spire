@@ -49,7 +49,7 @@ func (c *countCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 }
 
 func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintCount, c.env)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintCount)
 }
 
 func prettyPrintCount(env *commoncli.Env, results ...interface{}) error {

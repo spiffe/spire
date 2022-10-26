@@ -64,7 +64,7 @@ func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 
 func (c *showCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the agent to show (agent identity)")
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintAgent, c.env)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintAgent)
 }
 
 func prettyPrintAgent(env *commoncli.Env, results ...interface{}) error {

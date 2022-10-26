@@ -63,7 +63,7 @@ func (c *evictCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 
 func (c *evictCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the agent to evict (agent identity)")
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintEvictResult, c.env)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintEvictResult)
 }
 
 func prettyPrintEvictResult(env *commoncli.Env, _ ...interface{}) error {

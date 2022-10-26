@@ -117,7 +117,7 @@ func TestAppendFlagWithCustomPretty(t *testing.T) {
 		invoked <- struct{}{}
 		return nil
 	}
-	AppendFlagWithCustomPretty(&p, fs, cp, nil)
+	AppendFlagWithCustomPretty(&p, fs, nil, cp)
 	err = fs.Parse([]string{"-output", "pretty"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

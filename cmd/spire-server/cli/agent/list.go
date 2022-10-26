@@ -95,7 +95,7 @@ func (c *listCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient ut
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
 	fs.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintAgents, c.env)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintAgents)
 }
 
 func prettyPrintAgents(env *commoncli.Env, results ...interface{}) error {

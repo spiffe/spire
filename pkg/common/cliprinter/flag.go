@@ -13,7 +13,7 @@ const defaultFlagName = "output"
 // AppendFlag adds the -format flag to the provided flagset, and populates
 // the referenced Printer interface with a properly configured printer.
 func AppendFlag(p *Printer, fs *flag.FlagSet, env *commoncli.Env) *FormatterFlag {
-	return AppendFlagWithCustomPretty(p, fs, nil, env)
+	return AppendFlagWithCustomPretty(p, fs, env, nil)
 }
 
 // AppendFlagWithCustomPretty is the same as AppendFlag, however it also allows
@@ -21,7 +21,7 @@ func AppendFlag(p *Printer, fs *flag.FlagSet, env *commoncli.Env) *FormatterFlag
 // to override the pretty print logic that normally ships with this package. Its
 // intended use is to allow for the adoption of cliprinter while still retaining
 // backwards compatibility with the legacy/bespoke pretty print output.
-func AppendFlagWithCustomPretty(p *Printer, fs *flag.FlagSet, cp CustomPrettyFunc, env *commoncli.Env) *FormatterFlag {
+func AppendFlagWithCustomPretty(p *Printer, fs *flag.FlagSet, env *commoncli.Env, cp CustomPrettyFunc) *FormatterFlag {
 	// Set the default
 	np := newPrinter(defaultFormatType, env)
 	np.setCustomPrettyPrinter(cp)

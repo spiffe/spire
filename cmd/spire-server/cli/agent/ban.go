@@ -65,7 +65,7 @@ func (c *banCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 
 func (c *banCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the agent to ban (agent identity)")
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintBanResult, c.env)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintBanResult)
 }
 
 func prettyPrintBanResult(env *commoncli.Env, _ ...interface{}) error {

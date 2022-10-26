@@ -47,11 +47,16 @@ type agentTest struct {
 	stdin  *bytes.Buffer
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
-
 	args   []string
 	server *fakeAgentServer
-
 	client cli.Command
+}
+
+func (s *agentTest) afterTest(t *testing.T) {
+	t.Logf("TEST:%s", t.Name())
+	t.Logf("STDOUT:\n%s", s.stdout.String())
+	t.Logf("STDIN:\n%s", s.stdin.String())
+	t.Logf("STDERR:\n%s", s.stderr.String())
 }
 
 func TestBanHelp(t *testing.T) {
@@ -106,7 +111,7 @@ func TestBan(t *testing.T) {
 
 				returnCode := test.client.Run(append(test.args, args...))
 
-				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
 				require.Equal(t, tt.expectStderr, test.stderr.String())
 				require.Equal(t, tt.expectReturnCode, returnCode)
 			})
@@ -166,7 +171,7 @@ func TestEvict(t *testing.T) {
 
 				returnCode := test.client.Run(append(test.args, args...))
 
-				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
 				require.Equal(t, tt.expectedReturnCode, returnCode)
 			})
@@ -228,7 +233,7 @@ func TestCount(t *testing.T) {
 
 				returnCode := test.client.Run(append(test.args, args...))
 
-				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
 				require.Equal(t, tt.expectedReturnCode, returnCode)
 			})
@@ -410,7 +415,7 @@ func TestList(t *testing.T) {
 
 				returnCode := test.client.Run(append(test.args, args...))
 
-				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				spiretest.RequireProtoEqual(t, tt.expectReq, test.server.gotListAgentRequest)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
 				require.Equal(t, tt.expectedReturnCode, returnCode)
@@ -491,7 +496,7 @@ func TestShow(t *testing.T) {
 
 				returnCode := test.client.Run(append(test.args, args...))
 
-				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
 				require.Equal(t, tt.expectedReturnCode, returnCode)
 			})
@@ -524,6 +529,10 @@ func setupTest(t *testing.T, newClient func(*commoncli.Env) cli.Command) *agentT
 		server: server,
 		client: client,
 	}
+
+	t.Cleanup(func() {
+		test.afterTest(t)
+	})
 
 	return test
 }
@@ -565,7 +574,7 @@ func (s *fakeAgentServer) GetAgent(ctx context.Context, req *agentv1.GetAgentReq
 	return nil, s.err
 }
 
-func assertOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
+func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
 	switch format {
 	case "pretty":
 		require.Contains(t, stdoutString, expectedStdoutPretty)
