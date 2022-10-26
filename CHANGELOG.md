@@ -331,7 +331,7 @@
 - SPIRE Server federation configuration in the `federates_with` `bundle_endpoint` block is now deprecated (#2340)
 - SPIRE Server `gcp_iit` NodeAttestor configurable `projectid_whitelist` is deprecated in favor of `projectid_allow_list` (#2253)
 - SPIRE Server `k8s_sat` and `k8s_psat` NodeAttestor configurable `service_account_whitelist` is deprecated in favor of `service_account_allow_list` (#2253)
-- SPIRE Sever `registration_uds_path`/`-registrationUDSPath` configurable and flag has been deprecated in favor of `socket_path`/`-socketPath` (#2075)
+- SPIRE Server `registration_uds_path`/`-registrationUDSPath` configurable and flag has been deprecated in favor of `socket_path`/`-socketPath` (#2075)
 
 ### Removed
 - SPIRE Server no longer supports SPIFFE IDs with UTF-8 (#2368)
