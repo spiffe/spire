@@ -189,17 +189,17 @@ func TestUpdate(t *testing.T) {
 		{
 			name:   "Invalid TTL and X509SvidTtl",
 			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20"},
-			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL fields or the deprecated ttl field\n",
+			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
 		},
 		{
 			name:   "Invalid TTL and JwtSvidTtl",
 			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-jwtSVIDTTL", "20"},
-			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL fields or the deprecated ttl field\n",
+			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
 		},
 		{
 			name:   "Invalid TTL and both X509SvidTtl and JwtSvidTtl",
 			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20", "-jwtSVIDTTL", "30"},
-			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL fields or the deprecated ttl field\n",
+			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
 		},
 		{
 			name: "Server error",
