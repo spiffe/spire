@@ -3,7 +3,6 @@ package agent
 import (
 	"errors"
 	"flag"
-	"fmt"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -17,6 +16,7 @@ import (
 )
 
 type showCommand struct {
+	env *commoncli.Env
 	// SPIFFE ID of the agent being showed
 	spiffeID string
 	printer  cliprinter.Printer
@@ -30,7 +30,7 @@ func NewShowCommand() cli.Command {
 // NewShowCommandWithEnv creates a new "show" subcommand for "agent" command
 // using the environment specified
 func NewShowCommandWithEnv(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, new(showCommand))
+	return util.AdaptCommand(env, &showCommand{env: env})
 }
 
 func (*showCommand) Name() string {
@@ -64,19 +64,19 @@ func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 
 func (c *showCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the agent to show (agent identity)")
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintAgent)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintAgent, c.env)
 }
 
-func prettyPrintAgent(results ...interface{}) error {
+func prettyPrintAgent(env *commoncli.Env, results ...interface{}) error {
 	agent := results[0].(*types.Agent)
 
-	fmt.Printf("Found an attested agent given its SPIFFE ID\n\n")
-	if err := printAgents(agent); err != nil {
+	env.Printf("Found an attested agent given its SPIFFE ID\n\n")
+	if err := printAgents(env, agent); err != nil {
 		return err
 	}
 
 	for _, s := range agent.Selectors {
-		fmt.Printf("Selectors         : %s:%s\n", s.Type, s.Value)
+		env.Printf("Selectors         : %s:%s\n", s.Type, s.Value)
 	}
 	return nil
 }

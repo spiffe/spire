@@ -13,6 +13,7 @@ import (
 )
 
 type countCommand struct {
+	env     *commoncli.Env
 	printer cliprinter.Printer
 }
 
@@ -24,7 +25,7 @@ func NewCountCommand() cli.Command {
 // NewCountCommandWithEnv creates a new "count" subcommand for "agent" command
 // using the environment specified.
 func NewCountCommandWithEnv(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, new(countCommand))
+	return util.AdaptCommand(env, &countCommand{env: env})
 }
 
 func (*countCommand) Name() string {
@@ -48,14 +49,14 @@ func (c *countCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 }
 
 func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintCount)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintCount, c.env)
 }
 
-func prettyPrintCount(results ...interface{}) error {
+func prettyPrintCount(env *commoncli.Env, results ...interface{}) error {
 	countResponse := results[0].(*agentv1.CountAgentsResponse)
 	count := int(countResponse.Count)
 	msg := fmt.Sprintf("%d attested ", count)
 	msg = util.Pluralizer(msg, "agent", "agents", count)
-	fmt.Println(msg)
+	env.Println(msg)
 	return nil
 }

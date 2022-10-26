@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -16,6 +15,7 @@ import (
 )
 
 type banCommand struct {
+	env *commoncli.Env
 	// SPIFFE ID of agent being banned
 	spiffeID string
 	printer  cliprinter.Printer
@@ -29,7 +29,7 @@ func NewBanCommand() cli.Command {
 // NewBanCommandWithEnv creates a new "ban" subcommand for "agent" command
 // using the environment specified
 func NewBanCommandWithEnv(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, new(banCommand))
+	return util.AdaptCommand(env, &banCommand{env: env})
 }
 
 func (*banCommand) Name() string {
@@ -65,10 +65,10 @@ func (c *banCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 
 func (c *banCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the agent to ban (agent identity)")
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintBanResult)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintBanResult, c.env)
 }
 
-func prettyPrintBanResult(_ ...interface{}) error {
-	fmt.Println("Agent banned successfully")
+func prettyPrintBanResult(env *commoncli.Env, _ ...interface{}) error {
+	env.Println("Agent banned successfully")
 	return nil
 }

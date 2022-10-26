@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -54,25 +52,6 @@ type agentTest struct {
 	server *fakeAgentServer
 
 	client cli.Command
-}
-
-func (a *agentTest) runCapturingOutput(t *testing.T, f func()) {
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-	os.Stdout = w
-
-	f()
-
-	err = w.Close()
-	require.NoError(t, err)
-	os.Stdout = old
-
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, r)
-	require.NoError(t, err)
-
-	a.stdout = buf
 }
 
 func TestBanHelp(t *testing.T) {
@@ -124,11 +103,8 @@ func TestBan(t *testing.T) {
 				test.server.err = tt.serverErr
 				args := tt.args
 				args = append(args, "-output", format)
-				var returnCode int
 
-				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, args...))
-				})
+				returnCode := test.client.Run(append(test.args, args...))
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
 				require.Equal(t, tt.expectStderr, test.stderr.String())
@@ -187,11 +163,8 @@ func TestEvict(t *testing.T) {
 				test.server.err = tt.serverErr
 				args := tt.args
 				args = append(args, "-output", format)
-				var returnCode int
 
-				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, args...))
-				})
+				returnCode := test.client.Run(append(test.args, args...))
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
@@ -252,11 +225,8 @@ func TestCount(t *testing.T) {
 				test.server.err = tt.serverErr
 				args := tt.args
 				args = append(args, "-output", format)
-				var returnCode int
 
-				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, args...))
-				})
+				returnCode := test.client.Run(append(test.args, args...))
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())
@@ -437,11 +407,8 @@ func TestList(t *testing.T) {
 				test.server.err = tt.serverErr
 				args := tt.args
 				args = append(args, "-output", format)
-				var returnCode int
 
-				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, args...))
-				})
+				returnCode := test.client.Run(append(test.args, args...))
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				spiretest.RequireProtoEqual(t, tt.expectReq, test.server.gotListAgentRequest)
@@ -521,11 +488,8 @@ func TestShow(t *testing.T) {
 				test.server.agents = tt.existentAgents
 				args := tt.args
 				args = append(args, "-output", format)
-				var returnCode int
 
-				test.runCapturingOutput(t, func() {
-					returnCode = test.client.Run(append(test.args, args...))
-				})
+				returnCode := test.client.Run(append(test.args, args...))
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				require.Equal(t, tt.expectedStderr, test.stderr.String())

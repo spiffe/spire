@@ -3,7 +3,6 @@ package agent
 import (
 	"errors"
 	"flag"
-	"fmt"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -16,6 +15,7 @@ import (
 )
 
 type evictCommand struct {
+	env *commoncli.Env
 	// SPIFFE ID of the agent being evicted
 	spiffeID string
 	printer  cliprinter.Printer
@@ -29,7 +29,7 @@ func NewEvictCommand() cli.Command {
 // NewEvictCommandWithEnv creates a new "evict" subcommand for "agent" command
 // using the environment specified
 func NewEvictCommandWithEnv(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, new(evictCommand))
+	return util.AdaptCommand(env, &evictCommand{env: env})
 }
 
 func (*evictCommand) Name() string {
@@ -63,10 +63,10 @@ func (c *evictCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 
 func (c *evictCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the agent to evict (agent identity)")
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintEvictResult)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, prettyPrintEvictResult, c.env)
 }
 
-func prettyPrintEvictResult(_ ...interface{}) error {
-	fmt.Println("Agent evicted successfully")
+func prettyPrintEvictResult(env *commoncli.Env, _ ...interface{}) error {
+	env.Println("Agent evicted successfully")
 	return nil
 }
