@@ -32,7 +32,7 @@ type Config struct {
 	// Generator is an optional key generator.
 	Generator Generator
 
-	// WriteEntries is an optional callback used to persisted key entries
+	// WriteEntries is an optional callback used to persist key entries
 	WriteEntries func(ctx context.Context, allEntries []*KeyEntry, newEntry *KeyEntry) error
 }
 
