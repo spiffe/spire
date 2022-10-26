@@ -146,7 +146,7 @@ SPIRE Server can be configured to federate with others SPIRE Servers living in d
 
 _Note: static relationships override dynamic relationships. If you need to configure dynamic relationships, see the [`federation`](#spire-server-federation-create) command. Static relationships are not reflected in the `federation` command._
 
-Configuring a federated trust domain allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely autenticate workloads in a foreign trust domain.
+Configuring a federated trust domain allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely authenticate workloads in a foreign trust domain.
 A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.
 Using the `federation` section you will be able to set up SPIRE as a SPIFFE bundle endpoint server and also configure the federated trust domains that this SPIRE Server will fetch bundles from.
 ```hcl
@@ -334,7 +334,7 @@ Displays configured registration entries.
 | `-entryID`       | The Entry ID of the record to show.                                                              |                                    |
 | `-federatesWith` | SPIFFE ID of a trust domain an entry is federate with. Can be used more than once                |                                    |
 | `-parentID`      | The Parent ID of the records to show.                                                            |                                    |
-| `-selector`      | A colon-delimeted type:value selector. Can be used more than once to specify multiple selectors. |                                    |
+| `-selector`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
 | `-socketPath`    | Path to the SPIRE Server API socket                                                              | /tmp/spire-server/private/api.sock |
 | `-spiffeID`      | The SPIFFE ID of the records to show.                                                            |                                    |
 

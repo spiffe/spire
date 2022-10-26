@@ -7,11 +7,11 @@ This enables auto and manual generation of SPIFFE IDs from with Kubernetes and t
 
 ## Benefits of CRD Kubernetes Workload Registrar
 
-There are mutiple modes of the Kubernetes Workload Registrar. The benefits of the CRD mode when compared to other modes are:
+There are multiple modes of the Kubernetes Workload Registrar. The benefits of the CRD mode when compared to other modes are:
 
-* **`kubectl` integration**: Using a CRD, SPIRE is fully intergrated with Kubernetes. You can view and create SPIFFE IDs directly using `kubectl`, without having to shell into the SPIRE server.
-* **Fully event-driven design**: Using the Kubernetes CRD system, the CRD mode Kubernetes Workload Registrar is fully event-driven to minimze resource usage.
-* **Standards-based solution**: CRDs are the standard way to extend Kubernetes, with many resources online, such as [kubebuilder](https://book.kubebuilder.io/), discussing the approach. The CRD Kubernetes Worklaod Registrar follows all standards and best practices to ensure it is maintainable.
+* **`kubectl` integration**: Using a CRD, SPIRE is fully integrated with Kubernetes. You can view and create SPIFFE IDs directly using `kubectl`, without having to shell into the SPIRE server.
+* **Fully event-driven design**: Using the Kubernetes CRD system, the CRD mode Kubernetes Workload Registrar is fully event-driven to minimize resource usage.
+* **Standards-based solution**: CRDs are the standard way to extend Kubernetes, with many resources online, such as [kubebuilder](https://book.kubebuilder.io/), discussing the approach. The CRD Kubernetes Workload Registrar follows all standards and best practices to ensure it is maintainable.
 
 ## Configuration
 
@@ -51,7 +51,7 @@ The configuration file is a **required** by the registrar. It contains
 | `server_address`                | string            | required  | Address of the spire server. A local socket can be specified using unix:///path/to/socket. This is not the same as the agent socket.                                        |                                                    |
 | `server_socket_path`            | string            | optional  | Path to the Unix domain socket of the SPIRE server, equivalent to specifying a server_address with a "unix://..." prefix                                                    |                                                    |
 | `trust_domain`                  | string            | required  | Trust domain of the SPIRE server                                                                                                                                            |                                                    |
-| `webhook_enabled`               | bool              | optional  | Enable a validating webhook to ensure CRDs are properly fomatted and there are no duplicates.                                                                               | `false`                                            |
+| `webhook_enabled`               | bool              | optional  | Enable a validating webhook to ensure CRDs are properly formatted and there are no duplicates.                                                                               | `false`                                            |
 | `webhook_port`                  | int               | optional  | The port to use for the validating webhook.                                                                                                                                 | `9443`                                             |
 | `webhook_service_name`          | string            | optional  | The name of the Kubernetes Service being used for the webhook.                                                                                                              | `"k8s-workload-registrar"`                         |
 

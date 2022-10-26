@@ -39,5 +39,5 @@ should be removed as part of the 0.10.0 release.
 
 ## Future considerations
 
-- Provide additional "+/- 1" SPIRE compatability checks, as currently we only
+- Provide additional "+/- 1" SPIRE compatibility checks, as currently we only
   test that the SPIRE components start up and that SVIDs rotate.
