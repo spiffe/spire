@@ -17,16 +17,21 @@ import (
 
 	agent "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
-	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
 var (
-	key         = testkey.MustEC256()
+	key, _ = pemutil.ParseSigner([]byte(`-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgs/CcKxAEIyBBEQ9h
+ES2kJbWTz79ut45qAb0UgqrGqmOhRANCAARssWdfmS3D4INrpLBdSBxzso5kPPSX
+F21JuznwCuYKNV5LnzhUA3nt2+6e18ZIXUDxl+CpkvCYc10MO6SYg6AE
+-----END PRIVATE KEY-----`))
+
 	testStep    = flag.String("testStep", "", "jointoken, attest, ban, renew")
 	tokenName   = flag.String("tokenName", "tokenName", "token for attestation")
 	certificate = flag.String("certificate", "", "certificate for api connection")

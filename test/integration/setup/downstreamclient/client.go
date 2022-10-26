@@ -13,15 +13,21 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
-	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
 var (
-	key = testkey.MustEC256()
+	key, _ = pemutil.ParseSigner([]byte(`
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgs/CcKxAEIyBBEQ9h
+ES2kJbWTz79ut45qAb0UgqrGqmOhRANCAARssWdfmS3D4INrpLBdSBxzso5kPPSX
+F21JuznwCuYKNV5LnzhUA3nt2+6e18ZIXUDxl+CpkvCYc10MO6SYg6AE
+-----END PRIVATE KEY-----
+`))
 )
 
 func main() {

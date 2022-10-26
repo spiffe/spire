@@ -201,7 +201,11 @@ endif
 ############################################################################
 
 # Flags passed to all invocations of go test
-go_test_flags := -timeout=60s
+go_test_flags := 
+ifeq ($(NIGHTLY),)
+	# Cap unit-test timout to 60s unless we're running nightlies.
+	go_test_flags += -timeout=60s
+endif
 
 go_flags :=
 ifneq ($(GOPARALLEL),)
