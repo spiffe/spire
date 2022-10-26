@@ -32,7 +32,7 @@ const (
   -storeSVID
     	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
   -ttl int
-    	The lifetime, in seconds, for SVIDs issued based on this registration entry
+    	The lifetime, in seconds, for SVIDs issued based on this registration entry. This field is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version
   -x509SVIDTTL int
     	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl field
 `
@@ -84,7 +84,7 @@ const (
   -storeSVID
     	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
   -ttl int
-    	The lifetime, in seconds, for SVIDs issued based on this registration entry
+    	The lifetime, in seconds, for SVIDs issued based on this registration entry. This field is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version
   -x509SVIDTTL int
     	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl field
 `
