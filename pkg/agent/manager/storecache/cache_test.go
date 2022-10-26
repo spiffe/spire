@@ -352,7 +352,8 @@ func TestUpdateEntries(t *testing.T) {
 			setUpdate: func(update cache.UpdateEntries) *cache.UpdateEntries {
 				updatedEntry := createTestEntry()
 				updatedEntry.RevisionNumber = 3
-				updatedEntry.Ttl = 1234
+				updatedEntry.X509SvidTtl = 2345
+				updatedEntry.JwtSvidTtl = 3456
 
 				update.RegistrationEntries["foh"] = updatedEntry
 
@@ -375,7 +376,8 @@ func TestUpdateEntries(t *testing.T) {
 						SpiffeId:       fohID.String(),
 						StoreSvid:      true,
 						RevisionNumber: 3,
-						Ttl:            1234,
+						X509SvidTtl:    2345,
+						JwtSvidTtl:     3456,
 					},
 					Revision: 2,
 				},

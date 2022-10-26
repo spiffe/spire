@@ -59,22 +59,24 @@ This may be useful for templating configuration files, for example across differ
 | `ca_subject`        | The Subject that CA certificates should use (see below)                                                                                                                                                                                 |                                                                |
 | `ca_ttl`            | The default CA/signing key TTL                                                                                                                                                                                                          | 24h                                                            |
 | `data_dir`          | A directory the server can use for its runtime                                                                                                                                                                                          |                                                                |
-| `default_svid_ttl`  | The default SVID TTL                                                                                                                                                                                                                    | 1h                                                             |
-| `experimental`      | The experimental options that are subject to change or removal (see below)                                                                                                                                                              |                                                                |
-| `federation`        | Bundle endpoints configuration section used for [federation](#federation-configuration)                                                                                                                                                 |                                                                |
+| `default_svid_ttl`      | The default SVID TTL. This field is deprecated in favor of default_x509_svid_ttl and default_jwt_svid_ttl and will be removed in a future version.                                                                                      | 1h                                 |
+| `default_x509_svid_ttl` | The default X509-SVID TTL (overrides `default_svid_ttl` if set)                                                                                                                                                                         | 1h                                 |
+| `default_jwt_svid_ttl`  | The default JWT-SVID TTL (overrides `default_svid_ttl` if set)                                                                                                                                                                          | 5m                                 |
+| `experimental`              | The experimental options that are subject to change or removal (see below)                                                     |                                    |
+| `federation`                | Bundle endpoints configuration section used for [federation](#federation-configuration)                                        |                                    |
 | `jwt_key_type`      | The key type used for the server CA (JWT), &lt;rsa-2048&vert;rsa-4096&vert;ec-p256&vert;ec-p384&gt;                                                                                                                                     | The value of `ca_key_type` or ec-p256 if not defined           |
-| `jwt_issuer`        | The issuer claim used when minting JWT-SVIDs                                                                                                                                                                                            |                                                                |
-| `log_file`          | File to write logs to                                                                                                                                                                                                                   |                                                                |
+| `jwt_issuer`                | The issuer claim used when minting JWT-SVIDs                                                                                   |                                    |
+| `log_file`                  | File to write logs to                                                                                                          |                                    |
 | `log_level`         | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                                                                                                                     | INFO                                                           |
 | `log_format`        | Format of logs, &lt;text&vert;json&gt;                                                                                                                                                                                                  | text                                                           |
-| `omit_x509svid_uid` | If true, the subject on X509-SVIDs will not contain the unique ID attribute (deprecated)                                                                                                                                                | false                                                          |
-| `profiling_enabled` | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                                                                                                                         | false                                                          |
-| `profiling_freq`    | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.                                                                                                                  |                                                                |
-| `profiling_names`   | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)                                                                                                                       |                                                                |
-| `profiling_port`    | Port number of the [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint. Only used when `profiling_enabled` is `true`.                                                                                                          |                                                                |
-| `ratelimit`         | Rate limiting configurations, usually used when the server is behind a load balancer (see below)                                                                                                                                        |                                                                |
-| `socket_path`       | Path to bind the SPIRE Server API socket to (Unix only)                                                                                                                                                                                 | /tmp/spire-server/private/api.sock                             |
-| `trust_domain`      | The trust domain that this server belongs to (should be no more than 255 characters)                                                                                                                                                    |                                                                |
+| `omit_x509svid_uid`         | If true, the subject on X509-SVIDs will not contain the unique ID attribute (deprecated)                                       | false                              |
+| `profiling_enabled`         | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                | false                              |
+| `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.         |                                    |
+| `profiling_names`                 | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)             |                                    |
+| `profiling_port`            | Port number of the [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint. Only used when `profiling_enabled` is `true`. |                                    |
+| `ratelimit`                 | Rate limiting configurations, usually used when the server is behind a load balancer (see below)                               |                                    |
+| `socket_path`               | Path to bind the SPIRE Server API socket to (Unix only)                                                                                   | /tmp/spire-server/private/api.sock |
+| `trust_domain`              | The trust domain that this server belongs to (should be no more than 255 characters)                                           |                                    |
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -278,7 +280,9 @@ Creates registration entries.
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied.                                      |                                            |
 | `-socketPath`    | Path to the SPIRE Server API socket                                                                                                                                                               | /tmp/spire-server/private/api.sock         |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                                     |                                            |
-| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.                                                                                                                                | The TTL configured with `default_svid_ttl` |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record. This flag is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version.                        | The TTL configured with `default_svid_ttl`      |
+| `-x509SVIDTTL`   | A TTL, in seconds, for any X509-SVID issued as a result of this record. Overrides `-ttl` value.                                                                                                   | The TTL configured with `default_x509_svid_ttl` |
+| `-jwtSVIDTTL`    | A TTL, in seconds, for any JWT-SVID issued as a result of this record. Overrides `-ttl` value.                                                                                                    | The TTL configured with `default_jwt_svid_ttl`  |
 | `-storeSVID`     | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin                                                               |
 
 ### `spire-server entry update`
@@ -298,7 +302,9 @@ Updates registration entries.
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied.                              |                                            |
 | `-socketPath`    | Path to the SPIRE Server API socket                                                                                                                                                       | /tmp/spire-server/private/api.sock         |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                             |                                            |
-| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record.                                                                                                                        | The TTL configured with `default_svid_ttl` |
+| `-ttl`           | A TTL, in seconds, for any SVID issued as a result of this record. This flag is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version.                | The TTL configured with `default_svid_ttl` |
+| `-x509SVIDTTL`   | A TTL, in seconds, for any X509-SVID issued as a result of this record. Overrides `-ttl` value.                                                                                           | The TTL configured with `default_x509_svid_ttl` |
+| `-jwtSVIDTTL`    | A TTL, in seconds, for any JWT-SVID issued as a result of this record. Overrides `-ttl` value.                                                                                            | The TTL configured with `default_jwt_svid_ttl`  |
 | `storeSVID`      | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin                                                       |
 
 ### `spire-server entry count`
@@ -514,11 +520,11 @@ Typically, you may want at least:
 Mints an X509-SVID.
 
 | Command       | Action                                                               | Default                                    |
-|:--------------|:---------------------------------------------------------------------|:-------------------------------------------|
+|:--------------|:-------------------------------------------------------------------|:---------------|
 | `-dns`        | A DNS name that will be included in SVID. Can be used more than once |                                            |
 | `-socketPath` | Path to the SPIRE Server API socket                                  | /tmp/spire-server/private/api.sock         |
 | `-spiffeID`   | The SPIFFE ID of the X509-SVID                                       |                                            |
-| `-ttl`        | The TTL of the X509-SVID                                             | The TTL configured with `default_svid_ttl` |
+| `-ttl`        | The TTL of the X509-SVID                                           | First non-zero value from `Entry.x509_svid_ttl`, `Entry.ttl`, `default_x509_svid_ttl`, `default_svid_ttl`, `1h` |
 | `-write`      | Directory to write output to instead of stdout                       |                                            |
 
 ### `spire-server jwt mint`
@@ -526,11 +532,11 @@ Mints an X509-SVID.
 Mints a JWT-SVID.
 
 | Command       | Action                                                                       | Default                            |
-|:--------------|:-----------------------------------------------------------------------------|:-----------------------------------|
+|:--------------|:-------------------------------------------------------------------|:---------------|
 | `-audience`   | Audience claim that will be included in the SVID. Can be used more than once |                                    |
 | `-socketPath` | Path to the SPIRE Server API socket                                          | /tmp/spire-server/private/api.sock |
 | `-spiffeID`   | The SPIFFE ID of the JWT-SVID                                                |                                    |
-| `-ttl`        | The TTL of the JWT-SVID                                                      |                                    |
+| `-ttl`        | The TTL of the JWT-SVID                                            | First non-zero value from `Entry.jwt_svid_ttl`, `Entry.ttl`, `default_jwt_svid_ttl`, `5m` |
 | `-write`      | File to write token to instead of stdout                                     |                                    |
 
 ## JSON object for `-data`
@@ -560,7 +566,8 @@ server {
     bind_port = "8081"
     log_level = "INFO"
     data_dir = "/opt/spire/.data/"
-    default_svid_ttl = "6h"
+    default_x509_svid_ttl = "6h"
+    default_jwt_svid_ttl = "5m"
     ca_ttl = "72h"
     ca_subject {
         country = ["US"]

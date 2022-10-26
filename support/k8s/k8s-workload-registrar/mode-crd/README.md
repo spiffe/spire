@@ -1,5 +1,7 @@
 # SPIRE Kubernetes Workload Registrar (CRD Mode)
 
+** The SPIRE Kubernetes Workload Registrar is deprecated and no longer maintained. Please migrate to the [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager). **
+
 The CRD mode of the SPIRE Kubernetes Workload Registrar uses a Kubernetes Custom Resource Definition (CRD) to integrate SPIRE and Kubernetes.
 This enables auto and manual generation of SPIFFE IDs from with Kubernetes and the `kubectl` CLI.
 
