@@ -50,6 +50,7 @@ var (
 	ctx     = context.Background()
 	td      = spiffeid.RequireTrustDomainFromString("example.org")
 	agentID = spiffeid.RequireFromPath(td, "/agent")
+	testKey = testkey.MustEC256()
 
 	testNodes = map[string]*common.AttestedNode{
 		agent1: {
@@ -1597,7 +1598,6 @@ func TestGetAgent(t *testing.T) {
 }
 
 func TestRenewAgent(t *testing.T) {
-	testKey := testkey.MustEC256()
 	agentIDType := &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"}
 
 	defaultNode := &common.AttestedNode{
@@ -2141,7 +2141,7 @@ func TestAttestAgent(t *testing.T) {
 		t,
 		"https://github.com/spiffe/spire/issues/2841",
 	)
-	testCsr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testkey.MustEC256())
+	testCsr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testKey)
 	require.NoError(t, err)
 
 	_, expectedCsrErr := x509.ParseCertificateRequest([]byte("not a csr"))

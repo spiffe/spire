@@ -12,14 +12,9 @@ import (
 )
 
 func New(t *testing.T) keymanager.KeyManager {
-	keys := new(testkey.Keys)
-
 	plugin := keyManager{
-		Base: keymanagerbase.New(keymanagerbase.Funcs{
-			GenerateRSA2048Key: keys.NextRSA2048,
-			GenerateRSA4096Key: keys.NextRSA4096,
-			GenerateEC256Key:   keys.NextEC256,
-			GenerateEC384Key:   keys.NextEC384,
+		Base: keymanagerbase.New(keymanagerbase.Config{
+			Generator: &testkey.Generator{},
 		}),
 	}
 

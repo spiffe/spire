@@ -10,11 +10,15 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"math/big"
+	"os"
+	"strconv"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	keymanagerbase "github.com/spiffe/spire/pkg/agent/plugin/keymanager/base"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -47,6 +51,13 @@ var (
 		keymanager.RSA4096: 4096,
 	}
 )
+
+func NewGenerator() keymanagerbase.Generator {
+	if nightly, err := strconv.ParseBool(os.Getenv("NIGHTLY")); err == nil && nightly {
+		return nil
+	}
+	return &testkey.Generator{}
+}
 
 type CreateFunc = func(t *testing.T) keymanager.KeyManager
 
