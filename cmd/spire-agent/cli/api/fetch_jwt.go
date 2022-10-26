@@ -35,6 +35,10 @@ func (c *fetchJWTCommand) synopsis() string {
 }
 
 func (c *fetchJWTCommand) run(ctx context.Context, env *common_cli.Env, client *workloadClient) error {
+	if len(c.audience) == 0 {
+		return errors.New("audience must be specified")
+	}
+
 	bundlesResp, err := c.fetchJWTBundles(ctx, client)
 	if err != nil {
 		return err
