@@ -149,8 +149,9 @@ cloud.google.com/go/secretmanager v1.8.0 h1:4wYWL2t10q+xUtFFS0QuWlqwQguMrwC6FDpj
 cloud.google.com/go/secretmanager v1.8.0/go.mod h1:hnVgi/bN5MYHd3Gt0SPuTPPp5ENina1/LxM+2W9U9J4=
 cloud.google.com/go/security v1.5.0/go.mod h1:lgxGdyOKKjHL4YG3/YwIL2zLqMFCKs0UbQwgyZmfJl4=
 cloud.google.com/go/security v1.7.0/go.mod h1:mZklORHl6Bg7CNnnjLH//0UlAlaXqiG7Lb9PsPXLfD0=
-cloud.google.com/go/security v1.8.0 h1:linnRc3/gJYDfKbAtNixVQ52+66DpOx5MmCz0NNxal8=
 cloud.google.com/go/security v1.8.0/go.mod h1:hAQOwgmaHhztFhiQ41CjDODdWP0+AE1B3sX4OFlq+GU=
+cloud.google.com/go/security v1.9.0 h1:o9frPOtXW2f4zMlw4SYPE42LRz/hhrYVWtAEUkPvyA4=
+cloud.google.com/go/security v1.9.0/go.mod h1:6Ta1bO8LXI89nZnmnsZGp9lVoVWXqsVbIq/t9dzI+2Q=
 cloud.google.com/go/securitycenter v1.13.0/go.mod h1:cv5qNAqjY84FCN6Y9z28WlkKXyWsgLO832YiWwkCWcU=
 cloud.google.com/go/securitycenter v1.14.0/go.mod h1:gZLAhtyKv85n52XYWt6RmeBdydyxfPeTrpToDPw4Auc=
 cloud.google.com/go/servicedirectory v1.4.0/go.mod h1:gH1MUaZCgtP7qQiI+F+A+OpeKF/HQWgtAddhTbhL2bs=
