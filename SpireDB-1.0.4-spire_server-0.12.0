@@ -1,0 +1,34 @@
+Spire-DB is in 1.0.4 and spire server is in older version:
+time="2022-10-21T08:48:59+05:30" level=error msg="Server crashed" error="Error 1045: ProxySQL Error: Access denied for user 'authnzAppUser'@'10.162.172.46' (using password: YES)"
+time="2022-10-27T18:29:16+05:30" level=warning msg="Current umask 0022 is too permissive; setting umask 0027"
+time="2022-10-27T18:29:16+05:30" level=info msg="Data directory: \"/myntra/data/server\""
+time="2022-10-27T18:29:16+05:30" level=info msg="Opening SQL database" db_type=mysql subsystem_name=built-in_plugin.sql
+time="2022-10-27T18:29:16+05:30" level=warning msg="DB schema is ahead of code version, upgrading SPIRE Server is recommended" schema=17 subsystem_name=built-in_plugin.sql version_info=1.0.4
+time="2022-10-27T18:29:16+05:30" level=info msg="Connected to SQL database" read_only=false subsystem_name=built-in_plugin.sql type=mysql version=8.0.28
+time="2022-10-27T18:29:16+05:30" level=info msg="Opening SQL database" db_type=mysql subsystem_name=built-in_plugin.sql
+time="2022-10-27T18:29:16+05:30" level=info msg="Connected to SQL database" read_only=true subsystem_name=built-in_plugin.sql type=mysql version=8.0.28
+time="2022-10-27T18:29:16+05:30" level=info msg="Plugin loaded" built-in_plugin=true plugin_name=disk plugin_services="[]" plugin_type=KeyManager subsystem_name=catalog
+time="2022-10-27T18:29:16+05:30" level=info msg="Plugin loaded" built-in_plugin=true plugin_name=azure_msi plugin_services="[]" plugin_type=NodeAttestor subsystem_name=catalog
+time="2022-10-27T18:29:16+05:30" level=info msg="Plugin loaded" built-in_plugin=true plugin_name=k8s_psat plugin_services="[]" plugin_type=NodeAttestor subsystem_name=catalog
+time="2022-10-27T18:29:16+05:30" level=info msg="Plugin loaded" built-in_plugin=true plugin_name=noop plugin_services="[]" plugin_type=NodeResolver subsystem_name=catalog
+time="2022-10-27T18:29:16+05:30" level=info msg="Plugin loaded" built-in_plugin=true plugin_name=azure_msi plugin_services="[]" plugin_type=NodeResolver subsystem_name=catalog
+time="2022-10-27T18:29:16+05:30" level=info msg="Plugins started"
+time="2022-10-27T18:29:16+05:30" level=debug msg="Loading journal" path=/myntra/data/server/journal.pem subsystem_name=ca_manager
+time="2022-10-27T18:29:16+05:30" level=info msg="Journal loaded" jwt_keys=0 subsystem_name=ca_manager x509_cas=0
+time="2022-10-27T18:29:16+05:30" level=debug msg="Preparing X509 CA" slot=A subsystem_name=ca_manager
+time="2022-10-27T18:29:17+05:30" level=info msg="X509 CA prepared" expiration="2022-11-03T12:59:16Z" issued_at="2022-10-27T12:59:16Z" self_signed=true slot=A subsystem_name=ca_manager
+time="2022-10-27T18:29:17+05:30" level=info msg="X509 CA activated" expiration="2022-11-03T12:59:16Z" issued_at="2022-10-27T12:59:16Z" slot=A subsystem_name=ca_manager
+time="2022-10-27T18:29:17+05:30" level=debug msg="Successfully rotated X.509 CA" subsystem_name=ca_manager trust_domain_id="spiffe://myntra.com" ttl=604798.9299342
+time="2022-10-27T18:29:17+05:30" level=debug msg="Preparing JWT key" slot=A subsystem_name=ca_manager
+time="2022-10-27T18:29:17+05:30" level=info msg="JWT key prepared" expiration="2022-11-03T12:59:17Z" issued_at="2022-10-27T12:59:17Z" slot=A subsystem_name=ca_manager
+time="2022-10-27T18:29:17+05:30" level=info msg="JWT key activated" expiration="2022-11-03T12:59:17Z" issued_at="2022-10-27T12:59:17Z" slot=A subsystem_name=ca_manager
+time="2022-10-27T18:29:17+05:30" level=debug msg="Rotating server SVID" subsystem_name=svid_rotator
+time="2022-10-27T18:29:17+05:30" level=debug msg="Signed X509 SVID" expiration="2022-10-28T00:59:17Z" spiffe_id="spiffe://myntra.com/spire/server" subsystem_name=ca
+time="2022-10-27T18:29:17+05:30" level=info msg="Building in-memory entry cache" subsystem_name=endpoints
+time="2022-10-27T18:29:17+05:30" level=info msg="Completed building in-memory entry cache" subsystem_name=endpoints
+time="2022-10-27T18:29:17+05:30" level=debug msg="Starting checker" name=server subsystem_name=health
+time="2022-10-27T18:29:17+05:30" level=debug msg="Initializing API endpoints" subsystem_name=endpoints
+time="2022-10-27T18:29:17+05:30" level=info msg="Serving health checks" address="0.0.0.0:8443"
+time="2022-10-27T18:29:17+05:30" level=info msg="Starting TCP server" address="[::]:8081" subsystem_name=endpoints
+time="2022-10-27T18:29:17+05:30" level=info msg="Starting UDS server" address=/tmp/spire-registration.sock subsystem_name=endpoints
+

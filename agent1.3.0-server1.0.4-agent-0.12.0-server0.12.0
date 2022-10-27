@@ -1,0 +1,120 @@
+[root@pac-patronus1 spire]# spire-agent --version
+1.3.0
+[root@pac-patronus1 bin]# spire-server --version
+1.0.4-dev-unk
+[root@pas-azdnstools1 ~]# spire-server -version
+0.12.0-dev-unk
+[root@pas-azdnstools1 bin]# spire-agent --version
+0.12.0-dev-unk
+Spire agent restart without deleteing cert directory
+[root@pas-azdnstools1 bin]# supervisorctl restart spire-agent
+spire-agent: stopped
+spire-agent: started
+[root@pas-azdnstools1 bin]# tail -10f /myntra/log/spire/agent.log
+time="2022-10-21T17:07:07+05:30" level=debug msg="SVID updated" entry=7edc6351-1432-4630-8d6a-98a3ce7def53 spiffe_id="spiffe://myntra.com/vendorservice" subsystem_name=cache_manager
+time="2022-10-21T17:07:07+05:30" level=debug msg="SVID updated" entry=a95439df-f443-4985-88a9-57284f1d372e spiffe_id="spiffe://myntra.com/ratings" subsystem_name=cache_manager
+time="2022-10-21T17:07:07+05:30" level=debug msg="SVID updated" entry=e75dda85-4437-4fd4-9ceb-7cfaa9837c60 spiffe_id="spiffe://myntra.com/giftcard-ui" subsystem_name=cache_manager
+time="2022-10-21T17:07:07+05:30" level=debug msg="SVID updated" entry=b9c214c1-e500-48c7-8992-2c06e32d9cc4 spiffe_id="spiffe://myntra.com/azjeeves" subsystem_name=cache_manager
+time="2022-10-21T17:07:07+05:30" level=debug msg="SVID updated" entry=08b06729-ea53-465a-b841-f04ec7e49d77 spiffe_id="spiffe://myntra.com/mwsazv2" subsystem_name=cache_manager
+time="2022-10-21T17:07:07+05:30" level=debug msg="SVID updated" entry=dc7640af-1e41-4984-826a-8ee3113f860f spiffe_id="spiffe://myntra.com/unitysso" subsystem_name=cache_manager
+time="2022-10-21T17:07:07+05:30" level=debug msg="SVID updated" entry=e0b60d0d-08f2-442c-ae21-b748e8148ba5 spiffe_id="spiffe://myntra.com/dataproductsddpui" subsystem_name=cache_manager
+time="2022-10-21T17:07:07+05:30" level=debug msg="Starting checker" name=agent subsystem_name=health
+time="2022-10-21T17:07:07+05:30" level=info msg="Serving health checks" address="0.0.0.0:8444"
+time="2022-10-21T17:07:07+05:30" level=info msg="Starting Workload and SDS APIs" subsystem_name=endpoints
+
+[root@pac-patronus1 spire]# supervisorctl restart spire-agent
+spire-agent: stopped
+spire-agent: started
+[root@pac-patronus1 spire]# tail -10f /myntra/log/spire/agent.log
+time="2022-10-21T17:09:41+05:30" level=debug msg="SVID updated" entry=e9b8e5bd-9703-4917-8acd-bb277a5eeb03 spiffe_id="spiffe://myntra.com/wms" subsystem_name=cache_manager
+time="2022-10-21T17:09:41+05:30" level=debug msg="SVID updated" entry=e3ac6d82-4b55-414e-9c93-98b2d1f3c120 spiffe_id="spiffe://myntra.com/erplogistics" subsystem_name=cache_manager
+time="2022-10-21T17:09:41+05:30" level=debug msg="SVID updated" entry=31b7967e-7892-4e64-8b59-cade8f49dd5e spiffe_id="spiffe://myntra.com/erpworms" subsystem_name=cache_manager
+time="2022-10-21T17:09:41+05:30" level=debug msg="SVID updated" entry=84ff71fd-a1d3-449f-af97-11a82ba5e7e4 spiffe_id="spiffe://myntra.com/munim" subsystem_name=cache_manager
+time="2022-10-21T17:09:41+05:30" level=debug msg="SVID updated" entry=70b6c164-485d-42f1-abf0-3cd7d879bf14 spiffe_id="spiffe://myntra.com/lms3pl" subsystem_name=cache_manager
+time="2022-10-21T17:09:41+05:30" level=debug msg="SVID updated" entry=ae862b19-ed87-4962-ab68-143c1029c1cb spiffe_id="spiffe://myntra.com/testsvid1" subsystem_name=cache_manager
+time="2022-10-21T17:09:41+05:30" level=debug msg="Bundle added" subsystem_name=svid_store_cache trust_domain_id=myntra.com
+time="2022-10-21T17:09:41+05:30" level=info msg="Starting Workload and SDS APIs" address=/run/spire/sockets/agent.sock network=unix subsystem_name=endpoints
+time="2022-10-21T17:09:42+05:30" level=debug msg="Starting checker" name=agent subsystem_name=health
+time="2022-10-21T17:09:42+05:30" level=info msg="Serving health checks" address="0.0.0.0:8444" subsystem_name=health
+
+spire-agent restart post cert dir clean
+[root@pas-azdnstools1 bin]# cd /myntra/data/agent/
+[root@pas-azdnstools1 agent]# ll
+total 12
+-rw------- 1 root root  576 Oct 21 17:07 agent_svid.der
+-rw------- 1 root root 3208 Oct 21 17:07 bundle.der
+-rw------- 1 root root  121 Oct 21 17:07 svid.key
+[root@pas-azdnstools1 agent]# rm -rf *
+[root@pas-azdnstools1 agent]# supervisorctl restart spire-agent
+spire-agent: stopped
+spire-agent: ERROR (spawn error)
+[root@pas-azdnstools1 agent]# tail -10f /myntra/log/spire/agent.log
+time="2022-10-21T17:10:41+05:30" level=info msg="Starting agent with data directory: \"/myntra/data/agent\""
+time="2022-10-21T17:10:41+05:30" level=info msg="Plugin loaded" built-in_plugin=true plugin_name=azure_msi plugin_services="[]" plugin_type=NodeAttestor subsystem_name=catalog
+time="2022-10-21T17:10:41+05:30" level=info msg="Plugin loaded" built-in_plugin=true plugin_name=unix plugin_services="[]" plugin_type=WorkloadAttestor subsystem_name=catalog
+time="2022-10-21T17:10:41+05:30" level=info msg="Plugin loaded" built-in_plugin=true plugin_name=disk plugin_services="[]" plugin_type=KeyManager subsystem_name=catalog
+time="2022-10-21T17:10:41+05:30" level=info msg="Bundle is not found" subsystem_name=attestor
+time="2022-10-21T17:10:41+05:30" level=debug msg="No pre-existing agent SVID found. Will perform node attestation" path=/myntra/data/agent/agent_svid.der subsystem_name=attestor
+time="2022-10-21T17:10:41+05:30" level=info msg="SVID is not found. Starting node attestation" subsystem_name=attestor
+time="2022-10-21T17:10:41+05:30" level=warning msg="Insecure bootstrap enabled; skipping server certificate verification" subsystem_name=attestor
+time="2022-10-21T17:10:41+05:30" level=warning msg="Insecure bootstrap enabled; skipping server certificate verification" subsystem_name=attestor
+time="2022-10-21T17:10:41+05:30" level=error msg="Agent crashed" error="failed to get SVID: error getting attestation response from SPIRE server: rpc error: code = Internal desc = failed to attest: azure-msi: MSI token has already been used to attest an agent"
+
+[root@pac-patronus1 spire]# cd /myntra/data/agent/
+[root@pac-patronus1 agent]# ll
+total 16
+-rw------- 1 root root  575 Oct 21 17:09 agent_svid.der
+-rw------- 1 root root 3208 Oct 21 17:09 bundle.der
+-rw------- 1 root root  222 Oct 21 16:15 keys.json
+-rw------- 1 root root  121 Oct 21 16:15 svid.key
+[root@pac-patronus1 agent]# rm -rf *
+[root@pac-patronus1 agent]# supervisorctl restart spire-agent
+spire-agent: stopped
+spire-agent: ERROR (spawn error)
+[root@pac-patronus1 agent]# tail -10f /myntra/log/spire/agent.log
+time="2022-10-21T17:11:26+05:30" level=info msg="SVID is not found. Starting node attestation" subsystem_name=attestor
+time="2022-10-21T17:11:26+05:30" level=warning msg="Insecure bootstrap enabled; skipping server certificate verification" subsystem_name=attestor
+time="2022-10-21T17:11:26+05:30" level=warning msg="Insecure bootstrap enabled; skipping server certificate verification" subsystem_name=attestor
+time="2022-10-21T17:11:26+05:30" level=debug msg="Unloading plugin" external=false plugin_name=unix plugin_type=WorkloadAttestor subsystem_name=catalog
+time="2022-10-21T17:11:26+05:30" level=info msg="Plugin unloaded" external=false plugin_name=unix plugin_type=WorkloadAttestor subsystem_name=catalog
+time="2022-10-21T17:11:26+05:30" level=debug msg="Unloading plugin" external=false plugin_name=azure_msi plugin_type=NodeAttestor subsystem_name=catalog
+time="2022-10-21T17:11:26+05:30" level=info msg="Plugin unloaded" external=false plugin_name=azure_msi plugin_type=NodeAttestor subsystem_name=catalog
+time="2022-10-21T17:11:26+05:30" level=debug msg="Unloading plugin" external=false plugin_name=disk plugin_type=KeyManager subsystem_name=catalog
+time="2022-10-21T17:11:26+05:30" level=info msg="Plugin unloaded" external=false plugin_name=disk plugin_type=KeyManager subsystem_name=catalog
+time="2022-10-21T17:11:26+05:30" level=error msg="Agent crashed" error="failed to receive attestation response: rpc error: code = PermissionDenied desc = nodeattestor(azure_msi): MSI token has already been used to attest an agent"
+
+[root@pas-azdnstools1 agent]# spire-server agent evict -spiffeID spiffe://myntra.com/spire/agent/azure_msi/bef3246c-1638-4c82-b2be-047aa022ad5f/1e276f64-b3e5-43c1-b7e5-38de186c787d
+Agent evicted successfully
+[root@pas-azdnstools1 agent]# supervisorctl restart spire-agent
+spire-agent: ERROR (not running)
+spire-agent: started
+
+Fetch from latest version and validate in old version
+[root@pac-patronus1 agent]# spire-agent api fetch jwt -audience myntra_internal -socketPath /run/spire/sockets/agent.sock -spiffeID spiffe://myntra.com/testsvid
+token(spiffe://myntra.com/testsvid):
+	eyJhbGciOiJFUzI1NiIsImtpZCI6Ilc4NHlSOGpLMzNOenNlODFRQm9hTENrTWs3YU85RUlJIiwidHlwIjoiSldUIn0.eyJhdWQiOlsibXludHJhX2ludGVybmFsIl0sImV4cCI6MTY2NjM1MzE0MCwiaWF0IjoxNjY2MzUyODQwLCJzdWIiOiJzcGlmZmU6Ly9teW50cmEuY29tL3Rlc3RzdmlkIn0.R4tAerLsIUiG_Flz6QPYzRYYcB8cig9EO3VxCjCt09ZwtAOT3qbvD8rzGQVHj79umQIgEKvqGDU_VpfY7tsCdw
+
+[root@pas-azdnstools1 agent]# spire-agent api validate jwt -audience myntra_internal -socketPath /run/spire/sockets/agent.sock -svid eyJhbGciOiJFUzI1NiIsImtpZCI6Ilc4NHlSOGpLMzNOenNlODFRQm9hTENrTWs3YU85RUlJIiwidHlwIjoiSldUIn0.eyJhdWQiOlsibXludHJhX2ludGVybmFsIl0sImV4cCI6MTY2NjM1MzE0MCwiaWF0IjoxNjY2MzUyODQwLCJzdWIiOiJzcGlmZmU6Ly9teW50cmEuY29tL3Rlc3RzdmlkIn0.R4tAerLsIUiG_Flz6QPYzRYYcB8cig9EO3VxCjCt09ZwtAOT3qbvD8rzGQVHj79umQIgEKvqGDU_VpfY7tsCdw -timeout 1s
+SVID is valid.
+SPIFFE ID : spiffe://myntra.com/testsvid
+Claims    : {"aud":["myntra_internal"],"exp":1666353140,"iat":1666352840,"sub":"spiffe://myntra.com/testsvid"}
+
+[root@pac-patronus1 agent]# spire-agent api validate jwt -audience myntra_internal -socketPath /run/spire/sockets/agent.sock -svid eyJhbGciOiJFUzI1NiIsImtpZCI6Ilc4NHlSOGpLMzNOenNlODFRQm9hTENrTWs3YU85RUlJIiwidHlwIjoiSldUIn0.eyJhdWQiOlsibXludHJhX2ludGVybmFsIl0sImV4cCI6MTY2NjM1MzE0MCwiaWF0IjoxNjY2MzUyODQwLCJzdWIiOiJzcGlmZmU6Ly9teW50cmEuY29tL3Rlc3RzdmlkIn0.R4tAerLsIUiG_Flz6QPYzRYYcB8cig9EO3VxCjCt09ZwtAOT3qbvD8rzGQVHj79umQIgEKvqGDU_VpfY7tsCdw -timeout 1s
+SVID is valid.
+SPIFFE ID : spiffe://myntra.com/testsvid
+Claims    : {"aud":["myntra_internal"], "exp":1666353140, "iat":1666352840, "sub":"spiffe://myntra.com/testsvid"}
+
+Fetch in old version and validate in new version
+[root@pas-azdnstools1 agent]# spire-agent api fetch jwt -audience myntra_internal -socketPath /run/spire/sockets/agent.sock -spiffeID spiffe://myntra.com/testsvid
+token(spiffe://myntra.com/testsvid):
+	eyJhbGciOiJFUzI1NiIsImtpZCI6IlBoVlZLQ1hsYXM5V2Fld0JzT0hvOXhndUFjZW9GYTlNIiwidHlwIjoiSldUIn0.eyJhdWQiOlsibXludHJhX2ludGVybmFsIl0sImV4cCI6MTY2NjM1MzMxMywiaWF0IjoxNjY2MzUzMDEzLCJzdWIiOiJzcGlmZmU6Ly9teW50cmEuY29tL3Rlc3RzdmlkIn0.lmAt7bKhSgV6wqVrwR89M3OZzTrEoU5dNS8evy49Y8PaFF-sFt8H3FbFsdGQqDL8unpt9TyL6e-gWlf4jgfAlg
+
+[root@pac-patronus1 agent]# spire-agent api validate jwt -audience myntra_internal -socketPath /run/spire/sockets/agent.sock -svid eyJhbGciOiJFUzI1NiIsImtpZCI6IlBoVlZLQ1hsYXM5V2Fld0JzT0hvOXhndUFjZW9GYTlNIiwidHlwIjoiSldUIn0.eyJhdWQiOlsibXludHJhX2ludGVybmFsIl0sImV4cCI6MTY2NjM1MzMxMywiaWF0IjoxNjY2MzUzMDEzLCJzdWIiOiJzcGlmZmU6Ly9teW50cmEuY29tL3Rlc3RzdmlkIn0.lmAt7bKhSgV6wqVrwR89M3OZzTrEoU5dNS8evy49Y8PaFF-sFt8H3FbFsdGQqDL8unpt9TyL6e-gWlf4jgfAlg -timeout 1s
+SVID is valid.
+SPIFFE ID : spiffe://myntra.com/testsvid
+Claims    : {"aud":["myntra_internal"], "exp":1666353313, "iat":1666353013, "sub":"spiffe://myntra.com/testsvid"}
+
+[root@pas-azdnstools1 agent]# spire-agent api validate jwt -audience myntra_internal -socketPath /run/spire/sockets/agent.sock -svid eyJhbGciOiJFUzI1NiIsImtpZCI6IlBoVlZLQ1hsYXM5V2Fld0JzT0hvOXhndUFjZW9GYTlNIiwidHlwIjoiSldUIn0.eyJhdWQiOlsibXludHJhX2ludGVybmFsIl0sImV4cCI6MTY2NjM1MzMxMywiaWF0IjoxNjY2MzUzMDEzLCJzdWIiOiJzcGlmZmU6Ly9teW50cmEuY29tL3Rlc3RzdmlkIn0.lmAt7bKhSgV6wqVrwR89M3OZzTrEoU5dNS8evy49Y8PaFF-sFt8H3FbFsdGQqDL8unpt9TyL6e-gWlf4jgfAlg -timeout 1s
+SVID is valid.
+SPIFFE ID : spiffe://myntra.com/testsvid
+Claims    : {"aud":["myntra_internal"],"exp":1666353313,"iat":1666353013,"sub":"spiffe://myntra.com/testsvid"}
