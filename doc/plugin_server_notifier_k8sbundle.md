@@ -136,7 +136,7 @@ server to
     }
 ```
 
-### Multipe clusters
+### Multiple clusters
 
 ```
     Notifier "k8sbundle" {

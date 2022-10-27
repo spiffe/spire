@@ -34,7 +34,7 @@ The configuration file is a **required** by the registrar. It contains
 | `pod_label`           | string   | optional  | The pod label used for [Label Based Workload Registration](#label-based-workload-registration)                                       |                                |
 | `pod_annotation`      | string   | optional  | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration)                        |                                |
 | `mode`                | string   | required  | How to run the registrar, either `"reconcile"` or `"crd"`. See [Differences](#differences-between-modes) for more details.           |                                |
-| `disabled_namespaces` | []string | optional  | Comma seperated list of namespaces to disable auto SVID generation for                                                               | `"kube-system", "kube-public"` |
+| `disabled_namespaces` | []string | optional  | Comma separated list of namespaces to disable auto SVID generation for                                                               | `"kube-system", "kube-public"` |
 
 The following configuration directives are specific to `"reconcile"` mode:
 
@@ -79,7 +79,7 @@ It may take several seconds for newly created SVIDs to become available to workl
 
 ### Federated Entry Registration
 
-The pod annotatation `spiffe.io/federatesWith` can be used to create SPIFFE ID's that federate with other trust domains.
+The pod annotation `spiffe.io/federatesWith` can be used to create SPIFFE ID's that federate with other trust domains.
 
 To specify multiple trust domains, separate them with commas.
 
