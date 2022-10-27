@@ -98,10 +98,6 @@ type RegisteredEntry struct {
 	// multiple SVIDs
 	Hint string
 
-	// TTL of X509 identities derived from this entry
-	// Deprecated: remove this in 1.6.0. The purpose of this column will be fulfilled by the TTL column
-	X509SvidTTL int32 `gorm:"column:x509_svid_ttl"`
-
 	// TTL of JWT identities derived from this entry
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
 }
