@@ -62,11 +62,11 @@ require (
 	github.com/zeebo/errs v1.3.0
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
-	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0
+	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.0.0-20220907062415-87db552b00fd
 	golang.org/x/time v0.1.0
-	google.golang.org/api v0.100.0
-	google.golang.org/genproto v0.0.0-20221014213838-99cd37c6964a
+	google.golang.org/api v0.101.0
+	google.golang.org/genproto v0.0.0-20221018160656-63c7b68cfc55
 	google.golang.org/grpc v1.50.1
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -203,7 +203,7 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
-	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/text v0.4.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
