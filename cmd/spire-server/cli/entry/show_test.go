@@ -37,10 +37,123 @@ func TestShow(t *testing.T) {
 	fakeRespFatherDaughter := &entryv1.ListEntriesResponse{
 		Entries: getEntries(2)[1:],
 	}
-
 	fakeRespMotherDaughter := &entryv1.ListEntriesResponse{
 		Entries: getEntries(3)[2:],
 	}
+
+	id00JSON := `{
+      "id": "00000000-0000-0000-0000-000000000000",
+      "spiffe_id": {
+        "trust_domain": "example.org",
+        "path": "/son"
+      },
+      "parent_id": {
+        "trust_domain": "example.org",
+        "path": "/father"
+      },
+      "selectors": [
+        {
+          "type": "foo",
+          "value": "bar"
+        }
+      ],
+      "ttl": 0,
+      "federates_with": [],
+      "admin": false,
+      "downstream": false,
+      "expires_at": "0",
+      "dns_names": [],
+      "revision_number": "0",
+      "store_svid": false
+    }`
+
+	id01JSON := `{
+      "id": "00000000-0000-0000-0000-000000000001",
+      "spiffe_id": {
+        "trust_domain": "example.org",
+        "path": "/daughter"
+      },
+      "parent_id": {
+        "trust_domain": "example.org",
+        "path": "/father"
+      },
+      "selectors": [
+        {
+          "type": "bar",
+          "value": "baz"
+        },
+        {
+          "type": "foo",
+          "value": "bar"
+        }
+      ],
+      "ttl": 0,
+      "federates_with": [],
+      "admin": false,
+      "downstream": false,
+      "expires_at": "0",
+      "dns_names": [],
+      "revision_number": "0",
+      "store_svid": false
+    }`
+
+	id02JSON := `{
+      "id": "00000000-0000-0000-0000-000000000002",
+      "spiffe_id": {
+        "trust_domain": "example.org",
+        "path": "/daughter"
+      },
+      "parent_id": {
+        "trust_domain": "example.org",
+        "path": "/mother"
+      },
+      "selectors": [
+        {
+          "type": "bar",
+          "value": "baz"
+        },
+        {
+          "type": "baz",
+          "value": "bat"
+        }
+      ],
+      "ttl": 0,
+      "federates_with": [
+        "spiffe://domain.test"
+      ],
+      "admin": false,
+      "downstream": false,
+      "expires_at": "0",
+      "dns_names": [],
+      "revision_number": "0",
+      "store_svid": false
+    }`
+
+	id03JSON := `{
+      "id": "00000000-0000-0000-0000-000000000003",
+      "spiffe_id": {
+        "trust_domain": "example.org",
+        "path": "/son"
+      },
+      "parent_id": {
+        "trust_domain": "example.org",
+        "path": "/mother"
+      },
+      "selectors": [
+        {
+          "type": "baz",
+          "value": "bat"
+        }
+      ],
+      "ttl": 0,
+      "federates_with": [],
+      "admin": false,
+      "downstream": false,
+      "expires_at": "1552410266",
+      "dns_names": [],
+      "revision_number": "0",
+      "store_svid": false
+    }`
 
 	for _, tt := range []struct {
 		name string
@@ -53,8 +166,9 @@ func TestShow(t *testing.T) {
 
 		serverErr error
 
-		expOut string
-		expErr string
+		expOutPretty string
+		expOutJSON   string
+		expErr       string
 	}{
 		{
 			name: "List all entries (empty filter)",
@@ -63,19 +177,26 @@ func TestShow(t *testing.T) {
 				Filter:   &entryv1.ListEntriesRequest_Filter{},
 			},
 			fakeListResp: fakeRespAll,
-			expOut: fmt.Sprintf("Found 4 entries\n%s%s%s%s",
+			expOutPretty: fmt.Sprintf("Found 4 entries\n%s%s%s%s",
 				getPrintedEntry(1),
 				getPrintedEntry(2),
 				getPrintedEntry(0),
 				getPrintedEntry(3),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s,%s,%s,%s],"next_page_token": ""}`,
+				id01JSON,
+				id02JSON,
+				id00JSON,
+				id03JSON,
+			),
 		},
 		{
-			name:        "List by entry ID",
-			args:        []string{"-entryID", getEntries(1)[0].Id},
-			expGetReq:   &entryv1.GetEntryRequest{Id: getEntries(1)[0].Id},
-			fakeGetResp: getEntries(1)[0],
-			expOut:      fmt.Sprintf("Found 1 entry\n%s", getPrintedEntry(0)),
+			name:         "List by entry ID",
+			args:         []string{"-entryID", getEntries(1)[0].Id},
+			expGetReq:    &entryv1.GetEntryRequest{Id: getEntries(1)[0].Id},
+			fakeGetResp:  getEntries(1)[0],
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s", getPrintedEntry(0)),
+			expOutJSON:   fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id00JSON),
 		},
 		{
 			name:      "List by entry ID not found",
@@ -99,10 +220,11 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespFather,
-			expOut: fmt.Sprintf("Found 2 entries\n%s%s",
+			expOutPretty: fmt.Sprintf("Found 2 entries\n%s%s",
 				getPrintedEntry(1),
 				getPrintedEntry(0),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s,%s],"next_page_token": ""}`, id01JSON, id00JSON),
 		},
 		{
 			name:   "List by parent ID using invalid ID",
@@ -119,10 +241,11 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespDaughter,
-			expOut: fmt.Sprintf("Found 2 entries\n%s%s",
+			expOutPretty: fmt.Sprintf("Found 2 entries\n%s%s",
 				getPrintedEntry(1),
 				getPrintedEntry(2),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s, %s],"next_page_token": ""}`, id01JSON, id02JSON),
 		},
 		{
 			name:   "List by SPIFFE ID using invalid ID",
@@ -145,9 +268,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(1),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
 		},
 		{
 			name: "List by selectors: exact matcher",
@@ -165,9 +289,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(1),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
 		},
 		{
 			name: "List by selectors: superset matcher",
@@ -185,9 +310,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(1),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
 		},
 		{
 			name: "List by selectors: subset matcher",
@@ -205,9 +331,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(1),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
 		},
 		{
 			name: "List by selectors: Any matcher",
@@ -225,9 +352,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(1),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
 		},
 		{
 			name:   "List by selectors: Invalid matcher",
@@ -264,9 +392,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(2),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
 		},
 		{
 			name: "List by Federates With: exact matcher",
@@ -281,9 +410,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(2),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
 		},
 		{
 			name: "List by Federates With: Any matcher",
@@ -298,9 +428,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(2),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
 		},
 		{
 			name: "List by Federates With: superset matcher",
@@ -315,9 +446,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(2),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
 		},
 		{
 			name: "List by Federates With: subset matcher",
@@ -332,9 +464,10 @@ func TestShow(t *testing.T) {
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,
-			expOut: fmt.Sprintf("Found 1 entry\n%s",
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
 				getPrintedEntry(2),
 			),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
 		},
 		{
 			name:   "List by Federates With: Invalid matcher",
@@ -342,25 +475,27 @@ func TestShow(t *testing.T) {
 			expErr: "Error: match behavior \"NO-MATCHER\" unknown\n",
 		},
 	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t, newShowCommand)
-			test.server.err = tt.serverErr
-			test.server.expListEntriesReq = tt.expListReq
-			test.server.listEntriesResp = tt.fakeListResp
-			test.server.expGetEntryReq = tt.expGetReq
-			test.server.getEntryResp = tt.fakeGetResp
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, newShowCommand)
+				test.server.err = tt.serverErr
+				test.server.expListEntriesReq = tt.expListReq
+				test.server.listEntriesResp = tt.fakeListResp
+				test.server.expGetEntryReq = tt.expGetReq
+				test.server.getEntryResp = tt.fakeGetResp
+				args := tt.args
+				args = append(args, "-output", format)
 
-			rc := test.client.Run(test.args(tt.args...))
-			if tt.expErr != "" {
-				require.Equal(t, 1, rc)
-				require.Equal(t, tt.expErr, test.stderr.String())
-				return
-			}
-
-			require.Equal(t, 0, rc)
-			require.Equal(t, tt.expOut, test.stdout.String())
-		})
+				rc := test.client.Run(test.args(args...))
+				if tt.expErr != "" {
+					require.Equal(t, 1, rc)
+					require.Equal(t, tt.expErr, test.stderr.String())
+					return
+				}
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expOutPretty, tt.expOutJSON)
+				require.Equal(t, 0, rc)
+			})
+		}
 	}
 }
 

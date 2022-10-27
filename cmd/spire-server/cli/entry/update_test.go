@@ -118,6 +118,183 @@ func TestUpdate(t *testing.T) {
 		Downstream:    true,
 	}
 
+	entry0JSON := `{
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "type",
+            "value": "key1:value"
+          },
+          {
+            "type": "type",
+            "value": "key2:value"
+          }
+        ],
+        "ttl": 60,
+        "federates_with": [
+          "spiffe://domaina.test",
+          "spiffe://domainb.test"
+        ],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "1552410266",
+        "dns_names": [
+          "unu1000",
+          "ung1000"
+        ],
+        "revision_number": "0",
+        "store_svid": true
+      }`
+	entry0AdminJSON := `{
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "zebra",
+            "value": "zebra:2000"
+          },
+          {
+            "type": "alpha",
+            "value": "alpha:2000"
+          }
+        ],
+        "ttl": 60,
+        "federates_with": [
+          "spiffe://domaina.test",
+          "spiffe://domainb.test"
+        ],
+        "admin": true,
+        "downstream": true,
+        "expires_at": "1552410266",
+        "dns_names": [
+          "unu1000",
+          "ung1000"
+        ],
+        "revision_number": "0",
+        "store_svid": false
+      }`
+	entry1JSON := `{
+        "id": "entry-id-1",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/Blog"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenBlog"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1111"
+          }
+        ],
+        "ttl": 200,
+        "federates_with": [],
+        "admin": true,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false
+      }
+    }`
+	entry2JSON := `{
+        "id": "entry-id-2",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/Database"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenDatabase"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1111"
+          }
+        ],
+        "ttl": 200,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false
+      }
+    }`
+	entry3JSON := `{
+        "id": "entry-id-3",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/Storesvid"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenDatabase"
+        },
+        "selectors": [
+          {
+            "type": "type",
+            "value": "key1:value"
+          },
+          {
+            "type": "type",
+            "value": "key2:value"
+          }
+        ],
+        "ttl": 200,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": true
+      }`
+	nonExistentEntryJSON := `{
+        "id": "non-existent-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1"
+          }
+        ],
+        "ttl": 0,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false
+      }`
+
 	fakeRespOKFromFile := &entryv1.BatchUpdateEntryResponse{
 		Results: []*entryv1.BatchUpdateEntryResponse_Result{
 			{
@@ -154,37 +331,45 @@ func TestUpdate(t *testing.T) {
 		fakeResp  *entryv1.BatchUpdateEntryResponse
 		serverErr error
 
-		expOut string
-		expErr string
+		expOutPretty string
+		expOutJSON   string
+		expErrPretty string
+		expErrJSON   string
 	}{
 		{
-			name:   "Missing Entry ID",
-			expErr: "Error: entry ID is required\n",
+			name:         "Missing Entry ID",
+			expErrPretty: "Error: entry ID is required\n",
+			expErrJSON:   "Error: entry ID is required\n",
 		},
 		{
-			name:   "Missing selectors",
-			args:   []string{"-entryID", "entry-id"},
-			expErr: "Error: at least one selector is required\n",
+			name:         "Missing selectors",
+			args:         []string{"-entryID", "entry-id"},
+			expErrPretty: "Error: at least one selector is required\n",
+			expErrJSON:   "Error: at least one selector is required\n",
 		},
 		{
-			name:   "Missing parent SPIFFE ID",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix:uid:1"},
-			expErr: "Error: a parent ID is required\n",
+			name:         "Missing parent SPIFFE ID",
+			args:         []string{"-entryID", "entry-id", "-selector", "unix:uid:1"},
+			expErrPretty: "Error: a parent ID is required\n",
+			expErrJSON:   "Error: a parent ID is required\n",
 		},
 		{
-			name:   "Missing SPIFFE ID",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix:uid:1", "-parentID", "spiffe://example.org/parent"},
-			expErr: "Error: a SPIFFE ID is required\n",
+			name:         "Missing SPIFFE ID",
+			args:         []string{"-entryID", "entry-id", "-selector", "unix:uid:1", "-parentID", "spiffe://example.org/parent"},
+			expErrPretty: "Error: a SPIFFE ID is required\n",
+			expErrJSON:   "Error: a SPIFFE ID is required\n",
 		},
 		{
-			name:   "Wrong selectors",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload"},
-			expErr: "Error: selector \"unix\" must be formatted as type:value\n",
+			name:         "Wrong selectors",
+			args:         []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload"},
+			expErrPretty: "Error: selector \"unix\" must be formatted as type:value\n",
+			expErrJSON:   "Error: selector \"unix\" must be formatted as type:value\n",
 		},
 		{
-			name:   "Negative TTL",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "-10"},
-			expErr: "Error: a positive TTL is required\n",
+			name:         "Negative TTL",
+			args:         []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "-10"},
+			expErrPretty: "Error: a positive TTL is required\n",
+			expErrJSON:   "Error: a positive TTL is required\n",
 		},
 		{
 			name:   "Invalid TTL and X509SvidTtl",
@@ -212,8 +397,9 @@ func TestUpdate(t *testing.T) {
 					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
 				},
 			}},
-			serverErr: errors.New("server-error"),
-			expErr:    "Error: rpc error: code = Unknown desc = server-error\n",
+			serverErr:    errors.New("server-error"),
+			expErrPretty: "Error: rpc error: code = Unknown desc = server-error\n",
+			expErrJSON:   "Error: rpc error: code = Unknown desc = server-error\n",
 		},
 		{
 			name: "Update succeeds using command line arguments",
@@ -237,7 +423,7 @@ func TestUpdate(t *testing.T) {
 				Entries: []*types.Entry{entry1},
 			},
 			fakeResp: fakeRespOKFromCmd,
-			expOut: fmt.Sprintf(`Entry ID         : entry-id
+			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
@@ -293,6 +479,17 @@ DNS name         : ung1000
 Admin            : true
 
 `, time.Unix(1552410266, 0).UTC()),
+			expOutJSON: fmt.Sprintf(`{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": %s
+    }
+  ]
+}`, entry0AdminJSON),
 		},
 		{
 			name: "Update succeeds using command line arguments Store Svid",
@@ -325,7 +522,7 @@ Admin            : true
 					},
 				},
 			},
-			expOut: fmt.Sprintf(`Entry ID         : entry-id
+			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
@@ -341,6 +538,17 @@ DNS name         : ung1000
 StoreSvid        : true
 
 `, time.Unix(1552410266, 0).UTC()),
+			expOutJSON: fmt.Sprintf(`{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": %s
+    }
+  ]
+}`, entry0JSON),
 		},
 		{
 			name: "Update succeeds using data file",
@@ -351,7 +559,7 @@ StoreSvid        : true
 				Entries: []*types.Entry{entry2, entry3, entry4},
 			},
 			fakeResp: fakeRespOKFromFile,
-			expOut: `Entry ID         : entry-id-1
+			expOutPretty: `Entry ID         : entry-id-1
 SPIFFE ID        : spiffe://example.org/Blog
 Parent ID        : spiffe://example.org/spire/agent/join_token/TokenBlog
 Revision         : 0
@@ -379,6 +587,30 @@ Selector         : type:key2:value
 StoreSvid        : true
 
 `,
+			expOutJSON: fmt.Sprintf(`
+{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": %s,
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": %s,
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": %s
+    }
+  ]
+}`, entry1JSON, entry2JSON, entry3JSON),
 		},
 		{
 			name: "Entry not found",
@@ -392,7 +624,7 @@ StoreSvid        : true
 				},
 			}},
 			fakeResp: fakeRespErr,
-			expErr: `Failed to update the following entry (code: NotFound, msg: "failed to update entry: datastore-sql: record not found"):
+			expErrPretty: `Failed to update the following entry (code: NotFound, msg: "failed to update entry: datastore-sql: record not found"):
 Entry ID         : non-existent-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
@@ -403,24 +635,44 @@ Selector         : unix:uid:1
 
 Error: failed to update one or more entries
 `,
+			expOutJSON: fmt.Sprintf(`{
+  "results": [
+    {
+      "status": {
+        "code": 5,
+        "message": "failed to update entry: datastore-sql: record not found"
+      },
+      "entry": %s
+    }
+  ]
+}`, nonExistentEntryJSON),
 		},
 	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t, newUpdateCommand)
-			test.server.err = tt.serverErr
-			test.server.expBatchUpdateEntryReq = tt.expReq
-			test.server.batchUpdateEntryResp = tt.fakeResp
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, newUpdateCommand)
+				test.server.err = tt.serverErr
+				test.server.expBatchUpdateEntryReq = tt.expReq
+				test.server.batchUpdateEntryResp = tt.fakeResp
+				args := tt.args
+				args = append(args, "-output", format)
 
-			rc := test.client.Run(test.args(tt.args...))
-			if tt.expErr != "" {
-				require.Equal(t, 1, rc)
-				require.Equal(t, tt.expErr, test.stderr.String())
-				return
-			}
+				rc := test.client.Run(test.args(args...))
 
-			require.Equal(t, 0, rc)
-			require.Equal(t, tt.expOut, test.stdout.String())
-		})
+				if tt.expErrJSON != "" && format == "json" {
+					require.Equal(t, 1, rc)
+					require.Equal(t, tt.expErrJSON, test.stderr.String())
+					return
+				}
+				if tt.expErrPretty != "" && format == "pretty" {
+					require.Equal(t, 1, rc)
+					require.Equal(t, tt.expErrPretty, test.stderr.String())
+					return
+				}
+
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expOutPretty, tt.expOutJSON)
+				require.Equal(t, 0, rc)
+			})
+		}
 	}
 }

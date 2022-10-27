@@ -2,11 +2,11 @@ package entry
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -15,9 +15,7 @@ func TestDeleteHelp(t *testing.T) {
 	test := setupTest(t, newDeleteCommand)
 	test.client.Help()
 
-	require.Equal(t, `Usage of entry delete:
-  -entryID string
-    	The Registration Entry ID of the record to delete`+common.AddrUsage, test.stderr.String())
+	require.Equal(t, deleteUsage, test.stderr.String())
 }
 
 func TestDeleteSynopsis(t *testing.T) {
@@ -58,51 +56,65 @@ func TestDelete(t *testing.T) {
 		fakeResp  *entryv1.BatchDeleteEntryResponse
 		serverErr error
 
-		expOut string
-		expErr string
+		expOutPretty string
+		expOutJSON   string
+		expErrPretty string
+		expErrJSON   string
 	}{
 		{
-			name:   "Empty entry ID",
-			expErr: "Error: an entry ID is required\n",
+			name:         "Empty entry ID",
+			expErrPretty: "Error: an entry ID is required\n",
+			expErrJSON:   "Error: an entry ID is required\n",
 		},
 		{
-			name:     "Entry not found",
-			args:     []string{"-entryID", "entry-id"},
-			expReq:   &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
-			fakeResp: fakeRespErr,
-			expErr:   "Error: failed to delete entry: entry not found\n",
+			name:         "Entry not found",
+			args:         []string{"-entryID", "entry-id"},
+			expReq:       &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
+			fakeResp:     fakeRespErr,
+			expErrPretty: "Error: failed to delete entry: entry not found\n",
+			expOutJSON:   `{"results":[{"status":{"code":5,"message":"entry not found"},"id":"entry-id"}]}`,
 		},
 		{
-			name:      "Server error",
-			args:      []string{"-entryID", "entry-id"},
-			expReq:    &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
-			serverErr: errors.New("server-error"),
-			expErr:    "Error: rpc error: code = Unknown desc = server-error\n",
+			name:         "Server error",
+			args:         []string{"-entryID", "entry-id"},
+			expReq:       &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
+			serverErr:    errors.New("server-error"),
+			expErrPretty: "Error: rpc error: code = Unknown desc = server-error\n",
+			expErrJSON:   "Error: rpc error: code = Unknown desc = server-error\n",
 		},
 		{
-			name:     "Delete succeeds",
-			args:     []string{"-entryID", "entry-id"},
-			expReq:   &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
-			fakeResp: fakeRespOK,
-			expOut:   "Deleted entry with ID: entry-id\n",
+			name:         "Delete succeeds",
+			args:         []string{"-entryID", "entry-id"},
+			expReq:       &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
+			fakeResp:     fakeRespOK,
+			expOutPretty: "Deleted entry with ID: entry-id\n",
+			expOutJSON:   `{"results":[{"status":{"code":0,"message":"OK"},"id":"entry-id"}]}`,
 		},
 	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t, newDeleteCommand)
-			test.server.err = tt.serverErr
-			test.server.expBatchDeleteEntryReq = tt.expReq
-			test.server.batchDeleteEntryResp = tt.fakeResp
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, newDeleteCommand)
+				test.server.err = tt.serverErr
+				test.server.expBatchDeleteEntryReq = tt.expReq
+				test.server.batchDeleteEntryResp = tt.fakeResp
+				args := tt.args
+				args = append(args, "-output", format)
 
-			rc := test.client.Run(test.args(tt.args...))
-			if tt.expErr != "" {
-				require.Equal(t, 1, rc)
-				require.Equal(t, tt.expErr, test.stderr.String())
-				return
-			}
+				rc := test.client.Run(test.args(args...))
 
-			require.Equal(t, 0, rc)
-			require.Equal(t, tt.expOut, test.stdout.String())
-		})
+				if tt.expErrJSON != "" && format == "json" {
+					require.Equal(t, 1, rc)
+					require.Equal(t, tt.expErrJSON, test.stderr.String())
+					return
+				}
+				if tt.expErrPretty != "" && format == "pretty" {
+					require.Equal(t, 1, rc)
+					require.Equal(t, tt.expErrPretty, test.stderr.String())
+					return
+				}
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expOutPretty, tt.expOutJSON)
+				require.Equal(t, 0, rc)
+			})
+		}
 	}
 }
