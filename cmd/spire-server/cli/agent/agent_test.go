@@ -201,7 +201,7 @@ func TestCount(t *testing.T) {
 			name:                 "0 agents",
 			expectedReturnCode:   0,
 			expectedStdoutPretty: "0 attested agents",
-			expectedStdoutJSON:   "{}",
+			expectedStdoutJSON:   `{"count":0}`,
 		},
 		{
 			name:                 "count 1 agent",
@@ -266,7 +266,7 @@ func TestList(t *testing.T) {
 			expectedReturnCode:   0,
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false}],"next_page_token":""}`,
 			expectReq: &agentv1.ListAgentsRequest{
 				Filter:   &agentv1.ListAgentsRequest_Filter{},
 				PageSize: 1000,
@@ -275,7 +275,7 @@ func TestList(t *testing.T) {
 		{
 			name:               "no agents",
 			expectedReturnCode: 0,
-			expectedStdoutJSON: "{}",
+			expectedStdoutJSON: `{"agents":[],"next_page_token":""}`,
 			expectReq: &agentv1.ListAgentsRequest{
 				Filter:   &agentv1.ListAgentsRequest_Filter{},
 				PageSize: 1000,
@@ -308,7 +308,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false}],"next_page_token":""}`,
 		},
 		{
 			name: "by selector: any matcher",
@@ -327,7 +327,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false}],"next_page_token":""}`,
 		},
 		{
 			name: "by selector: exact matcher",
@@ -346,7 +346,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false}],"next_page_token":""}`,
 		},
 		{
 			name: "by selector: superset matcher",
@@ -365,7 +365,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false}],"next_page_token":""}`,
 		},
 		{
 			name: "by selector: subset matcher",
@@ -384,7 +384,7 @@ func TestList(t *testing.T) {
 			},
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}]}`,
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false}],"next_page_token":""}`,
 		},
 		{
 			name:               "List by selectors: Invalid matcher",
@@ -448,7 +448,7 @@ func TestShow(t *testing.T) {
 			expectedReturnCode:   0,
 			existentAgents:       testAgents,
 			expectedStdoutPretty: "Found an attested agent given its SPIFFE ID\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
-			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"}}`,
+			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false}`,
 		},
 		{
 			name:               "no spiffe id",
@@ -475,7 +475,7 @@ func TestShow(t *testing.T) {
 			existentAgents:       testAgentsWithSelectors,
 			expectedReturnCode:   0,
 			expectedStdoutPretty: "Selectors         : k8s_psat:agent_ns:spire\nSelectors         : k8s_psat:agent_sa:spire-agent\nSelectors         : k8s_psat:cluster:demo-cluster",
-			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/agent2"},"selectors":[{"type":"k8s_psat","value":"agent_ns:spire"},{"type":"k8s_psat","value":"agent_sa:spire-agent"},{"type":"k8s_psat","value":"cluster:demo-cluster"}]}`,
+			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/agent2"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[{"type":"k8s_psat","value":"agent_ns:spire"},{"type":"k8s_psat","value":"agent_sa:spire-agent"},{"type":"k8s_psat","value":"cluster:demo-cluster"}],"banned":false}`,
 		},
 		{
 			name:                 "show banned",
@@ -483,7 +483,7 @@ func TestShow(t *testing.T) {
 			existentAgents:       testAgentsWithBanned,
 			expectedReturnCode:   0,
 			expectedStdoutPretty: "Banned            : true",
-			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/banned"},"banned":true}`,
+			expectedStdoutJSON:   `{"id":{"trust_domain":"example.org","path":"/spire/agent/banned"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":true}`,
 		},
 	} {
 		for _, format := range availableFormats {
