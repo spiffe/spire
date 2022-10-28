@@ -26,7 +26,7 @@ The following actions are required to set up the plugin.
     - In the case of in-cluster SPIRE server, it is Service Account that runs the SPIRE server
     - In the case of out-of-cluster SPIRE server, it is Service Account that interacts with the Kubernetes API server
     - In the case of setting `webhook_label`, the ClusterRole or Role additionally needs permissions to `get`, `list`, `patch`, and `watch` `mutatingwebhookconfigurations` and `validatingwebhookconfigurations`.
-    - In the case of setting `api_service_label`, the ClusterRole or Role additonally needs permissions to `get`, `list`, `patch`, and `watch` `apiservices`.
+    - In the case of setting `api_service_label`, the ClusterRole or Role additionally needs permissions to `get`, `list`, `patch`, and `watch` `apiservices`.
 - Create the ConfigMap that the plugin pushes
 
 For example:

@@ -51,7 +51,7 @@ The configuration file is a **required** by the registrar. It contains
 | `server_address`                | string            | required  | Address of the spire server. A local socket can be specified using unix:///path/to/socket. This is not the same as the agent socket.                                        |                                                    |
 | `server_socket_path`            | string            | optional  | Path to the Unix domain socket of the SPIRE server, equivalent to specifying a server_address with a "unix://..." prefix                                                    |                                                    |
 | `trust_domain`                  | string            | required  | Trust domain of the SPIRE server                                                                                                                                            |                                                    |
-| `webhook_enabled`               | bool              | optional  | Enable a validating webhook to ensure CRDs are properly formatted and there are no duplicates.                                                                               | `false`                                            |
+| `webhook_enabled`               | bool              | optional  | Enable a validating webhook to ensure CRDs are properly formatted and there are no duplicates.                                                                              | `false`                                            |
 | `webhook_port`                  | int               | optional  | The port to use for the validating webhook.                                                                                                                                 | `9443`                                             |
 | `webhook_service_name`          | string            | optional  | The name of the Kubernetes Service being used for the webhook.                                                                                                              | `"k8s-workload-registrar"`                         |
 
@@ -373,7 +373,7 @@ The default SPIFFE ID created with [Identity Template Based Workload Registratio
 
 ### Federated Entry Registration
 
-The pod annotatation `spiffe.io/federatesWith` can be used to create SPIFFE ID's that federate with other trust domains.
+The pod annotation `spiffe.io/federatesWith` can be used to create SPIFFE ID's that federate with other trust domains.
 
 To specify multiple trust domains, separate them with commas.
 
