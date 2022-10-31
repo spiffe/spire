@@ -173,7 +173,7 @@ shared volume containing the socket file.
 ### Reconcile Mode Configuration
 
 To use reconcile mode you need to create appropriate roles and bind them to the ServiceAccount you intend to run the controller as.
-An example can be found in `mode-reconcile/config/role.yaml`, which you would apply with `kubectl apply -f mode-reconcile/config/role.yaml`
+An example can be found in `mode-reconcile/config/roles.yaml`, which you would apply with `kubectl apply -f mode-reconcile/config/role.yaml`
 
 ### CRD Mode Configuration
 
