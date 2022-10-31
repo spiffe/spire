@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/mitchellh/cli"
@@ -125,26 +126,26 @@ func printAgents(env *commoncli.Env, agents ...*types.Agent) error {
 		}
 
 		if err := env.Printf("SPIFFE ID         : %s\n", id.String()); err != nil {
-			return err
+			exitWithError(env, err)
 		}
 		if err := env.Printf("Attestation type  : %s\n", agent.AttestationType); err != nil {
-			return err
+			exitWithError(env, err)
 		}
 		if err := env.Printf("Expiration time   : %s\n", time.Unix(agent.X509SvidExpiresAt, 0)); err != nil {
-			return err
+			exitWithError(env, err)
 		}
 		// Banned agents will have an empty serial number
 		if agent.Banned {
 			if err := env.Printf("Banned            : %t\n", agent.Banned); err != nil {
-				return err
+				exitWithError(env, err)
 			}
 		} else {
 			if err := env.Printf("Serial number     : %s\n", agent.X509SvidSerialNumber); err != nil {
-				return err
+				exitWithError(env, err)
 			}
 		}
 		if err := env.Println(); err != nil {
-			return err
+			exitWithError(env, err)
 		}
 	}
 
@@ -164,4 +165,9 @@ func parseToSelectorMatch(match string) (types.SelectorMatch_MatchBehavior, erro
 	default:
 		return types.SelectorMatch_MATCH_SUPERSET, errors.New("unsupported match behavior")
 	}
+}
+
+func exitWithError(env *commoncli.Env, err error) {
+	env.ErrPrintln("Error: " + err.Error())
+	os.Exit(1)
 }
