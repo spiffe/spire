@@ -831,10 +831,17 @@ func TestServiceNewJWTSVID(t *testing.T) {
 		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
 	}
 	entryWithTTL := &types.Entry{
-		Id:       "agent-entry-ttl-id",
-		ParentId: api.ProtoFromID(agentID),
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-ttl"},
-		Ttl:      10,
+		Id:          "agent-entry-ttl-id",
+		ParentId:    api.ProtoFromID(agentID),
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-ttl"},
+		X509SvidTtl: 10,
+	}
+	entryWithJWTTTL := &types.Entry{
+		Id:          "agent-entry-ttl-id",
+		ParentId:    api.ProtoFromID(agentID),
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-ttl"},
+		X509SvidTtl: 30, // ensure this isn't used
+		JwtSvidTtl:  10,
 	}
 	invalidEntry := &types.Entry{
 		Id:       "invalid-entry",
@@ -842,7 +849,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 		SpiffeId: &types.SPIFFEID{},
 	}
 
-	test.ef.entries = []*types.Entry{entry, entryWithTTL, invalidEntry}
+	test.ef.entries = []*types.Entry{entry, entryWithTTL, entryWithJWTTTL, invalidEntry}
 	jwtKey := test.ca.JWTKey()
 	now := test.ca.Clock().Now().UTC()
 
@@ -885,6 +892,25 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			name:      "success custom TTL",
 			audience:  []string{"AUDIENCE"},
 			entry:     entryWithTTL,
+			expiresAt: now.Add(10 * time.Second),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Audience:       "AUDIENCE",
+						telemetry.RegistrationID: "agent-entry-ttl-id",
+						telemetry.TTL:            "10",
+					},
+				},
+			},
+		},
+		{
+			name:      "success custom JWT TTL",
+			audience:  []string{"AUDIENCE"},
+			entry:     entryWithJWTTTL,
 			expiresAt: now.Add(10 * time.Second),
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -1102,7 +1128,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 				issuedAt,
 				tt.expiresAt,
 				expiresAt,
-				time.Duration(tt.entry.Ttl)*time.Second)
+				time.Duration(tt.entry.X509SvidTtl)*time.Second)
 		})
 	}
 }
@@ -1123,22 +1149,32 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 		DnsNames: []string{"entryDNS1", "entryDNS2"},
 	}
 	ttlEntry := &types.Entry{
-		Id:       "ttl",
-		ParentId: api.ProtoFromID(agentID),
-		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/ttl"},
-		Ttl:      10,
+		Id:          "ttl",
+		ParentId:    api.ProtoFromID(agentID),
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/ttl"},
+		X509SvidTtl: 10,
+		JwtSvidTtl:  30, // ensures this is ignored
+	}
+	x509TtlEntry := &types.Entry{
+		Id:          "x509ttl",
+		ParentId:    api.ProtoFromID(agentID),
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/ttl"},
+		X509SvidTtl: 50,
+		JwtSvidTtl:  30, // ensures this is ignored
 	}
 	invalidEntry := &types.Entry{
 		Id:       "invalid",
 		ParentId: api.ProtoFromID(agentID),
 	}
-	test.ef.entries = []*types.Entry{workloadEntry, dnsEntry, ttlEntry, invalidEntry}
+	test.ef.entries = []*types.Entry{workloadEntry, dnsEntry, ttlEntry, x509TtlEntry, invalidEntry}
 
 	x509CA := test.ca.X509CA()
 	now := test.ca.Clock().Now().UTC()
 
-	expiresAtFromTTLEntry := now.Add(time.Duration(ttlEntry.Ttl) * time.Second).Unix()
+	expiresAtFromTTLEntry := now.Add(time.Duration(ttlEntry.X509SvidTtl) * time.Second).Unix()
 	expiresAtFromTTLEntryStr := strconv.FormatInt(expiresAtFromTTLEntry, 10)
+	expiresAtFromX509TTLEntry := now.Add(time.Duration(x509TtlEntry.X509SvidTtl) * time.Second).Unix()
+	expiresAtFromX509TTLEntryStr := strconv.FormatInt(expiresAtFromX509TTLEntry, 10)
 	expiresAtFromCA := now.Add(test.ca.X509SVIDTTL()).Unix()
 	expiresAtFromCAStr := strconv.FormatInt(expiresAtFromCA, 10)
 
@@ -1205,6 +1241,29 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "ttl",
 							telemetry.Csr:            api.HashByte(m["ttl"]),
 							telemetry.ExpiresAt:      expiresAtFromTTLEntryStr,
+						},
+					},
+				}
+			},
+		}, {
+			name: "custom x509 ttl",
+			reqs: []string{x509TtlEntry.Id},
+			expectResults: []*expectResult{
+				{
+					entry: x509TtlEntry,
+				},
+			},
+			expectLogs: func(m map[string][]byte) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: "x509ttl",
+							telemetry.Csr:            api.HashByte(m["x509ttl"]),
+							telemetry.ExpiresAt:      expiresAtFromX509TTLEntryStr,
 						},
 					},
 				}
@@ -1725,8 +1784,8 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 
 				// Use entry ttl when defined
 				ttl := test.ca.X509SVIDTTL()
-				if entry.Ttl != 0 {
-					ttl = time.Duration(entry.Ttl) * time.Second
+				if entry.X509SvidTtl != 0 {
+					ttl = time.Duration(entry.X509SvidTtl) * time.Second
 				}
 				expiresAt := now.Add(ttl)
 

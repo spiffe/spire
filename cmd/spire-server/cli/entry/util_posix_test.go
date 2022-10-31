@@ -17,6 +17,8 @@ const (
     	An expiry, from epoch in seconds, for the resulting registration entry to be pruned
   -federatesWith value
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
+  -jwtSVIDTTL int
+    	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl flag
   -node
     	If set, this entry will be applied to matching nodes rather than workloads
   -parentID string
@@ -30,7 +32,9 @@ const (
   -storeSVID
     	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
   -ttl int
-    	The lifetime, in seconds, for SVIDs issued based on this registration entry
+    	The lifetime, in seconds, for SVIDs issued based on this registration entry. This flag is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version
+  -x509SVIDTTL int
+    	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl flag
 `
 	showUsage = `Usage of entry show:
   -downstream
@@ -67,6 +71,8 @@ const (
     	The Registration Entry ID of the record to update
   -federatesWith value
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
+  -jwtSVIDTTL int
+    	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl flag
   -parentID string
     	The SPIFFE ID of this record's parent
   -selector value
@@ -78,6 +84,8 @@ const (
   -storeSVID
     	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
   -ttl int
-    	The lifetime, in seconds, for SVIDs issued based on this registration entry
+    	The lifetime, in seconds, for SVIDs issued based on this registration entry. This flag is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version
+  -x509SVIDTTL int
+    	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl flag
 `
 )

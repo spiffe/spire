@@ -19,11 +19,11 @@ type Block struct {
 }
 
 func LoadBlocks(path string) ([]Block, error) {
-	return loadBlocks(path, 0, "")
+	return loadBlocks(path, 0)
 }
 
 func ParseBlocks(pemBytes []byte) ([]Block, error) {
-	return parseBlocks(pemBytes, 0, "")
+	return parseBlocks(pemBytes, 0)
 }
 
 func loadBlock(path string, expectedTypes ...string) (*Block, error) {

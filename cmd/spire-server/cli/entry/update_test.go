@@ -33,7 +33,8 @@ func TestUpdate(t *testing.T) {
 			{Type: "zebra", Value: "zebra:2000"},
 			{Type: "alpha", Value: "alpha:2000"},
 		},
-		Ttl:           60,
+		X509SvidTtl:   60,
+		JwtSvidTtl:    30,
 		FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
 		Admin:         true,
 		ExpiresAt:     1552410266,
@@ -49,7 +50,8 @@ func TestUpdate(t *testing.T) {
 			{Type: "type", Value: "key1:value"},
 			{Type: "type", Value: "key2:value"},
 		},
-		Ttl:           60,
+		X509SvidTtl:   60,
+		JwtSvidTtl:    30,
 		FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
 		ExpiresAt:     1552410266,
 		DnsNames:      []string{"unu1000", "ung1000"},
@@ -68,20 +70,22 @@ func TestUpdate(t *testing.T) {
 	}
 
 	entry2 := &types.Entry{
-		Id:        "entry-id-1",
-		SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
-		ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
-		Selectors: []*types.Selector{{Type: "unix", Value: "uid:1111"}},
-		Ttl:       200,
-		Admin:     true,
+		Id:          "entry-id-1",
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
+		Selectors:   []*types.Selector{{Type: "unix", Value: "uid:1111"}},
+		X509SvidTtl: 200,
+		JwtSvidTtl:  300,
+		Admin:       true,
 	}
 
 	entry3 := &types.Entry{
-		Id:        "entry-id-2",
-		SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
-		ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
-		Selectors: []*types.Selector{{Type: "unix", Value: "uid:1111"}},
-		Ttl:       200,
+		Id:          "entry-id-2",
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+		Selectors:   []*types.Selector{{Type: "unix", Value: "uid:1111"}},
+		X509SvidTtl: 200,
+		JwtSvidTtl:  300,
 	}
 
 	entry4 := &types.Entry{
@@ -92,8 +96,26 @@ func TestUpdate(t *testing.T) {
 			{Type: "type", Value: "key1:value"},
 			{Type: "type", Value: "key2:value"},
 		},
-		StoreSvid: true,
-		Ttl:       200,
+		StoreSvid:   true,
+		X509SvidTtl: 200,
+		JwtSvidTtl:  300,
+	}
+
+	entry5 := &types.Entry{
+		Id:       "entry-id",
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+		Selectors: []*types.Selector{
+			{Type: "zebra", Value: "zebra:2000"},
+			{Type: "alpha", Value: "alpha:2000"},
+		},
+		X509SvidTtl:   60,
+		JwtSvidTtl:    0,
+		FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
+		Admin:         true,
+		ExpiresAt:     1552410266,
+		DnsNames:      []string{"unu1000", "ung1000"},
+		Downstream:    true,
 	}
 
 	fakeRespOKFromFile := &entryv1.BatchUpdateEntryResponse{
@@ -165,6 +187,21 @@ func TestUpdate(t *testing.T) {
 			expErr: "Error: a positive TTL is required\n",
 		},
 		{
+			name:   "Invalid TTL and X509SvidTtl",
+			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20"},
+			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+		},
+		{
+			name:   "Invalid TTL and JwtSvidTtl",
+			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-jwtSVIDTTL", "20"},
+			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+		},
+		{
+			name:   "Invalid TTL and both X509SvidTtl and JwtSvidTtl",
+			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20", "-jwtSVIDTTL", "30"},
+			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+		},
+		{
 			name: "Server error",
 			args: []string{"-entryID", "entry-id", "-spiffeID", "spiffe://example.org/workload", "-parentID", "spiffe://example.org/parent", "-selector", "unix:uid:1"},
 			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
@@ -186,7 +223,8 @@ func TestUpdate(t *testing.T) {
 				"-parentID", "spiffe://example.org/parent",
 				"-selector", "zebra:zebra:2000",
 				"-selector", "alpha:alpha:2000",
-				"-ttl", "60",
+				"-x509SVIDTTL", "60",
+				"-jwtSVIDTTL", "30",
 				"-federatesWith", "spiffe://domaina.test",
 				"-federatesWith", "spiffe://domainb.test",
 				"-admin",
@@ -204,7 +242,47 @@ SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
 Downstream       : true
-TTL              : 60
+X509-SVID TTL    : 60
+JWT-SVID TTL     : 30
+Expiration time  : %s
+Selector         : zebra:zebra:2000
+Selector         : alpha:alpha:2000
+FederatesWith    : spiffe://domaina.test
+FederatesWith    : spiffe://domainb.test
+DNS name         : unu1000
+DNS name         : ung1000
+Admin            : true
+
+`, time.Unix(1552410266, 0).UTC()),
+		},
+		{
+			name: "Update succeeds using deprecated command line arguments",
+			args: []string{
+				"-entryID", "entry-id",
+				"-spiffeID", "spiffe://example.org/workload",
+				"-parentID", "spiffe://example.org/parent",
+				"-selector", "zebra:zebra:2000",
+				"-selector", "alpha:alpha:2000",
+				"-ttl", "60",
+				"-federatesWith", "spiffe://domaina.test",
+				"-federatesWith", "spiffe://domainb.test",
+				"-admin",
+				"-entryExpiry", "1552410266",
+				"-dns", "unu1000",
+				"-dns", "ung1000",
+				"-downstream",
+			},
+			expReq: &entryv1.BatchUpdateEntryRequest{
+				Entries: []*types.Entry{entry5},
+			},
+			fakeResp: fakeRespOKFromCmd,
+			expOut: fmt.Sprintf(`Entry ID         : entry-id
+SPIFFE ID        : spiffe://example.org/workload
+Parent ID        : spiffe://example.org/parent
+Revision         : 0
+Downstream       : true
+X509-SVID TTL    : 60
+JWT-SVID TTL     : 30
 Expiration time  : %s
 Selector         : zebra:zebra:2000
 Selector         : alpha:alpha:2000
@@ -224,7 +302,8 @@ Admin            : true
 				"-parentID", "spiffe://example.org/parent",
 				"-selector", "type:key1:value",
 				"-selector", "type:key2:value",
-				"-ttl", "60",
+				"-x509SVIDTTL", "60",
+				"-jwtSVIDTTL", "30",
 				"-federatesWith", "spiffe://domaina.test",
 				"-federatesWith", "spiffe://domainb.test",
 				"-entryExpiry", "1552410266",
@@ -250,7 +329,8 @@ Admin            : true
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
-TTL              : 60
+X509-SVID TTL    : 60
+JWT-SVID TTL     : 30
 Expiration time  : %s
 Selector         : type:key1:value
 Selector         : type:key2:value
@@ -275,7 +355,8 @@ StoreSvid        : true
 SPIFFE ID        : spiffe://example.org/Blog
 Parent ID        : spiffe://example.org/spire/agent/join_token/TokenBlog
 Revision         : 0
-TTL              : 200
+X509-SVID TTL    : 200
+JWT-SVID TTL     : 300
 Selector         : unix:uid:1111
 Admin            : true
 
@@ -283,14 +364,16 @@ Entry ID         : entry-id-2
 SPIFFE ID        : spiffe://example.org/Database
 Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
 Revision         : 0
-TTL              : 200
+X509-SVID TTL    : 200
+JWT-SVID TTL     : 300
 Selector         : unix:uid:1111
 
 Entry ID         : entry-id-3
 SPIFFE ID        : spiffe://example.org/Storesvid
 Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
 Revision         : 0
-TTL              : 200
+X509-SVID TTL    : 200
+JWT-SVID TTL     : 300
 Selector         : type:key1:value
 Selector         : type:key2:value
 StoreSvid        : true
@@ -314,7 +397,8 @@ Entry ID         : non-existent-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
-TTL              : default
+X509-SVID TTL    : default
+JWT-SVID TTL     : default
 Selector         : unix:uid:1
 
 Error: failed to update one or more entries

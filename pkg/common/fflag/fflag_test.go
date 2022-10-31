@@ -2,6 +2,9 @@ package fflag
 
 import (
 	"testing"
+
+	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLoadOnce(t *testing.T) {
@@ -92,6 +95,56 @@ func TestLoad(t *testing.T) {
 	}
 
 	reset()
+}
+
+func TestUnload(t *testing.T) {
+	type want struct {
+		errStr        string
+		unloadedFlags []Flag
+	}
+	tests := []struct {
+		name  string
+		setup func()
+		want  want
+	}{
+		{
+			name: "unload without loading",
+			setup: func() {
+				singleton.mtx.Lock()
+				defer singleton.mtx.Unlock()
+				singleton.loaded = false
+			},
+			want: want{
+				errStr: "feature flags have not been loaded",
+			},
+		},
+		{
+			name: "unload after loading",
+			setup: func() {
+				singleton.mtx.Lock()
+				defer singleton.mtx.Unlock()
+				singleton.loaded = true
+				singleton.flags[FlagTestFlag] = true
+			},
+			want: want{
+				unloadedFlags: []Flag{FlagTestFlag},
+			},
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			testCase.setup()
+			err := Unload()
+			if testCase.want.errStr == "" {
+				assert.NoError(t, err)
+			} else {
+				spiretest.AssertErrorContains(t, err, testCase.want.errStr)
+			}
+			for _, flag := range testCase.want.unloadedFlags {
+				assert.False(t, IsSet(flag))
+			}
+		})
+	}
 }
 
 func reset() {

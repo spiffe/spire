@@ -48,7 +48,7 @@ Each tenant can be configured to either authenticate with an MSI token
 (`subscription_id`, `app_id`, and `app_secret`). The SPIRE Server must reside
 in the same tenant when authenticating with an MSI token.
 
-For backwards compatability reasons the authentication configuration is *NOT*
+For backwards compatibility reasons the authentication configuration is *NOT*
 required, however, it will be in a future release.
 
 ### Sample Configurations
@@ -70,7 +70,7 @@ required, however, it will be in a future release.
 }
 ```
 
-#### Custom Reseource ID and MSI Authentication
+#### Custom Resource ID and MSI Authentication
 
 ```
     NodeAttestor "azure_msi" {
@@ -95,7 +95,7 @@ The plugin produces the following selectors.
 | Virtual Machine Name   | `vm-name:frontend:blog`                                | The name of the virtual machine (e.g. `blog`) qualified by the resource group (e.g. `frontend`)              |
 | Network Security Group | `network-security-group:frontend:webservers`           | The name of the network security group (e.g. `webservers`) qualified by the resource group (e.g. `frontend`) |
 | Virtual Network        | `virtual-network:frontend:vnet`                        | The name of the virtual network (e.g. `vnet`) qualified by the resource group (e.g. `frontend`)              |
-| Virtual Network Subnet | `virtual-network:frontend:vnet:default`                | The name of the virtual network subnet (e.g. `default`) qualfied by the virtual network and resource group   |
+| Virtual Network Subnet | `virtual-network:frontend:vnet:default`                | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group   |
 
 All of the selectors have the type `azure_msi`.
 

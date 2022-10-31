@@ -485,6 +485,14 @@ const (
 	// with other tags to add clarity
 	TTL = "ttl"
 
+	// X509 SVID TTL functionality related to a time-to-live field for X509-SVIDs; should be used
+	// with other tags to add clarity
+	X509SVIDTTL = "x509_svid_ttl"
+
+	// JWT SVID TTL functionality related to a time-to-live field for JWT-SVIDs; should be used
+	// with other tags to add clarity
+	JWTSVIDTTL = "jwt_svid_ttl"
+
 	// Type tags a type
 	Type = "type"
 

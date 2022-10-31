@@ -34,49 +34,56 @@ func TestDedupRegistrationEntries(t *testing.T) {
 func TestSortRegistrationEntries(t *testing.T) {
 	entries := []*common.RegistrationEntry{
 		// entries to assert that spiffe ids are compared for sorting first
-		{SpiffeId: "a", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "b", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "c", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "a", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "b", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "c", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
 		// entries to assert that parent ids are compared for sorting second
-		{SpiffeId: "x", ParentId: "a", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "b", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "c", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		// entries to assert that ttl is compared for sorting third
-		{SpiffeId: "x", ParentId: "x", Ttl: 10, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 20, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 30, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		// entries to assert that selector types are compared for sorting fourth
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "a", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "b", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "c", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "a", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "b", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "c", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		// entries to assert that x509SvidTtl is compared for sorting third
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 10, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 20, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 30, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		// entries to assert that jwtSvidTtl is compared for sorting fourth
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 10, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 20, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 30, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		// entries to assert that selector types are compared for sorting fifth
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "b", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "c", Value: "x"}}},
 		// entries to assert that selector values are included in selector sorting
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "a"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "b"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "c"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "a"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "b"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "c"}}},
 		// entry to assert that entries with more selectors come after entries with less
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
 		// entry to assert that selectors get sorted as well
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "a", Value: "c"}, {Type: "a", Value: "a"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "c"}, {Type: "a", Value: "a"}}},
 	}
 
 	expected := []*common.RegistrationEntry{
-		{SpiffeId: "a", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "b", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "c", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "a", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "b", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "c", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 10, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 20, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 30, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "a", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "b", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "c", Value: "x"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "a"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "b"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "x", Value: "c"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
-		{SpiffeId: "x", ParentId: "x", Ttl: 90, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "c"}}},
+		{SpiffeId: "a", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "b", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "c", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "a", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "b", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "c", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 10, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 20, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 30, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 10, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 20, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 30, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "b", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "c", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "a"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "b"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "c"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "c"}}},
 	}
 
 	var actual []*common.RegistrationEntry
@@ -122,49 +129,57 @@ func TestSortTypesEntries(t *testing.T) {
 
 	entries := []*types.Entry{
 		// entries to assert that spiffe ids are compared for sorting first
-		{SpiffeId: idA, ParentId: idX, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: idB, ParentId: idX, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: idC, ParentId: idX, Ttl: 90, Selectors: selectorsX},
+		{SpiffeId: idA, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idB, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idC, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
 		// entries to assert that parent ids are compared for sorting second
-		{SpiffeId: idX, ParentId: idA, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: idX, ParentId: idB, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: idX, ParentId: idC, Ttl: 90, Selectors: selectorsX},
-		// entries to assert that ttl is compared for sorting third
-		{SpiffeId: idX, ParentId: idX, Ttl: 10, Selectors: selectorsX},
-		{SpiffeId: idX, ParentId: idX, Ttl: 20, Selectors: selectorsX},
-		{SpiffeId: idX, ParentId: idX, Ttl: 30, Selectors: selectorsX},
-		// entries to assert that selector types are compared for sorting fourth
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "a", Value: "x"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "b", Value: "x"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "c", Value: "x"}}},
+		{SpiffeId: idX, ParentId: idA, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idB, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idC, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		// entries to assert that x509SvidTtl is compared for sorting third
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 10, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 20, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 30, JwtSvidTtl: 110, Selectors: selectorsX},
+		// entries to assert that jwtSvidTtl is compared for sorting forth
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 10, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 20, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 30, Selectors: selectorsX},
+
+		// entries to assert that selector types are compared for sorting fifth
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "x"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "b", Value: "x"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "c", Value: "x"}}},
 		// entries to assert that selector values are included in selector sorting
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "x", Value: "a"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "x", Value: "b"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "x", Value: "c"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "x", Value: "a"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "x", Value: "b"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "x", Value: "c"}}},
 		// entry to assert that entries with more selectors come after entries with less
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
 		// entry to assert that selectors get sorted as well
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "a", Value: "c"}, {Type: "a", Value: "a"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "c"}, {Type: "a", Value: "a"}}},
 	}
 
 	expected := []*types.Entry{
-		{SpiffeId: &types.SPIFFEID{TrustDomain: "a"}, ParentId: &types.SPIFFEID{TrustDomain: "x"}, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: &types.SPIFFEID{TrustDomain: "b"}, ParentId: &types.SPIFFEID{TrustDomain: "x"}, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: &types.SPIFFEID{TrustDomain: "c"}, ParentId: &types.SPIFFEID{TrustDomain: "x"}, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: &types.SPIFFEID{TrustDomain: "x"}, ParentId: &types.SPIFFEID{TrustDomain: "a"}, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: &types.SPIFFEID{TrustDomain: "x"}, ParentId: &types.SPIFFEID{TrustDomain: "b"}, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: &types.SPIFFEID{TrustDomain: "x"}, ParentId: &types.SPIFFEID{TrustDomain: "c"}, Ttl: 90, Selectors: selectorsX},
-		{SpiffeId: idX, ParentId: idX, Ttl: 10, Selectors: selectorsX},
-		{SpiffeId: idX, ParentId: idX, Ttl: 20, Selectors: selectorsX},
-		{SpiffeId: idX, ParentId: idX, Ttl: 30, Selectors: selectorsX},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "a", Value: "x"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "b", Value: "x"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "c", Value: "x"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "x", Value: "a"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "x", Value: "b"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "x", Value: "c"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
-		{SpiffeId: idX, ParentId: idX, Ttl: 90, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "c"}}},
+		{SpiffeId: &types.SPIFFEID{TrustDomain: "a"}, ParentId: &types.SPIFFEID{TrustDomain: "x"}, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: &types.SPIFFEID{TrustDomain: "b"}, ParentId: &types.SPIFFEID{TrustDomain: "x"}, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: &types.SPIFFEID{TrustDomain: "c"}, ParentId: &types.SPIFFEID{TrustDomain: "x"}, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: &types.SPIFFEID{TrustDomain: "x"}, ParentId: &types.SPIFFEID{TrustDomain: "a"}, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: &types.SPIFFEID{TrustDomain: "x"}, ParentId: &types.SPIFFEID{TrustDomain: "b"}, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: &types.SPIFFEID{TrustDomain: "x"}, ParentId: &types.SPIFFEID{TrustDomain: "c"}, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 10, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 20, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 30, JwtSvidTtl: 110, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 10, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 20, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 30, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "x"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "b", Value: "x"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "c", Value: "x"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "x", Value: "a"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "x", Value: "b"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "x", Value: "c"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "c"}}},
 	}
 
 	var actual []*types.Entry
