@@ -101,6 +101,10 @@ func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 func prettyPrintAgents(env *commoncli.Env, results ...interface{}) error {
 	agents := results[0].(*agentv1.ListAgentsResponse).Agents
 
+	if len(agents) == 0 {
+		return env.Printf("No attested agents found\n")
+	}
+
 	msg := fmt.Sprintf("Found %d attested ", len(agents))
 	msg = util.Pluralizer(msg, "agent", "agents", len(agents))
 	env.Printf("%s:\n\n", msg)
@@ -108,28 +112,34 @@ func prettyPrintAgents(env *commoncli.Env, results ...interface{}) error {
 }
 
 func printAgents(env *commoncli.Env, agents ...*types.Agent) error {
-	if len(agents) == 0 {
-		env.Printf("No attested agents found\n")
-		return nil
-	}
-
 	for _, agent := range agents {
 		id, err := idutil.IDFromProto(agent.Id)
 		if err != nil {
 			return err
 		}
 
-		env.Printf("SPIFFE ID         : %s\n", id.String())
-		env.Printf("Attestation type  : %s\n", agent.AttestationType)
-		env.Printf("Expiration time   : %s\n", time.Unix(agent.X509SvidExpiresAt, 0))
-
+		if err := env.Printf("SPIFFE ID         : %s\n", id.String()); err != nil {
+			return err
+		}
+		if err := env.Printf("Attestation type  : %s\n", agent.AttestationType); err != nil {
+			return err
+		}
+		if err := env.Printf("Expiration time   : %s\n", time.Unix(agent.X509SvidExpiresAt, 0)); err != nil {
+			return err
+		}
 		// Banned agents will have an empty serial number
 		if agent.Banned {
-			env.Printf("Banned            : %t\n", agent.Banned)
+			if err := env.Printf("Banned            : %t\n", agent.Banned); err != nil {
+				return err
+			}
 		} else {
-			env.Printf("Serial number     : %s\n", agent.X509SvidSerialNumber)
+			if err := env.Printf("Serial number     : %s\n", agent.X509SvidSerialNumber); err != nil {
+				return err
+			}
 		}
-		env.Println()
+		if err := env.Println(); err != nil {
+			return err
+		}
 	}
 
 	return nil
