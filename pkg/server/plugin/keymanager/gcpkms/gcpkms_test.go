@@ -123,7 +123,7 @@ func TestConfigure(t *testing.T) {
 		expectOpts             []option.ClientOption
 		config                 *Config
 		configureRequest       *configv1.ConfigureRequest
-		fakeCryptoKeys         []fakeCryptoKey
+		fakeCryptoKeys         []*fakeCryptoKey
 		getCryptoKeyVersionErr error
 		listCryptoKeysErr      error
 		describeKeyErr         error
@@ -135,7 +135,7 @@ func TestConfigure(t *testing.T) {
 				KeyMetadataFile: createKeyMetadataFile(t, validServerID),
 				KeyRing:         validKeyRing,
 			},
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -305,7 +305,7 @@ func TestConfigure(t *testing.T) {
 				KeyMetadataFile: createKeyMetadataFile(t, validServerID),
 				KeyRing:         validKeyRing,
 			},
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -333,7 +333,7 @@ func TestConfigure(t *testing.T) {
 				KeyMetadataFile: createKeyMetadataFile(t, validServerID),
 				KeyRing:         validKeyRing,
 			},
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -359,9 +359,9 @@ func TestConfigure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
-			ts.fakeKMSClient.listCryptoKeysErr = tt.listCryptoKeysErr
-			ts.fakeKMSClient.getCryptoKeyVersionErr = tt.getCryptoKeyVersionErr
-			ts.fakeKMSClient.getPublicKeyErr = tt.getPublicKeyErr
+			ts.fakeKMSClient.setListCryptoKeysErr(tt.listCryptoKeysErr)
+			ts.fakeKMSClient.setGetCryptoKeyVersionErr(tt.getCryptoKeyVersionErr)
+			ts.fakeKMSClient.setGetPublicKeyErr(tt.getPublicKeyErr)
 
 			var configureRequest *configv1.ConfigureRequest
 			if tt.config != nil {
@@ -383,7 +383,8 @@ func TestConfigure(t *testing.T) {
 			require.Equal(t, tt.config, ts.plugin.config)
 
 			// Assert that the keys have been loaded
-			for _, expectedFakeCryptoKey := range tt.fakeCryptoKeys {
+			storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
+			for _, expectedFakeCryptoKey := range storedFakeCryptoKeys {
 				spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(expectedFakeCryptoKey.Name)
 				require.True(t, ok)
 
@@ -399,7 +400,7 @@ func TestConfigure(t *testing.T) {
 
 func TestDisposeStaleCryptoKeys(t *testing.T) {
 	configureRequest := configureRequestWithDefaults(t)
-	fakeCryptoKeys := []fakeCryptoKey{
+	fakeCryptoKeys := []*fakeCryptoKey{
 		{
 			CryptoKey: &kmspb.CryptoKey{
 				Name:            cryptoKeyName1,
@@ -437,13 +438,9 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	ts := setupTest(t)
 	ts.fakeKMSClient.putFakeCryptoKeys(fakeCryptoKeys)
 
-	ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error, 1)
-	disposeCryptoKeysSignal := make(chan error)
-	ts.plugin.hooks.disposeCryptoKeysSignal = disposeCryptoKeysSignal
-	scheduleDestroySignal := make(chan error)
-	setInactiveSignal := make(chan error)
-	ts.plugin.hooks.setInactiveSignal = setInactiveSignal
-	ts.plugin.hooks.scheduleDestroySignal = scheduleDestroySignal
+	ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error)
+	ts.plugin.hooks.scheduleDestroySignal = make(chan error)
+	ts.plugin.hooks.setInactiveSignal = make(chan error)
 
 	_, err := ts.plugin.Configure(ctx, configureRequest)
 	require.NoError(t, err)
@@ -452,25 +449,28 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	ts.clockHook.Add(disposeCryptoKeysFrequency)
 
 	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, disposeCryptoKeysSignal)
+	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
 
 	// Move the clock to make sure that we have stale CryptoKeys.
 	ts.clockHook.Add(maxStaleDuration)
 
 	// Wait for destroy notification of all the CryptoKeyVersions.
-	for _, fck := range ts.fakeKMSClient.store.fakeCryptoKeys {
-		for range fck.fakeCryptoKeyVersions {
-			_ = waitForSignal(t, scheduleDestroySignal)
+	storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
+	for _, fck := range storedFakeCryptoKeys {
+		storedFakeCryptoKeyVersions := fck.fetchFakeCryptoKeyVersions()
+		for range storedFakeCryptoKeyVersions {
+			_ = waitForSignal(t, ts.plugin.hooks.scheduleDestroySignal)
 		}
 	}
 
-	for _, fck := range ts.fakeKMSClient.store.fakeCryptoKeys {
+	for _, fck := range storedFakeCryptoKeys {
 		// The CryptoKeys should be active until the next run of disposeCryptoKeys.
-		require.Equal(t, "true", fck.Labels[labelNameActive])
+		require.Equal(t, "true", fck.getLabelValue(labelNameActive))
 
-		for _, fckv := range fck.fakeCryptoKeyVersions {
+		storedFakeCryptoKeyVersions := fck.fetchFakeCryptoKeyVersions()
+		for _, fckv := range storedFakeCryptoKeyVersions {
 			// The status should be changed to CryptoKeyVersion_DESTROY_SCHEDULED.
-			require.Equal(t, kmspb.CryptoKeyVersion_DESTROY_SCHEDULED, fckv.State, fckv.Name)
+			require.Equal(t, kmspb.CryptoKeyVersion_DESTROY_SCHEDULED, fckv.State, fmt.Sprintf("state mismatch in CryptokeyVersion %q", fckv.Name))
 		}
 	}
 
@@ -478,22 +478,24 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	ts.clockHook.Add(disposeCryptoKeysFrequency)
 
 	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, disposeCryptoKeysSignal)
+	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
 
-	for _, fck := range ts.fakeKMSClient.store.fakeCryptoKeys {
+	for _, fck := range fakeCryptoKeys {
 		// Since the CryptoKey doesn't have any enabled CryptoKeyVersions at
 		// this point, it should be set as inactive.
 		// Wait for the set inactive signal.
-		_ = waitForSignal(t, setInactiveSignal)
+		_ = waitForSignal(t, ts.plugin.hooks.setInactiveSignal)
 
 		// The CryptoKey should be inactive now.
-		require.Equal(t, "false", fck.Labels[labelNameActive])
+		fck, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(fck.Name)
+		require.True(t, ok)
+		require.Equal(t, "false", fck.getLabelValue(labelNameActive))
 	}
 }
 
 func TestDisposeActiveCryptoKeys(t *testing.T) {
 	configureRequest := configureRequestWithDefaults(t)
-	fakeCryptoKeys := []fakeCryptoKey{
+	fakeCryptoKeys := []*fakeCryptoKey{
 		{
 			CryptoKey: &kmspb.CryptoKey{
 				Name:            cryptoKeyName1,
@@ -531,9 +533,7 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 	ts := setupTest(t)
 	ts.fakeKMSClient.putFakeCryptoKeys(fakeCryptoKeys)
 
-	ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error, 1)
-	disposeCryptoKeysSignal := make(chan error)
-	ts.plugin.hooks.disposeCryptoKeysSignal = disposeCryptoKeysSignal
+	ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error)
 	scheduleDestroySignal := make(chan error)
 	ts.plugin.hooks.scheduleDestroySignal = scheduleDestroySignal
 
@@ -544,13 +544,14 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 	ts.clockHook.Add(disposeCryptoKeysFrequency)
 
 	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, disposeCryptoKeysSignal)
+	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
 
 	// The CryptoKeys are not stale yet. Assert that they are active and the
 	// CryptoKeyVersions enabled.
-	for _, fck := range ts.fakeKMSClient.store.fakeCryptoKeys {
-		require.Equal(t, "true", fck.Labels[labelNameActive])
-		for _, fckv := range fck.fakeCryptoKeyVersions {
+	for _, fck := range fakeCryptoKeys {
+		require.Equal(t, "true", fck.getLabelValue(labelNameActive))
+		storedFakeCryptoKeyVersions := fck.fetchFakeCryptoKeyVersions()
+		for _, fckv := range storedFakeCryptoKeyVersions {
 			require.Equal(t, kmspb.CryptoKeyVersion_ENABLED, fckv.State, fckv.Name)
 		}
 	}
@@ -558,7 +559,7 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 
 func TestEnqueueDestructionFailure(t *testing.T) {
 	configureRequest := configureRequestWithDefaults(t)
-	fakeCryptoKeys := []fakeCryptoKey{
+	fakeCryptoKeys := []*fakeCryptoKey{
 		{
 			CryptoKey: &kmspb.CryptoKey{
 				Name:            cryptoKeyName1,
@@ -589,16 +590,6 @@ func TestEnqueueDestructionFailure(t *testing.T) {
 						Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
 						State:     kmspb.CryptoKeyVersion_ENABLED,
 					}},
-			},
-		},
-	}
-	expectedLogs := []spiretest.LogEntry{
-		{
-			Level:   logrus.ErrorLevel,
-			Message: "Failed to enqueue CryptoKeyVersion for destruction",
-			Data: logrus.Fields{
-				cryptoKeyNameTag: cryptoKeyName2,
-				reasonTag:        fmt.Sprintf("could not enqueue CryptoKeyVersion \"%s/cryptoKeyVersions/1\" for destruction", cryptoKeyName2),
 			},
 		},
 	}
@@ -610,10 +601,7 @@ func TestEnqueueDestructionFailure(t *testing.T) {
 	ts.fakeKMSClient.putFakeCryptoKeys(fakeCryptoKeys)
 
 	ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error, 1)
-	disposeCryptoKeysSignal := make(chan error)
-	ts.plugin.hooks.disposeCryptoKeysSignal = disposeCryptoKeysSignal
-	scheduleDestroySignal := make(chan error)
-	ts.plugin.hooks.scheduleDestroySignal = scheduleDestroySignal
+	ts.plugin.hooks.enqueueDestructionSignal = make(chan error, 1)
 
 	_, err := ts.plugin.Configure(ctx, configureRequest)
 	require.NoError(t, err)
@@ -622,15 +610,18 @@ func TestEnqueueDestructionFailure(t *testing.T) {
 	ts.clockHook.Add(disposeCryptoKeysFrequency)
 
 	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, disposeCryptoKeysSignal)
+	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
 
 	// Move the clock to make sure that we have stale CryptoKeys.
 	ts.clockHook.Add(maxStaleDuration)
 
-	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, disposeCryptoKeysSignal)
+	// Enqueuing the first CryptoKeyVersion for destruction should succeed.
+	err = waitForSignal(t, ts.plugin.hooks.enqueueDestructionSignal)
+	require.NoError(t, err)
 
-	spiretest.AssertLogsContainEntries(t, ts.logHook.AllEntries(), expectedLogs)
+	// Enqueuing the second CryptoKeyVersion for destruction should fail.
+	err = waitForSignal(t, ts.plugin.hooks.enqueueDestructionSignal)
+	require.ErrorContains(t, err, "could not enqueue CryptoKeyVersion")
 }
 
 func TestGenerateKey(t *testing.T) {
@@ -639,7 +630,7 @@ func TestGenerateKey(t *testing.T) {
 		expectCode     codes.Code
 		expectMsg      string
 		destroyTime    *timestamp.Timestamp
-		fakeCryptoKeys []fakeCryptoKey
+		fakeCryptoKeys []*fakeCryptoKey
 		generateKeyReq *keymanagerv1.GenerateKeyRequest
 		logs           []spiretest.LogEntry
 		name           string
@@ -689,7 +680,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -795,7 +786,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
 			destroyCryptoKeyVersionErr: status.Error(codes.NotFound, ""),
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -833,7 +824,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
 			destroyCryptoKeyVersionErr: errors.New("error scheduling CryptoKeyVersion for destruction"),
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -872,7 +863,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
 			destroyCryptoKeyVersionErr: errors.New("error scheduling CryptoKeyVersion for destruction"),
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -913,7 +904,7 @@ func TestGenerateKey(t *testing.T) {
 			},
 			destroyCryptoKeyVersionErr: errors.New("error scheduling CryptoKeyVersion for destruction"),
 			getCryptoKeyVersionErr:     errors.New("error getting CryptoKeyVersion"),
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -959,15 +950,14 @@ func TestGenerateKey(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
-			ts.fakeKMSClient.destroyTime = fakeTime
+			ts.fakeKMSClient.setDestroyTime(fakeTime)
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
-			ts.fakeKMSClient.createCryptoKeyErr = tt.createKeyErr
-			ts.fakeKMSClient.getCryptoKeyVersionErr = tt.getCryptoKeyVersionErr
-			ts.fakeKMSClient.getTokeninfoErr = tt.getTokenInfoErr
-			ts.fakeKMSClient.updateCryptoKeyErr = tt.updateCryptoKeyErr
-			ts.fakeKMSClient.destroyCryptoKeyVersionErr = tt.destroyCryptoKeyVersionErr
-			destroySignal := make(chan error)
-			ts.plugin.hooks.scheduleDestroySignal = destroySignal
+			ts.fakeKMSClient.setCreateCryptoKeyErr(tt.createKeyErr)
+			ts.fakeKMSClient.setGetCryptoKeyVersionErr(tt.getCryptoKeyVersionErr)
+			ts.fakeKMSClient.setGetTokeninfoErr(tt.getTokenInfoErr)
+			ts.fakeKMSClient.setUpdateCryptoKeyErr(tt.updateCryptoKeyErr)
+			ts.fakeKMSClient.setDestroyCryptoKeyVersionErr(tt.destroyCryptoKeyVersionErr)
+			ts.plugin.hooks.scheduleDestroySignal = make(chan error)
 
 			configureReq := tt.configureReq
 			if configureReq == nil {
@@ -988,7 +978,7 @@ func TestGenerateKey(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			ts.fakeKMSClient.getPublicKeyErr = tt.getPublicKeyErr
+			ts.fakeKMSClient.setGetPublicKeyErr(tt.getPublicKeyErr)
 
 			resp, err := ts.plugin.GenerateKey(ctx, tt.generateKeyReq)
 			if tt.expectMsg != "" {
@@ -1006,7 +996,16 @@ func TestGenerateKey(t *testing.T) {
 
 			if tt.testDisabled {
 				// An external system changes the state of the CryptoKeyVersion to be disabled.
-				tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].State = kmspb.CryptoKeyVersion_DISABLED
+				fckv := &fakeCryptoKeyVersion{
+					CryptoKeyVersion: tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].CryptoKeyVersion,
+					privateKey:       tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].privateKey,
+					publicKey:        tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].publicKey,
+				}
+				fckv.State = kmspb.CryptoKeyVersion_DISABLED
+
+				fck, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(tt.fakeCryptoKeys[0].Name)
+				require.True(t, ok)
+				fck.putFakeCryptoKeyVersion(fckv)
 			}
 			if !tt.waitForDelete {
 				spiretest.AssertLogsContainEntries(t, ts.logHook.AllEntries(), tt.logs)
@@ -1014,7 +1013,7 @@ func TestGenerateKey(t *testing.T) {
 			}
 
 			select {
-			case <-destroySignal:
+			case <-ts.plugin.hooks.scheduleDestroySignal:
 				// The logs emitted by the deletion goroutine and those that
 				// enqueue deletion can be intermixed, so we cannot depend
 				// on the exact order of the logs, so we just assert that
@@ -1031,7 +1030,7 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 	for _, tt := range []struct {
 		configureRequest   *configv1.ConfigureRequest
 		expectError        string
-		fakeCryptoKeys     []fakeCryptoKey
+		fakeCryptoKeys     []*fakeCryptoKey
 		name               string
 		updateCryptoKeyErr error
 	}{
@@ -1040,7 +1039,7 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 			configureRequest:   configureRequestWithDefaults(t),
 			expectError:        "error updating CryptoKey",
 			updateCryptoKeyErr: errors.New("error updating CryptoKey"),
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -1062,7 +1061,7 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 		{
 			name:             "keep active CryptoKeys succeeds",
 			configureRequest: configureRequestWithDefaults(t),
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -1102,22 +1101,21 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
-			ts.fakeKMSClient.updateCryptoKeyErr = tt.updateCryptoKeyErr
-			keepActiveCryptoKeysSignal := make(chan error)
-			ts.plugin.hooks.keepActiveCryptoKeysSignal = keepActiveCryptoKeysSignal
+			ts.fakeKMSClient.setUpdateCryptoKeyErr(tt.updateCryptoKeyErr)
+			ts.plugin.hooks.keepActiveCryptoKeysSignal = make(chan error)
 
 			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
 			require.NoError(t, err)
 
 			// Wait for keepActiveCryptoKeys task to be initialized.
-			_ = waitForSignal(t, keepActiveCryptoKeysSignal)
+			_ = waitForSignal(t, ts.plugin.hooks.keepActiveCryptoKeysSignal)
 
 			// Move the clock forward so the task is run.
 			currentTime := unixEpoch.Add(6 * time.Hour)
 			ts.clockHook.Set(currentTime)
 
 			// Wait for keepActiveCryptoKeys to be run.
-			err = waitForSignal(t, keepActiveCryptoKeysSignal)
+			err = waitForSignal(t, ts.plugin.hooks.keepActiveCryptoKeysSignal)
 
 			if tt.updateCryptoKeyErr != nil {
 				require.NotNil(t, err)
@@ -1126,8 +1124,9 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			for _, cryptoKey := range ts.fakeKMSClient.store.fakeCryptoKeys {
-				require.EqualValues(t, cryptoKey.Labels[labelNameLastUpdate], fmt.Sprint(currentTime.Unix()), cryptoKey.CryptoKey.Name)
+			storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
+			for _, fck := range storedFakeCryptoKeys {
+				require.EqualValues(t, fck.getLabelValue(labelNameLastUpdate), fmt.Sprint(currentTime.Unix()), fck.CryptoKey.Name)
 			}
 		})
 	}
@@ -1137,11 +1136,11 @@ func TestGetPublicKeys(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		err            string
-		fakeCryptoKeys []fakeCryptoKey
+		fakeCryptoKeys []*fakeCryptoKey
 	}{
 		{
 			name: "one key",
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -1162,7 +1161,7 @@ func TestGetPublicKeys(t *testing.T) {
 		},
 		{
 			name: "multiple keys",
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -1218,11 +1217,13 @@ func TestGetPublicKeys(t *testing.T) {
 
 			require.NotNil(t, resp)
 			require.NoError(t, err)
-			for i, fck := range tt.fakeCryptoKeys {
-				for _, fckv := range fck.fakeCryptoKeyVersions {
+			storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
+			for _, fck := range storedFakeCryptoKeys {
+				storedFakeCryptoKeyVersions := fck.fetchFakeCryptoKeyVersions()
+				for _, fckv := range storedFakeCryptoKeyVersions {
 					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.fakeKMSClient, fckv.CryptoKeyVersion.Name)
 					require.NoError(t, err)
-					require.Equal(t, pubKey, resp.PublicKeys[i].PkixData)
+					require.Equal(t, pubKey, resp.PublicKeys[0].PkixData)
 				}
 			}
 		})
@@ -1236,13 +1237,13 @@ func TestGetPublicKey(t *testing.T) {
 		expectMsgConfigure     string
 		expectCodeGetPublicKey codes.Code
 		expectMsgGetPublicKey  string
-		fakeCryptoKeys         []fakeCryptoKey
+		fakeCryptoKeys         []*fakeCryptoKey
 		keyID                  string
 		pemCrc32C              *wrapperspb.Int64Value
 	}{
 		{
 			name: "existing key",
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -1266,7 +1267,7 @@ func TestGetPublicKey(t *testing.T) {
 			name:                "integrity verification error",
 			expectCodeConfigure: codes.Internal,
 			expectMsgConfigure:  "failed to fetch entries: error getting public key: response corrupted in-transit",
-			fakeCryptoKeys: []fakeCryptoKey{
+			fakeCryptoKeys: []*fakeCryptoKey{
 				{
 					CryptoKey: &kmspb.CryptoKey{
 						Name:            cryptoKeyName1,
@@ -1302,7 +1303,7 @@ func TestGetPublicKey(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
-			ts.fakeKMSClient.pemCrc32C = tt.pemCrc32C
+			ts.fakeKMSClient.setPEMCrc32C(tt.pemCrc32C)
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
 
 			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
@@ -1394,8 +1395,8 @@ func TestSetIAMPolicy(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
-			ts.fakeKMSClient.fakeIAMHandle.policyErr = tt.policyErr
-			ts.fakeKMSClient.fakeIAMHandle.setPolicyErr = tt.setPolicyErr
+			ts.fakeKMSClient.fakeIAMHandle.setPolicyError(tt.policyErr)
+			ts.fakeKMSClient.fakeIAMHandle.setSetPolicyErr(tt.setPolicyErr)
 
 			var configureReq *configv1.ConfigureRequest
 			if tt.useCustomPolicy {
@@ -1408,9 +1409,9 @@ func TestSetIAMPolicy(t *testing.T) {
 				})
 				expectedPolicy, err := parsePolicyFile(customPolicyFile)
 				require.NoError(t, err)
-				ts.fakeKMSClient.fakeIAMHandle.expectedPolicy = expectedPolicy
+				ts.fakeKMSClient.fakeIAMHandle.setExpectedPolicy(expectedPolicy)
 			} else {
-				ts.fakeKMSClient.fakeIAMHandle.expectedPolicy = ts.fakeKMSClient.getDefaultPolicy()
+				ts.fakeKMSClient.fakeIAMHandle.setExpectedPolicy(ts.fakeKMSClient.getDefaultPolicy())
 				configureReq = configureRequestWithDefaults(t)
 			}
 			_, err := ts.plugin.Configure(ctx, configureReq)
@@ -1631,8 +1632,8 @@ func TestSignData(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
-			ts.fakeKMSClient.asymmetricSignErr = tt.asymmetricSignErr
-			ts.fakeKMSClient.signatureCrc32C = tt.signatureCrc32C
+			ts.fakeKMSClient.setAsymmetricSignErr(tt.asymmetricSignErr)
+			ts.fakeKMSClient.setSignatureCrc32C(tt.signatureCrc32C)
 			_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
 			require.NoError(t, err)
 			if tt.generateKeyReq != nil {

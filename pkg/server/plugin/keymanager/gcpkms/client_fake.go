@@ -14,6 +14,7 @@ import (
 	"path"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"cloud.google.com/go/iam"
@@ -32,13 +33,17 @@ import (
 )
 
 type fakeCryptoKeyIterator struct {
-	nextErr error
+	mu sync.RWMutex
 
 	index      int
 	cryptoKeys []*kmspb.CryptoKey
+	nextErr    error
 }
 
 func (i *fakeCryptoKeyIterator) Next() (cryptoKey *kmspb.CryptoKey, err error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	if i.nextErr != nil {
 		return nil, i.nextErr
 	}
@@ -53,13 +58,17 @@ func (i *fakeCryptoKeyIterator) Next() (cryptoKey *kmspb.CryptoKey, err error) {
 }
 
 type fakeCryptoKeyVersionIterator struct {
-	nextErr error
+	mu sync.RWMutex
 
 	index             int
 	cryptoKeyVersions []*kmspb.CryptoKeyVersion
+	nextErr           error
 }
 
 func (i *fakeCryptoKeyVersionIterator) Next() (cryptoKeyVersion *kmspb.CryptoKeyVersion, err error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	if i.nextErr != nil {
 		return nil, i.nextErr
 	}
@@ -74,8 +83,38 @@ func (i *fakeCryptoKeyVersionIterator) Next() (cryptoKeyVersion *kmspb.CryptoKey
 }
 
 type fakeCryptoKey struct {
+	mu sync.RWMutex
 	*kmspb.CryptoKey
 	fakeCryptoKeyVersions map[string]*fakeCryptoKeyVersion
+}
+
+func (fck *fakeCryptoKey) fetchFakeCryptoKeyVersions() map[string]*fakeCryptoKeyVersion {
+	fck.mu.RLock()
+	defer fck.mu.RUnlock()
+
+	if fck.fakeCryptoKeyVersions == nil {
+		return nil
+	}
+
+	fakeCryptoKeyVersions := make(map[string]*fakeCryptoKeyVersion, len(fck.fakeCryptoKeyVersions))
+	for key, fakeCryptoKeyVersion := range fck.fakeCryptoKeyVersions {
+		fakeCryptoKeyVersions[key] = fakeCryptoKeyVersion
+	}
+	return fakeCryptoKeyVersions
+}
+
+func (fck *fakeCryptoKey) getLabelValue(key string) string {
+	fck.mu.RLock()
+	defer fck.mu.RUnlock()
+
+	return fck.Labels[key]
+}
+
+func (fck *fakeCryptoKey) putFakeCryptoKeyVersion(fckv *fakeCryptoKeyVersion) {
+	fck.mu.Lock()
+	defer fck.mu.Unlock()
+
+	fck.fakeCryptoKeyVersions[path.Base(fckv.Name)] = fckv
 }
 
 type fakeCryptoKeyVersion struct {
@@ -86,12 +125,39 @@ type fakeCryptoKeyVersion struct {
 }
 
 type fakeStore struct {
+	mu             sync.RWMutex
 	fakeCryptoKeys map[string]*fakeCryptoKey
 
 	clk *clock.Mock
 }
 
-func (fs *fakeStore) fetchCryptoKeyVersion(name string) (*fakeCryptoKeyVersion, error) {
+func (fs *fakeStore) fetchFakeCryptoKey(name string) (*fakeCryptoKey, bool) {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	fakeCryptoKey, ok := fs.fakeCryptoKeys[name]
+	return fakeCryptoKey, ok
+}
+
+func (fs *fakeStore) fetchFakeCryptoKeys() map[string]*fakeCryptoKey {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
+	if fs.fakeCryptoKeys == nil {
+		return nil
+	}
+
+	fakeCryptoKeys := make(map[string]*fakeCryptoKey, len(fs.fakeCryptoKeys))
+	for key, fakeCryptoKey := range fs.fakeCryptoKeys {
+		fakeCryptoKeys[key] = fakeCryptoKey
+	}
+	return fakeCryptoKeys
+}
+
+func (fs *fakeStore) fetchFakeCryptoKeyVersion(name string) (*fakeCryptoKeyVersion, error) {
+	fs.mu.RLock()
+	defer fs.mu.RUnlock()
+
 	parent := path.Dir(path.Dir(name))
 	fakeCryptoKey, ok := fs.fakeCryptoKeys[parent]
 	if !ok {
@@ -99,6 +165,8 @@ func (fs *fakeStore) fetchCryptoKeyVersion(name string) (*fakeCryptoKeyVersion, 
 	}
 
 	version := path.Base(name)
+	fakeCryptoKey.mu.RLock()
+	defer fakeCryptoKey.mu.RUnlock()
 	fakeCryptokeyVersion, ok := fakeCryptoKey.fakeCryptoKeyVersions[version]
 	if ok {
 		return fakeCryptokeyVersion, nil
@@ -107,22 +175,24 @@ func (fs *fakeStore) fetchCryptoKeyVersion(name string) (*fakeCryptoKeyVersion, 
 	return nil, fmt.Errorf("could not find CryptoKeyVersion %q", version)
 }
 
-func (fs *fakeStore) putCryptoKey(fakeCryptoKey *fakeCryptoKey) {
-	fs.fakeCryptoKeys[fakeCryptoKey.Name] = fakeCryptoKey
-}
+func (fs *fakeStore) putFakeCryptoKey(fck *fakeCryptoKey) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
 
-func (fs *fakeStore) putCryptoKeyVersion(parent string, fakeCryptoKeyVersion *fakeCryptoKeyVersion) {
-	fs.fakeCryptoKeys[parent].fakeCryptoKeyVersions[path.Base(fakeCryptoKeyVersion.Name)] = fakeCryptoKeyVersion
+	fs.fakeCryptoKeys[fck.Name] = fck
 }
 
 type fakeIAMHandle struct {
+	mu             sync.RWMutex
 	expectedPolicy *iam.Policy3
-
-	policyErr    error
-	setPolicyErr error
+	policyErr      error
+	setPolicyErr   error
 }
 
 func (h *fakeIAMHandle) V3() iamHandler3 {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
 	return &fakeIAMHandle3{
 		expectedPolicy: h.expectedPolicy,
 		policyErr:      h.policyErr,
@@ -130,14 +200,38 @@ func (h *fakeIAMHandle) V3() iamHandler3 {
 	}
 }
 
-type fakeIAMHandle3 struct {
-	expectedPolicy *iam.Policy3
+func (h *fakeIAMHandle) setExpectedPolicy(expectedPolicy *iam.Policy3) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-	policyErr    error
-	setPolicyErr error
+	h.expectedPolicy = expectedPolicy
+}
+
+func (h *fakeIAMHandle) setPolicyError(fakeError error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.policyErr = fakeError
+}
+
+func (h *fakeIAMHandle) setSetPolicyErr(fakeError error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.setPolicyErr = fakeError
+}
+
+type fakeIAMHandle3 struct {
+	mu             sync.RWMutex
+	expectedPolicy *iam.Policy3
+	policyErr      error
+	setPolicyErr   error
 }
 
 func (h3 *fakeIAMHandle3) Policy(context.Context) (*iam.Policy3, error) {
+	h3.mu.RLock()
+	defer h3.mu.RUnlock()
+
 	if h3.policyErr != nil {
 		return nil, h3.policyErr
 	}
@@ -145,6 +239,9 @@ func (h3 *fakeIAMHandle3) Policy(context.Context) (*iam.Policy3, error) {
 }
 
 func (h3 *fakeIAMHandle3) SetPolicy(ctx context.Context, policy *iam.Policy3) error {
+	h3.mu.Lock()
+	defer h3.mu.Unlock()
+
 	if h3.expectedPolicy != nil {
 		if !reflect.DeepEqual(h3.expectedPolicy, policy) {
 			return fmt.Errorf("unexpected policy: %v", policy)
@@ -157,6 +254,7 @@ func (h3 *fakeIAMHandle3) SetPolicy(ctx context.Context, policy *iam.Policy3) er
 type fakeKMSClient struct {
 	t *testing.T
 
+	mu                         sync.RWMutex
 	asymmetricSignErr          error
 	closeErr                   error
 	createCryptoKeyErr         error
@@ -172,12 +270,91 @@ type fakeKMSClient struct {
 	pemCrc32C                  *wrapperspb.Int64Value
 	signatureCrc32C            *wrapperspb.Int64Value
 	store                      fakeStore
-	testKeys                   testkey.Keys
 	tokeninfo                  *oauth2.Tokeninfo
 	updateCryptoKeyErr         error
 }
 
+func (k *fakeKMSClient) setAsymmetricSignErr(fakeError error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.asymmetricSignErr = fakeError
+}
+
+func (k *fakeKMSClient) setCreateCryptoKeyErr(fakeError error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.createCryptoKeyErr = fakeError
+}
+
+func (k *fakeKMSClient) setDestroyCryptoKeyVersionErr(fakeError error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.destroyCryptoKeyVersionErr = fakeError
+}
+
+func (k *fakeKMSClient) setDestroyTime(fakeDestroyTime *timestamppb.Timestamp) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.destroyTime = fakeDestroyTime
+}
+
+func (k *fakeKMSClient) setGetCryptoKeyVersionErr(fakeError error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.getCryptoKeyVersionErr = fakeError
+}
+
+func (k *fakeKMSClient) setGetPublicKeyErr(fakeError error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.getPublicKeyErr = fakeError
+}
+
+func (k *fakeKMSClient) setGetTokeninfoErr(fakeError error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.getTokeninfoErr = fakeError
+}
+
+func (k *fakeKMSClient) setListCryptoKeysErr(fakeError error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.listCryptoKeysErr = fakeError
+}
+
+func (k *fakeKMSClient) setPEMCrc32C(pemCrc32C *wrapperspb.Int64Value) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.pemCrc32C = pemCrc32C
+}
+
+func (k *fakeKMSClient) setSignatureCrc32C(signatureCrc32C *wrapperspb.Int64Value) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.signatureCrc32C = signatureCrc32C
+}
+
+func (k *fakeKMSClient) setUpdateCryptoKeyErr(fakeError error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.updateCryptoKeyErr = fakeError
+}
+
 func (k *fakeKMSClient) AsymmetricSign(ctx context.Context, signReq *kmspb.AsymmetricSignRequest, opts ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error) {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	if k.asymmetricSignErr != nil {
 		return nil, k.asymmetricSignErr
 	}
@@ -186,7 +363,7 @@ func (k *fakeKMSClient) AsymmetricSign(ctx context.Context, signReq *kmspb.Asymm
 		return nil, status.Error(codes.InvalidArgument, "plugin should be signing over a digest")
 	}
 
-	fakeCryptoKeyVersion, err := k.store.fetchCryptoKeyVersion(signReq.Name)
+	fakeCryptoKeyVersion, err := k.store.fetchFakeCryptoKeyVersion(signReq.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -205,9 +382,9 @@ func (k *fakeKMSClient) AsymmetricSign(ctx context.Context, signReq *kmspb.Asymm
 	}
 
 	cryptoKeyName := path.Dir(path.Dir(signReq.Name))
-	fck, ok := k.store.fakeCryptoKeys[cryptoKeyName]
+	fck, ok := k.store.fetchFakeCryptoKey(cryptoKeyName)
 	if !ok {
-		return nil, fmt.Errorf("could not find CryptoKey %q", cryptoKeyName)
+		return nil, status.Errorf(codes.Internal, "could not find CryptoKey %q", cryptoKeyName)
 	}
 	var signature []byte
 	switch fck.VersionTemplate.Algorithm {
@@ -240,10 +417,16 @@ func (k *fakeKMSClient) AsymmetricSign(ctx context.Context, signReq *kmspb.Asymm
 }
 
 func (k *fakeKMSClient) Close() error {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	return k.closeErr
 }
 
 func (k *fakeKMSClient) CreateCryptoKey(ctx context.Context, req *kmspb.CreateCryptoKeyRequest, opts ...gax.CallOption) (*kmspb.CryptoKey, error) {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	if k.createCryptoKeyErr != nil {
 		return nil, k.createCryptoKeyErr
 	}
@@ -265,12 +448,15 @@ func (k *fakeKMSClient) CreateCryptoKey(ctx context.Context, req *kmspb.CreateCr
 			version: fckv,
 		},
 	}
-	k.store.putCryptoKey(fck)
+	k.store.putFakeCryptoKey(fck)
 
 	return cryptoKey, nil
 }
 
 func (k *fakeKMSClient) CreateCryptoKeyVersion(ctx context.Context, req *kmspb.CreateCryptoKeyVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
 	if k.createCryptoKeyErr != nil {
 		return nil, k.createCryptoKeyErr
 	}
@@ -283,7 +469,8 @@ func (k *fakeKMSClient) CreateCryptoKeyVersion(ctx context.Context, req *kmspb.C
 	if err != nil {
 		return nil, err
 	}
-	k.store.putCryptoKeyVersion(req.Parent, fckv)
+
+	fck.putFakeCryptoKeyVersion(fckv)
 
 	return &kmspb.CryptoKeyVersion{
 		Algorithm: req.CryptoKeyVersion.Algorithm,
@@ -297,7 +484,13 @@ func (k *fakeKMSClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.
 		return nil, k.destroyCryptoKeyVersionErr
 	}
 
-	fckv, err := k.store.fetchCryptoKeyVersion(req.Name)
+	parent := path.Dir(path.Dir(req.Name))
+	fck, ok := k.store.fetchFakeCryptoKey(parent)
+	if !ok {
+		return nil, fmt.Errorf("could not get parent CryptoKey for %q CryptoKeyVersion", parent)
+	}
+
+	fckv, err := k.store.fetchFakeCryptoKeyVersion(req.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -314,18 +507,22 @@ func (k *fakeKMSClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.
 		Name:        fckv.Name,
 		State:       kmspb.CryptoKeyVersion_DESTROY_SCHEDULED,
 	}
+
 	fckv.CryptoKeyVersion = cryptoKeyVersion
-	k.store.putCryptoKeyVersion(path.Dir(path.Dir(fckv.CryptoKeyVersion.Name)), fckv)
+	fck.putFakeCryptoKeyVersion(fckv)
 
 	return cryptoKeyVersion, nil
 }
 
 func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetCryptoKeyVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	if k.getCryptoKeyVersionErr != nil {
 		return nil, k.getCryptoKeyVersionErr
 	}
 
-	fakeCryptoKeyVersion, err := k.store.fetchCryptoKeyVersion(req.Name)
+	fakeCryptoKeyVersion, err := k.store.fetchFakeCryptoKeyVersion(req.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -334,11 +531,14 @@ func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetC
 }
 
 func (k *fakeKMSClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKeyRequest, opts ...gax.CallOption) (*kmspb.PublicKey, error) {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	if k.getPublicKeyErr != nil {
 		return nil, k.getPublicKeyErr
 	}
 
-	fakeCryptoKeyVersion, err := k.store.fetchCryptoKeyVersion(req.Name)
+	fakeCryptoKeyVersion, err := k.store.fetchFakeCryptoKeyVersion(req.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -352,16 +552,23 @@ func (k *fakeKMSClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKe
 }
 
 func (k *fakeKMSClient) GetTokeninfo() (*oauth2.Tokeninfo, error) {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	return k.tokeninfo, k.getTokeninfoErr
 }
 
 func (k *fakeKMSClient) ListCryptoKeys(ctx context.Context, req *kmspb.ListCryptoKeysRequest, opts ...gax.CallOption) cryptoKeyIterator {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	if k.listCryptoKeysErr != nil {
 		return &fakeCryptoKeyIterator{nextErr: k.listCryptoKeysErr}
 	}
 	var cryptoKeys []*kmspb.CryptoKey
+	fakeCryptoKeys := k.store.fetchFakeCryptoKeys()
 
-	for _, fck := range k.store.fakeCryptoKeys {
+	for _, fck := range fakeCryptoKeys {
 		// Make sure that it's within the same Key Ring.
 		// The Key Ring name es specified in req.Parent.
 		// The Key Ring name is three levels up from the CryptoKey name.
@@ -390,6 +597,9 @@ func (k *fakeKMSClient) ListCryptoKeys(ctx context.Context, req *kmspb.ListCrypt
 }
 
 func (k *fakeKMSClient) ListCryptoKeyVersions(ctx context.Context, req *kmspb.ListCryptoKeyVersionsRequest, opts ...gax.CallOption) cryptoKeyVersionIterator {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	if k.listCryptoKeyVersionsErr != nil {
 		return &fakeCryptoKeyVersionIterator{nextErr: k.listCryptoKeyVersionsErr}
 	}
@@ -418,6 +628,9 @@ func (k *fakeKMSClient) ListCryptoKeyVersions(ctx context.Context, req *kmspb.Li
 }
 
 func (k *fakeKMSClient) ResourceIAM(string) iamHandler {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	return k.fakeIAMHandle
 }
 
@@ -426,25 +639,34 @@ func (k *fakeKMSClient) UpdateCryptoKey(ctx context.Context, req *kmspb.UpdateCr
 		return nil, k.updateCryptoKeyErr
 	}
 
-	fck, ok := k.store.fakeCryptoKeys[req.CryptoKey.Name]
+	fck, ok := k.store.fetchFakeCryptoKey(req.CryptoKey.Name)
 	if !ok {
-		return nil, fmt.Errorf("cryptoKey %q not found", req.CryptoKey.Name)
+		return nil, fmt.Errorf("could not find CryptoKey %q", req.CryptoKey.Name)
 	}
+
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	fck.mu.Lock()
+	defer fck.mu.Unlock()
+
 	fck.CryptoKey = req.CryptoKey
 	return fck.CryptoKey, nil
 }
 
 func (k *fakeKMSClient) createFakeCryptoKeyVersion(cryptoKey *kmspb.CryptoKey, version string) (*fakeCryptoKeyVersion, error) {
 	var privateKey crypto.Signer
+	var testKeys testkey.Keys
+
 	switch cryptoKey.VersionTemplate.Algorithm {
 	case kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256:
-		privateKey = k.testKeys.NewEC256(k.t)
+		privateKey = testKeys.NewEC256(k.t)
 	case kmspb.CryptoKeyVersion_EC_SIGN_P384_SHA384:
-		privateKey = k.testKeys.NewEC384(k.t)
+		privateKey = testKeys.NewEC384(k.t)
 	case kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256:
-		privateKey = k.testKeys.NewRSA2048(k.t)
+		privateKey = testKeys.NewRSA2048(k.t)
 	case kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA256:
-		privateKey = k.testKeys.NewRSA4096(k.t)
+		privateKey = testKeys.NewRSA4096(k.t)
 	default:
 		return nil, fmt.Errorf("unknown algorithm %q", cryptoKey.VersionTemplate.Algorithm)
 	}
@@ -475,6 +697,9 @@ func (k *fakeKMSClient) createFakeCryptoKeyVersion(cryptoKey *kmspb.CryptoKey, v
 }
 
 func (k *fakeKMSClient) getDefaultPolicy() *iam.Policy3 {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
 	policy := new(iam.Policy3)
 	policy.Bindings = []*iampb.Binding{
 		{
@@ -485,10 +710,12 @@ func (k *fakeKMSClient) getDefaultPolicy() *iam.Policy3 {
 	return policy
 }
 
-func (k *fakeKMSClient) putFakeCryptoKeys(fakeCryptoKeys []fakeCryptoKey) {
-	for _, fakeCryptoKey := range fakeCryptoKeys {
-		newFakeCryptoKey := fakeCryptoKey
-		k.store.putCryptoKey(&newFakeCryptoKey)
+func (k *fakeKMSClient) putFakeCryptoKeys(fakeCryptoKeys []*fakeCryptoKey) {
+	for _, fck := range fakeCryptoKeys {
+		k.store.putFakeCryptoKey(&fakeCryptoKey{
+			CryptoKey:             fck.CryptoKey,
+			fakeCryptoKeyVersions: fck.fakeCryptoKeyVersions,
+		})
 	}
 }
 

@@ -77,6 +77,7 @@ type pluginHooks struct {
 
 	// Used for testing only.
 	disposeCryptoKeysSignal    chan error
+	enqueueDestructionSignal   chan error
 	keepActiveCryptoKeysSignal chan error
 	scheduleDestroySignal      chan error
 	setInactiveSignal          chan error
@@ -573,10 +574,11 @@ func (p *Plugin) enqueueDestruction(cryptoKeyVersionName string) (err error) {
 	case p.scheduleDestroy <- cryptoKeyVersionName:
 		p.log.Debug("CryptoKeyVersion enqueued for destruction", cryptoKeyVersionNameTag, cryptoKeyVersionName)
 	default:
-		return fmt.Errorf("could not enqueue CryptoKeyVersion %q for destruction", cryptoKeyVersionName)
+		err = fmt.Errorf("could not enqueue CryptoKeyVersion %q for destruction", cryptoKeyVersionName)
 	}
 
-	return nil
+	p.notifyEnqueueDestruction(err)
+	return err
 }
 
 // getAuthenticatedServiceAccount gets the email of the authenticated service
@@ -790,6 +792,12 @@ func (p *Plugin) notifyDestroy(err error) {
 func (p *Plugin) notifyDisposeCryptoKeys(err error) {
 	if p.hooks.disposeCryptoKeysSignal != nil {
 		p.hooks.disposeCryptoKeysSignal <- err
+	}
+}
+
+func (p *Plugin) notifyEnqueueDestruction(err error) {
+	if p.hooks.enqueueDestructionSignal != nil {
+		p.hooks.enqueueDestructionSignal <- err
 	}
 }
 
