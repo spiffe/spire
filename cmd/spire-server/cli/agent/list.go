@@ -107,6 +107,10 @@ func prettyPrintAgents(env *commoncli.Env, results ...interface{}) error {
 		return env.Printf("No attested agents found\n")
 	}
 
+	if len(agents) == 0 {
+		return env.Printf("No attested agents found\n")
+	}
+
 	msg := fmt.Sprintf("Found %d attested ", len(agents))
 	msg = util.Pluralizer(msg, "agent", "agents", len(agents))
 	env.Printf("%s:\n\n", msg)
