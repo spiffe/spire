@@ -18,5 +18,5 @@ the last minor version that supports it (v1.16).
 
 ## Kubernetes
 
-The SPIRE project currently supports Kubernetes 1.18 through 1.20. Later
+The SPIRE project currently supports Kubernetes 1.18 through 1.21. Later
 versions may also work but are not explicitly exercised by integration tests.
