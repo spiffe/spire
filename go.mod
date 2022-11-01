@@ -12,7 +12,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.0.0
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.32.0
-	github.com/InVisionApp/go-health/v2 v2.1.2
+	github.com/InVisionApp/go-health/v2 v2.1.3
 	github.com/InVisionApp/go-logger v1.0.1
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
