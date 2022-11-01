@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.4.5] - 2022-11-01
+
+### Security
+- Updated to Go 1.19.3 to address CVE-2022-41716. This vulnerability only affects users configuring external Server or Agent plugins on Windows.
+
 ## [1.4.4] - 2022-10-05
 
 ### Added
