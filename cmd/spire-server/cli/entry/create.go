@@ -119,18 +119,12 @@ func (c *createCommand) Run(ctx context.Context, env *commoncli.Env, serverClien
 		return err
 	}
 
-	resp, hasFailedEntries, err := createEntries(ctx, serverClient.NewEntryClient(), entries)
+	resp, _, err := createEntries(ctx, serverClient.NewEntryClient(), entries)
 	if err != nil {
 		return err
 	}
 
-	c.printer.MustPrintProto(resp)
-
-	if hasFailedEntries && c.printer.FormatType() == cliprinter.Pretty {
-		return errors.New("failed to create one or more entries")
-	}
-
-	return nil
+	return c.printer.PrintProto(resp)
 }
 
 // validate performs basic validation, even on fields that we
@@ -278,6 +272,10 @@ func prettyPrintCreate(env *commoncli.Env, results ...interface{}) error {
 			codes.Code(r.Status.Code),
 			r.Status.Message)
 		printEntry(r.Entry, env.ErrPrintf)
+	}
+
+	if len(failed) > 0 {
+		return errors.New("failed to create one or more entries")
 	}
 
 	return nil

@@ -54,13 +54,8 @@ func (c *deleteCommand) Run(ctx context.Context, env *commoncli.Env, serverClien
 	if err != nil {
 		return err
 	}
-	c.printer.MustPrintProto(resp)
 
-	sts := resp.Results[0].Status
-	if c.printer.FormatType() == cliprinter.Pretty && sts.Code != int32(codes.OK) {
-		return fmt.Errorf("failed to delete entry: %s", sts.Message)
-	}
-	return nil
+	return c.printer.PrintProto(resp)
 }
 
 // Perform basic validation.
@@ -76,6 +71,11 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...interfa
 	resp := results[0].(*entryv1.BatchDeleteEntryResponse)
 	if resp.Results[0].Status.Code == int32(codes.OK) {
 		env.Printf("Deleted entry with ID: %s\n", c.entryID)
+	}
+
+	sts := resp.Results[0].Status
+	if sts.Code != int32(codes.OK) {
+		return fmt.Errorf("failed to delete entry: %s", sts.Message)
 	}
 
 	return nil

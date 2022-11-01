@@ -116,18 +116,12 @@ func (c *updateCommand) Run(ctx context.Context, env *commoncli.Env, serverClien
 		return err
 	}
 
-	resp, hasFailedEntry, err := updateEntries(ctx, serverClient.NewEntryClient(), entries)
+	resp, err := updateEntries(ctx, serverClient.NewEntryClient(), entries)
 	if err != nil {
 		return err
 	}
 
-	c.printer.MustPrintProto(resp)
-
-	if c.printer.FormatType() == cliprinter.Pretty && hasFailedEntry {
-		return errors.New("failed to update one or more entries")
-	}
-
-	return nil
+	return c.printer.PrintProto(resp)
 }
 
 // validate performs basic validation, even on fields that we
@@ -224,7 +218,7 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func updateEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (resp *entryv1.BatchUpdateEntryResponse, hasFailedEntry bool, err error) {
+func updateEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (resp *entryv1.BatchUpdateEntryResponse, err error) {
 	resp, err = c.BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
 		Entries: entries,
 	})
@@ -237,7 +231,6 @@ func updateEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.
 			// The Entry API does not include in the results the entries that
 			// failed to be updated, so we populate them from the request data.
 			r.Entry = entries[i]
-			hasFailedEntry = true
 		}
 	}
 
@@ -267,6 +260,10 @@ func prettyPrintUpdate(env *commoncli.Env, results ...interface{}) error {
 			codes.Code(r.Status.Code),
 			r.Status.Message)
 		printEntry(r.Entry, env.ErrPrintf)
+	}
+
+	if len(failed) > 0 {
+		return errors.New("failed to update one or more entries")
 	}
 
 	return nil
