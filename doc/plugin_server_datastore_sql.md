@@ -2,18 +2,18 @@
 
 The `sql` plugin implements SQL based data storage for the SPIRE server using SQLite, PostgreSQL or MySQL databases.
 
-| Configuration         | Description                                                                |
-| --------------------- | -------------------------------------------------------------------------- |
-| database_type         | database type                                                              |
-| connection_string     | connection string                                                          |
-| ro_connection_string  | [Read Only connection](#read-only-connection)                              |
-| root_ca_path          | Path to Root CA bundle (MySQL only)                                        |
-| client_cert_path      | Path to client certificate (MySQL only)                                    |
-| client_key_path       | Path to private key for client certificate (MySQL only)                    |
-| max_open_conns        | The maximum number of open db connections (default: unlimited)             |
-| max_idle_conns        | The maximum number of idle connections in the pool (default: 2)            |
-| conn_max_lifetime     | The maximum amount of time a connection may be reused (default: unlimited) |
-| disable_migration     | True to disable auto-migration functionality. Use of this flag allows finer control over when datastore migrations occur and coordination of the migration of a datastore shared with a SPIRE Server cluster. Only available for databases from SPIRE Code version 0.9.0 or later. |
+| Configuration        | Description                                                                                                                                                                                                                                                                        |
+|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| database_type        | database type                                                                                                                                                                                                                                                                      |
+| connection_string    | connection string                                                                                                                                                                                                                                                                  |
+| ro_connection_string | [Read Only connection](#read-only-connection)                                                                                                                                                                                                                                      |
+| root_ca_path         | Path to Root CA bundle (MySQL only)                                                                                                                                                                                                                                                |
+| client_cert_path     | Path to client certificate (MySQL only)                                                                                                                                                                                                                                            |
+| client_key_path      | Path to private key for client certificate (MySQL only)                                                                                                                                                                                                                            |
+| max_open_conns       | The maximum number of open db connections (default: unlimited)                                                                                                                                                                                                                     |
+| max_idle_conns       | The maximum number of idle connections in the pool (default: 2)                                                                                                                                                                                                                    |
+| conn_max_lifetime    | The maximum amount of time a connection may be reused (default: unlimited)                                                                                                                                                                                                         |
+| disable_migration    | True to disable auto-migration functionality. Use of this flag allows finer control over when datastore migrations occur and coordination of the migration of a datastore shared with a SPIRE Server cluster. Only available for databases from SPIRE Code version 0.9.0 or later. |
 
 
 
@@ -135,4 +135,4 @@ Read Only connection will be used when the optional `ro_connection_string` is se
 
 ## SQLite and CGO
 
-SQLite support requires the use of CGO. This is not a concern for users downloading SPIRE or using the offical SPIRE container images. However, if you are building SPIRE from the source code, please note that compiling SPIRE without CGO (e.g. `CGO_ENABLED=0`) will disable SQLite support.
+SQLite support requires the use of CGO. This is not a concern for users downloading SPIRE or using the official SPIRE container images. However, if you are building SPIRE from the source code, please note that compiling SPIRE without CGO (e.g. `CGO_ENABLED=0`) will disable SQLite support.

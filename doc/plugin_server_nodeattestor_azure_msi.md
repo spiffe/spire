@@ -17,20 +17,22 @@ attestation or to resolve selectors.
 
 ## Configuration
 
-| Configuration   | Required    | Description | Default                 |
-| --------------- | ----------- | ----------------------- |
-| `tenants`       | Required    | A map of tenants, keyed by tenant ID, that are authorized for attestation. Tokens for unspecified tenants are rejected. | |
+| Configuration         | Required | Description                                                                                                             | Default                                                   |
+|-----------------------|----------|-------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| `tenants`             | Required | A map of tenants, keyed by tenant ID, that are authorized for attestation. Tokens for unspecified tenants are rejected. |                                                           |
+| `agent_path_template` | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                       | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}"` |
+
 
 
 Each tenant in the main configuration supports the following
 
-| Configuration     | Required    | Description | Default                 |
-| ----------------- | ----------- | ----------------------- |
+| Configuration     | Required                             | Description                                                                                               | Default                       |
+|-------------------|--------------------------------------|-----------------------------------------------------------------------------------------------------------|-------------------------------|
 | `resource_id`     | Optional                             | The resource ID (or audience) for the tenant's MSI token. Tokens for a different resource ID are rejected | https://management.azure.com/ |
-| `use_msi`         | [Optional](#authenticating-to-azure) | Whether or not to use MSI to authenticate to Azure services for selector resolution. | false |
-| `subscription_id` | [Optional](#authenticating-to-azure) | The subscription the tenant resides in | |
-| `app_id`          | [Optional](#authenticating-to-azure) | The application id | |
-| `app_secret`      | [Optional](#authenticating-to-azure) | The application secret | |
+| `use_msi`         | [Optional](#authenticating-to-azure) | Whether or not to use MSI to authenticate to Azure services for selector resolution.                      | false                         |
+| `subscription_id` | [Optional](#authenticating-to-azure) | The subscription the tenant resides in                                                                    |                               |
+| `app_id`          | [Optional](#authenticating-to-azure) | The application id                                                                                        |                               |
+| `app_secret`      | [Optional](#authenticating-to-azure) | The application secret                                                                                    |                               |
 
 It is important to note that the resource ID MUST be for a well known Azure
 service, or an app ID for a registered app in Azure AD. Azure will not issue an
@@ -46,7 +48,7 @@ Each tenant can be configured to either authenticate with an MSI token
 (`subscription_id`, `app_id`, and `app_secret`). The SPIRE Server must reside
 in the same tenant when authenticating with an MSI token.
 
-For backwards compatability reasons the authentication configuration is *NOT*
+For backwards compatibility reasons the authentication configuration is *NOT*
 required, however, it will be in a future release.
 
 ### Sample Configurations
@@ -68,7 +70,7 @@ required, however, it will be in a future release.
 }
 ```
 
-#### Custom Reseource ID and MSI Authentication
+#### Custom Resource ID and MSI Authentication
 
 ```
     NodeAttestor "azure_msi" {
@@ -87,15 +89,27 @@ required, however, it will be in a future release.
 
 The plugin produces the following selectors.
 
-| Selector               | Example                                                | Description                                                |
-| ---------------------- | ------------------------------------------------------ | -----------------------------------------------------------|
-| Subscription ID        | `subscription-id:d5b40d61-272e-48da-beb9-05f295c42bd6` | The subscription the node belongs to |
-| Virtual Machine Name   | `vm-name:frontend:blog`                                | The name of the virtual machine (e.g. `blog`) qualified by the resource group (e.g. `frontend`)
-| Network Security Group | `network-security-group:frontend:webservers`           | The name of the network security group (e.g. `webservers`) qualified by the resource group (e.g. `frontend`)
-| Virtual Network        | `virtual-network:frontend:vnet`                        | The name of the virtual network (e.g. `vnet`) qualified by the resource group (e.g. `frontend`)
-| Virtual Network Subnet | `virtual-network:frontend:vnet:default`                | The name of the virtual network subnet (e.g. `default`) qualfied by the virtual network and resource group
+| Selector               | Example                                                | Description                                                                                                  |
+|------------------------|--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|
+| Subscription ID        | `subscription-id:d5b40d61-272e-48da-beb9-05f295c42bd6` | The subscription the node belongs to                                                                         |
+| Virtual Machine Name   | `vm-name:frontend:blog`                                | The name of the virtual machine (e.g. `blog`) qualified by the resource group (e.g. `frontend`)              |
+| Network Security Group | `network-security-group:frontend:webservers`           | The name of the network security group (e.g. `webservers`) qualified by the resource group (e.g. `frontend`) |
+| Virtual Network        | `virtual-network:frontend:vnet`                        | The name of the virtual network (e.g. `vnet`) qualified by the resource group (e.g. `frontend`)              |
+| Virtual Network Subnet | `virtual-network:frontend:vnet:default`                | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group   |
 
 All of the selectors have the type `azure_msi`.
+
+## Agent Path Template
+The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
+The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [MSI access token](https://learn.microsoft.com/en-us/azure/active-directory/develop/access-tokens#payload-claims).
+
+Some useful values are:
+
+| Value                 | Description                                                |
+|-----------------------|------------------------------------------------------------|
+| .PluginName           | The name of the plugin                                     |
+| .TenantID             | Azure tenant identifier                                    |
+| .PrincipalID          | A identifier that is unique to a particular application ID |
 
 ## Security Considerations
 The Azure Managed Service Identity token, which this attestor leverages to prove node identity, is available to any process running on the node by default. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.

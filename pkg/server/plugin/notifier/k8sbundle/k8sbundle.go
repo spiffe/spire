@@ -413,7 +413,7 @@ func getKubeConfig(configPath string) (*rest.Config, error) {
 	return rest.InClusterConfig()
 }
 
-// kubeClient encapsulates the Kubenetes API for config maps, validating webhooks, and mutating webhooks
+// kubeClient encapsulates the Kubernetes API for config maps, validating webhooks, and mutating webhooks
 type informerCallback func(kubeClient, runtime.Object)
 
 type kubeClient interface {
@@ -424,7 +424,7 @@ type kubeClient interface {
 	Informer(callback informerCallback) cache.SharedIndexInformer
 }
 
-// configMapClient encapsulates the Kubenetes API for updating the CA Bundle in a config map
+// configMapClient encapsulates the Kubernetes API for updating the CA Bundle in a config map
 type configMapClient struct {
 	*kubernetes.Clientset
 	namespace    string
@@ -471,7 +471,7 @@ func (c configMapClient) Informer(callback informerCallback) cache.SharedIndexIn
 	return nil
 }
 
-// apiServiceClient encapsulates the Kubenetes API for updating the CA Bundle in an API Service
+// apiServiceClient encapsulates the Kubernetes API for updating the CA Bundle in an API Service
 type apiServiceClient struct {
 	aggregator.Interface
 	apiServiceLabel string
@@ -531,7 +531,7 @@ func (c apiServiceClient) Informer(callback informerCallback) cache.SharedIndexI
 	return informer
 }
 
-// mutatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a mutating webhook
+// mutatingWebhookClient encapsulates the Kubernetes API for updating the CA Bundle in a mutating webhook
 type mutatingWebhookClient struct {
 	kubernetes.Interface
 	webhookLabel string
@@ -602,7 +602,7 @@ func (c mutatingWebhookClient) Informer(callback informerCallback) cache.SharedI
 	return informer
 }
 
-// validatingWebhookClient encapsulates the Kubenetes API for updating the CA Bundle in a validating webhook
+// validatingWebhookClient encapsulates the Kubernetes API for updating the CA Bundle in a validating webhook
 type validatingWebhookClient struct {
 	kubernetes.Interface
 	webhookLabel string

@@ -66,7 +66,7 @@ https://aws.amazon.com/blogs/containers/using-mtls-with-spiffe-spire-in-app-mesh
 * Anthem writes about developing a zero trust framework at Anthem Using SPIFFE and SPIRE:
 https://upshotstories.com/stories/developing-a-zero-trust-framework-at-anthem-using-spiffe-and-spire
 
-* ARM and VMware showcase hardware backed security for multitenancy at the Edge with SPIFFE & PARSEC
+* ARM and VMware showcase hardware backed security for multi-tenancy at the Edge with SPIFFE & PARSEC
 https://www.youtube.com/watch?v=-I_rCKMyY7Y
 
 * Bloomberg talks about TPM node attestation with SPIRE:

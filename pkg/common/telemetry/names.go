@@ -192,6 +192,9 @@ const (
 	// CGroupPath tags a linux CGroup path, most likely for use in attestation
 	CGroupPath = "cgroup_path"
 
+	// Check tags a health check subsystem
+	Check = "check"
+
 	// Connection functionality related to some connection; should be used with other tags
 	// to add clarity
 	Connection = "connection"
@@ -220,6 +223,12 @@ const (
 
 	// DeprecatedServiceName tags the deprecated service name
 	DeprecatedServiceName = "deprecated_service_name"
+
+	// Details tags details response from a health check subsystem
+	Details = "details"
+
+	// Duration is the amount of seconds that an error is active
+	Duration = "duration"
 
 	// DiscoveredSelectors tags selectors for some registration
 	DiscoveredSelectors = "discovered_selectors"
@@ -265,6 +274,9 @@ const (
 
 	// External tag something as external (e.g. external plugin)
 	External = "external"
+
+	// Failures amount of concatenated errors
+	Failures = "failures"
 
 	// FederatedAdded labels some count of federated bundles that have been added to an entity
 	FederatedAdded = "fed_add"
@@ -472,6 +484,14 @@ const (
 	// TTL functionality related to a time-to-live field; should be used
 	// with other tags to add clarity
 	TTL = "ttl"
+
+	// X509 SVID TTL functionality related to a time-to-live field for X509-SVIDs; should be used
+	// with other tags to add clarity
+	X509SVIDTTL = "x509_svid_ttl"
+
+	// JWT SVID TTL functionality related to a time-to-live field for JWT-SVIDs; should be used
+	// with other tags to add clarity
+	JWTSVIDTTL = "jwt_svid_ttl"
 
 	// Type tags a type
 	Type = "type"

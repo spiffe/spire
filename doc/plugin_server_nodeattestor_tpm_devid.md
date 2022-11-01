@@ -30,10 +30,10 @@ spiffe://<trust domain>/spire/agent/tpm_devid/<fingerprint>
 ```
 
 
-| Configuration 		| Description | Default                 |
-| -------------------------	| ----------- | ----------------------- |
-| `devid_ca_path`		| The path to the trusted CA certificate(s) on disk to use for DevID validation. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. | |
-| `endorsement_ca_path`		| The path to the trusted manufacturer CA certificate(s) on disk. The file must contain one or more PEM blocks forming the set of trusted manufacturer CA's for chain-of-trust verification. | |
+| Configuration 		        | Description                                                                                                                                                                                       | Default |
+|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `devid_ca_path`		       | The path to the trusted CA certificate(s) on disk to use for DevID validation. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. |         |
+| `endorsement_ca_path`		 | The path to the trusted manufacturer CA certificate(s) on disk. The file must contain one or more PEM blocks forming the set of trusted manufacturer CA's for chain-of-trust verification.        |         |
 
 A sample configuration:
 
@@ -48,8 +48,8 @@ A sample configuration:
 
 ## Selectors
 
-| Selector                  	| Example								| Description				|
-| ---------------------------- 	| -----------------------------------------------------------------	| ---------------------------------	|
-| Subject common name		|`tpm_devid:subject:cn:example.org`					| The subject's common name.		|
-| Issuer common name		|`tpm_devid:issuer:cn:authority.org`					| The issuer's common name.		|
-| SHA1 fingerprint		|`tpm_devid:fingerprint:9ba51e2643bea24e91d24bdec3a1aaf8e967b6e5`	| The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.|
+| Selector                  	 | Example								                                                   | Description				                                                                          |
+|-----------------------------|-------------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| Subject common name		       | `tpm_devid:subject:cn:example.org`					                           | The subject's common name.		                                                             |
+| Issuer common name		        | `tpm_devid:issuer:cn:authority.org`					                          | The issuer's common name.		                                                              |
+| SHA1 fingerprint		          | `tpm_devid:fingerprint:9ba51e2643bea24e91d24bdec3a1aaf8e967b6e5`	 | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf. |

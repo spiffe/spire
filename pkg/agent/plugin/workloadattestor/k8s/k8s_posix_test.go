@@ -152,6 +152,16 @@ func (s *Suite) TestAttestAgainstNodeOverride() {
 	s.Require().Empty(selectors)
 }
 
+func (s *Suite) TestAttestWhenContainerNotReadyButContainerSelectorsDisabled() {
+	// This test will not pass on windows since obtaining the container ID is
+	// currently required to identify the workload pod in that environment.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithExtra("disable_container_selectors = true")
+	s.addPodListResponse(podListNotRunningFilePath)
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestSuccess(p, testPodSelectors)
+}
+
 func (s *Suite) addGetContainerResponsePidInPod() {
 	s.addCgroupsResponse(cgPidInPodFilePath)
 }
@@ -192,7 +202,7 @@ func (s *Suite) requireAttestFailWithDuplicateContainerID(p workloadattestor.Wor
 func (s *Suite) requireAttestSuccessWithPodSystemdCgroups(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgSystemdPidInPodFilePath)
-	s.requireAttestSuccess(p, testPodSelectors)
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
 }
 
 func TestGetContainerIDFromCGroups(t *testing.T) {

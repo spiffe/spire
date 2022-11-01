@@ -47,10 +47,10 @@ order to trigger test suite failure.
 
 The following environment variables are available to the step scripts:
 
-| Environment Variable  | Description |
-| --------- | ----------------|
-| `REPODIR` | Path to the root of the git repository.          |
-| `ROOTDIR` | Path to the root of the integration test directory (i.e. `${REPODIR}/test/integration` ) |
+| Environment Variable | Description                                                                              |
+|----------------------|------------------------------------------------------------------------------------------|
+| `REPODIR`            | Path to the root of the git repository.                                                  |
+| `ROOTDIR`            | Path to the root of the integration test directory (i.e. `${REPODIR}/test/integration` ) |
 
 ### Teardown Script
 
@@ -63,11 +63,11 @@ for the test suite.
 
 The following environment variables are available to the teardown script:
 
-| Environment Variable  | Description |
-| --------- | ----------------|
-| `REPODIR` | Path to the root of the git repository.          |
-| `ROOTDIR` | Path to the root of the integration test directory (i.e. `${REPODIR}/test/integration` ) |
-| `SUCCESS` | If set, indicates the test suite was successful. |
+| Environment Variable | Description                                                                              |
+|----------------------|------------------------------------------------------------------------------------------|
+| `REPODIR`            | Path to the root of the git repository.                                                  |
+| `ROOTDIR`            | Path to the root of the integration test directory (i.e. `${REPODIR}/test/integration` ) |
+| `SUCCESS`            | If set, indicates the test suite was successful.                                         |
 
 ## Test Suites
 

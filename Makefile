@@ -124,7 +124,7 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.49.0
+golangci_lint_version = v1.50.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
@@ -201,7 +201,11 @@ endif
 ############################################################################
 
 # Flags passed to all invocations of go test
-go_test_flags := -timeout=60s
+go_test_flags := 
+ifeq ($(NIGHTLY),)
+	# Cap unit-test timout to 60s unless we're running nightlies.
+	go_test_flags += -timeout=60s
+endif
 
 go_flags :=
 ifneq ($(GOPARALLEL),)

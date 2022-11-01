@@ -26,7 +26,6 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakenoderesolver"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
@@ -51,6 +50,7 @@ var (
 	ctx     = context.Background()
 	td      = spiffeid.RequireTrustDomainFromString("example.org")
 	agentID = spiffeid.RequireFromPath(td, "/agent")
+	testKey = testkey.MustEC256()
 
 	testNodes = map[string]*common.AttestedNode{
 		agent1: {
@@ -1598,7 +1598,6 @@ func TestGetAgent(t *testing.T) {
 }
 
 func TestRenewAgent(t *testing.T) {
-	testKey := testkey.MustEC256()
 	agentIDType := &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"}
 
 	defaultNode := &common.AttestedNode{
@@ -2142,7 +2141,7 @@ func TestAttestAgent(t *testing.T) {
 		t,
 		"https://github.com/spiffe/spire/issues/2841",
 	)
-	testCsr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testkey.MustEC256())
+	testCsr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testKey)
 	require.NoError(t, err)
 
 	_, expectedCsrErr := x509.ParseCertificateRequest([]byte("not a csr"))
@@ -2491,7 +2490,6 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
-				{Type: "test_type", Value: "resolved"},
 				{Type: "test_type", Value: "result"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -2523,7 +2521,6 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
-				{Type: "test_type", Value: "resolved"},
 				{Type: "test_type", Value: "result"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -2555,7 +2552,6 @@ func TestAttestAgent(t *testing.T) {
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_challenge"),
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "challenge"},
-				{Type: "test_type", Value: "resolved_too"},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -3008,7 +3004,6 @@ func TestAttestAgent(t *testing.T) {
 			defer cancel()
 
 			test.setupAttestor(t)
-			test.setupResolver(t)
 			test.setupJoinTokens(ctx, t)
 			test.setupNodes(ctx, t)
 
@@ -3155,7 +3150,7 @@ func (s *serviceTest) setupAttestor(t *testing.T) {
 			"spiffe://example.org/spire/agent/test_type/id_attested_before": {"attested_before"},
 			"spiffe://example.org/spire/agent/test_type/id_with_challenge":  {"challenge"},
 			"spiffe://example.org/spire/agent/test_type/id_banned":          {"banned"},
-			"spiffe://example.org/spire/agent/test_type/id_selector_dups":   {"A", "B", "C"},
+			"spiffe://example.org/spire/agent/test_type/id_selector_dups":   {"A", "B", "C", "A", "D"},
 		},
 		Challenges: map[string][]string{
 			"id_with_challenge": {"challenge_response"},
@@ -3164,17 +3159,6 @@ func (s *serviceTest) setupAttestor(t *testing.T) {
 
 	fakeNodeAttestor := fakeservernodeattestor.New(t, "test_type", attestorConfig)
 	s.cat.SetNodeAttestor(fakeNodeAttestor)
-}
-
-func (s *serviceTest) setupResolver(t *testing.T) {
-	selectors := map[string][]string{
-		spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result").String():    {"resolved"},
-		spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_challenge").String(): {"resolved_too"},
-		spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_selector_dups").String():  {"D", "C", "B"},
-	}
-
-	fakeNodeResolver := fakenoderesolver.New(t, "test_type", selectors)
-	s.cat.SetNodeResolver(fakeNodeResolver)
 }
 
 func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {

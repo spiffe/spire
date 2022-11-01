@@ -1,15 +1,17 @@
 # SPIRE Kubernetes Workload Registrar (CRD Mode)
 
-The CRD mode of the SPIRE Kubernetes Workload Registrar uses a Kuberntes Custom Resource Definition (CRD) to integrate SPIRE and Kubernetes.
-This enables auto and manual generation of SPIFFE IDs from with Kubenretes and the `kubectl` CLI.
+** The SPIRE Kubernetes Workload Registrar is deprecated and no longer maintained. Please migrate to the [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager). **
+
+The CRD mode of the SPIRE Kubernetes Workload Registrar uses a Kubernetes Custom Resource Definition (CRD) to integrate SPIRE and Kubernetes.
+This enables auto and manual generation of SPIFFE IDs from with Kubernetes and the `kubectl` CLI.
 
 ## Benefits of CRD Kubernetes Workload Registrar
 
-There are mutiple modes of the Kubernetes Workload Registrar. The benefits of the CRD mode when compared to other modes are:
+There are multiple modes of the Kubernetes Workload Registrar. The benefits of the CRD mode when compared to other modes are:
 
-* **`kubectl` integration**: Using a CRD, SPIRE is fully intergrated with Kubernetes. You can view and create SPIFFE IDs directly using `kubectl`, without having to shell into the SPIRE server.
-* **Fully event-driven design**: Using the Kubernetes CRD system, the CRD mode Kubernetes Workload Registrar is fully event-driven to minimze resource usage.
-* **Standards-based solution**: CRDs are the standard way to extend Kubernetes, with many resources online, such as [kubebuilder](https://book.kubebuilder.io/), discussing the approach. The CRD Kubernetes Worklaod Registrar follows all standards and best practices to ensure it is maintainable.
+* **`kubectl` integration**: Using a CRD, SPIRE is fully integrated with Kubernetes. You can view and create SPIFFE IDs directly using `kubectl`, without having to shell into the SPIRE server.
+* **Fully event-driven design**: Using the Kubernetes CRD system, the CRD mode Kubernetes Workload Registrar is fully event-driven to minimize resource usage.
+* **Standards-based solution**: CRDs are the standard way to extend Kubernetes, with many resources online, such as [kubebuilder](https://book.kubebuilder.io/), discussing the approach. The CRD Kubernetes Workload Registrar follows all standards and best practices to ensure it is maintainable.
 
 ## Configuration
 
@@ -17,9 +19,9 @@ There are mutiple modes of the Kubernetes Workload Registrar. The benefits of th
 
 The registrar has the following command line flags:
 
-| Flag         | Description                                                      | Default                       |
-| ------------ | -----------------------------------------------------------------| ----------------------------- |
-| `-config`    | Path on disk to the [HCL Configuration](#hcl-configuration) file | `k8s-workload-registrar.conf` |
+| Flag      | Description                                                      | Default                       |
+|-----------|------------------------------------------------------------------|-------------------------------|
+| `-config` | Path on disk to the [HCL Configuration](#hcl-configuration) file | `k8s-workload-registrar.conf` |
 
 
 ### HCL Configuration
@@ -27,31 +29,31 @@ The registrar has the following command line flags:
 The configuration file is a **required** by the registrar. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
-| Key                             | Type     | Required? | Description                              | Default |
-| ------------------------------- | ---------| ---------| ----------------------------------------- | ------- |
-| `add_svc_dns_name`              | bool     | optional | Enable adding service names as SAN DNS names to endpoint pods | `true` |
-| `agent_socket_path`             | string   | optional | Path to the Unix domain socket of the SPIRE agent. Required if server_address is not a unix domain socket address. | |
-| `cluster`                       | string   | required | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration. | |
-| `context`                       | map[string]string | optional | The map of key/value pairs of arbitrary string parameters to be used by `identity_template` | |
-| `disabled_namespaces`           | []string | optional | Comma separated list of namespaces to disable auto SVID generation for | `"kube-system", "kube-public"` |
-| `dns_name_templates`            | []string | optional | Comma separated list of templates to generate [DNS names](#dns-names) for a workload. The first template in the list will also populate the CN of the SVID. | `[{{.Pod.Name}}]` |
-| `identity_template`             | string   | optional | The template for custom [Identity Template Based Workload Registration](#identity-template-based-workload-registration) | `ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}` |
-| `identity_template_label`       | string   | optional | Pod label for selecting pods that get SVIDs whose SPIFFE IDs are defined by `identity_template` format. If not set, applies to all the pods when `identity_template` is set  |  |
-| `leader_election`               | bool     | optional | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager. | `false` |
-| `leader_election_resource_lock` | string   | optional | Configures the type of resource to use for the leader election lock. | `"leases` |
-| `log_level`                     | string   | required | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`) | `"info"` |
-| `log_path`                      | string   | optional | Path on disk to write the log | |
-| `metrics_bind_addr`             | string   | optional | The address the metric endpoint binds to. The special value of "0" disables metrics. | `":8080"` |
-| `mode`                          | string   | optional | Must be set to `"crd"`. | `"webhook"` |
-| `pod_annotation`                | string   | optional | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration) | |
-| `pod_controller`                | bool     | optional | Enable auto generation of SVIDs for new pods that are created | `true` |
-| `pod_label`                     | string   | optional | The pod label used for [Label Based Workload Registration](#label-based-workload-registration) | |
-| `server_address`                | string   | required | Address of the spire server. A local socket can be specified using unix:///path/to/socket. This is not the same as the agent socket. | |
-| `server_socket_path`            | string   | optional | Path to the Unix domain socket of the SPIRE server, equivalent to specifying a server_address with a "unix://..." prefix | |
-| `trust_domain`                  | string   | required | Trust domain of the SPIRE server | |
-| `webhook_enabled`               | bool     | optional | Enable a validating webhook to ensure CRDs are properly fomatted and there are no duplicates. | `false` |
-| `webhook_port`                  | int      | optional | The port to use for the validating webhook. | `9443` |
-| `webhook_service_name`          | string   | optional | The name of the Kubernetes Service being used for the webhook. | `"k8s-workload-registrar"` |
+| Key                             | Type              | Required? | Description                                                                                                                                                                 | Default                                            |
+|---------------------------------|-------------------|-----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------|
+| `add_svc_dns_name`              | bool              | optional  | Enable adding service names as SAN DNS names to endpoint pods                                                                                                               | `true`                                             |
+| `agent_socket_path`             | string            | optional  | Path to the Unix domain socket of the SPIRE agent. Required if server_address is not a unix domain socket address.                                                          |                                                    |
+| `cluster`                       | string            | required  | Logical cluster to register nodes/workloads under. Must match the SPIRE SERVER PSAT node attestor configuration.                                                            |                                                    |
+| `context`                       | map[string]string | optional  | The map of key/value pairs of arbitrary string parameters to be used by `identity_template`                                                                                 |                                                    |
+| `disabled_namespaces`           | []string          | optional  | Comma separated list of namespaces to disable auto SVID generation for                                                                                                      | `"kube-system", "kube-public"`                     |
+| `dns_name_templates`            | []string          | optional  | Comma separated list of templates to generate [DNS names](#dns-names) for a workload. The first template in the list will also populate the CN of the SVID.                 | `[{{.Pod.Name}}]`                                  |
+| `identity_template`             | string            | optional  | The template for custom [Identity Template Based Workload Registration](#identity-template-based-workload-registration)                                                     | `ns/{{.Pod.Namespace}}/sa/{{.Pod.ServiceAccount}}` |
+| `identity_template_label`       | string            | optional  | Pod label for selecting pods that get SVIDs whose SPIFFE IDs are defined by `identity_template` format. If not set, applies to all the pods when `identity_template` is set |                                                    |
+| `leader_election`               | bool              | optional  | Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.                                                       | `false`                                            |
+| `leader_election_resource_lock` | string            | optional  | Configures the type of resource to use for the leader election lock.                                                                                                        | `"leases`                                          |
+| `log_level`                     | string            | required  | Log level (one of `"panic"`,`"fatal"`,`"error"`,`"warn"`, `"warning"`,`"info"`,`"debug"`,`"trace"`)                                                                         | `"info"`                                           |
+| `log_path`                      | string            | optional  | Path on disk to write the log                                                                                                                                               |                                                    |
+| `metrics_bind_addr`             | string            | optional  | The address the metric endpoint binds to. The special value of "0" disables metrics.                                                                                        | `":8080"`                                          |
+| `mode`                          | string            | optional  | Must be set to `"crd"`.                                                                                                                                                     | `"webhook"`                                        |
+| `pod_annotation`                | string            | optional  | The pod annotation used for [Annotation Based Workload Registration](#annotation-based-workload-registration)                                                               |                                                    |
+| `pod_controller`                | bool              | optional  | Enable auto generation of SVIDs for new pods that are created                                                                                                               | `true`                                             |
+| `pod_label`                     | string            | optional  | The pod label used for [Label Based Workload Registration](#label-based-workload-registration)                                                                              |                                                    |
+| `server_address`                | string            | required  | Address of the spire server. A local socket can be specified using unix:///path/to/socket. This is not the same as the agent socket.                                        |                                                    |
+| `server_socket_path`            | string            | optional  | Path to the Unix domain socket of the SPIRE server, equivalent to specifying a server_address with a "unix://..." prefix                                                    |                                                    |
+| `trust_domain`                  | string            | required  | Trust domain of the SPIRE server                                                                                                                                            |                                                    |
+| `webhook_enabled`               | bool              | optional  | Enable a validating webhook to ensure CRDs are properly formatted and there are no duplicates.                                                                              | `false`                                            |
+| `webhook_port`                  | int               | optional  | The port to use for the validating webhook.                                                                                                                                 | `9443`                                             |
+| `webhook_service_name`          | string            | optional  | The name of the Kubernetes Service being used for the webhook.                                                                                                              | `"k8s-workload-registrar"`                         |
 
 ## Quick Start
 
@@ -287,7 +289,7 @@ in addition to the following Pod-specific arguments:
 
 For example if the registrar was configured with the following:
 ```
-identity_template = "region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/sa/{{.Pod.ServiceAccount}}/pod_name/{{.Pod.pod_name}}"
+identity_template = "region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/sa/{{.Pod.ServiceAccount}}/pod_name/{{.Pod.Name}}"
 context {
   Region = "US-NORTH"
   ClusterName = "MYCLUSTER"
@@ -371,7 +373,7 @@ The default SPIFFE ID created with [Identity Template Based Workload Registratio
 
 ### Federated Entry Registration
 
-The pod annotatation `spiffe.io/federatesWith` can be used to create SPIFFE ID's that federate with other trust domains.
+The pod annotation `spiffe.io/federatesWith` can be used to create SPIFFE ID's that federate with other trust domains.
 
 To specify multiple trust domains, separate them with commas.
 

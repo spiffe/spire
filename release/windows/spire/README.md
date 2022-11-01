@@ -9,9 +9,9 @@ You can find additional example configurations for SPIRE [here](https://github.c
 
 == Contents
 
-| Path                      | Description             |
-| ------------------------- | ----------------------- |
-| `bin/spire-server.exe`    | SPIRE server executable |
-| `bin/spire-agent.exe`     | SPIRE agent executable  |
+| Path                      | Description                       |
+|---------------------------|-----------------------------------|
+| `bin/spire-server.exe`    | SPIRE server executable           |
+| `bin/spire-agent.exe`     | SPIRE agent executable            |
 | `conf/server/server.conf` | Sample SPIRE server configuration |
-| `conf/agent/agent.conf`   | Sample SPIRE agent configuration |
+| `conf/agent/agent.conf`   | Sample SPIRE agent configuration  |

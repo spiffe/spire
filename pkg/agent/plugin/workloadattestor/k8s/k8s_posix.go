@@ -70,7 +70,7 @@ func getPodUIDAndContainerIDFromCGroups(cgroups []cgroups.Cgroup) (types.UID, st
 	return podUID, containerID, nil
 }
 
-// regexes listed here have to exlusively match a cgroup path
+// regexes listed here have to exclusively match a cgroup path
 // the regexes must include two named groups "poduid" and "containerid"
 // if the regex needs to exclude certain substrings, the "mustnotmatch" group can be used
 var cgroupREs = []*regexp.Regexp{
@@ -174,8 +174,4 @@ func canonicalizePodUID(uid string) types.UID {
 		}
 		return r
 	}, uid))
-}
-
-func isNotPod(itemPodUID, podUID types.UID) bool {
-	return podUID != "" && itemPodUID != podUID
 }

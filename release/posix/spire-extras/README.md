@@ -9,7 +9,7 @@ purposes only and are **NOT** production ready.
 == Contents
 
 | Path                                                        | Description                                              |
-| ----------------------------------------------------------- | -------------------------------------------------------- |
+|-------------------------------------------------------------|----------------------------------------------------------|
 | `bin/k8s-workload-registrar`                                | SPIRE Kubernetes Workload Registrar executable           |
 | `bin/oidc-discovery-provider`                               | SPIRE OIDC Discovery Provider executable                 |
 | `conf/k8s-workload-registrar/k8s-workload-registrar.conf`   | Sample SPIRE Kubernetes Workload Registrar configuration |

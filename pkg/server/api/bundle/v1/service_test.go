@@ -791,10 +791,11 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 		td3.IDString(),
 	}
 	newEntry := &common.RegistrationEntry{
-		EntryId:  "entry1",
-		ParentId: "spiffe://example.org/foo",
-		SpiffeId: "spiffe://example.org/bar",
-		Ttl:      60,
+		EntryId:     "entry1",
+		ParentId:    "spiffe://example.org/foo",
+		SpiffeId:    "spiffe://example.org/bar",
+		X509SvidTtl: 70,
+		JwtSvidTtl:  80,
 		Selectors: []*common.Selector{
 			{Type: "a", Value: "1"},
 		},

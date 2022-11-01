@@ -1,7 +1,7 @@
 # Authorization policy engine
 
-**Warning**: Use of custom authorization policies is experiemental and can
-result in security degredation if not configured correctly. Please refer to 
+**Warning**: Use of custom authorization policies is experimental and can
+result in security degradation if not configured correctly. Please refer to 
 [this section](#extending-the-policy) for more details on extending the default
 policy.
 
@@ -82,11 +82,11 @@ The inputs that are passed into the policy are:
 - `input`: the input from the SPIRE server for the authorization call
 - `data`: the databinding from the policy data file
 
-| input field   | Description | Example |
-| ------------- | ----------- | ------- |
-| caller        | The SPIFFE ID (if available) of the caller | spiffe://example.org/workload1 |
-| full_method   | The full method name of the API call based on the [SPIRE API](https://github.com/spiffe/spire-api-sdk/tree/main/proto/spire/api) | /spire.api.server.svid.v1.SVID/MintJWTSVID |
-| req           | The API call request body (not available on client or bidirectional streaming RPC calls) | { "filter": {} } |
+| input field | Description                                                                                                                      | Example                                    |
+|-------------|----------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------|
+| caller      | The SPIFFE ID (if available) of the caller                                                                                       | spiffe://example.org/workload1             |
+| full_method | The full method name of the API call based on the [SPIRE API](https://github.com/spiffe/spire-api-sdk/tree/main/proto/spire/api) | /spire.api.server.svid.v1.SVID/MintJWTSVID |
+| req         | The API call request body (not available on client or bidirectional streaming RPC calls)                                         | { "filter": {} }                           |
 
 The request (`req`) is the marshalled JSON object from the [SPIRE
 api sdk](https://github.com/spiffe/spire-api-sdk/). Note that it is not
@@ -144,14 +144,14 @@ policy.
 
 The fields of each object are as follows:
 
-| field             | Description | Example |
-| ----------------- | ----------- | ------- |
-| full_method       | The full method name of the API call | /spire.api.server.svid.v1.SVID/MintJWTSVID |
-| allow_any         | if true, sets result.allow to true | |
-| allow_local       | if true, sets result.allow_if_local to true | |
-| allow_admin       | if true, sets result.allow_if_admin to true | |
-| allow_downstream  | if true, sets result.allow_if_downstream to true | |
-| allow_agent       | if true, sets result.allow_if_agent to true | |
+| field            | Description                                      | Example                                    |
+|------------------|--------------------------------------------------|--------------------------------------------|
+| full_method      | The full method name of the API call             | /spire.api.server.svid.v1.SVID/MintJWTSVID |
+| allow_any        | if true, sets result.allow to true               |                                            |
+| allow_local      | if true, sets result.allow_if_local to true      |                                            |
+| allow_admin      | if true, sets result.allow_if_admin to true      |                                            |
+| allow_downstream | if true, sets result.allow_if_downstream to true |                                            |
+| allow_agent      | if true, sets result.allow_if_agent to true      |                                            |
 
 # Extending the policy
 
@@ -224,7 +224,7 @@ allow = true {
 }
 ```
 
-## Example 1b: Sub-department namespacing with exlcusions
+## Example 1b: Sub-department namespacing with exclusions
 
 Building on top of the previous example, let's say we want to have sub
 departments, having schedulers for a subset of paths within the trust domain.
