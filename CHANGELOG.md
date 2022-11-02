@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.5.0] - 2022-11-02
+
+### Added
+- X.509-SVID and JWT-SVID TTLs can now be configured separately at both the entry-level and Server default level (#3445)
+- Entry protobuf type in `/v1/entry` API includes new `jwt_svid_ttl` field (#3445)
+- `k8s-workload-registrar` and `oidc-discovery-provider` CLIs now print their version when the `-version` flag is set (#3475)
+- Support for customizing SPIFFE ID paths of SPIRE Agents attested with the `azure_msi` NodeAttestor plugin (#3488)
+
+###  Changed
+- Entry `ttl` protobuf field in `/v1/entry` API is renamed to `x509_ttl` (#3445)
+- External plugins can no longer be named `join_token` to avoid conflicts with the builtin plugin (#3469)
+- `spire-server run` command now supports DNS names for the configured bind address (#3421)
+- Documentation improvements (#3468, #3472, #3473, #3474, #3515)
+
+### Deprecated
+- `k8s-workload-registrar` is deprecated in favor of [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager) (#3526)
+- Server `default_svid_ttl` configuration field is deprecated in favor of `default_x509_svid_ttl` and `default_jwt_svid_ttl` fields (#3445)
+- `-ttl` flag in `spire-server entry create` and `spire-server entry update` commands is deprecated in favor of `-x509SVIDTTL` and `-jwtSVIDTTL` flags (#3445)
+- `-format` flag in `spire-agent fetch jwt` CLI command is deprecated in favor of `-output` flag (#3528)
+- `InMem` telemetry collector is deprecated and no longer enabled by default (#3492)
+
+### Removed
+- NodeResolver plugin type and `azure_msi` builtin NodeResolver plugin (#3470)
+
 ## [1.4.5] - 2022-11-01
 
 ### Security
