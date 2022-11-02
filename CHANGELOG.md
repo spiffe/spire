@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.4.5] - 2022-11-01
+
+### Security
+- Updated to Go 1.19.3 to address CVE-2022-41716. This vulnerability only affects users configuring external Server or Agent plugins on Windows.
+
+## [1.4.4] - 2022-10-05
+
+### Added
+- Experimental support for limiting the number of SVIDs in the agent's cache (#3181)
+- Support for attesting Envoy proxy workloads when Istio is configured with holdApplicationUntilProxyStarts (#3460)
+
+### Changed
+- Improved bundle endpoint misconfiguration diagnostics (#3395)
+- OIDC Discovery Provider endpoint now has a timeout to read request headers (#3435)
+- Small documentation improvements (#3443)
+
 ## [1.4.3] - 2022-10-04
 
 ### Security
@@ -45,6 +61,11 @@
 ### Removed
 - The deprecated webhook mode from the k8s-workload-registrar (#3235)
 - Support for the configmap leader election lock type from the k8s-workload-registrar (#3241)
+
+## [1.3.6] - 2022-11-01
+
+### Security
+- Updated to Go 1.18.8 to address CVE-2022-41716. This vulnerability only affects users configuring external Server or Agent plugins on Windows.
 
 ## [1.3.5] - 2022-10-04
 
