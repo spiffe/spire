@@ -119,6 +119,7 @@ The following steps must be completed by the primary on-call maintainer to perfo
   * If the build fails, or anything unusual is encountered, abort the release.
     * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary.
 * Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub Markdown rendering bug that you will notice before completing this task.
+* Create Git tags (not annotated) with the name `vX.Y.Z` in the [spire-api-sdk](https://github.com/spiffe/spire-api-sdk) and [spire-plugin-sdk](https://github.com/spiffe/spire-plugin-sdk) repositories for the HEAD commit of the main branch.
 * Close the GitHub issue created to track the release process.
 * Broadcast news of release to the community via available means: SPIFFE Slack, Twitter, etc.
 * Open and merge a PR to bump the SPIRE version to the next projected version and [update the upgrade integration test](test/integration/suites/upgrade/README.md#maintenance).
