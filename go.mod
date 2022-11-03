@@ -75,7 +75,7 @@ require (
 	k8s.io/client-go v0.25.3
 	k8s.io/kube-aggregator v0.23.3
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed
-	sigs.k8s.io/controller-runtime v0.13.0
+	sigs.k8s.io/controller-runtime v0.13.1
 )
 
 require (
