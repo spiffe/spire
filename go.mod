@@ -37,7 +37,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/go-tpm v0.3.3
 	github.com/google/go-tpm-tools v0.3.9
-	github.com/googleapis/gax-go/v2 v2.6.0
+	github.com/googleapis/gax-go/v2 v2.7.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v1.3.1
 	github.com/hashicorp/go-plugin v1.4.5
