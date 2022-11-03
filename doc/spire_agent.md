@@ -282,9 +282,9 @@ plugins {
 ```
 ## Delegated Identity API
 
-SPIRE agent has support for Delegated Identity API. This API is intended for use cases where a (authorized) workload wants access to the X509-SVIDs and bundles on behalf of another workload. A list of authorized delegates SPIFFE IDs of workloads are defined for this purpose. The API is served over the same endpoint address as the admin API. Based on workload's selectors, a (authorized) workload could be subscribed to get X509-SVIDs and federated bundles from the registered entries that match the provided selectors.
+SPIRE Agent has support for Delegated Identity API. This API is intended for use cases where a (authorized) workload wants access to the SVIDs and bundles on behalf of another workload. A list of authorized delegates SPIFFE IDs of workloads are defined for this purpose. The API is served over the same endpoint address as the admin API. Based on workload's selectors, a (authorized) workload could be subscribed to get SVIDs and federated bundles from the registered entries that match the provided selectors. Both X509-SVIDs and JWT-SVIDs are supported.
 
-In order to use this API, you shall configure the `admin_socket_path` and `authorized_delegates` (SPIFFE ID list of authorized delegates identities), as the following example:
+In order to use this API, you shall configure the admin API endpoint address and the SPIFFE ID list of authorized delegates identities, as the following example:
 
 Unix systems:
 ```hcl
