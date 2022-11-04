@@ -98,25 +98,6 @@ func MkdirAll(path string, sddl string) error {
 	return nil
 }
 
-func createFileForWriting(path string, sddl string) (windows.Handle, error) {
-	file, err := getFileWithSecurityAttr(path, sddl)
-	if err != nil {
-		return windows.InvalidHandle, err
-	}
-	handle, err := windows.CreateFile(file.pathUTF16Ptr,
-		windows.GENERIC_WRITE,
-		0,
-		file.sa,
-		windows.CREATE_ALWAYS,
-		windows.FILE_ATTRIBUTE_NORMAL,
-		0)
-
-	if err != nil {
-		return windows.InvalidHandle, fmt.Errorf("could not create file %q: %v", path, err)
-	}
-	return handle, nil
-}
-
 func write(tmpPath string, data []byte, sddl string) error {
 	handle, err := createFileForWriting(tmpPath, sddl)
 	if err != nil {
@@ -138,6 +119,25 @@ func write(tmpPath string, data []byte, sddl string) error {
 	}
 
 	return file.Close()
+}
+
+func createFileForWriting(path string, sddl string) (windows.Handle, error) {
+	file, err := getFileWithSecurityAttr(path, sddl)
+	if err != nil {
+		return windows.InvalidHandle, err
+	}
+	handle, err := windows.CreateFile(file.pathUTF16Ptr,
+		windows.GENERIC_WRITE,
+		0,
+		file.sa,
+		windows.CREATE_ALWAYS,
+		windows.FILE_ATTRIBUTE_NORMAL,
+		0)
+
+	if err != nil {
+		return windows.InvalidHandle, fmt.Errorf("could not create file %q: %v", path, err)
+	}
+	return handle, nil
 }
 
 func atomicRename(oldPath, newPath string) error {
