@@ -196,7 +196,7 @@ func getFileWithSecurityAttr(path, sddl string) (*fileWithSecurityAttr, error) {
 
 	pathUTF16Ptr, err := windows.UTF16PtrFromString(path)
 	if err != nil {
-		return nil, fmt.Errorf("could not get pointer to the UTF-16 encoding of path %q: %v", path, err)
+		return nil, fmt.Errorf("could not get pointer to the UTF-16 encoding of path %q: %w", path, err)
 	}
 
 	return &fileWithSecurityAttr{
