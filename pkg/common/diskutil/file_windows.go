@@ -4,6 +4,7 @@
 package diskutil
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 	"unsafe"
@@ -17,12 +18,31 @@ const (
 	movefileWriteThrough    = 0x8
 )
 
-// AtomicWriteFile writes data out.  It writes to a temp file first, fsyncs that file,
-// then swaps the file in. Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH' witch waits until
-// file is synced to disk.
-func AtomicWriteFile(path string, data []byte, mode os.FileMode) error {
+type fileWithSecurityAttr struct {
+	pathUTF16Ptr *uint16
+	sa           *windows.SecurityAttributes
+}
+
+// AtomicWritePrivateFile writes data out to a private file
+// It writes to a temp file first, fsyncs that file, then swaps the file in.
+// Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH'
+// witch waits until file is synced to disk.
+func AtomicWritePrivateFile(path string, data []byte) error {
 	tmpPath := path + ".tmp"
-	if err := write(tmpPath, data, mode); err != nil {
+	if err := write(tmpPath, data, sddl.PrivateFile); err != nil {
+		return err
+	}
+
+	return atomicRename(tmpPath, path)
+}
+
+// AtomicWritePubliclyReadableFile writes data out to a publicly readable file.
+// It writes to a temp file first, fsyncs that file, then swaps the file in.
+// Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH'
+// witch waits until file is synced to disk.
+func AtomicWritePubliclyReadableFile(path string, data []byte) error {
+	tmpPath := path + ".tmp"
+	if err := write(tmpPath, data, sddl.PubliclyReadableFile); err != nil {
 		return err
 	}
 
@@ -78,12 +98,35 @@ func MkdirAll(path string, sddl string) error {
 	return nil
 }
 
-func write(tmpPath string, data []byte, mode os.FileMode) error {
-	file, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+func createFile(path string, sddl string) (windows.Handle, error) {
+	file, err := getFileWithSecurityAttr(path, sddl)
+	if err != nil {
+		return windows.InvalidHandle, err
+	}
+	handle, err := windows.CreateFile(file.pathUTF16Ptr,
+		windows.GENERIC_WRITE,
+		0,
+		file.sa,
+		windows.CREATE_ALWAYS,
+		windows.FILE_ATTRIBUTE_NORMAL,
+		0)
+
+	if err != nil {
+		return windows.InvalidHandle, fmt.Errorf("could not create file %q: %v", path, err)
+	}
+	return handle, nil
+}
+
+func write(tmpPath string, data []byte, sddl string) error {
+	handle, err := createFile(tmpPath, sddl)
 	if err != nil {
 		return err
 	}
 
+	file := os.NewFile(uintptr(handle), tmpPath)
+	if file == nil {
+		return fmt.Errorf("invalid file descruptor for file %q", tmpPath)
+	}
 	if _, err := file.Write(data); err != nil {
 		file.Close()
 		return err
@@ -129,23 +172,35 @@ func rename(oldPath, newPath string) error {
 //
 // In the same way as os.MkDir, errors returned are of type *os.PathError.
 func mkdir(path string, sddl string) error {
+	file, err := getFileWithSecurityAttr(path, sddl)
+	if err != nil {
+		return err
+	}
+
+	err = windows.CreateDirectory(file.pathUTF16Ptr, file.sa)
+	if err != nil {
+		return fmt.Errorf("could not create directory: %v", err)
+	}
+	return nil
+}
+
+func getFileWithSecurityAttr(path, sddl string) (*fileWithSecurityAttr, error) {
 	sa := windows.SecurityAttributes{Length: 0}
 	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
-		return &os.PathError{Op: "mkdir", Path: path, Err: err}
+		return nil, fmt.Errorf("could not convert SDDL %q into a self-relative security descriptor object: %v", sddl, err)
 	}
 	sa.Length = uint32(unsafe.Sizeof(sa))
 	sa.InheritHandle = 1
 	sa.SecurityDescriptor = sd
 
-	pathUTF16, err := windows.UTF16PtrFromString(path)
+	pathUTF16Ptr, err := windows.UTF16PtrFromString(path)
 	if err != nil {
-		return &os.PathError{Op: "mkdir", Path: path, Err: err}
+		return nil, fmt.Errorf("could not get pointer to the UTF-16 encoding of path %q: %v", path, err)
 	}
 
-	e := windows.CreateDirectory(pathUTF16, &sa)
-	if e != nil {
-		return &os.PathError{Op: "mkdir", Path: path, Err: e}
-	}
-	return nil
+	return &fileWithSecurityAttr{
+		pathUTF16Ptr: pathUTF16Ptr,
+		sa:           &sa,
+	}, nil
 }
