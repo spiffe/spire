@@ -135,7 +135,7 @@ func createFileForWriting(path string, sddl string) (windows.Handle, error) {
 		0)
 
 	if err != nil {
-		return windows.InvalidHandle, fmt.Errorf("could not create file %q: %v", path, err)
+		return windows.InvalidHandle, fmt.Errorf("could not create file %q: %w", path, err)
 	}
 	return handle, nil
 }
@@ -179,7 +179,7 @@ func mkdir(path string, sddl string) error {
 
 	err = windows.CreateDirectory(file.pathUTF16Ptr, file.sa)
 	if err != nil {
-		return fmt.Errorf("could not create directory: %v", err)
+		return fmt.Errorf("could not create directory: %w", err)
 	}
 	return nil
 }
@@ -188,7 +188,7 @@ func getFileWithSecurityAttr(path, sddl string) (*fileWithSecurityAttr, error) {
 	sa := windows.SecurityAttributes{Length: 0}
 	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
-		return nil, fmt.Errorf("could not convert SDDL %q into a self-relative security descriptor object: %v", sddl, err)
+		return nil, fmt.Errorf("could not convert SDDL %q into a self-relative security descriptor object: %w", sddl, err)
 	}
 	sa.Length = uint32(unsafe.Sizeof(sa))
 	sa.InheritHandle = 1

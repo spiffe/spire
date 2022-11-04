@@ -80,7 +80,8 @@ func TestAtomicWritePrivateFile(t *testing.T) {
 
 			require.NoError(t, err)
 			sd, err := windows.GetSecurityInfo(handle, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
-			windows.CloseHandle(handle)
+			require.NoError(t, err)
+			err = windows.CloseHandle(handle)
 			require.NoError(t, err)
 
 			require.Equal(t, sd.String(), tt.expectSecurityDescriptor)
