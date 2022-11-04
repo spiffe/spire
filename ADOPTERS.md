@@ -13,6 +13,7 @@ Known end users with notable contributions to the advancement of the project inc
 * Square
 * Twilio 
 * Uber
+* Unity Technologies
 * Z Lab Corporation
 
 SPIFFE and SPIRE are being used by numerous other companies, both large and small, to build higher layer products and services. The list includes but is not limited to: 
