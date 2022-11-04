@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	privatecapb "cloud.google.com/go/security/privateca/apiv1/privatecapb"
+	"cloud.google.com/go/security/privateca/apiv1/privatecapb"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"

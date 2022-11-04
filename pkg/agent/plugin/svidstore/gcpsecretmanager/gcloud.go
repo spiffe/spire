@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	secretmanagerpb "cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
+	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
