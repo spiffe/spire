@@ -23,7 +23,7 @@ type fileWithSecurityAttr struct {
 	sa           *windows.SecurityAttributes
 }
 
-// AtomicWritePrivateFile writes data out to a private file
+// AtomicWritePrivateFile writes data out to a private file.
 // It writes to a temp file first, fsyncs that file, then swaps the file in.
 // Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH'
 // witch waits until file is synced to disk.
@@ -98,7 +98,7 @@ func MkdirAll(path string, sddl string) error {
 	return nil
 }
 
-func createFile(path string, sddl string) (windows.Handle, error) {
+func createFileForWriting(path string, sddl string) (windows.Handle, error) {
 	file, err := getFileWithSecurityAttr(path, sddl)
 	if err != nil {
 		return windows.InvalidHandle, err
@@ -118,7 +118,7 @@ func createFile(path string, sddl string) (windows.Handle, error) {
 }
 
 func write(tmpPath string, data []byte, sddl string) error {
-	handle, err := createFile(tmpPath, sddl)
+	handle, err := createFileForWriting(tmpPath, sddl)
 	if err != nil {
 		return err
 	}
