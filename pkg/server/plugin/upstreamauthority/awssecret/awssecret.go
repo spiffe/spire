@@ -42,6 +42,7 @@ type Configuration struct {
 	Region          string `hcl:"region" json:"region"`
 	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn"`
 	KeyFileARN      string `hcl:"key_file_arn" json:"key_file_arn"`
+	BundleFileARN   string `hcl:"bundle_file_arn" json:"bundle_file_arn"`
 	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	SecurityToken   string `hcl:"secret_token" json:"secret_token"`
@@ -54,9 +55,10 @@ type Plugin struct {
 
 	log hclog.Logger
 
-	mtx        sync.RWMutex
-	cert       *x509.Certificate
-	upstreamCA *x509svid.UpstreamCA
+	mtx         sync.RWMutex
+	cert        *x509.Certificate
+	bundleCerts []*x509.Certificate
+	upstreamCA  *x509svid.UpstreamCA
 
 	hooks struct {
 		clock     clock.Clock
@@ -94,7 +96,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "failed to create AWS client: %v", err)
 	}
 
-	key, cert, err := fetchFromSecretsManager(ctx, config, sm)
+	key, cert, bundleCerts, err := fetchFromSecretsManager(ctx, config, sm)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +110,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	defer p.mtx.Unlock()
 
 	p.cert = cert
+	p.bundleCerts = bundleCerts
 	p.upstreamCA = x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(cert, key),
 		trustDomain,
@@ -138,7 +141,7 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}
 
-	upstreamX509Roots, err := x509certificate.ToPluginProtos([]*x509.Certificate{p.cert})
+	upstreamX509Roots, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{p.cert}, p.bundleCerts...))
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
 	}
@@ -154,38 +157,51 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReq
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
-func fetchFromSecretsManager(ctx context.Context, config *Configuration, sm secretsManagerClient) (crypto.PrivateKey, *x509.Certificate, error) {
+func fetchFromSecretsManager(ctx context.Context, config *Configuration, sm secretsManagerClient) (crypto.PrivateKey, *x509.Certificate, []*x509.Certificate, error) {
 	keyPEMstr, err := readARN(ctx, sm, config.KeyFileARN)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.KeyFileARN, err)
+		return nil, nil, nil, status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.KeyFileARN, err)
 	}
 
 	key, err := pemutil.ParsePrivateKey([]byte(keyPEMstr))
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "unable to parse private key: %v", err)
+		return nil, nil, nil, status.Errorf(codes.Internal, "unable to parse private key: %v", err)
 	}
 
 	certPEMstr, err := readARN(ctx, sm, config.CertFileARN)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.CertFileARN, err)
+		return nil, nil, nil, status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.CertFileARN, err)
 	}
 
 	cert, err := pemutil.ParseCertificate([]byte(certPEMstr))
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "unable to parse certificate: %v", err)
+		return nil, nil, nil, status.Errorf(codes.Internal, "unable to parse certificate: %v", err)
+	}
+
+	var bundleCertificates []*x509.Certificate
+	if config.BundleFileARN != "" {
+		bundlePEMstr, err := readARN(ctx, sm, config.BundleFileARN)
+		if err != nil {
+			return nil, nil, nil, status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.BundleFileARN, err)
+		}
+
+		bundleCertificates, err = pemutil.ParseCertificates([]byte(bundlePEMstr))
+		if err != nil {
+			return nil, nil, nil, status.Errorf(codes.Internal, "unable to parse bundle: %v", err)
+		}
 	}
 
 	// Validate cert matches private key
 	matched, err := x509util.CertificateMatchesPrivateKey(cert, key)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "unable to validate certificate: %v", err)
+		return nil, nil, nil, status.Errorf(codes.Internal, "unable to validate certificate: %v", err)
 	}
 
 	if !matched {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "certificate and private key does not match")
+		return nil, nil, nil, status.Errorf(codes.InvalidArgument, "certificate and private key does not match")
 	}
 
-	return key, cert, nil
+	return key, cert, bundleCertificates, nil
 }
 
 func (p *Plugin) validateConfig(req *configv1.ConfigureRequest) (*Configuration, error) {

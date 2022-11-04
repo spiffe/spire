@@ -38,6 +38,7 @@ func TestConfigure(t *testing.T) {
 		region          string
 		certFileARN     string
 		keyFileARN      string
+		bundleFileARN   string
 		accessKeyID     string
 		secretAccessKey string
 		securityToken   string
@@ -170,6 +171,30 @@ func TestConfigure(t *testing.T) {
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "certificate and private key does not match",
 		},
+		{
+			test:            "additional bundle set",
+			region:          "region_1",
+			certFileARN:     "cert",
+			keyFileARN:      "key",
+			bundleFileARN:   "bundle",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+		},
+		{
+			test:            "invalid bundle set",
+			region:          "region_1",
+			certFileARN:     "cert",
+			keyFileARN:      "key",
+			bundleFileARN:   "missing_bundle",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to read missing_bundle: secret not found",
+		},
 	} {
 		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
@@ -194,6 +219,7 @@ func TestConfigure(t *testing.T) {
 					Region:          tt.region,
 					CertFileARN:     tt.certFileARN,
 					KeyFileARN:      tt.keyFileARN,
+					BundleFileARN:   tt.bundleFileARN,
 					AccessKeyID:     tt.accessKeyID,
 					SecretAccessKey: tt.secretAccessKey,
 					SecurityToken:   tt.securityToken,
@@ -234,6 +260,17 @@ func TestMintX509CA(t *testing.T) {
 		AssumeRoleARN:   "assume_role_arn",
 	}
 
+	extraBundleConfiguration := &Configuration{
+		Region:          "region_1",
+		CertFileARN:     "cert",
+		KeyFileARN:      "key",
+		BundleFileARN:   "bundle",
+		AccessKeyID:     "access_key_id",
+		SecretAccessKey: "secret_access_key",
+		SecurityToken:   "security_token",
+		AssumeRoleARN:   "assume_role_arn",
+	}
+
 	for _, tt := range []struct {
 		test                    string
 		configuration           *Configuration
@@ -253,6 +290,14 @@ func TestMintX509CA(t *testing.T) {
 			expectTTL:               x509svid.DefaultUpstreamCATTL + time.Hour,
 			expectX509CASpiffeID:    "spiffe://example.org",
 			expectedX509Authorities: x509Authority,
+		},
+		{
+			test:                    "extra bundle",
+			configuration:           extraBundleConfiguration,
+			csr:                     makeCSR("spiffe://example.org"),
+			expectTTL:               x509svid.DefaultUpstreamCATTL,
+			expectX509CASpiffeID:    "spiffe://example.org",
+			expectedX509Authorities: append(x509Authority, extraAuthority...),
 		},
 		{
 			test:                    "using default ttl",
