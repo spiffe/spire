@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -19,10 +20,45 @@ func (fn TrustDomainConfigSourceFunc) GetTrustDomainConfigs(ctx context.Context)
 	return fn(ctx)
 }
 
-type TrustDomainConfigMap map[spiffeid.TrustDomain]TrustDomainConfig
+type TrustDomainConfigMap = map[spiffeid.TrustDomain]TrustDomainConfig
 
-func (m TrustDomainConfigMap) GetTrustDomainConfigs(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error) {
-	return m, nil
+type TrustDomainConfigSet struct {
+	mtx       sync.RWMutex
+	configMap TrustDomainConfigMap
+}
+
+func NewTrustDomainConfigSet(configs TrustDomainConfigMap) *TrustDomainConfigSet {
+	s := &TrustDomainConfigSet{}
+	s.SetAll(configs)
+	return s
+}
+
+func (s *TrustDomainConfigSet) Set(td spiffeid.TrustDomain, config TrustDomainConfig) {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.configMap[td] = config
+}
+
+func (s *TrustDomainConfigSet) SetAll(configMap TrustDomainConfigMap) {
+	configMap = duplicateTrustDomainConfigMap(configMap)
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+	s.configMap = configMap
+}
+
+func (s *TrustDomainConfigSet) GetTrustDomainConfigs(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error) {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	return s.configMap, nil
+}
+
+func duplicateTrustDomainConfigMap(in TrustDomainConfigMap) TrustDomainConfigMap {
+	out := make(TrustDomainConfigMap, len(in))
+	for td, config := range in {
+		out[td] = config
+	}
+	return out
 }
 
 func MergeTrustDomainConfigSources(sources ...TrustDomainConfigSource) TrustDomainConfigSource {
