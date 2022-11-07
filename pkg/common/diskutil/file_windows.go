@@ -106,7 +106,7 @@ func write(tmpPath string, data []byte, sddl string) error {
 
 	file := os.NewFile(uintptr(handle), tmpPath)
 	if file == nil {
-		return fmt.Errorf("invalid file descruptor for file %q", tmpPath)
+		return fmt.Errorf("invalid file descriptor for file %q", tmpPath)
 	}
 	if _, err := file.Write(data); err != nil {
 		file.Close()
