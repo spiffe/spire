@@ -353,7 +353,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 		Metrics:   metrics,
 		DataStore: cat.GetDataStore(),
 		Source: bundle_client.MergeTrustDomainConfigSources(
-			bundle_client.TrustDomainConfigMap(s.config.Federation.FederatesWith),
+			bundle_client.NewTrustDomainConfigSet(s.config.Federation.FederatesWith),
 			bundle_client.DataStoreTrustDomainConfigSource(log, cat.GetDataStore()),
 		),
 	})
