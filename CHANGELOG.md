@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.5.1] - 2022-11-08
+
+### Fixed
+- A regression in behavior preventing the use of default_svid_ttl in Server configuration (#3583)
+
 ## [1.5.0] - 2022-11-02
 
 ### Added
