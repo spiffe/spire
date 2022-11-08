@@ -18,7 +18,7 @@ const (
 	movefileWriteThrough    = 0x8
 )
 
-type fileWithSecurityAttr struct {
+type fileAttribs struct {
 	pathUTF16Ptr *uint16
 	sa           *windows.SecurityAttributes
 }
@@ -28,12 +28,7 @@ type fileWithSecurityAttr struct {
 // Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH'
 // witch waits until file is synced to disk.
 func AtomicWritePrivateFile(path string, data []byte) error {
-	tmpPath := path + ".tmp"
-	if err := write(tmpPath, data, sddl.PrivateFile); err != nil {
-		return err
-	}
-
-	return atomicRename(tmpPath, path)
+	return atomicWrite(path, data, sddl.PrivateFile)
 }
 
 // AtomicWritePubliclyReadableFile writes data out to a publicly readable file.
@@ -41,12 +36,7 @@ func AtomicWritePrivateFile(path string, data []byte) error {
 // Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH'
 // witch waits until file is synced to disk.
 func AtomicWritePubliclyReadableFile(path string, data []byte) error {
-	tmpPath := path + ".tmp"
-	if err := write(tmpPath, data, sddl.PubliclyReadableFile); err != nil {
-		return err
-	}
-
-	return atomicRename(tmpPath, path)
+	return atomicWrite(path, data, sddl.PubliclyReadableFile)
 }
 
 func CreateDataDirectory(path string) error {
@@ -96,6 +86,15 @@ func MkdirAll(path string, sddl string) error {
 		return err
 	}
 	return nil
+}
+
+func atomicWrite(path string, data []byte, sddl string) error {
+	tmpPath := path + ".tmp"
+	if err := write(tmpPath, data, sddl); err != nil {
+		return err
+	}
+
+	return atomicRename(tmpPath, path)
 }
 
 func write(tmpPath string, data []byte, sddl string) error {
@@ -184,23 +183,23 @@ func mkdir(path string, sddl string) error {
 	return nil
 }
 
-func getFileWithSecurityAttr(path, sddl string) (*fileWithSecurityAttr, error) {
-	sa := windows.SecurityAttributes{Length: 0}
+func getFileWithSecurityAttr(path, sddl string) (*fileAttribs, error) {
 	sd, err := windows.SecurityDescriptorFromString(sddl)
 	if err != nil {
 		return nil, fmt.Errorf("could not convert SDDL %q into a self-relative security descriptor object: %w", sddl, err)
 	}
-	sa.Length = uint32(unsafe.Sizeof(sa))
-	sa.InheritHandle = 1
-	sa.SecurityDescriptor = sd
 
 	pathUTF16Ptr, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return nil, fmt.Errorf("could not get pointer to the UTF-16 encoding of path %q: %w", path, err)
 	}
 
-	return &fileWithSecurityAttr{
+	return &fileAttribs{
 		pathUTF16Ptr: pathUTF16Ptr,
-		sa:           &sa,
+		sa: &windows.SecurityAttributes{
+			InheritHandle:      1,
+			Length:             uint32(unsafe.Sizeof(windows.SecurityAttributes{})),
+			SecurityDescriptor: sd,
+		},
 	}, nil
 }
