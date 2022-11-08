@@ -149,7 +149,7 @@ func saveJournalEntries(path string, entries *JournalEntries) error {
 		Bytes: entriesBytes,
 	})
 
-	if err := diskutil.AtomicWriteFile(path, pemBytes, 0644); err != nil {
+	if err := diskutil.AtomicWritePubliclyReadableFile(path, pemBytes); err != nil {
 		return errs.Wrap(err)
 	}
 
