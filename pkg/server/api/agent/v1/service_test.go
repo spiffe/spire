@@ -31,7 +31,6 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeservernodeattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
-	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -2137,10 +2136,6 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 }
 
 func TestAttestAgent(t *testing.T) {
-	util.SkipFlakyTestUnderRaceDetectorWithFiledIssue(
-		t,
-		"https://github.com/spiffe/spire/issues/2841",
-	)
 	testCsr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testKey)
 	require.NoError(t, err)
 
@@ -2998,7 +2993,23 @@ func TestAttestAgent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			test := setupServiceTest(t, 0)
-			defer test.Cleanup()
+			defer func() {
+				// Since this is a bidirectional streaming API, it's possible
+				// that the server is still emitting auditing logs even though
+				// we've received the last response from the server. In order
+				// to avoid racing on the log hook, clean up the test (to make
+				// sure the server has shut down) before checking for log
+				// entries.
+				test.Cleanup()
+
+				// Scrub out client address before comparing logs.
+				for _, e := range test.logHook.AllEntries() {
+					if _, ok := e.Data[telemetry.Address]; ok {
+						e.Data[telemetry.Address] = ""
+					}
+				}
+				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			}()
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -3040,18 +3051,10 @@ func TestAttestAgent(t *testing.T) {
 			case tt.expectCode != codes.OK:
 				require.Nil(t, result)
 			default:
-				// Clean address on logs
-				for _, e := range test.logHook.AllEntries() {
-					if _, ok := e.Data[telemetry.Address]; ok {
-						e.Data[telemetry.Address] = ""
-					}
-				}
-
 				require.NotNil(t, result)
 				test.assertAttestAgentResult(t, tt.expectedID, result)
 				test.assertAgentWasStored(t, tt.expectedID.String(), tt.expectedSelectors)
 			}
-			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
 		})
 	}
 }
