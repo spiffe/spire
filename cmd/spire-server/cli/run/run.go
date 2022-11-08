@@ -469,7 +469,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.AgentTTL = ttl
 	}
 
-	if c.Server.DefaultX509SVIDTTL != "" {
+	switch {
+	case c.Server.DefaultX509SVIDTTL != "":
 		ttl, err := time.ParseDuration(c.Server.DefaultX509SVIDTTL)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse default X509 SVID ttl %q: %w", c.Server.DefaultX509SVIDTTL, err)
@@ -479,7 +480,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		if sc.X509SVIDTTL != 0 && c.Server.DefaultSVIDTTL != "" {
 			logger.Warnf("both default_x509_svid_ttl and default_svid_ttl are configured; default_x509_svid_ttl (%s) will be used for X509-SVIDs", c.Server.DefaultX509SVIDTTL)
 		}
-	} else if c.Server.DefaultSVIDTTL != "" {
+	case c.Server.DefaultSVIDTTL != "":
 		logger.Warn("field default_svid_ttl is deprecated; consider using default_x509_svid_ttl and default_jwt_svid_ttl instead")
 
 		ttl, err := time.ParseDuration(c.Server.DefaultSVIDTTL)
@@ -487,6 +488,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			return nil, fmt.Errorf("could not parse default SVID ttl %q: %w", c.Server.DefaultSVIDTTL, err)
 		}
 		sc.X509SVIDTTL = ttl
+	default:
+		// If neither new nor deprecated config value is set, then use hard-coded default TTL
+		// Note, due to back-compat issues we cannot set this default inside defaultConfig() function
+		sc.X509SVIDTTL = ca.DefaultX509SVIDTTL
 	}
 
 	if c.Server.DefaultJWTSVIDTTL != "" {
@@ -499,6 +504,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		if sc.JWTSVIDTTL != 0 && c.Server.DefaultSVIDTTL != "" {
 			logger.Warnf("both default_jwt_svid_ttl and default_svid_ttl are configured; default_jwt_svid_ttl (%s) will be used for JWT-SVIDs", c.Server.DefaultJWTSVIDTTL)
 		}
+	} else {
+		// If not set using new field then use hard-coded default TTL
+		// Note, due to back-compat issues we cannot set this default inside defaultConfig() function
+		sc.JWTSVIDTTL = ca.DefaultJWTSVIDTTL
 	}
 
 	if c.Server.CATTL != "" {
@@ -831,14 +840,12 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 func defaultConfig() *Config {
 	return &Config{
 		Server: &serverConfig{
-			BindAddress:        "0.0.0.0",
-			BindPort:           8081,
-			CATTL:              ca.DefaultCATTL.String(),
-			LogLevel:           defaultLogLevel,
-			LogFormat:          log.DefaultFormat,
-			DefaultX509SVIDTTL: ca.DefaultX509SVIDTTL.String(),
-			DefaultJWTSVIDTTL:  ca.DefaultJWTSVIDTTL.String(),
-			Experimental:       experimentalConfig{},
+			BindAddress:  "0.0.0.0",
+			BindPort:     8081,
+			CATTL:        ca.DefaultCATTL.String(),
+			LogLevel:     defaultLogLevel,
+			LogFormat:    log.DefaultFormat,
+			Experimental: experimentalConfig{},
 		},
 	}
 }
