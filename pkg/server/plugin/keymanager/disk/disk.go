@@ -150,7 +150,7 @@ func writeEntries(path string, entries []*keymanagerbase.KeyEntry) error {
 		return status.Errorf(codes.Internal, "unable to marshal entries: %v", err)
 	}
 
-	if err := diskutil.AtomicWriteFile(path, jsonBytes, 0600); err != nil {
+	if err := diskutil.AtomicWritePrivateFile(path, jsonBytes); err != nil {
 		return status.Errorf(codes.Internal, "unable to write entries: %v", err)
 	}
 

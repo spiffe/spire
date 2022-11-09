@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	_pruningCandence = 5 * time.Minute
+	_pruningCadence = 5 * time.Minute
 )
 
 // ManagerConfig is the config for the registration manager
@@ -40,7 +40,7 @@ func NewManager(c ManagerConfig) *Manager {
 
 	return &Manager{
 		c:       c,
-		log:     c.Log.WithField(telemetry.RetryInterval, _pruningCandence),
+		log:     c.Log.WithField(telemetry.RetryInterval, _pruningCadence),
 		metrics: c.Metrics,
 	}
 }
@@ -51,7 +51,7 @@ func (m *Manager) Run(ctx context.Context) error {
 }
 
 func (m *Manager) pruneEvery(ctx context.Context) error {
-	ticker := m.c.Clock.Ticker(_pruningCandence)
+	ticker := m.c.Clock.Ticker(_pruningCadence)
 	defer ticker.Stop()
 
 	for {

@@ -244,7 +244,7 @@ func storeData(dir string, data storageData) error {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	if err := diskutil.AtomicWriteFile(path, marshaled, 0600); err != nil {
+	if err := diskutil.AtomicWritePrivateFile(path, marshaled); err != nil {
 		return fmt.Errorf("failed to write data file: %w", err)
 	}
 
