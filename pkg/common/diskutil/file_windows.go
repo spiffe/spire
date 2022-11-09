@@ -89,13 +89,13 @@ func MkdirAll(path string, sddl string) error {
 }
 
 // WritePrivateFile writes data out to a private file. The file is created if it
-// does not exist. If exists, the contents is replaced.
+// does not exist. If exists, it's overwritten.
 func WritePrivateFile(path string, data []byte) error {
 	return write(path, data, sddl.PrivateFile, false)
 }
 
 // WritePubliclyReadableFile writes data out to a publicly readable file. The
-// file is created if it does not exist. If exists, the contents is replaced.
+// file is created if it does not exist. If exists, it's overwritten.
 func WritePubliclyReadableFile(path string, data []byte) error {
 	return write(path, data, sddl.PubliclyReadableFile, false)
 }

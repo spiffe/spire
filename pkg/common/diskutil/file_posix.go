@@ -34,13 +34,13 @@ func CreateDataDirectory(path string) error {
 }
 
 // WritePrivateFile writes data out to a private file. The file is created if it
-// does not exist. If exists, the contents is replaced.
+// does not exist. If exists, it's overwritten.
 func WritePrivateFile(path string, data []byte) error {
 	return write(path, data, fileModePrivate, false)
 }
 
 // WritePubliclyReadableFile writes data out to a publicly readable file. The
-// file is created if it does not exist. If exists, the contents is replaced.
+// file is created if it does not exist. If exists, it's overwritten.
 func WritePubliclyReadableFile(path string, data []byte) error {
 	return write(path, data, fileModePubliclyReadable, false)
 }
@@ -72,6 +72,10 @@ func rename(tmpPath, path string) error {
 	return dir.Close()
 }
 
+// write writes to a file in the specified path with the specified
+// security descriptor using the provided data. The sync boolean
+// argument is used to indicate whether flushing to disk is required
+// or not.
 func write(tmpPath string, data []byte, mode os.FileMode, sync bool) error {
 	file, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
