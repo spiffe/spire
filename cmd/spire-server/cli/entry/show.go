@@ -91,8 +91,7 @@ func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	}
 
 	commonutil.SortTypesEntries(resp.Entries)
-	c.printer.MustPrintProto(resp)
-	return nil
+	return c.printer.PrintProto(resp)
 }
 
 // validate ensures that the values in showCommand are valid

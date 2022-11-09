@@ -20,7 +20,7 @@ func TestAppendFlag(t *testing.T) {
 		{
 			name:           "defaults to pretty print when not specified",
 			input:          []string{""},
-			expectedFormat: Pretty,
+			expectedFormat: pretty,
 		},
 		{
 			name:        "requires a value",
@@ -37,7 +37,7 @@ func TestAppendFlag(t *testing.T) {
 			name:           "works when setting the same value more than once",
 			input:          []string{"-output", "pretty", "-format", "pretty"},
 			extraFlags:     []string{"format"},
-			expectedFormat: Pretty,
+			expectedFormat: pretty,
 			expectError:    false,
 		},
 		{
@@ -48,17 +48,17 @@ func TestAppendFlag(t *testing.T) {
 		{
 			name:           "works when specifying pretty print",
 			input:          []string{"-output", "pretty"},
-			expectedFormat: Pretty,
+			expectedFormat: pretty,
 		},
 		{
 			name:           "works when specifying json",
 			input:          []string{"-output", "json"},
-			expectedFormat: JSON,
+			expectedFormat: json,
 		},
 		{
 			name:           "input is case insensitive",
 			input:          []string{"-output", "jSoN"},
-			expectedFormat: JSON,
+			expectedFormat: json,
 		},
 	}
 
