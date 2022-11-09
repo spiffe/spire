@@ -88,33 +88,51 @@ func MkdirAll(path string, sddl string) error {
 	return nil
 }
 
+// WritePrivateFile writes data out to a private file. The file is created if it
+// does not exist. If exists, the contents is replaced.
+func WritePrivateFile(path string, data []byte) error {
+	return write(path, data, sddl.PrivateFile, false)
+}
+
+// WritePubliclyReadableFile writes data out to a publicly readable file. The
+// file is created if it does not exist. If exists, the contents is replaced.
+func WritePubliclyReadableFile(path string, data []byte) error {
+	return write(path, data, sddl.PubliclyReadableFile, false)
+}
+
 func atomicWrite(path string, data []byte, sddl string) error {
 	tmpPath := path + ".tmp"
-	if err := write(tmpPath, data, sddl); err != nil {
+	if err := write(tmpPath, data, sddl, true); err != nil {
 		return err
 	}
 
 	return atomicRename(tmpPath, path)
 }
 
-func write(tmpPath string, data []byte, sddl string) error {
-	handle, err := createFileForWriting(tmpPath, sddl)
+// write writes to a file in the specified path with the specified
+// security descriptor using the provided data. The sync boolean
+// argument is used to indicate whether flushing to disk is required
+// or not.
+func write(path string, data []byte, sddl string, sync bool) error {
+	handle, err := createFileForWriting(path, sddl)
 	if err != nil {
 		return err
 	}
 
-	file := os.NewFile(uintptr(handle), tmpPath)
+	file := os.NewFile(uintptr(handle), path)
 	if file == nil {
-		return fmt.Errorf("invalid file descriptor for file %q", tmpPath)
+		return fmt.Errorf("invalid file descriptor for file %q", path)
 	}
 	if _, err := file.Write(data); err != nil {
 		file.Close()
-		return err
+		return fmt.Errorf("failed to write to file %q: %w", path, err)
 	}
 
-	if err := file.Sync(); err != nil {
-		file.Close()
-		return err
+	if sync {
+		if err := file.Sync(); err != nil {
+			file.Close()
+			return fmt.Errorf("failed to sync file %q: %w", path, err)
+		}
 	}
 
 	return file.Close()

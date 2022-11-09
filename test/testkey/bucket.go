@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 )
 
@@ -108,7 +109,7 @@ func (b *bucket[KT, K]) save() error {
 			Bytes: keyBytes,
 		})
 	}
-	return os.WriteFile(b.path(), buf.Bytes(), 0600)
+	return diskutil.WritePrivateFile(b.path(), buf.Bytes())
 }
 
 func (b *bucket[KT, K]) path() string {

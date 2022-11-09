@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"runtime"
 	"testing"
@@ -21,6 +20,7 @@ import (
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	server_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/test/plugintest"
@@ -91,18 +91,16 @@ func writeDevIDFiles(t *testing.T) {
 	devIDPubPath = path.Join(dir, "devid-pub-path")
 	devIDWithoutIntermediatesPath = path.Join(dir, "devid-without-intermediates.pem")
 
-	require.NoError(t, os.WriteFile(
+	require.NoError(t, diskutil.WritePrivateFile(
 		devIDCertPath,
-		devID.ChainPem(),
-		0600),
+		devID.ChainPem()),
 	)
-	require.NoError(t, os.WriteFile(
+	require.NoError(t, diskutil.WritePrivateFile(
 		devIDWithoutIntermediatesPath,
-		devID.ChainPem(),
-		0600),
+		devID.ChainPem()),
 	)
-	require.NoError(t, os.WriteFile(devIDPrivPath, devID.PrivateBlob, 0600))
-	require.NoError(t, os.WriteFile(devIDPubPath, devID.PublicBlob, 0600))
+	require.NoError(t, diskutil.WritePrivateFile(devIDPrivPath, devID.PrivateBlob))
+	require.NoError(t, diskutil.WritePrivateFile(devIDPubPath, devID.PublicBlob))
 }
 
 func TestConfigureCommon(t *testing.T) {

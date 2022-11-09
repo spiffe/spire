@@ -9,6 +9,7 @@ import (
 
 	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/open-policy-agent/opa/util"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/stretchr/testify/require"
 )
@@ -230,11 +231,11 @@ func TestPolicy(t *testing.T) {
 
 			// Check with NewEngineFromConfigOrDefault
 			regoFile := filepath.Join(tmpDir, "rego_file")
-			err = os.WriteFile(regoFile, []byte(tt.rego), 0600)
+			err = diskutil.WritePrivateFile(regoFile, []byte(tt.rego))
 			require.Nil(t, err, "failed to create rego_file")
 
 			permsFile := filepath.Join(tmpDir, "perms_file")
-			err = os.WriteFile(permsFile, []byte(tt.jsonData), 0600)
+			err = diskutil.WritePrivateFile(permsFile, []byte(tt.jsonData))
 			require.Nil(t, err, "failed to create perms_file")
 
 			ec := authpolicy.OpaEngineConfig{
@@ -271,20 +272,20 @@ func TestNewEngineFromConfig(t *testing.T) {
 
 	// Create good policy/perms files
 	validRegoFile := filepath.Join(tmpDir, "valid_rego_file")
-	err = os.WriteFile(validRegoFile, []byte(rego), 0600)
+	err = diskutil.WritePrivateFile(validRegoFile, []byte(rego))
 	require.Nil(t, err, "failed to create valid_rego_file")
 
 	validPermsFile := filepath.Join(tmpDir, "valid_perms_file")
-	err = os.WriteFile(validPermsFile, []byte(jsonData), 0600)
+	err = diskutil.WritePrivateFile(validPermsFile, []byte(jsonData))
 	require.Nil(t, err, "failed to create valid_perms_file")
 
 	// Create bad policy/perms files
 	invalidRegoFile := filepath.Join(tmpDir, "invalid_rego_file")
-	err = os.WriteFile(invalidRegoFile, []byte("invalid rego"), 0600)
+	err = diskutil.WritePrivateFile(invalidRegoFile, []byte("invalid rego"))
 	require.Nil(t, err, "failed to create invalid_rego_file")
 
 	invalidPermsFile := filepath.Join(tmpDir, "invalid_perms_file")
-	err = os.WriteFile(invalidPermsFile, []byte("{"), 0600)
+	err = diskutil.WritePrivateFile(invalidPermsFile, []byte("{"))
 	require.Nil(t, err, "failed to create invalid_perms_file")
 
 	// Create permissions tmp file

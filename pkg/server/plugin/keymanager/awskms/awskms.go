@@ -23,6 +23,7 @@ import (
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -947,7 +948,7 @@ func createServerID(idPath string) (string, error) {
 	id := u.String()
 
 	// persist id
-	err = os.WriteFile(idPath, []byte(id), 0600)
+	err = diskutil.WritePrivateFile(idPath, []byte(id))
 	if err != nil {
 		return "", status.Errorf(codes.Internal, "failed to persist server id on path: %v", err)
 	}

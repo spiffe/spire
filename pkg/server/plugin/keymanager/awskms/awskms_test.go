@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -21,6 +20,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/plugintest"
@@ -1979,7 +1979,7 @@ func serializedConfiguration(accessKeyID, secretAccessKey, region string, keyMet
 func getKeyMetadataFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	tempFilePath := path.Join(tempDir, validServerIDFile)
-	err := os.WriteFile(tempFilePath, []byte(validServerID), 0600)
+	err := diskutil.WritePrivateFile(tempFilePath, []byte(validServerID))
 	if err != nil {
 		t.Error(err)
 	}
@@ -2001,7 +2001,7 @@ func getEmptyKeyMetadataFile(t *testing.T) string {
 func getCustomPolicyFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	tempFilePath := path.Join(tempDir, validPolicyFile)
-	err := os.WriteFile(tempFilePath, []byte(customPolicy), 0600)
+	err := diskutil.WritePrivateFile(tempFilePath, []byte(customPolicy))
 	if err != nil {
 		t.Error(err)
 	}

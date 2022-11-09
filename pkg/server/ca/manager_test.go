@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -481,7 +482,7 @@ func (s *ManagerSuite) TestMigration() {
 	// assert that we migrate on load by writing junk data to the old JSON file
 	// and making sure initialization fails. The journal tests exercise this
 	// code more carefully.
-	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, "certs.json"), []byte("NOTJSON"), 0600))
+	s.Require().NoError(diskutil.WritePrivateFile(filepath.Join(s.dir, "certs.json"), []byte("NOTJSON")))
 	s.m = NewManager(s.selfSignedConfig())
 	err := s.m.Initialize(context.Background())
 	s.RequireErrorContains(err, "failed to migrate old JSON data: unable to decode JSON")

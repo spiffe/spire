@@ -8,8 +8,9 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
-	"os"
 	"time"
+
+	"github.com/spiffe/spire/pkg/common/diskutil"
 )
 
 func panice(err error) {
@@ -81,7 +82,7 @@ func writeKey(path string, key interface{}) {
 		Type:  "PRIVATE KEY",
 		Bytes: keyBytes,
 	})
-	err = os.WriteFile(path, pemBytes, 0600)
+	err = diskutil.WritePrivateFile(path, pemBytes)
 	panice(err)
 }
 
@@ -94,6 +95,6 @@ func writeCerts(path string, certs ...*x509.Certificate) {
 		})
 		panice(err)
 	}
-	err := os.WriteFile(path, data.Bytes(), 0600)
+	err := diskutil.WritePrivateFile(path, data.Bytes())
 	panice(err)
 }

@@ -6,7 +6,6 @@ package unix
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/user"
 	"path/filepath"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -230,7 +230,7 @@ func (s *Suite) TestAttest() {
 	}
 
 	// prepare the "exe" for hashing
-	s.writeFile("exe", []byte("data"))
+	s.Require().NoError(diskutil.WritePrivateFile(filepath.Join(s.dir, "exe"), []byte("data")))
 
 	for _, testCase := range testCases {
 		testCase := testCase
@@ -257,10 +257,6 @@ func (s *Suite) TestAttest() {
 			spiretest.AssertLogs(t, s.logHook.AllEntries(), testCase.expectLogs)
 		})
 	}
-}
-
-func (s *Suite) writeFile(path string, data []byte) {
-	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, path), data, 0600))
 }
 
 func (s *Suite) loadPlugin(t *testing.T, config string) workloadattestor.WorkloadAttestor {

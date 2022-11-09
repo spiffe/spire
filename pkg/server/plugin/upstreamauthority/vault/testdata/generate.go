@@ -9,9 +9,9 @@ import (
 	"log"
 	"math/big"
 	"net"
-	"os"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 )
 
@@ -81,7 +81,7 @@ func certPEM(certs ...*x509.Certificate) []byte {
 }
 
 func writeFile(path string, data []byte) {
-	err := os.WriteFile(path, data, 0600)
+	err := diskutil.WritePrivateFile(path, data)
 	checkErr(err)
 }
 

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -576,7 +577,7 @@ func (s *Suite) setServer(server *httptest.Server) {
 func (s *Suite) writeFile(path, data string) {
 	realPath := filepath.Join(s.dir, path)
 	s.Require().NoError(os.MkdirAll(filepath.Dir(realPath), 0755))
-	s.Require().NoError(os.WriteFile(realPath, []byte(data), 0600))
+	s.Require().NoError(diskutil.WritePrivateFile(realPath, []byte(data)))
 }
 
 func (s *Suite) serveHTTP(w http.ResponseWriter, req *http.Request) {

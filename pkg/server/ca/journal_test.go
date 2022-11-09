@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/protobuf/proto"
@@ -290,7 +291,7 @@ func (s *JournalSuite) writeString(path, data string) {
 }
 
 func (s *JournalSuite) writeBytes(path string, data []byte) {
-	s.Require().NoError(os.WriteFile(path, data, 0600))
+	s.Require().NoError(diskutil.WritePrivateFile(path, data))
 }
 
 func (s *JournalSuite) now() time.Time {

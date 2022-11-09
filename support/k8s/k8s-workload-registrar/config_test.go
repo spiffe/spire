@@ -1,11 +1,11 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
@@ -30,7 +30,7 @@ func TestLoadMode(t *testing.T) {
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 
-	err = os.WriteFile(confPath, []byte(testMinimalConfig), 0600)
+	err = diskutil.WritePrivateFile(confPath, []byte(testMinimalConfig))
 	require.NoError(err)
 
 	config, err := LoadMode(confPath)
@@ -155,7 +155,7 @@ func TestLoadMode(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase // alias loop variable as it is used in the closure
 		t.Run(testCase.name, func(t *testing.T) {
-			err := os.WriteFile(confPath, []byte(testCase.in), 0600)
+			err := diskutil.WritePrivateFile(confPath, []byte(testCase.in))
 			require.NoError(err)
 
 			actual, err := LoadMode(confPath)

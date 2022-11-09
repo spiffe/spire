@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path"
 	"runtime"
 	"testing"
@@ -19,6 +18,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -57,18 +57,16 @@ func setupSimulator(t *testing.T, provisioningCA *tpmsimulator.ProvisioningAutho
 
 	// Write provisioning root certificates into temp directory
 	devIDBundlePath = path.Join(dir, "devid-provisioning-ca.pem")
-	require.NoError(t, os.WriteFile(
+	require.NoError(t, diskutil.WritePrivateFile(
 		devIDBundlePath,
-		pemutil.EncodeCertificate(provisioningCA.RootCert),
-		0600),
+		pemutil.EncodeCertificate(provisioningCA.RootCert)),
 	)
 
 	// Write endorsement root certificate into temp directory
 	endorsementBundlePath = path.Join(dir, "endorsement-ca.pem")
-	require.NoError(t, os.WriteFile(
+	require.NoError(t, diskutil.WritePrivateFile(
 		endorsementBundlePath,
-		pemutil.EncodeCertificate(sim.GetEKRoot()),
-		0600),
+		pemutil.EncodeCertificate(sim.GetEKRoot())),
 	)
 	return sim
 }

@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/spiffe/spire/pkg/common/diskutil"
 )
 
 func main() {
@@ -74,7 +76,7 @@ func writeKey(path string, key crypto.Signer) {
 		Type:  "PRIVATE KEY",
 		Bytes: keyBytes,
 	})
-	writeFile(path, pemBytes, 0600)
+	writePrivateFile(path, pemBytes)
 }
 
 func writeCerts(path string, certs ...*x509.Certificate) {
@@ -86,11 +88,16 @@ func writeCerts(path string, certs ...*x509.Certificate) {
 		})
 		checkErr(err)
 	}
-	writeFile(path, data.Bytes(), 0644)
+	writePubliclyReadableFile(path, data.Bytes())
 }
 
-func writeFile(path string, data []byte, mode os.FileMode) {
-	err := os.WriteFile(path, data, mode)
+func writePrivateFile(path string, data []byte) {
+	err := diskutil.WritePrivateFile(path, data)
+	checkErr(err)
+}
+
+func writePubliclyReadableFile(path string, data []byte) {
+	err := diskutil.WritePubliclyReadableFile(path, data)
 	checkErr(err)
 }
 

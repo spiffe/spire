@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,6 +20,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -346,7 +346,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireErrorContains(err, `failed to load cluster "FOO" service account keys`)
 
 	// no keys in PEM file
-	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0600))
+	s.Require().NoError(diskutil.WritePrivateFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}))
 	err = doConfig(coreConfig, fmt.Sprintf(`clusters = {
 		"FOO" = {
 			service_account_key_file = %q
@@ -359,26 +359,26 @@ func (s *AttestorSuite) TestConfigure() {
 func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	fooPKCS1KeyPath := filepath.Join(s.dir, "foo-pkcs1.pem")
 	fooPKCS1Bytes := x509.MarshalPKCS1PublicKey(&s.fooKey.PublicKey)
-	s.Require().NoError(os.WriteFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
+	s.Require().NoError(diskutil.WritePubliclyReadableFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",
 		Bytes: fooPKCS1Bytes,
-	}), 0600))
+	})))
 
 	fooPKIXKeyPath := filepath.Join(s.dir, "foo-pkix.pem")
 	fooPKIXBytes, err := x509.MarshalPKIXPublicKey(s.fooKey.Public())
 	s.Require().NoError(err)
-	s.Require().NoError(os.WriteFile(fooPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
+	s.Require().NoError(diskutil.WritePubliclyReadableFile(fooPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: fooPKIXBytes,
-	}), 0600))
+	})))
 
 	barPKIXKeyPath := filepath.Join(s.dir, "bar-pkix.pem")
 	barPKIXBytes, err := x509.MarshalPKIXPublicKey(s.barKey.Public())
 	s.Require().NoError(err)
-	s.Require().NoError(os.WriteFile(barPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
+	s.Require().NoError(diskutil.WritePrivateFile(barPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: barPKIXBytes,
-	}), 0600))
+	})))
 
 	plugintest.Load(s.T(), BuiltIn(), nil,
 		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
@@ -512,7 +512,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600)
+	return diskutil.WritePrivateFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
 }
 
 func createTokenStatus(namespace, serviceAccountName string, authenticated bool) *authv1.TokenReviewStatus {

@@ -11,7 +11,6 @@ import (
 	"io"
 	"math/big"
 	"net/url"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -466,6 +466,6 @@ func certPEM(certs ...*x509.Certificate) []byte {
 }
 
 func writeFile(t *testing.T, path string, data []byte) {
-	err := os.WriteFile(path, data, 0600)
+	err := diskutil.WritePrivateFile(path, data)
 	require.NoError(t, err)
 }

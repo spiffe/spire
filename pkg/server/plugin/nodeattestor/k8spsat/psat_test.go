@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -473,7 +473,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600)
+	return diskutil.WritePrivateFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
 }
 
 func createTokenStatus(tokenData *TokenData, authenticated bool, audience []string) *authv1.TokenReviewStatus {

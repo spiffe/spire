@@ -8,6 +8,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -93,7 +94,7 @@ func (s *AttestorSuite) writeValue(path, data string) string {
 	valuePath := s.joinPath(path)
 	err := os.MkdirAll(filepath.Dir(valuePath), 0755)
 	s.Require().NoError(err)
-	err = os.WriteFile(valuePath, []byte(data), 0600)
+	err = diskutil.WritePrivateFile(valuePath, []byte(data))
 	s.Require().NoError(err)
 	return valuePath
 }

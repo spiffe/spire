@@ -3,7 +3,6 @@ package federation
 import (
 	"bytes"
 	"context"
-	"os"
 	"path"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
@@ -239,7 +239,7 @@ func createBundle(t *testing.T, trustDomain string) (*types.Bundle, string) {
 	td := spiffeid.RequireTrustDomainFromString(trustDomain)
 	bundlePath := path.Join(t.TempDir(), "bundle.pem")
 	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
-	require.NoError(t, pemutil.SaveCertificates(bundlePath, ca.Bundle(), 0600))
+	require.NoError(t, diskutil.WritePrivateFile(bundlePath, pemutil.EncodeCertificates(ca.Bundle())))
 
 	return &types.Bundle{
 		TrustDomain: td.String(),
@@ -251,12 +251,12 @@ func createBundle(t *testing.T, trustDomain string) (*types.Bundle, string) {
 
 func createCorruptedBundle(t *testing.T) string {
 	bundlePath := path.Join(t.TempDir(), "bundle.pem")
-	require.NoError(t, os.WriteFile(bundlePath, []byte("corrupted-bundle"), 0600))
+	require.NoError(t, diskutil.WritePrivateFile(bundlePath, []byte("corrupted-bundle")))
 	return bundlePath
 }
 
 func createJSONDataFile(t *testing.T, data string) string {
 	jsonDataFilePath := path.Join(t.TempDir(), "bundle.pem")
-	require.NoError(t, os.WriteFile(jsonDataFilePath, []byte(data), 0600))
+	require.NoError(t, diskutil.WritePrivateFile(jsonDataFilePath, []byte(data)))
 	return jsonDataFilePath
 }

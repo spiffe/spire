@@ -4,7 +4,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -338,7 +338,7 @@ func TestSet(t *testing.T) {
 			if tt.fileData != "" {
 				tmpDir := spiretest.TempDir(t)
 				bundlePath := filepath.Join(tmpDir, "bundle_data")
-				require.NoError(t, os.WriteFile(bundlePath, []byte(tt.fileData), 0600))
+				require.NoError(t, diskutil.WritePrivateFile(bundlePath, []byte(tt.fileData)))
 				extraArgs = append(extraArgs, "-path", bundlePath)
 			}
 

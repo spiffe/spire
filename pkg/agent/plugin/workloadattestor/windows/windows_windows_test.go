@@ -7,13 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -46,7 +46,7 @@ var (
 func TestAttest(t *testing.T) {
 	d := t.TempDir()
 	exe := filepath.Join(d, "exe")
-	require.NoError(t, os.WriteFile(exe, []byte("data"), 0600))
+	require.NoError(t, diskutil.WritePrivateFile(exe, []byte("data")))
 
 	testCases := []struct {
 		name            string

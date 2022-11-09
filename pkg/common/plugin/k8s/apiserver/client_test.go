@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/test/spiretest"
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
@@ -338,18 +338,18 @@ func createNode(nodeName string) *v1.Node {
 
 func (s *ClientSuite) createSampleKubeConfigFile(kubeConfigPath string) {
 	caPath := filepath.Join(s.dir, "ca.crt")
-	err := os.WriteFile(caPath, kubeConfigCA, 0600)
+	err := diskutil.WritePrivateFile(caPath, kubeConfigCA)
 	s.Require().NoError(err)
 
 	clientCrtPath := filepath.Join(s.dir, "client.crt")
-	err = os.WriteFile(clientCrtPath, kubeConfigClientCert, 0600)
+	err = diskutil.WritePrivateFile(clientCrtPath, kubeConfigClientCert)
 	s.Require().NoError(err)
 
 	clientKeyPath := filepath.Join(s.dir, "client.key")
-	err = os.WriteFile(clientKeyPath, kubeConfigClientKey, 0600)
+	err = diskutil.WritePrivateFile(clientKeyPath, kubeConfigClientKey)
 	s.Require().NoError(err)
 
 	kubeConfigContent := []byte(fmt.Sprintf(kubeConfig, caPath, clientCrtPath, clientKeyPath))
-	err = os.WriteFile(kubeConfigPath, kubeConfigContent, 0600)
+	err = diskutil.WritePrivateFile(kubeConfigPath, kubeConfigContent)
 	s.Require().NoError(err)
 }

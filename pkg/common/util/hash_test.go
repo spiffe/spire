@@ -1,16 +1,16 @@
 package util
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_GetSHA256Digest(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "file")
-	require.NoError(t, os.WriteFile(path, []byte("some data"), 0600))
+	require.NoError(t, diskutil.WritePrivateFile(path, []byte("some data")))
 	hash, err := GetSHA256Digest(path, -1)
 	require.NoError(t, err)
 	require.Equal(t, "1307990e6ba5ca145eb35e99182a9bec46531bc54ddf656a602c780fa0240dee", hash)
@@ -18,7 +18,7 @@ func Test_GetSHA256Digest(t *testing.T) {
 
 func Test_GetSHA256Digest_BelowLimit(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "file")
-	require.NoError(t, os.WriteFile(path, []byte("some data"), 0600))
+	require.NoError(t, diskutil.WritePrivateFile(path, []byte("some data")))
 	hash, err := GetSHA256Digest(path, 100)
 	require.NoError(t, err)
 	require.Equal(t, "1307990e6ba5ca145eb35e99182a9bec46531bc54ddf656a602c780fa0240dee", hash)
@@ -26,7 +26,7 @@ func Test_GetSHA256Digest_BelowLimit(t *testing.T) {
 
 func Test_GetSHA256Digest_AboveLimit(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "file")
-	require.NoError(t, os.WriteFile(path, []byte("some data"), 0600))
+	require.NoError(t, diskutil.WritePrivateFile(path, []byte("some data")))
 	hash, err := GetSHA256Digest(path, 5)
 	require.ErrorContains(t, err, "exceeds size limit")
 	require.Empty(t, hash)

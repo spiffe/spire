@@ -1,10 +1,10 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +27,7 @@ func TestLoadConfig(t *testing.T) {
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 
-	err = os.WriteFile(confPath, []byte(minimalServerAPIConfig), 0600)
+	err = diskutil.WritePrivateFile(confPath, []byte(minimalServerAPIConfig))
 	require.NoError(err)
 
 	config, err := LoadConfig(confPath)
