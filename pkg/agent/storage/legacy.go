@@ -31,7 +31,7 @@ func storeLegacyBundle(dir string, bundle []*x509.Certificate) error {
 	for _, cert := range bundle {
 		data.Write(cert.Raw)
 	}
-	if err := diskutil.AtomicWriteFile(legacyBundlePath(dir), data.Bytes(), 0600); err != nil {
+	if err := diskutil.AtomicWritePrivateFile(legacyBundlePath(dir), data.Bytes()); err != nil {
 		return fmt.Errorf("failed to store legacy bundle: %w", err)
 	}
 	return nil
@@ -55,7 +55,7 @@ func storeLegacySVID(dir string, svidChain []*x509.Certificate) error {
 	for _, cert := range svidChain {
 		data.Write(cert.Raw)
 	}
-	if err := diskutil.AtomicWriteFile(legacySVIDPath(dir), data.Bytes(), 0600); err != nil {
+	if err := diskutil.AtomicWritePrivateFile(legacySVIDPath(dir), data.Bytes()); err != nil {
 		return fmt.Errorf("failed to store legacy SVID: %w", err)
 	}
 	return nil
