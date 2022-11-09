@@ -3,12 +3,9 @@ package util
 import (
 	"fmt"
 	"os"
-	"regexp"
 	"strconv"
 	"testing"
 )
-
-const flakyTestEnvKey = "SKIP_FLAKY_TESTS_UNDER_RACE_DETECTOR"
 
 var (
 	raceTestNumThreads = 2
@@ -45,19 +42,4 @@ func getEnvInt(name string, fallback int) int {
 		return val
 	}
 	return fallback
-}
-
-func SkipFlakyTestUnderRaceDetectorWithFiledIssue(t *testing.T, issue string) {
-	t.Helper()
-	const issuePattern = "https://github.com/spiffe/spire/issues/[[:digit:]]{4,}"
-	issueRegexp := regexp.MustCompile(issuePattern)
-	if !issueRegexp.Match([]byte(issue)) {
-		msg := "Skip only allowed with associated issue. "
-		msg += "%q does not appear to be an issue. "
-		msg += "File an issue and specify it to skip a test under race detector."
-		t.Fatalf(fmt.Sprintf(msg, issue))
-	}
-	if _, skip := os.LookupEnv(flakyTestEnvKey); skip {
-		t.Skipf("Skipping under race decector until %s is resolved.", issue)
-	}
 }

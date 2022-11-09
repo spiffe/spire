@@ -299,13 +299,6 @@ else
 	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race ./...
 endif
 
-ci-race-test: | go-check
-ifneq ($(COVERPROFILE),)
-	$(E)SKIP_FLAKY_TESTS_UNDER_RACE_DETECTOR=1 $(go_path) go test $(go_flags) $(go_test_flags) -race -count=1 -coverprofile="$(COVERPROFILE)" ./...
-else
-	$(E)SKIP_FLAKY_TESTS_UNDER_RACE_DETECTOR=1 $(go_path) go test $(go_flags) $(go_test_flags) -race -count=1 ./...
-endif
-
 integration:
 ifeq ($(os1), windows)
 	$(error Integration tests are not supported on windows)
