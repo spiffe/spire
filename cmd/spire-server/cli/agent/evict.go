@@ -56,9 +56,8 @@ func (c *evictCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 	if err != nil {
 		return err
 	}
-	c.printer.MustPrintProto(delAgentResponse)
 
-	return nil
+	return c.printer.PrintProto(delAgentResponse)
 }
 
 func (c *evictCommand) AppendFlags(fs *flag.FlagSet) {

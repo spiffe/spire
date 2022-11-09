@@ -43,9 +43,8 @@ func (c *countCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 	if err != nil {
 		return err
 	}
-	c.printer.MustPrintProto(countResponse)
 
-	return nil
+	return c.printer.PrintProto(countResponse)
 }
 
 func (c *countCommand) AppendFlags(fs *flag.FlagSet) {

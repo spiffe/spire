@@ -2,7 +2,6 @@ package cliprinter
 
 import (
 	"io"
-	"os"
 
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter/internal/errorjson"
@@ -17,9 +16,9 @@ import (
 // Printer is an interface for providing a printer implementation to
 // a CLI utility.
 type Printer interface {
-	MustPrintError(error)
-	MustPrintProto(...proto.Message)
-	MustPrintStruct(...interface{})
+	PrintError(error) error
+	PrintProto(...proto.Message) error
+	PrintStruct(...interface{}) error
 }
 
 // CustomPrettyFunc is used to provide a custom function for pretty
@@ -45,28 +44,19 @@ func newPrinter(f formatType, env *commoncli.Env) *printer {
 	}
 }
 
-// MustPrintError prints an error and applies the configured formatting. If
-// an error is encountered while printing, MustPrintError will call os.Exit(2).
-func (p *printer) MustPrintError(err error) {
-	if err := p.printError(err); err != nil {
-		os.Exit(2)
-	}
+// PrintError prints an error and applies the configured formatting.
+func (p *printer) PrintError(err error) error {
+	return p.printError(err)
 }
 
-// PrintProto prints a protobuf message and applies the configured formatting. If
-// an error is encountered while printing, MustPrintProto will call os.Exit(2).
-func (p *printer) MustPrintProto(msg ...proto.Message) {
-	if err := p.printProto(msg...); err != nil {
-		os.Exit(2)
-	}
+// PrintProto prints a protobuf message and applies the configured formatting.
+func (p *printer) PrintProto(msg ...proto.Message) error {
+	return p.printProto(msg...)
 }
 
-// PrintStruct prints a struct and applies the configured formatting. If
-// an error is encountered while printing, MustPrintStruct will call os.Exit(2).
-func (p *printer) MustPrintStruct(msg ...interface{}) {
-	if err := p.printStruct(msg); err != nil {
-		os.Exit(2)
-	}
+// PrintStruct prints a struct and applies the configured formatting.
+func (p *printer) PrintStruct(msg ...interface{}) error {
+	return p.printStruct(msg)
 }
 
 func (p *printer) printError(err error) error {

@@ -48,8 +48,7 @@ func (c *fetchJWTCommand) run(ctx context.Context, env *commoncli.Env, client *w
 		return err
 	}
 
-	c.printer.MustPrintProto(svidResp, bundlesResp)
-	return nil
+	return c.printer.PrintProto(svidResp, bundlesResp)
 }
 
 func (c *fetchJWTCommand) appendFlags(fs *flag.FlagSet) {

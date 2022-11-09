@@ -57,9 +57,8 @@ func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	if err != nil {
 		return err
 	}
-	c.printer.MustPrintProto(agent)
 
-	return nil
+	return c.printer.PrintProto(agent)
 }
 
 func (c *showCommand) AppendFlags(fs *flag.FlagSet) {

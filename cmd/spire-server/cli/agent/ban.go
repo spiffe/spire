@@ -58,9 +58,8 @@ func (c *banCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 	if err != nil {
 		return err
 	}
-	c.printer.MustPrintProto(banResponse)
 
-	return nil
+	return c.printer.PrintProto(banResponse)
 }
 
 func (c *banCommand) AppendFlags(fs *flag.FlagSet) {
