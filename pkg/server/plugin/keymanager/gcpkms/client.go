@@ -5,10 +5,10 @@ import (
 
 	"cloud.google.com/go/iam"
 	kms "cloud.google.com/go/kms/apiv1"
+	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
-	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	iampb "google.golang.org/genproto/googleapis/iam/v1"
 )
 

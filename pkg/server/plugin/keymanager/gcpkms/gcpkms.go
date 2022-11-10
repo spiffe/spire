@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/iam"
+	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid"
 	"github.com/hashicorp/go-hclog"
@@ -25,7 +26,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	iampb "google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

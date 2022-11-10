@@ -7,11 +7,11 @@ import (
 	"strings"
 	"sync"
 
+	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/hashicorp/go-hclog"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/iterator"
-	kmspb "google.golang.org/genproto/googleapis/cloud/kms/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
