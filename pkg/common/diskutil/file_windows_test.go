@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func TestAtomicWritePrivateFile(t *testing.T) {
+func TestWriteFile(t *testing.T) {
 	dir := spiretest.TempDir(t)
 
 	tests := []struct {
@@ -58,6 +58,42 @@ func TestAtomicWritePrivateFile(t *testing.T) {
 			data:                     []byte{0xFF, 0, 0xFF, 0x3D, 0xD8, 0xA9, 0xDC, 0xF0, 0x9F, 0x92, 0xA9},
 			expectSecurityDescriptor: sddl.PubliclyReadableFile,
 			atomicWriteFunc:          AtomicWritePubliclyReadableFile,
+		},
+		{
+			name:                     "basic - WritePrivateFile",
+			data:                     []byte("Hello, World"),
+			expectSecurityDescriptor: sddl.PrivateFile,
+			atomicWriteFunc:          WritePrivateFile,
+		},
+		{
+			name:                     "empty - WritePrivateFile",
+			data:                     []byte{},
+			expectSecurityDescriptor: sddl.PrivateFile,
+			atomicWriteFunc:          WritePrivateFile,
+		},
+		{
+			name:                     "binary - WritePrivateFile",
+			data:                     []byte{0xFF, 0, 0xFF, 0x3D, 0xD8, 0xA9, 0xDC, 0xF0, 0x9F, 0x92, 0xA9},
+			expectSecurityDescriptor: sddl.PrivateFile,
+			atomicWriteFunc:          WritePrivateFile,
+		},
+		{
+			name:                     "basic - WritePubliclyReadableFile",
+			data:                     []byte("Hello, World"),
+			expectSecurityDescriptor: sddl.PubliclyReadableFile,
+			atomicWriteFunc:          WritePubliclyReadableFile,
+		},
+		{
+			name:                     "empty - WritePubliclyReadableFile",
+			data:                     []byte{},
+			expectSecurityDescriptor: sddl.PubliclyReadableFile,
+			atomicWriteFunc:          WritePubliclyReadableFile,
+		},
+		{
+			name:                     "binary - WritePubliclyReadableFile",
+			data:                     []byte{0xFF, 0, 0xFF, 0x3D, 0xD8, 0xA9, 0xDC, 0xF0, 0x9F, 0x92, 0xA9},
+			expectSecurityDescriptor: sddl.PubliclyReadableFile,
+			atomicWriteFunc:          WritePubliclyReadableFile,
 		},
 	}
 	for _, tt := range tests {
