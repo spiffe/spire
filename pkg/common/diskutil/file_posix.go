@@ -8,16 +8,36 @@ import (
 	"path/filepath"
 )
 
-// AtomicWriteFile writes data out.  It writes to a temp file first, fsyncs that file,
+// AtomicWritePrivateFile writes data out.  It writes to a temp file first, fsyncs that file,
 // then swaps the file in.  os.Rename is an atomic operation, so this sequence avoids having
 // a partially written file at the final location.  Finally, fsync is called on the directory
 // to ensure the rename is persisted.
-func AtomicWriteFile(path string, data []byte, mode os.FileMode) error {
+func AtomicWritePrivateFile(path string, data []byte) error {
+	return atomicWrite(path, data, 0600)
+}
+
+// AtomicWritePubliclyReadableFile writes data out.  It writes to a temp file first, fsyncs that file,
+// then swaps the file in.  os.Rename is an atomic operation, so this sequence avoids having
+// a partially written file at the final location.  Finally, fsync is called on the directory
+// to ensure the rename is persisted.
+func AtomicWritePubliclyReadableFile(path string, data []byte) error {
+	return atomicWrite(path, data, 0644)
+}
+
+func CreateDataDirectory(path string) error {
+	return os.MkdirAll(path, 0755)
+}
+
+func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	tmpPath := path + ".tmp"
 	if err := write(tmpPath, data, mode); err != nil {
 		return err
 	}
 
+	return rename(tmpPath, path)
+}
+
+func rename(tmpPath, path string) error {
 	if err := os.Rename(tmpPath, path); err != nil {
 		return err
 	}
@@ -33,10 +53,6 @@ func AtomicWriteFile(path string, data []byte, mode os.FileMode) error {
 	}
 
 	return dir.Close()
-}
-
-func CreateDataDirectory(path string) error {
-	return os.MkdirAll(path, 0755)
 }
 
 func write(tmpPath string, data []byte, mode os.FileMode) error {

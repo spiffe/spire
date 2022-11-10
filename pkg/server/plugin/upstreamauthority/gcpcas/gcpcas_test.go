@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/security/privateca/apiv1/privatecapb"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
-	privatecapb "google.golang.org/genproto/googleapis/cloud/security/privateca/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
