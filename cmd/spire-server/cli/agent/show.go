@@ -67,7 +67,10 @@ func (c *showCommand) AppendFlags(fs *flag.FlagSet) {
 }
 
 func prettyPrintAgent(env *commoncli.Env, results ...interface{}) error {
-	agent := results[0].(*types.Agent)
+	agent, ok := results[0].(*types.Agent)
+	if !ok {
+		return errors.New("internal error: cli printer; please report this bug")
+	}
 
 	env.Printf("Found an attested agent given its SPIFFE ID\n\n")
 	if err := printAgents(env, agent); err != nil {

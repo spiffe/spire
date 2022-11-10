@@ -97,7 +97,11 @@ func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 }
 
 func prettyPrintAgents(env *commoncli.Env, results ...interface{}) error {
-	agents := results[0].(*agentv1.ListAgentsResponse).Agents
+	listResp, ok := results[0].(*agentv1.ListAgentsResponse)
+	if !ok {
+		return errors.New("internal error: cli printer; please report this bug")
+	}
+	agents := listResp.Agents
 
 	if len(agents) == 0 {
 		return env.Printf("No attested agents found\n")

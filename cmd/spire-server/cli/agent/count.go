@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 
@@ -52,8 +53,11 @@ func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
 }
 
 func prettyPrintCount(env *commoncli.Env, results ...interface{}) error {
-	countResponse := results[0].(*agentv1.CountAgentsResponse)
-	count := int(countResponse.Count)
+	countResp, ok := results[0].(*agentv1.CountAgentsResponse)
+	if !ok {
+		return errors.New("internal error: cli printer; please report this bug")
+	}
+	count := int(countResp.Count)
 	msg := fmt.Sprintf("%d attested ", count)
 	msg = util.Pluralizer(msg, "agent", "agents", count)
 	env.Println(msg)
