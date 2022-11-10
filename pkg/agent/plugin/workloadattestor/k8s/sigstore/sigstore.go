@@ -112,8 +112,9 @@ func defaultCheckOptsFunction(rekorURL url.URL) (*cosign.CheckOpts, error) {
 		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)),
 		RootCerts:   rootCerts,
 	}
+	co.IntermediateCerts, err = fulcio.GetIntermediates()
 
-	return co, nil
+	return co, err
 }
 
 type sigstoreImpl struct {
@@ -336,7 +337,7 @@ func (s *sigstoreImpl) SetRekorURL(rekorURL string) error {
 	if err != nil {
 		return fmt.Errorf("failed parsing rekor URI: %w", err)
 	}
-	if rekorURI.Scheme != "" && rekorURI.Scheme != "https" && rekorURI.Scheme != "http" {
+	if rekorURI.Scheme != "" && rekorURI.Scheme != "https" {
 		return fmt.Errorf("invalid rekor URL Scheme %q", rekorURI.Scheme)
 	}
 	if rekorURI.Host == "" {
