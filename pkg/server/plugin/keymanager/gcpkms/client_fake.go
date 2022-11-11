@@ -110,6 +110,13 @@ func (fck *fakeCryptoKey) getLabelValue(key string) string {
 	return fck.Labels[key]
 }
 
+func (fck *fakeCryptoKey) getName() string {
+	fck.mu.RLock()
+	defer fck.mu.RUnlock()
+
+	return fck.Name
+}
+
 func (fck *fakeCryptoKey) putFakeCryptoKeyVersion(fckv *fakeCryptoKeyVersion) {
 	fck.mu.Lock()
 	defer fck.mu.Unlock()
