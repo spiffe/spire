@@ -480,14 +480,14 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	// Wait for dispose disposeCryptoKeysTask to be initialized.
 	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
 
-	for _, fck := range fakeCryptoKeys {
+	for _, fck := range storedFakeCryptoKeys {
 		// Since the CryptoKey doesn't have any enabled CryptoKeyVersions at
 		// this point, it should be set as inactive.
 		// Wait for the set inactive signal.
 		_ = waitForSignal(t, ts.plugin.hooks.setInactiveSignal)
 
 		// The CryptoKey should be inactive now.
-		fck, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(fck.Name)
+		fck, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(fck.getName())
 		require.True(t, ok)
 		require.Equal(t, "false", fck.getLabelValue(labelNameActive))
 	}
@@ -548,7 +548,9 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 
 	// The CryptoKeys are not stale yet. Assert that they are active and the
 	// CryptoKeyVersions enabled.
-	for _, fck := range fakeCryptoKeys {
+
+	storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
+	for _, fck := range storedFakeCryptoKeys {
 		require.Equal(t, "true", fck.getLabelValue(labelNameActive))
 		storedFakeCryptoKeyVersions := fck.fetchFakeCryptoKeyVersions()
 		for _, fckv := range storedFakeCryptoKeyVersions {
