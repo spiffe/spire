@@ -74,7 +74,6 @@ type serverConfig struct {
 	CASubject          *caSubjectConfig   `hcl:"ca_subject"`
 	CATTL              string             `hcl:"ca_ttl"`
 	DataDir            string             `hcl:"data_dir"`
-	DefaultSVIDTTL     string             `hcl:"default_svid_ttl"`
 	DefaultX509SVIDTTL string             `hcl:"default_x509_svid_ttl"`
 	DefaultJWTSVIDTTL  string             `hcl:"default_jwt_svid_ttl"`
 	Experimental       experimentalConfig `hcl:"experimental"`
@@ -84,11 +83,9 @@ type serverConfig struct {
 	LogFile            string             `hcl:"log_file"`
 	LogLevel           string             `hcl:"log_level"`
 	LogFormat          string             `hcl:"log_format"`
-	// Deprecated: remove in SPIRE 1.6.0
-	OmitX509SVIDUID *bool           `hcl:"omit_x509svid_uid"`
-	RateLimit       rateLimitConfig `hcl:"ratelimit"`
-	SocketPath      string          `hcl:"socket_path"`
-	TrustDomain     string          `hcl:"trust_domain"`
+	RateLimit          rateLimitConfig    `hcl:"ratelimit"`
+	SocketPath         string             `hcl:"socket_path"`
+	TrustDomain        string             `hcl:"trust_domain"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -98,6 +95,10 @@ type serverConfig struct {
 	ProfilingPort    int      `hcl:"profiling_port"`
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
+
+	// Deprecated: remove in SPIRE 1.6.0
+	DefaultSVIDTTL  string `hcl:"default_svid_ttl"`
+	OmitX509SVIDUID *bool  `hcl:"omit_x509svid_uid"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
