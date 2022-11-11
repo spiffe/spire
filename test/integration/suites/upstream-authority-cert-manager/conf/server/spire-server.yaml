@@ -53,7 +53,7 @@ data:
       trust_domain = "example.org"
       data_dir = "/run/spire/data"
       log_level = "DEBUG"
-      default_svid_ttl = "1h"
+      default_x509_svid_ttl = "1h"
       ca_ttl = "12h"
       ca_subject {
         country = ["US"]
