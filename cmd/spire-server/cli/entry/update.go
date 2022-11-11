@@ -239,9 +239,12 @@ func updateEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.
 
 func prettyPrintUpdate(env *commoncli.Env, results ...interface{}) error {
 	var succeeded, failed []*entryv1.BatchUpdateEntryResponse_Result
-	resp := results[0].(*entryv1.BatchUpdateEntryResponse)
+	updateResp, ok := results[0].(*entryv1.BatchUpdateEntryResponse)
+	if !ok {
+		return errors.New("internal error: cli printer; please report this bug")
+	}
 
-	for _, r := range resp.Results {
+	for _, r := range updateResp.Results {
 		switch r.Status.Code {
 		case int32(codes.OK):
 			succeeded = append(succeeded, r)

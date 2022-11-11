@@ -252,9 +252,12 @@ func getParentID(config *createCommand, td string) (*types.SPIFFEID, error) {
 
 func prettyPrintCreate(env *commoncli.Env, results ...interface{}) error {
 	var succeeded, failed []*entryv1.BatchCreateEntryResponse_Result
-	resp := results[0].(*entryv1.BatchCreateEntryResponse)
+	createResp, ok := results[0].(*entryv1.BatchCreateEntryResponse)
+	if !ok {
+		return errors.New("internal error: cli printer; please report this bug")
+	}
 
-	for _, r := range resp.Results {
+	for _, r := range createResp.Results {
 		switch r.Status.Code {
 		case int32(codes.OK):
 			succeeded = append(succeeded, r)

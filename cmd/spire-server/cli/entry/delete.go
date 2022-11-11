@@ -68,12 +68,15 @@ func (c *deleteCommand) validate() error {
 }
 
 func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...interface{}) error {
-	resp := results[0].(*entryv1.BatchDeleteEntryResponse)
-	if resp.Results[0].Status.Code == int32(codes.OK) {
+	deleteResp, ok := results[0].(*entryv1.BatchDeleteEntryResponse)
+	if !ok {
+		return errors.New("internal error: cli printer; please report this bug")
+	}
+	if deleteResp.Results[0].Status.Code == int32(codes.OK) {
 		env.Printf("Deleted entry with ID: %s\n", c.entryID)
 	}
 
-	sts := resp.Results[0].Status
+	sts := deleteResp.Results[0].Status
 	if sts.Code != int32(codes.OK) {
 		return fmt.Errorf("failed to delete entry: %s", sts.Message)
 	}

@@ -447,6 +447,41 @@ StoreSvid        : true
 				},
 			}},
 			fakeResp: fakeRespErr,
+			expOutJSON: `{
+  "results": [
+    {
+      "status": {
+        "code": 6,
+        "message": "similar entry already exists"
+      },
+      "entry": {
+        "id": "",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/already-exist"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/server"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1"
+          }
+        ],
+        "ttl": 0,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false
+      }
+    }
+  ]
+}`,
 			expErrPretty: `Failed to create the following entry (code: AlreadyExists, msg: "similar entry already exists"):
 Entry ID         : (none)
 SPIFFE ID        : spiffe://example.org/already-exist

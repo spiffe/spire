@@ -238,7 +238,10 @@ func parseToFederatesWithMatch(match string) (types.FederatesWithMatch_MatchBeha
 }
 
 func prettyPrintShow(env *commoncli.Env, results ...interface{}) error {
-	entries := results[0].(*entryv1.ListEntriesResponse).Entries
-	printEntries(entries, env)
+	listResp, ok := results[0].(*entryv1.ListEntriesResponse)
+	if !ok {
+		return errors.New("internal error: cli printer; please report this bug")
+	}
+	printEntries(listResp.Entries, env)
 	return nil
 }
