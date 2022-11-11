@@ -25,16 +25,16 @@ type fileAttribs struct {
 
 // AtomicWritePrivateFile writes data out to a private file.
 // It writes to a temp file first, fsyncs that file, then swaps the file in.
-// Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH'
-// witch waits until file is synced to disk.
+// It renames the file using MoveFileEx with  'MOVEFILE_WRITE_THROUGH',
+// which waits until the file is synced to disk.
 func AtomicWritePrivateFile(path string, data []byte) error {
 	return atomicWrite(path, data, sddl.PrivateFile)
 }
 
 // AtomicWritePubliclyReadableFile writes data out to a publicly readable file.
 // It writes to a temp file first, fsyncs that file, then swaps the file in.
-// Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH'
-// witch waits until file is synced to disk.
+// It renames the file using MoveFileEx with  'MOVEFILE_WRITE_THROUGH',
+// which waits until the file is synced to disk.
 func AtomicWritePubliclyReadableFile(path string, data []byte) error {
 	return atomicWrite(path, data, sddl.PubliclyReadableFile)
 }
