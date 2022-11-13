@@ -1,6 +1,7 @@
 # Build stage
+# syntax = docker/dockerfile:1.4.2@sha256:443aab4ca21183e069e7d8b2dc68006594f40bddf1b15bbd83f5137bd93e80e2
 ARG goversion
-FROM golang:${goversion}-alpine as builder
+FROM --platform=${BUILDPLATFORM} golang:${goversion}-alpine as builder
 WORKDIR /spire
 RUN apk --no-cache --update add build-base git mercurial
 ADD go.* ./
@@ -9,9 +10,8 @@ ADD . .
 RUN make build
 
 # Common base
-FROM alpine AS spire-base
+FROM --platform=${BUILDPLATFORM} alpine AS spire-base
 WORKDIR /opt/spire
-RUN mkdir -p /opt/spire/bin
 CMD []
 RUN apk --no-cache --update add dumb-init
 RUN apk --no-cache --update add ca-certificates
