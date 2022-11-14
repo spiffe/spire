@@ -131,36 +131,17 @@ jobs:
 
   images:
     name: images (linux)
-    runs-on: ubuntu-20.04
     needs: [cache-deps]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Setup go
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Load cached deps
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      - name: Load cached build tools
-        uses: actions/cache@v3
-        with:
-          path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
-      - name: Build images
-        run: make images
-      - name: Export images
-        run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local | gzip > images.tar.gz
-      - name: Archive images
-        uses: actions/upload-artifact@v3
-        with:
-          name: images
-          path: images.tar.gz
+    uses: ./.github/workflows/build_container_images.yaml
+    with:
+      image-type: normal
+
+  scratch-images:
+    name: scratch images (linux)
+    needs: [cache-deps]
+    uses: ./.github/workflows/build_container_images.yaml
+    with:
+      image-type: scratch
 
   images-windows:
     name: images (windows)
@@ -185,38 +166,6 @@ jobs:
         with:
           name: images-windows
           path: images-windows.tar.gz
-
-  scratch-images:
-    runs-on: ubuntu-20.04
-    needs: [cache-deps]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Setup go
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Load cached deps
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      - name: Load cached build tools
-        uses: actions/cache@v3
-        with:
-          path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
-      - name: Build scratch images
-        run: make scratch-images
-      - name: Export scratch images
-        run: docker save spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local oidc-discovery-provider-scratch:latest-local | gzip > scratch-images.tar.gz
-      - name: Archive scratch images
-        uses: actions/upload-artifact@v3
-        with:
-          name: scratch-images
-          path: scratch-images.tar.gz
 
   integration:
     name: integration (linux)

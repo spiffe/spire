@@ -1,0 +1,47 @@
+name: PR Build
+on:
+  workflow_call:
+    inputs:
+      image-type:
+        description: The image type to build
+        type: string
+        required: true
+
+jobs:
+  images:
+    name: build images
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Load cached deps
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Load cached build tools
+        uses: actions/cache@v3
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-tools-
+
+      - name: Build images
+        run: make ${{ inputs.image-type == "scratch" && "scratch-" || '' }}images
+
+      - name: Export images
+        run: docker save spire-server${{ inputs.image-type == "scratch" && "-scratch" || '' }}:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local | gzip > ${{ inputs.image-type == "scratch" && "scratch-" || '' }}images.tar.gz
+
+      - name: Archive images
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ inputs.image-type == "scratch" && "scratch-" || '' }}images
+          path: ${{ inputs.image-type == "scratch" && "scratch-" || '' }}images.tar.gz
