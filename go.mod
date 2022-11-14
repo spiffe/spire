@@ -51,7 +51,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.10.7
 	github.com/mattn/go-sqlite3 v1.14.16
-	github.com/mitchellh/cli v1.1.4
+	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.46.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/shirou/gopsutil/v3 v3.22.10
@@ -94,9 +94,9 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.7.0 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
-	github.com/Masterminds/goutils v1.1.0 // indirect
+	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.1.1 // indirect
-	github.com/Masterminds/sprig/v3 v3.2.0 // indirect
+	github.com/Masterminds/sprig/v3 v3.2.1 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
