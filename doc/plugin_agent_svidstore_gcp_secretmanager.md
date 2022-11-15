@@ -34,7 +34,7 @@ Please note that this plugin does not require permission to read secret payloads
 
 | Configuration        | Description                                                                                                                                                 | DEFAULT                                                         |
 |----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
-| service_account_file | (Optional) Path to the service account file used to authenticate with the Google Compute Engine API. By default credentails are retrieved from environment. | Value of `GOOGLE_APPLICATION_CREDENTIALS ` environment variable |
+| service_account_file | (Optional) Path to the service account file used to authenticate with the Google Compute Engine API. By default credentials are retrieved from environment. | Value of `GOOGLE_APPLICATION_CREDENTIALS ` environment variable |
 
 A sample configuration:
 
@@ -61,7 +61,7 @@ bindings:
 
 ### Store selectors
 
-Selectors are used on `storable` entries to describre metadata that is needed by `gcp_secretmanager` in order to store secrets in Google Cloud Secret manager. In case that a `required` selector is not provided, the plugin will return an error at execution time. 
+Selectors are used on `storable` entries to describe metadata that is needed by `gcp_secretmanager` in order to store secrets in Google Cloud Secret manager. In case that a `required` selector is not provided, the plugin will return an error at execution time. 
 
 | Selector                           | Example                                                                          | Required | Description                                                                |
 |------------------------------------|----------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------|

@@ -68,8 +68,8 @@ message RegistrationEntry {
     caller. It is defined as a URI comprising a “trust domain” and an
     associated path. */
     string spiffe_id = 3;
-    /** Time to live. */
-    int32 ttl = 4;
+    /** Time to live for X509-SVIDs generated from this entry. Was previously called 'ttl'. */
+    int32 x509_svid_ttl = 4;
     /** A list of federated trust domain SPIFFE IDs. */
     repeated string federates_with = 5;
     /** Entry ID */
@@ -88,6 +88,8 @@ message RegistrationEntry {
     int64 revision_number = 11;
     /** Determines if the issued SVID must be stored through an SVIDStore plugin */
     bool store_svid = 12;
+    /** Time to live for JWT-SVIDs generated from this entry, if set will override ttl field. */
+    int32 jwt_svid_ttl = 13;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */
@@ -95,7 +97,7 @@ message RegistrationEntryMask {
     bool selectors = 1;
     bool parent_id = 2;
     bool spiffe_id = 3;
-    bool ttl = 4;
+    bool x509_svid_ttl = 4;
     bool federates_with = 5;
     bool entry_id = 6;
     bool admin = 7;
@@ -103,6 +105,7 @@ message RegistrationEntryMask {
     bool entryExpiry = 9;
     bool dns_names = 10;
     bool store_svid = 11;
+    bool jwt_svid_ttl = 12;
 }
 
 

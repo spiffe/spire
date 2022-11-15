@@ -76,7 +76,7 @@ type RegisteredEntry struct {
 	EntryID  string `gorm:"unique_index"`
 	SpiffeID string `gorm:"index"`
 	ParentID string `gorm:"index"`
-	// TTL of identities derived from this entry
+	// TTL of identities derived from this entry. This field represents the X509-SVID TTL of the Entry
 	TTL           int32
 	Selectors     []Selector
 	FederatesWith []Bundle `gorm:"many2many:federated_registration_entries;"`
@@ -97,9 +97,6 @@ type RegisteredEntry struct {
 	// Hint is a "hint string" passed to the workload to distinguish between
 	// multiple SVIDs
 	Hint string
-
-	// TTL of X509 identities derived from this entry
-	X509SvidTTL int32 `gorm:"column:x509_svid_ttl"`
 
 	// TTL of JWT identities derived from this entry
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`

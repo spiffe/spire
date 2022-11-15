@@ -2,14 +2,7 @@
 
 ## Supported Versions
 
-Versions of the project that are currently being supported with security updates:
-
-| Version | Supported          |
-|---------|--------------------|
-| 1.2.x   | :white_check_mark: |
-| 1.1.x   | :white_check_mark: |
-| <=1.0.x | :x:                |
-
+The project supports security releases for the current minor release series and the previous minor release series, i.e. v1.X and v1.X-1. Example: if the current release series is v1.5, security fixes will be supported for both the v1.4 and v1.5 series.
 
 ## Reporting a Vulnerability
 

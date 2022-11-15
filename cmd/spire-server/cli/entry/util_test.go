@@ -69,10 +69,11 @@ func TestParseEntryJSON(t *testing.T) {
 						Value: "uid:1111",
 					},
 				},
-				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
-				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
-				Ttl:      200,
-				Admin:    true,
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
+				X509SvidTtl: 200,
+				JwtSvidTtl:  30,
+				Admin:       true,
 			}
 			entry2 := &types.Entry{
 				Selectors: []*types.Selector{
@@ -81,9 +82,10 @@ func TestParseEntryJSON(t *testing.T) {
 						Value: "uid:1111",
 					},
 				},
-				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
-				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
-				Ttl:      200,
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+				X509SvidTtl: 200,
+				JwtSvidTtl:  30,
 			}
 			entry3 := &types.Entry{
 				Selectors: []*types.Selector{
@@ -96,10 +98,11 @@ func TestParseEntryJSON(t *testing.T) {
 						Value: "key2:value",
 					},
 				},
-				SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
-				ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
-				StoreSvid: true,
-				Ttl:       200,
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+				StoreSvid:   true,
+				X509SvidTtl: 200,
+				JwtSvidTtl:  30,
 			}
 
 			expectedEntries := []*types.Entry{

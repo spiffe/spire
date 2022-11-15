@@ -13,6 +13,7 @@ Known end users with notable contributions to the advancement of the project inc
 * Square
 * Twilio 
 * Uber
+* Unity Technologies
 * Z Lab Corporation
 
 SPIFFE and SPIRE are being used by numerous other companies, both large and small, to build higher layer products and services. The list includes but is not limited to: 
@@ -66,7 +67,7 @@ https://aws.amazon.com/blogs/containers/using-mtls-with-spiffe-spire-in-app-mesh
 * Anthem writes about developing a zero trust framework at Anthem Using SPIFFE and SPIRE:
 https://upshotstories.com/stories/developing-a-zero-trust-framework-at-anthem-using-spiffe-and-spire
 
-* ARM and VMware showcase hardware backed security for multitenancy at the Edge with SPIFFE & PARSEC
+* ARM and VMware showcase hardware backed security for multi-tenancy at the Edge with SPIFFE & PARSEC
 https://www.youtube.com/watch?v=-I_rCKMyY7Y
 
 * Bloomberg talks about TPM node attestation with SPIRE:

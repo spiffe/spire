@@ -8,6 +8,9 @@ permissions:
   contents: read
   packages: write
 
+env:
+  NIGHTLY: true
+
 jobs:
   build-and-publish-images:
     runs-on: ubuntu-20.04

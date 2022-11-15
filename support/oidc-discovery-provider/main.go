@@ -100,7 +100,7 @@ func run(configPath string) error {
 	if config.HealthChecks != nil {
 		go func() {
 			server := &http.Server{
-				Addr:              fmt.Sprintf("localhost:%d", config.HealthChecks.BindPort),
+				Addr:              fmt.Sprintf(":%d", config.HealthChecks.BindPort),
 				Handler:           NewHealthChecksHandler(source, config),
 				ReadHeaderTimeout: 10 * time.Second,
 			}

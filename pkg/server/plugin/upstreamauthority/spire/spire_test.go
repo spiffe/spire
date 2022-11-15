@@ -130,7 +130,7 @@ func TestMintX509CA(t *testing.T) {
 	svidCert, svidKey, err := s.MarshalRaw()
 	require.NoError(t, err)
 
-	// Create sever's CA
+	// Create server's CA
 	serverCert, serverKey := ca.CreateX509Certificate(
 		testca.WithID(spiffeid.RequireFromPath(trustDomain, "/spire/server")),
 	)

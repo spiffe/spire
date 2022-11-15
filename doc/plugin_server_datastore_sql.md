@@ -135,4 +135,4 @@ Read Only connection will be used when the optional `ro_connection_string` is se
 
 ## SQLite and CGO
 
-SQLite support requires the use of CGO. This is not a concern for users downloading SPIRE or using the offical SPIRE container images. However, if you are building SPIRE from the source code, please note that compiling SPIRE without CGO (e.g. `CGO_ENABLED=0`) will disable SQLite support.
+SQLite support requires the use of CGO. This is not a concern for users downloading SPIRE or using the official SPIRE container images. However, if you are building SPIRE from the source code, please note that compiling SPIRE without CGO (e.g. `CGO_ENABLED=0`) will disable SQLite support.

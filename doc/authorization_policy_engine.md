@@ -1,7 +1,7 @@
 # Authorization policy engine
 
-**Warning**: Use of custom authorization policies is experiemental and can
-result in security degredation if not configured correctly. Please refer to 
+**Warning**: Use of custom authorization policies is experimental and can
+result in security degradation if not configured correctly. Please refer to 
 [this section](#extending-the-policy) for more details on extending the default
 policy.
 
@@ -224,7 +224,7 @@ allow = true {
 }
 ```
 
-## Example 1b: Sub-department namespacing with exlcusions
+## Example 1b: Sub-department namespacing with exclusions
 
 Building on top of the previous example, let's say we want to have sub
 departments, having schedulers for a subset of paths within the trust domain.

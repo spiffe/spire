@@ -10,7 +10,8 @@
             ],
             "spiffe_id": "spiffe://example.org/Blog",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
-            "ttl": 200,
+            "x509_svid_ttl": 200,
+            "jwt_svid_ttl": 300,
             "admin": true
         },
         {
@@ -23,7 +24,8 @@
             ],
             "spiffe_id": "spiffe://example.org/Database",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
-            "ttl": 200
+            "x509_svid_ttl": 200,
+            "jwt_svid_ttl": 300
         },
         {
             "entry_id": "entry-id-3",
@@ -40,7 +42,8 @@
             "spiffe_id": "spiffe://example.org/Storesvid",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
 	    "store_svid": true,
-            "ttl": 200
+            "x509_svid_ttl": 200,
+            "jwt_svid_ttl": 300
         }
     ]
 }

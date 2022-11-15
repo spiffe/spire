@@ -201,7 +201,11 @@ endif
 ############################################################################
 
 # Flags passed to all invocations of go test
-go_test_flags := -timeout=60s
+go_test_flags := 
+ifeq ($(NIGHTLY),)
+	# Cap unit-test timout to 60s unless we're running nightlies.
+	go_test_flags += -timeout=60s
+endif
 
 go_flags :=
 ifneq ($(GOPARALLEL),)
@@ -293,13 +297,6 @@ ifneq ($(COVERPROFILE),)
 	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race -coverprofile="$(COVERPROFILE)" ./...
 else
 	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race ./...
-endif
-
-ci-race-test: | go-check
-ifneq ($(COVERPROFILE),)
-	$(E)SKIP_FLAKY_TESTS_UNDER_RACE_DETECTOR=1 $(go_path) go test $(go_flags) $(go_test_flags) -race -count=1 -coverprofile="$(COVERPROFILE)" ./...
-else
-	$(E)SKIP_FLAKY_TESTS_UNDER_RACE_DETECTOR=1 $(go_path) go test $(go_flags) $(go_test_flags) -race -count=1 ./...
 endif
 
 integration:

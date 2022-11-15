@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.5.1] - 2022-11-08
+
+### Fixed
+- The deprecated `default_svid_ttl` configurable is now correctly observed after fixing a regression introduced in 1.5.0 (#3583)
+
+## [1.5.0] - 2022-11-02
+
+### Added
+- X.509-SVID and JWT-SVID TTLs can now be configured separately at both the entry-level and Server default level (#3445)
+- Entry protobuf type in `/v1/entry` API includes new `jwt_svid_ttl` field (#3445)
+- `k8s-workload-registrar` and `oidc-discovery-provider` CLIs now print their version when the `-version` flag is set (#3475)
+- Support for customizing SPIFFE ID paths of SPIRE Agents attested with the `azure_msi` NodeAttestor plugin (#3488)
+
+###  Changed
+- Entry `ttl` protobuf field in `/v1/entry` API is renamed to `x509_ttl` (#3445)
+- External plugins can no longer be named `join_token` to avoid conflicts with the builtin plugin (#3469)
+- `spire-server run` command now supports DNS names for the configured bind address (#3421)
+- Documentation improvements (#3468, #3472, #3473, #3474, #3515)
+
+### Deprecated
+- `k8s-workload-registrar` is deprecated in favor of [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager) (#3526)
+- Server `default_svid_ttl` configuration field is deprecated in favor of `default_x509_svid_ttl` and `default_jwt_svid_ttl` fields (#3445)
+- `-ttl` flag in `spire-server entry create` and `spire-server entry update` commands is deprecated in favor of `-x509SVIDTTL` and `-jwtSVIDTTL` flags (#3445)
+- `-format` flag in `spire-agent fetch jwt` CLI command is deprecated in favor of `-output` flag (#3528)
+- `InMem` telemetry collector is deprecated and no longer enabled by default (#3492)
+
+### Removed
+- NodeResolver plugin type and `azure_msi` builtin NodeResolver plugin (#3470)
+
+## [1.4.5] - 2022-11-01
+
+### Security
+- Updated to Go 1.19.3 to address CVE-2022-41716. This vulnerability only affects users configuring external Server or Agent plugins on Windows.
+
+## [1.4.4] - 2022-10-05
+
+### Added
+- Experimental support for limiting the number of SVIDs in the agent's cache (#3181)
+- Support for attesting Envoy proxy workloads when Istio is configured with holdApplicationUntilProxyStarts (#3460)
+
+### Changed
+- Improved bundle endpoint misconfiguration diagnostics (#3395)
+- OIDC Discovery Provider endpoint now has a timeout to read request headers (#3435)
+- Small documentation improvements (#3443)
+
 ## [1.4.3] - 2022-10-04
 
 ### Security
@@ -45,6 +90,11 @@
 ### Removed
 - The deprecated webhook mode from the k8s-workload-registrar (#3235)
 - Support for the configmap leader election lock type from the k8s-workload-registrar (#3241)
+
+## [1.3.6] - 2022-11-01
+
+### Security
+- Updated to Go 1.18.8 to address CVE-2022-41716. This vulnerability only affects users configuring external Server or Agent plugins on Windows.
 
 ## [1.3.5] - 2022-10-04
 
@@ -248,7 +298,7 @@
 - The GCP CAS UpstreamAuthority now works with the GA release of GCP CAS (#2569)
 - Fixed a variety of issues with the scratch image, preparatory to publishing as the official image on GitHub Container Registry (#2582)
 - Kubernetes Workload Attestor now uses the canonical path for the service account token (#2583)
-- The server socketPath is now appropriately overriden via the configuration file (#2570)
+- The server socketPath is now appropriately overridden via the configuration file (#2570)
 - The server now restarts appropriately after undergoing forceful shutdown (#2496)
 - The server CLI list commands now work reliably for large listings (#2456)
 
@@ -312,7 +362,7 @@
 - SPIRE Server CLI now has `count` subcommands for agents, entries, and bundles (#2128)
 - SPIRE Server can now be configured for SPIFFE federation using the configurables defined by the spec (#2340)
 - SPIRE Server and Agent now expose the standard gRPC health service (#2057, #2058)
-- SPIFFE bundle endpoint URL is now configurable in the `federates_with` configuation block (#2340)
+- SPIFFE bundle endpoint URL is now configurable in the `federates_with` configuration block (#2340)
 - SPIRE Agent may now optionally provided unregistered callers with a bundle for SVID validation via the `allow_unauthenticated_verifiers` configurable (#2102)
 - SPIRE Server JWT key type is now independently configurable via `jwt_key_type` (#1991)
 - Registration entries can now be queried/filtered by `federates_with` when calling the entry API (#1967)
@@ -331,7 +381,7 @@
 - SPIRE Server federation configuration in the `federates_with` `bundle_endpoint` block is now deprecated (#2340)
 - SPIRE Server `gcp_iit` NodeAttestor configurable `projectid_whitelist` is deprecated in favor of `projectid_allow_list` (#2253)
 - SPIRE Server `k8s_sat` and `k8s_psat` NodeAttestor configurable `service_account_whitelist` is deprecated in favor of `service_account_allow_list` (#2253)
-- SPIRE Sever `registration_uds_path`/`-registrationUDSPath` configurable and flag has been deprecateed in favor of `socket_path`/`-socketPath` (#2075)
+- SPIRE Server `registration_uds_path`/`-registrationUDSPath` configurable and flag has been deprecated in favor of `socket_path`/`-socketPath` (#2075)
 
 ### Removed
 - SPIRE Server no longer supports SPIFFE IDs with UTF-8 (#2368)
@@ -340,7 +390,7 @@
 - The `aws_iid` NodeResolver plugin has been removed as it has been obviated (#2191)
 - The `noop` NodeResolver plugin has been removed (#2189)
 - The `proto/spire` go module has been removed in favor of the new SDKs (#2161)
-- The deprected `enable_sds` configurable has been removed (#2021)
+- The deprecated `enable_sds` configurable has been removed (#2021)
 - The deprecated `experimental bundle` CLI subcommands have been removed (#2062)
 - SPIRE Server experimental configurables related to federation have been removed (#2062)
 - SPIRE Server bundle endpoint no longer supports TLS signature schemes utilizing non-SHA256 hashes when ACME is enabled (#2397)
@@ -561,7 +611,7 @@
 - Users can now opt-out of workload executable hashing when enabling the workload path as a selector (#1078)
 - Added M3 support to telemetry and other telemetry and logging improvements (#1059, #1085, #1086, #1094, #1102, #1122,#1138,#1160,#1186,#1208)
 - SQL auto-migration can be disabled (#1089)
-- SQL schema compatability checks are aligned with upgrade compatability guarantees (#1089)
+- SQL schema compatibility checks are aligned with upgrade compatibility guarantees (#1089)
 - Agent CLI can provide information on attested nodes (#1098)
 - SPIRE can tolerate small SVID expiration periods (#1115)
 - Reduced Docker image sizes by roughly 25% (#1140)
@@ -641,7 +691,7 @@
 - Fix a bug in AWS IID NodeResolver with instance profile lookup (#888)
 - Improved workload attestation and fixed a security bug related to PID reuse (#886)
 - New Kubernetes bundle notifier for keeping a bundle configmap up-to-date (#877)
-- New plugin type Notifier for programatically taking action on important events (#877)
+- New plugin type Notifier for programmatically taking action on important events (#877)
 - New NodeAttestor based on SSH certificates (#868, #870)
 - v2 client library for Workload API interaction (#841)
 - Back-compat bundle management code removed - bundle is now handled correctly (#858, #859)

@@ -53,52 +53,51 @@ If you don't already have Docker installed, please follow these [installation in
 
 	    ./bin/spire-server entry --help
 
-6.  View the SPIRE Server configuration file.
+   6.  View the SPIRE Server configuration file.
 
-    	cat conf/server/server.conf
+           cat conf/server/server.conf
 
-    The default SPIRE Server configurations are shown below. A detailed description of each of the SPIRE Server configuration options is in [the Server documentation](/doc/spire_server.md).
+       The default SPIRE Server configurations are shown below. A detailed description of each of the SPIRE Server configuration options is in [the Server documentation](/doc/spire_server.md).
 
-    ```hcl
-    server {
-        bind_address = "127.0.0.1"
-        bind_port = "8081"
-        trust_domain = "example.org"
-        data_dir = "./.data"
-        log_level = "DEBUG"
-        default_svid_ttl = "1h"
-        ca_subject {
-            country = ["US"]
-            organization = ["SPIFFE"]
-            common_name = ""
-        }
-    }
+       ```hcl
+       server {
+           bind_address = "127.0.0.1"
+           bind_port = "8081"
+           trust_domain = "example.org"
+           data_dir = "./.data"
+           log_level = "DEBUG"
+           ca_subject {
+               country = ["US"]
+               organization = ["SPIFFE"]
+               common_name = ""
+           }
+       }
 
-    plugins {
-        DataStore "sql" {
-            plugin_data {
-                database_type = "sqlite3"
-                connection_string = "./.data/datastore.sqlite3"
-            }
-        }
+       plugins {
+           DataStore "sql" {
+               plugin_data {
+                   database_type = "sqlite3"
+                   connection_string = "./.data/datastore.sqlite3"
+               }
+           }
 
-        NodeAttestor "join_token" {
-            plugin_data {
-            }
-        }
+           NodeAttestor "join_token" {
+               plugin_data {
+               }
+           }
 
-        KeyManager "memory" {
-            plugin_data = {}
-        }
+           KeyManager "memory" {
+               plugin_data = {}
+           }
 
-        UpstreamAuthority "disk" {
-            plugin_data {
-                key_file_path = "./conf/server/dummy_upstream_ca.key"
-                cert_file_path = "./conf/server/dummy_upstream_ca.crt"
-            }
-        }
-    }
-    ```
+           UpstreamAuthority "disk" {
+               plugin_data {
+                   key_file_path = "./conf/server/dummy_upstream_ca.key"
+                   cert_file_path = "./conf/server/dummy_upstream_ca.crt"
+               }
+           }
+       }
+       ```
 
 7. Start the SPIRE Server as a background process by running the following command.
 

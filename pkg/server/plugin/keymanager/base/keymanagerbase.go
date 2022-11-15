@@ -26,42 +26,40 @@ type KeyEntry struct {
 	*keymanagerv1.PublicKey
 }
 
-// Funcs is a collection of optional callbacks. Default implementations will be
+// Config is a collection of optional callbacks. Default implementations will be
 // used when not provided.
-type Funcs struct {
-	WriteEntries       func(ctx context.Context, entries []*KeyEntry) error
-	GenerateRSA2048Key func() (*rsa.PrivateKey, error)
-	GenerateRSA4096Key func() (*rsa.PrivateKey, error)
-	GenerateEC256Key   func() (*ecdsa.PrivateKey, error)
-	GenerateEC384Key   func() (*ecdsa.PrivateKey, error)
+type Config struct {
+	// Generator is an optional key generator.
+	Generator Generator
+
+	// WriteEntries is an optional callback used to persist key entries
+	WriteEntries func(ctx context.Context, entries []*KeyEntry) error
+}
+
+// Generator is a key generator
+type Generator interface {
+	GenerateRSA2048Key() (*rsa.PrivateKey, error)
+	GenerateRSA4096Key() (*rsa.PrivateKey, error)
+	GenerateEC256Key() (*ecdsa.PrivateKey, error)
+	GenerateEC384Key() (*ecdsa.PrivateKey, error)
 }
 
 // Base is the base KeyManager implementation
 type Base struct {
 	keymanagerv1.UnsafeKeyManagerServer
-	funcs Funcs
+	config Config
 
 	mu      sync.RWMutex
 	entries map[string]*KeyEntry
 }
 
-// New creates a new base key manager using the provided Funcs. Default
-// implementations are provided for any that aren't set.
-func New(funcs Funcs) *Base {
-	if funcs.GenerateRSA2048Key == nil {
-		funcs.GenerateRSA2048Key = generateRSA2048Key
-	}
-	if funcs.GenerateRSA4096Key == nil {
-		funcs.GenerateRSA4096Key = generateRSA4096Key
-	}
-	if funcs.GenerateEC256Key == nil {
-		funcs.GenerateEC256Key = generateEC256Key
-	}
-	if funcs.GenerateEC384Key == nil {
-		funcs.GenerateEC384Key = generateEC384Key
+// New creates a new base key manager using the provided config.
+func New(config Config) *Base {
+	if config.Generator == nil {
+		config.Generator = defaultGenerator{}
 	}
 	return &Base{
-		funcs:   funcs,
+		config:  config,
 		entries: make(map[string]*KeyEntry),
 	}
 }
@@ -142,8 +140,8 @@ func (m *Base) generateKey(ctx context.Context, req *keymanagerv1.GenerateKeyReq
 
 	m.entries[req.KeyId] = newEntry
 
-	if m.funcs.WriteEntries != nil {
-		if err := m.funcs.WriteEntries(ctx, entriesSliceFromMap(m.entries)); err != nil {
+	if m.config.WriteEntries != nil {
+		if err := m.config.WriteEntries(ctx, entriesSliceFromMap(m.entries)); err != nil {
 			if hasEntry {
 				m.entries[req.KeyId] = oldEntry
 			} else {
@@ -217,13 +215,13 @@ func (m *Base) generateKeyEntry(keyID string, keyType keymanagerv1.KeyType) (e *
 	var privateKey crypto.Signer
 	switch keyType {
 	case keymanagerv1.KeyType_EC_P256:
-		privateKey, err = m.funcs.GenerateEC256Key()
+		privateKey, err = m.config.Generator.GenerateEC256Key()
 	case keymanagerv1.KeyType_EC_P384:
-		privateKey, err = m.funcs.GenerateEC384Key()
+		privateKey, err = m.config.Generator.GenerateEC384Key()
 	case keymanagerv1.KeyType_RSA_2048:
-		privateKey, err = m.funcs.GenerateRSA2048Key()
+		privateKey, err = m.config.Generator.GenerateRSA2048Key()
 	case keymanagerv1.KeyType_RSA_4096:
-		privateKey, err = m.funcs.GenerateRSA4096Key()
+		privateKey, err = m.config.Generator.GenerateRSA4096Key()
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "unable to generate key %q for unknown key type %q", keyID, keyType)
 	}
@@ -299,19 +297,21 @@ func ecdsaKeyType(privateKey *ecdsa.PrivateKey) (keymanagerv1.KeyType, error) {
 	}
 }
 
-func generateRSA2048Key() (*rsa.PrivateKey, error) {
+type defaultGenerator struct{}
+
+func (defaultGenerator) GenerateRSA2048Key() (*rsa.PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, 2048)
 }
 
-func generateRSA4096Key() (*rsa.PrivateKey, error) {
+func (defaultGenerator) GenerateRSA4096Key() (*rsa.PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, 4096)
 }
 
-func generateEC256Key() (*ecdsa.PrivateKey, error) {
+func (defaultGenerator) GenerateEC256Key() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 }
 
-func generateEC384Key() (*ecdsa.PrivateKey, error) {
+func (defaultGenerator) GenerateEC384Key() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 }
 

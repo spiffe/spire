@@ -415,7 +415,8 @@ func getPrintedEntry(idx int) string {
 SPIFFE ID        : spiffe://example.org/son
 Parent ID        : spiffe://example.org/father
 Revision         : 0
-TTL              : default
+X509-SVID TTL    : default
+JWT-SVID TTL     : default
 Selector         : foo:bar
 
 `
@@ -424,7 +425,8 @@ Selector         : foo:bar
 SPIFFE ID        : spiffe://example.org/daughter
 Parent ID        : spiffe://example.org/father
 Revision         : 0
-TTL              : default
+X509-SVID TTL    : default
+JWT-SVID TTL     : default
 Selector         : bar:baz
 Selector         : foo:bar
 
@@ -434,7 +436,8 @@ Selector         : foo:bar
 SPIFFE ID        : spiffe://example.org/daughter
 Parent ID        : spiffe://example.org/mother
 Revision         : 0
-TTL              : default
+X509-SVID TTL    : default
+JWT-SVID TTL     : default
 Selector         : bar:baz
 Selector         : baz:bat
 FederatesWith    : spiffe://domain.test
@@ -445,7 +448,8 @@ FederatesWith    : spiffe://domain.test
 SPIFFE ID        : spiffe://example.org/son
 Parent ID        : spiffe://example.org/mother
 Revision         : 0
-TTL              : default
+X509-SVID TTL    : default
+JWT-SVID TTL     : default
 Expiration time  : %s
 Selector         : baz:bat
 

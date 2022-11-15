@@ -2,9 +2,14 @@
 
 source init-kubectl
 
-expLeafIssuer="issuer=C = US, O = SPIFFE"
+expLeafIssuerOpenSSL="issuer=C = US, O = SPIFFE"
+expCASubjectOpenSSL="subject=O = cert-manager.io, CN = example.org"
+
+# On macOS, /usr/bin/openssl is LibreSSL, which outputs certificate details with a different format than OpenSSL
+expLeafIssuerLibreSSL="issuer= /C=US/O=SPIFFE"
+expCASubjectLibreSSL="subject= /O=cert-manager.io/CN=example.org"
+
 expLeafURI="URI:spiffe://example.org/ns/foo/sa/bar"
-expCASubject="subject=O = cert-manager.io, CN = example.org"
 
 log-debug "verifying CA..."
 
@@ -12,6 +17,14 @@ log-debug "verifying CA..."
 leafURIResult=$(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- cat svid.pem | openssl x509 -noout -text | grep URI | sed 's/^ *//g')
 leafIssuerResult=$(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- cat svid.pem | openssl x509 -noout -issuer)
 caSubjectResult=$(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- cat bundle.pem | openssl x509 -noout -subject)
+
+if [ $(openssl version | awk '{print $1}') == 'LibreSSL' ]; then
+    expLeafIssuer=$expLeafIssuerLibreSSL
+    expCASubject=$expCASubjectLibreSSL
+else
+    expLeafIssuer=$expLeafIssuerOpenSSL
+    expCASubject=$expCASubjectOpenSSL
+fi
 
 if [ "$leafURIResult" != "$expLeafURI" ]; then
   fail-now "unexpected SPIFFE ID in resulting certificate, exp=$expLeafURI got=$leafURIResult"
