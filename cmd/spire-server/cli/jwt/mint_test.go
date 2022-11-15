@@ -203,7 +203,7 @@ func TestMintRun(t *testing.T) {
 				},
 			},
 			write:  "/",
-			stderr: fmt.Sprintf("Error: unable to write token: open %s: is a directory\n", dir),
+			stderr: "Error: unable to write token",
 		},
 		{
 			name:     "malformed token",
@@ -290,7 +290,7 @@ func TestMintRun(t *testing.T) {
 			code := cmd.Run(args)
 
 			assert.Equal(t, tt.code, code, "exit code does not match")
-			assert.Equal(t, tt.stderr, stderr.String(), "stderr does not match")
+			assert.Contains(t, stderr.String(), tt.stderr, "stderr does not match")
 
 			req := server.lastMintJWTSVIDRequest()
 			if tt.noRequestExpected {

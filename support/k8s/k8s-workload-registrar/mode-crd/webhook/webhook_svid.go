@@ -21,14 +21,13 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	spiretypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 )
 
 const (
 	certDirMode   = os.FileMode(0o700)
-	certsFileMode = os.FileMode(0o644)
-	keyFileMode   = os.FileMode(0o600)
 	certsFileName = "tls.crt"
 	keyFileName   = "tls.key"
 )
@@ -181,13 +180,13 @@ func (e *SVID) dumpSVID(svid *spiretypes.X509SVID, key crypto.Signer) error {
 
 	// Write certificates to disk
 	certsFileName := path.Join(e.c.WebhookCertDir, certsFileName)
-	if err := os.WriteFile(certsFileName, svidPEM.Bytes(), certsFileMode); err != nil {
+	if err := diskutil.WritePubliclyReadableFile(certsFileName, svidPEM.Bytes()); err != nil {
 		return err
 	}
 
 	// Write key to disk
 	keyFileName := path.Join(e.c.WebhookCertDir, keyFileName)
-	return os.WriteFile(keyFileName, keyPEM.Bytes(), keyFileMode)
+	return diskutil.WritePrivateFile(keyFileName, keyPEM.Bytes())
 }
 
 func certHalfLife(cert *x509.Certificate) time.Time {
