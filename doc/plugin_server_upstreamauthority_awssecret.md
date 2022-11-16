@@ -12,6 +12,7 @@ The plugin accepts the following configuration options:
 | region            | AWS Region that the AWS Secrets Manager is running in |
 | cert_file_arn     | ARN of the "upstream" CA certificate                  |
 | key_file_arn      | ARN of the "upstream" CA key file                     |
+| bundle_file_arn   | ARN of additional roots to include in the trust bundle. If `cert_file_arn` contains a self-signed certificate this field can be left unset. Otherwise, `bundle_file_arn` must include one or more certificates necessary to establish a valid chain up to a self-signed certificate. |
 | access_key_id     | AWS access key ID                                     |
 | secret_access_key | AWS secret access key                                 |
 | secret_token      | AWS secret token                                      |
@@ -40,6 +41,7 @@ A sample configuration:
             region = "us-west-2",
             cert_file_arn = "cert",
             key_file_arn = "key",
+            bundle_file_arn = "bundle",
             access_key_id = "ACCESS_KEY_ID",
             secret_access_key = "SECRET_ACCESS_KEY",
             secret_token = "SECRET_TOKEN"
