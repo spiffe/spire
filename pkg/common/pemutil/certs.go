@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"os"
 )
 
 func ParseCertificate(pemBytes []byte) (*x509.Certificate, error) {
@@ -48,18 +47,10 @@ func EncodeCertificates(certs []*x509.Certificate) []byte {
 	return buf.Bytes()
 }
 
-func SaveCertificates(path string, certs []*x509.Certificate, mode os.FileMode) error {
-	return os.WriteFile(path, EncodeCertificates(certs), mode)
-}
-
 func EncodeCertificate(cert *x509.Certificate) []byte {
 	var buf bytes.Buffer
 	encodeCertificate(&buf, cert)
 	return buf.Bytes()
-}
-
-func SaveCertificate(path string, cert *x509.Certificate, mode os.FileMode) error {
-	return os.WriteFile(path, EncodeCertificate(cert), mode)
 }
 
 func certFromObject(object interface{}) (*x509.Certificate, error) {

@@ -25,16 +25,16 @@ type fileAttribs struct {
 
 // AtomicWritePrivateFile writes data out to a private file.
 // It writes to a temp file first, fsyncs that file, then swaps the file in.
-// Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH'
-// witch waits until file is synced to disk.
+// It renames the file using MoveFileEx with  'MOVEFILE_WRITE_THROUGH',
+// which waits until the file is synced to disk.
 func AtomicWritePrivateFile(path string, data []byte) error {
 	return atomicWrite(path, data, sddl.PrivateFile)
 }
 
 // AtomicWritePubliclyReadableFile writes data out to a publicly readable file.
 // It writes to a temp file first, fsyncs that file, then swaps the file in.
-// Rename file using a custom MoveFileEx that uses 'MOVEFILE_WRITE_THROUGH'
-// witch waits until file is synced to disk.
+// It renames the file using MoveFileEx with  'MOVEFILE_WRITE_THROUGH',
+// which waits until the file is synced to disk.
 func AtomicWritePubliclyReadableFile(path string, data []byte) error {
 	return atomicWrite(path, data, sddl.PubliclyReadableFile)
 }
@@ -88,33 +88,51 @@ func MkdirAll(path string, sddl string) error {
 	return nil
 }
 
+// WritePrivateFile writes data out to a private file. The file is created if it
+// does not exist. If exists, it's overwritten.
+func WritePrivateFile(path string, data []byte) error {
+	return write(path, data, sddl.PrivateFile, false)
+}
+
+// WritePubliclyReadableFile writes data out to a publicly readable file. The
+// file is created if it does not exist. If exists, it's overwritten.
+func WritePubliclyReadableFile(path string, data []byte) error {
+	return write(path, data, sddl.PubliclyReadableFile, false)
+}
+
 func atomicWrite(path string, data []byte, sddl string) error {
 	tmpPath := path + ".tmp"
-	if err := write(tmpPath, data, sddl); err != nil {
+	if err := write(tmpPath, data, sddl, true); err != nil {
 		return err
 	}
 
 	return atomicRename(tmpPath, path)
 }
 
-func write(tmpPath string, data []byte, sddl string) error {
-	handle, err := createFileForWriting(tmpPath, sddl)
+// write writes to a file in the specified path with the specified
+// security descriptor using the provided data. The sync boolean
+// argument is used to indicate whether flushing to disk is required
+// or not.
+func write(path string, data []byte, sddl string, sync bool) error {
+	handle, err := createFileForWriting(path, sddl)
 	if err != nil {
 		return err
 	}
 
-	file := os.NewFile(uintptr(handle), tmpPath)
+	file := os.NewFile(uintptr(handle), path)
 	if file == nil {
-		return fmt.Errorf("invalid file descriptor for file %q", tmpPath)
+		return fmt.Errorf("invalid file descriptor for file %q", path)
 	}
 	if _, err := file.Write(data); err != nil {
 		file.Close()
-		return err
+		return fmt.Errorf("failed to write to file %q: %w", path, err)
 	}
 
-	if err := file.Sync(); err != nil {
-		file.Close()
-		return err
+	if sync {
+		if err := file.Sync(); err != nil {
+			file.Close()
+			return fmt.Errorf("failed to sync file %q: %w", path, err)
+		}
 	}
 
 	return file.Close()

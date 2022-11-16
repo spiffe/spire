@@ -13,7 +13,6 @@ import (
 	"flag"
 	"fmt"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/mitchellh/cli"
@@ -22,6 +21,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 )
 
 type generateKeyFunc func() (crypto.Signer, error)
@@ -157,21 +157,21 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	keyPath := env.JoinPath(c.write, "key.pem")
 	bundlePath := env.JoinPath(c.write, "bundle.pem")
 
-	if err := os.WriteFile(svidPath, svidPEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
+	if err := diskutil.WritePubliclyReadableFile(svidPath, svidPEM.Bytes()); err != nil {
 		return fmt.Errorf("unable to write SVID: %w", err)
 	}
 	if err := env.Printf("X509-SVID written to %s\n", svidPath); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(keyPath, keyPEM.Bytes(), 0600); err != nil {
+	if err := diskutil.WritePrivateFile(keyPath, keyPEM.Bytes()); err != nil {
 		return fmt.Errorf("unable to write key: %w", err)
 	}
 	if err := env.Printf("Private key written to %s\n", keyPath); err != nil {
 		return err
 	}
 
-	if err := os.WriteFile(bundlePath, bundlePEM.Bytes(), 0644); err != nil { // nolint: gosec // expected permission
+	if err := diskutil.WritePubliclyReadableFile(bundlePath, bundlePEM.Bytes()); err != nil {
 		return fmt.Errorf("unable to write bundle: %w", err)
 	}
 	return env.Printf("Root CAs written to %s\n", bundlePath)

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"path"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 )
 
 func NewFetchX509Command() cli.Command {
@@ -153,12 +153,12 @@ func (c *fetchX509Command) writeKey(filename string, privateKey crypto.PrivateKe
 		Bytes: data,
 	}
 
-	return os.WriteFile(filename, pem.EncodeToMemory(b), 0600)
+	return diskutil.WritePrivateFile(filename, pem.EncodeToMemory(b))
 }
 
 // writeFile creates or truncates filename, and writes data to it
 func (c *fetchX509Command) writeFile(filename string, data []byte) error {
-	return os.WriteFile(filename, data, 0644) // nolint: gosec // expected permission for certificates
+	return diskutil.WritePubliclyReadableFile(filename, data)
 }
 
 type X509SVID struct {

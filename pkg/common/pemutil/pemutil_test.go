@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/rsa"
 	"os"
-	"path"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -270,38 +269,6 @@ func (s *Suite) TestEncodeCertificate() {
 	expCertPem, err := os.ReadFile("testdata/cert.pem")
 	s.Require().NoError(err)
 	s.Require().Equal(expCertPem, EncodeCertificate(cert))
-}
-
-func (s *Suite) TestSaveCertificate() {
-	dir, err := os.MkdirTemp("", "pemutil-test")
-	s.Require().NoError(err)
-	defer os.Remove(dir)
-
-	certPath := path.Join(dir, "cert")
-	cert, err := LoadCertificate("testdata/cert.pem")
-	s.Require().NoError(err)
-	err = SaveCertificate(certPath, cert, 0600)
-	s.Require().NoError(err)
-
-	fileContent, err := os.ReadFile(certPath)
-	s.Require().NoError(err)
-	s.Require().Equal(EncodeCertificate(cert), fileContent)
-}
-
-func (s *Suite) TestSaveCertificates() {
-	dir, err := os.MkdirTemp("", "pemutil-test")
-	s.Require().NoError(err)
-	defer os.Remove(dir)
-
-	certsPath := path.Join(dir, "certs")
-	certs, err := LoadCertificates("testdata/certs.pem")
-	s.Require().NoError(err)
-	err = SaveCertificates(certsPath, certs, 0600)
-	s.Require().NoError(err)
-
-	fileContent, err := os.ReadFile(certsPath)
-	s.Require().NoError(err)
-	s.Require().Equal(EncodeCertificates(certs), fileContent)
 }
 
 func (s *Suite) TestLoadSigner() {
