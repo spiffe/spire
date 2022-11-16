@@ -27,10 +27,10 @@ metadata:
   name: spire-k8s-registrar-role
   namespace: spire
 rules:
-  - apiGroups: [""]
+  - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["create"]
-  - apiGroups: [""]
+  - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     resourceNames: ["controller-leader-election-helper"]
     verbs: ["update", "get"]
