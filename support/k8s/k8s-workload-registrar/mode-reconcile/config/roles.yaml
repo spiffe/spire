@@ -32,7 +32,7 @@ rules:
     verbs: ["create"]
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
-    resourceNames: ["controller-leader-election-helper"]
+    resourceNames: ["spire-k8s-registrar-leader-election"]
     verbs: ["update", "get"]
   - apiGroups: [""]
     resources: ["events"]
