@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	agentapi "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
 )
 
 func TestPrintError(t *testing.T) {
@@ -97,8 +98,12 @@ func newTestPrinterWithWriter(stdout, stderr io.Writer) *printer {
 	if stderr == nil {
 		stderr = new(bytes.Buffer)
 	}
+	env := &commoncli.Env{
+		Stdout: stdout,
+		Stderr: stderr,
+	}
 
-	return newPrinterWithWriters(defaultFormatType, stdout, stderr)
+	return newPrinter(defaultFormatType, env)
 }
 
 type badWriter struct{}

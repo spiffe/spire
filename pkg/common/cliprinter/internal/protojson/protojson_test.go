@@ -40,6 +40,12 @@ func TestPrint(t *testing.T) {
 			stdout:    "",
 			stderr:    "",
 		},
+		{
+			name:      "message_with_unpopulated_fields",
+			protoFunc: unpopulatedFieldsMessage,
+			stdout:    "{\"count\":0}\n",
+			stderr:    "",
+		},
 	}
 
 	for _, c := range cases {
@@ -59,6 +65,14 @@ func normalCountAgentsResponseMessage(_ *testing.T) []proto.Message {
 	return []proto.Message{
 		&agentapi.CountAgentsResponse{
 			Count: int32(42),
+		},
+	}
+}
+
+func unpopulatedFieldsMessage(_ *testing.T) []proto.Message {
+	return []proto.Message{
+		&agentapi.CountAgentsResponse{
+			Count: int32(0),
 		},
 	}
 }
