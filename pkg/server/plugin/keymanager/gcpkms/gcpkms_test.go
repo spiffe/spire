@@ -548,13 +548,12 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 
 	// The CryptoKeys are not stale yet. Assert that they are active and the
 	// CryptoKeyVersions enabled.
-
 	storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
 	for _, fck := range storedFakeCryptoKeys {
 		require.Equal(t, "true", fck.getLabelValue(labelNameActive))
 		storedFakeCryptoKeyVersions := fck.fetchFakeCryptoKeyVersions()
 		for _, fckv := range storedFakeCryptoKeyVersions {
-			require.Equal(t, kmspb.CryptoKeyVersion_ENABLED, fckv.State, fckv.Name)
+			require.Equal(t, kmspb.CryptoKeyVersion_ENABLED, fckv.GetState(), fckv.GetName())
 		}
 	}
 }
