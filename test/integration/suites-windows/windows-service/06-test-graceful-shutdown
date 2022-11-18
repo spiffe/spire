@@ -1,0 +1,10 @@
+#!/bin/bash
+source ./common
+
+stop-service spire-agent
+assert-service-status spire-agent STOPPED
+assert-graceful-shutdown agent
+
+stop-service spire-server
+assert-service-status spire-server STOPPED
+assert-graceful-shutdown server

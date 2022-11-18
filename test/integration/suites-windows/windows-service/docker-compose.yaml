@@ -1,0 +1,10 @@
+version: '3'
+services:
+  spire-base:
+    image:  spire-base:latest
+    volumes:
+      - ./conf/server:c:/spire/conf/server
+      - ./conf/agent:c:/spire/conf/agent
+    user: ContainerAdministrator
+    command:
+      - cmd /c ping -t localhost > NUL
