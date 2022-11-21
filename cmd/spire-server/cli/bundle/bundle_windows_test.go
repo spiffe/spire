@@ -32,7 +32,7 @@ var (
 `
 	listUsage = `Usage of bundle list:
   -format string
-    	The format to list federated bundles (only pretty output format supports this flag). (only pretty output format supports this flag) Either "pem" or "spiffe". (default "pem")
+    	The format to list federated bundles (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
   -id string
     	SPIFFE ID of the trust domain
   -namedPipeName string
