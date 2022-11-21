@@ -37,123 +37,10 @@ func TestShow(t *testing.T) {
 	fakeRespFatherDaughter := &entryv1.ListEntriesResponse{
 		Entries: getEntries(2)[1:],
 	}
+
 	fakeRespMotherDaughter := &entryv1.ListEntriesResponse{
 		Entries: getEntries(3)[2:],
 	}
-
-	id00JSON := `{
-      "id": "00000000-0000-0000-0000-000000000000",
-      "spiffe_id": {
-        "trust_domain": "example.org",
-        "path": "/son"
-      },
-      "parent_id": {
-        "trust_domain": "example.org",
-        "path": "/father"
-      },
-      "selectors": [
-        {
-          "type": "foo",
-          "value": "bar"
-        }
-      ],
-      "ttl": 0,
-      "federates_with": [],
-      "admin": false,
-      "downstream": false,
-      "expires_at": "0",
-      "dns_names": [],
-      "revision_number": "0",
-      "store_svid": false
-    }`
-
-	id01JSON := `{
-      "id": "00000000-0000-0000-0000-000000000001",
-      "spiffe_id": {
-        "trust_domain": "example.org",
-        "path": "/daughter"
-      },
-      "parent_id": {
-        "trust_domain": "example.org",
-        "path": "/father"
-      },
-      "selectors": [
-        {
-          "type": "bar",
-          "value": "baz"
-        },
-        {
-          "type": "foo",
-          "value": "bar"
-        }
-      ],
-      "ttl": 0,
-      "federates_with": [],
-      "admin": false,
-      "downstream": false,
-      "expires_at": "0",
-      "dns_names": [],
-      "revision_number": "0",
-      "store_svid": false
-    }`
-
-	id02JSON := `{
-      "id": "00000000-0000-0000-0000-000000000002",
-      "spiffe_id": {
-        "trust_domain": "example.org",
-        "path": "/daughter"
-      },
-      "parent_id": {
-        "trust_domain": "example.org",
-        "path": "/mother"
-      },
-      "selectors": [
-        {
-          "type": "bar",
-          "value": "baz"
-        },
-        {
-          "type": "baz",
-          "value": "bat"
-        }
-      ],
-      "ttl": 0,
-      "federates_with": [
-        "spiffe://domain.test"
-      ],
-      "admin": false,
-      "downstream": false,
-      "expires_at": "0",
-      "dns_names": [],
-      "revision_number": "0",
-      "store_svid": false
-    }`
-
-	id03JSON := `{
-      "id": "00000000-0000-0000-0000-000000000003",
-      "spiffe_id": {
-        "trust_domain": "example.org",
-        "path": "/son"
-      },
-      "parent_id": {
-        "trust_domain": "example.org",
-        "path": "/mother"
-      },
-      "selectors": [
-        {
-          "type": "baz",
-          "value": "bat"
-        }
-      ],
-      "ttl": 0,
-      "federates_with": [],
-      "admin": false,
-      "downstream": false,
-      "expires_at": "1552410266",
-      "dns_names": [],
-      "revision_number": "0",
-      "store_svid": false
-    }`
 
 	for _, tt := range []struct {
 		name string
@@ -178,16 +65,16 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespAll,
 			expOutPretty: fmt.Sprintf("Found 4 entries\n%s%s%s%s",
-				getPrintedEntry(1),
-				getPrintedEntry(2),
-				getPrintedEntry(0),
-				getPrintedEntry(3),
+				getPrettyPrintedEntry(1),
+				getPrettyPrintedEntry(2),
+				getPrettyPrintedEntry(0),
+				getPrettyPrintedEntry(3),
 			),
 			expOutJSON: fmt.Sprintf(`{"entries": [%s,%s,%s,%s],"next_page_token": ""}`,
-				id01JSON,
-				id02JSON,
-				id00JSON,
-				id03JSON,
+				getJSONPrintedEntry(1),
+				getJSONPrintedEntry(2),
+				getJSONPrintedEntry(0),
+				getJSONPrintedEntry(3),
 			),
 		},
 		{
@@ -195,8 +82,8 @@ func TestShow(t *testing.T) {
 			args:         []string{"-entryID", getEntries(1)[0].Id},
 			expGetReq:    &entryv1.GetEntryRequest{Id: getEntries(1)[0].Id},
 			fakeGetResp:  getEntries(1)[0],
-			expOutPretty: fmt.Sprintf("Found 1 entry\n%s", getPrintedEntry(0)),
-			expOutJSON:   fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id00JSON),
+			expOutPretty: fmt.Sprintf("Found 1 entry\n%s", getPrettyPrintedEntry(0)),
+			expOutJSON:   fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(0)),
 		},
 		{
 			name:      "List by entry ID not found",
@@ -221,10 +108,10 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespFather,
 			expOutPretty: fmt.Sprintf("Found 2 entries\n%s%s",
-				getPrintedEntry(1),
-				getPrintedEntry(0),
+				getPrettyPrintedEntry(1),
+				getPrettyPrintedEntry(0),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s,%s],"next_page_token": ""}`, id01JSON, id00JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s,%s],"next_page_token": ""}`, getJSONPrintedEntry(1), getJSONPrintedEntry(0)),
 		},
 		{
 			name:   "List by parent ID using invalid ID",
@@ -242,10 +129,10 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespDaughter,
 			expOutPretty: fmt.Sprintf("Found 2 entries\n%s%s",
-				getPrintedEntry(1),
-				getPrintedEntry(2),
+				getPrettyPrintedEntry(1),
+				getPrettyPrintedEntry(2),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s, %s],"next_page_token": ""}`, id01JSON, id02JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s, %s],"next_page_token": ""}`, getJSONPrintedEntry(1), getJSONPrintedEntry(2)),
 		},
 		{
 			name:   "List by SPIFFE ID using invalid ID",
@@ -269,9 +156,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespFatherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(1),
+				getPrettyPrintedEntry(1),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(1)),
 		},
 		{
 			name: "List by selectors: exact matcher",
@@ -290,9 +177,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespFatherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(1),
+				getPrettyPrintedEntry(1),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(1)),
 		},
 		{
 			name: "List by selectors: superset matcher",
@@ -311,9 +198,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespFatherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(1),
+				getPrettyPrintedEntry(1),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(1)),
 		},
 		{
 			name: "List by selectors: subset matcher",
@@ -332,9 +219,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespFatherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(1),
+				getPrettyPrintedEntry(1),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(1)),
 		},
 		{
 			name: "List by selectors: Any matcher",
@@ -353,9 +240,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespFatherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(1),
+				getPrettyPrintedEntry(1),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id01JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(1)),
 		},
 		{
 			name:   "List by selectors: Invalid matcher",
@@ -393,9 +280,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespMotherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(2),
+				getPrettyPrintedEntry(2),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(2)),
 		},
 		{
 			name: "List by Federates With: exact matcher",
@@ -411,9 +298,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespMotherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(2),
+				getPrettyPrintedEntry(2),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(2)),
 		},
 		{
 			name: "List by Federates With: Any matcher",
@@ -429,9 +316,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespMotherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(2),
+				getPrettyPrintedEntry(2),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(2)),
 		},
 		{
 			name: "List by Federates With: superset matcher",
@@ -447,9 +334,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespMotherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(2),
+				getPrettyPrintedEntry(2),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(2)),
 		},
 		{
 			name: "List by Federates With: subset matcher",
@@ -465,9 +352,9 @@ func TestShow(t *testing.T) {
 			},
 			fakeListResp: fakeRespMotherDaughter,
 			expOutPretty: fmt.Sprintf("Found 1 entry\n%s",
-				getPrintedEntry(2),
+				getPrettyPrintedEntry(2),
 			),
-			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, id02JSON),
+			expOutJSON: fmt.Sprintf(`{"entries": [%s],"next_page_token": ""}`, getJSONPrintedEntry(2)),
 		},
 		{
 			name:   "List by Federates With: Invalid matcher",
@@ -543,7 +430,7 @@ func getEntries(count int) []*types.Entry {
 	return e
 }
 
-func getPrintedEntry(idx int) string {
+func getPrettyPrintedEntry(idx int) string {
 	switch idx {
 	case 0:
 		return `Entry ID         : 00000000-0000-0000-0000-000000000000
@@ -589,6 +476,131 @@ Expiration time  : %s
 Selector         : baz:bat
 
 `, time.Unix(1552410266, 0).UTC())
+	default:
+		return "index should be lower than 4"
+	}
+}
+
+func getJSONPrintedEntry(idx int) string {
+	switch idx {
+	case 0:
+		return `{
+      "id": "00000000-0000-0000-0000-000000000000",
+      "spiffe_id": {
+        "trust_domain": "example.org",
+        "path": "/son"
+      },
+      "parent_id": {
+        "trust_domain": "example.org",
+        "path": "/father"
+      },
+      "selectors": [
+        {
+          "type": "foo",
+          "value": "bar"
+        }
+      ],
+      "x509_svid_ttl": 0,
+      "federates_with": [],
+      "admin": false,
+      "downstream": false,
+      "expires_at": "0",
+      "dns_names": [],
+      "revision_number": "0",
+      "store_svid": false,
+      "jwt_svid_ttl": 0
+    }`
+	case 1:
+		return `{
+      "id": "00000000-0000-0000-0000-000000000001",
+      "spiffe_id": {
+        "trust_domain": "example.org",
+        "path": "/daughter"
+      },
+      "parent_id": {
+        "trust_domain": "example.org",
+        "path": "/father"
+      },
+      "selectors": [
+        {
+          "type": "bar",
+          "value": "baz"
+        },
+        {
+          "type": "foo",
+          "value": "bar"
+        }
+      ],
+      "x509_svid_ttl": 0,
+      "federates_with": [],
+      "admin": false,
+      "downstream": false,
+      "expires_at": "0",
+      "dns_names": [],
+      "revision_number": "0",
+      "store_svid": false,
+      "jwt_svid_ttl": 0
+    }`
+	case 2:
+		return `{
+      "id": "00000000-0000-0000-0000-000000000002",
+      "spiffe_id": {
+        "trust_domain": "example.org",
+        "path": "/daughter"
+      },
+      "parent_id": {
+        "trust_domain": "example.org",
+        "path": "/mother"
+      },
+      "selectors": [
+        {
+          "type": "bar",
+          "value": "baz"
+        },
+        {
+          "type": "baz",
+          "value": "bat"
+        }
+      ],
+      "x509_svid_ttl": 0,
+      "federates_with": [
+        "spiffe://domain.test"
+      ],
+      "admin": false,
+      "downstream": false,
+      "expires_at": "0",
+      "dns_names": [],
+      "revision_number": "0",
+      "store_svid": false,
+      "jwt_svid_ttl": 0
+    }`
+	case 3:
+		return `{
+      "id": "00000000-0000-0000-0000-000000000003",
+      "spiffe_id": {
+        "trust_domain": "example.org",
+        "path": "/son"
+      },
+      "parent_id": {
+        "trust_domain": "example.org",
+        "path": "/mother"
+      },
+      "selectors": [
+        {
+          "type": "baz",
+          "value": "bat"
+        }
+      ],
+      "x509_svid_ttl": 0,
+      "federates_with": [],
+      "admin": false,
+      "downstream": false,
+      "expires_at": "1552410266",
+      "dns_names": [],
+      "revision_number": "0",
+      "store_svid": false,
+      "jwt_svid_ttl": 0
+    }`
 	default:
 		return "index should be lower than 4"
 	}

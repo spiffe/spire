@@ -119,7 +119,7 @@ func (c *createCommand) Run(ctx context.Context, env *commoncli.Env, serverClien
 		return err
 	}
 
-	resp, _, err := createEntries(ctx, serverClient.NewEntryClient(), entries)
+	resp, err := createEntries(ctx, serverClient.NewEntryClient(), entries)
 	if err != nil {
 		return err
 	}
@@ -221,10 +221,10 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func createEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (resp *entryv1.BatchCreateEntryResponse, hasFailedEntries bool, err error) {
+func createEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (resp *entryv1.BatchCreateEntryResponse, err error) {
 	resp, err = c.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{Entries: entries})
 	if err != nil {
-		return nil, false, err
+		return
 	}
 
 	for i, r := range resp.Results {
@@ -232,11 +232,10 @@ func createEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.
 			// The Entry API does not include in the results the entries that
 			// failed to be created, so we populate them from the request data.
 			r.Entry = entries[i]
-			hasFailedEntries = true
 		}
 	}
 
-	return resp, hasFailedEntries, nil
+	return
 }
 
 func getParentID(config *createCommand, td string) (*types.SPIFFEID, error) {

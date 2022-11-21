@@ -15,7 +15,6 @@ import (
 func TestUpdateHelp(t *testing.T) {
 	test := setupTest(t, newUpdateCommand)
 	test.client.Help()
-
 	require.Equal(t, updateUsage, test.stderr.String())
 }
 
@@ -25,6 +24,189 @@ func TestUpdateSynopsis(t *testing.T) {
 }
 
 func TestUpdate(t *testing.T) {
+	entry0JSON := `{
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "type",
+            "value": "key1:value"
+          },
+          {
+            "type": "type",
+            "value": "key2:value"
+          }
+        ],
+		"x509_svid_ttl": 60,
+        "federates_with": [
+          "spiffe://domaina.test",
+          "spiffe://domainb.test"
+        ],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "1552410266",
+        "dns_names": [
+          "unu1000",
+          "ung1000"
+        ],
+        "revision_number": "0",
+        "store_svid": true,
+		"jwt_svid_ttl":30
+      }`
+	entry0AdminJSON := `{
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "zebra",
+            "value": "zebra:2000"
+          },
+          {
+            "type": "alpha",
+            "value": "alpha:2000"
+          }
+        ],
+		"x509_svid_ttl": 60,
+        "federates_with": [
+          "spiffe://domaina.test",
+          "spiffe://domainb.test"
+        ],
+        "admin": true,
+        "downstream": true,
+        "expires_at": "1552410266",
+        "dns_names": [
+          "unu1000",
+          "ung1000"
+        ],
+        "revision_number": "0",
+        "store_svid": false,
+		"jwt_svid_ttl":30
+      }`
+	entry1JSON := `{
+        "id": "entry-id-1",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/Blog"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenBlog"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1111"
+          }
+        ],
+		"x509_svid_ttl": 200,
+        "federates_with": [],
+        "admin": true,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+		"jwt_svid_ttl": 300
+      }
+    }`
+	entry2JSON := `{
+        "id": "entry-id-2",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/Database"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenDatabase"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1111"
+          }
+        ],
+		"x509_svid_ttl": 200,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+		"jwt_svid_ttl":300
+      }
+    }`
+	entry3JSON := `{
+        "id": "entry-id-3",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/Storesvid"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenDatabase"
+        },
+        "selectors": [
+          {
+            "type": "type",
+            "value": "key1:value"
+          },
+          {
+            "type": "type",
+            "value": "key2:value"
+          }
+        ],
+		"x509_svid_ttl": 200,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": true,
+		"jwt_svid_ttl":300
+      }`
+	nonExistentEntryJSON := `{
+        "id": "non-existent-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+		"jwt_svid_ttl": 0,
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1"
+          }
+        ],
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+		"x509_svid_ttl": 0
+      }`
+
 	entry1 := &types.Entry{
 		Id:       "entry-id",
 		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
@@ -118,183 +300,6 @@ func TestUpdate(t *testing.T) {
 		Downstream:    true,
 	}
 
-	entry0JSON := `{
-        "id": "entry-id",
-        "spiffe_id": {
-          "trust_domain": "example.org",
-          "path": "/workload"
-        },
-        "parent_id": {
-          "trust_domain": "example.org",
-          "path": "/parent"
-        },
-        "selectors": [
-          {
-            "type": "type",
-            "value": "key1:value"
-          },
-          {
-            "type": "type",
-            "value": "key2:value"
-          }
-        ],
-        "ttl": 60,
-        "federates_with": [
-          "spiffe://domaina.test",
-          "spiffe://domainb.test"
-        ],
-        "admin": false,
-        "downstream": false,
-        "expires_at": "1552410266",
-        "dns_names": [
-          "unu1000",
-          "ung1000"
-        ],
-        "revision_number": "0",
-        "store_svid": true
-      }`
-	entry0AdminJSON := `{
-        "id": "entry-id",
-        "spiffe_id": {
-          "trust_domain": "example.org",
-          "path": "/workload"
-        },
-        "parent_id": {
-          "trust_domain": "example.org",
-          "path": "/parent"
-        },
-        "selectors": [
-          {
-            "type": "zebra",
-            "value": "zebra:2000"
-          },
-          {
-            "type": "alpha",
-            "value": "alpha:2000"
-          }
-        ],
-        "ttl": 60,
-        "federates_with": [
-          "spiffe://domaina.test",
-          "spiffe://domainb.test"
-        ],
-        "admin": true,
-        "downstream": true,
-        "expires_at": "1552410266",
-        "dns_names": [
-          "unu1000",
-          "ung1000"
-        ],
-        "revision_number": "0",
-        "store_svid": false
-      }`
-	entry1JSON := `{
-        "id": "entry-id-1",
-        "spiffe_id": {
-          "trust_domain": "example.org",
-          "path": "/Blog"
-        },
-        "parent_id": {
-          "trust_domain": "example.org",
-          "path": "/spire/agent/join_token/TokenBlog"
-        },
-        "selectors": [
-          {
-            "type": "unix",
-            "value": "uid:1111"
-          }
-        ],
-        "ttl": 200,
-        "federates_with": [],
-        "admin": true,
-        "downstream": false,
-        "expires_at": "0",
-        "dns_names": [],
-        "revision_number": "0",
-        "store_svid": false
-      }
-    }`
-	entry2JSON := `{
-        "id": "entry-id-2",
-        "spiffe_id": {
-          "trust_domain": "example.org",
-          "path": "/Database"
-        },
-        "parent_id": {
-          "trust_domain": "example.org",
-          "path": "/spire/agent/join_token/TokenDatabase"
-        },
-        "selectors": [
-          {
-            "type": "unix",
-            "value": "uid:1111"
-          }
-        ],
-        "ttl": 200,
-        "federates_with": [],
-        "admin": false,
-        "downstream": false,
-        "expires_at": "0",
-        "dns_names": [],
-        "revision_number": "0",
-        "store_svid": false
-      }
-    }`
-	entry3JSON := `{
-        "id": "entry-id-3",
-        "spiffe_id": {
-          "trust_domain": "example.org",
-          "path": "/Storesvid"
-        },
-        "parent_id": {
-          "trust_domain": "example.org",
-          "path": "/spire/agent/join_token/TokenDatabase"
-        },
-        "selectors": [
-          {
-            "type": "type",
-            "value": "key1:value"
-          },
-          {
-            "type": "type",
-            "value": "key2:value"
-          }
-        ],
-        "ttl": 200,
-        "federates_with": [],
-        "admin": false,
-        "downstream": false,
-        "expires_at": "0",
-        "dns_names": [],
-        "revision_number": "0",
-        "store_svid": true
-      }`
-	nonExistentEntryJSON := `{
-        "id": "non-existent-id",
-        "spiffe_id": {
-          "trust_domain": "example.org",
-          "path": "/workload"
-        },
-        "parent_id": {
-          "trust_domain": "example.org",
-          "path": "/parent"
-        },
-        "selectors": [
-          {
-            "type": "unix",
-            "value": "uid:1"
-          }
-        ],
-        "ttl": 0,
-        "federates_with": [],
-        "admin": false,
-        "downstream": false,
-        "expires_at": "0",
-        "dns_names": [],
-        "revision_number": "0",
-        "store_svid": false
-      }`
-
 	fakeRespOKFromFile := &entryv1.BatchUpdateEntryResponse{
 		Results: []*entryv1.BatchUpdateEntryResponse_Result{
 			{
@@ -372,19 +377,22 @@ func TestUpdate(t *testing.T) {
 			expErrJSON:   "Error: a positive TTL is required\n",
 		},
 		{
-			name:   "Invalid TTL and X509SvidTtl",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20"},
-			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			name:         "Invalid TTL and X509SvidTtl",
+			args:         []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20"},
+			expErrPretty: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			expErrJSON:   "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
 		},
 		{
-			name:   "Invalid TTL and JwtSvidTtl",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-jwtSVIDTTL", "20"},
-			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			name:         "Invalid TTL and JwtSvidTtl",
+			args:         []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-jwtSVIDTTL", "20"},
+			expErrPretty: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			expErrJSON:   "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
 		},
 		{
-			name:   "Invalid TTL and both X509SvidTtl and JwtSvidTtl",
-			args:   []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20", "-jwtSVIDTTL", "30"},
-			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			name:         "Invalid TTL and both X509SvidTtl and JwtSvidTtl",
+			args:         []string{"-entryID", "entry-id", "-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20", "-jwtSVIDTTL", "30"},
+			expErrPretty: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			expErrJSON:   "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
 		},
 		{
 			name: "Server error",
@@ -440,6 +448,17 @@ DNS name         : ung1000
 Admin            : true
 
 `, time.Unix(1552410266, 0).UTC()),
+			expOutJSON: fmt.Sprintf(`{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": %s
+    }
+  ]
+}`, entry0AdminJSON),
 		},
 		{
 			name: "Update succeeds using deprecated command line arguments",
@@ -462,7 +481,7 @@ Admin            : true
 				Entries: []*types.Entry{entry5},
 			},
 			fakeResp: fakeRespOKFromCmd,
-			expOut: fmt.Sprintf(`Entry ID         : entry-id
+			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0

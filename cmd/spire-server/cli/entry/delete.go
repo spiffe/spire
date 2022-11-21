@@ -72,14 +72,13 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...interfa
 	if !ok {
 		return errors.New("internal error: cli printer; please report this bug")
 	}
-	if deleteResp.Results[0].Status.Code == int32(codes.OK) {
-		env.Printf("Deleted entry with ID: %s\n", c.entryID)
-	}
 
 	sts := deleteResp.Results[0].Status
-	if sts.Code != int32(codes.OK) {
+	switch sts.Code {
+	case int32(codes.OK):
+		env.Printf("Deleted entry with ID: %s\n", c.entryID)
+		return nil
+	default:
 		return fmt.Errorf("failed to delete entry: %s", sts.Message)
 	}
-
-	return nil
 }
