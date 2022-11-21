@@ -6,7 +6,7 @@ package bundle
 var (
 	setUsage = `Usage of bundle set:
   -format string
-    	The bundleFormat of the bundle data. Either "pem" or "spiffe". (default "pem")
+    	The format of the bundle data. Either "pem" or "spiffe". (default "pem")
   -id string
     	SPIFFE ID of the trust domain
   -namedPipeName string
@@ -18,7 +18,7 @@ var (
 `
 	showUsage = `Usage of bundle show:
   -format string
-    	The bundleFormat to show the bundle (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
+    	The format to show the bundle (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
