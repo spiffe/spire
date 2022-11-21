@@ -10,21 +10,21 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 )
 
 // NewListCommand creates a new "list" subcommand for "bundle" command.
 func NewListCommand() cli.Command {
-	return newListCommand(common_cli.DefaultEnv)
+	return newListCommand(commoncli.DefaultEnv)
 }
 
-func newListCommand(env *common_cli.Env) cli.Command {
+func newListCommand(env *commoncli.Env) cli.Command {
 	return util.AdaptCommand(env, &listCommand{env: env})
 }
 
 type listCommand struct {
-	env          *common_cli.Env
+	env          *commoncli.Env
 	id           string // SPIFFE ID of the trust bundle
 	bundleFormat string
 	printer      cliprinter.Printer
@@ -40,15 +40,11 @@ func (c *listCommand) Synopsis() string {
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
-	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The format to list federated bundles. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The format to list federated bundles (only pretty output format supports this flag). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintList)
 }
 
-func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
-	if _, err := validateFormat(c.bundleFormat); err != nil {
-		return err
-	}
-
+func (c *listCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	bundleClient := serverClient.NewBundleClient()
 	if c.id != "" {
 		resp, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
@@ -68,7 +64,7 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	return c.printer.PrintProto(resp)
 }
 
-func (c *listCommand) prettyPrintList(env *common_cli.Env, results ...interface{}) error {
+func (c *listCommand) prettyPrintList(env *commoncli.Env, results ...interface{}) error {
 	if listResp, ok := results[0].(*bundlev1.ListFederatedBundlesResponse); ok {
 		for i, bundle := range listResp.Bundles {
 			if i != 0 {

@@ -151,6 +151,11 @@ func printBundleWithFormat(out io.Writer, bundle *types.Bundle, format string, h
 		return errors.New("no bundle provided")
 	}
 
+	format, err := validateFormat(format)
+	if err != nil {
+		return err
+	}
+
 	if header {
 		if _, err := fmt.Fprintf(out, headerFmt, bundle.TrustDomain); err != nil {
 			return err

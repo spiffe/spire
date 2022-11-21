@@ -499,12 +499,12 @@ func TestCount(t *testing.T) {
 
 				rc := test.client.Run(test.args(args...))
 
-				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				if tt.expectedStderr != "" {
 					require.Equal(t, tt.expectedStderr, test.stderr.String())
 					require.Equal(t, 1, rc)
 					return
 				}
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				require.Equal(t, 0, rc)
 				require.Empty(t, test.stderr.String())
 			})
@@ -574,7 +574,8 @@ func TestList(t *testing.T) {
 		args                 []string
 		expectedStdoutPretty string
 		expectedStdoutJSON   string
-		expectedStderr       string
+		expectedStderrPretty string
+		expectedStderrJSON   string
 		serverErr            error
 	}{
 		{
@@ -583,14 +584,16 @@ func TestList(t *testing.T) {
 			expectedStdoutJSON:   allBundlesResultJSON,
 		},
 		{
-			name:           "all bundles server fails",
-			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
-			serverErr:      status.New(codes.Internal, "some error").Err(),
+			name:                 "all bundles server fails",
+			expectedStderrPretty: "Error: rpc error: code = Internal desc = some error\n",
+			expectedStderrJSON:   "Error: rpc error: code = Internal desc = some error\n",
+			serverErr:            status.New(codes.Internal, "some error").Err(),
 		},
 		{
-			name:           "all bundles invalid format",
-			args:           []string{"-format", "invalid"},
-			expectedStderr: "Error: invalid format: \"invalid\"\n",
+			name:                 "all bundles invalid bundle format",
+			args:                 []string{"-format", "invalid"},
+			expectedStderrPretty: "Error: invalid format: \"invalid\"\n",
+			expectedStdoutJSON:   allBundlesResultJSON,
 		},
 		{
 			name:                 "all bundles (pem)",
@@ -611,15 +614,17 @@ func TestList(t *testing.T) {
 			expectedStdoutJSON:   oneBundleResultJSON,
 		},
 		{
-			name:           "one bundle server fails",
-			args:           []string{"-id", "spiffe://domain2.test"},
-			expectedStderr: "Error: rpc error: code = Internal desc = some error\n",
-			serverErr:      status.New(codes.Internal, "some error").Err(),
+			name:                 "one bundle server fails",
+			args:                 []string{"-id", "spiffe://domain2.test"},
+			expectedStderrPretty: "Error: rpc error: code = Internal desc = some error\n",
+			expectedStderrJSON:   "Error: rpc error: code = Internal desc = some error\n",
+			serverErr:            status.New(codes.Internal, "some error").Err(),
 		},
 		{
-			name:           "one bundle invalid format",
-			args:           []string{"-id", "spiffe://domain2.test", "-format", "invalid"},
-			expectedStderr: "Error: invalid format: \"invalid\"\n",
+			name:                 "one bundle invalid bundle format",
+			args:                 []string{"-id", "spiffe://domain2.test", "-format", "invalid"},
+			expectedStderrPretty: "Error: invalid format: \"invalid\"\n",
+			expectedStdoutJSON:   oneBundleResultJSON,
 		},
 		{
 			name:                 "one bundle (pem)",
@@ -660,8 +665,13 @@ func TestList(t *testing.T) {
 
 				rc := test.client.Run(test.args(args...))
 
-				if tt.expectedStderr != "" {
-					require.Equal(t, tt.expectedStderr, test.stderr.String())
+				if tt.expectedStderrPretty != "" && format == "pretty" {
+					require.Equal(t, tt.expectedStderrPretty, test.stderr.String())
+					require.Equal(t, 1, rc)
+					return
+				}
+				if tt.expectedStderrJSON != "" && format == "json" {
+					require.Equal(t, tt.expectedStderrJSON, test.stderr.String())
 					require.Equal(t, 1, rc)
 					return
 				}

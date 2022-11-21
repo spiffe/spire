@@ -34,7 +34,7 @@ var (
 `
 	listUsage = `Usage of bundle list:
   -format string
-    	The format to list federated bundles. Either "pem" or "spiffe". (default "pem")
+    	The format to list federated bundles (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
   -id string
     	SPIFFE ID of the trust domain
   -output value
@@ -44,7 +44,7 @@ var (
 `
 	showUsage = `Usage of bundle show:
   -format string
-    	The bundleFormat to show the bundle. Either "pem" or "spiffe". (default "pem")
+    	The bundleFormat to show the bundle (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
   -output value
     	Desired output format (pretty, json)
   -socketPath string

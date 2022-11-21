@@ -38,14 +38,11 @@ func (c *showCommand) Synopsis() string {
 }
 
 func (c *showCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The bundleFormat to show the bundle. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The bundleFormat to show the bundle (only pretty output format supports this flag). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintBundle)
 }
 
 func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
-	if _, err := validateFormat(c.bundleFormat); err != nil {
-		return err
-	}
 	bundleClient := serverClient.NewBundleClient()
 	resp, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
