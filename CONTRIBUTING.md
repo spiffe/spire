@@ -1,4 +1,6 @@
-# Contributor guidelines and Governance
+# Contributing
+
+## Contributor guidelines and Governance
 
 Please see
 [CONTRIBUTING](https://github.com/spiffe/spiffe/blob/main/CONTRIBUTING.md)

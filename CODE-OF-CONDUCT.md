@@ -1,4 +1,6 @@
-# Contributor Code of Conduct
+# Code of Conduct
+
+## Contributor Code of Conduct
 
 We follow the [CNCF Contributor Code of Conduct](https://github.com/cncf/foundation/blob/main/code-of-conduct.md). Additionally, we commit to the following guidelines as detailed on the [SPIFFE Code of Conduct](https://github.com/spiffe/spiffe/blob/main/CODE-OF-CONDUCT.md):
 
