@@ -34,7 +34,6 @@ server name validation against the kubelet certificate.
 > that can impact permission revocation.
 
 <!-- different notes -->
-<!>
 
 > **Note** Anonymous authentication with the kubelet requires that the
 > kubelet be started with the `--anonymous-auth` flag. It is discouraged to use anonymous

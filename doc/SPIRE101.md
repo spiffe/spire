@@ -77,12 +77,6 @@ If you don't already have Docker installed, please follow these [installation in
        trust_domain = "example.org"
        data_dir = "./.data"
        log_level = "DEBUG"
-       default_svid_ttl = "1h"
-       ca_subject {
-           country = ["US"]
-           organization = ["SPIFFE"]
-           common_name = ""
-       }
    }
 
    plugins {
@@ -156,16 +150,7 @@ If you don't already have Docker installed, please follow these [installation in
                directory = "./.data"
            }
        }
-       WorkloadAttestor "k8s" {
-           plugin_data {
-               kubelet_read_only_port = "10255"
-           }
-       }
        WorkloadAttestor "unix" {
-           plugin_data {
-           }
-       }
-       WorkloadAttestor "docker" {
            plugin_data {
            }
        }

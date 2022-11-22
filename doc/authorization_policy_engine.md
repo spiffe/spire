@@ -227,7 +227,7 @@ allow = true {
 }
 ```
 
-### Example 1b: Sub-department namespacing with exlcusions
+### Example 1b: Sub-department namespacing with exclusions
 
 Building on top of the previous example, let's say we want to have sub
 departments, having schedulers for a subset of paths within the trust domain.
