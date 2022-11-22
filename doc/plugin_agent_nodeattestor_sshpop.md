@@ -10,8 +10,8 @@ plugin.
 The SPIFFE ID produced by the server-side `sshpop` plugin is based on the certificate fingerprint,
 which is an unpadded url-safe base64 encoded sha256 hash of the certificate in openssh format.
 
-```
-spiffe://<trust-domain>/spire/agent/sshpop/<fingerprint>
+```xml
+spiffe://<trust_domain>/spire/agent/sshpop/<fingerprint>
 ```
 
 | Configuration    | Description                                            | Default                                |
@@ -21,7 +21,7 @@ spiffe://<trust-domain>/spire/agent/sshpop/<fingerprint>
 
 A sample configuration:
 
-```
+```hcl
     NodeAttestor "sshpop" {
         plugin_data {
             host_cert_path = "./conf/agent/dummy_agent_ssh_key-cert.pub"

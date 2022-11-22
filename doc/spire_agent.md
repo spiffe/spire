@@ -71,13 +71,14 @@ This may be useful for templating configuration files, for example across differ
 | `named_pipe_name` | Pipe name to bind the SPIRE Agent API named pipe (Windows only) | \spire-agent\public\api |
 
 ### Initial trust bundle configuration
+
 The agent needs an initial trust bundle in order to connect securely to the SPIRE server. There are three options:
+
 1. If the `trust_bundle_path` option is used, the agent will read the initial trust bundle from the file at that path. You need to copy or share the file before starting the SPIRE agent.
 2. If the `trust_bundle_url` option is used, the agent will read the initial trust bundle from the specified URL. **The URL must start with `https://` for security, and the server must have a valid certificate (verified with the system trust store).** This can be used to rapidly deploy SPIRE agents without having to manually share a file. Keep in mind the contents of the URL need to be kept up to date.
 3. If the `insecure_bootstrap` option is set to `true`, then the agent will not use an initial trust bundle. It will connect to the SPIRE server without authenticating it. This is not a secure configuration, because a man-in-the-middle attacker could control the SPIRE infrastructure. It is included because it is a useful option for testing and development.
 
 Only one of these three options may be set at a time.
-
 
 ### SDS Configuration
 
@@ -89,7 +90,9 @@ Only one of these three options may be set at a time.
 | `disable_spiffe_cert_validation` | Disable Envoy SDS custom validation                                                              | false   |
 
 ### Profiling Names
+
 These are the available profiles that can be set in the `profiling_freq` configuration value:
+
 - `goroutine`
 - `threadcreate`
 - `heap`
@@ -280,6 +283,7 @@ plugins {
     }
 }
 ```
+
 ## Delegated Identity API
 
 The Delegated Identity API allows an authorized (i.e. delegated) workload to obtain SVIDs and bundles on behalf of workloads that cannot be attested by SPIRE Agent directly. The authorized workload does so by providing SPIRE Agent the selectors that would normally be obtained during workload attestation. The Delegated Identity API is served over the admin API endpoint.
@@ -287,6 +291,7 @@ The Delegated Identity API allows an authorized (i.e. delegated) workload to obt
 To enable the Delegated Identity API, configure the admin API endpoint address and the list of SPIFFE IDs for authorized delegates. For example:
 
 Unix systems:
+
 ```hcl
 agent {
     trust_domain = "example.org"
@@ -300,6 +305,7 @@ agent {
 ```
 
 Windows:
+
 ```hcl
 agent {
     trust_domain = "example.org"
@@ -351,7 +357,7 @@ _Note: A user with `cluster-admin` privileges is required in order to apply thes
 
 Actions performed by pods are controlled by Security Context Constraints (SCC's) and every pod that is admitted is assigned a particular SCC depending on range of conditions. The following custom SCC with the name `spire` can be used to enable the necessary host level access needed by the Spire Agent
 
-```
+```yaml
 allowHostDirVolumePlugin: true
 allowHostIPC: true
 allowHostNetwork: true
@@ -402,7 +408,7 @@ Workloads can be granted access to Security Context Constraints through Role Bas
 
 In order to leverage the `spire` SCC, a _ClusterRole_ leveraging `use` verb referencing the SCC must be created:
 
-```
+```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -425,7 +431,7 @@ Finally, associate the `system:openshift:scc:spire` _ClusterRole_ to the `spire-
 
 _Note:_ Create the `spire` namespace if it does exist prior to applying the following policy.
 
-```
+```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -445,5 +451,5 @@ As SCC's are applied at pod admission time, remove any existing Spire Agent pods
 
 ## Further reading
 
-* [SPIFFE Reference Implementation Architecture](https://docs.google.com/document/d/1nV8ZbYEATycdFhgjTB619pwIvamzOjU6l0SyBGbzbo4/edit#)
-* [Design Document: SPIFFE Reference Implementation (SRI)](https://docs.google.com/document/d/1RZnBfj8I5xs8Yi_BPEKBRp0K3UnIJYTDg_31rfTt4j8/edit#)
+- [SPIFFE Reference Implementation Architecture](https://docs.google.com/document/d/1nV8ZbYEATycdFhgjTB619pwIvamzOjU6l0SyBGbzbo4/edit#)
+- [Design Document: SPIFFE Reference Implementation (SRI)](https://docs.google.com/document/d/1RZnBfj8I5xs8Yi_BPEKBRp0K3UnIJYTDg_31rfTt4j8/edit#)

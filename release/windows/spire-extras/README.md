@@ -1,11 +1,11 @@
-= SPIRE Extras
+# SPIRE Extras
 
 - [SPIRE OIDC Discovery Provider](https://github.com/spiffe/spire/blob/main/support/oidc-discovery-provider/README.md)
 
 The configuration files included in this release are intended for evaluation
 purposes only and are **NOT** production ready.
 
-== Contents
+## Contents
 
 | Path                                                        | Description                                        |
 |-------------------------------------------------------------|----------------------------------------------------|

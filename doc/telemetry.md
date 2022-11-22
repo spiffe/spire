@@ -19,12 +19,12 @@ The following metrics are emitted:
 | Call Counter | `datastore`, `bundle`, `create`             |                   | The Datastore is creating a bundle.                                                   |
 | Call Counter | `datastore`, `bundle`, `delete`             |                   | The Datastore is deleting a bundle.                                                   |
 | Call Counter | `datastore`, `bundle`, `fetch`              |                   | The Datastore is fetching a bundle.                                                   |
-| Call Counter | `datastore`, `bundle`, `list`               |                   | The Datastore is listing bundles.                                                     |                                                 
-| Call Counter | `datastore`, `bundle`, `prune`              |                   | The Datastore is pruning a bundle.                                                    |                                                    
-| Call Counter | `datastore`, `bundle`, `set`                |                   | The Datastore is setting a bundle.                                                    |                                                   
-| Call Counter | `datastore`, `bundle`, `update`             |                   | The Datastore is updating a bundle.                                                   |                                                   
-| Call Counter | `datastore`, `join_token`, `create`         |                   | The Datastore is creating a join token.                                               |                                              
-| Call Counter | `datastore`, `join_token`, `delete`         |                   | The Datastore is deleting a join token.                                               |                                              
+| Call Counter | `datastore`, `bundle`, `list`               |                   | The Datastore is listing bundles.                                                     |
+| Call Counter | `datastore`, `bundle`, `prune`              |                   | The Datastore is pruning a bundle.                                                    |
+| Call Counter | `datastore`, `bundle`, `set`                |                   | The Datastore is setting a bundle.                                                    |
+| Call Counter | `datastore`, `bundle`, `update`             |                   | The Datastore is updating a bundle.                                                   |
+| Call Counter | `datastore`, `join_token`, `create`         |                   | The Datastore is creating a join token.                                               |
+| Call Counter | `datastore`, `join_token`, `delete`         |                   | The Datastore is deleting a join token.                                               |
 | Call Counter | `datastore`, `join_token`, `fetch`          |                   | The Datastore is fetching a join token.                                               |                                              |
 | Call Counter | `datastore`, `join_token`, `prune`          |                   | The Datastore is pruning join tokens.                                                 |                                               |
 | Call Counter | `datastore`, `node`, `count`                |                   | The Datastore is counting nodes.                                                      |
@@ -56,28 +56,28 @@ The following metrics are emitted:
 
 ## SPIRE Agent
 
-| Type         | Keys                                       | Labels     | Description                                                                         |
-|--------------|--------------------------------------------|------------|-------------------------------------------------------------------------------------|
-| Call Counter | `rpc`, `<service>`, `<method>`             |            | Call counters over the [SPIRE Agent RPCs](https://github.com/spiffe/spire-api-sdk). |
-| Call Counter | `agent_key_manager`, `generate_key_pair`   |            | The KeyManager is generating a key pair.                                            |
-| Call Counter | `agent_key_manager`, `fetch_private_key`   |            | The KeyManager is fetching a private key.                                           |
-| Call Counter | `agent_key_manager`, `store_private_key`   |            | The KeyManager is storing a private key.                                            |
-| Call Counter | `agent_svid`, `rotate`                     |            | The Agent's SVID is being rotated.                                                  |
-| Sample       | `cache_manager`, `expiring_svids`          |            | The number of expiring SVIDs that the Cache Manager has.                            |
-| Sample       | `cache_manager`, `outdated_svids`          |            | The number of outdated SVIDs that the Cache Manager has.                            |
-| Call Counter | `manager`, `sync`, `fetch_entries_updates` |            | The Sync Manager is fetching entries updates.                                       |
-| Call Counter | `manager`, `sync`, `fetch_svids_updates`   |            | The Sync Manager is fetching SVIDs updates.                                         |
-| Call Counter | `node`, `attestor`, `new_svid`             |            | The Node Attestor is calling to get an SVID.                                        |
-| Counter      | `sds_api`, `connections`                   |            | The SDS API has successfully established a connection.                              |
-| Gauge        | `sds_api`, `connections`                   |            | The number of active connection that the SDS API has.                               |
-| Counter      | `workload_api`, `bundles_update`, `jwt`    |            | The Workload API has successfully updated a JWT bundle.                             |
-| Counter      | `workload_api`, `connection`               |            | The Workload API has successfully established a new connection.                     |
-| Gauge        | `workload_api`, `connections`              |            | The number of active connections that the Workload API has.                         |
-| Sample       | `workload_api`, `discovered_selectors`     |            | The number of selectors discovered during a workload attestation process.           |
-| Call Counter | `workload_api`, `workload_attestation`     |            | The Workload API is performing a workload attestation.                              |
-| Call Counter | `workload_api`, `workload_attestor`        | `attestor` | The Workload API is invoking a given attestor.                                      |
-| Gauge        | `started`                                  | `version`  | The version of the Agent.                                                           |
-| Gauge        | `uptime_in_ms`                             |            | The uptime of the Agent in milliseconds.                                            |
+| Type         | Keys                                       | Labels     | Description                                                                           |
+|--------------|--------------------------------------------|------------|---------------------------------------------------------------------------------------|
+| Call Counter | `rpc`, `<service>`, `<method>`             |            | Call counters over the [SPIRE Agent RPCs](<https://github.com/spiffe/spire-api-sdk>). |
+| Call Counter | `agent_key_manager`, `generate_key_pair`   |            | The KeyManager is generating a key pair.                                              |
+| Call Counter | `agent_key_manager`, `fetch_private_key`   |            | The KeyManager is fetching a private key.                                             |
+| Call Counter | `agent_key_manager`, `store_private_key`   |            | The KeyManager is storing a private key.                                              |
+| Call Counter | `agent_svid`, `rotate`                     |            | The Agent's SVID is being rotated.                                                    |
+| Sample       | `cache_manager`, `expiring_svids`          |            | The number of expiring SVIDs that the Cache Manager has.                              |
+| Sample       | `cache_manager`, `outdated_svids`          |            | The number of outdated SVIDs that the Cache Manager has.                              |
+| Call Counter | `manager`, `sync`, `fetch_entries_updates` |            | The Sync Manager is fetching entries updates.                                         |
+| Call Counter | `manager`, `sync`, `fetch_svids_updates`   |            | The Sync Manager is fetching SVIDs updates.                                           |
+| Call Counter | `node`, `attestor`, `new_svid`             |            | The Node Attestor is calling to get an SVID.                                          |
+| Counter      | `sds_api`, `connections`                   |            | The SDS API has successfully established a connection.                                |
+| Gauge        | `sds_api`, `connections`                   |            | The number of active connection that the SDS API has.                                 |
+| Counter      | `workload_api`, `bundles_update`, `jwt`    |            | The Workload API has successfully updated a JWT bundle.                               |
+| Counter      | `workload_api`, `connection`               |            | The Workload API has successfully established a new connection.                       |
+| Gauge        | `workload_api`, `connections`              |            | The number of active connections that the Workload API has.                           |
+| Sample       | `workload_api`, `discovered_selectors`     |            | The number of selectors discovered during a workload attestation process.             |
+| Call Counter | `workload_api`, `workload_attestation`     |            | The Workload API is performing a workload attestation.                                |
+| Call Counter | `workload_api`, `workload_attestor`        | `attestor` | The Workload API is invoking a given attestor.                                        |
+| Gauge        | `started`                                  | `version`  | The version of the Agent.                                                             |
+| Gauge        | `uptime_in_ms`                             |            | The uptime of the Agent in milliseconds.                                              |
 
 Note: These are the keys and labels that SPIRE emits, but the format of the
 metric once ingested could vary depending on the metric collector. For example,
@@ -91,6 +91,7 @@ the hostname and `spire-agent` is the service name.
 Call counters are aggregate metric types that emit several metrics related to
 the issuance of a "call" to a method or RPC. The following metrics are
 produced for a call counter:
+
 - A counter representing the number of calls using the call counter key
 - A sample of the elapsed time for the call using the call counter
   key+`".elapsed_time"`
@@ -102,7 +103,8 @@ of the call.
 
 For example, a successful invocation of the SPIRE Server `AttestAgent` RPC
 would produce the following metrics:
-```
+
+```text
 spire_server.rpc.agent.v1.agent.attest_agent:1|c|#status:OK
 spire_server.rpc.agent.v1.agent.attest_agent.elapsed_time:1.045773|ms|#status:OK
 ```

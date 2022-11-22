@@ -388,7 +388,7 @@ jobs:
             mingw-w64-x86_64-toolchain
             unzip
       - name: Lint
-        run: make lint
+        run: make lint-code
       - name: Tidy check
         run: make tidy-check
       - name: Generate check

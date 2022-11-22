@@ -52,6 +52,8 @@ The configuration file is **required** by the provider. It contains
 |--------------------------|--------|----------------|------------------------------------------------------|---------|
 | `listen_named_pipe_name` | string | required[1][3] | Pipe name to listen with a named pipe. Windows only. |         |
 
+<!-- markdownlint-configure-file { "MD053": false } -->
+
 #### Considerations for Unix platforms
 
 [1]: One of `acme` or `listen_socket_path` must be defined.
@@ -88,7 +90,7 @@ will terminate if another domain is requested.
 
 | Key             | Type     | Required? | Description                                                                                                                                                    | Default |
 |-----------------|----------|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `address`       | string   | required  | SPIRE Server API gRPC target address. Only the unix name system is supported. See https://github.com/grpc/grpc/blob/master/doc/naming.md. Unix platforms only. |         |
+| `address`       | string   | required  | SPIRE Server API gRPC target address. Only the unix name system is supported. See <https://github.com/grpc/grpc/blob/master/doc/naming.md>. Unix platforms only. |         |
 | `experimental`  | section  | optional  | The experimental options that are subject to change or removal.                                                                                                |         |
 | `poll_interval` | duration | optional  | How often to poll for changes to the public key material.                                                                                                      | `"10s"` |
 
@@ -130,7 +132,7 @@ Both states respond with a 200 OK status code for success or 500 Internal Server
 
 #### Server API
 
-```
+```hcl
 log_level = "debug"
 domains = ["mypublicdomain.test"]
 acme {
@@ -145,7 +147,7 @@ server_api {
 
 #### Workload API
 
-```
+```hcl
 log_level = "debug"
 domains = ["mypublicdomain.test"]
 acme {
@@ -165,7 +167,7 @@ The following configuration has the OIDC Discovery Provider listen for requests
 on the given socket. This can be used in conjunction with a webserver like
 Nginx, Apache, or Envoy which supports reverse proxying to a unix socket.
 
-```
+```hcl
 log_level = "debug"
 domains = ["mypublicdomain.test"]
 listen_socket_path = "/run/oidc-discovery-provider/server.sock"
@@ -179,7 +181,7 @@ workload_api {
 A minimal Nginx configuration that proxies all traffic to the OIDC Discovery
 Provider's socket might look like this.
 
-```
+```nginx
 daemon off;
  events {}
  http {
@@ -200,7 +202,7 @@ daemon off;
 
 #### Server API
 
-```
+```hcl
 log_level = "debug"
 domains = ["mypublicdomain.test"]
 acme {
@@ -217,7 +219,7 @@ server_api {
 
 #### Workload API
 
-```
+```hcl
 log_level = "debug"
 domains = ["mypublicdomain.test"]
 acme {
@@ -239,7 +241,7 @@ The following configuration has the OIDC Discovery Provider listen for requests
 on the given named pipe. This can be used in conjunction with a webserver that
 supports reverse proxying to a named pipe.
 
-```
+```hcl
 log_level = "debug"
 domains = ["mypublicdomain.test"]
 experimental {
