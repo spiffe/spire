@@ -12,8 +12,8 @@ The SPIFFE ID produced by the plugin is based on the certificate fingerprint,
 where the fingerprint is defined as the SHA1 hash of the ASN.1 DER encoding of
 the identity certificate. The SPIFFE ID has the form:
 
-```
-spiffe://<trust domain>/spire/agent/x509pop/<fingerprint>
+```xml
+spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 ```
 
 | Configuration         | Description                                                                                                                                                                                                                                    | Default                                 |
@@ -24,15 +24,15 @@ spiffe://<trust domain>/spire/agent/x509pop/<fingerprint>
 
 A sample configuration:
 
-```
-	NodeAttestor "x509pop" {
-		plugin_data {
-			ca_bundle_path = "/opt/spire/conf/server/agent-cacert.pem"
-
-			# Change the agent's SPIFFE ID format
-			# agent_path_template = "/cn/{{ .Subject.CommonName }}"
-		}
-	}
+```hcl
+    NodeAttestor "x509pop" {
+        plugin_data {
+            ca_bundle_path = "/opt/spire/conf/server/agent-cacert.pem"
+            
+            # Change the agent's SPIFFE ID format
+            # agent_path_template = "/cn/{{ .Subject.CommonName }}"
+        }
+    }
 ```
 
 ## Selectors
@@ -43,6 +43,7 @@ A sample configuration:
 | SHA1 Fingerprint | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf. |
 
 ## Agent Path Template
+
 The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
 

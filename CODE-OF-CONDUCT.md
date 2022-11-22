@@ -1,8 +1,10 @@
-### Contributor Code of Conduct
+# Code of Conduct
+
+## Contributor Code of Conduct
 
 We follow the [CNCF Contributor Code of Conduct](https://github.com/cncf/foundation/blob/main/code-of-conduct.md). Additionally, we commit to the following guidelines as detailed on the [SPIFFE Code of Conduct](https://github.com/spiffe/spiffe/blob/main/CODE-OF-CONDUCT.md):
 
-### Community Guidelines
+## Community Guidelines
 
 - Our goal is to foster an inclusive and diverse community of technology enthusiasts.
 
@@ -14,6 +16,6 @@ We follow the [CNCF Contributor Code of Conduct](https://github.com/cncf/foundat
 
 - We do our best to avoid [subtle-isms](https://www.recurse.com/manual#sub-sec-social-rules): small actions that make others feel uncomfortable. If you witness a subtle-ism, you may respectfully point it out to the person publicly or privately, or you may ask a moderator to say something. Accidentally saying something biased is common, expected, and readily forgiven. It is not in and of itself a bannable offense.
 
-### Moderation
+## Moderation
 
 - If you feel any of SPIFFE's Slack channels require moderation, please e-mail [SPIFFE's Technical Steering Committee (TSC)](mailto:tsc@spiffe.io). The TSC will issue a warning to users who don't follow this code of conduct. A second offense results in a temporary ban. A third offense warrants a permanent ban. It is at the moderator's discretion to un-ban offending users, or to immediately ban a toxic user without warning.

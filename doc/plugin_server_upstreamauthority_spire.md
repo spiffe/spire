@@ -23,7 +23,7 @@ These are the current experimental configurations:
 
 Sample configuration (Unix):
 
-```
+```hcl
     UpstreamAuthority "spire" {
         plugin_data {
             server_address = "upstream-spire-server",
@@ -35,7 +35,7 @@ Sample configuration (Unix):
 
 Sample configuration (Windows):
 
-```
+```hcl
     UpstreamAuthority "spire" {
         plugin_data {
             server_address = "upstream-spire-server",
