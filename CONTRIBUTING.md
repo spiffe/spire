@@ -235,7 +235,7 @@ We have checked in a pre-commit hook which enforces `go fmt` styling. Please ins
 before sending a pull request. From the project root:
 
 ```shell
-ln -s .githooks/pre-commit .git/hooks/pre-commit
+$ ln -s .githooks/pre-commit .git/hooks/pre-commit
 ```
 
 ## Reporting security vulnerabilities

@@ -88,7 +88,7 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
 1. Create a SpiffeID resource.
 
    ```shell
-   kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
+   $ kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
    ```
 
 1. Check that the SpiffeID  resource was created.
@@ -140,7 +140,7 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
 1. Delete the SpiffeID resource, the corresponding entry on the SPIRE Server will be removed.
 
    ```shell
-   kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
+   $ kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
    ```
 
 ### Attempt to Deploy an Invalid SpiffeID Resource
@@ -167,13 +167,13 @@ We can test this using the NGINX example deployment:
 1. Deploy the example NGINX deployment
 
    ```shell
-   kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/master/content/en/examples/application/simple_deployment.yaml
+   $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/master/content/en/examples/application/simple_deployment.yaml
    ```
 
 1. Add the label to the Deployment Template. This will reroll the deployment
 
    ```shell
-   kubectl patch deployment nginx-deployment -p '{"spec":{"template":{"metadata":{"labels":{"spiffe.io/spiffe-id": "true"}}}}}'
+   $ kubectl patch deployment nginx-deployment -p '{"spec":{"template":{"metadata":{"labels":{"spiffe.io/spiffe-id": "true"}}}}}'
    ```
 
 1. Verify the SpiffeID resource was created. The name of the SpiffeID resource will be the same as the name of the Pod.
@@ -257,7 +257,7 @@ We can test this using the NGINX example deployment:
 1. Delete the NGINX deployment, this will automatically delete the SpiffeID resource
 
    ```shell
-   kubectl delete -f https://raw.githubusercontent.com/kubernetes/website/master/content/en/examples/application/simple_deployment.yaml
+   $ kubectl delete -f https://raw.githubusercontent.com/kubernetes/website/master/content/en/examples/application/simple_deployment.yaml
    ```
 
 ## Deleting the Quick Start
@@ -265,13 +265,13 @@ We can test this using the NGINX example deployment:
 1. Delete the CRD. This needs to be done before remove the Kubernetes Workload Registrar to give the finalizers a chance to complete.
 
    ```shell
-   kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml
+   $ kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml
    ```
 
 1. Delete the remaining previously applied yaml files.
 
    ```shell
-   kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-server-registrar.yaml \
+   $ kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-server-registrar.yaml \
                   -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-agent.yaml
    ```
 
@@ -519,5 +519,5 @@ The k8s ValidatingWebhookConfiguration will need to be removed or pods may fail 
 configuration this can be done with:
 
 ```shell
-kubectl validatingwebhookconfiguration delete k8s-workload-registrar-webhook
+$ kubectl validatingwebhookconfiguration delete k8s-workload-registrar-webhook
 ```

@@ -66,7 +66,7 @@ language that enforces a forward slash-delimited schema.
 If a workload container is started with `docker run --label com.example.name=foo [...]`, then workload registration would occur as:
 
 ```shell
-spire-server entry create \
+$ spire-server entry create \
     -parentID spiffe://example.org/host \
     -spiffeID spiffe://example.org/host/foo \
     -selector docker:label:com.example.name:foo
@@ -75,7 +75,7 @@ spire-server entry create \
 You can compose multiple labels as selectors.
 
 ```shell
-spire-server entry create \
+$ spire-server entry create \
     -parentID spiffe://example.org/host \
     -spiffeID spiffe://example.org/host/foo \
     -selector docker:label:com.example.name:foo
@@ -88,7 +88,7 @@ Example of an environment variable selector for the variable `ENVIRONMENT`
 matching a value of `prod`:
 
 ```shell
-spire-server entry create \
+$ spire-server entry create \
     -parentID spiffe://example.org/host \
     -spiffeID spiffe://example.org/host/foo \
     -selector docker:env:ENVIRONMENT=prod

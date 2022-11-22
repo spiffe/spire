@@ -31,7 +31,7 @@ To configure the TTL value, tune the engine.
 e.g.
 
 ```shell
-vault secrets tune -max-lease-ttl=8760h pki
+$ vault secrets tune -max-lease-ttl=8760h pki
 ```
 
 The configured token needs to be attached to a policy that has at least the following capabilities:
