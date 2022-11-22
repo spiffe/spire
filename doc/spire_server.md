@@ -104,9 +104,10 @@ This may be useful for templating configuration files, for example across differ
 | `rego_path`                   | File to retrieve OPA rego policy for authorization.      |                |
 | `policy_data_path`            | File to retrieve databindings for policy evaluation.     |                |
 
-
 ### Profiling Names
+
 These are the available profiles that can be set in the `profiling_freq` configuration value:
+
 - `goroutine`
 - `threadcreate`
 - `heap`
@@ -149,6 +150,7 @@ _Note: static relationships override dynamic relationships. If you need to confi
 Configuring a federated trust domain allows a trust domain to authenticate identities issued by other SPIFFE authorities, allowing workloads in one trust domain to securely authenticate workloads in a foreign trust domain.
 A key element to achieve federation is the use of SPIFFE bundle endpoints, these are resources (represented by URLs) that serve a copy of a trust bundle for a trust domain.
 Using the `federation` section you will be able to set up SPIRE as a SPIFFE bundle endpoint server and also configure the federated trust domains that this SPIRE Server will fetch bundles from.
+
 ```hcl
 server {
     .
@@ -176,10 +178,12 @@ server {
     }
 }
 ```
+
 The `federation.bundle_endpoint` section is optional and is used to set up a SPIFFE bundle endpoint server in SPIRE Server.
 The `federation.federates_with` section is also optional and is used to configure the federation relationships with foreign trust domains. This section is used for each federated trust domain that SPIRE Server will periodically fetch the bundle.
 
 ### Configuration options for `federation.bundle_endpoint`
+
 This optional section contains the configurables used by SPIRE Server to expose a bundle endpoint.
 
 | Configuration | Description                                                                    |
@@ -192,7 +196,7 @@ This optional section contains the configurables used by SPIRE Server to expose 
 
 | Configuration | Description                                                                                                               | Default                                        |
 |---------------|---------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|
-| directory_url | Directory endpoint URL                                                                                                    | https://acme-v02.api.letsencrypt.org/directory |
+| directory_url | Directory endpoint URL                                                                                                    | <https://acme-v02.api.letsencrypt.org/directory> |
 | domain_name   | Domain for which the certificate manager tries to retrieve new certificates                                               |                                                |
 | email         | Contact email address. This is used by CAs, such as Let's Encrypt, to notify about problems with issued certificates      |                                                |
 | tos_accepted  | ACME Terms of Service acceptance. If not true, and the provider requires acceptance, then certificate retrieval will fail | false                                          |
@@ -602,5 +606,5 @@ plugins {
 
 ## Further reading
 
-* [SPIFFE Reference Implementation Architecture](https://docs.google.com/document/d/1nV8ZbYEATycdFhgjTB619pwIvamzOjU6l0SyBGbzbo4/edit#)
-* [Design Document: SPIFFE Reference Implementation (SRI)](https://docs.google.com/document/d/1RZnBfj8I5xs8Yi_BPEKBRp0K3UnIJYTDg_31rfTt4j8/edit#)
+- [SPIFFE Reference Implementation Architecture](https://docs.google.com/document/d/1nV8ZbYEATycdFhgjTB619pwIvamzOjU6l0SyBGbzbo4/edit#)
+- [Design Document: SPIFFE Reference Implementation (SRI)](https://docs.google.com/document/d/1RZnBfj8I5xs8Yi_BPEKBRp0K3UnIJYTDg_31rfTt4j8/edit#)

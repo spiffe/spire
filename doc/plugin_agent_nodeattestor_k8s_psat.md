@@ -9,8 +9,8 @@ SPIRE to create more fine-grained attestation policies for agents.
 
 The server-side `k8s_psat` plugin will generate a SPIFFE ID on behalf of the agent of the form:
 
-```
-spiffe://<trust domain>/spire/agent/k8s_psat/<cluster>/<node UID>
+```xml
+spiffe://<trust_domain>/spire/agent/k8s_psat/<cluster>/<node_UID>
 ```
 
 The main configuration accepts the following values:
@@ -20,10 +20,9 @@ The main configuration accepts the following values:
 | `cluster`     | Name of the cluster. It must correspond to a cluster configured in the server plugin. |                                       |
 | `token_path`  | Path to the projected service account token on disk                                   | "/var/run/secrets/tokens/spire-agent" |
 
-
 A sample configuration with the default token path:
 
-```
+```hcl
     NodeAttestor "k8s_psat" {
         plugin_data {
             cluster = "MyCluster"
@@ -32,7 +31,8 @@ A sample configuration with the default token path:
 ```
 
 Its k8s volume definition:
-```
+
+```yaml
 volumes:
     - name: spire-agent
       projected:
@@ -44,14 +44,14 @@ volumes:
 ```
 
 And volume mount:
-```
+
+```yaml
 volumeMounts:
     - mountPath: /var/run/secrets/tokens
       name: spire-agent
 ```
 
 A full example of this attestor is provided in [the SPIRE examples repository](https://github.com/spiffe/spire-examples/tree/main/examples/k8s/simple_psat).
-
 
 ## Considerations
 

@@ -11,10 +11,10 @@ The plugin accepts the following configuration options:
 
 A sample configuration:
 
-```
-	KeyManager "disk" {
-		plugin_data = {
-			keys_path = "/opt/spire/data/server/keys.json"
-		}
-	}
+```hcl
+    KeyManager "disk" {
+        plugin_data = {
+            keys_path = "/opt/spire/data/server/keys.json"
+        }
+    }
 ```

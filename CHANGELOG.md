@@ -3,23 +3,27 @@
 ## [1.5.1] - 2022-11-08
 
 ### Fixed
+
 - The deprecated `default_svid_ttl` configurable is now correctly observed after fixing a regression introduced in 1.5.0 (#3583)
 
 ## [1.5.0] - 2022-11-02
 
 ### Added
+
 - X.509-SVID and JWT-SVID TTLs can now be configured separately at both the entry-level and Server default level (#3445)
 - Entry protobuf type in `/v1/entry` API includes new `jwt_svid_ttl` field (#3445)
 - `k8s-workload-registrar` and `oidc-discovery-provider` CLIs now print their version when the `-version` flag is set (#3475)
 - Support for customizing SPIFFE ID paths of SPIRE Agents attested with the `azure_msi` NodeAttestor plugin (#3488)
 
-###  Changed
+### Changed
+
 - Entry `ttl` protobuf field in `/v1/entry` API is renamed to `x509_ttl` (#3445)
 - External plugins can no longer be named `join_token` to avoid conflicts with the builtin plugin (#3469)
 - `spire-server run` command now supports DNS names for the configured bind address (#3421)
 - Documentation improvements (#3468, #3472, #3473, #3474, #3515)
 
 ### Deprecated
+
 - `k8s-workload-registrar` is deprecated in favor of [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager) (#3526)
 - Server `default_svid_ttl` configuration field is deprecated in favor of `default_x509_svid_ttl` and `default_jwt_svid_ttl` fields (#3445)
 - `-ttl` flag in `spire-server entry create` and `spire-server entry update` commands is deprecated in favor of `-x509SVIDTTL` and `-jwtSVIDTTL` flags (#3445)
@@ -27,20 +31,24 @@
 - `InMem` telemetry collector is deprecated and no longer enabled by default (#3492)
 
 ### Removed
+
 - NodeResolver plugin type and `azure_msi` builtin NodeResolver plugin (#3470)
 
 ## [1.4.5] - 2022-11-01
 
 ### Security
+
 - Updated to Go 1.19.3 to address CVE-2022-41716. This vulnerability only affects users configuring external Server or Agent plugins on Windows.
 
 ## [1.4.4] - 2022-10-05
 
 ### Added
+
 - Experimental support for limiting the number of SVIDs in the agent's cache (#3181)
 - Support for attesting Envoy proxy workloads when Istio is configured with holdApplicationUntilProxyStarts (#3460)
 
 ### Changed
+
 - Improved bundle endpoint misconfiguration diagnostics (#3395)
 - OIDC Discovery Provider endpoint now has a timeout to read request headers (#3435)
 - Small documentation improvements (#3443)
@@ -48,37 +56,45 @@
 ## [1.4.3] - 2022-10-04
 
 ### Security
+
 - Updated minimum TLS version to 1.2 for the k8s-workload-registrar CRD mode webhook and the oidc-discovery-provider when using ACME
 
 ## [1.4.2] - 2022-09-07
 
 ### Added
+
 - The X509-SVID Subject field now contains a unique ID to satisfy RFC 5280 requirements (#3367)
 - Agents now shut down when banned (#3308)
 
 ### Changed
+
 - Small documentation improvements (#3309, #3377)
 
 ## [1.4.1] - 2022-09-06
 
 ### Security
+
 - Updated to Go 1.18.6 to address CVE-2022-27664
 
 ## [1.4.0] - 2022-08-08
 
-### Added 
+### Added
+
 - Support for Windows workload attestation on Kubernetes (#3191)
 - Support for using RSA keys with Workload X509-SVIDs (#3237)
 - Support for anonymous authentication to the Kubelet secure port when performing workload attestation on Kubernetes (#3273)
 
 ### Deprecated
+
 - The Node Resolver plugin type (#3272)
 
 ### Fixed
+
 - Persistence of the can_reattest flag during agent SVID renewal (#3292)
 - A regression in behavior preventing an agent from re-attesting when it has been evicted (#3269)
 
 ### Changed
+
 - The Azure Node Attestor to optionally provide selectors (#3272)
 - The Docker Workload Attestor now fails when configured with unknown options (#3243)
 - Improved CRI-O support with Kubernetes workload attestation (#3242)
@@ -88,54 +104,65 @@
 - Small documentation improvements (#3264)
 
 ### Removed
+
 - The deprecated webhook mode from the k8s-workload-registrar (#3235)
 - Support for the configmap leader election lock type from the k8s-workload-registrar (#3241)
 
 ## [1.3.6] - 2022-11-01
 
 ### Security
+
 - Updated to Go 1.18.8 to address CVE-2022-41716. This vulnerability only affects users configuring external Server or Agent plugins on Windows.
 
 ## [1.3.5] - 2022-10-04
 
 ### Security
+
 - Updated minimum TLS version to 1.2 for the k8s-workload-registrar CRD mode webhook and the oidc-discovery-provider when using ACME
 
 ## [1.3.4] - 2022-09-06
 
 ### Security
+
 - Updated to Go 1.18.6 to address CVE-2022-27664
 
 ## [1.3.3] - 2022-07-13
 
 ### Security
+
 - Updated to Go 1.18.4 to address CVE-2022-1705, CVE-2022-32148, CVE-2022-30631, CVE-2022-30633, CVE-2022-28131, CVE-2022-30635, CVE-2022-30632, CVE-2022-30630, and CVE-2022-1962.
 
 ## [1.3.2] - 2022-07-08
 
 ### Added
+
 - Support for K8s workload attestation when the Kubelet is run as a standalone component (#3163)
 - Optional health check endpoints to the OIDC Discovery Provider (#3151)
 - Pagination support to the server `entry show` command (#3135)
 
 ### Fixed
+
 - A regression in workload SVID minting that caused DNS names not to be set in the SVID (#3215)
 - A regression in the server that caused a panic instead of a clean shutdown if a plugin was misconfigured (#3166)
 
 ### Changed
+
 - Directories for UDS endpoints are no longer created by SPIRE on Windows (#3192)
 
 ## [1.3.1] - 2022-06-09
 
 ### Added
+
 - The `windows` workload attestor gained a new `sha256` selector that can attest the SHA256 digest of the workload binary (#3100)
 
 ### Fixed
+
 - Database rows related to registration entries are now properly removed (#3127, #3132)
 - Agent reduces bandwidth use by requesting only required information when syncing with the server (#3123)
 - Issue with read-modify-write operations when using PostgreSQL datastore in hot standby mode (#3103)
 
 ### Changed
+
 - FetchX509Bundles RPC no longer sends spurious updates that contain no changes (#3102)
 - Warn if the built-in `join_token` node attestor is attempted to be overridden by an external plugin (#3045)
 - Database connections are now proactively closed when SPIRE server is shut down (#3047)
@@ -143,16 +170,19 @@
 ## [1.3.0] - 2022-05-12
 
 ### Added
-- Experimental Windows support (https://github.com/spiffe/spire/projects/12)
+
+- Experimental Windows support (<https://github.com/spiffe/spire/projects/12>)
 - Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009, #3014, #3020, #3034)
 - Configurable leader election resource lock type for the K8s Workload Registrar (#3030)
 - Ability to fetch JWT SVIDs and JWT Bundles on behalf of workloads via the Delegated Identity API (#2789)
 - CanReattest flag to NodeAttestor responses to facilitate future features (#2646)
 
 ### Fixed
+
 - Spurious message to STDOUT when there is no plugin_data section configured for a plugin (#2927)
 
 ### Changed
+
 - SPIRE entries with malformed parent or SPIFFE IDs are removed on server startup (#2965)
 - SPIRE no longer prepends slashes to paths passed to the API when missing (#2963)
 - K8s Workload Registrar retries up to 5 seconds to connect to SPIRE Server (#2921)
@@ -160,49 +190,59 @@
 - Small documentation improvements (#2934, #2947, #3013)
 
 ### Deprecated
+
 - The webhook mode for the K8s Workload Register has been deprecated (#2964)
 
 ## [1.2.5] - 2022-07-13
 
 ### Security
+
 - Updated to Go 1.17.12 to address CVE-2022-1705, CVE-2022-32148, CVE-2022-30631, CVE-2022-30633, CVE-2022-28131, CVE-2022-30635, CVE-2022-30632, CVE-2022-30630, and CVE-2022-1962.
 
 ## [1.2.4] - 2022-05-12
 
 ### Added
+
 - Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
 
 ## [1.2.3] - 2022-04-12
 
 ### Security
+
 - Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536
 
 ## [1.2.2] - 2022-04-07
 
 ### Added
+
 - SPIRE Server and Agent log files can be rotated by sending the `SIGUSR2` signal to the process (#2703)
 - K8s Workload Registrar CRD mode now supports registering "downstream" workloads (#2885)
 - SPIRE can now be compiled on macOS machines with an Apple Silicon CPU (#2876)
 - Small documentation improvements (#2851)
 
 ### Changed
+
 - SPIRE Server no longer sets the `DigitalSignature` KeyUsage bit in its CA certificate (#2896)
 
 ### Fixed
+
 - The `k8sbundle` Notifier plugin in SPIRE Server no longer consumes excessive CPU cycles (#2857)
 
 ## [1.2.1] - 2022-03-16
 
 ### Added
+
 - The SPIRE Agent `fetch jwt` CLI command now supports JSON output (#2650)
 
 ### Changed
+
 - OIDC Discovery Provider now includes the `alg` parameter in JWKs to increase compatibility  (#2771)
 - SPIRE Server now gracefully stops plugin servers, allowing outstanding RPCs a chance to complete (#2722)
 - SPIRE Server logs additional authorization information with RPC requests (#2776)
 - Small documentation improvements (#2746, #2792)
 
 ### Fixed
+
 - SPIRE Server now properly rotates signing keys when prepared or activated keys are lost from the database (#2770)
 - The AWS IID node attestor now works with instance profiles which have paths (#2825)
 - Fixed a crash in SPIRE Agent caused by a race on the agent cache (#2699)
@@ -210,10 +250,12 @@
 ## [1.2.0] - 2022-01-28
 
 ### Added
+
 - SPIRE Server can now be configured to mint agent SVIDs with a specific TTL (#2667)
 - A set of fixed admin SPIFFE IDs can now be configured in SPIRE Server (#2677)
 
 ### Changed
+
 - Upstream signed CA chain is now validated to prevent misconfigurations (#2644)
 - Improved SVID signing logs to include more context (#2678)
 - The deprecated agent key file (`svid.key`) is no longer proactively removed by the agent (#2671)
@@ -221,49 +263,58 @@
 - SPIRE now consumes the SVIDStore V1 interface published in the SPIRE Plugin SDK (#2688)
 
 ### Deprecated
+
 - API support for paths without leading slashes in `spire.api.types.SPIFFEID` messages has been deprecated (#2686, #2692)
-- The SVIDStore V1 interface published in SPIRE repository has been renamed to `svidstore.V1Unofficial` and is now deprecated in favor of the interface published in the SPIRE Plugin SDK (#2688) 
+- The SVIDStore V1 interface published in SPIRE repository has been renamed to `svidstore.V1Unofficial` and is now deprecated in favor of the interface published in the SPIRE Plugin SDK (#2688)
 
 ### Removed
+
 - The deprecated `domain` configurable has been removed from the SPIRE OIDC Discovery Provider (#2672)
 - The deprecated `allow_unsafe_ids` configurable has been removed from SPIRE Server (#2685)
 
 ## [1.1.5] - 2022-05-12
 
 ### Added
-- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
 
+- Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
 
 ## [1.1.4] - 2022-04-13
 
 ### Security
+
 - Updated to Go 1.17.9 to address CVE-2022-24675, CVE-2022-28327, CVE-2022-27536
 
 ## [1.1.3] - 2022-01-07
 
 ### Security
+
 - Fixed CVE-2021-44716
 
 ## [1.1.2] - 2021-12-15
 
 ### Added
+
 - SPIRE Agent now supports the Delegated Identity API for delegating SVID management to trusted platform components (#2481)
 - The K8s Workload Registrar now supports configuring DNS name templates (#2643)
 - SPIRE Server now logs a message when expired registration entries are pruned (#2637)
 - OIDC Discovery Provider now supports setting the `use` property on the JWKs it serves (#2634)
 
 ### Fixed
+
 - SPIRE Agent now provides reason for failure during certain kinds of attestation errors (#2628)
 
 ## [1.1.1] - 2021-11-17
 
 ### Added
+
 - SPIRE Agent can now store SVIDs with Google Cloud Secrets Manager (#2595)
 
 ### Changed
+
 - SPIRE Server downloads federated bundles a little sooner when federated relationships are added or updated (#2585)
 
 ### Fixed
+
 - Fixed a regression in Percona XTRA DB Cluster support introduced in 0.12.2 (#2605)
 - Kubernetes Workload Attestation fixed for Kubernetes 1.21+ (#2600)
 - SPIRE Agent now retries failed removals of SVIDs stored by SVIDStore plugins (#2620)
@@ -271,8 +322,9 @@
 ## [1.1.0] - 2021-10-10
 
 ### Added
+
 - SPIRE images are now published to GitHub Container Registry. They will continue to be published to Google Container Registry over the course of the next release (#2576,#2580)
-- SPIRE Server now implements the [TrustDomain API](https://github.com/spiffe/spire-api-sdk/blob/main/proto/spire/api/server/trustdomain/v1/trustdomain.proto) and related CLI commands (https://github.com/spiffe/spire/projects/11)
+- SPIRE Server now implements the [TrustDomain API](https://github.com/spiffe/spire-api-sdk/blob/main/proto/spire/api/server/trustdomain/v1/trustdomain.proto) and related CLI commands (<https://github.com/spiffe/spire/projects/11>)
 - The SVIDStore plugin type has been introduced to enable, amongst other things, agentless workload scenarios (#2176,#2483)
 - The TPM DevID Node Attestor emits a new `issuer:cn` selector with the common name of the issuing certificate (#2581)
 - The K8s Bundle Notifier plugin now supports pushing the bundle to resources in multiple clusters (#2531)
@@ -281,13 +333,15 @@
 - The GCP CAS UpstreamAuthority has a new `ca_pool` configurable to identify which CA pool the signing CA resides in (#2569)
 
 ### Changed
+
 - With the GA release of GCP CAS, the UpstreamAuthority plugin now needs to know which pool the CA belongs to. If not configured, it will do a pessimistic scan of all pools to locate the correct CA. This scan will be removed in a future release (#2569)
-- The K8s Workload Registrar now supports Kubernetes 1.22 (#2515,#2540) 
+- The K8s Workload Registrar now supports Kubernetes 1.22 (#2515,#2540)
 - Self-signed CA certificates serial numbers are now conformant to RFC 5280 (#2494)
 - The AWS KMS Key Manager plugin now creates keys with a very strict policy by default (#2424)
 - The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accomodate rollback from v1.0 to v0.12 (#2493)
 
 ### Removed
+
 - Support for the deprecated Registration API has been removed (#2487)
 - Legacy (v0) plugin support has been removed. All plugins must now be authored using the plugin SDK.
 - The deprecated `service_account_whitelist` configurables have been removed from the SAT and PSAT Node Attestor plugins (#2543)
@@ -295,6 +349,7 @@
 - The deprecated `bundle_endpoint` and `registration_uds_path` configurables have been removed from SPIRE Server (#2486,#2519)
 
 ### Fixed
+
 - The GCP CAS UpstreamAuthority now works with the GA release of GCP CAS (#2569)
 - Fixed a variety of issues with the scratch image, preparatory to publishing as the official image on GitHub Container Registry (#2582)
 - Kubernetes Workload Attestor now uses the canonical path for the service account token (#2583)
@@ -305,16 +360,19 @@
 ## [1.0.4] - 2022-05-13
 
 ### Added
+
 - Ability to revert SPIFFE cert validation to standard X.509 validation in Envoy (#3009,#3014,#3020,#3034)
 
 ## [1.0.3] - 2022-01-07
 
 ### Security
+
 - Fixed CVE-2021-44716
 
 ## [1.0.2] - 2021-09-02
 
 ### Added
+
 - Experimental support for custom authorization policies based on Open Policy Agent (OPA) (#2416)
 - SPIRE Server can now be configured to emit audit logs (#2297, #2391, #2394, #2396, #2442, #2458)
 - Envoy SDS v3 API in agent now supports the SPIFFE Certificate Validator for federated SPIFFE authentication (#2435, #2460)
@@ -326,18 +384,22 @@
 - Improvements in logging of errors in peertracker (#2469)
 
 ### Changed
+
 - CRD mode of the `k8s-workload-registrar` now uses SPIRE certificates for the validating webhook (#2321)
 - The `vault` UpstreamAuthority plugin now continues retrying to renew tokens on failures until the lease time is exceeded (#2445)
 
 ### Fixed
+
 - Fixed a nil pointer dereference when the deprecated `allow_unsafe_ids` setting was configured (#2477)
 
 ### Deprecated
+
 - The SPIRE OIDC Discovery Provider `domain` configurable has been deprecated in favor of `domains` (#2404)
 
 ## [1.0.1] - 2021-08-05
 
 ### Added
+
 - LDevID-based TPM attestation can now be performed via a new `tpm_devid` NodeAttestor plugin (#2111, #2427)
 - Caller details are now logged for unauthorized Server API calls (#2399)
 - The `aws_iid` NodeAttestor plugin now supports attesting nodes across multiple AWS accounts via AWS IAM role assumption (#2387)
@@ -346,9 +408,11 @@
 - SPIRE Server now logs a message on startup when configured TTL values may result in SVIDs with a shorter lifetime than expected (#2284)
 
 ### Changed
+
 - Updated a trust domain validation error message to mention that underscores are valid trust domain characters (#2392)
 
 ### Fixed
+
 - Fixed bugs that broke the ACME bundle endpoint when using the `aws_kms` KeyManager plugin (#2390, #2397)
 - Fixed a bug that resulted in SPIRE Agent sending unnecessary updates over the Workload API (#2305)
 - Fixed a bug in the `k8s_psat` NodeAttestor plugin that prevented it from being configured with kubeconfig files (#2421)
@@ -356,6 +420,7 @@
 ## [1.0.0] - 2021-07-08
 
 ### Added
+
 - The `vault` UpstreamAuthority plugin now supports Kubernetes service account authentication (#2356)
 - A new `cert-manager` UpstreamAuthority plugin is now available (#2274)
 - SPIRE Server CLI can now be used to ban agents (#2374)
@@ -368,6 +433,7 @@
 - Registration entries can now be queried/filtered by `federates_with` when calling the entry API (#1967)
 
 ### Changed
+
 - SPIRE Server's SVID now uses the key type configured as `ca_key_type` (#2269)
 - Caller address is now logged for agent API calls resulting in an error (#2281)
 - Agent SVID renewals are now logged by the server at the INFO level (#2309)
@@ -378,12 +444,14 @@
 - SPIRE Agent default socket path is now `/tmp/spire-agent/public/api.sock` (#2075)
 
 ### Deprecated
+
 - SPIRE Server federation configuration in the `federates_with` `bundle_endpoint` block is now deprecated (#2340)
 - SPIRE Server `gcp_iit` NodeAttestor configurable `projectid_whitelist` is deprecated in favor of `projectid_allow_list` (#2253)
 - SPIRE Server `k8s_sat` and `k8s_psat` NodeAttestor configurable `service_account_whitelist` is deprecated in favor of `service_account_allow_list` (#2253)
 - SPIRE Server `registration_uds_path`/`-registrationUDSPath` configurable and flag has been deprecated in favor of `socket_path`/`-socketPath` (#2075)
 
 ### Removed
+
 - SPIRE Server no longer supports SPIFFE IDs with UTF-8 (#2368)
 - SPIRE Server no longer supports the legacy Node API (#2093)
 - SPIRE Server experimental configurable `allow_agentless_node_attestors` has been removed (#2098)
@@ -396,6 +464,7 @@
 - SPIRE Server bundle endpoint no longer supports TLS signature schemes utilizing non-SHA256 hashes when ACME is enabled (#2397)
 
 ### Fixed
+
 - Fixed a bug that caused health check failures in agents that have registration entries describing them (#2370)
 - SPIRE Agent no longer logs a message when invoking a healthcheck via the CLI (#2058)
 - Fixed a bug that caused federation to fail when using ACME in conjunction with the `aws_kms` KeyManager plugin (#2390)
@@ -403,21 +472,25 @@
 ## [0.12.3] - 2021-05-17
 
 ### Added
+
 - The `k8s-workload-registrar` now supports federation (#2160)
 - The `k8s_bundle` notifier plugin can now keep API service CA bundles up to date (#2193)
 - SPIRE Server internal cache reload timing can now be tuned (experimental) (#2169)
 
 ### Changed
+
 - Prometheus metrics that are emitted infrequently will no longer disappear after emission (#2239)
 - The `k8s-workload-registrar` now uses paging to support very large deployments of 10,000+ pods (#2227)
 
 ### Fixed
+
 - Fixed a bug that sometimes caused newly attested agents to not receive their full set of selectors (#2242)
 - Fixed several bugs related to the handling of SPIRE Server API paging (#2251)
 
 ## [0.12.2] - 2021-04-14
 
 ### Added
+
 - Added `aws_kms` server KeyManager plugin that uses the AWS Key Management Service (KMS) (#2066)
 - Added `gcp_cas` UpstreamAuthority plugin that uses the Certificate Authority Service from Google Cloud Platform (#2172)
 - Improved error returned during attestation of agents (#2159)
@@ -429,12 +502,14 @@
 - Added logging when lookup of user by uid or group by gid fails in the `unix` WorkloadAttestor plugin (#2048)
 
 ### Changed
+
 - The `k8s` WorkloadAttestor plugin now emits selectors for both image and image ID (#2116)
 - HTTP readiness endpoint on agent now checks the health of the Workload API (#2015, #2087)
 - SDS API in agent now returns an error if an SDS client requests resource names that don't exist (#2020)
 - Bundle and k8s-workload-registrar endpoints now only accept clients using TLS v1.2+ (#2025)
 
 ### Fixed
+
 - Registration entry update handling in CRD mode of the k8s-workload-registrar to prevent unnecessary issuance of new SVIDs (#2155)
 - Failure to update CA bundle due to improper MySQL isolation level for read-modify-write operations (#2150)
 - Regression preventing agent selectors from showing in `spire-server agent show` command (#2133)
@@ -445,6 +520,7 @@
 ## [0.12.1] - 2021-03-04
 
 ### Security
+
 - Fixed CVE-2021-27098
 - Fixed CVE-2021-27099
 - Fixed file descriptor leak in peertracker
@@ -452,6 +528,7 @@
 ## [0.12.0] - 2020-12-17
 
 ### Added
+
 - Debug endpoints (#1792)
 - Agent support for SDS v3 API (#1906)
 - Improved metrics handling (#1885, #1925, #1932)
@@ -466,19 +543,23 @@
 - Added `k8s_psat:agent_node_ip` selector (#1979)
 
 ### Changed
+
 - The agent now shuts down when it is no longer attested (#1797)
 - Internals now rely on new server APIs (#1849, #1878, #1907, #1908, #1909, #1913, #1947, #1982, #1998, #2001)
 - Workload API now returns a standardized JWKS object (#1904)
 - Log message casing and punctuation are more consistent with project guidelines (#1950, #1952)
 
 ### Deprecated
+
 - The Registration and Node APIs are deprecated, and a warning is logged on use (#1997)
 - The `registration_api` configuration section is deprecated in favor of `server_api` in the k8s-workload-registrar (#2001)
 
 ### Removed
+
 - Removed some superfluous or otherwise unusable metrics and labels (#1881, #1946, #2004)
 
 ### Fixed
+
 - Fixed CLI exit codes when entry create or update fails (#1990)
 - Fixed a bug that could cause external plugins to become orphaned processes after agent/server shutdown (#1962)
 - Fixed handling of the Vault PKI certificate chain (#2012, #2017)
@@ -486,11 +567,13 @@
 - Fixed Registration API to validate selector syntax (#1919)
 
 ### Security
+
 - JWT-SVIDs that fail validation are no longer logged (#1953)
 
 ## [0.11.3] - 2021-03-04
 
 ### Security
+
 - Fixed CVE-2021-27098
 - Fixed CVE-2021-27099
 - Fixed file descriptor leak in peertracker
@@ -498,9 +581,11 @@
 ## [0.11.2] - 2020-10-29
 
 ### What's New
- - Error messages related to a specific class of software bugs are now rate limited (#1901)
+
+- Error messages related to a specific class of software bugs are now rate limited (#1901)
 
 ### What's Changed
+
 - Fixed an issue in the Upstream Authority plugin that could result in a delay in the propagation of bundle updates/changes (#1917)
 - Fixed error messages when attestation is disabled (#1899)
 - Fixed some incorrectly-formatted log messages (#1920)
@@ -508,24 +593,27 @@
 ## [0.11.1] - 2020-09-29
 
 ### What's New
+
 - Added AWS PCA configurable allowing operators to provide additional CA certificates for inclusion in the bundle (#1574)
 - Added a configurable to server for disabling rate limiting of node attestation requests (#1794, #1870)
 
 ### What's Changed
+
 - Fixed Kubernetes Workload Registrar issues (#1814, #1818, #1823)
 - Fixed BatchCreateEntry return value to match docs, returning the contents of an entry if it already exists (#1824)
 - Fixed issue preventing brand new deployments from downgrading successfully (#1829)
 - Fixed a regression introduced in 0.11.0 that caused external node attestor plugins that rely on binary data to fail (#1863)
 
-
 ## [0.11.0] - 2020-08-28
 
 ### What's New
+
 - Introduced refactored server APIs (#1533, #1548, #1563, #1567, #1568, #1571, #1575, #1576, #1577, #1578, #1582, #1585, #1586, #1587, #1588, #1589, #1590, #1591, #1592, #1593, #1594, #1595, #1597, #1604, #1606, #1607, #1613, #1615, #1617, #1622, #1623, #1628, #1630, #1633, #1641, #1643, #1646, #1647, #1654, #1659, #1667, #1673, #1674, #1683, #1684, #1689, #1690, #1692, #1693, #1694, #1701, #1708, #1727, #1728, #1730, #1733, #1734, #1739, #1749, #1753, #1768, #1772, #1779, #1783, #1787, #1788, #1789, #1790, #1791)
 - Unix workloads can now be attested using auxiliary group membership (#1771)
 - The Kubernetes Workload Registrar now supports two new registration modes (`crd` and `reconcile`)
 
 ### What's Changed
+
 - Federation is now a stable feature (#1656, #1737, #1777)
 - Removed support for the `UpstreamCA` plugin, which was deprecated in favor of the `UpstreamAuthority` plugin in v0.10.0 (#1699)
 - Removed deprecated `upstream_bundle` server configurable. The server now always use the upstream bundle as the trust bundle (#1702)
@@ -538,22 +626,26 @@
 ## [0.10.2] - 2021-03-04
 
 ### Security
+
 - Fixed CVE-2021-27098
 - Fixed file descriptor leak in peertracker
 
 ## [0.10.1] - 2020-06-23
 
 ### What's New
+
 - `vault` as Upstream Authority built-in plugin (#1611, #1632)
 - Improved configuration file docs to list all possible configuration settings (#1608, #1618)
 
 ### What's Changed
+
 - Improved container ID parsing from cgroup path in the `docker` workload attestor plugin (#1605)
 - Improved container ID parsing from cgroup path in the `k8s` workload attestor plugin (#1649)
 - Envoy SDS support is now always on (#1579)
 - Errors on agent SVID rotation are now fatal if the agent's current SVID has expired, forcing an agent restart (#1584)
 
 ## [0.10.0] - 2020-04-22
+
 - Added support for JWT-SVID in nested SPIRE topologies (#1388, #1394, #1396, #1406, #1409, #1410, #1411, #1415, #1416, #1417, #1423, #1440, #1455, #1458, #1469, #1476)
 - Reduced database load under certain configurations (#1439)
 - Agent now proactively rotates workload SVIDs in response to registration updates (#1441, #1477)
@@ -578,10 +670,12 @@
 ## [0.9.4] - 2021-03-04
 
 ### Security
+
 - Fixed CVE-2021-27098
 - Fixed file descriptor leak in peertracker
 
 ## [0.9.3] - 2020-03-05
+
 - Significantly reduced the server's database load (#1350, #1355, #1397)
 - Improved consistency in SVID propagation time for some cases (#1352)
 - AWS IID node attestor now supports the v2 metadata service (#1369)
@@ -592,11 +686,13 @@
 - Registration API now has an RPC for listing entries that supports paging (#1392)
 
 ## [0.9.2] - 2020-01-14
+
 - Fixed a crash when a key protecting the bundle endpoint is removed (#1326)
 - Bundle endpoint client now supports Web-PKI authenticated endpoints (#1327)
 - SPIRE now warns if the CA TTL will result in shorter-than-expected SVID lifetimes (#1294)
 
 ## [0.9.1] - 2019-12-19
+
 - Agent cache file writes are now atomic, more resilient (#1267)
 - Introduced Google Cloud Storage bundle notifier plugin for server (#1227)
 - Server and agent now detect unknown configuration options in supported blocks (#1289, #1299, #1306, #1307)
@@ -608,6 +704,7 @@
 - KeyManager "disk" now emits a friendly error when directory option is missing (#1313)
 
 ## [0.9.0] - 2019-11-14
+
 - Users can now opt-out of workload executable hashing when enabling the workload path as a selector (#1078)
 - Added M3 support to telemetry and other telemetry and logging improvements (#1059, #1085, #1086, #1094, #1102, #1122,#1138,#1160,#1186,#1208)
 - SQL auto-migration can be disabled (#1089)
@@ -629,19 +726,23 @@
 ## [0.8.5] - 2021-03-04
 
 ### Security
+
 - Fixed CVE-2021-27098
 - Fixed file descriptor leak in peertracker
 
 ## [0.8.4] - 2019-10-28
+
 - Fixed spurious agent synchronization failures during agent SVID rotation (#1084)
 - Added support for [Kind](https://kind.sigs.k8s.io) to the Kubernetes Workload Attestor (#1133)
 - Added support for ACME v2 to the bundle endpoint (#1187)
 - Fixed a bug that could result in agent crashes after upgrading to 0.8.2 or newer (#1194)
 
 ## [0.8.3] - 2019-10-18
+
 - Upgrade to Go 1.12.12 in response to CVE-2019-17596 (#1204)
 
 ## [0.8.2] - 2019-10-10
+
 - Connection pool details in SQL DataStore plugin are now configurable (#1028)
 - SQL DataStore plugin now emits telemetry (#998)
 - The SPIFFE bundle endpoint now supports serving Web PKI via ACME (#1029)
@@ -655,6 +756,7 @@
 - Fix bug that resulted in authorized workloads being denied SVIDs (#1103)
 
 ## [0.8.1] - 2019-07-19
+
 - Failure to obtain peer information from a Workload API connection no longer brings down the agent (#946)
 - Agent now detects expired cached SVID when it starts and will attempt to re-attest instead of failing (#1000)
 - GCP IIT-based node attestation produces selectors for the project, zone, instance name, tags, service accounts, metadata and labels (#969, #1006, #1012)
@@ -683,6 +785,7 @@
 - Logs can now be emitted in JSON format (#866)
 
 ## [0.8.0] - 2019-05-20
+
 - Fix a bug in which the agent periodically logged connection errors (#906)
 - Kubernetes SAT node attestor now supports the TokenReview API (#904)
 - Agent cache refactored to improve memory management and fix a leak (#863)
@@ -713,6 +816,7 @@
 - UpstreamCA "disk" now supports loading multiple key types (#717)
 
 ## [0.7.3] - 2019-02-11
+
 - Agent can now expose Envoy SDS API for TLS certificate installation rotation (#667)
 - Agent now automatically creates its configured data dir if it doesn't exist (#678)
 - Agent panic fixed in the event that rotation is attempted from non-attested node (#684)
@@ -786,7 +890,6 @@
 - ServerCA "memory" can now optionally persist keys to disk (#532)
 - Config file updates so spire commands can be run from any CWD (#541)
 - Minor doc/example fixes (#535)
-
 
 ## [0.6.0] - 2018-06-26
 

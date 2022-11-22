@@ -13,7 +13,6 @@ A customer container image is used that runs both Envoy and the SPIRE Agent. Soc
 
 The test ensures both TLS and mTLS connectivity between the workload. This is exercised with a federated workload and also with a not federated workload.
 
-                                                                                                                                
                            upstream-spire-server                             downtream-federated-spire-server
                            /                    \                                            |
                           /                      \                                           |
@@ -21,4 +20,3 @@ The test ensures both TLS and mTLS connectivity between the workload. This is ex
              /             \                        |                           /                       \
             |               |                       |                          |                         |
     downtream-socat-mtls  downstream-socat-tls  upstream-socat     downstream-federated-socat-mtls  downstream-federated-socat-tls 
-                                                                                                                                

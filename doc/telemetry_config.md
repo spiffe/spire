@@ -1,6 +1,7 @@
-## Telemetry configuration
+# Telemetry configuration
 
 If telemetry is desired, it may be configured by using a dedicated `telemetry { ... }` section. The following metrics collectors are currently supported:
+
 - Prometheus
 - Statsd
 - DogStatsd
@@ -13,7 +14,7 @@ You may use all, some, or none of the collectors. The following collectors suppo
 - DogStatsd
 - M3
 
-### Telemetry configuration syntax
+## Telemetry configuration syntax
 
 | Configuration     | Type          | Description                                                   | Default |
 |-------------------|---------------|---------------------------------------------------------------|---------|
@@ -27,30 +28,34 @@ You may use all, some, or none of the collectors. The following collectors suppo
 | `AllowedLabels`   | `[]string`    | A list of metric labels to allow, with '.' as the separator   |         |
 | `BlockedLabels`   | `[]string`    | A list of metric labels to block, with '.' as the separator   |         |
 
-#### `Prometheus`
+### `Prometheus`
 
 | Configuration | Type     | Description            |
 |---------------|----------|------------------------|
 | `host`        | `string` | Prometheus server host |
 | `port`        | `int`    | Prometheus server port |
 
-#### `DogStatsd`
+### `DogStatsd`
+
 | Configuration | Type     | Description       |
 |---------------|----------|-------------------|
 | `address`     | `string` | DogStatsd address |
 
-#### `Statsd`
+### `Statsd`
+
 | Configuration | Type     | Description    |
 |---------------|----------|----------------|
 | `address`     | `string` | Statsd address |
 
-#### `M3`
+### `M3`
+
 | Configuration | Type     | Description                                  |
 |---------------|----------|----------------------------------------------|
 | `address`     | `string` | M3 address                                   |
 | `env`         | `string` | M3 environment, e.g. `production`, `staging` |
 
-#### `In-Mem`
+### `In-Mem`
+
 | Configuration | Type   | Description                                                                                                                                                                    | Default |
 |---------------|--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | `enabled`     | `bool` | Enable this collector. This flag is deprecated and will be removed in a future release. To disable in-memory telemetry collection omit the InMem configuration block entirely. | `false` |
@@ -85,6 +90,6 @@ telemetry {
 }
 ```
 
-### Supported metrics
+## Supported metrics
 
 See the [Telemetry document](telemetry.md) for a list of all the supported metrics.

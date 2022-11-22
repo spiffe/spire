@@ -2,14 +2,14 @@
 
 *Must be used in conjunction with the server-side azure_msi plugin*
 
-The `azure_msi` plugin attests nodes running in Microsoft Azure that have 
+The `azure_msi` plugin attests nodes running in Microsoft Azure that have
 Managed Service Identity (MSI) enabled. Agent nodes acquire a signed MSI token
 which is passed to the server. The server validates the signed MSI token and
 extracts the Tenant ID and Principal ID to form the agent SPIFFE ID. The SPIFFE
 ID has the form:
 
-```
-spiffe://<trust domain>/spire/agent/azure_msi/<tenant_id>/<principal_id>
+```xml
+spiffe://<trust_domain>/spire/agent/azure_msi/<tenant_id>/<principal_id>
 ```
 
 The agent needs to be running in Azure, in a VM with MSI enabled, in order to
@@ -17,7 +17,7 @@ use this method of node attestation.
 
 | Configuration | Description                                                                                                                       | Default                       |
 |---------------|-----------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| `resource_id` | The resource ID (or audience) to request for the MSI token. The server will reject tokens with resource IDs it does not recognize | https://management.azure.com/ |
+| `resource_id` | The resource ID (or audience) to request for the MSI token. The server will reject tokens with resource IDs it does not recognize | <https://management.azure.com/> |
 
 It is important to note that the resource ID MUST be for a well known Azure
 service, or an app ID for a registered app in Azure AD. Azure will not issue an
@@ -31,7 +31,7 @@ URI that you can use as a resource instead to limit the scope of replay-ability.
 
 A sample configuration with the default resource ID (i.e. resource manager):
 
-```
+```hcl
     NodeAttestor "azure_msi" {
         plugin_data {
         }
@@ -40,7 +40,7 @@ A sample configuration with the default resource ID (i.e. resource manager):
 
 A sample configuration with a custom resource ID:
 
-```
+```hcl
     NodeAttestor "azure_msi" {
         plugin_data {
             resource_id = "http://example.org/app/"
