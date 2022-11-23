@@ -330,28 +330,26 @@ artifact: build
 # Docker Images
 #############################################################################
 
+define image_rule
+.PHONY: $1
+$1: $3
+	echo Building docker image $2 $(PLATFORM)…
+	$(E)docker build \
+		--build-arg goversion=$(go_version_full) \
+		--target $2 \
+		-t $2 -t $2:latest-local \
+		-f $3 \
+		.
+
+endef
+
 .PHONY: images
 images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
 
-.PHONY: spire-server-image
-spire-server-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-server -t spire-server .
-	docker tag spire-server:latest spire-server:latest-local
-
-.PHONY: spire-agent-image
-spire-agent-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-agent -t spire-agent .
-	docker tag spire-agent:latest spire-agent:latest-local
-
-.PHONY: k8s-workload-registrar-image
-k8s-workload-registrar-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target k8s-workload-registrar -t k8s-workload-registrar .
-	docker tag k8s-workload-registrar:latest k8s-workload-registrar:latest-local
-
-.PHONY: oidc-discovery-provider-image
-oidc-discovery-provider-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider -t oidc-discovery-provider .
-	docker tag oidc-discovery-provider:latest oidc-discovery-provider:latest-local
+$(eval $(call image_rule,spire-server-image,spire-server,Dockerfile))
+$(eval $(call image_rule,spire-agent-image,spire-agent,Dockerfile))
+$(eval $(call image_rule,k8s-workload-registrar-image,k8s-workload-registrar,Dockerfile))
+$(eval $(call image_rule,oidc-discovery-provider-image,oidc-discovery-provider,Dockerfile))
 
 #############################################################################
 # Docker Images FROM scratch
@@ -360,52 +358,22 @@ oidc-discovery-provider-image: Dockerfile
 .PHONY: scratch-images
 scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image oidc-discovery-provider-scratch-image
 
-.PHONY: spire-server-scratch-image
-spire-server-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-server-scratch -t spire-server-scratch -f Dockerfile.scratch .
-	docker tag spire-server-scratch:latest spire-server-scratch:latest-local
-
-.PHONY: spire-agent-scratch-image
-spire-agent-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-agent-scratch -t spire-agent-scratch -f Dockerfile.scratch .
-	docker tag spire-agent-scratch:latest spire-agent-scratch:latest-local
-
-.PHONY: k8s-workload-registrar-scratch-image
-k8s-workload-registrar-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target k8s-workload-registrar-scratch -t k8s-workload-registrar-scratch -f Dockerfile.scratch .
-	docker tag k8s-workload-registrar-scratch:latest k8s-workload-registrar-scratch:latest-local
-
-.PHONY: oidc-discovery-provider-scratch-image
-oidc-discovery-provider-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider-scratch -t oidc-discovery-provider-scratch -f Dockerfile.scratch .
-	docker tag oidc-discovery-provider-scratch:latest oidc-discovery-provider-scratch:latest-local
+$(eval $(call image_rule,spire-server-scratch-image,spire-server-scratch,Dockerfile.scratch))
+$(eval $(call image_rule,spire-agent-scratch-image,spire-agent-scratch,Dockerfile.scratch))
+$(eval $(call image_rule,k8s-workload-registrar-scratch-image,k8s-workload-registrar-scratch,Dockerfile.scratch))
+$(eval $(call image_rule,oidc-discovery-provider-scratch-image,oidc-discovery-provider-scratch,Dockerfile.scratch))
 
 #############################################################################
-# Docker Images
+# Windows Docker Images
 #############################################################################
 
 .PHONY: images-windows
-images-windows: spire-server-image-windows spire-agent-image-windows oidc-discovery-provider-image-windows
+images-windows: spire-server-windows-image spire-agent-windows-image k8s-workload-registrar-windows-image oidc-discovery-provider-windows-image
 
-.PHONY: spire-server-image-windows
-spire-server-image-windows: Dockerfile
-	docker build -f Dockerfile.windows --target spire-server-windows -t spire-server-windows .
-	docker tag spire-server-windows:latest spire-server-windows:latest-local
-
-.PHONY: spire-agent-image-windows
-spire-agent-image-windows: Dockerfile
-	docker build -f Dockerfile.windows --target spire-agent-windows -t spire-agent-windows .
-	docker tag spire-agent-windows:latest spire-agent-windows:latest-local
-
-.PHONY: k8s-workload-registrar-image-windows
-k8s-workload-registrar-image-windows: Dockerfile
-	docker build -f Dockerfile.windows --target k8s-workload-registrar-windows -t k8s-workload-registrar-windows .
-	docker tag k8s-workload-registrar-windows:latest k8s-workload-registrar-windows:latest-local
-
-.PHONY: oidc-discovery-provider-image-windows
-oidc-discovery-provider-image-windows: Dockerfile
-	docker build -f Dockerfile.windows --target oidc-discovery-provider-windows -t oidc-discovery-provider-windows .
-	docker tag oidc-discovery-provider-windows:latest oidc-discovery-provider-windows:latest-local
+$(eval $(call image_rule,spire-server-windows-image,spire-server-windows,Dockerfile.windows))
+$(eval $(call image_rule,spire-agent-windows-image,spire-agent-windows,Dockerfile.windows))
+$(eval $(call image_rule,k8s-workload-registrar-windows-image,k8s-workload-registrar-windows,Dockerfile.windows))
+$(eval $(call image_rule,oidc-discovery-provider-windows-image,oidc-discovery-provider-windows,Dockerfile.windows))
 
 #############################################################################
 # Code cleanliness
