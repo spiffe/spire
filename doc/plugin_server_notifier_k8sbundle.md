@@ -13,21 +13,21 @@ The plugin accepts the following configuration options:
 | namespace             | The namespace containing the ConfigMap                                                                                                                                                                        | `spire`        |
 | config_map            | The name of the ConfigMap                                                                                                                                                                                     | `spire-bundle` |
 | config_map_key        | The key within the ConfigMap for the bundle                                                                                                                                                                   | `bundle.crt`   |
-| kube_config_file_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, it is assumed the notifier is in-cluster and in-cluster credentials will be used. |                |
+| kube_config_file_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, it is assumed the notifier is in-cluster and in-cluster credentials will be used. Required when configuring a remote cluster. See the `clusters` setting to configure multiple remote clusters. |                |
 | api_service_label     | If set, rotate the CA Bundle in API services with this label set to `true`.                                                                                                                                   |                |
 | webhook_label         | If set, rotate the CA Bundle in validating and mutating webhooks with this label set to `true`.                                                                                                               |                |
-| clusters              | A list of cluster configurations. If set it can be used to configure multiple. Each cluster allows the same values as the root configuration.                                                                 |                |
+| clusters              | A list of remote cluster configurations. If set it can be used to configure multiple. Each cluster allows the same values as the root configuration.                                                                 |                |
 
 ## Configuring Kubernetes
 
-The following actions are required to set up the plugin.
+The following actions are required to set up the plugin:
 
-- Bind ClusterRole or Role that can `get` and `patch` the ConfigMap to Service Account
-  - In the case of in-cluster SPIRE server, it is Service Account that runs the SPIRE server
-  - In the case of out-of-cluster SPIRE server, it is Service Account that interacts with the Kubernetes API server
+- Bind ClusterRole or Role that can `get` and `patch` the ConfigMap to Service Account.
+  - In the case of in-cluster SPIRE server, it is Service Account that runs the SPIRE Server.
+  - In the case of out-of-cluster SPIRE Server, it is Service Account that interacts with the Kubernetes API server.
   - In the case of setting `webhook_label`, the ClusterRole or Role additionally needs permissions to `get`, `list`, `patch`, and `watch` `mutatingwebhookconfigurations` and `validatingwebhookconfigurations`.
   - In the case of setting `api_service_label`, the ClusterRole or Role additionally needs permissions to `get`, `list`, `patch`, and `watch` `apiservices`.
-- Create the ConfigMap that the plugin pushes
+- Create the ConfigMap that the plugin pushes.
 
 For example:
 
