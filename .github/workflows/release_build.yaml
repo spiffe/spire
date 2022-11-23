@@ -524,15 +524,13 @@ jobs:
           registry: gcr.io
           username: _json_key
           password: ${{ secrets.GCR_JSON_KEY }}
-      # Push the images to GCR using the version number (without the "v" prefix).
       - name: Push images
-        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF#refs/tags/v}"
+        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF}"
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # Push the images to GHCR using the version number (without the "v" prefix).
       - name: Push images
-        run: ./.github/workflows/scripts/push-scratch-images.sh "${GITHUB_REF#refs/tags/v}"
+        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF}" -scratch
