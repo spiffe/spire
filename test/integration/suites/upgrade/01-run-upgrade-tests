@@ -8,15 +8,23 @@
 # something else to create the directory first).
 
 start-old-server() {
-    log-info "bringing up $1 agent..."
+    log-info "bringing up $1 server..."
     docker-up "spire-server-$1"
 }
 
 bootstrap-agent() {
-    log-debug "bootstrapping $1 agent..."
-    docker-compose exec -T "spire-server-$1" \
-        /opt/spire/bin/spire-server bundle show \
-        > conf/agent/bootstrap.crt
+    local _maxchecks=5
+    local _checkinterval=1
+
+    for ((i=1;i<=_maxchecks;i++)); do
+        log-debug "bootstrapping $1 agent ($i of $_maxchecks max)..."
+        if docker-compose exec -T "spire-server-$1" /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt; then
+            return
+        fi
+
+        sleep "${_checkinterval}"
+    done
+    fail-now "timed out waiting for server to start"
 }
 
 start-old-agent() {
