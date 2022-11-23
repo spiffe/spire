@@ -51,5 +51,5 @@ EOF
 
 make-service "" latest-local
 while read -r version; do
-  make-service gcr.io/spiffe-io/ "${version}"
+  make-service ghcr.io/spiffe/ "${version}"
 done < versions.txt
