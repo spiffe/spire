@@ -92,13 +92,12 @@ func New(cache Cache, logger hclog.Logger) Sigstore {
 }
 
 func defaultCheckOptsFunction(rekorURL url.URL) (*cosign.CheckOpts, error) {
-	if rekorURL.Host == "" {
+	switch {
+	case rekorURL.Host == "":
 		return nil, errors.New("rekor URL host is empty")
-	}
-	if rekorURL.Scheme == "" {
+	case rekorURL.Scheme == "":
 		return nil, errors.New("rekor URL scheme is empty")
-	}
-	if rekorURL.Path == "" {
+	case rekorURL.Path == "":
 		return nil, errors.New("rekor URL path is empty")
 	}
 
@@ -119,9 +118,9 @@ func defaultCheckOptsFunction(rekorURL url.URL) (*cosign.CheckOpts, error) {
 
 type sigstoreImpl struct {
 	functionHooks    sigstoreFunctionHooks
-	skippedImages    map[string]bool
+	skippedImages    map[string]struct{}
 	allowListEnabled bool
-	subjectAllowList map[string]bool
+	subjectAllowList map[string]struct{}
 	rekorURL         url.URL
 	logger           hclog.Logger
 	sigstorecache    Cache
@@ -148,14 +147,14 @@ func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName strin
 		return nil, fmt.Errorf("could not create cosign check options: %w", err)
 	}
 	sigs, ok, err := s.functionHooks.verifyFunction(ctx, ref, co)
-	if err != nil {
+	switch {
+	case err != nil:
 		return nil, fmt.Errorf("error verifying signature: %w", err)
-	}
-	if !ok {
+	case !ok:
 		return nil, fmt.Errorf("bundle not verified for %q", imageName)
+	default:
+		return sigs, nil
 	}
-
-	return sigs, nil
 }
 
 // ExtractSelectorsFromSignatures extracts selectors from a list of image signatures.
@@ -238,10 +237,10 @@ func (s *sigstoreImpl) ShouldSkipImage(imageID string) (bool, error) {
 // AddSkippedImage adds the image ID and selectors to the skip list.
 func (s *sigstoreImpl) AddSkippedImage(imageIDList []string) {
 	if s.skippedImages == nil {
-		s.skippedImages = make(map[string]bool)
+		s.skippedImages = make(map[string]struct{})
 	}
 	for _, imageID := range imageIDList {
-		s.skippedImages[imageID] = true
+		s.skippedImages[imageID] = struct{}{}
 	}
 }
 
@@ -273,9 +272,9 @@ func (s *sigstoreImpl) ValidateImage(ref name.Reference) (bool, error) {
 
 func (s *sigstoreImpl) AddAllowedSubject(subject string) {
 	if s.subjectAllowList == nil {
-		s.subjectAllowList = make(map[string]bool)
+		s.subjectAllowList = make(map[string]struct{})
 	}
-	s.subjectAllowList[subject] = true
+	s.subjectAllowList[subject] = struct{}{}
 }
 
 func (s *sigstoreImpl) ClearAllowedSubjects() {

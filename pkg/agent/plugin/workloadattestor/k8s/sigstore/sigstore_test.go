@@ -26,6 +26,7 @@ import (
 	"github.com/sigstore/cosign/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/pkg/oci"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -83,25 +84,25 @@ func TestNew(t *testing.T) {
 	}
 	sigstore := New(newcache, nil)
 
-	if sigImpObj, ok := sigstore.(*sigstoreImpl); !ok {
-		t.Errorf("object type does not match")
-	} else { // test each field manually since require.Equal does not work on function pointers
-		if &(sigImpObj.functionHooks.verifyFunction) == &(want.functionHooks.verifyFunction) {
-			t.Errorf("verify functions do not match")
-		}
-		if &(sigImpObj.functionHooks.fetchImageManifestFunction) == &(want.functionHooks.fetchImageManifestFunction) {
-			t.Errorf("fetchImageManifest functions do not match")
-		}
-		if &(sigImpObj.functionHooks.checkOptsFunction) == &(want.functionHooks.checkOptsFunction) {
-			t.Errorf("checkOptsFunction functions do not match")
-		}
-		require.Equal(t, want.skippedImages, sigImpObj.skippedImages, "skippedImages array is not empty")
-		require.Equal(t, want.allowListEnabled, sigImpObj.allowListEnabled, "allowListEnabled has wrong value")
-		require.Equal(t, want.subjectAllowList, sigImpObj.subjectAllowList, "subjectAllowList array is not empty")
-		require.Equal(t, want.rekorURL, sigImpObj.rekorURL, "rekorURL is different from rekor default")
-		require.Equal(t, want.sigstorecache, sigImpObj.sigstorecache, "sigstorecache is different from fresh object")
-		require.Equal(t, want.logger, sigImpObj.logger, "new logger is not nil")
+	require.IsType(t, &sigstoreImpl{}, sigstore)
+	sigImpObj, _ := sigstore.(*sigstoreImpl)
+
+	// test each field manually since require.Equal does not work on function pointers
+	if &(sigImpObj.functionHooks.verifyFunction) == &(want.functionHooks.verifyFunction) {
+		t.Errorf("verify functions do not match")
 	}
+	if &(sigImpObj.functionHooks.fetchImageManifestFunction) == &(want.functionHooks.fetchImageManifestFunction) {
+		t.Errorf("fetchImageManifest functions do not match")
+	}
+	if &(sigImpObj.functionHooks.checkOptsFunction) == &(want.functionHooks.checkOptsFunction) {
+		t.Errorf("checkOptsFunction functions do not match")
+	}
+	require.Equal(t, want.skippedImages, sigImpObj.skippedImages, "skippedImages array is not empty")
+	require.Equal(t, want.allowListEnabled, sigImpObj.allowListEnabled, "allowListEnabled has wrong value")
+	require.Equal(t, want.subjectAllowList, sigImpObj.subjectAllowList, "subjectAllowList array is not empty")
+	require.Equal(t, want.rekorURL, sigImpObj.rekorURL, "rekorURL is different from rekor default")
+	require.Equal(t, want.sigstorecache, sigImpObj.sigstorecache, "sigstorecache is different from fresh object")
+	require.Equal(t, want.logger, sigImpObj.logger, "new logger is not nil")
 }
 
 func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
@@ -115,6 +116,8 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 
 	defaultCheckOpts, _ := defaultCheckOptsFunction(rekorDefaultURL())
 	emptyURLCheckOpts, emptyError := defaultCheckOptsFunction(url.URL{})
+	require.Nil(t, emptyURLCheckOpts)
+	require.EqualError(t, emptyError, "rekor URL host is empty")
 
 	tests := []struct {
 		name                     string
@@ -431,14 +434,10 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				rekorURL:      tt.fields.rekorURL,
 			}
 			got, err := sigstore.FetchImageSignatures(context.Background(), tt.args.imageName)
-
-			if err != nil {
-				if !tt.wantErr {
-					t.Errorf("sigstoreImpl.FetchImageSignatures() has error, wantErr %v", tt.wantErr)
-				}
-				require.EqualError(t, err, tt.wantedErr.Error(), "sigstoreImpl.FetchImageSignatures() error = %v, wantedErr = %v", err, tt.wantedErr)
-			} else if tt.wantErr {
-				t.Errorf("sigstoreImpl.FetchImageSignatures() no error, wantErr = %v, wantedErr %v", tt.wantErr, tt.wantedErr)
+			if tt.wantErr {
+				require.EqualError(t, err, tt.wantedErr.Error())
+			} else {
+				require.NoError(t, err)
 			}
 
 			require.Equal(t, tt.want, got, "sigstoreImpl.FetchImageSignatures() = %v, want %v", got, tt.want)
@@ -670,7 +669,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 
 func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 	type fields struct {
-		skippedImages map[string](bool)
+		skippedImages map[string]struct{}
 	}
 	type args struct {
 		imageID string
@@ -685,8 +684,8 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 		{
 			name: "skipping only image in list",
 			fields: fields{
-				skippedImages: map[string]bool{
-					"sha256:sampleimagehash": true,
+				skippedImages: map[string]struct{}{
+					"sha256:sampleimagehash": struct{}{},
 				},
 			},
 			args: args{
@@ -698,10 +697,10 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 		{
 			name: "skipping image in list",
 			fields: fields{
-				skippedImages: map[string]bool{
-					"sha256:sampleimagehash":  true,
-					"sha256:sampleimagehash2": true,
-					"sha256:sampleimagehash3": true,
+				skippedImages: map[string]struct{}{
+					"sha256:sampleimagehash":  struct{}{},
+					"sha256:sampleimagehash2": struct{}{},
+					"sha256:sampleimagehash3": struct{}{},
 				},
 			},
 			args: args{
@@ -713,9 +712,9 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 		{
 			name: "image not in list",
 			fields: fields{
-				skippedImages: map[string]bool{
-					"sha256:sampleimagehash":  true,
-					"sha256:sampleimagehash3": true,
+				skippedImages: map[string]struct{}{
+					"sha256:sampleimagehash":  struct{}{},
+					"sha256:sampleimagehash3": struct{}{},
 				},
 			},
 			args: args{
@@ -738,10 +737,10 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 		{
 			name: "empty imageID",
 			fields: fields{
-				skippedImages: map[string]bool{
-					"sha256:sampleimagehash":  true,
-					"sha256:sampleimagehash2": true,
-					"sha256:sampleimagehash3": true,
+				skippedImages: map[string]struct{}{
+					"sha256:sampleimagehash":  struct{}{},
+					"sha256:sampleimagehash2": struct{}{},
+					"sha256:sampleimagehash3": struct{}{},
 				},
 			},
 			args: args{
@@ -770,7 +769,7 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 	type fields struct {
 		verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
 		fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
-		skippedImages              map[string]bool
+		skippedImages              map[string]struct{}
 	}
 	type args struct {
 		imageID []string
@@ -779,30 +778,30 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   map[string]bool
+		want   map[string]struct{}
 	}{
 		{
 			name: "add skipped image to empty map",
 			args: args{
 				imageID: []string{"sha256:sampleimagehash"},
 			},
-			want: map[string]bool{
-				"sha256:sampleimagehash": true,
+			want: map[string]struct{}{
+				"sha256:sampleimagehash": struct{}{},
 			},
 		},
 		{
 			name: "add skipped image",
 			fields: fields{
-				skippedImages: map[string]bool{
-					"sha256:sampleimagehash1": true,
+				skippedImages: map[string]struct{}{
+					"sha256:sampleimagehash1": struct{}{},
 				},
 			},
 			args: args{
 				imageID: []string{"sha256:sampleimagehash"},
 			},
-			want: map[string]bool{
-				"sha256:sampleimagehash":  true,
-				"sha256:sampleimagehash1": true,
+			want: map[string]struct{}{
+				"sha256:sampleimagehash":  struct{}{},
+				"sha256:sampleimagehash1": struct{}{},
 			},
 		},
 		{
@@ -810,25 +809,25 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 			args: args{
 				imageID: []string{"sha256:sampleimagehash", "sha256:sampleimagehash1"},
 			},
-			want: map[string]bool{
-				"sha256:sampleimagehash":  true,
-				"sha256:sampleimagehash1": true,
+			want: map[string]struct{}{
+				"sha256:sampleimagehash":  struct{}{},
+				"sha256:sampleimagehash1": struct{}{},
 			},
 		},
 		{
 			name: "add a list of skipped images to a existing map",
 			fields: fields{
-				skippedImages: map[string]bool{
-					"sha256:sampleimagehash": true,
+				skippedImages: map[string]struct{}{
+					"sha256:sampleimagehash": struct{}{},
 				},
 			},
 			args: args{
 				imageID: []string{"sha256:sampleimagehash1", "sha256:sampleimagehash2"},
 			},
-			want: map[string]bool{
-				"sha256:sampleimagehash":  true,
-				"sha256:sampleimagehash1": true,
-				"sha256:sampleimagehash2": true,
+			want: map[string]struct{}{
+				"sha256:sampleimagehash":  struct{}{},
+				"sha256:sampleimagehash1": struct{}{},
+				"sha256:sampleimagehash2": struct{}{},
 			},
 		},
 	}
@@ -851,12 +850,12 @@ func TestSigstoreimpl_ClearSkipList(t *testing.T) {
 	type fields struct {
 		verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
 		fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
-		skippedImages              map[string]bool
+		skippedImages              map[string]struct{}
 	}
 	tests := []struct {
 		name   string
 		fields fields
-		want   map[string]bool
+		want   map[string]struct{}
 	}{
 		{
 			name: "clear single image in map",
@@ -864,8 +863,8 @@ func TestSigstoreimpl_ClearSkipList(t *testing.T) {
 
 				verifyFunction:             nil,
 				fetchImageManifestFunction: nil,
-				skippedImages: map[string]bool{
-					"sha256:sampleimagehash": true,
+				skippedImages: map[string]struct{}{
+					"sha256:sampleimagehash": struct{}{},
 				},
 			},
 			want: nil,
@@ -875,9 +874,9 @@ func TestSigstoreimpl_ClearSkipList(t *testing.T) {
 			fields: fields{
 				verifyFunction:             nil,
 				fetchImageManifestFunction: nil,
-				skippedImages: map[string]bool{
-					"sha256:sampleimagehash":  true,
-					"sha256:sampleimagehash1": true,
+				skippedImages: map[string]struct{}{
+					"sha256:sampleimagehash":  struct{}{},
+					"sha256:sampleimagehash1": struct{}{},
 				},
 			},
 			want: nil,
@@ -887,7 +886,7 @@ func TestSigstoreimpl_ClearSkipList(t *testing.T) {
 			fields: fields{
 				verifyFunction:             nil,
 				fetchImageManifestFunction: nil,
-				skippedImages:              map[string]bool{},
+				skippedImages:              map[string]struct{}{},
 			},
 			want: nil,
 		},
@@ -922,7 +921,7 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 	type fields struct {
 		verifyFunction             verifyFunctionBinding
 		fetchImageManifestFunction fetchFunctionBinding
-		skippedImages              map[string]bool
+		skippedImages              map[string]struct{}
 	}
 	type args struct {
 		ref name.Reference
@@ -1027,15 +1026,12 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				},
 				skippedImages: tt.fields.skippedImages,
 			}
-			got, err := sigstore.ValidateImage(tt.args.ref)
 
-			if err != nil {
-				if !tt.wantErr {
-					t.Errorf("sigstoreImpl.ValidateImage() has error, wantErr %v", tt.wantErr)
-				}
-				require.EqualError(t, err, tt.wantedErr.Error(), "sigstoreImpl.ValidateImage() error = %v, wantedErr = %v", err, tt.wantedErr)
-			} else if tt.wantErr {
-				t.Errorf("sigstoreImpl.ValidateImage() no error, wantErr = %v, wantedErr %v", tt.wantErr, tt.wantedErr)
+			got, err := sigstore.ValidateImage(tt.args.ref)
+			if tt.wantedErr != nil {
+				require.EqualError(t, err, tt.wantedErr.Error())
+			} else {
+				require.NoError(t, err)
 			}
 
 			require.Equal(t, tt.want, got, "sigstoreImpl.ValidateImage() = %v, want %v", got, tt.want)
@@ -1047,7 +1043,7 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 
 func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 	type fields struct {
-		subjectAllowList map[string]bool
+		subjectAllowList map[string]struct{}
 	}
 	type args struct {
 		subject string
@@ -1056,7 +1052,7 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   map[string]bool
+		want   map[string]struct{}
 	}{
 		{
 			name: "add allowed subject to nil map",
@@ -1066,63 +1062,63 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 			args: args{
 				subject: "spirex@example.com",
 			},
-			want: map[string]bool{
-				"spirex@example.com": true,
+			want: map[string]struct{}{
+				"spirex@example.com": struct{}{},
 			},
 		},
 		{
 			name: "add allowed subject to empty map",
 			fields: fields{
-				subjectAllowList: map[string]bool{},
+				subjectAllowList: map[string]struct{}{},
 			},
 			args: args{
 				subject: "spirex@example.com",
 			},
-			want: map[string]bool{
-				"spirex@example.com": true,
+			want: map[string]struct{}{
+				"spirex@example.com": struct{}{},
 			},
 		},
 		{
 			name: "add allowed subject to existing map",
 			fields: fields{
-				subjectAllowList: map[string]bool{
-					"spirex1@example.com": true,
-					"spirex2@example.com": true,
-					"spirex3@example.com": true,
-					"spirex5@example.com": true,
+				subjectAllowList: map[string]struct{}{
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
 				},
 			},
 			args: args{
 				subject: "spirex4@example.com",
 			},
-			want: map[string]bool{
-				"spirex1@example.com": true,
-				"spirex2@example.com": true,
-				"spirex3@example.com": true,
-				"spirex4@example.com": true,
-				"spirex5@example.com": true,
+			want: map[string]struct{}{
+				"spirex1@example.com": struct{}{},
+				"spirex2@example.com": struct{}{},
+				"spirex3@example.com": struct{}{},
+				"spirex4@example.com": struct{}{},
+				"spirex5@example.com": struct{}{},
 			},
 		},
 		{
 			name: "add existing allowed subject to existing map",
 			fields: fields{
-				subjectAllowList: map[string]bool{
-					"spirex1@example.com": true,
-					"spirex2@example.com": true,
-					"spirex3@example.com": true,
-					"spirex4@example.com": true,
-					"spirex5@example.com": true,
+				subjectAllowList: map[string]struct{}{
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex4@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
 				},
 			},
 			args: args{
 				subject: "spirex4@example.com",
 			},
-			want: map[string]bool{
-				"spirex1@example.com": true,
-				"spirex2@example.com": true,
-				"spirex3@example.com": true,
-				"spirex4@example.com": true,
-				"spirex5@example.com": true,
+			want: map[string]struct{}{
+				"spirex1@example.com": struct{}{},
+				"spirex2@example.com": struct{}{},
+				"spirex3@example.com": struct{}{},
+				"spirex4@example.com": struct{}{},
+				"spirex5@example.com": struct{}{},
 			},
 		},
 	}
@@ -1139,23 +1135,23 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 
 func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 	type fields struct {
-		subjectAllowList map[string]bool
+		subjectAllowList map[string]struct{}
 	}
 	tests := []struct {
 		name   string
 		fields fields
-		want   map[string]bool
+		want   map[string]struct{}
 	}{
 
 		{
 			name: "clear existing map",
 			fields: fields{
-				subjectAllowList: map[string]bool{
-					"spirex1@example.com": true,
-					"spirex2@example.com": true,
-					"spirex3@example.com": true,
-					"spirex4@example.com": true,
-					"spirex5@example.com": true,
+				subjectAllowList: map[string]struct{}{
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex4@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
 				},
 			},
 			want: nil,
@@ -1163,7 +1159,7 @@ func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 		{
 			name: "clear empty map",
 			fields: fields{
-				subjectAllowList: map[string]bool{},
+				subjectAllowList: map[string]struct{}{},
 			},
 			want: nil,
 		},
@@ -1238,7 +1234,7 @@ func TestSigstoreimpl_EnableAllowSubjectList(t *testing.T) {
 func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 	type fields struct {
 		allowListEnabled bool
-		subjectAllowList map[string]bool
+		subjectAllowList map[string]struct{}
 	}
 	type args struct {
 		signature oci.Signature
@@ -1306,8 +1302,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			name: "selector from signature, not in allowlist",
 			fields: fields{
 				allowListEnabled: true,
-				subjectAllowList: map[string]bool{
-					"spirex2@example.com": true,
+				subjectAllowList: map[string]struct{}{
+					"spirex2@example.com": struct{}{},
 				},
 			},
 			args: args{
@@ -1324,8 +1320,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			name: "selector from signature, allowedlist enabled, in allowlist",
 			fields: fields{
 				allowListEnabled: true,
-				subjectAllowList: map[string]bool{
-					"spirex@example.com": true,
+				subjectAllowList: map[string]struct{}{
+					"spirex@example.com": struct{}{},
 				},
 			},
 			args: args{
@@ -1353,8 +1349,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			name: "selector from signature, allowedlist enabled, in allowlist, empty content",
 			fields: fields{
 				allowListEnabled: true,
-				subjectAllowList: map[string]bool{
-					"spirex@example.com": true,
+				subjectAllowList: map[string]struct{}{
+					"spirex@example.com": struct{}{},
 				},
 			},
 			args: args{
@@ -1575,15 +1571,12 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				logger:           hclog.Default(),
 			}
 			got, err := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID)
-			if err != nil {
-				if !tt.wantErr {
-					t.Errorf("sigstoreImpl.SelectorValuesFromSignature() has error, wantErr %v", tt.wantErr)
-				}
+			assert.Equal(t, got, tt.want, "sigstoreImpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
+			if tt.wantedErr != nil {
 				require.EqualError(t, err, tt.wantedErr.Error(), "sigstoreImpl.SelectorValuesFromSignature() error = %v, wantedErr = %v", err, tt.wantedErr)
-			} else if tt.wantErr {
-				t.Errorf("sigstoreImpl.SelectorValuesFromSignature() no error, wantErr = %v, wantedErr %v", tt.wantErr, tt.wantedErr)
+				return
 			}
-			require.Equal(t, got, tt.want, "sigstoreImpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -1591,7 +1584,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 	type fields struct {
 		functionBindings sigstoreFunctionBindings
-		skippedImages    map[string]bool
+		skippedImages    map[string]struct{}
 		rekorURL         url.URL
 	}
 
@@ -1664,8 +1657,8 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 					fetchBinding:     createNilFetchFunction(),
 					checkOptsBinding: createNilCheckOptsFunction(),
 				},
-				skippedImages: map[string]bool{
-					"docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505": true,
+				skippedImages: map[string]struct{}{
+					"docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505": struct{}{},
 				},
 				rekorURL: rekorDefaultURL(),
 			},
@@ -1871,17 +1864,22 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 				rekorURL: tt.fields.rekorURL,
 			}
 			err := sigstore.SetRekorURL(tt.args.rekorURL)
-			if err != nil {
-				if !tt.wantErr {
-					t.Errorf("sigstoreImpl.SetRekorURL() has error, wantErr %v", tt.wantErr)
-				}
+			if tt.wantedErr != nil {
 				require.EqualError(t, err, tt.wantedErr.Error(), "sigstoreImpl.SetRekorURL() error = %v, wantedErr = %v", err, tt.wantedErr)
-			} else if tt.wantErr {
-				t.Errorf("sigstoreImpl.SetRekorURL() no error, wantErr = %v, wantedErr %v", tt.wantErr, tt.wantedErr)
+			} else {
+				require.NoError(t, err)
 			}
 			require.Equal(t, sigstore.rekorURL, tt.want, "sigstoreImpl.SetRekorURL() = %v, want %v", sigstore.rekorURL, tt.want)
 		})
 	}
+}
+
+type signature struct {
+	oci.Signature
+
+	payload []byte
+	cert    *x509.Certificate
+	bundle  *bundle.RekorBundle
 }
 
 func (s signature) Payload() ([]byte, error) {
@@ -1896,9 +1894,13 @@ func (s signature) Bundle() (*bundle.RekorBundle, error) {
 	return s.bundle, nil
 }
 
+type noPayloadSignature signature
+
 func (noPayloadSignature) Payload() ([]byte, error) {
 	return nil, errors.New("no payload test")
 }
+
+type nilBundleSignature signature
 
 func (s nilBundleSignature) Payload() ([]byte, error) {
 	return s.payload, nil
@@ -1911,6 +1913,8 @@ func (s nilBundleSignature) Cert() (*x509.Certificate, error) {
 func (s nilBundleSignature) Bundle() (*bundle.RekorBundle, error) {
 	return nil, fmt.Errorf("no bundle test")
 }
+
+type noCertSignature signature
 
 func (s noCertSignature) Payload() ([]byte, error) {
 	return s.payload, nil
@@ -2000,14 +2004,6 @@ func rekorDefaultURL() url.URL {
 	}
 }
 
-type signature struct {
-	oci.Signature
-
-	payload []byte
-	cert    *x509.Certificate
-	bundle  *bundle.RekorBundle
-}
-
 type sigstoreFunctionBindings struct {
 	verifyBinding    verifyFunctionBinding
 	fetchBinding     fetchFunctionBinding
@@ -2037,9 +2033,3 @@ type verifyFunctionArguments struct {
 }
 
 type verifyFunctionBinding func(require.TestingT, *verifyFunctionArguments) verifyFunctionType
-
-type noCertSignature signature
-
-type nilBundleSignature signature
-
-type noPayloadSignature signature

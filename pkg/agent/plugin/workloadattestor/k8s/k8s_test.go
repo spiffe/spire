@@ -87,10 +87,8 @@ func TestPlugin(t *testing.T) {
 func (s *Suite) SetupTest() {
 	s.dir = s.TempDir()
 	s.writeFile(defaultTokenPath, "default-token")
-
 	s.clock = clock.NewMock(s.T())
 	s.server = nil
-
 	s.podList = nil
 	s.env = map[string]string{}
 
