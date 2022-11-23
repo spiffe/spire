@@ -53,8 +53,7 @@ following table is provided for informational purposes only:
 | ----- | ----------- |
 | spire-server-td | SHA-1 checksum of the trust domain name of the server. |
 | spire-server-id | Auto-generated ID that is unique to the server and is persisted in the _Key Metadata File_ (see the `key_metadata_file` configurable). |
-| spire-last-update | Unix time of the last time that the plugin updated the
-CryptoKey to keep it active. |
+| spire-last-update | Unix time of the last time that the plugin updated the CryptoKey to keep it active. |
 | spire-active | Indicates if the CryptoKey is still in use by the plugin. |
 
 If the _Key Metadata File_ is not found during server startup, the file is
@@ -67,7 +66,7 @@ CryptoKey detection, the plugin actively updates the `spire-last-update` label
 on all CryptoKeys managed by the server every 6 hours. The plugin periodically
 scans the CryptoKeys looking for active CryptoKeys within the trust domain that
 have a `spire-last-update` value older than two weeks and don't belong to the
-server. The corresponding CryptoKeyVersion of those stale CryptoKeys are
+server. The corresponding CryptoKeyVersions of those stale CryptoKeys are
 scheduled for destruction, and the `spire-active` label in the CryptoKey is
 updated to indicate that the CryptoKey is no longer active. Additionally, if
 the plugin detects that a CryptoKey doesn't have any enabled CryptoKeyVersions,
@@ -91,7 +90,7 @@ cloudkms.cryptoKeyVersions.viewPublicKey
 ### IAM policy
 
 Google Cloud resources are organized hierarchically, and resources inherit the
-allow policies of the parent resource. The plugin set a default IAM policy to
+allow policies of the parent resource. The plugin sets a default IAM policy to
 CryptoKeys that it creates. Alternatively, a user defined IAM policy can be
 defined.
 The effective allow policy for a CryptoKey is the union of the allow policy set
