@@ -169,7 +169,7 @@ func TestConfigure(t *testing.T) {
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "certificate and private key does not match",
+			expectMsgPrefix: "unable to load upstream CA: certificate and private key do not match",
 		},
 		{
 			test:            "additional bundle set",
