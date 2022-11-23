@@ -38,8 +38,13 @@ help:
 	@echo "                                          support 'SUITES' variable for executing specific tests"
 	@echo "                                          e.g. SUITES='windows-suites/windows-workload-attestor' make integration-windows"
 	@echo
-	@echo "$(bold)Build and test:$(reset)"
-	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, lint the code, and run unit tests"
+	@echo "$(bold)Lint:$(reset)"
+	@echo "  $(cyan)lint$(reset)                                  - lint the code and markdown files"
+	@echo "  $(cyan)lint-code$(reset)                             - lint the code"
+	@echo "  $(cyan)lint-md$(reset)                               - lint markdown files"
+	@echo
+	@echo "$(bold)Build, lint and test:$(reset)"
+	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, run linters and unit tests"
 	@echo
 	@echo "$(bold)Docker image:$(reset)"
 	@echo "  $(cyan)images$(reset)                                - build all SPIRE Docker images"
