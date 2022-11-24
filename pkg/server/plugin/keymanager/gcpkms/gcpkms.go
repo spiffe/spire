@@ -151,6 +151,9 @@ func newPlugin(
 }
 
 func (p *Plugin) Close() error {
+	if p.kmsClient == nil {
+		return nil
+	}
 	p.log.Debug("Closing the connection to the Cloud KMS API service")
 	return p.kmsClient.Close()
 }
