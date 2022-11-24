@@ -14,7 +14,6 @@ The plugin accepts the following configuration options:
 | key_metadata_file | string | yes                                   | A file path location where information about generated keys will be persisted |                                                         |
 | key_policy_file   | string | no                                    | A file path location to a custom key policy in JSON format                    | ""                                                      |
 
-
 ### Alias and Key Management
 
 The plugin assigns [aliases](https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html) to the Customer Master Keys that manages. The aliases are used to identify and name keys that are managed by the plugin.
@@ -44,55 +43,56 @@ The IAM role must have an attached policy with the following permissions:
 - `kms:UpdateAlias`
 - `kms:DeleteAlias`
 
-
 ### Key policy
+
 The plugin can generate keys using a default key policy or it can load and use a user defined policy.
 
 #### Default key policy
+
 The default key policy relies on the SPIRE Server's assumed role. Therefore, it is mandatory
 for SPIRE server to assume a role in order to use the default policy.
 
 ```json
 {
-	"Version": "2012-10-17",
-	"Statement": [
-		{
-			"Sid": "Allow full access to the SPIRE Server role",
-			"Effect": "Allow",
-			"Principal": {
-				"AWS": "arn:aws:iam::111122223333:role/example-assumed-role-name"
-			},
-			"Action": "kms:*",
-			"Resource": "*"
-		},
+    "Version": "2012-10-17",
+    "Statement": [
         {
-            "Sid": "Allow KMS console to display the key and policy",
+            "Sid": "Allow full access to the SPIRE Server role",
             "Effect": "Allow",
             "Principal": {
-                "AWS": "arn:aws:iam::111122223333:root"
+                "AWS": "arn:aws:iam::111122223333:role/example-assumed-role-name"
             },
-            "Action": [
-                            "kms:Describe*",
-                            "kms:List*",
-                            "kms:Get*"
-            ],
+            "Action": "kms:*",
             "Resource": "*"
-       }
-	]
+        },
+        {
+             "Sid": "Allow KMS console to display the key and policy",
+             "Effect": "Allow",
+             "Principal": {
+                 "AWS": "arn:aws:iam::111122223333:root"
+             },
+             "Action": [
+                 "kms:Describe*",
+                 "kms:List*",
+                 "kms:Get*"
+             ],
+             "Resource": "*"
+        }
+    ]
 }
 ```
 
 - The first statement of the policy gives the current SPIRE server assumed role full access to the CMK.
 - The second statement allows the keys and policy to be displayed in the KMS console.
 
-
 #### Custom key policy
 
 It is also possible for the user to define a custom key policy. If the configurable `key_policy_file`
 is set, the plugin uses the policy defined in the file instead of the default policy.
+
 ## Sample Plugin Configuration
 
-```
+```hcl
 KeyManager "aws_kms" {
     plugin_data {        
         region = "us-east-2"

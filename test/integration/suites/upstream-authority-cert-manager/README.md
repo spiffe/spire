@@ -1,6 +1,5 @@
 # Upstream Authority cert-manager Suite
 
-
 ## Description
 
 This suite sets up a Kubernetes cluster using [Kind](https://kind.sigs.k8s.io),

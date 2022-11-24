@@ -38,8 +38,13 @@ help:
 	@echo "                                          support 'SUITES' variable for executing specific tests"
 	@echo "                                          e.g. SUITES='windows-suites/windows-workload-attestor' make integration-windows"
 	@echo
-	@echo "$(bold)Build and test:$(reset)"
-	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, lint the code, and run unit tests"
+	@echo "$(bold)Lint:$(reset)"
+	@echo "  $(cyan)lint$(reset)                                  - lint the code and markdown files"
+	@echo "  $(cyan)lint-code$(reset)                             - lint the code"
+	@echo "  $(cyan)lint-md$(reset)                               - lint markdown files"
+	@echo
+	@echo "$(bold)Build, lint and test:$(reset)"
+	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, run linters and unit tests"
 	@echo
 	@echo "$(bold)Docker image:$(reset)"
 	@echo "  $(cyan)images$(reset)                                - build all SPIRE Docker images"
@@ -128,6 +133,9 @@ golangci_lint_version = v1.50.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
+
+markdown_lint_version = v0.32.2
+markdown_lint_image = ghcr.io/igorshubovych/markdownlint-cli:$(markdown_lint_version)
 
 protoc_version = 3.20.1
 ifeq ($(os1),windows)
@@ -417,11 +425,13 @@ endif
 	@echo "Ensuring git repository is clean..."
 	$(E)$(MAKE) git-clean-check
 
-lint: lint-code
+lint: lint-code lint-md
 
 lint-code: $(golangci_lint_bin)
 	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run ./...
 
+lint-md:
+	$(E)docker run -v "$(DIR):/workdir" $(markdown_lint_image) "**/*.md"
 
 #############################################################################
 # Code Generation
