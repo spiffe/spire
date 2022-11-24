@@ -83,7 +83,7 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 func prettyPrintSet(env *common_cli.Env, results ...interface{}) error {
 	setResp, ok := results[0].(*bundlev1.BatchSetFederatedBundleResponse)
 	if !ok {
-		return errors.New("internal error: cli printer; please report this bug")
+		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 	result := setResp.Results[0]
 	switch result.Status.Code {

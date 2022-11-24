@@ -2,7 +2,6 @@ package bundle
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 
@@ -83,5 +82,5 @@ func (c *listCommand) prettyPrintList(env *commoncli.Env, results ...interface{}
 		return printBundleWithFormat(env.Stdout, resp, c.bundleFormat, false)
 	}
 
-	return errors.New("internal error: cli printer; please report this bug")
+	return cliprinter.ErrInternalCustomPrettyFunc
 }

@@ -2,7 +2,6 @@ package bundle
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 
@@ -55,7 +54,7 @@ func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 func (c *showCommand) prettyPrintBundle(env *common_cli.Env, results ...interface{}) error {
 	showResp, ok := results[0].(*types.Bundle)
 	if !ok {
-		return errors.New("internal error: cli printer; please report this bug")
+		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 	return printBundleWithFormat(env.Stdout, showResp, c.bundleFormat, false)
 }
