@@ -30,7 +30,7 @@ The following configuration uploads bundle contents to the `spire-bundle.pem`
 object in the `my-bucket` bucket. The bundle is uploaded using Application
 Default Credentials available in the environment SPIRE server is running in.
 
-```
+```hcl
     Notifier "gcs_bundle" {
         plugin_data {
             bucket = "my-bucket"
@@ -45,7 +45,7 @@ The following configuration uploads bundle contents to the `spire-bundle.pem`
 object in the `my-bucket` bucket. The bundle is uploaded using Service Account
 credentials found in the `/path/to/service/account/file` file.
 
-```
+```hcl
     Notifier "gcs_bundle" {
         plugin_data {
             bucket = "my-bucket"

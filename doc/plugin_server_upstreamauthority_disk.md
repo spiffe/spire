@@ -36,7 +36,7 @@ Key files must contain a single PEM encoded key. The supported key types are EC 
 
 A sample configuration:
 
-```
+```hcl
     UpstreamAuthority "disk" {
         plugin_data {
             cert_file_path = "conf/server/dummy_upstream_ca.crt"

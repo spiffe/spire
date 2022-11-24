@@ -1,4 +1,6 @@
-# Scalability
+# Scaling SPIRE
+
+## Scalability
 
 A SPIRE deployment has the capacity to be changed in size or scale to accommodate a growing amount of workloads. A SPIRE deployment is composed of a number of one or more SPIRE Servers that share a replicated datastore, or conversely, a set of SPIRE servers in the same trust domain, and at least one SPIRE Agent, but typically more than one.
 
@@ -6,7 +8,7 @@ Deployments range in size. A single SPIRE Server may accommodate a number of Age
 
 To support larger numbers of Agents and Workloads within a given deployment (tens of thousands or hundreds of thousands of nodes), the number of SPIRE Servers can be scaled horizontally. With multiple servers, the amount of computational work that a SPIRE Server performs is distributed between all SPIRE Server instances. In addition to additional capacity, the use of more than one SPIRE Server instance eliminates single points of failure to achieve high availability.
 
-## SPIRE Servers in High Availability Mode
+### SPIRE Servers in High Availability Mode
 
 ![Diagram of High Availability](/doc/images/ha_mode.png)
 
@@ -16,7 +18,7 @@ The datastore is where SPIRE Server persists dynamic configuration information s
 
 In High Availability mode, each server maintains its own Certificate Authority, which may be either self-signed certificates or an intermediate certificate off of a shared root authority (i.e. when configured with an UpstreamAuthority).
 
-# Choosing a SPIRE Deployment Topology
+## Choosing a SPIRE Deployment Topology
 
 There are three main SPIRE deployment topologies:
 
@@ -26,7 +28,7 @@ There are three main SPIRE deployment topologies:
 
 Factors such as administrative domain boundaries, number of workloads, availability requirements, number of cloud vendors, and authentication requirements determine the appropriate topology for your environment, as explained below.
 
-## Single Trust Domain
+### Single Trust Domain
 
 ![Diagram of Single Trust Domain](/doc/images/single_trust_domain.png)
 
@@ -34,8 +36,7 @@ A single trust domain is best suited for individual environments or environments
 
 However, when deploying a single SPIRE trust domain to span regions, platforms, and cloud provider environments, there is a level of complexity associated with managing a shared datastore across geographically dispersed locations or across cloud provider boundaries. Under these circumstances when a deployment grows to span multiple environments, a solution to address the use of a shared datastore over a single trust domain is to configure SPIRE Servers in a nested topology.
 
-## Nested SPIRE
-
+### Nested SPIRE
 
 ![Diagram of Nested SPIRE](/doc/images/nested_spire.png)
 
@@ -51,7 +52,7 @@ The Nested topology is well suited for multi-cloud deployments. Due to the abili
 
 Complementary to scaling SPIRE Servers horizontally for high availability and load-balancing, a nested topology may be used as a containment strategy to segment failure domains.
 
-## Federated SPIRE
+### Federated SPIRE
 
 ![Diagram of Federated SPIRE](/doc/images/federated_spire.png)
 
@@ -61,13 +62,13 @@ Another use case is SPIFFE interoperability between organizations, such as betwe
 
 These multiple trust domain and interoperability use cases both require a well-defined, interoperable method for a Workload in one trust domain to authenticate a Workload in a different trust domain. Trust between the different trust domains is established by first authenticating the respective bundle endpoint, followed by retrieval of the foreign trust domain bundle via the authenticated endpoint.
 
-For additional detail on how this is achieved, refer to the following SPIFFE spec that describes the mechanism: https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#5-spiffe-bundle-endpoint
+For additional detail on how this is achieved, refer to the following SPIFFE spec that describes the mechanism: <https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#5-spiffe-bundle-endpoint>
 
-For a tutorial on configuring Federated SPIRE, refer to: https://github.com/spiffe/spire-tutorials/tree/main/docker-compose/federation
+For a tutorial on configuring Federated SPIRE, refer to: <https://github.com/spiffe/spire-tutorials/tree/main/docker-compose/federation>
 
-# Interaction with External Systems
+## Interaction with External Systems
 
-## Federation with "SPIFFE-Compatible" Systems
+### Federation with "SPIFFE-Compatible" Systems
 
 ![Diagram of Federated with SPIFFE-Compatible Systems](/doc/images/spiffe_compatible.png)
 
@@ -75,7 +76,7 @@ SPIFFE identity issuers can federate with other SPIFFE identity issuers that exp
 
 For example, in current Istio, all applications on the service mesh are in the same trust domain thus share a common root of trust. There may be more than one service mesh, or applications in the service mesh communicating to external services that need to be authenticated. The use of Federation enables SPIFFE-compatible systems such as multiple Istio service meshes to securely establish trust for secure cross-mesh and off-mesh communications.
 
-## Federation with OIDC-Provider Systems
+### Federation with OIDC-Provider Systems
 
 ![Diagram of Federated with SPIFFE-Compatible Systems](/doc/images/oidc_federation.png)
 
@@ -84,11 +85,11 @@ SPIRE has a feature to programmatically authenticate on behalf of identified wor
 The SPIRE OIDC Discovery Provider retrieves a WebPKI certificate using the ACME protocol, which it uses to secure an endpoint that serves an OIDC compatible JWKS bundle and a standard OIDC discovery document. The remote OIDC authenticated service needs then to be configured to locate the endpoint and qualify the WebPKI service.   Once this configuration is in place, the remote system’s IAM policies and roles can be set to map to specific SPIFFE IDs.  The workload, in turn, will talk to the OIDC-authenticated system by sending a JWT-SVID.  The target system then fetches a JWKS from the pre-defined URI which is served by the OIDC Discovery Provider.  The target system uses the JWKS file to validate the  JWT-SVID, and if the SPIFFE ID contained within the JWT-SVID is authorized to access the requested resource, it serves the request.  The workload is then able to access the foreign remote service without possessing any credentials provided by it.
 
 For a configuration reference on the OIDC Discovery Provider, see:
-https://github.com/spiffe/spire/tree/main/support/oidc-discovery-provider
+<https://github.com/spiffe/spire/tree/main/support/oidc-discovery-provider>
 
-For a detailed tutorial on configuring OIDC Federation to Amazon Web Services, refer to: https://spiffe.io/spire/try/oidc-federation-aws/
+For a detailed tutorial on configuring OIDC Federation to Amazon Web Services, refer to: <https://spiffe.io/spire/try/oidc-federation-aws/>
 
-# Deployment Sizing Considerations
+## Deployment Sizing Considerations
 
 Factors to consider when sizing a SPIRE deployment for optimum performance include, but are not limited to, the following:
 

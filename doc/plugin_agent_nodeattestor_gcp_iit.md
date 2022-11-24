@@ -4,7 +4,6 @@
 
 The `gcp_iit` plugin automatically attests instances using the [GCP Instance Identity Token](https://cloud.google.com/compute/docs/instances/verifying-instance-identity). It also allows an operator to use GCP Instance IDs when defining SPIFFE ID attestation policies.
 
-
 | Configuration       | Description                                                                                                                       | Default                    |
 |---------------------|-----------------------------------------------------------------------------------------------------------------------------------|----------------------------|
 | identity_token_host | Host where an [identity token](https://cloud.google.com/compute/docs/instances/verifying-instance-identity) can be retrieved from | `metadata.google.internal` |
@@ -12,10 +11,11 @@ The `gcp_iit` plugin automatically attests instances using the [GCP Instance Ide
 
 A sample configuration:
 
-```
+```hcl
     NodeAttestor "gcp_iit" {
         plugin_data {
             identity_token_host = "metadata.google.internal"
             service_account = "XXX@developer.gserviceaccount.com"
         }
     }
+```

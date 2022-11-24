@@ -15,8 +15,6 @@ The `sql` plugin implements SQL based data storage for the SPIRE server using SQ
 | conn_max_lifetime    | The maximum amount of time a connection may be reused (default: unlimited)                                                                                                                                                                                                         |
 | disable_migration    | True to disable auto-migration functionality. Use of this flag allows finer control over when datastore migrations occur and coordination of the migration of a datastore shared with a SPIRE Server cluster. Only available for databases from SPIRE Code version 0.9.0 or later. |
 
-
-
 For more information on the `max_open_conns`, `max_idle_conns`, and `conn_max_lifetime`, refer to the
 documentation for the Go [`database/sql`](https://golang.org/pkg/database/sql/#DB) package.
 
@@ -25,12 +23,14 @@ documentation for the Go [`database/sql`](https://golang.org/pkg/database/sql/#D
 ### `database_type = "sqlite3"`
 
 Save database in file:
-```
+
+```hcl
 connection_string="DATABASE_FILE.db"
 ```
 
 Save database in memory:
-```
+
+```hcl
 connection_string="file:memdb?mode=memory&cache=shared"
 ```
 
@@ -38,7 +38,7 @@ If you are compiling SPIRE from source, please see [SQLite and CGO](#sqlite-and-
 
 #### Sample configuration
 
-```
+```hcl
     DataStore "sql" {
         plugin_data {
             database_type = "sqlite3"
@@ -53,11 +53,12 @@ The `connection_string` for the PostreSQL database connection consists of the nu
 
 For example:
 
-```
+```hcl
 connection_string="dbname=postgres user=postgres password=password host=localhost sslmode=disable"
 ```
 
 #### Configuration Options
+
 * dbname - The name of the database to connect to
 * user - The user to sign in as
 * password - The user's password
@@ -75,6 +76,7 @@ connection_string="dbname=postgres user=postgres password=password host=localhos
   must contain PEM encoded data.
 
 #### Valid sslmode configurations
+
 * disable - No SSL
 * require - Always SSL (skip verification)
 * verify-ca - Always SSL (verify that the certificate presented by the
@@ -85,7 +87,7 @@ connection_string="dbname=postgres user=postgres password=password host=localhos
 
 #### Sample configuration
 
-```
+```hcl
     DataStore "sql" {
         plugin_data {
             database_type = "postgres"
@@ -98,19 +100,20 @@ connection_string="dbname=postgres user=postgres password=password host=localhos
 
 The `connection_string` for the MySQL database connection consists of the number of configuration options (optional parts marked by square brackets):
 
-````
+```text
 username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
-````
+```
 
 For example:
 
-```
+```hcl
 connection_string="username:password@tcp(localhost:3306)/dbname?parseTime=true"
 ```
 
 Consult the [MySQL driver repository](https://github.com/go-sql-driver/mysql#usage) for more `connection_string` options.
 
 #### Configuration Options
+
 * dbname - The name of the database to connect to
 * username - The user to sign in as
 * password - The user's password
@@ -121,7 +124,7 @@ If you need to use custom Root CA, just specify `root_ca_path` in the plugin con
 
 #### Sample configuration
 
-```
+```hcl
     DataStore "sql" {
         plugin_data {
             database_type = "mysql"
@@ -131,6 +134,7 @@ If you need to use custom Root CA, just specify `root_ca_path` in the plugin con
 ```
 
 #### Read Only connection
+
 Read Only connection will be used when the optional `ro_connection_string` is set. The formatted string takes the same form as connection_string. This option is not applicable for SQLite3.
 
 ## SQLite and CGO
