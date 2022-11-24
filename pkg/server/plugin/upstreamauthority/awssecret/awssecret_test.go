@@ -260,10 +260,10 @@ func TestMintX509CA(t *testing.T) {
 		AssumeRoleARN:   "assume_role_arn",
 	}
 
-	extraBundleConfiguration := &Configuration{
+	withBundleConfiguration := &Configuration{
 		Region:          "region_1",
-		CertFileARN:     "cert",
-		KeyFileARN:      "key",
+		CertFileARN:     "intermediate_cert",
+		KeyFileARN:      "intermediate_key",
 		BundleFileARN:   "bundle",
 		AccessKeyID:     "access_key_id",
 		SecretAccessKey: "secret_access_key",
@@ -281,6 +281,7 @@ func TestMintX509CA(t *testing.T) {
 		expectX509CASpiffeID    string
 		expectedX509Authorities []*x509.Certificate
 		expectTTL               time.Duration
+		numExpectedCAs          int
 	}{
 		{
 			test:                    "valid CSR",
@@ -290,14 +291,16 @@ func TestMintX509CA(t *testing.T) {
 			expectTTL:               x509svid.DefaultUpstreamCATTL + time.Hour,
 			expectX509CASpiffeID:    "spiffe://example.org",
 			expectedX509Authorities: x509Authority,
+			numExpectedCAs:          1,
 		},
 		{
-			test:                    "extra bundle",
-			configuration:           extraBundleConfiguration,
+			test:                    "CA is intermediate",
+			configuration:           withBundleConfiguration,
 			csr:                     makeCSR("spiffe://example.org"),
 			expectTTL:               x509svid.DefaultUpstreamCATTL,
 			expectX509CASpiffeID:    "spiffe://example.org",
-			expectedX509Authorities: append(x509Authority, extraAuthority...),
+			expectedX509Authorities: x509Authority,
+			numExpectedCAs:          2,
 		},
 		{
 			test:                    "using default ttl",
@@ -306,6 +309,7 @@ func TestMintX509CA(t *testing.T) {
 			expectTTL:               x509svid.DefaultUpstreamCATTL,
 			expectX509CASpiffeID:    "spiffe://example.org",
 			expectedX509Authorities: x509Authority,
+			numExpectedCAs:          1,
 		},
 		{
 			test:            "configuration fail",
@@ -356,7 +360,7 @@ func TestMintX509CA(t *testing.T) {
 				return
 			}
 
-			if assert.Len(t, x509CA, 1, "only expect 1 x509CA") {
+			if assert.Len(t, x509CA, tt.numExpectedCAs, "only expecting %d x509CA", tt.numExpectedCAs) {
 				cert := x509CA[0]
 				// assert key
 				isEqual, err := cryptoutil.PublicKeyEqual(cert.PublicKey, key.Public())
@@ -366,6 +370,11 @@ func TestMintX509CA(t *testing.T) {
 				// assert ttl
 				ttl := cert.NotAfter.Sub(clk.Now())
 				assert.Equal(t, tt.expectTTL, ttl, "TTL does not match")
+
+				// assert expected intermediate is in chain
+				if tt.configuration.CertFileARN == "intermediate_cert" {
+					assert.Equal(t, certsAndKeys.intermediateCert, x509CA[1])
+				}
 
 				// assert CA has expected SpiffeID
 				assert.Equal(t, tt.expectX509CASpiffeID, cert.URIs[0].String())

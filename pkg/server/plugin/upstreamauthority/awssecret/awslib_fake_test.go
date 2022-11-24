@@ -25,9 +25,11 @@ type fakeSecretsManagerClient struct {
 }
 
 type testKeysAndCerts struct {
-	rootKey        *ecdsa.PrivateKey
-	rootCert       *x509.Certificate
-	alternativeKey *ecdsa.PrivateKey
+	rootKey          *ecdsa.PrivateKey
+	rootCert         *x509.Certificate
+	alternativeKey   *ecdsa.PrivateKey
+	intermediateKey  *ecdsa.PrivateKey
+	intermediateCert *x509.Certificate
 }
 
 func (sm *fakeSecretsManagerClient) GetSecretValue(ctx context.Context, input *secretsmanager.GetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
@@ -46,22 +48,30 @@ func generateTestData(t *testing.T, clk clock.Clock) (*testKeysAndCerts, func(co
 	rootKey := keys.NewEC256(t)
 	rootCertificate := createCertificate(t, clk, "spiffe://root", rootKey, nil, nil)
 
+	intermediateKey := keys.NewEC256(t)
+	intermediateCertificate := createCertificate(t, clk, "spiffe://intermediate", intermediateKey, rootCertificate, rootKey)
+
 	alternativeKey := keys.NewEC256(t)
 
 	sm := new(fakeSecretsManagerClient)
 
 	sm.storage = map[string]string{
-		"cert":            certToPEMstr(rootCertificate),
-		"key":             keyToPEMstr(t, rootKey),
-		"alternative_key": keyToPEMstr(t, alternativeKey),
-		"invalid_cert":    "no a certificate",
-		"invalid_key":     "no a key",
+		"cert":              certToPEMstr(rootCertificate),
+		"key":               keyToPEMstr(t, rootKey),
+		"alternative_key":   keyToPEMstr(t, alternativeKey),
+		"bundle":            certToPEMstr(rootCertificate),
+		"intermediate_cert": certToPEMstr(intermediateCertificate),
+		"intermediate_key":  keyToPEMstr(t, intermediateKey),
+		"invalid_cert":      "no a certificate",
+		"invalid_key":       "no a key",
 	}
 
 	keysAndCerts := &testKeysAndCerts{
-		rootKey:        rootKey,
-		rootCert:       rootCertificate,
-		alternativeKey: alternativeKey,
+		rootKey:          rootKey,
+		rootCert:         rootCertificate,
+		alternativeKey:   alternativeKey,
+		intermediateKey:  intermediateKey,
+		intermediateCert: intermediateCertificate,
 	}
 
 	makeSecretsManagerClient := func(ctx context.Context, config *Configuration, region string) (secretsManagerClient, error) {
