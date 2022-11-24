@@ -9,7 +9,8 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 
 	"golang.org/x/net/context"
@@ -19,11 +20,11 @@ const listEntriesRequestPageSize = 500
 
 // NewShowCommand creates a new "show" subcommand for "entry" command.
 func NewShowCommand() cli.Command {
-	return newShowCommand(common_cli.DefaultEnv)
+	return newShowCommand(commoncli.DefaultEnv)
 }
 
-func newShowCommand(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(showCommand))
+func newShowCommand(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &showCommand{env: env})
 }
 
 type showCommand struct {
@@ -51,6 +52,10 @@ type showCommand struct {
 
 	// Match used when filtering by selectors
 	matchSelectorsOn string
+
+	printer cliprinter.Printer
+
+	env *commoncli.Env
 }
 
 func (c *showCommand) Name() string {
@@ -70,23 +75,23 @@ func (c *showCommand) AppendFlags(f *flag.FlagSet) {
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
 	f.StringVar(&c.matchFederatesWithOn, "matchFederatesWithOn", "superset", "The match mode used when filtering by federates with. Options: exact, any, superset and subset")
 	f.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintShow)
 }
 
 // Run executes all logic associated with a single invocation of the
 // `spire-server entry show` CLI command
-func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	if err := c.validate(); err != nil {
 		return err
 	}
 
-	entries, err := c.fetchEntries(ctx, serverClient.NewEntryClient())
+	resp, err := c.fetchEntries(ctx, serverClient.NewEntryClient())
 	if err != nil {
 		return err
 	}
 
-	commonutil.SortTypesEntries(entries)
-	printEntries(entries, env)
-	return nil
+	commonutil.SortTypesEntries(resp.Entries)
+	return c.printer.PrintProto(resp)
 }
 
 // validate ensures that the values in showCommand are valid
@@ -101,14 +106,16 @@ func (c *showCommand) validate() error {
 	return nil
 }
 
-func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClient) ([]*types.Entry, error) {
+func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClient) (*entryv1.ListEntriesResponse, error) {
+	listResp := &entryv1.ListEntriesResponse{}
 	// If an Entry ID was specified, look it up directly
 	if c.entryID != "" {
 		entry, err := c.fetchByEntryID(ctx, c.entryID, client)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching entry ID %s: %w", c.entryID, err)
 		}
-		return []*types.Entry{entry}, nil
+		listResp.Entries = append(listResp.Entries, entry)
+		return listResp, nil
 	}
 
 	filter := &entryv1.ListEntriesRequest_Filter{}
@@ -161,7 +168,6 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 	}
 
 	pageToken := ""
-	var entries []*types.Entry
 
 	for {
 		resp, err := client.ListEntries(ctx, &entryv1.ListEntriesRequest{
@@ -172,13 +178,13 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 		if err != nil {
 			return nil, fmt.Errorf("error fetching entries: %w", err)
 		}
-		entries = append(entries, resp.Entries...)
+		listResp.Entries = append(listResp.Entries, resp.Entries...)
 		if pageToken = resp.NextPageToken; pageToken == "" {
 			break
 		}
 	}
 
-	return entries, nil
+	return listResp, nil
 }
 
 // fetchByEntryID uses the configured EntryID to fetch the appropriate registration entry
@@ -191,7 +197,7 @@ func (c *showCommand) fetchByEntryID(ctx context.Context, id string, client entr
 	return entry, nil
 }
 
-func printEntries(entries []*types.Entry, env *common_cli.Env) {
+func printEntries(entries []*types.Entry, env *commoncli.Env) {
 	msg := fmt.Sprintf("Found %v ", len(entries))
 	msg = util.Pluralizer(msg, "entry", "entries", len(entries))
 
@@ -229,4 +235,13 @@ func parseToFederatesWithMatch(match string) (types.FederatesWithMatch_MatchBeha
 	default:
 		return types.FederatesWithMatch_MATCH_SUPERSET, fmt.Errorf("match behavior %q unknown", match)
 	}
+}
+
+func prettyPrintShow(env *commoncli.Env, results ...interface{}) error {
+	listResp, ok := results[0].(*entryv1.ListEntriesResponse)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
+	printEntries(listResp.Entries, env)
+	return nil
 }
