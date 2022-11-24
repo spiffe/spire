@@ -1,7 +1,6 @@
 package entry
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 
@@ -57,7 +56,7 @@ func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
 func (c *countCommand) prettyPrintCount(env *commoncli.Env, results ...interface{}) error {
 	countResp, ok := results[0].(*entryv1.CountEntriesResponse)
 	if !ok {
-		return errors.New("internal error: cli printer; please report this bug")
+		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 	count := int(countResp.Count)
 	msg := fmt.Sprintf("%d registration ", count)

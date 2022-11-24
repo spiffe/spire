@@ -241,7 +241,7 @@ func prettyPrintUpdate(env *commoncli.Env, results ...interface{}) error {
 	var succeeded, failed []*entryv1.BatchUpdateEntryResponse_Result
 	updateResp, ok := results[0].(*entryv1.BatchUpdateEntryResponse)
 	if !ok {
-		return errors.New("internal error: cli printer; please report this bug")
+		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 
 	for _, r := range updateResp.Results {

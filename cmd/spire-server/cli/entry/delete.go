@@ -70,7 +70,7 @@ func (c *deleteCommand) validate() error {
 func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...interface{}) error {
 	deleteResp, ok := results[0].(*entryv1.BatchDeleteEntryResponse)
 	if !ok {
-		return errors.New("internal error: cli printer; please report this bug")
+		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 
 	sts := deleteResp.Results[0].Status
