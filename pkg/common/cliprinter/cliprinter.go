@@ -1,6 +1,7 @@
 package cliprinter
 
 import (
+	"errors"
 	"io"
 
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
@@ -27,6 +28,9 @@ type Printer interface {
 // custom pretty printer that mirrors its current behavior, but
 // still be able to gain formatter functionality for other outputs.
 type CustomPrettyFunc func(*commoncli.Env, ...interface{}) error
+
+// ErrInternalCustomPrettyFunc should be returned by a CustomPrettyFunc when some internal error occurs.
+var ErrInternalCustomPrettyFunc = errors.New("internal error: cli printer; please report this bug")
 
 type printer struct {
 	format formatType
