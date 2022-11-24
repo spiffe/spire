@@ -8,14 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -26,6 +25,8 @@ import (
 )
 
 func TestConfigure(t *testing.T) {
+	clk := clock.NewMock(t)
+	_, fakeStorageClientCreator := generateTestData(t, clk)
 	for _, tt := range []struct {
 		test               string
 		overrideCoreConfig *catalog.CoreConfig
@@ -201,8 +202,8 @@ func TestConfigure(t *testing.T) {
 			}
 
 			p := new(Plugin)
-			p.hooks.clock = clock.NewMock()
-			p.hooks.newClient = newFakeSecretsManagerClient
+			p.hooks.clock = clk
+			p.hooks.newClient = fakeStorageClientCreator
 
 			plugintest.Load(t, builtin(p), nil, options...)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
@@ -212,10 +213,10 @@ func TestConfigure(t *testing.T) {
 
 func TestMintX509CA(t *testing.T) {
 	key := testkey.NewEC256(t)
-	clk := clock.NewMock()
+	clk := clock.NewMock(t)
+	certsAndKeys, fakeStorageClientCreator := generateTestData(t, clk)
 
-	x509Authority, err := pemutil.LoadCertificates("testdata/keys/EC/cert.pem")
-	require.NoError(t, err, "failed to load X509 Authority from disk")
+	x509Authority := []*x509.Certificate{certsAndKeys.rootCert}
 
 	makeCSR := func(spiffeID string) []byte {
 		csr, err := util.NewCSRTemplateWithKey(spiffeID, key)
@@ -282,7 +283,7 @@ func TestMintX509CA(t *testing.T) {
 			p.hooks.getenv = func(s string) string {
 				return ""
 			}
-			p.hooks.newClient = newFakeSecretsManagerClient
+			p.hooks.newClient = fakeStorageClientCreator
 
 			var err error
 			options := []plugintest.Option{
@@ -336,9 +337,11 @@ func TestMintX509CA(t *testing.T) {
 }
 
 func TestPublishJWTKey(t *testing.T) {
+	clk := clock.NewMock(t)
+	_, fakeStorageClientCreator := generateTestData(t, clk)
 	p := new(Plugin)
-	p.hooks.clock = clock.NewMock()
-	p.hooks.newClient = newFakeSecretsManagerClient
+	p.hooks.clock = clk
+	p.hooks.newClient = fakeStorageClientCreator
 
 	ua := new(upstreamauthority.V1)
 	plugintest.Load(t, builtin(p), ua,
