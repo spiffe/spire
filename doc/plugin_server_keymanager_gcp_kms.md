@@ -78,7 +78,11 @@ The plugin requires the following IAM permissions be granted to the
 authenticated service account in the configured key ring:
 
 ```text
-cloudkms.cryptoKeys.*
+cloudkms.cryptoKeys.create
+cloudkms.cryptoKeys.getIamPolicy
+cloudkms.cryptoKeys.list
+cloudkms.cryptoKeys.setIamPolicy
+cloudkms.cryptoKeys.update
 cloudkms.cryptoKeyVersions.create
 cloudkms.cryptoKeyVersions.destroy
 cloudkms.cryptoKeyVersions.get
