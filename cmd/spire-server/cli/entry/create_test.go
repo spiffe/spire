@@ -151,52 +151,63 @@ func TestCreate(t *testing.T) {
 		fakeResp  *entryv1.BatchCreateEntryResponse
 		serverErr error
 
-		expOut string
-		expErr string
+		expOutPretty string
+		expOutJSON   string
+		expErrJSON   string
+		expErrPretty string
 	}{
 		{
-			name:   "Missing selectors",
-			expErr: "Error: at least one selector is required\n",
+			name:         "Missing selectors",
+			expErrPretty: "Error: at least one selector is required\n",
+			expErrJSON:   "Error: at least one selector is required\n",
 		},
 		{
-			name:   "Missing parent SPIFFE ID",
-			args:   []string{"-selector", "unix:uid:1"},
-			expErr: "Error: a parent ID is required if the node flag is not set\n",
+			name:         "Missing parent SPIFFE ID",
+			args:         []string{"-selector", "unix:uid:1"},
+			expErrPretty: "Error: a parent ID is required if the node flag is not set\n",
+			expErrJSON:   "Error: a parent ID is required if the node flag is not set\n",
 		},
 		{
-			name:   "Missing SPIFFE ID",
-			args:   []string{"-selector", "unix:uid:1", "-parentID", "spiffe://example.org/parent"},
-			expErr: "Error: a SPIFFE ID is required\n",
+			name:         "Missing SPIFFE ID",
+			args:         []string{"-selector", "unix:uid:1", "-parentID", "spiffe://example.org/parent"},
+			expErrPretty: "Error: a SPIFFE ID is required\n",
+			expErrJSON:   "Error: a SPIFFE ID is required\n",
 		},
 		{
-			name:   "Wrong selectors",
-			args:   []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload"},
-			expErr: "Error: selector \"unix\" must be formatted as type:value\n",
+			name:         "Wrong selectors",
+			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload"},
+			expErrPretty: "Error: selector \"unix\" must be formatted as type:value\n",
+			expErrJSON:   "Error: selector \"unix\" must be formatted as type:value\n",
 		},
 		{
-			name:   "Negative TTL",
-			args:   []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "-10"},
-			expErr: "Error: a positive TTL is required\n",
+			name:         "Negative TTL",
+			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "-10"},
+			expErrPretty: "Error: a positive TTL is required\n",
+			expErrJSON:   "Error: a positive TTL is required\n",
 		},
 		{
-			name:   "Invalid TTL and X509SvidTtl",
-			args:   []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20"},
-			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			name:         "Invalid TTL and X509SvidTtl",
+			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20"},
+			expErrPretty: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			expErrJSON:   "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
 		},
 		{
-			name:   "Invalid TTL and JwtSvidTtl",
-			args:   []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-jwtSVIDTTL", "20"},
-			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			name:         "Invalid TTL and JwtSvidTtl",
+			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-jwtSVIDTTL", "20"},
+			expErrPretty: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			expErrJSON:   "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
 		},
 		{
-			name:   "Invalid TTL and both X509SvidTtl and JwtSvidTtl",
-			args:   []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20", "-jwtSVIDTTL", "30"},
-			expErr: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			name:         "Invalid TTL and both X509SvidTtl and JwtSvidTtl",
+			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20", "-jwtSVIDTTL", "30"},
+			expErrPretty: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			expErrJSON:   "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
 		},
 		{
-			name:   "Federated node entries",
-			args:   []string{"-selector", "unix", "-spiffeID", "spiffe://example.org/workload", "-node", "-federatesWith", "spiffe://another.org"},
-			expErr: "Error: node entries can not federate\n",
+			name:         "Federated node entries",
+			args:         []string{"-selector", "unix", "-spiffeID", "spiffe://example.org/workload", "-node", "-federatesWith", "spiffe://another.org"},
+			expErrPretty: "Error: node entries can not federate\n",
+			expErrJSON:   "Error: node entries can not federate\n",
 		},
 		{
 			name: "Server error",
@@ -208,8 +219,9 @@ func TestCreate(t *testing.T) {
 					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
 				},
 			}},
-			serverErr: errors.New("server-error"),
-			expErr:    "Error: rpc error: code = Unknown desc = server-error\n",
+			serverErr:    errors.New("server-error"),
+			expErrPretty: "Error: rpc error: code = Unknown desc = server-error\n",
+			expErrJSON:   "Error: rpc error: code = Unknown desc = server-error\n",
 		},
 		{
 			name: "Create succeeds using command line arguments",
@@ -250,7 +262,7 @@ func TestCreate(t *testing.T) {
 				},
 			},
 			fakeResp: fakeRespOKFromCmd,
-			expOut: fmt.Sprintf(`Entry ID         : entry-id
+			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
@@ -268,6 +280,53 @@ Admin            : true
 StoreSvid        : true
 
 `, time.Unix(1552410266, 0).UTC()),
+			expOutJSON: `{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": {
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "zebra",
+            "value": "zebra:2000"
+          },
+          {
+            "type": "alpha",
+            "value": "alpha:2000"
+          }
+        ],
+        "x509_svid_ttl": 60,
+        "federates_with": [
+          "spiffe://domaina.test",
+          "spiffe://domainb.test"
+        ],
+        "admin": true,
+        "downstream": true,
+        "expires_at": "1552410266",
+        "dns_names": [
+          "unu1000",
+          "ung1000"
+        ],
+        "revision_number": "0",
+        "store_svid": true,
+        "jwt_svid_ttl": 30
+      }
+    }
+  ]
+}
+`,
 		},
 		{
 			name: "Create succeeds using deprecated command line arguments",
@@ -306,7 +365,7 @@ StoreSvid        : true
 				},
 			},
 			fakeResp: fakeRespOKFromCmd2,
-			expOut: fmt.Sprintf(`Entry ID         : entry-id
+			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
 Revision         : 0
@@ -324,6 +383,52 @@ Admin            : true
 StoreSvid        : true
 
 `, time.Unix(1552410266, 0).UTC()),
+			expOutJSON: `{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": {
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "zebra",
+            "value": "zebra:2000"
+          },
+          {
+            "type": "alpha",
+            "value": "alpha:2000"
+          }
+        ],
+        "x509_svid_ttl": 60,
+        "federates_with": [
+          "spiffe://domaina.test",
+          "spiffe://domainb.test"
+        ],
+        "admin": true,
+        "downstream": true,
+        "expires_at": "1552410266",
+        "dns_names": [
+          "unu1000",
+          "ung1000"
+        ],
+        "revision_number": "0",
+        "store_svid": true,
+        "jwt_svid_ttl": 0
+      }
+    }
+  ]
+}`,
 		},
 		{
 			name: "Create succeeds using data file",
@@ -361,7 +466,7 @@ StoreSvid        : true
 				},
 			},
 			fakeResp: fakeRespOKFromFile,
-			expOut: `Entry ID         : entry-id-1
+			expOutPretty: `Entry ID         : entry-id-1
 SPIFFE ID        : spiffe://example.org/Blog
 Parent ID        : spiffe://example.org/spire/agent/join_token/TokenBlog
 Revision         : 0
@@ -389,6 +494,110 @@ Selector         : type:key2:value
 StoreSvid        : true
 
 `,
+			expOutJSON: `{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": {
+        "id": "entry-id-1",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/Blog"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenBlog"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1111"
+          }
+        ],
+        "x509_svid_ttl": 200,
+        "federates_with": [],
+        "admin": true,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+        "jwt_svid_ttl": 30
+      }
+    },
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": {
+        "id": "entry-id-2",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/Database"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenDatabase"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1111"
+          }
+        ],
+        "x509_svid_ttl": 200,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+        "jwt_svid_ttl": 30
+      }
+    },
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": {
+        "id": "entry-id-3",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/storesvid"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenDatabase"
+        },
+        "selectors": [
+          {
+            "type": "type",
+            "value": "key1:value"
+          },
+          {
+            "type": "type",
+            "value": "key2:value"
+          }
+        ],
+        "x509_svid_ttl": 200,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": true,
+        "jwt_svid_ttl": 30
+      }
+    }
+  ]
+}`,
 		},
 		{
 			name: "Entry already exist",
@@ -401,7 +610,7 @@ StoreSvid        : true
 				},
 			}},
 			fakeResp: fakeRespErr,
-			expErr: `Failed to create the following entry (code: AlreadyExists, msg: "similar entry already exists"):
+			expErrPretty: `Failed to create the following entry (code: AlreadyExists, msg: "similar entry already exists"):
 Entry ID         : (none)
 SPIFFE ID        : spiffe://example.org/already-exist
 Parent ID        : spiffe://example.org/spire/server
@@ -412,24 +621,68 @@ Selector         : unix:uid:1
 
 Error: failed to create one or more entries
 `,
+			expOutJSON: `{
+  "results": [
+    {
+      "status": {
+        "code": 6,
+        "message": "similar entry already exists"
+      },
+      "entry": {
+        "id": "",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/already-exist"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/server"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1"
+          }
+        ],
+        "x509_svid_ttl": 0,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+        "jwt_svid_ttl": 0
+      }
+    }
+  ]
+}`,
 		},
 	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t, newCreateCommand)
-			test.server.err = tt.serverErr
-			test.server.expBatchCreateEntryReq = tt.expReq
-			test.server.batchCreateEntryResp = tt.fakeResp
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, newCreateCommand)
+				test.server.err = tt.serverErr
+				test.server.expBatchCreateEntryReq = tt.expReq
+				test.server.batchCreateEntryResp = tt.fakeResp
+				args := tt.args
+				args = append(args, "-output", format)
 
-			rc := test.client.Run(test.args(tt.args...))
-			if tt.expErr != "" {
-				require.Equal(t, 1, rc)
-				require.Equal(t, tt.expErr, test.stderr.String())
-				return
-			}
+				rc := test.client.Run(test.args(args...))
 
-			require.Equal(t, 0, rc)
-			require.Equal(t, tt.expOut, test.stdout.String())
-		})
+				if tt.expErrJSON != "" && format == "json" {
+					require.Equal(t, 1, rc)
+					require.Equal(t, tt.expErrJSON, test.stderr.String())
+					return
+				}
+				if tt.expErrPretty != "" && format == "pretty" {
+					require.Equal(t, 1, rc)
+					require.Equal(t, tt.expErrPretty, test.stderr.String())
+					return
+				}
+				require.Equal(t, 0, rc)
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expOutPretty, tt.expOutJSON)
+			})
+		}
 	}
 }

@@ -10,8 +10,8 @@ plugin.
 The SPIFFE ID produced by the server-side `x509pop` plugin is based on the certificate fingerprint, where the fingerprint is defined as the
 SHA1 hash of the ASN.1 DER encoding of the identity certificate. The SPIFFE ID has the form:
 
-```
-spiffe://<trust domain>/spire/agent/x509pop/<fingerprint>
+```xml
+spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 ```
 
 | Configuration        | Description                                                                                                                                                                                                                                                                                                                                                    | Default |
@@ -22,11 +22,11 @@ spiffe://<trust domain>/spire/agent/x509pop/<fingerprint>
 
 A sample configuration:
 
-```
-	NodeAttestor "x509pop" {
-		plugin_data {
-			private_key_path = "/opt/spire/conf/agent/agent.key.pem"
-			certificate_path = "/opt/spire/conf/agent/agent.crt.pem"
-		}
-	}
+```hcl
+    NodeAttestor "x509pop" {
+        plugin_data {
+            private_key_path = "/opt/spire/conf/agent/agent.key.pem"
+            certificate_path = "/opt/spire/conf/agent/agent.crt.pem"
+        }
+    }
 ```

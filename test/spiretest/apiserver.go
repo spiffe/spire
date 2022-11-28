@@ -43,7 +43,7 @@ func newAPIServer(t *testing.T, registerFn func(s *grpc.Server), server *grpc.Se
 
 	done := func() {
 		assert.NoError(t, conn.Close())
-		server.Stop()
+		server.GracefulStop()
 		err := <-errCh
 		switch {
 		case err == nil, errors.Is(err, grpc.ErrServerStopped):

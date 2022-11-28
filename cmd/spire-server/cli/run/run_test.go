@@ -639,8 +639,6 @@ func TestNewServerConfig(t *testing.T) {
 			msg: "default_svid_ttl is correctly parsed",
 			input: func(c *Config) {
 				c.Server.DefaultSVIDTTL = "1m"
-				c.Server.DefaultX509SVIDTTL = ""
-				c.Server.DefaultJWTSVIDTTL = ""
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, time.Minute, c.X509SVIDTTL)

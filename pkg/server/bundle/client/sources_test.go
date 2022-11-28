@@ -21,15 +21,15 @@ var (
 )
 
 func TestMergedTrustDomainConfigSource(t *testing.T) {
-	sourceA := client.TrustDomainConfigMap{
+	sourceA := client.NewTrustDomainConfigSet(client.TrustDomainConfigMap{
 		domain1: client.TrustDomainConfig{EndpointURL: "A"},
-	}
-	sourceB := client.TrustDomainConfigMap{
+	})
+	sourceB := client.NewTrustDomainConfigSet(client.TrustDomainConfigMap{
 		domain1: client.TrustDomainConfig{EndpointURL: "B"},
-	}
-	sourceC := client.TrustDomainConfigMap{
+	})
+	sourceC := client.NewTrustDomainConfigSet(client.TrustDomainConfigMap{
 		domain2: client.TrustDomainConfig{EndpointURL: "A"},
-	}
+	})
 
 	t.Run("context is passed through and error returned", func(t *testing.T) {
 		expectedCtx, cancel := context.WithCancel(context.Background())

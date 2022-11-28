@@ -19,7 +19,7 @@ The plugin accepts the following configuration options:
 
 Only the region, cert_file_arn, and key_file_arn must be configured. You optionally configure the remaining fields depending on how you choose to give SPIRE Server access to the ARNs.
 
-| If SPIRE Server Accesses the ARNs	                                                                                                                                                                                                                                                                    | then these additional fields are mandatory                              |
+| If SPIRE Server Accesses the ARNs                                                                                                                                                                                                                                                                     | then these additional fields are mandatory                              |
 |-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | by providing an access key id and secret access key                                                                                                                                                                                                                                                   | `access_key_id`, `secret_access_key`                                    |
 | by using temporary credentials for an IAM account (*NOTE:* It is the server user's responsibility to provide a new valid token whenever the server is started)                                                                                                                                        | `access_key_id`, `secret_access_key`, `secret_token`                    |
@@ -28,13 +28,13 @@ Only the region, cert_file_arn, and key_file_arn must be configured. You optiona
 
 Because the plugin fetches the secrets from the AWS secrets manager only at startup, automatic rotation of secrets is not advised.
 
-SPIRE Server requires that you employ a distinct Amazon Resource Name (ARN) for the CA certificate and the CA key. 
+SPIRE Server requires that you employ a distinct Amazon Resource Name (ARN) for the CA certificate and the CA key.
 
-For more information on the AWS Secrets Manager, see the [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html) documentation. 
+For more information on the AWS Secrets Manager, see the [AWS Secrets Manager](https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html) documentation.
 
 A sample configuration:
 
-```
+```hcl
     UpstreamAuthority "awssecret" {
         plugin_data {
             region = "us-west-2",

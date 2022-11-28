@@ -1,6 +1,6 @@
 # SPIRE Kubernetes Workload Registrar (CRD Mode)
 
-** The SPIRE Kubernetes Workload Registrar is deprecated and no longer maintained. Please migrate to the [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager). **
+**The SPIRE Kubernetes Workload Registrar is deprecated and no longer maintained. Please migrate to the [SPIRE Controller Manager](https://github.com/spiffe/spire-controller-manager).**
 
 The CRD mode of the SPIRE Kubernetes Workload Registrar uses a Kubernetes Custom Resource Definition (CRD) to integrate SPIRE and Kubernetes.
 This enables auto and manual generation of SPIFFE IDs from with Kubernetes and the `kubectl` CLI.
@@ -22,7 +22,6 @@ The registrar has the following command line flags:
 | Flag      | Description                                                      | Default                       |
 |-----------|------------------------------------------------------------------|-------------------------------|
 | `-config` | Path on disk to the [HCL Configuration](#hcl-configuration) file | `k8s-workload-registrar.conf` |
-
 
 ### HCL Configuration
 
@@ -60,14 +59,16 @@ The configuration file is a **required** by the registrar. It contains
 This quick start sets up the SPIRE Server, SPIRE Agent, and CRD Kubernetes Workload Registrar.
 
 1. Deploy SPIRE Server, Kubernetes Workload Registrar, SPIRE Agent, and CRD. SPIRE Server and Kubernetes Workload Registrar will be deployed in the same Pod.
-   ```
-   kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml \
+
+   ```shell
+   $ kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml \
                  -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-server-registrar.yaml \
                  -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-agent.yaml
    ```
 
 1. Verify the deployment succeeded.
-   ```
+
+   ```shell
    $ kubectl get pods -n spire
    NAME                READY   STATUS    RESTARTS   AGE
    spire-agent-4wdxx   1/1     Running   0          5m59s
@@ -85,12 +86,14 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
 ### Create a SpiffeID Resource using kubectl
 
 1. Create a SpiffeID resource.
-   ```
-   kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
+
+   ```shell
+   $ kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
    ```
 
 1. Check that the SpiffeID  resource was created.
-   ```
+
+   ```shell
    $ kubectl get spiffeids
    NAME               AGE
    my-test-spiffeid   85s
@@ -121,7 +124,8 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
    ```
 
 1. Verify the SPIFFE ID was created on the SPIRE Server
-   ```
+
+   ```shell
    $ kubectl exec spire-server-0 -n spire -c spire-server -- ./bin/spire-server entry show -spiffeID spiffe://example.org/test
    Found 1 entry
    Entry ID      : ad49519e-37a1-4de5-a661-c091d3652b9c
@@ -134,14 +138,16 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
    ```
 
 1. Delete the SpiffeID resource, the corresponding entry on the SPIRE Server will be removed.
-   ```
-   kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
+
+   ```shell
+   $ kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid.yaml
    ```
 
 ### Attempt to Deploy an Invalid SpiffeID Resource
 
 1. Apply deploy an invalid SpiffeID.
-   ```
+
+   ```shell
    $ kubectl apply -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/samples/test_spiffeid_bad.yaml
    Error from server (spec.Selector.Namespace must match namespace of resource): error when creating "test_spiffeid_bad.yaml": admission webhook "k8s-workload-registrar.nginx-mesh.svc" denied the request: spec.Selector.Namespace must match namespace of resource
    ```
@@ -152,24 +158,27 @@ Here are some examples of things you can do once the CRD Kubernetes Workload Reg
 
 To test auto-generation of SPIFFE IDs add the following label to a Pod Spec and then apply it. The format for the auto-generated SPIFFE ID in this example is `ns/<namespace>/pod/<pod-name>`.
 
-   ```
+   ```yaml
    spiffe.io/spiffe-id: true
    ```
 
 We can test this using the NGINX example deployment:
 
 1. Deploy the example NGINX deployment
-   ```
-   kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/master/content/en/examples/application/simple_deployment.yaml
+
+   ```shell
+   $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/website/master/content/en/examples/application/simple_deployment.yaml
    ```
 
 1. Add the label to the Deployment Template. This will reroll the deployment
-   ```
-   kubectl patch deployment nginx-deployment -p '{"spec":{"template":{"metadata":{"labels":{"spiffe.io/spiffe-id": "true"}}}}}'
+
+   ```shell
+   $ kubectl patch deployment nginx-deployment -p '{"spec":{"template":{"metadata":{"labels":{"spiffe.io/spiffe-id": "true"}}}}}'
    ```
 
 1. Verify the SpiffeID resource was created. The name of the SpiffeID resource will be the same as the name of the Pod.
-   ```
+
+   ```shell
    $ kubectl get spiffeids
    NAME                                AGE
    nginx-deployment-7ffbd8bd54-rcnt8   4s
@@ -246,20 +255,23 @@ We can test this using the NGINX example deployment:
    ```
 
 1. Delete the NGINX deployment, this will automatically delete the SpiffeID resource
-   ```
-   kubectl delete -f https://raw.githubusercontent.com/kubernetes/website/master/content/en/examples/application/simple_deployment.yaml
+
+   ```shell
+   $ kubectl delete -f https://raw.githubusercontent.com/kubernetes/website/master/content/en/examples/application/simple_deployment.yaml
    ```
 
 ## Deleting the Quick Start
 
 1. Delete the CRD. This needs to be done before remove the Kubernetes Workload Registrar to give the finalizers a chance to complete.
-   ```
-   kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml
+
+   ```shell
+   $ kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spiffeid.spiffe.io_spiffeids.yaml
    ```
 
 1. Delete the remaining previously applied yaml files.
-   ```
-   kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-server-registrar.yaml \
+
+   ```shell
+   $ kubectl delete -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-server-registrar.yaml \
                   -f https://raw.githubusercontent.com/spiffe/spire/main/support/k8s/k8s-workload-registrar/mode-crd/config/spire-agent.yaml
    ```
 
@@ -280,6 +292,7 @@ The template formatter is using Golang
 [text/template](https://pkg.go.dev/text/template) conventions,
 and it can reference arbitrary values provided in the `context` map of strings
 in addition to the following Pod-specific arguments:
+
 * Pod.Name
 * Pod.UID
 * Pod.Namespace
@@ -288,15 +301,18 @@ in addition to the following Pod-specific arguments:
 * Pod.NodeName
 
 For example if the registrar was configured with the following:
-```
+
+```hcl
 identity_template = "region/{{.Context.Region}}/cluster/{{.Context.ClusterName}}/sa/{{.Pod.ServiceAccount}}/pod_name/{{.Pod.Name}}"
 context {
   Region = "US-NORTH"
   ClusterName = "MYCLUSTER"
 }
 ```
+
 and the _example-workload_ pod was deployed in _production_ namespace and _myserviceacct_ service account, the following registration entry would be created:
-```
+
+```shell
 Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
 SPIFFE ID     : spiffe://example.org/region/US-NORTH/cluster/MYCLUSTER/sa/myserviceacct/pod_name/example-workload
 Parent ID     : ...
@@ -307,7 +323,7 @@ Selector      : k8s:pod-name:example-workload-98b6b79fd-jnv5m
 
 If `identity_template_label` is defined in the registrar configuration:
 
-```
+```hcl
 identity_template_label = "enable_identity_template"
 ```
 
@@ -323,6 +339,7 @@ spec:
   containers:
   ...
 ```
+
 Pods that don't contain the pod label are ignored.
 
 If `identity_template_label` is empty or omitted, all the pods will receive the identity.
@@ -335,7 +352,7 @@ was configured with the `spire-workload` label and a pod came in with
 `spire-workload=example-workload`, the following registration entry would be
 created:
 
-```
+```shell
 Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
 SPIFFE ID     : spiffe://example.org/example-workload
 Parent ID     : ...
@@ -355,7 +372,7 @@ was configured with the `spiffe.io/spiffe-id` annotation and a pod came in with
 `spiffe.io/spiffe-id: production/example-workload`, the following registration entry would be
 created:
 
-```
+```shell
 Entry ID      : 200d8b19-8334-443d-9494-f65d0ad64eb5
 SPIFFE ID     : spiffe://example.org/production/example-workload
 Parent ID     : ...
@@ -395,6 +412,7 @@ spec:
 
 If DNS names are desired for your workload, they can be specified using the `dns_name_templates` configuration option. Similar to the `identity_template` field, `dns_name_templates` uses Golang
 [text/template](https://pkg.go.dev/text/template) conventions. It can reference arbitrary values provided in the `context` map of strings, in addition to the following Pod-specific arguments:
+
 * Pod.Name
 * Pod.UID
 * Pod.Namespace
@@ -405,18 +423,20 @@ If DNS names are desired for your workload, they can be specified using the `dns
 `dns_name_templates` is a list of strings, and gets added to the `dnsNames` list in the SpiffeID CRD.
 
 For example if the registrar was configured with the following:
-```
+
+```hcl
 dns_name_templates = ["{{.Pod.ServiceAccount}}.{{.Pod.Namespace}}.svc", "{{.Context.Domain}}.{{.Pod.Name}}.svc"]
 context {
   Domain = "my-domain"
 }
 ```
+
 and the _example-workload_ pod was deployed in _production_ namespace and _myserviceacct_ service account, the following DNS names will be added to the SpiffeID CRD:
 
-- myserviceacct.production.svc
-- my-domain.example-workload.svc
+* myserviceacct.production.svc
+* my-domain.example-workload.svc
 
-<table><tr><td>Note: The first template in the list will also populate the Common Name (CN) field of the SVID.</td></tr></table>
+_Note: The first template in the list will also populate the Common Name (CN) field of the SVID._
 
 ## How it Works
 
@@ -442,9 +462,10 @@ A Validating Webhook is used to ensure SpiffeID resources are properly formatted
 The certificates for the webhook are generated by the SPIRE Server and managed by the Kubernetes Workload Registrar.
 
 ## SPIFFE ID Custom Resource Example
+
 An example SPIFFE ID custom resource is below:
 
-```
+```yaml
 apiVersion: spiffeid.spiffe.io/v1beta1
 kind: SpiffeID
 metadata:
@@ -464,22 +485,25 @@ spec:
 ```
 
 The supported selectors are:
-- arbitrary -- Arbitrary selectors
-- containerName -- Name of the container
-- containerImage -- Container image used
-- namespace -- Namespace to match for this SPIFFE ID
-- nodeName -- Node name to match for this SPIFFE ID
-- podLabel --  Pod label name/value to match for this SPIFFE ID
-- podName -- Pod name to match for this SPIFFE ID
-- podUID --  Pod UID to match for this SPIFFE ID
-- serviceAccount -- ServiceAccount to match for this SPIFFE ID
 
-Notes: 
+* arbitrary -- Arbitrary selectors
+* containerName -- Name of the container
+* containerImage -- Container image used
+* namespace -- Namespace to match for this SPIFFE ID
+* nodeName -- Node name to match for this SPIFFE ID
+* podLabel --  Pod label name/value to match for this SPIFFE ID
+* podName -- Pod name to match for this SPIFFE ID
+* podUID --  Pod UID to match for this SPIFFE ID
+* serviceAccount -- ServiceAccount to match for this SPIFFE ID
+
+Notes:
+
 * Specifying DNS Names is optional
 * Specifying downstream is optional
 * The metadata.namespace and selector.namespace must match
 
 ## CRD Security Considerations
+
 It is imperative to only grant trusted users access to manually create SpiffeID custom resources. Users with access have the ability to issue any SpiffeID
 to any pod in the namespace.
 
@@ -494,6 +518,6 @@ entries can only be consumed by workloads within that namespace.
 The k8s ValidatingWebhookConfiguration will need to be removed or pods may fail admission. If you used the default
 configuration this can be done with:
 
-```
-kubectl validatingwebhookconfiguration delete k8s-workload-registrar-webhook
+```shell
+$ kubectl validatingwebhookconfiguration delete k8s-workload-registrar-webhook
 ```

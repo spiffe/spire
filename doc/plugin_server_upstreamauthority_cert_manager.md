@@ -9,13 +9,14 @@ This plugin will request a signing certificate from cert-manager via a
 resource. Once the referenced issuer has signed the request, the intermediate
 and CA bundle is retrieved by SPIRE.
 
-# Considerations
+## Considerations
+
 This plugin requires access to a Kubernetes cluster running cert-manager and
 create CertificateRequests.
 
 Only issuers that have support for providing signing certificates are supported.
 
-# Permissions
+## Permissions
 
 The provided kubeconfig must include a Kubernetes client that has
 [create permissions for CertificateRequests](https://cert-manager.io/docs/concepts/certificaterequest/)
@@ -24,7 +25,8 @@ Kubernetes client is, as this may have implications on the [approval
 flow](https://cert-manager.io/docs/concepts/certificaterequest/#userinfo)
 if running a custom approver.
 
-# Configuration
+## Configuration
+
 This plugin requests certificates from the configured
 [cert-manager](https://cert-manager.io/docs/configuration/) issuer.
 
@@ -35,7 +37,6 @@ This plugin requests certificates from the configured
 | issuer_name      | The name of the issuer to reference in CertificateRequests.                                                                       |
 | issuer_kind      | (Optional) The kind of the issuer to reference in CertificateRequests. Defaults to "Issuer" if empty.                             |
 | issuer_group     | (Optional) The group of the issuer to reference in CertificateRequests. Defaults to "cert-manager.io" if empty.                   |
-
 
 ```hcl
 UpstreamAuthority "cert-manager" {

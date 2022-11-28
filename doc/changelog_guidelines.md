@@ -1,6 +1,7 @@
 # CHANGELOG Guidelines
 
 The following guidelines should be followed when updating the CHANGELOG:
+
 - There should be an entry for every version, that includes the version number and release date.
 - Entries should be focused on communicating user-facing changes, considering that the main consumers of the CHANGELOG are the end users of SPIRE.
 - The types of changes should be grouped using the following categories:
@@ -18,19 +19,25 @@ The following is an example that includes all the categories:
 ## [a.b.c] - YYYY-MM-DD
 
 ### Added
+
 - AWS PCA now has a configurable allowing operators to provide additional CA certificates for inclusion in the bundle (#1574)
 
 ### Changed
+
 - Envoy SDS support is now always on (#1579)
 
 ### Deprecated
+
 - The UpstreamCA plugin type is now marked as deprecated in favor of the UpstreamAuthority plugin type (#1406)
 
 ### Removed
+
 - The deprecated `upstream_bundle` server configurable has been removed. The server always uses the upstream bundle as the trust bundle (#1702)
 
 ### Fixed
+
 - Issue in the Upstream Authority plugin that could result in a delay in the propagation of bundle updates/changes (#1917)
 
 ### Security
+
 - Node API now ratelimits expensive calls (#577)

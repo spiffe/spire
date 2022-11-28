@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/mitchellh/cli"
@@ -14,6 +13,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
@@ -81,7 +81,7 @@ func (c *mintCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 	// Save in file
 	tokenPath := env.JoinPath(c.write)
-	if err := os.WriteFile(tokenPath, []byte(token), 0600); err != nil {
+	if err := diskutil.WritePrivateFile(tokenPath, []byte(token)); err != nil {
 		return fmt.Errorf("unable to write token: %w", err)
 	}
 	return env.Printf("JWT-SVID written to %s\n", tokenPath)
