@@ -32,7 +32,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
-	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
 )
@@ -311,33 +310,32 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 }
 
 // getCerts queries the datastore and returns a TLS serving certificate(s) plus
-// the current CA root bundle.
+// the current CA root bundle, alongside with federated bundles.
 func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
-	bundle, err := e.DataStore.FetchBundle(dscache.WithCache(ctx), e.TrustDomain.IDString())
+	listBundlesResponse, err := e.DataStore.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	if err != nil {
-		return nil, nil, fmt.Errorf("get bundle from datastore: %w", err)
+		return nil, nil, fmt.Errorf("list bundle from datastore: %w", err)
 	}
-	if bundle == nil {
-		return nil, nil, errors.New("bundle not found")
-	}
-
-	var caCerts []*x509.Certificate
-	for _, rootCA := range bundle.RootCas {
-		rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("parse bundle: %w", err)
-		}
-		caCerts = append(caCerts, rootCACerts...)
-	}
-
 	caPool := x509.NewCertPool()
-	for _, c := range caCerts {
-		caPool.AddCert(c)
+
+	for _, bundle := range listBundlesResponse.Bundles {
+		var caCerts []*x509.Certificate
+		for _, rootCA := range bundle.RootCas {
+			rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
+			if err != nil {
+				return nil, nil, fmt.Errorf("parse bundle: %w", err)
+			}
+			caCerts = append(caCerts, rootCACerts...)
+		}
+
+		for _, c := range caCerts {
+			caPool.AddCert(c)
+		}
 	}
 
 	svidState := e.SVIDObserver.State()
 
-	certChain := [][]byte{}
+	var certChain [][]byte
 	for _, cert := range svidState.SVID {
 		certChain = append(certChain, cert.Raw)
 	}
