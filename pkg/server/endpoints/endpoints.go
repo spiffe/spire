@@ -306,6 +306,45 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 	}
 }
 
+// getCerts queries the datastore and returns a TLS serving certificate(s) plus
+// the current CA root bundle, alongside with federated bundles.
+func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
+	listBundlesResponse, err := e.DataStore.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	if err != nil {
+		return nil, nil, fmt.Errorf("list bundle from datastore: %w", err)
+	}
+	caPool := x509.NewCertPool()
+
+	for _, bundle := range listBundlesResponse.Bundles {
+		var caCerts []*x509.Certificate
+		for _, rootCA := range bundle.RootCas {
+			rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
+			if err != nil {
+				return nil, nil, fmt.Errorf("parse bundle: %w", err)
+			}
+			caCerts = append(caCerts, rootCACerts...)
+		}
+
+		for _, c := range caCerts {
+			caPool.AddCert(c)
+		}
+	}
+
+	svidState := e.SVIDObserver.State()
+
+	var certChain [][]byte
+	for _, cert := range svidState.SVID {
+		certChain = append(certChain, cert.Raw)
+	}
+
+	tlsCert := tls.Certificate{
+		Certificate: certChain,
+		PrivateKey:  svidState.Key,
+	}
+
+	return []tls.Certificate{tlsCert}, caPool, nil
+}
+
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 

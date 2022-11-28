@@ -47,19 +47,14 @@ import (
 )
 
 var (
-	testTD                        = spiffeid.RequireTrustDomainFromString("domain.test")
-	foreignFederatedTD            = spiffeid.RequireTrustDomainFromString("foreign-domain.test")
-	foreignUnfederatedTD          = spiffeid.RequireTrustDomainFromString("foreign-domain-not-federated.test")
-	serverID                      = spiffeid.RequireFromPath(testTD, "/spire/server")
-	agentID                       = spiffeid.RequireFromPath(testTD, "/spire/agent/foo")
-	adminID                       = spiffeid.RequireFromPath(testTD, "/admin")
-	foreignAdminID                = spiffeid.RequireFromPath(foreignFederatedTD, "/admin/foreign")
-	unauthorizedForeignAdminID    = spiffeid.RequireFromPath(foreignFederatedTD, "/admin/foreign-not-authorized")
-	unfederatedForeignAdminID     = spiffeid.RequireFromPath(foreignUnfederatedTD, "/admin/foreign-not-federated")
-	unauthenticatedForeignAdminID = spiffeid.RequireFromPath(foreignFederatedTD, "/admin/foreign-not-authenticated")
-
-	downstreamID = spiffeid.RequireFromPath(testTD, "/downstream")
-	rateLimit    = RateLimitConfig{
+	testTD           = spiffeid.RequireTrustDomainFromString("domain.test")
+	foreignTD        = spiffeid.RequireTrustDomainFromString("foreign-domain.test")
+	serverID         = spiffeid.RequireFromPath(testTD, "/spire/server")
+	agentID          = spiffeid.RequireFromPath(testTD, "/spire/agent/foo")
+	adminID          = spiffeid.RequireFromPath(testTD, "/admin")
+	federatedAdminID = spiffeid.RequireFromPath(testTD, "/admin/federated")
+	downstreamID     = spiffeid.RequireFromPath(testTD, "/downstream")
+	rateLimit        = RateLimitConfig{
 		Attestation: true,
 		Signing:     true,
 	}
@@ -184,15 +179,11 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 func TestListenAndServe(t *testing.T) {
 	ctx := context.Background()
 	ca := testca.New(t, testTD)
-	federatedCA := testca.New(t, foreignFederatedTD)
-	unfederatedCA := testca.New(t, foreignUnfederatedTD)
+	federationCA := testca.New(t, foreignTD)
 	serverSVID := ca.CreateX509SVID(serverID)
 	agentSVID := ca.CreateX509SVID(agentID)
 	adminSVID := ca.CreateX509SVID(adminID)
-	foreignAdminSVID := federatedCA.CreateX509SVID(foreignAdminID)
-	unauthorizedForeignAdminSVID := federatedCA.CreateX509SVID(unauthorizedForeignAdminID)
-	unauthenticatedForeignAdminSVID := unfederatedCA.CreateX509SVID(unauthenticatedForeignAdminID)
-	unfederatedForeignAdminSVID := federatedCA.CreateX509SVID(unfederatedForeignAdminID)
+	federateSVID := federationCA.CreateX509SVID(federatedAdminID)
 	downstreamSVID := ca.CreateX509SVID(downstreamID)
 
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -237,7 +228,7 @@ func TestListenAndServe(t *testing.T) {
 		RateLimit:                    rateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 		AuthPolicyEngine:             pe,
-		AdminIDs:                     []spiffeid.ID{foreignAdminSVID.ID},
+		AdminIDs:                     []spiffeid.ID{federateSVID.ID},
 	}
 
 	// Prime the datastore with the:
@@ -245,7 +236,7 @@ func TestListenAndServe(t *testing.T) {
 	// - agent attested node information
 	// - admin registration entry
 	// - downstream registration entry
-	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
+	prepareDataStore(t, ds, []*testca.CA{ca, federationCA}, agentSVID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -284,7 +275,7 @@ func TestListenAndServe(t *testing.T) {
 	downstreamConn := dialTCP(tlsconfig.MTLSClientConfig(downstreamSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
 	defer downstreamConn.Close()
 
-	federatedAdminConn := dialTCP(tlsconfig.MTLSClientConfig(foreignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
+	federatedAdminConn := dialTCP(tlsconfig.MTLSClientConfig(federateSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
 	defer downstreamConn.Close()
 
 	t.Run("Bad Client SVID", func(t *testing.T) {
