@@ -94,18 +94,16 @@ A simple majority vote is required to authorize a SPIRE release at a specific co
 This section summarizes the steps necessary to execute a SPIRE release. Unless explicitly stated, the below steps must be executed in order.
 
 The following steps must be completed by the primary on-call maintainer one week prior to release:
-* Ensure all changes intended to be included in the release are fully merged.
+* Ensure all changes intended to be included in the release are fully merged. For the spire-api-sdk and spire-plugin-sdk repositories, ensure that all changes intended for the upcoming release are merged into the main branch from the next branch.
 * Identify a specific commit as the release candidate.
 * Raise an issue "Release SPIRE X.Y.Z", and include the release candidate commit hash.
 * Create the release branch following the guidelines described in [Version branches](#version-branches).
 * If the current state of the main branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
   * Make sure that the [version in the branch](pkg/common/version/version.go) has been bumped to the version that is being released and that the [upgrade integration test is updated](test/integration/suites/upgrade/README.md#maintenance).
   * Cherry-pick into the version branch the commits for all the changes that must be included in the release. Ensure the PRs for these commits all target the release milestone in GitHub.
+* Create a draft pull request against the release branch with the updates to the CHANGELOG following [these guidelines](doc/changelog_guidelines.md). This allows those tracking the project to have early visibility into what will be included in the upcoming release and an opportunity to provide feedback. The release date can be set as "TBD" while it is a draft.
 
-The following steps must be completed by the primary on-call maintainer at least one day before the release (preferably the Monday of the release week):
-* Create a draft pull request against the main branch with the updates to the CHANGELOG following [these guidelines](doc/changelog_guidelines.md). This allows those tracking the project to have early visibility into what will be included in the upcoming release and an opportunity to provide feedback. The release date can be set as "TBD" while it is a draft.
-
-**If this is a major or minor release**, the following steps must be completed by the secondary on-call maintainer before releasing:
+**If this is a major or minor release**, the following steps must be completed by the secondary on-call maintainer at least one day before releasing:
 * Review and exercise all examples in spiffe.io and spire-examples repo against the release candidate hash.
 * Raise a PR for every example that updates included text and configuration to reflect current state and best practice.
   * Do not merge this PR yet. It will be updated later to use the real version pin rather than the commit hash.
@@ -120,6 +118,7 @@ The following steps must be completed by the primary on-call maintainer to perfo
     * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary.
 * Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub Markdown rendering bug that you will notice before completing this task.
 * Create Git tags (not annotated) with the name `vX.Y.Z` in the [spire-api-sdk](https://github.com/spiffe/spire-api-sdk) and [spire-plugin-sdk](https://github.com/spiffe/spire-plugin-sdk) repositories for the HEAD commit of the main branch.
+* Open a PR targeted for the main branch that cherry-picks the changelog commit from the latest release so that the changelog on the main branch contains all the release notes.
 * Close the GitHub issue created to track the release process.
 * Broadcast news of release to the community via available means: SPIFFE Slack, Twitter, etc.
 * Open and merge a PR to bump the SPIRE version to the next projected version and [update the upgrade integration test](test/integration/suites/upgrade/README.md#maintenance).
