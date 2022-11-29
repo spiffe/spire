@@ -240,7 +240,7 @@ spec:
               mountPath: /tmp
               readOnly: false
         - name: k8s-workload-registrar
-          image: ghcr.io/spiffe/k8s-workload-registrar:1.5.1
+          image: gcr.io/spiffe-io/k8s-workload-registrar:1.5.1
           args:
             - -config
             - /run/spire/config/k8s-workload-registrar.conf
