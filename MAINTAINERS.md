@@ -84,9 +84,10 @@ The SPIRE project maintains active support for both the current and the previous
 Each release must have its own release branch following the naming convention `release/vX.Y.Z` where `X` is the major version, `Y` is the minor version, and `Z` is patch version.
 
 The base commit of the release branch is based on the type of release being generated:
-- Patch release for older minor release series. In this case, the new release branch is based off of the previous patch release branch for the same minor release series. Example: the latest release is v1.5.z, and the release being prepared is v1.4.5. The base commit should be the `release/v1.4.4` branch.
-- Security release for current minor release series. In this case, the new release branch should be based off of the previous release branch for the same minor release series. Example: the latest release is v1.5.0, and the release being prepared is v1.5.1. The base commit should be the `release/v1.5.0` branch.
-- Scheduled patch release for current minor release series OR scheduled minor release. In this case, the new release branch should be based off of a commit on the `main` branch. Example: the latest release is v1.5.0, and the release being prepared is v1.5.1. The base commit should be the candidate commit selected from the `main` branch.
+
+* Patch release for older minor release series. In this case, the new release branch is based off of the previous patch release branch for the same minor release series. Example: the latest release is v1.5.z, and the release being prepared is v1.4.5. The base commit should be the `release/v1.4.4` branch.
+* Security release for current minor release series. In this case, the new release branch should be based off of the previous release branch for the same minor release series. Example: the latest release is v1.5.0, and the release being prepared is v1.5.1. The base commit should be the `release/v1.5.0` branch.
+* Scheduled patch release for current minor release series OR scheduled minor release. In this case, the new release branch should be based off of a commit on the `main` branch. Example: the latest release is v1.5.0, and the release being prepared is v1.5.1. The base commit should be the candidate commit selected from the `main` branch.
 
 When a bug is discovered in the latest release that also affects releases of the prior minor version, it is necessary to backport the fix.
 
