@@ -176,7 +176,7 @@ protos := \
 api-protos := \
 
 plugin-protos := \
-	proto/spire/common/plugin/plugin.proto 
+	proto/spire/common/plugin/plugin.proto
 
 service-protos := \
 
@@ -209,7 +209,7 @@ endif
 ############################################################################
 
 # Flags passed to all invocations of go test
-go_test_flags := 
+go_test_flags :=
 ifeq ($(NIGHTLY),)
 	# Cap unit-test timout to 60s unless we're running nightlies.
 	go_test_flags += -timeout=60s
@@ -431,7 +431,7 @@ lint-code: $(golangci_lint_bin)
 	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run ./...
 
 lint-md:
-	$(E)docker run -v "$(DIR):/workdir" $(markdown_lint_image) "**/*.md"
+	$(E)docker run --rm -v "$(DIR):/workdir" $(markdown_lint_image) "**/*.md"
 
 #############################################################################
 # Code Generation
