@@ -1,6 +1,4 @@
 FROM ubuntu:xenial
-
+WORKDIR /spire
 RUN apt-get update && apt-get -y install \
     curl unzip git build-essential ca-certificates libssl-dev
-
-WORKDIR /spire
