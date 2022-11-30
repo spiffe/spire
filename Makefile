@@ -270,6 +270,8 @@ bin/:
 
 .PHONY: build-static
 
+# The build-static is intended to statically link to musl libc.
+# There are possibilities of unexpected errors when statically link to GLIBC.
 build-static: tidy bin/spire-server-static bin/spire-agent-static bin/k8s-workload-registrar-static bin/oidc-discovery-provider-static
 
 # https://7thzero.com/blog/golang-w-sqlite3-docker-scratch-image
