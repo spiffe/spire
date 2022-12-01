@@ -1807,10 +1807,21 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 				rekorURL: url.URL{},
 			},
 			args: args{
-				rekorURL: "abc://invalid.url.com", // invalid scheme
+				rekorURL: "abc://invalid.scheme.com", // invalid scheme
 			},
 			want:      url.URL{},
 			wantedErr: fmt.Errorf("invalid rekor URL Scheme %q", "abc"),
+		},
+		{
+			name: "SetRekorURL with empty URL scheme",
+			fields: fields{
+				rekorURL: url.URL{},
+			},
+			args: args{
+				rekorURL: "//no.scheme.com/path", // empty scheme
+			},
+			want:      url.URL{},
+			wantedErr: fmt.Errorf("invalid rekor URL Scheme \"\""),
 		},
 	}
 	for _, tt := range tests {
