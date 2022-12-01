@@ -135,10 +135,6 @@ func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName strin
 // ExtractSelectorsFromSignatures extracts selectors from a list of image signatures.
 // returns a list of selector strings.
 func (s *sigstoreImpl) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []SelectorsFromSignatures {
-	// Payload can be empty if the attestor fails to retrieve it
-	if signatures == nil {
-		return nil
-	}
 	var selectors []SelectorsFromSignatures
 	for _, sig := range signatures {
 		// verify which subject
