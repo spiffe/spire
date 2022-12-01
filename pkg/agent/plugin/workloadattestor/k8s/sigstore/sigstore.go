@@ -76,6 +76,7 @@ type SelectorsFromSignatures struct {
 func New(cache Cache, logger hclog.Logger) Sigstore {
 	return &sigstoreImpl{
 		functionHooks: sigstoreFunctionHooks{
+			// verifyFunction does all the images signatures checks, returning the verified signatures. If there were no valid signatures, it returns an error.
 			verifyFunction:             cosign.VerifyImageSignatures,
 			fetchImageManifestFunction: remote.Get,
 			checkOptsFunction:          defaultCheckOptsFunction,
