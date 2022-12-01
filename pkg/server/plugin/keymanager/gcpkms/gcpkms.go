@@ -440,15 +440,21 @@ func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry key
 		return nil, err
 	}
 
+	log := p.log.With(cryptoKeyNameTag, entry.cryptoKey.Name)
+
 	// Check if the algorithm has changed and update if needed.
 	if entry.cryptoKey.VersionTemplate.Algorithm != algorithm {
 		entry.cryptoKey.VersionTemplate.Algorithm = algorithm
 		_, err := p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
 			CryptoKey: entry.cryptoKey,
+			UpdateMask: &fieldmaskpb.FieldMask{
+				Paths: []string{"version_template.algorithm"},
+			},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update CryptoKey with updated algorithm: %w", err)
 		}
+		log.Debug("CryptoKey updated", algorithmTag, algorithm)
 	}
 	cryptoKeyVersion, err := p.kmsClient.CreateCryptoKeyVersion(ctx, &kmspb.CreateCryptoKeyVersionRequest{
 		Parent: entry.cryptoKey.Name,
@@ -459,7 +465,7 @@ func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry key
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CryptoKeyVersion: %w", err)
 	}
-	p.log.Debug("CryptoKeyVersion added", cryptoKeyNameTag, entry.cryptoKey.Name, cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
+	log.Debug("CryptoKeyVersion added", cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
 
 	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.kmsClient, cryptoKeyVersion.Name)
 	if err != nil {
@@ -480,7 +486,7 @@ func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry key
 	p.setKeyEntry(spireKeyID, newKeyEntry)
 
 	if err := p.enqueueDestruction(entry.cryptoKeyVersionName); err != nil {
-		p.log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
+		log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
 	}
 
 	return newKeyEntry.publicKey, nil

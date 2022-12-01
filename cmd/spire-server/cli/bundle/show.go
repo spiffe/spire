@@ -7,8 +7,10 @@ import (
 
 	"github.com/mitchellh/cli"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 )
 
 // NewShowCommand creates a new "show" subcommand for "bundle" command.
@@ -17,11 +19,13 @@ func NewShowCommand() cli.Command {
 }
 
 func newShowCommand(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(showCommand))
+	return util.AdaptCommand(env, &showCommand{env: env})
 }
 
 type showCommand struct {
-	format string
+	env          *common_cli.Env
+	bundleFormat string
+	printer      cliprinter.Printer
 }
 
 func (c *showCommand) Name() string {
@@ -33,7 +37,8 @@ func (c *showCommand) Synopsis() string {
 }
 
 func (c *showCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.format, "format", util.FormatPEM, fmt.Sprintf("The format to show the bundle. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The format to show the bundle (only pretty output format supports this flag). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintBundle)
 }
 
 func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
@@ -43,5 +48,13 @@ func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		return err
 	}
 
-	return printBundleWithFormat(env.Stdout, resp, c.format, false)
+	return c.printer.PrintProto(resp)
+}
+
+func (c *showCommand) prettyPrintBundle(env *common_cli.Env, results ...interface{}) error {
+	showResp, ok := results[0].(*types.Bundle)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
+	return printBundleWithFormat(env.Stdout, showResp, c.bundleFormat, false)
 }
