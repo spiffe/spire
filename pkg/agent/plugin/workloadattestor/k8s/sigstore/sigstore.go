@@ -6,6 +6,8 @@ package sigstore
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -40,8 +42,7 @@ type Sigstore interface {
 	ShouldSkipImage(imageID string) (bool, error)
 	AddSkippedImage(imageID []string)
 	ClearSkipList()
-	AddAllowedSubject(subject string)
-	EnableAllowSubjectList(bool)
+	AddAllowedSubject(issuer string, subject string)
 	ClearAllowedSubjects()
 	SetRekorURL(rekorURL string) error
 	SetLogger(logger hclog.Logger)
@@ -94,8 +95,7 @@ func New(cache Cache, logger hclog.Logger) Sigstore {
 type sigstoreImpl struct {
 	functionHooks    sigstoreFunctionHooks
 	skippedImages    map[string]struct{}
-	allowListEnabled bool
-	subjectAllowList map[string]struct{}
+	subjectAllowList map[string]map[string]struct{}
 	rekorURL         url.URL
 	logger           hclog.Logger
 	sigstorecache    Cache
@@ -156,15 +156,23 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, cont
 	if err != nil {
 		return nil, fmt.Errorf("error getting signature subject: %w", err)
 	}
-
 	if subject == "" {
 		return nil, errors.New("error getting signature subject: empty subject")
 	}
 
-	if s.allowListEnabled {
-		if _, ok := s.subjectAllowList[subject]; !ok {
-			return nil, fmt.Errorf("subject %q not in allow-list", subject)
-		}
+	issuer, err := getSignatureProvider(signature)
+
+	if err != nil {
+		return nil, fmt.Errorf("error getting signature issuer: %w", err)
+	}
+	if issuer == "" {
+		return nil, fmt.Errorf("error getting signature issuer: %w", errors.New("empty issuer"))
+	}
+
+	if issuerSubjects, ok := s.subjectAllowList[issuer]; !ok {
+		return nil, fmt.Errorf("signature issuer %q not in allow-list", issuer)
+	} else if _, ok := issuerSubjects[subject]; !ok {
+		return nil, fmt.Errorf("subject %q not allowed for issuer %q", subject, issuer)
 	}
 
 	bundle, err := signature.Bundle()
@@ -239,19 +247,18 @@ func (s *sigstoreImpl) ValidateImage(ref name.Reference) error {
 	return validateRefDigest(dgst, hash.String())
 }
 
-func (s *sigstoreImpl) AddAllowedSubject(subject string) {
+func (s *sigstoreImpl) AddAllowedSubject(issuer string, subject string) {
 	if s.subjectAllowList == nil {
-		s.subjectAllowList = make(map[string]struct{})
+		s.subjectAllowList = make(map[string]map[string]struct{})
 	}
-	s.subjectAllowList[subject] = struct{}{}
+	if _, ok := s.subjectAllowList[issuer]; !ok {
+		s.subjectAllowList[issuer] = make(map[string]struct{})
+	}
+	s.subjectAllowList[issuer][subject] = struct{}{}
 }
 
 func (s *sigstoreImpl) ClearAllowedSubjects() {
 	s.subjectAllowList = nil
-}
-
-func (s *sigstoreImpl) EnableAllowSubjectList(flag bool) {
-	s.allowListEnabled = flag
 }
 
 func (s *sigstoreImpl) AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error) {
@@ -344,6 +351,35 @@ func getSignatureSubject(signature oci.Signature) (string, error) {
 	}
 
 	return "", errors.New("no subject found in signature")
+}
+
+func getSignatureProvider(signature oci.Signature) (string, error) {
+	if signature == nil {
+		return "", errors.New("signature is nil")
+	}
+	cert, err := signature.Cert()
+	if err != nil {
+		return "", fmt.Errorf("failed to access signature certificate: %w", err)
+	}
+	if cert == nil {
+		return "", errors.New("no certificate found in signature")
+	}
+	return certOIDCProvider(cert)
+}
+
+func certOIDCProvider(cert *x509.Certificate) (string, error) {
+	if cert == nil {
+		return "", errors.New("certificate is nil")
+	}
+	// OIDC token issuer Object Identifier
+	objectIdentifier := asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 1}
+	for _, ext := range cert.Extensions {
+		if ext.Id.Equal(objectIdentifier) {
+			return string(ext.Value), nil
+		}
+	}
+
+	return "", errors.New("no OIDC issuer found in certificate extensions")
 }
 
 func getBundleSignatureContent(bundle *bundle.RekorBundle) (string, error) {

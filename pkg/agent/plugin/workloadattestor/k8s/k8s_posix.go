@@ -218,11 +218,12 @@ func configureSigstoreClient(client sigstore.Sigstore, c *SigstoreHCLConfig, log
 	if c.SkippedImages != nil {
 		client.AddSkippedImage(c.SkippedImages)
 	}
-	client.EnableAllowSubjectList(c.AllowedSubjectListEnabled)
 	client.SetLogger(log)
 	client.ClearAllowedSubjects()
-	for _, subject := range c.AllowedSubjects {
-		client.AddAllowedSubject(subject)
+	for issuer, subjects := range c.AllowedSubjects {
+		for _, subject := range subjects {
+			client.AddAllowedSubject(issuer, subject)
+		}
 	}
 	rekorURL := "https://rekor.sigstore.dev/" // default rekor url
 	if c.RekorURL != nil {

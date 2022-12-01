@@ -233,20 +233,18 @@ func (s *Suite) TestHelperConfigure() {
 		errMsg    string
 		clientErr error
 
-		expectSkippedImages   map[string]struct{}
-		expectRekoURL         string
-		expectSubjectsEnabled bool
-		expectSubjects        map[string]struct{}
+		expectSkippedImages map[string]struct{}
+		expectRekoURL       string
+		expectSubjects      map[string]map[string]struct{}
 	}{
 		{
 			name: "sigstore is configured",
 			config: &HCLConfig{
 				Experimental: &ExperimentalK8SConfig{
 					Sigstore: &SigstoreHCLConfig{
-						RekorURL:                  &rekorURL,
-						SkippedImages:             []string{"sha:image1hash", "sha:image2hash"},
-						AllowedSubjectListEnabled: true,
-						AllowedSubjects:           []string{"spirex@example.com", "spirex1@example.com"},
+						RekorURL:        &rekorURL,
+						SkippedImages:   []string{"sha:image1hash", "sha:image2hash"},
+						AllowedSubjects: map[string][]string{"issuer": {"spirex@example.com", "spirex1@example.com"}},
 					},
 				},
 			},
@@ -255,10 +253,11 @@ func (s *Suite) TestHelperConfigure() {
 				"sha:image1hash": {},
 				"sha:image2hash": {},
 			},
-			expectSubjectsEnabled: true,
-			expectSubjects: map[string]struct{}{
-				"spirex@example.com":  {},
-				"spirex1@example.com": {},
+			expectSubjects: map[string]map[string]struct{}{
+				"issuer": {
+					"spirex@example.com":  {},
+					"spirex1@example.com": {},
+				},
 			},
 		},
 		{
@@ -317,7 +316,6 @@ func (s *Suite) TestHelperConfigure() {
 
 			require.Equal(t, tt.expectSkippedImages, fakeClient.skippedImages)
 			require.Equal(t, tt.expectRekoURL, fakeClient.rekorURL)
-			require.Equal(t, tt.expectSubjectsEnabled, fakeClient.allowedSubjectListEnabled)
 			require.Equal(t, tt.expectSubjects, fakeClient.allowedSubjects)
 		})
 	}
@@ -678,14 +676,13 @@ func createOSConfig() *osConfig {
 type sigstoreMock struct {
 	selectors []sigstore.SelectorsFromSignatures
 
-	sigs                      []oci.Signature
-	skipSigs                  bool
-	skippedSigSelectors       []string
-	returnError               error
-	skippedImages             map[string]struct{}
-	allowedSubjects           map[string]struct{}
-	allowedSubjectListEnabled bool
-	log                       hclog.Logger
+	sigs                []oci.Signature
+	skipSigs            bool
+	skippedSigSelectors []string
+	returnError         error
+	skippedImages       map[string]struct{}
+	allowedSubjects     map[string]map[string]struct{}
+	log                 hclog.Logger
 
 	rekorURL string
 }
@@ -725,10 +722,6 @@ func (s *sigstoreMock) ClearAllowedSubjects() {
 	s.allowedSubjects = nil
 }
 
-func (s *sigstoreMock) EnableAllowSubjectList(flag bool) {
-	s.allowedSubjectListEnabled = flag
-}
-
 func (s *sigstoreMock) AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error) {
 	if s.skipSigs {
 		return s.skippedSigSelectors, nil
@@ -763,11 +756,14 @@ func (s *sigstoreMock) SetRekorURL(url string) error {
 	return s.returnError
 }
 
-func (s *sigstoreMock) AddAllowedSubject(subject string) {
+func (s *sigstoreMock) AddAllowedSubject(issuer string, subject string) {
 	if s.allowedSubjects == nil {
-		s.allowedSubjects = make(map[string]struct{})
+		s.allowedSubjects = make(map[string]map[string]struct{})
 	}
-	s.allowedSubjects[subject] = struct{}{}
+	if _, ok := s.allowedSubjects[issuer]; !ok {
+		s.allowedSubjects[issuer] = make(map[string]struct{})
+	}
+	s.allowedSubjects[issuer][subject] = struct{}{}
 }
 
 func (s *sigstoreMock) AddSkippedImage(images []string) {

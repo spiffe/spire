@@ -11,6 +11,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"errors"
 	"fmt"
 	"math/big"
@@ -33,6 +34,10 @@ import (
 
 const (
 	maximumAmountCache = 10
+)
+
+var (
+	OIDCIssuerOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 1}
 )
 
 func createCertificate(template *x509.Certificate, parent *x509.Certificate, pub interface{}, priv crypto.Signer) (*x509.Certificate, error) {
@@ -76,7 +81,6 @@ func TestNew(t *testing.T) {
 			checkOptsFunction:          defaultCheckOptsFunction,
 		},
 		skippedImages:    nil,
-		allowListEnabled: false,
 		subjectAllowList: nil,
 		rekorURL:         url.URL{Scheme: rekor.DefaultSchemes[0], Host: rekor.DefaultHost, Path: rekor.DefaultBasePath},
 		sigstorecache:    newcache,
@@ -98,7 +102,6 @@ func TestNew(t *testing.T) {
 		t.Errorf("checkOptsFunction functions do not match")
 	}
 	require.Equal(t, want.skippedImages, sigImpObj.skippedImages, "skippedImages array is not empty")
-	require.Equal(t, want.allowListEnabled, sigImpObj.allowListEnabled, "allowListEnabled has wrong value")
 	require.Equal(t, want.subjectAllowList, sigImpObj.subjectAllowList, "subjectAllowList array is not empty")
 	require.Equal(t, want.rekorURL, sigImpObj.rekorURL, "rekorURL is different from rekor default")
 	require.Equal(t, want.sigstorecache, sigImpObj.sigstorecache, "sigstorecache is different from fresh object")
@@ -442,18 +445,15 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 }
 
 func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
-	type fields struct {
-		verifyFunction func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
-	}
 	type args struct {
 		signatures []oci.Signature
 	}
 	tests := []struct {
-		name        string
-		fields      fields
-		args        args
-		containerID string
-		want        []SelectorsFromSignatures
+		name             string
+		args             args
+		containerID      string
+		subjectAllowList map[string]map[string]struct{}
+		want             []SelectorsFromSignatures
 	}{
 		{
 			name: "extract selector from single image signature array",
@@ -468,10 +468,20 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 								IntegratedTime: 12345,
 							},
 						},
+						cert: &x509.Certificate{
+							EmailAddresses: []string{"spirex@example.com"},
+							Extensions: []pkix.Extension{{
+								Id:    OIDCIssuerOID,
+								Value: []byte(`issuer1`),
+							}},
+						},
 					},
 				},
 			},
 			containerID: "000000",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}},
+			},
 			want: []SelectorsFromSignatures{
 				{
 					Subject:        "spirex@example.com",
@@ -494,6 +504,13 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 								IntegratedTime: 12345,
 							},
 						},
+						cert: &x509.Certificate{
+							EmailAddresses: []string{"spirex1@example.com"},
+							Extensions: []pkix.Extension{{
+								Id:    OIDCIssuerOID,
+								Value: []byte(`issuer1`),
+							}},
+						},
 					},
 					signature{
 						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex2@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -504,10 +521,20 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 								IntegratedTime: 12346,
 							},
 						},
+						cert: &x509.Certificate{
+							EmailAddresses: []string{"spirex2@example.com"},
+							Extensions: []pkix.Extension{{
+								Id:    OIDCIssuerOID,
+								Value: []byte(`issuer1`),
+							}},
+						},
 					},
 				},
 			},
 			containerID: "111111",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex1@example.com": struct{}{}, "spirex2@example.com": struct{}{}},
+			},
 			want: []SelectorsFromSignatures{
 				{
 					Subject:        "spirex1@example.com",
@@ -546,6 +573,10 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 								"spirex@example.com",
 								"spirex2@example.com",
 							},
+							Extensions: []pkix.Extension{{
+								Id:    OIDCIssuerOID,
+								Value: []byte(`issuer1`),
+							}},
 						},
 						bundle: &bundle.RekorBundle{
 							Payload: bundle.RekorPayload{
@@ -558,6 +589,9 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 				},
 			},
 			containerID: "333333",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}, "spirex2@example.com": struct{}{}},
+			},
 			want: []SelectorsFromSignatures{
 				{
 					Subject:        "spirex@example.com",
@@ -586,6 +620,10 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 									Path:   "somepath2",
 								},
 							},
+							Extensions: []pkix.Extension{{
+								Id:    OIDCIssuerOID,
+								Value: []byte(`issuer1`),
+							}},
 						},
 						bundle: &bundle.RekorBundle{
 							Payload: bundle.RekorPayload{
@@ -598,6 +636,9 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 				},
 			},
 			containerID: "444444",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"https://www.example.com/somepath1": struct{}{}},
+			},
 			want: []SelectorsFromSignatures{
 				{
 					Subject:        "https://www.example.com/somepath1",
@@ -646,13 +687,11 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := sigstoreImpl{
-				functionHooks: sigstoreFunctionHooks{
-					verifyFunction: tt.fields.verifyFunction,
-				},
-				logger: hclog.Default(),
+				logger:           hclog.Default(),
+				subjectAllowList: tt.subjectAllowList,
 			}
 			got := s.ExtractSelectorsFromSignatures(tt.args.signatures, tt.containerID)
-			require.Equal(t, got, tt.want, "sigstoreImpl.ExtractSelectorsFromSignatures() = %v, want %v", got, tt.want)
+			require.Equal(t, tt.want, got, "sigstoreImpl.ExtractSelectorsFromSignatures() = %v, want %v", got, tt.want)
 		})
 	}
 }
@@ -1022,16 +1061,17 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 
 func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 	type fields struct {
-		subjectAllowList map[string]struct{}
+		subjectAllowList map[string]map[string]struct{}
 	}
 	type args struct {
+		issuer  string
 		subject string
 	}
 	tests := []struct {
 		name   string
 		fields fields
 		args   args
-		want   map[string]struct{}
+		want   map[string]map[string]struct{}
 	}{
 		{
 			name: "add allowed subject to nil map",
@@ -1039,49 +1079,44 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 				subjectAllowList: nil,
 			},
 			args: args{
+				issuer:  "issuer1",
 				subject: "spirex@example.com",
 			},
-			want: map[string]struct{}{
-				"spirex@example.com": struct{}{},
+			want: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}},
 			},
 		},
 		{
 			name: "add allowed subject to empty map",
 			fields: fields{
-				subjectAllowList: map[string]struct{}{},
+				subjectAllowList: map[string]map[string]struct{}{},
 			},
 			args: args{
+				issuer:  "issuer1",
 				subject: "spirex@example.com",
 			},
-			want: map[string]struct{}{
-				"spirex@example.com": struct{}{},
+			want: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}},
 			},
 		},
 		{
 			name: "add allowed subject to existing map",
 			fields: fields{
-				subjectAllowList: map[string]struct{}{
-					"spirex1@example.com": struct{}{},
-					"spirex2@example.com": struct{}{},
-					"spirex3@example.com": struct{}{},
-					"spirex5@example.com": struct{}{},
+				subjectAllowList: map[string]map[string]struct{}{
+					"issuer1": {
+						"spirex1@example.com": struct{}{},
+						"spirex2@example.com": struct{}{},
+						"spirex3@example.com": struct{}{},
+						"spirex5@example.com": struct{}{},
+					},
 				},
 			},
 			args: args{
+				issuer:  "issuer1",
 				subject: "spirex4@example.com",
 			},
-			want: map[string]struct{}{
-				"spirex1@example.com": struct{}{},
-				"spirex2@example.com": struct{}{},
-				"spirex3@example.com": struct{}{},
-				"spirex4@example.com": struct{}{},
-				"spirex5@example.com": struct{}{},
-			},
-		},
-		{
-			name: "add existing allowed subject to existing map",
-			fields: fields{
-				subjectAllowList: map[string]struct{}{
+			want: map[string]map[string]struct{}{
+				"issuer1": {
 					"spirex1@example.com": struct{}{},
 					"spirex2@example.com": struct{}{},
 					"spirex3@example.com": struct{}{},
@@ -1089,15 +1124,90 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 					"spirex5@example.com": struct{}{},
 				},
 			},
+		},
+		{
+			name: "add allowed subject to existing map with new issuer",
+			fields: fields{
+				subjectAllowList: map[string]map[string]struct{}{
+					"issuer1": {
+						"spirex1@example.com": struct{}{},
+						"spirex2@example.com": struct{}{},
+						"spirex3@example.com": struct{}{},
+						"spirex5@example.com": struct{}{},
+					},
+				},
+			},
 			args: args{
+				issuer:  "issuer2",
 				subject: "spirex4@example.com",
 			},
-			want: map[string]struct{}{
-				"spirex1@example.com": struct{}{},
-				"spirex2@example.com": struct{}{},
-				"spirex3@example.com": struct{}{},
-				"spirex4@example.com": struct{}{},
-				"spirex5@example.com": struct{}{},
+			want: map[string]map[string]struct{}{
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
+				},
+				"issuer2": {
+					"spirex4@example.com": struct{}{},
+				},
+			},
+		},
+		{
+			name: "add existing allowed subject to existing map with new issuer",
+			fields: fields{
+				subjectAllowList: map[string]map[string]struct{}{
+					"issuer1": {
+						"spirex1@example.com": struct{}{},
+						"spirex2@example.com": struct{}{},
+						"spirex3@example.com": struct{}{},
+						"spirex4@example.com": struct{}{},
+						"spirex5@example.com": struct{}{},
+					},
+				},
+			},
+			args: args{
+				issuer:  "issuer2",
+				subject: "spirex4@example.com",
+			},
+			want: map[string]map[string]struct{}{
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex4@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
+				},
+				"issuer2": {
+					"spirex4@example.com": struct{}{},
+				},
+			},
+		},
+		{
+			name: "add existing allowed subject to existing map with same issuer",
+			fields: fields{
+				subjectAllowList: map[string]map[string]struct{}{
+					"issuer1": {
+						"spirex1@example.com": struct{}{},
+						"spirex2@example.com": struct{}{},
+						"spirex3@example.com": struct{}{},
+						"spirex4@example.com": struct{}{},
+						"spirex5@example.com": struct{}{},
+					},
+				},
+			},
+			args: args{
+				issuer:  "issuer1",
+				subject: "spirex4@example.com",
+			},
+			want: map[string]map[string]struct{}{
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex4@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
+				},
 			},
 		},
 	}
@@ -1106,7 +1216,7 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 			sigstore := &sigstoreImpl{
 				subjectAllowList: tt.fields.subjectAllowList,
 			}
-			sigstore.AddAllowedSubject(tt.args.subject)
+			sigstore.AddAllowedSubject(tt.args.issuer, tt.args.subject)
 			require.Equal(t, sigstore.subjectAllowList, tt.want, "sigstore.subjectAllowList = %v, want %v", sigstore.subjectAllowList, tt.want)
 		})
 	}
@@ -1114,23 +1224,44 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 
 func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 	type fields struct {
-		subjectAllowList map[string]struct{}
+		subjectAllowList map[string]map[string]struct{}
 	}
 	tests := []struct {
 		name   string
 		fields fields
-		want   map[string]struct{}
+		want   map[string]map[string]struct{}
 	}{
 
 		{
 			name: "clear existing map",
 			fields: fields{
-				subjectAllowList: map[string]struct{}{
-					"spirex1@example.com": struct{}{},
-					"spirex2@example.com": struct{}{},
-					"spirex3@example.com": struct{}{},
-					"spirex4@example.com": struct{}{},
-					"spirex5@example.com": struct{}{},
+				subjectAllowList: map[string]map[string]struct{}{
+					"issuer1": {
+						"spirex1@example.com": struct{}{},
+						"spirex2@example.com": struct{}{},
+						"spirex3@example.com": struct{}{},
+						"spirex4@example.com": struct{}{},
+						"spirex5@example.com": struct{}{},
+					},
+				},
+			},
+			want: nil,
+		},
+		{
+			name: "clear map with multiple issuers",
+			fields: fields{
+				subjectAllowList: map[string]map[string]struct{}{
+					"issuer1": {
+						"spirex1@example.com": struct{}{},
+						"spirex2@example.com": struct{}{},
+						"spirex3@example.com": struct{}{},
+						"spirex4@example.com": struct{}{},
+						"spirex5@example.com": struct{}{},
+					},
+					"issuer2": {
+						"spirex1@example.com": struct{}{},
+						"spirex6@example.com": struct{}{},
+					},
 				},
 			},
 			want: nil,
@@ -1138,7 +1269,7 @@ func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 		{
 			name: "clear empty map",
 			fields: fields{
-				subjectAllowList: map[string]struct{}{},
+				subjectAllowList: map[string]map[string]struct{}{},
 			},
 			want: nil,
 		},
@@ -1163,75 +1294,20 @@ func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 	}
 }
 
-func TestSigstoreimpl_EnableAllowSubjectList(t *testing.T) {
-	type fields struct {
-		allowListEnabled bool
-	}
-	type args struct {
-		flag bool
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   bool
-	}{
-		{
-			name: "disabling subject allow list",
-			fields: fields{
-				allowListEnabled: true,
-			},
-			args: args{
-				flag: false,
-			},
-			want: false,
-		},
-		{
-			name: "enabling subject allow list",
-			fields: fields{
-				allowListEnabled: false,
-			},
-			args: args{
-				flag: true,
-			},
-			want: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sigstore := &sigstoreImpl{
-				allowListEnabled: tt.fields.allowListEnabled,
-			}
-			sigstore.EnableAllowSubjectList(tt.args.flag)
-			if sigstore.allowListEnabled != tt.want {
-				t.Errorf("sigstore.allowListEnabled = %v, want %v", sigstore.allowListEnabled, tt.want)
-			}
-		})
-	}
-}
-
 func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
-	type fields struct {
-		allowListEnabled bool
-		subjectAllowList map[string]struct{}
-	}
 	type args struct {
 		signature oci.Signature
 	}
 	tests := []struct {
-		name        string
-		fields      fields
-		args        args
-		containerID string
-		want        *SelectorsFromSignatures
-		wantedErr   error
+		name             string
+		args             args
+		containerID      string
+		subjectAllowList map[string][]string
+		want             *SelectorsFromSignatures
+		wantedErr        error
 	}{
 		{
 			name: "selector from signature",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -1242,9 +1318,19 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 							IntegratedTime: 12345,
 						},
 					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "000000",
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex@example.com"},
+			},
 			want: &SelectorsFromSignatures{
 				Subject:        "spirex@example.com",
 				Content:        "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=",
@@ -1254,10 +1340,6 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, empty subject",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "","key2": "value 2","key3": "value 3"}}`),
@@ -1268,37 +1350,43 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 							IntegratedTime: 12345,
 						},
 					},
+					cert: &x509.Certificate{
+						EmailAddresses: nil,
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
-			containerID: "111111",
-			want:        nil,
-			wantedErr:   errors.New("error getting signature subject: empty subject"),
+			containerID:      "111111",
+			subjectAllowList: nil,
+			want:             nil,
+			wantedErr:        fmt.Errorf("error getting signature subject: empty subject"),
 		},
 		{
 			name: "selector from signature, not in allowlist",
-			fields: fields{
-				allowListEnabled: true,
-				subjectAllowList: map[string]struct{}{
-					"spirex2@example.com": struct{}{},
-				},
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex1@example.com","key2": "value 2","key3": "value 3"}}`),
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex1@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "222222",
-			want:        nil,
-			wantedErr:   errors.New("subject \"spirex1@example.com\" not in allow-list"),
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex2@example.com"},
+			},
+			want:      nil,
+			wantedErr: fmt.Errorf("subject %q not allowed for issuer %q", "spirex1@example.com", "issuer1"),
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist",
-			fields: fields{
-				allowListEnabled: true,
-				subjectAllowList: map[string]struct{}{
-					"spirex@example.com": struct{}{},
-				},
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -1309,9 +1397,19 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 							IntegratedTime: 12345,
 						},
 					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "333333",
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex@example.com"},
+			},
 			want: &SelectorsFromSignatures{
 				Subject:        "spirex@example.com",
 				Content:        "MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=",
@@ -1321,12 +1419,6 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist, empty content",
-			fields: fields{
-				allowListEnabled: true,
-				subjectAllowList: map[string]struct{}{
-					"spirex@example.com": struct{}{},
-				},
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -1337,33 +1429,45 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 							IntegratedTime: 12345,
 						},
 					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "444444",
-			want:        nil,
-			wantedErr:   errors.New("error getting signature content: bundle payload body has no signature content"),
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex@example.com"},
+			},
+			want:      nil,
+			wantedErr: fmt.Errorf("error getting signature content: bundle payload body has no signature content"),
 		},
 		{
 			name: "selector from signature, nil bundle",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: nilBundleSignature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "555555",
-			want:        nil,
-			wantedErr:   errors.New("error getting signature bundle: no bundle test"),
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex@example.com"},
+			},
+			want:      nil,
+			wantedErr: fmt.Errorf("error getting signature bundle: no bundle test"),
 		},
 		{
 			name: "selector from signature, bundle payload body is not a string",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -1374,18 +1478,24 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 							IntegratedTime: 12345,
 						},
 					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "000000",
-			want:        nil,
-			wantedErr:   errors.New("error getting signature content: expected payload body to be a string but got int instead"),
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex@example.com"},
+			},
+			want:      nil,
+			wantedErr: fmt.Errorf("error getting signature content: expected payload body to be a string but got int instead"),
 		},
 		{
 			name: "selector from signature, bundle payload body is not valid base64",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -1396,18 +1506,24 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 							IntegratedTime: 12345,
 						},
 					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "000000",
-			want:        nil,
-			wantedErr:   errors.New("error getting signature content: illegal base64 data at input byte 3"),
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex@example.com"},
+			},
+			want:      nil,
+			wantedErr: fmt.Errorf("error getting signature content: illegal base64 data at input byte 3"),
 		},
 		{
 			name: "selector from signature, bundle payload body has no signature content",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -1418,18 +1534,24 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 							IntegratedTime: 12345,
 						},
 					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "000000",
-			want:        nil,
-			wantedErr:   errors.New("error getting signature content: bundle payload body has no signature content"),
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex@example.com"},
+			},
+			want:      nil,
+			wantedErr: fmt.Errorf("error getting signature content: bundle payload body has no signature content"),
 		},
 		{
 			name: "selector from signature, bundle payload body signature content is empty",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -1440,18 +1562,24 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 							IntegratedTime: 12345,
 						},
 					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "000000",
-			want:        nil,
-			wantedErr:   errors.New("error getting signature content: bundle payload body has no signature content"),
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex@example.com"},
+			},
+			want:      nil,
+			wantedErr: fmt.Errorf("error getting signature content: bundle payload body has no signature content"),
 		},
 		{
 			name: "selector from signature, bundle payload body is not a valid JSON",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -1462,18 +1590,24 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 							IntegratedTime: 12345,
 						},
 					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "000000",
-			want:        nil,
-			wantedErr:   errors.New("error getting signature content: failed to parse bundle body: invalid character ',' looking for beginning of value"),
+			subjectAllowList: map[string][]string{
+				"issuer1": {"spirex@example.com"},
+			},
+			want:      nil,
+			wantedErr: fmt.Errorf("error getting signature content: failed to parse bundle body: invalid character ',' looking for beginning of value"),
 		},
 		{
 			name: "selector from signature, empty signature array",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: nil,
 			},
@@ -1483,10 +1617,6 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, single image signature, no payload",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: noPayloadSignature{},
 			},
@@ -1496,10 +1626,6 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, single image signature, no certs",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: &noCertSignature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
@@ -1511,13 +1637,16 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, single image signature,garbled subject in signature",
-			fields: fields{
-				allowListEnabled: false,
-				subjectAllowList: nil,
-			},
 			args: args{
 				signature: &signature{
 					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "s\\\\||as\0\0aasdasd/....???/.>wd12<><,,,><{}{pirex@example.com","key2": "value 2","key3": "value 3"}}`),
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
 				},
 			},
 			containerID: "000000",
@@ -1529,9 +1658,13 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sigstore := &sigstoreImpl{
-				allowListEnabled: tt.fields.allowListEnabled,
-				subjectAllowList: tt.fields.subjectAllowList,
+				subjectAllowList: nil,
 				logger:           hclog.Default(),
+			}
+			for issuer, subjects := range tt.subjectAllowList {
+				for _, subject := range subjects {
+					sigstore.AddAllowedSubject(issuer, subject)
+				}
 			}
 			got, err := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID)
 			assert.Equal(t, got, tt.want, "sigstoreImpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
@@ -1549,6 +1682,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 		functionBindings sigstoreFunctionBindings
 		skippedImages    map[string]struct{}
 		rekorURL         url.URL
+		subjectAllowList map[string][]string
 	}
 
 	defaultCheckOpts, _ := defaultCheckOptsFunction(rekorDefaultURL())
@@ -1577,6 +1711,13 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 									IntegratedTime: 12345,
 								},
 							},
+							cert: &x509.Certificate{
+								EmailAddresses: []string{"spirex@example.com"},
+								Extensions: []pkix.Extension{{
+									Id:    OIDCIssuerOID,
+									Value: []byte(`issuer1`),
+								}},
+							},
 						},
 					}, true, nil),
 					fetchBinding: createFetchFunction(&remote.Descriptor{
@@ -1585,6 +1726,9 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 					checkOptsBinding: createCheckOptsFunction(defaultCheckOpts, nil),
 				},
 				rekorURL: rekorDefaultURL(),
+				subjectAllowList: map[string][]string{
+					"issuer1": {"spirex@example.com"},
+				},
 			},
 			status: corev1.ContainerStatus{
 				Image:       "spire-agent-sigstore-1",
@@ -1713,6 +1857,13 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 				sigstorecache: NewCache(maximumAmountCache),
 				logger:        hclog.Default(),
 			}
+
+			for issuer, subjects := range tt.fields.subjectAllowList {
+				for _, subject := range subjects {
+					sigstore.AddAllowedSubject(issuer, subject)
+				}
+			}
+
 			got, err := sigstore.AttestContainerSignatures(context.Background(), &tt.status)
 
 			if tt.wantedErr != nil {
