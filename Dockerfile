@@ -5,9 +5,11 @@ FROM --platform=${BUILDPLATFORM} golang:${goversion}-alpine as builder
 WORKDIR /spire
 RUN apk --no-cache --update add build-base git mercurial
 ADD go.* ./
-RUN go mod download
+# https://go.dev/ref/mod#module-cache
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 ADD . .
-RUN make build
+RUN --mount=type=cache,target=/go/pkg/mod \
+    make build
 
 # Common base
 FROM --platform=${BUILDPLATFORM} alpine AS spire-base
