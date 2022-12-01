@@ -104,7 +104,7 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 			return nil, status.Errorf(codes.Internal, "unsupported CryptoKeyVersionAlgorithm: %v", cryptoKeyVersion.Algorithm)
 		}
 
-		pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, kf.kmsClient, cryptoKeyVersion.Name)
+		pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, kf.log, kf.kmsClient, cryptoKeyVersion.Name)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "error getting public key: %v", err)
 		}
