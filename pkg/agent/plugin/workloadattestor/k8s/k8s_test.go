@@ -80,8 +80,30 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 	testPodAndContainerSelectors = append(testPodSelectors, testContainerSelectors...)
 )
 
+type attestResult struct {
+	selectors []*common.Selector
+	err       error
+}
+
 func TestPlugin(t *testing.T) {
 	spiretest.Run(t, new(Suite))
+}
+
+type Suite struct {
+	spiretest.Suite
+
+	dir   string
+	clock *clock.Mock
+
+	podList [][]byte
+	env     map[string]string
+
+	// kubelet stuff
+	server      *httptest.Server
+	kubeletCert *x509.Certificate
+	clientCert  *x509.Certificate
+
+	oc *osConfig
 }
 
 func (s *Suite) SetupTest() {
@@ -789,28 +811,6 @@ func (s *Suite) addPodListResponse(fixturePath string) {
 	s.Require().NoError(err)
 
 	s.podList = append(s.podList, podList)
-}
-
-type Suite struct {
-	spiretest.Suite
-
-	dir   string
-	clock *clock.Mock
-
-	podList [][]byte
-	env     map[string]string
-
-	// kubelet stuff
-	server      *httptest.Server
-	kubeletCert *x509.Certificate
-	clientCert  *x509.Certificate
-
-	oc *osConfig
-}
-
-type attestResult struct {
-	selectors []*common.Selector
-	err       error
 }
 
 type testFS string
