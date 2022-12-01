@@ -52,7 +52,7 @@ var (
 	serverID         = spiffeid.RequireFromPath(testTD, "/spire/server")
 	agentID          = spiffeid.RequireFromPath(testTD, "/spire/agent/foo")
 	adminID          = spiffeid.RequireFromPath(testTD, "/admin")
-	federatedAdminID = spiffeid.RequireFromPath(testTD, "/admin/federated")
+	federatedAdminID = spiffeid.RequireFromPath(foreignTD, "/admin/federated")
 	downstreamID     = spiffeid.RequireFromPath(testTD, "/downstream")
 	rateLimit        = RateLimitConfig{
 		Attestation: true,

@@ -8,8 +8,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
+	"github.com/spiffe/spire/proto/spire/common"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -288,48 +290,119 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 // getTLSConfig returns a TLS Config hook for the gRPC server
 func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-		svidSrc := newX509SVIDSource(func() svid.State {
-			return e.SVIDObserver.State()
-		})
-		bundleSrc := newBundleSource(func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
-			return e.bundleGetter(ctx, td)
-		})
+		serverTLSCertificate := e.getServerCertificate()
 
-		spiffeTLSConfig := tlsconfig.MTLSServerConfig(svidSrc, bundleSrc, nil)
-		// provided client certificates will be validated using the custom VerifyPeerCertificate hook
-		spiffeTLSConfig.ClientAuth = tls.RequestClientCert
-		spiffeTLSConfig.MinVersion = tls.VersionTLS12
-		spiffeTLSConfig.NextProtos = []string{http2.NextProtoTLS}
-		spiffeTLSConfig.VerifyPeerCertificate = e.serverSpiffeVerificationFunc(bundleSrc)
+		bundleSet, err := e.getBundleSource(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		spiffeTLSConfig := &tls.Config{
+			MinVersion:            tls.VersionTLS12,
+			NextProtos:            []string{http2.NextProtoTLS},
+			Certificates:          []tls.Certificate{*serverTLSCertificate},
+			ClientAuth:            tls.RequestClientCert,
+			VerifyPeerCertificate: e.buildServerSpiffeAuthenticationFunction(bundleSet),
+		}
 
 		return spiffeTLSConfig, nil
 	}
 }
 
-// getCerts queries the datastore and returns a TLS serving certificate(s) plus
-// the current CA root bundle, alongside with federated bundles.
-func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
-	listBundlesResponse, err := e.DataStore.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	if err != nil {
-		return nil, nil, fmt.Errorf("list bundle from datastore: %w", err)
-	}
-	caPool := x509.NewCertPool()
+// buildServerSpiffeAuthenticationFunction returns a function that is used for peer certificate verification on TLS
+// connections. The function will verify that the peer certificate is valid, and that the SPIFFE ID of the peer belongs
+// to the server trust domain or if it is included in the admin_ids configuration permissive list. If the peer
+// certificate is not provided, the function will not make any verification and return nil.
+func (e *Endpoints) buildServerSpiffeAuthenticationFunction(bundleSet *x509bundle.Set) func(_ [][]byte, _ [][]*x509.Certificate) error {
+	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+		// some connections are not mTLS, so we allow them to continue (e.g. node attestation flow beginning)
+		if rawCerts == nil {
+			return nil
+		}
 
-	for _, bundle := range listBundlesResponse.Bundles {
-		var caCerts []*x509.Certificate
-		for _, rootCA := range bundle.RootCas {
-			rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
-			if err != nil {
-				return nil, nil, fmt.Errorf("parse bundle: %w", err)
+		peerSpiffeID, _, err := x509svid.ParseAndVerify(rawCerts, bundleSet)
+		if err != nil {
+			return err
+		}
+
+		permissiveIDsSet := make(map[spiffeid.ID]struct{})
+		for _, adminID := range e.AdminIDs {
+			permissiveIDsSet[adminID] = struct{}{}
+		}
+
+		if !peerSpiffeID.MemberOf(e.TrustDomain) {
+			if _, ok := permissiveIDsSet[peerSpiffeID]; !ok {
+				return fmt.Errorf("unexpected ID %q", permissiveIDsSet)
 			}
-			caCerts = append(caCerts, rootCACerts...)
 		}
+		return nil
+	}
+}
 
-		for _, c := range caCerts {
-			caPool.AddCert(c)
+// getBundleSource returns the bundle source to be used in the TLS peer verification
+func (e *Endpoints) getBundleSource(ctx context.Context) (bundleSet *x509bundle.Set, err error) {
+	bundleSet = x509bundle.NewSet()
+
+	err = e.appendServerBundle(ctx, bundleSet)
+	if err != nil {
+		return
+	}
+
+	err = e.appendBundlesFromForeignAdminIDs(ctx, bundleSet)
+	return
+}
+
+// appendServerBundle appends the server bundle to the given bundle set.
+func (e *Endpoints) appendServerBundle(ctx context.Context, bundleSet *x509bundle.Set) error {
+	commonServerBundle, err := e.DataStore.FetchBundle(ctx, e.TrustDomain.IDString())
+	if err != nil {
+		return err
+	}
+
+	serverBundle, err := parseBundle(e.TrustDomain, commonServerBundle)
+	if err != nil {
+		return err
+	}
+
+	bundleSet.Add(serverBundle)
+	return nil
+}
+
+// appendBundlesFromForeignAdminIDs appends the bundles from foreign admin IDs trust domains to the given bundle set.
+func (e *Endpoints) appendBundlesFromForeignAdminIDs(ctx context.Context, bundleSet *x509bundle.Set) error {
+	for _, adminID := range e.AdminIDs {
+		if !bundleSet.Has(adminID.TrustDomain()) {
+			commonBundle, err := e.DataStore.FetchBundle(ctx, adminID.TrustDomain().IDString())
+			if err != nil {
+				return err
+			}
+			adminBundle, err := parseBundle(adminID.TrustDomain(), commonBundle)
+			if err != nil {
+				return err
+			}
+			bundleSet.Add(adminBundle)
 		}
 	}
 
+	return nil
+}
+
+// parseBundle parses a *x509bundle.Bundle from a *common.bundle.
+func parseBundle(td spiffeid.TrustDomain, commonBundle *common.Bundle) (*x509bundle.Bundle, error) {
+	var caCerts []*x509.Certificate
+	for _, rootCA := range commonBundle.RootCas {
+		rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
+		if err != nil {
+			return nil, err
+		}
+		caCerts = append(caCerts, rootCACerts...)
+	}
+
+	return x509bundle.FromX509Authorities(td, caCerts), nil
+}
+
+// getServerCertificate returns the server certificate to be used in the TLS config.
+func (e *Endpoints) getServerCertificate() *tls.Certificate {
 	svidState := e.SVIDObserver.State()
 
 	var certChain [][]byte
@@ -337,12 +410,11 @@ func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.Cert
 		certChain = append(certChain, cert.Raw)
 	}
 
-	tlsCert := tls.Certificate{
+	serverTLSCertificate := &tls.Certificate{
 		Certificate: certChain,
 		PrivateKey:  svidState.Key,
 	}
-
-	return []tls.Certificate{tlsCert}, caPool, nil
+	return serverTLSCertificate
 }
 
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
