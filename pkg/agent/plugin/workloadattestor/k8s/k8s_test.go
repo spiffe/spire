@@ -284,18 +284,14 @@ func (s *Suite) TestConfigure() {
 	s.writeCert("some-other-ca", s.kubeletCert)
 
 	type config struct {
-		Insecure                  bool
-		VerifyKubelet             bool
-		HasNodeName               bool
-		Token                     string
-		KubeletURL                string
-		MaxPollAttempts           int
-		PollRetryInterval         time.Duration
-		ReloadInterval            time.Duration
-		SkippedImages             []string
-		AllowedSubjectListEnabled bool
-		AllowedSubjects           []string
-		RekorURL                  string
+		Insecure          bool
+		VerifyKubelet     bool
+		HasNodeName       bool
+		Token             string
+		KubeletURL        string
+		MaxPollAttempts   int
+		PollRetryInterval time.Duration
+		ReloadInterval    time.Duration
 	}
 
 	testCases := []struct {
