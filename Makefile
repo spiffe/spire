@@ -240,7 +240,6 @@ ifeq ($(git_dirty),)
 		go_ldflags += -X github.com/spiffe/spire/pkg/common/version.githash=$(git_hash)
 	endif
 endif
-go_ldflags := '${go_ldflags}'
 
 #############################################################################
 # Build Targets
@@ -254,7 +253,7 @@ define binary_rule
 .PHONY: $1
 $1: | go-check bin/
 	@echo Building $1...
-	$(E)$(go_path) go build $$(go_flags) -ldflags $$(go_ldflags) -o $1$(exe) $2
+	$(E)$(go_path) go build $$(go_flags) -ldflags '$$(go_ldflags)' -o $1$(exe) $2
 endef
 
 # main SPIRE binaries
@@ -281,7 +280,7 @@ define binary_rule_static
 .PHONY: $1
 $1: | go-check bin/
 	@echo Building $1...
-	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1$(exe) $2
+	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '$$(go_ldflags) -linkmode external -extldflags "-static"' -o $1$(exe) $2
 
 endef
 
