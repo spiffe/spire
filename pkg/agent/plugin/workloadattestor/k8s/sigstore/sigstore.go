@@ -162,7 +162,7 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, cont
 	}
 
 	if subject == "" {
-		return nil, fmt.Errorf("error getting signature subject: %w", errors.New("empty subject"))
+		return nil, errors.New("error getting signature subject: empty subject")
 	}
 
 	if s.allowListEnabled {
@@ -171,28 +171,26 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, cont
 		}
 	}
 
-	selectorsFromSignatures := &SelectorsFromSignatures{Subject: subject}
-
 	bundle, err := signature.Bundle()
-	if err != nil {
+	switch {
+	case err != nil:
 		return nil, fmt.Errorf("error getting signature bundle: %w", err)
+	case bundle.Payload.LogID == "":
+		return nil, errors.New("error getting signature log ID: empty log ID")
+	case bundle.Payload.IntegratedTime == 0:
+		return nil, errors.New("error getting signature integrated time: integrated time is 0")
 	}
 	sigContent, err := getBundleSignatureContent(bundle)
 	if err != nil {
 		return nil, fmt.Errorf("error getting signature content: %w", err)
 	}
-	selectorsFromSignatures.Content = sigContent
 
-	if bundle.Payload.LogID == "" {
-		return nil, fmt.Errorf("error getting signature log ID: %w", errors.New("empty log ID"))
-	}
-	selectorsFromSignatures.LogID = bundle.Payload.LogID
-
-	if bundle.Payload.IntegratedTime == 0 {
-		return nil, fmt.Errorf("error getting signature integrated time: %w", errors.New("integrated time is 0"))
-	}
-	selectorsFromSignatures.IntegratedTime = strconv.FormatInt(bundle.Payload.IntegratedTime, 10)
-	return selectorsFromSignatures, nil
+	return &SelectorsFromSignatures{
+		Subject:        subject,
+		Content:        sigContent,
+		LogID:          bundle.Payload.LogID,
+		IntegratedTime: strconv.FormatInt(bundle.Payload.IntegratedTime, 10),
+	}, nil
 }
 
 // ShouldSkipImage checks the skip list for the image ID in the container status.
