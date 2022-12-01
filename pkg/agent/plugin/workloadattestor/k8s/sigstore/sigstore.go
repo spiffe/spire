@@ -6,14 +6,12 @@ package sigstore
 import (
 	"bytes"
 	"context"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
-	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -23,6 +21,7 @@ import (
 	"github.com/sigstore/cosign/pkg/cosign"
 	"github.com/sigstore/cosign/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/pkg/oci"
+	sig "github.com/sigstore/cosign/pkg/signature"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 	corev1 "k8s.io/api/core/v1"
@@ -365,7 +364,7 @@ func getSignatureSubject(signature oci.Signature) (string, error) {
 	}
 
 	if cert != nil {
-		return certSubject(cert), nil
+		return sig.CertSubject(cert), nil
 	}
 	if len(ss.Optional) > 0 {
 		if subjString, ok := ss.Optional["subject"]; ok {
@@ -418,20 +417,6 @@ func selectorsToString(selectors SelectorsFromSignatures, containerID string) []
 		selectorsString = append(selectorsString, fmt.Sprintf("%s:image-signature-integrated-time:%s", containerID, selectors.IntegratedTime))
 	}
 	return selectorsString
-}
-
-func certSubject(c *x509.Certificate) string {
-	switch {
-	case c == nil:
-		return ""
-	case len(c.EmailAddresses) > 0:
-		return c.EmailAddresses[0]
-	case len(c.URIs) > 0:
-		// removing leading '//' from c.URIs[0].String()
-		return strings.TrimPrefix(c.URIs[0].String(), "//")
-	default:
-		return ""
-	}
 }
 
 func validateRefDigest(dgst name.Digest, digest string) (bool, error) {
