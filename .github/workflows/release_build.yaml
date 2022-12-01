@@ -287,8 +287,6 @@ jobs:
     name: integration (windows)
     runs-on: windows-2022
     needs: images-windows
-    strategy:
-      fail-fast: false
     defaults:
       run:
         shell: msys2 {0}
