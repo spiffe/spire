@@ -922,7 +922,6 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 		args                  args
 		wantedFetchArguments  fetchFunctionArguments
 		wantedVerifyArguments verifyFunctionArguments
-		want                  bool
 		wantedErr             error
 	}{
 		{
@@ -942,7 +941,6 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				options: nil,
 			},
 			wantedVerifyArguments: verifyFunctionArguments{},
-			want:                  true,
 		},
 		{
 			name: "error on image manifest fetch",
@@ -958,7 +956,6 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				ref:     name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
 			},
-			want:      false,
 			wantedErr: errors.New("fetch error 123"),
 		},
 		{
@@ -977,7 +974,6 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				ref:     name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
 			},
-			want:      false,
 			wantedErr: errors.New("manifest is empty"),
 		},
 		{
@@ -997,7 +993,6 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				options: nil,
 			},
 			wantedVerifyArguments: verifyFunctionArguments{},
-			want:                  true,
 		},
 	}
 	for _, tt := range tests {
@@ -1012,14 +1007,13 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				skippedImages: tt.fields.skippedImages,
 			}
 
-			got, err := sigstore.ValidateImage(tt.args.ref)
+			err := sigstore.ValidateImage(tt.args.ref)
 			if tt.wantedErr != nil {
 				require.EqualError(t, err, tt.wantedErr.Error())
 			} else {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, tt.want, got, "sigstoreImpl.ValidateImage() = %v, want %v", got, tt.want)
 			require.Equal(t, tt.wantedFetchArguments, fetchArguments, "sigstoreImpl.ValidateImage() fetchArguments = %v, want %v", fetchArguments, tt.wantedFetchArguments)
 			require.Equal(t, tt.wantedVerifyArguments, verifyArguments, "sigstoreImpl.ValidateImage() verifyArguments = %v, want %v", verifyArguments, tt.wantedVerifyArguments)
 		})

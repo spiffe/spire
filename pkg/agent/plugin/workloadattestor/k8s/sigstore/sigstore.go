@@ -113,7 +113,7 @@ func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName strin
 		return nil, fmt.Errorf("error parsing image reference: %w", err)
 	}
 
-	if _, err := s.ValidateImage(ref); err != nil {
+	if err := s.ValidateImage(ref); err != nil {
 		return nil, fmt.Errorf("could not validate image reference digest: %w", err)
 	}
 
@@ -219,21 +219,21 @@ func (s *sigstoreImpl) ClearSkipList() {
 }
 
 // ValidateImage validates if the image manifest hash matches the digest in the image reference
-func (s *sigstoreImpl) ValidateImage(ref name.Reference) (bool, error) {
+func (s *sigstoreImpl) ValidateImage(ref name.Reference) error {
 	dgst, ok := ref.(name.Digest)
 	if !ok {
-		return false, fmt.Errorf("reference %T is not a digest", ref)
+		return fmt.Errorf("reference %T is not a digest", ref)
 	}
 	desc, err := s.functionHooks.fetchImageManifestFunction(dgst)
 	if err != nil {
-		return false, err
+		return err
 	}
 	if len(desc.Manifest) == 0 {
-		return false, errors.New("manifest is empty")
+		return errors.New("manifest is empty")
 	}
 	hash, _, err := v1.SHA256(bytes.NewReader(desc.Manifest))
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	return validateRefDigest(dgst, hash.String())
@@ -388,11 +388,11 @@ func selectorsToString(selectors SelectorsFromSignatures, containerID string) []
 	return selectorsString
 }
 
-func validateRefDigest(dgst name.Digest, digest string) (bool, error) {
+func validateRefDigest(dgst name.Digest, digest string) error {
 	if dgst.DigestStr() == digest {
-		return true, nil
+		return nil
 	}
-	return false, fmt.Errorf("digest %s does not match %s", digest, dgst.DigestStr())
+	return fmt.Errorf("digest %s does not match %s", digest, dgst.DigestStr())
 }
 
 type verifyFunctionType func(context.Context, name.Reference, *cosign.CheckOpts) ([]oci.Signature, bool, error)
