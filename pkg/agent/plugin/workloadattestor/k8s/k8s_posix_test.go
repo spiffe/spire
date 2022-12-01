@@ -372,24 +372,9 @@ func (s *Suite) TestAttestWithFailedSigstoreSignatures() {
 	s.oc.fakeClient.returnError = errors.New("sigstore error 123")
 
 	s.requireAttestFailureWithPod(v1, codes.Internal, "error retrieving signature payload: sigstore error 123")
-	s.Require().Contains(buf.String(), "Error retrieving signature payload")
-	s.Require().Contains(buf.String(), "error=\"sigstore error 123\"")
-}
-
-func (s *Suite) TestLogger() {
-	s.startInsecureKubelet()
-
-	p := s.newPlugin()
-	plugintest.Load(s.T(), builtin(p), nil)
-
-	newLog := hclog.New(&hclog.LoggerOptions{
-		Name: "new_test_logger",
-	})
-	p.SetLogger(newLog)
-
-	s.Require().Same(newLog, p.log)
-	s.Require().Contains(p.log.Name(), newLog.Name())
-	s.Require().Contains(p.log.Name(), "new_test_log")
+	logString := buf.String()
+	s.Require().Contains(logString, "Error retrieving signature payload")
+	s.Require().Contains(logString, "error=\"sigstore error 123\"")
 }
 
 func (s *Suite) TestAttestWhenContainerNotReadyButContainerSelectorsDisabled() {
