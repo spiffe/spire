@@ -63,7 +63,7 @@ check-old-agent-svid() {
     log-info "checking X509-SVID on $1 agent..."
         docker-compose exec -T "spire-agent-$1" \
             /opt/spire/bin/spire-agent api fetch x509 \
-            -socketPath /tmp/agent.sock \
+            -socketPath /opt/spire/data/agent/socket/api.sock \
             -write /opt/test/before-server-upgrade || fail-now "SVID check failed"
 }
 
@@ -97,7 +97,7 @@ check-old-agent-svid-after-upgrade() {
         log-info "checking X509-SVID after server upgrade ($i of $_maxchecks max)..."
         docker-compose exec -T "spire-agent-$1" \
             /opt/spire/bin/spire-agent api fetch x509 \
-            -socketPath /tmp/agent.sock \
+            -socketPath /opt/spire/data/agent/socket/api.sock \
             -write /opt/test/after-server-upgrade || fail-now "SVID check failed"
         if ! cmp --silent svids/before-server-upgrade/svid.0.pem svids/after-server-upgrade/svid.0.pem; then
             # SVID has rotated
@@ -132,7 +132,7 @@ check-new-agent-svid-after-upgrade() {
     log-info "checking X509-SVID after agent upgrade..."
     docker-compose exec -T spire-agent-latest-local \
         /opt/spire/bin/spire-agent api fetch x509 \
-        -socketPath /tmp/agent.sock \
+        -socketPath /opt/spire/data/agent/socket/api.sock \
         -write /opt/test/after-agent-upgrade || fail-now "SVID check failed"
 
     # SVIDs are cached in agent memory only. As the agent was restarted, there
