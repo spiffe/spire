@@ -20,6 +20,7 @@ SPIRE is a [graduated](https://www.cncf.io/projects/spire/) project of the [Clou
 ## Get SPIRE
 
 - Pre-built releases of SPIRE can be found at [https://github.com/spiffe/spire/releases](https://github.com/spiffe/spire/releases). These releases contain both SPIRE Server and SPIRE Agent binaries.
+- Container images are published for [spire-server](https://ghcr.io/spiffe/spire-server), [spire-agent](https://ghcr.io/spiffe/spire-agent), and [oidc-discovery-provider](https://ghcr.io/spiffe/spire-oidc-provider).
 - Alternatively, you can [build SPIRE from source](/CONTRIBUTING.md).
 
 ## Learn about SPIRE
