@@ -412,13 +412,13 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, tt.want, got, "sigstoreImpl.FetchImageSignatures() = %v, want %v", got, tt.want)
+			require.Equal(t, tt.want, got)
 
-			require.Equal(t, tt.wantedFetchArguments, *fetchArguments, "sigstoreImpl.FetchImageSignatures() fetchArguments = %v, want %v", *fetchArguments, tt.wantedFetchArguments)
+			require.Equal(t, tt.wantedFetchArguments, *fetchArguments)
 
-			require.Equal(t, tt.wantedCheckOptsArguments, *checkOptsArguments, "sigstoreImpl.FetchImageSignatures() checkOptsArguments = %v, want %v", *checkOptsArguments, tt.wantedCheckOptsArguments)
+			require.Equal(t, tt.wantedCheckOptsArguments, *checkOptsArguments)
 
-			require.Equal(t, tt.wantedVerifyArguments, *verifyArguments, "sigstoreImpl.FetchImageSignatures() verifyArguments = %v, want %v", *verifyArguments, tt.wantedVerifyArguments)
+			require.Equal(t, tt.wantedVerifyArguments, *verifyArguments)
 		})
 	}
 }
@@ -651,7 +651,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 				subjectAllowList: tt.subjectAllowList,
 			}
 			got := s.ExtractSelectorsFromSignatures(tt.signatures, tt.containerID)
-			require.Equal(t, tt.want, got, "sigstoreImpl.ExtractSelectorsFromSignatures() = %v, want %v", got, tt.want)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -746,7 +746,7 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, got, tt.want, "sigstoreImpl.SkipImage() = %v, want %v", got, tt.want)
+			require.Equal(t, got, tt.want)
 		})
 	}
 }
@@ -827,7 +827,7 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 				skippedImages: tt.fields.skippedImages,
 			}
 			sigstore.AddSkippedImage(tt.args.imageID)
-			require.Equal(t, sigstore.skippedImages, tt.want, "sigstore.skippedImages = %v, want %v", sigstore.skippedImages, tt.want)
+			require.Equal(t, sigstore.skippedImages, tt.want)
 		})
 	}
 }
@@ -1006,8 +1006,8 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, tt.wantedFetchArguments, fetchArguments, "sigstoreImpl.ValidateImage() fetchArguments = %v, want %v", fetchArguments, tt.wantedFetchArguments)
-			require.Equal(t, tt.wantedVerifyArguments, verifyArguments, "sigstoreImpl.ValidateImage() verifyArguments = %v, want %v", verifyArguments, tt.wantedVerifyArguments)
+			require.Equal(t, tt.wantedFetchArguments, fetchArguments)
+			require.Equal(t, tt.wantedVerifyArguments, verifyArguments)
 		})
 	}
 }
@@ -1140,7 +1140,7 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 				subjectAllowList: tt.subjectAllowList,
 			}
 			sigstore.AddAllowedSubject(tt.issuer, tt.subject)
-			require.Equal(t, sigstore.subjectAllowList, tt.want, "sigstore.subjectAllowList = %v, want %v", sigstore.subjectAllowList, tt.want)
+			require.Equal(t, tt.want, sigstore.subjectAllowList)
 		})
 	}
 }
@@ -1580,9 +1580,9 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				}
 			}
 			got, err := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID)
-			assert.Equal(t, got, tt.want, "sigstoreImpl.SelectorValuesFromSignature() = %v, want %v", got, tt.want)
+			assert.Equal(t, got, tt.want)
 			if tt.wantedErr != nil {
-				require.EqualError(t, err, tt.wantedErr.Error(), "sigstoreImpl.SelectorValuesFromSignature() error = %v, wantedErr = %v", err, tt.wantedErr)
+				require.EqualError(t, err, tt.wantedErr.Error())
 				return
 			}
 			require.NoError(t, err)
@@ -1783,15 +1783,15 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 			got, err := sigstore.AttestContainerSignatures(context.Background(), &tt.status)
 
 			if tt.wantedErr != nil {
-				require.EqualError(t, err, tt.wantedErr.Error(), "sigstoreImpl.AttestContainerSignatures() error = %v, wantedErr = %v", err, tt.wantedErr)
+				require.EqualError(t, err, tt.wantedErr.Error())
 			} else {
 				require.NoError(t, err)
 			}
 
-			require.Equal(t, tt.want, got, "sigstoreImpl.AttestContainerSignatures() = %v, want %v", got, tt.want)
-			require.Equal(t, tt.wantedFetchArguments, fetchArguments, "sigstoreImpl.AttestContainerSignatures() fetchArguments = %v, wantedFetchArguments = %v", fetchArguments, tt.wantedFetchArguments)
-			require.Equal(t, tt.wantedVerifyArguments, verifyArguments, "sigstoreImpl.AttestContainerSignatures() verifyArguments = %v, wantedVerifyArguments = %v", verifyArguments, tt.wantedVerifyArguments)
-			require.Equal(t, tt.wantedCheckOptsArguments, checkOptsArguments, "sigstoreImpl.AttestContainerSignatures() checkOptsArguments = %v, wantedCheckOptsArguments = %v", checkOptsArguments, tt.wantedCheckOptsArguments)
+			require.Equal(t, tt.want, got)
+			require.Equal(t, tt.wantedFetchArguments, fetchArguments)
+			require.Equal(t, tt.wantedVerifyArguments, verifyArguments)
+			require.Equal(t, tt.wantedCheckOptsArguments, checkOptsArguments)
 		})
 	}
 }
@@ -1892,11 +1892,11 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 			}
 			err := sigstore.SetRekorURL(tt.args.rekorURL)
 			if tt.wantedErr != nil {
-				require.EqualError(t, err, tt.wantedErr.Error(), "sigstoreImpl.SetRekorURL() error = %v, wantedErr = %v", err, tt.wantedErr)
+				require.EqualError(t, err, tt.wantedErr.Error())
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, sigstore.rekorURL, tt.want, "sigstoreImpl.SetRekorURL() = %v, want %v", sigstore.rekorURL, tt.want)
+			require.Equal(t, sigstore.rekorURL, tt.want)
 		})
 	}
 }
