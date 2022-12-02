@@ -704,11 +704,11 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 		imageID string
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    bool
-		wantErr bool
+		name      string
+		fields    fields
+		args      args
+		want      bool
+		wantedErr error
 	}{
 		{
 			name: "skipping only image in list",
@@ -720,8 +720,7 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 			args: args{
 				imageID: "sha256:sampleimagehash",
 			},
-			want:    true,
-			wantErr: false,
+			want: true,
 		},
 		{
 			name: "skipping image in list",
@@ -735,8 +734,7 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 			args: args{
 				imageID: "sha256:sampleimagehash2",
 			},
-			want:    true,
-			wantErr: false,
+			want: true,
 		},
 		{
 			name: "image not in list",
@@ -749,8 +747,7 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 			args: args{
 				imageID: "sha256:sampleimagehash2",
 			},
-			want:    false,
-			wantErr: false,
+			want: false,
 		},
 		{
 			name: "empty skip list",
@@ -760,8 +757,7 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 			args: args{
 				imageID: "sha256:sampleimagehash",
 			},
-			want:    false,
-			wantErr: false,
+			want: false,
 		},
 		{
 			name: "empty imageID",
@@ -775,8 +771,8 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 			args: args{
 				imageID: "",
 			},
-			want:    false,
-			wantErr: true,
+			want:      false,
+			wantedErr: errors.New("image ID is empty"),
 		},
 	}
 	for _, tt := range tests {
@@ -785,9 +781,10 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 				skippedImages: tt.fields.skippedImages,
 			}
 			got, err := sigstore.ShouldSkipImage(tt.args.imageID)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("sigstoreImpl.SkipImage() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			if tt.wantedErr != nil {
+				require.EqualError(t, err, tt.wantedErr.Error())
+			} else {
+				require.NoError(t, err)
 			}
 			require.Equal(t, got, tt.want, "sigstoreImpl.SkipImage() = %v, want %v", got, tt.want)
 		})
