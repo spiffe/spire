@@ -136,6 +136,9 @@ const (
 	// AdminIDs are admin IDs
 	AdminIDs = "admin_ids"
 
+	// AdminID tags an admin ID
+	AdminID = "admin_id"
+
 	// Agent SPIFFE ID
 	AgentID = "agent_id"
 

@@ -292,9 +292,9 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 		serverTLSCertificate := e.getServerCertificate()
-
 		bundleSet, err := e.getBundleSource(ctx)
 		if err != nil {
+			e.Log.WithError(err).WithField(telemetry.Address, hello.Conn.RemoteAddr().String()).Error("Could not generate TLS config for gRPC client")
 			return nil, err
 		}
 
@@ -316,7 +316,6 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 // certificate is not provided, the function will not make any verification and return nil.
 func (e *Endpoints) buildServerSpiffeAuthenticationFunction(bundleSet *x509bundle.Set) func(_ [][]byte, _ [][]*x509.Certificate) error {
 	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-		// some connections are not mTLS, so we allow them to continue (e.g. node attestation flow beginning)
 		if rawCerts == nil {
 			return nil
 		}
@@ -349,7 +348,7 @@ func (e *Endpoints) getBundleSource(ctx context.Context) (bundleSet *x509bundle.
 		return
 	}
 
-	err = e.appendBundlesFromForeignAdminIDs(ctx, bundleSet)
+	err = e.appendBundlesFromAdminIDs(ctx, bundleSet)
 	return
 }
 
@@ -357,29 +356,40 @@ func (e *Endpoints) getBundleSource(ctx context.Context) (bundleSet *x509bundle.
 func (e *Endpoints) appendServerBundle(ctx context.Context, bundleSet *x509bundle.Set) error {
 	commonServerBundle, err := e.DataStore.FetchBundle(ctx, e.TrustDomain.IDString())
 	if err != nil {
-		return err
+		return fmt.Errorf("get bundle from datastore: %w", err)
+	}
+	if commonServerBundle == nil {
+		return fmt.Errorf("no bundle found for trust domain %s", e.TrustDomain.String())
 	}
 
 	serverBundle, err := parseBundle(e.TrustDomain, commonServerBundle)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse bundle: %w", err)
 	}
 
 	bundleSet.Add(serverBundle)
 	return nil
 }
 
-// appendBundlesFromForeignAdminIDs appends the bundles from foreign admin IDs trust domains to the given bundle set.
-func (e *Endpoints) appendBundlesFromForeignAdminIDs(ctx context.Context, bundleSet *x509bundle.Set) error {
+// appendBundlesFromAdminIDs appends the bundles from admin IDs trust domains to the given bundle set.
+func (e *Endpoints) appendBundlesFromAdminIDs(ctx context.Context, bundleSet *x509bundle.Set) error {
 	for _, adminID := range e.AdminIDs {
 		if !bundleSet.Has(adminID.TrustDomain()) {
 			commonBundle, err := e.DataStore.FetchBundle(ctx, adminID.TrustDomain().IDString())
 			if err != nil {
-				return err
+				return fmt.Errorf("get bundle from datastore: %w", err)
 			}
+			if commonBundle == nil {
+				e.Log.
+					WithField(telemetry.AdminID, adminID.String()).
+					WithField(telemetry.TrustDomain, adminID.TrustDomain().String()).
+					Warn("No bundle found for foreign admin trust domain, admins from this trust doiman will not be able to connect")
+				continue
+			}
+
 			adminBundle, err := parseBundle(adminID.TrustDomain(), commonBundle)
 			if err != nil {
-				return err
+				return fmt.Errorf("parse bundle: %w", err)
 			}
 			bundleSet.Add(adminBundle)
 		}
@@ -394,7 +404,7 @@ func parseBundle(td spiffeid.TrustDomain, commonBundle *common.Bundle) (*x509bun
 	for _, rootCA := range commonBundle.RootCas {
 		rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parse bundle: %w", err)
 		}
 		caCerts = append(caCerts, rootCACerts...)
 	}
