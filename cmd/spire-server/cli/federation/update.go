@@ -9,22 +9,25 @@ import (
 	"github.com/mitchellh/cli"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"google.golang.org/grpc/codes"
 )
 
 // NewUpdateCommand creates a new "update" subcommand for "federation" command.
 func NewUpdateCommand() cli.Command {
-	return newUpdateCommand(common_cli.DefaultEnv)
+	return newUpdateCommand(commoncli.DefaultEnv)
 }
 
-func newUpdateCommand(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(updateCommand))
+func newUpdateCommand(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &updateCommand{env: env})
 }
 
 type updateCommand struct {
-	path   string
-	config *federationRelationshipConfig
+	path    string
+	config  *federationRelationshipConfig
+	env     *commoncli.Env
+	printer cliprinter.Printer
 }
 
 func (*updateCommand) Name() string {
@@ -39,9 +42,10 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.path, "data", "", "Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin.")
 	c.config = &federationRelationshipConfig{}
 	appendConfigFlags(c.config, f)
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, c.prettyPrintUpdate)
 }
 
-func (c *updateCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *updateCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	federationRelationships, err := getRelationships(c.config, c.path)
 	if err != nil {
 		return err
@@ -56,10 +60,24 @@ func (c *updateCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return fmt.Errorf("request failed: %w", err)
 	}
 
+	return c.printer.PrintProto(resp)
+}
+
+func (c *updateCommand) prettyPrintUpdate(env *commoncli.Env, results ...interface{}) error {
+	federationRelationships, err := getRelationships(c.config, c.path)
+	if err != nil {
+		return err
+	}
+
+	updateResp, ok := results[0].(*trustdomainv1.BatchUpdateFederationRelationshipResponse)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
+
 	// Process results
 	var succeeded []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result
 	var failed []*trustdomainv1.BatchUpdateFederationRelationshipResponse_Result
-	for i, r := range resp.Results {
+	for i, r := range updateResp.Results {
 		switch r.Status.Code {
 		case int32(codes.OK):
 			succeeded = append(succeeded, r)

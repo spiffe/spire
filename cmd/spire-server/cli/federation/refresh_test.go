@@ -1,6 +1,7 @@
 package federation
 
 import (
+	"fmt"
 	"testing"
 
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
@@ -17,7 +18,9 @@ func TestRefreshHelp(t *testing.T) {
 
 	require.Equal(t, `Usage of federation refresh:
   -id string
-    	SPIFFE ID of the trust domain`+common.AddrUsage, test.stderr.String())
+    	SPIFFE ID of the trust domain
+  -output value
+    	Desired output format (pretty, json)`+common.AddrUsage, test.stderr.String())
 }
 
 func TestRefreshSynopsis(t *testing.T) {
@@ -34,8 +37,9 @@ func TestRefresh(t *testing.T) {
 		refreshResp *emptypb.Empty
 		serverErr   error
 
-		expectOut string
-		expectErr string
+		expectOutPretty string
+		expectOutJSON   string
+		expectErr       string
 	}{
 		{
 			name: "Success",
@@ -43,8 +47,9 @@ func TestRefresh(t *testing.T) {
 			expectReq: &trustdomainv1.RefreshBundleRequest{
 				TrustDomain: "spiffe://example.org",
 			},
-			expectOut:   "Bundle refreshed\n",
-			refreshResp: &emptypb.Empty{},
+			expectOutPretty: "Bundle refreshed\n",
+			expectOutJSON:   "{}",
+			refreshResp:     &emptypb.Empty{},
 		},
 		{
 			name:      "Empty ID",
@@ -65,22 +70,26 @@ func TestRefresh(t *testing.T) {
 `,
 		},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest(t, newRefreshCommand)
-			test.server.err = tt.serverErr
-			test.server.expectRefreshReq = tt.expectReq
-			test.server.refreshResp = tt.refreshResp
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, newRefreshCommand)
+				test.server.err = tt.serverErr
+				test.server.expectRefreshReq = tt.expectReq
+				test.server.refreshResp = tt.refreshResp
+				args := tt.args
+				args = append(args, "-output", format)
 
-			rc := test.client.Run(test.args(tt.args...))
-			if tt.expectErr != "" {
-				require.Equal(t, 1, rc)
-				require.Equal(t, tt.expectErr, test.stderr.String())
-				return
-			}
+				rc := test.client.Run(test.args(args...))
+				if tt.expectErr != "" {
+					require.Equal(t, 1, rc)
+					require.Equal(t, tt.expectErr, test.stderr.String())
+					return
+				}
 
-			require.Equal(t, 0, rc)
-			require.Equal(t, tt.expectOut, test.stdout.String())
-			require.Empty(t, test.stderr.String())
-		})
+				require.Equal(t, 0, rc)
+				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectOutPretty, tt.expectOutJSON)
+				require.Empty(t, test.stderr.String())
+			})
+		}
 	}
 }
