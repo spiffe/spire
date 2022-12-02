@@ -51,10 +51,10 @@ docker-wait-for-healthy() {
     for ((i=1;i<=maxchecks;i++)); do
         set +e
         health_status=$(docker inspect --format '{{.State.Health.Status}}' "${ctr_name}" 2>/dev/null)
-        if [ $? -ne 0 ]; then
-            log-debug "waiting for container ${ctr_name} to launch"
-        elif [ "${health_status}" -eq "healthy" ]; then
+        if [ "${health_status}" == "healthy" ]; then
             return
+        else
+            log-debug "waiting for container ${ctr_name} to launch"
         fi
         set -e
 
