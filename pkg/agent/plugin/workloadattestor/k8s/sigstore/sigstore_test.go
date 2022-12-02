@@ -425,36 +425,31 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 }
 
 func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
-	type args struct {
-		signatures []oci.Signature
-	}
 	tests := []struct {
 		name             string
-		args             args
+		signatures       []oci.Signature
 		containerID      string
 		subjectAllowList map[string]map[string]struct{}
 		want             []SelectorsFromSignatures
 	}{
 		{
 			name: "extract selector from single image signature array",
-			args: args{
-				signatures: []oci.Signature{
-					signature{
-						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
-						bundle: &bundle.RekorBundle{
-							Payload: bundle.RekorPayload{
-								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
-								LogID:          "samplelogID",
-								IntegratedTime: 12345,
-							},
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
 						},
-						cert: &x509.Certificate{
-							EmailAddresses: []string{"spirex@example.com"},
-							Extensions: []pkix.Extension{{
-								Id:    OIDCIssuerOID,
-								Value: []byte(`issuer1`),
-							}},
-						},
+					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
 					},
 				},
 			},
@@ -473,41 +468,39 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		},
 		{
 			name: "extract selector from image signature array with multiple entries",
-			args: args{
-				signatures: []oci.Signature{
-					signature{
-						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex1@example.com","key2": "value 2","key3": "value 3"}}`),
-						bundle: &bundle.RekorBundle{
-							Payload: bundle.RekorPayload{
-								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
-								LogID:          "samplelogID1",
-								IntegratedTime: 12345,
-							},
-						},
-						cert: &x509.Certificate{
-							EmailAddresses: []string{"spirex1@example.com"},
-							Extensions: []pkix.Extension{{
-								Id:    OIDCIssuerOID,
-								Value: []byte(`issuer1`),
-							}},
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex1@example.com","key2": "value 2","key3": "value 3"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID1",
+							IntegratedTime: 12345,
 						},
 					},
-					signature{
-						payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex2@example.com","key2": "value 2","key3": "value 3"}}`),
-						bundle: &bundle.RekorBundle{
-							Payload: bundle.RekorPayload{
-								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUI9IgogICAgfQogIH0KfQo=",
-								LogID:          "samplelogID2",
-								IntegratedTime: 12346,
-							},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex1@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
+				},
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex2@example.com","key2": "value 2","key3": "value 3"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUI9IgogICAgfQogIH0KfQo=",
+							LogID:          "samplelogID2",
+							IntegratedTime: 12346,
 						},
-						cert: &x509.Certificate{
-							EmailAddresses: []string{"spirex2@example.com"},
-							Extensions: []pkix.Extension{{
-								Id:    OIDCIssuerOID,
-								Value: []byte(`issuer1`),
-							}},
-						},
+					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex2@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
 					},
 				},
 			},
@@ -532,11 +525,9 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		},
 		{
 			name: "with nil payload",
-			args: args{
-				signatures: []oci.Signature{
-					signature{
-						payload: nil,
-					},
+			signatures: []oci.Signature{
+				signature{
+					payload: nil,
 				},
 			},
 			containerID: "222222",
@@ -544,26 +535,24 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		},
 		{
 			name: "extract selector from image signature with subject certificate",
-			args: args{
-				signatures: []oci.Signature{
-					signature{
-						payload: []byte(`{"critical": {"identity": {"docker-reference": "some reference"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"}}`),
-						cert: &x509.Certificate{
-							EmailAddresses: []string{
-								"spirex@example.com",
-								"spirex2@example.com",
-							},
-							Extensions: []pkix.Extension{{
-								Id:    OIDCIssuerOID,
-								Value: []byte(`issuer1`),
-							}},
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "some reference"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"}}`),
+					cert: &x509.Certificate{
+						EmailAddresses: []string{
+							"spirex@example.com",
+							"spirex2@example.com",
 						},
-						bundle: &bundle.RekorBundle{
-							Payload: bundle.RekorPayload{
-								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
-								LogID:          "samplelogID",
-								IntegratedTime: 12345,
-							},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
 						},
 					},
 				},
@@ -583,34 +572,32 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		},
 		{
 			name: "extract selector from image signature with URI certificate",
-			args: args{
-				signatures: []oci.Signature{
-					signature{
-						payload: []byte(`{"critical": {"identity": {"docker-reference": "some reference"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"}}`),
-						cert: &x509.Certificate{
-							URIs: []*url.URL{
-								{
-									Scheme: "https",
-									Host:   "www.example.com",
-									Path:   "somepath1",
-								},
-								{
-									Scheme: "https",
-									Host:   "www.spirex.com",
-									Path:   "somepath2",
-								},
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "some reference"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"}}`),
+					cert: &x509.Certificate{
+						URIs: []*url.URL{
+							{
+								Scheme: "https",
+								Host:   "www.example.com",
+								Path:   "somepath1",
 							},
-							Extensions: []pkix.Extension{{
-								Id:    OIDCIssuerOID,
-								Value: []byte(`issuer1`),
-							}},
+							{
+								Scheme: "https",
+								Host:   "www.spirex.com",
+								Path:   "somepath2",
+							},
 						},
-						bundle: &bundle.RekorBundle{
-							Payload: bundle.RekorPayload{
-								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
-								LogID:          "samplelogID",
-								IntegratedTime: 12345,
-							},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
 						},
 					},
 				},
@@ -629,33 +616,27 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 			},
 		},
 		{
-			name: "extract selector from empty array",
-			args: args{
-				signatures: []oci.Signature{},
-			},
+			name:        "extract selector from empty array",
+			signatures:  []oci.Signature{},
 			containerID: "555555",
 			want:        nil,
 		},
 		{
-			name: "extract selector from nil array",
-			args: args{
-				signatures: nil,
-			},
+			name:        "extract selector from nil array",
+			signatures:  nil,
 			containerID: "666666",
 			want:        nil,
 		},
 		{
 			name: "invalid payload",
-			args: args{
-				signatures: []oci.Signature{
-					signature{
-						payload: []byte(`{"critical": {}}`),
-						bundle: &bundle.RekorBundle{
-							Payload: bundle.RekorPayload{
-								Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
-								LogID:          "samplelogID",
-								IntegratedTime: 12345,
-							},
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
 						},
 					},
 				},
@@ -670,7 +651,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 				logger:           hclog.Default(),
 				subjectAllowList: tt.subjectAllowList,
 			}
-			got := s.ExtractSelectorsFromSignatures(tt.args.signatures, tt.containerID)
+			got := s.ExtractSelectorsFromSignatures(tt.signatures, tt.containerID)
 			require.Equal(t, tt.want, got, "sigstoreImpl.ExtractSelectorsFromSignatures() = %v, want %v", got, tt.want)
 		})
 	}
