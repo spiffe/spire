@@ -6,7 +6,6 @@ import (
 
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,12 +15,7 @@ func TestShowHelp(t *testing.T) {
 	test := setupTest(t, newShowCommand)
 	test.client.Help()
 
-	require.Equal(t, `Usage of federation show:
-  -output value
-    	Desired output format (pretty, json)`+common.AddrUsage+
-		`  -trustDomain string
-    	The trust domain name of the federation relationship to show
-`, test.stderr.String())
+	require.Equal(t, showUsage, test.stderr.String())
 }
 
 func TestShowSynopsis(t *testing.T) {

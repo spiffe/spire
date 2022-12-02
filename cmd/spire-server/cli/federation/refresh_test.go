@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,11 +15,7 @@ func TestRefreshHelp(t *testing.T) {
 	test := setupTest(t, newRefreshCommand)
 	test.client.Help()
 
-	require.Equal(t, `Usage of federation refresh:
-  -id string
-    	SPIFFE ID of the trust domain
-  -output value
-    	Desired output format (pretty, json)`+common.AddrUsage, test.stderr.String())
+	require.Equal(t, refreshUsage, test.stderr.String())
 }
 
 func TestRefreshSynopsis(t *testing.T) {
