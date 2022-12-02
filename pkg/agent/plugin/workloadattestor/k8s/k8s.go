@@ -132,6 +132,9 @@ type ExperimentalK8SConfig struct {
 
 // SigstoreHCLConfig holds the sigstore configuration parsed from HCL
 type SigstoreHCLConfig struct {
+	// EnforceSCT is the parameter to be set as false in case of a private deployment not using the public CT
+	EnforceSCT *bool `hcl:"enforce_sct, omitempty"`
+
 	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
 	RekorURL *string `hcl:"rekor_url,omitempty"`
 

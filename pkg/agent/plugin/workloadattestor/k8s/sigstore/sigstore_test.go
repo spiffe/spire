@@ -1579,7 +1579,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					sigstore.AddAllowedSubject(issuer, subject)
 				}
 			}
-			got, err := sigstore.SelectorValuesFromSignature(tt.args.signature, tt.containerID)
+			got, err := sigstore.SelectorValuesFromSignature(tt.args.signature)
 			assert.Equal(t, got, tt.want)
 			if tt.wantedErr != nil {
 				require.EqualError(t, err, tt.wantedErr.Error())
@@ -2000,7 +2000,7 @@ func createNilFetchFunction() fetchFunctionBinding {
 
 func createCheckOptsFunction(returnCheckOpts *cosign.CheckOpts, returnErr error) checkOptsFunctionBinding {
 	bindCheckOptsArgumentsFunction := func(t require.TestingT, checkOptsArguments *checkOptsFunctionArguments) checkOptsFunctionType {
-		newCheckOptsFunction := func(url url.URL) (*cosign.CheckOpts, error) {
+		newCheckOptsFunction := func(url url.URL, enforceSCT ...bool) (*cosign.CheckOpts, error) {
 			checkOptsArguments.url = url
 			return returnCheckOpts, returnErr
 		}
@@ -2011,7 +2011,7 @@ func createCheckOptsFunction(returnCheckOpts *cosign.CheckOpts, returnErr error)
 
 func createNilCheckOptsFunction() checkOptsFunctionBinding {
 	bindCheckOptsArgumentsFunction := func(t require.TestingT, checkOptsArguments *checkOptsFunctionArguments) checkOptsFunctionType {
-		failFunction := func(url url.URL) (*cosign.CheckOpts, error) {
+		failFunction := func(url url.URL, enforceSCT ...bool) (*cosign.CheckOpts, error) {
 			require.FailNow(t, "nil check opts function should not be called")
 			return nil, fmt.Errorf("nil check opts function should not be called")
 		}

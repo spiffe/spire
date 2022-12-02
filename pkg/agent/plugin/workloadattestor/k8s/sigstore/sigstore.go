@@ -37,7 +37,7 @@ const (
 type Sigstore interface {
 	AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error)
 	FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error)
-	SelectorValuesFromSignature(oci.Signature, string) (*SelectorsFromSignatures, error)
+	SelectorValuesFromSignature(oci.Signature) (*SelectorsFromSignatures, error)
 	ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []SelectorsFromSignatures
 	ShouldSkipImage(imageID string) (bool, error)
 	AddSkippedImage(imageID []string)
@@ -46,6 +46,7 @@ type Sigstore interface {
 	ClearAllowedSubjects()
 	SetRekorURL(rekorURL string) error
 	SetLogger(logger hclog.Logger)
+	SetEnforceSCT(enforceSCT bool)
 }
 
 // The following structs are used to go through the payload json objects
@@ -81,9 +82,43 @@ func New(cache Cache, logger hclog.Logger) Sigstore {
 			fetchImageManifestFunction: remote.Get,
 			checkOptsFunction:          defaultCheckOptsFunction,
 		},
+
+		enforceSCT:    true,
 		logger:        logger,
 		sigstorecache: cache,
 	}
+}
+
+func defaultCheckOptsFunction(rekorURL url.URL, enforceSCT ...bool) (*cosign.CheckOpts, error) {
+	if len(enforceSCT) > 1 {
+		return nil, errors.New("enforceSCT can be only one value")
+	}
+	if len(enforceSCT) == 0 {
+		enforceSCT = append(enforceSCT, true)
+	}
+	switch {
+	case rekorURL.Host == "":
+		return nil, errors.New("rekor URL host is empty")
+	case rekorURL.Scheme == "":
+		return nil, errors.New("rekor URL scheme is empty")
+	case rekorURL.Path == "":
+		return nil, errors.New("rekor URL path is empty")
+	}
+
+	rootCerts, err := fulcio.GetRoots()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fulcio root certificates: %w", err)
+	}
+
+	co := &cosign.CheckOpts{
+		// Set the rekor client
+		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)),
+		RootCerts:   rootCerts,
+		EnforceSCT:  enforceSCT[0],
+	}
+	co.IntermediateCerts, err = fulcio.GetIntermediates()
+
+	return co, err
 }
 
 type sigstoreImpl struct {
@@ -93,6 +128,11 @@ type sigstoreImpl struct {
 	rekorURL         url.URL
 	logger           hclog.Logger
 	sigstorecache    Cache
+	enforceSCT       bool
+}
+
+func (s *sigstoreImpl) SetEnforceSCT(enforceSCT bool) {
+	s.enforceSCT = enforceSCT
 }
 
 func (s *sigstoreImpl) SetLogger(logger hclog.Logger) {
@@ -132,7 +172,7 @@ func (s *sigstoreImpl) ExtractSelectorsFromSignatures(signatures []oci.Signature
 	var selectors []SelectorsFromSignatures
 	for _, sig := range signatures {
 		// verify which subject
-		sigSelectors, err := s.SelectorValuesFromSignature(sig, containerID)
+		sigSelectors, err := s.SelectorValuesFromSignature(sig)
 		if err != nil {
 			s.logger.Error("error extracting selectors from signature", "error", err)
 		}
@@ -145,7 +185,7 @@ func (s *sigstoreImpl) ExtractSelectorsFromSignatures(signatures []oci.Signature
 
 // SelectorValuesFromSignature extracts selectors from a signature.
 // returns a list of selectors.
-func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature, containerID string) (*SelectorsFromSignatures, error) {
+func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature) (*SelectorsFromSignatures, error) {
 	subject, err := getSignatureSubject(signature)
 	if err != nil {
 		return nil, fmt.Errorf("error getting signature subject: %w", err)
@@ -429,35 +469,10 @@ type verifyFunctionType func(context.Context, name.Reference, *cosign.CheckOpts)
 
 type fetchImageManifestFunctionType func(name.Reference, ...remote.Option) (*remote.Descriptor, error)
 
-type checkOptsFunctionType func(url.URL) (*cosign.CheckOpts, error)
+type checkOptsFunctionType func(url.URL, ...bool) (*cosign.CheckOpts, error)
 
 type sigstoreFunctionHooks struct {
 	verifyFunction             verifyFunctionType
 	fetchImageManifestFunction fetchImageManifestFunctionType
 	checkOptsFunction          checkOptsFunctionType
-}
-
-func defaultCheckOptsFunction(rekorURL url.URL) (*cosign.CheckOpts, error) {
-	switch {
-	case rekorURL.Host == "":
-		return nil, errors.New("rekor URL host is empty")
-	case rekorURL.Scheme == "":
-		return nil, errors.New("rekor URL scheme is empty")
-	case rekorURL.Path == "":
-		return nil, errors.New("rekor URL path is empty")
-	}
-
-	rootCerts, err := fulcio.GetRoots()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get fulcio root certificates: %w", err)
-	}
-
-	co := &cosign.CheckOpts{
-		// Set the rekor client
-		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host).WithSchemes([]string{rekorURL.Scheme})),
-		RootCerts:   rootCerts,
-	}
-	co.IntermediateCerts, err = fulcio.GetIntermediates()
-
-	return co, err
 }
