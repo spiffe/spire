@@ -34,9 +34,9 @@ start-old-agent() {
 
 create-registration-entry() {
     log-debug "creating registration entry..."
+    # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server entry create \
-        # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
         -socketPath /opt/spire/data/server/socket/api.sock \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/workload" \
@@ -98,6 +98,7 @@ check-old-agent-svid-after-upgrade() {
 
     for ((i=1;i<=_maxchecks;i++)); do
         log-info "checking X509-SVID after server upgrade ($i of $_maxchecks max)..."
+        # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
         docker-compose exec -T "spire-agent-$1" \
             /opt/spire/bin/spire-agent api fetch x509 \
             -socketPath /opt/spire/data/agent/socket/api.sock \
@@ -126,9 +127,9 @@ stop-and-evict-agent() {
     docker-stop "spire-agent-$1"
 
     log-info "evicting agent..."
+    # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server agent evict \
-        # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
         -socketPath /opt/spire/data/server/socket/api.sock \
         -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 
@@ -137,6 +138,7 @@ stop-and-evict-agent() {
 
 check-new-agent-svid-after-upgrade() {
     log-info "checking X509-SVID after agent upgrade..."
+    # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
     docker-compose exec -T spire-agent-latest-local \
         /opt/spire/bin/spire-agent api fetch x509 \
         -socketPath /opt/spire/data/agent/socket/api.sock \
