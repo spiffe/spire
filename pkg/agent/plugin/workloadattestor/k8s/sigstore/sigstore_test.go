@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/hashicorp/go-hclog"
+	"github.com/sigstore/cosign/cmd/cosign/cli/fulcio"
 	"github.com/sigstore/cosign/pkg/cosign"
 	"github.com/sigstore/cosign/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/pkg/oci"
@@ -1657,8 +1658,19 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 		subjectAllowList map[string][]string
 	}
 
-	defaultCheckOpts, _ := defaultCheckOptsFunction(rekorDefaultURL())
-	emptyURLCheckOpts, emptyError := defaultCheckOptsFunction(url.URL{})
+	rootCerts, err := fulcio.GetRoots()
+	require.NoError(t, err)
+	intermediateCerts, err := fulcio.GetIntermediates()
+	require.NoError(t, err)
+
+	defaultCheckOpts := &cosign.CheckOpts{
+		RekorClient:       rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorDefaultURL().Path).WithHost(rekorDefaultURL().Host)),
+		RootCerts:         rootCerts,
+		IntermediateCerts: intermediateCerts,
+	}
+	var emptyURLCheckOpts *cosign.CheckOpts
+	emptyError := errors.New("rekor URL host is empty")
+
 	tests := []struct {
 		name                     string
 		fields                   fields
