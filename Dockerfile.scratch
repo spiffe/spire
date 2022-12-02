@@ -6,12 +6,12 @@ WORKDIR /spire
 COPY go.* ./
 # https://go.dev/ref/mod#module-cache
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
 
 FROM --platform=${BUILDPLATFORM} base as builder
 ARG TARGETOS TARGETARCH
 RUN apt-get update && apt-get install -y ca-certificates gcc-aarch64-linux-gnu make
-RUN --mount=type=bind,target=.,rw \
-    --mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     if [ "$TARGETARCH" = "arm64" ]; then CC=aarch64-linux-gnu-gcc && CC_FOR_TARGET=aarch64-linux-gnu; fi && \
     GOOS=$TARGETOS GOARCH=$TARGETARCH CC=$CC CC_FOR_TARGET=$CC_FOR_TARGET \

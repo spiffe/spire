@@ -6,12 +6,12 @@ WORKDIR /spire
 COPY go.* ./
 # https://go.dev/ref/mod#module-cache
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
 
 FROM base as builder
 ARG TARGETOS TARGETARCH
 RUN apk --no-cache --update add build-base git mercurial
-RUN --mount=type=bind,target=.,rw \
-    --mount=type=cache,target=/root/.cache/go-build \
+RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     GOOS=$TARGETOS GOARCH=$TARGETARCH \
     make build
