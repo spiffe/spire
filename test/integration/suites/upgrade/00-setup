@@ -15,6 +15,7 @@ cat <<EOF >> docker-compose.yaml
   spire-server-${_version}:
     image: ${_registry}spire-server:${_version}
     hostname: spire-server
+    user: "${UID}"
     networks:
       our-network:
         aliases:
@@ -26,6 +27,7 @@ cat <<EOF >> docker-compose.yaml
   spire-agent-${_version}:
     image: ${_registry}spire-agent:${_version}
     hostname: spire-agent
+    user: "${UID}"
     networks:
       - our-network
     volumes:
