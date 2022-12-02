@@ -16,6 +16,11 @@ cat <<EOF >> docker-compose.yaml
     image: ${_registry}spire-server:${_version}
     hostname: spire-server
     user: "${UID}"
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-server", "healthcheck", "-socketPath", "/opt/spire/data/server/socket/api.sock"]
+      interval: 1s
+      timeout: 3s
+      retries: 15
     networks:
       our-network:
         aliases:
@@ -28,6 +33,11 @@ cat <<EOF >> docker-compose.yaml
     image: ${_registry}spire-agent:${_version}
     hostname: spire-agent
     user: "${UID}"
+    healthcheck:
+      test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/opt/spire/data/agent/socket/api.sock"]
+      interval: 1s
+      timeout: 3s
+      retries: 15
     networks:
       - our-network
     volumes:

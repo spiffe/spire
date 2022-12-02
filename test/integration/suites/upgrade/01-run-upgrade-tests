@@ -8,29 +8,28 @@
 # something else to create the directory first).
 
 start-old-server() {
+    local _maxchecks=15
+    local _interval=1
     log-info "bringing up $1 server..."
-    docker-up "spire-server-$1"
+    local ctr_name="spire-server-$1"
+    docker-up "${ctr_name}"
+    docker-wait-for-healthy "${ctr_name}" "${_maxchecks}" "${_interval}"
 }
 
 bootstrap-agent() {
-    local _maxchecks=5
-    local _checkinterval=1
-
-    for ((i=1;i<=_maxchecks;i++)); do
-        log-debug "bootstrapping $1 agent ($i of $_maxchecks max)..."
-        # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
-        if docker-compose exec -T "spire-server-$1" /opt/spire/bin/spire-server bundle show -socketPath /opt/spire/data/server/socket/api.sock > conf/agent/bootstrap.crt; then
-            return
-        fi
-
-        sleep "${_checkinterval}"
-    done
-    fail-now "timed out waiting for server to start"
+    # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
+    docker-compose exec -T "spire-server-$1" \
+        /opt/spire/bin/spire-server bundle show \
+        -socketPath /opt/spire/data/server/socket/api.sock > conf/agent/bootstrap.crt
 }
 
 start-old-agent() {
+    local _maxchecks=15
+    local _interval=1
     log-info "bringing up $1 agent..."
-    docker-up "spire-agent-$1"
+    local ctr_name="spire-agent-$1"
+    docker-up "${ctr_name}"
+    docker-wait-for-healthy "${ctr_name}" "${_maxchecks}" "${_interval}"
 }
 
 create-registration-entry() {
@@ -68,9 +67,13 @@ check-old-agent-svid() {
 }
 
 upgrade-server() {
+    local _maxchecks=15
+    local _interval=1
     log-info "upgrading $1 server to latest..."
     docker-stop "spire-server-$1"
-    docker-up spire-server-latest-local
+    local new_ctr_name="spire-server-latest-local"
+    docker-up "${new_ctr_name}"
+    docker-wait-for-healthy "${new_ctr_name}" "${_maxchecks}" "${_interval}"
     check-codebase-version-is-ahead "$1"
 }
 
@@ -109,9 +112,13 @@ check-old-agent-svid-after-upgrade() {
 }
 
 upgrade-agent() {
+    local _maxchecks=15
+    local _interval=1
     log-info "upgrading $1 agent to latest..."
     docker-stop "spire-agent-$1"
-    docker-up spire-agent-latest-local
+    local new_ctr_name="spire-agent-latest-local"
+    docker-up "${new_ctr_name}"
+    docker-wait-for-healthy "${new_ctr_name}" "${_maxchecks}" "${_interval}"
 }
 
 stop-and-evict-agent() {
