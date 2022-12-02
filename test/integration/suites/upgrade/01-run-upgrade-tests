@@ -38,7 +38,7 @@ create-registration-entry() {
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server entry create \
         # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
-        -socketPath /opt/spire/data/server/socket/api.sock
+        -socketPath /opt/spire/data/server/socket/api.sock \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/workload" \
         -selector "unix:uid:${UID}" \
@@ -122,7 +122,7 @@ stop-and-evict-agent() {
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server agent evict \
         # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
-        -socketPath /opt/spire/data/server/socket/api.sock
+        -socketPath /opt/spire/data/server/socket/api.sock \
         -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 
     rm -rf shared/agent-data/*
