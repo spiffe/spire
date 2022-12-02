@@ -63,13 +63,13 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | ---------------- | ----------- |
 | `skip_signature_verification_image_list` | The list of images, described as digest hashes, that should be skipped in signature verification. Defaults to empty list. |
 | `allowed_subjects_list` | A map of allowed subject strings, keyed by the OIDC Provider URI, that are trusted and are allowed to sign container images artifacts. Defaults to empty. If empty, no workload will pass signature validation, unless listed on `skip_signature_verification_image_list`. (eg. `"https://accounts.google.com" = ["subject1@example.com","subject2@example.com"]`). |
-| `rekor_url` | The rekor URL to use with cosign. Defaults to 'https://rekor.sigstore.dev/', Rekor's public instance. |
+| `rekor_url` | The rekor URL to use with cosign. Required. See notes below. |
 
 > **Note** Cosign discourages the use of image tags for referencing docker images, and this plugin does not support attestation of sigstore selectors for workloads running on containers using tag-referenced images, which will then fail attestation for both sigstore and k8s selectors. In cases where this is necessary, add the digest string for the image in the `skip_signature_verification_image_list` setting (eg. `"sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"`). Note that sigstore signature attestation will still not be performed, but this will allow k8s selectors to be returned, along with the `"k8s:sigstore-validation:passed"` selector.  
 
 > **Note** Since the SPIRE Agent can also go through workload attestation, it will also need to be included in the skip list if either its image is not signed or has a digest reference string.  
 
-> **Note** The sigstore project contains a transparency log called Rekor that provides an immutable, tamper-resistant ledger to record signed metadata to an immutable record. While it is possible to run your own instance, a public instance of rekor is available at rekor.sigstore.dev, and cosign defaults to using the public instance.
+> **Note** The sigstore project contains a transparency log called Rekor that provides an immutable, tamper-resistant ledger to record signed metadata to an immutable record. While it is possible to run your own instance, a public instance of rekor is available at `https://rekor.sigstore.dev/`.
 
 ### Sigstore workload attestor for SPIRE
 

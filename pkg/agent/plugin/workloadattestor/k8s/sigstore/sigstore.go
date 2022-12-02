@@ -81,12 +81,6 @@ func New(cache Cache, logger hclog.Logger) Sigstore {
 			fetchImageManifestFunction: remote.Get,
 			checkOptsFunction:          defaultCheckOptsFunction,
 		},
-
-		rekorURL: url.URL{
-			Scheme: rekor.DefaultSchemes[0],
-			Host:   rekor.DefaultHost,
-			Path:   rekor.DefaultBasePath,
-		},
 		logger:        logger,
 		sigstorecache: cache,
 	}
@@ -460,7 +454,7 @@ func defaultCheckOptsFunction(rekorURL url.URL) (*cosign.CheckOpts, error) {
 
 	co := &cosign.CheckOpts{
 		// Set the rekor client
-		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)),
+		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host).WithSchemes([]string{rekorURL.Scheme})),
 		RootCerts:   rootCerts,
 	}
 	co.IntermediateCerts, err = fulcio.GetIntermediates()

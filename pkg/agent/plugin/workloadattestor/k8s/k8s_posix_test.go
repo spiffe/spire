@@ -225,7 +225,6 @@ func (s *Suite) TestFailedToCreateHelperFromConfigure() {
 func (s *Suite) TestHelperConfigure() {
 	rekorURL := "https://rekor.example.com/"
 	invalidURL := "invalid url"
-	defaultRekorURL := "https://rekor.sigstore.dev/"
 	for _, tt := range []struct {
 		name      string
 		config    *HCLConfig
@@ -280,7 +279,8 @@ func (s *Suite) TestHelperConfigure() {
 					},
 				},
 			},
-			expectRekoURL: defaultRekorURL,
+			errCode: codes.InvalidArgument,
+			errMsg:  "missing Rekor URL",
 		},
 		{
 			name: "failed to set url",

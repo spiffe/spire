@@ -225,11 +225,10 @@ func configureSigstoreClient(client sigstore.Sigstore, c *SigstoreHCLConfig, log
 			client.AddAllowedSubject(issuer, subject)
 		}
 	}
-	rekorURL := "https://rekor.sigstore.dev/" // default rekor url
-	if c.RekorURL != nil {
-		rekorURL = (*c.RekorURL)
+	if c.RekorURL == nil {
+		return status.Errorf(codes.InvalidArgument, "missing Rekor URL")
 	}
-	if err := client.SetRekorURL(rekorURL); err != nil {
+	if err := client.SetRekorURL(*c.RekorURL); err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to parse Rekor URL: %v", err)
 	}
 	return nil

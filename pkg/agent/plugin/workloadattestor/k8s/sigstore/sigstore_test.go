@@ -82,7 +82,7 @@ func TestNew(t *testing.T) {
 		},
 		skippedImages:    nil,
 		subjectAllowList: nil,
-		rekorURL:         url.URL{Scheme: rekor.DefaultSchemes[0], Host: rekor.DefaultHost, Path: rekor.DefaultBasePath},
+		rekorURL:         url.URL{},
 		sigstorecache:    newcache,
 		logger:           nil,
 	}
