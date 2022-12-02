@@ -3,3 +3,9 @@
 .cache
 releases/
 artifacts/
+.githooks/
+script/
+doc/
+examples/
+oci/
+*-image.tar
