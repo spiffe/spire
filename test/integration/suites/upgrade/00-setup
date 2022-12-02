@@ -37,6 +37,7 @@ cat <<EOF >> docker-compose.yaml
     hostname: spire-agent
     user: "${UID}"
     healthcheck:
+      # TODO: Use default socket path in 1.7.0
       test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/opt/spire/data/agent/socket/api.sock"]
       interval: 1s
       timeout: 3s
