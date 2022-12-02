@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
-	"reflect"
 	"testing"
 	"time"
 
@@ -102,11 +101,11 @@ func TestNew(t *testing.T) {
 	if &(sigImpObj.functionHooks.checkOptsFunction) == &(want.functionHooks.checkOptsFunction) {
 		t.Errorf("checkOptsFunction functions do not match")
 	}
-	require.Equal(t, want.skippedImages, sigImpObj.skippedImages, "skippedImages array is not empty")
-	require.Equal(t, want.subjectAllowList, sigImpObj.subjectAllowList, "subjectAllowList array is not empty")
+	require.Empty(t, sigImpObj.skippedImages, "skippedImages array is not empty")
+	require.Empty(t, sigImpObj.subjectAllowList, "subjectAllowList array is not empty")
 	require.Equal(t, want.rekorURL, sigImpObj.rekorURL, "rekorURL is different from rekor default")
 	require.Equal(t, want.sigstorecache, sigImpObj.sigstorecache, "sigstorecache is different from fresh object")
-	require.Equal(t, want.logger, sigImpObj.logger, "new logger is not nil")
+	require.Nil(t, sigImpObj.logger, "new logger is not nil")
 }
 
 func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
@@ -897,7 +896,7 @@ func TestSigstoreimpl_ClearSkipList(t *testing.T) {
 				skippedImages: tt.fields.skippedImages,
 			}
 			sigstore.ClearSkipList()
-			if !reflect.DeepEqual(sigstore.skippedImages, tt.want) {
+			if sigstore.skippedImages != nil {
 				t.Errorf("sigstore.skippedImages = %v, want %v", sigstore.skippedImages, tt.want)
 			}
 		})
@@ -1014,64 +1013,44 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 }
 
 func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
-	type fields struct {
-		subjectAllowList map[string]map[string]struct{}
-	}
-	type args struct {
-		issuer  string
-		subject string
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   map[string]map[string]struct{}
+		name             string
+		subjectAllowList map[string]map[string]struct{}
+		issuer           string
+		subject          string
+		want             map[string]map[string]struct{}
 	}{
 		{
-			name: "add allowed subject to nil map",
-			fields: fields{
-				subjectAllowList: nil,
-			},
-			args: args{
-				issuer:  "issuer1",
-				subject: "spirex@example.com",
-			},
+			name:             "add allowed subject to nil map",
+			subjectAllowList: nil,
+			issuer:           "issuer1",
+			subject:          "spirex@example.com",
 			want: map[string]map[string]struct{}{
 				"issuer1": {"spirex@example.com": struct{}{}},
 			},
 		},
 		{
-			name: "add allowed subject to empty map",
-			fields: fields{
-				subjectAllowList: map[string]map[string]struct{}{},
-			},
-			args: args{
-				issuer:  "issuer1",
-				subject: "spirex@example.com",
-			},
+			name:             "add allowed subject to empty map",
+			subjectAllowList: map[string]map[string]struct{}{},
+			issuer:           "issuer1",
+			subject:          "spirex@example.com",
 			want: map[string]map[string]struct{}{
 				"issuer1": {"spirex@example.com": struct{}{}},
 			},
 		},
 		{
 			name: "add allowed subject to existing map",
-			fields: fields{
-				subjectAllowList: map[string]map[string]struct{}{
-					"issuer1": {
-						"spirex1@example.com": struct{}{},
-						"spirex2@example.com": struct{}{},
-						"spirex3@example.com": struct{}{},
-						"spirex5@example.com": struct{}{},
-					},
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
 				},
 			},
-			args: args{
-				issuer:  "issuer1",
-				subject: "spirex4@example.com",
-			},
+			issuer:  "issuer1",
+			subject: "spirex4@example.com",
 			want: map[string]map[string]struct{}{
-				"issuer1": {
-					"spirex1@example.com": struct{}{},
+				"issuer1": {"spirex1@example.com": struct{}{},
 					"spirex2@example.com": struct{}{},
 					"spirex3@example.com": struct{}{},
 					"spirex4@example.com": struct{}{},
@@ -1081,20 +1060,18 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 		},
 		{
 			name: "add allowed subject to existing map with new issuer",
-			fields: fields{
-				subjectAllowList: map[string]map[string]struct{}{
-					"issuer1": {
-						"spirex1@example.com": struct{}{},
-						"spirex2@example.com": struct{}{},
-						"spirex3@example.com": struct{}{},
-						"spirex5@example.com": struct{}{},
-					},
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
 				},
 			},
-			args: args{
-				issuer:  "issuer2",
-				subject: "spirex4@example.com",
-			},
+
+			issuer:  "issuer2",
+			subject: "spirex4@example.com",
+
 			want: map[string]map[string]struct{}{
 				"issuer1": {
 					"spirex1@example.com": struct{}{},
@@ -1109,21 +1086,17 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 		},
 		{
 			name: "add existing allowed subject to existing map with new issuer",
-			fields: fields{
-				subjectAllowList: map[string]map[string]struct{}{
-					"issuer1": {
-						"spirex1@example.com": struct{}{},
-						"spirex2@example.com": struct{}{},
-						"spirex3@example.com": struct{}{},
-						"spirex4@example.com": struct{}{},
-						"spirex5@example.com": struct{}{},
-					},
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex4@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
 				},
 			},
-			args: args{
-				issuer:  "issuer2",
-				subject: "spirex4@example.com",
-			},
+			issuer:  "issuer2",
+			subject: "spirex4@example.com",
 			want: map[string]map[string]struct{}{
 				"issuer1": {
 					"spirex1@example.com": struct{}{},
@@ -1139,21 +1112,17 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 		},
 		{
 			name: "add existing allowed subject to existing map with same issuer",
-			fields: fields{
-				subjectAllowList: map[string]map[string]struct{}{
-					"issuer1": {
-						"spirex1@example.com": struct{}{},
-						"spirex2@example.com": struct{}{},
-						"spirex3@example.com": struct{}{},
-						"spirex4@example.com": struct{}{},
-						"spirex5@example.com": struct{}{},
-					},
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex4@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
 				},
 			},
-			args: args{
-				issuer:  "issuer1",
-				subject: "spirex4@example.com",
-			},
+			issuer:  "issuer1",
+			subject: "spirex4@example.com",
 			want: map[string]map[string]struct{}{
 				"issuer1": {
 					"spirex1@example.com": struct{}{},
@@ -1168,80 +1137,70 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sigstore := &sigstoreImpl{
-				subjectAllowList: tt.fields.subjectAllowList,
+				subjectAllowList: tt.subjectAllowList,
 			}
-			sigstore.AddAllowedSubject(tt.args.issuer, tt.args.subject)
+			sigstore.AddAllowedSubject(tt.issuer, tt.subject)
 			require.Equal(t, sigstore.subjectAllowList, tt.want, "sigstore.subjectAllowList = %v, want %v", sigstore.subjectAllowList, tt.want)
 		})
 	}
 }
 
 func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
-	type fields struct {
-		subjectAllowList map[string]map[string]struct{}
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		want   map[string]map[string]struct{}
+		name             string
+		subjectAllowList map[string]map[string]struct{}
+		want             map[string]map[string]struct{}
 	}{
 
 		{
 			name: "clear existing map",
-			fields: fields{
-				subjectAllowList: map[string]map[string]struct{}{
-					"issuer1": {
-						"spirex1@example.com": struct{}{},
-						"spirex2@example.com": struct{}{},
-						"spirex3@example.com": struct{}{},
-						"spirex4@example.com": struct{}{},
-						"spirex5@example.com": struct{}{},
-					},
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex4@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
 				},
 			},
 			want: nil,
 		},
 		{
 			name: "clear map with multiple issuers",
-			fields: fields{
-				subjectAllowList: map[string]map[string]struct{}{
-					"issuer1": {
-						"spirex1@example.com": struct{}{},
-						"spirex2@example.com": struct{}{},
-						"spirex3@example.com": struct{}{},
-						"spirex4@example.com": struct{}{},
-						"spirex5@example.com": struct{}{},
-					},
-					"issuer2": {
-						"spirex1@example.com": struct{}{},
-						"spirex6@example.com": struct{}{},
-					},
+
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
+					"spirex2@example.com": struct{}{},
+					"spirex3@example.com": struct{}{},
+					"spirex4@example.com": struct{}{},
+					"spirex5@example.com": struct{}{},
+				},
+				"issuer2": {
+					"spirex1@example.com": struct{}{},
+					"spirex6@example.com": struct{}{},
 				},
 			},
 			want: nil,
 		},
 		{
-			name: "clear empty map",
-			fields: fields{
-				subjectAllowList: map[string]map[string]struct{}{},
-			},
-			want: nil,
+			name:             "clear empty map",
+			subjectAllowList: map[string]map[string]struct{}{},
+			want:             nil,
 		},
 		{
-			name: "clear nil map",
-			fields: fields{
-				subjectAllowList: nil,
-			},
-			want: nil,
+			name:             "clear nil map",
+			subjectAllowList: nil,
+			want:             nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sigstore := &sigstoreImpl{
-				subjectAllowList: tt.fields.subjectAllowList,
+				subjectAllowList: tt.subjectAllowList,
 			}
 			sigstore.ClearAllowedSubjects()
-			if !reflect.DeepEqual(sigstore.subjectAllowList, tt.want) {
+			if sigstore.subjectAllowList != nil {
 				t.Errorf("sigstore.subjectAllowList = %v, want %v", sigstore.subjectAllowList, tt.want)
 			}
 		})
