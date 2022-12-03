@@ -4,10 +4,10 @@ go 1.19
 
 require (
 	cloud.google.com/go/iam v0.7.0
-	cloud.google.com/go/kms v1.6.0
+	cloud.google.com/go/kms v1.7.0
 	cloud.google.com/go/secretmanager v1.9.0
 	cloud.google.com/go/security v1.10.0
-	cloud.google.com/go/storage v1.28.0
+	cloud.google.com/go/storage v1.28.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
@@ -22,9 +22,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.2
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.19
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.19.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.72.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.74.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.18.16
-	github.com/aws/aws-sdk-go-v2/service/kms v1.18.8
+	github.com/aws/aws-sdk-go-v2/service/kms v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.16.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.17.4
 	github.com/blang/semver/v4 v4.0.0
@@ -32,7 +32,7 @@ require (
 	github.com/docker/docker v20.10.21+incompatible
 	github.com/envoyproxy/go-control-plane v0.10.2-0.20220325020618-49ff273808a1
 	github.com/go-logr/logr v1.2.3
-	github.com/go-sql-driver/mysql v1.6.0
+	github.com/go-sql-driver/mysql v1.7.0
 	github.com/gofrs/uuid v4.3.1+incompatible
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
@@ -54,7 +54,7 @@ require (
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.46.1
 	github.com/prometheus/client_golang v1.14.0
-	github.com/shirou/gopsutil/v3 v3.22.10
+	github.com/shirou/gopsutil/v3 v3.22.11
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spiffe/go-spiffe/v2 v2.0.1-0.20220414143532-2ed460a8b9d3
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20221020001527-5895a0279944
@@ -65,10 +65,10 @@ require (
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.0.0-20221010170243-090e33056c14
+	golang.org/x/sys v0.2.0
 	golang.org/x/time v0.2.0
 	google.golang.org/api v0.103.0
-	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c
+	google.golang.org/genproto v0.0.0-20221201164419-0e50fba7f41c
 	google.golang.org/grpc v1.51.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -84,7 +84,7 @@ require (
 	cloud.google.com/go v0.105.0 // indirect
 	cloud.google.com/go/compute v1.12.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.1 // indirect
-	cloud.google.com/go/longrunning v0.1.1 // indirect
+	cloud.google.com/go/longrunning v0.3.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.27 // indirect
@@ -191,8 +191,8 @@ require (
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tchap/go-patricia/v2 v2.3.1 // indirect
-	github.com/tklauser/go-sysconf v0.3.10 // indirect
-	github.com/tklauser/numcpus v0.4.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.11 // indirect
+	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect

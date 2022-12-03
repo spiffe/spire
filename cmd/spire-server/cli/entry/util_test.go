@@ -19,6 +19,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+var availableFormats = []string{"pretty", "json"}
+
 func TestParseEntryJSON(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -252,4 +254,17 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *entry
 	})
 
 	return test
+}
+
+func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
+	switch format {
+	case "pretty":
+		require.Contains(t, stdoutString, expectedStdoutPretty)
+	case "json":
+		if expectedStdoutJSON != "" {
+			require.JSONEq(t, expectedStdoutJSON, stdoutString)
+		} else {
+			require.Empty(t, stdoutString)
+		}
+	}
 }
