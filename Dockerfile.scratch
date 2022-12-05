@@ -1,22 +1,29 @@
 # Build stage
 # syntax = docker/dockerfile:1.4.2@sha256:443aab4ca21183e069e7d8b2dc68006594f40bddf1b15bbd83f5137bd93e80e2
 ARG goversion
-FROM --platform=${BUILDPLATFORM} golang:${goversion}-buster as base
+FROM --platform=${BUILDPLATFORM} golang:${goversion}-alpine as base
 WORKDIR /spire
+RUN apk add --no-cache file bash clang lld pkgconfig git make
 COPY go.* ./
 # https://go.dev/ref/mod#module-cache
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
 
+# xx is a helper for cross-compilation
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.1.2 AS xx
+
 FROM --platform=${BUILDPLATFORM} base as builder
-ARG TARGETOS TARGETARCH
-RUN apt-get update && apt-get install -y ca-certificates gcc-aarch64-linux-gnu make
+ARG TARGETPLATFORM
+ARG TARGETARCH
+COPY --link --from=xx / /
+RUN set -e ; xx-apk add build-base musl-dev libseccomp-dev
+RUN install -d -o root -g root -m 1777 /newtmp
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    if [ "$TARGETARCH" = "arm64" ]; then CC=aarch64-linux-gnu-gcc && CC_FOR_TARGET=aarch64-linux-gnu; fi && \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH CC=$CC CC_FOR_TARGET=$CC_FOR_TARGET \
-    make build-static
-RUN install -d -o root -g root -m 1777 /newtmp
+    if [ "$TARGETARCH" = "arm64" ]; then CC=aarch64-alpine-linux-musl; fi && \
+    xx-go --wrap && \
+    make build-static && \
+    for f in $(find bin -executable -type f); do xx-verify $f; done
 
 FROM --platform=${BUILDPLATFORM} scratch AS spire-base
 WORKDIR /opt/spire
