@@ -26,6 +26,7 @@ import (
 	sig "github.com/sigstore/cosign/pkg/signature"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -169,12 +170,16 @@ func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName strin
 // ExtractSelectorsFromSignatures extracts selectors from a list of image signatures.
 // returns a list of selector strings.
 func (s *sigstoreImpl) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []SelectorsFromSignatures {
+	if len(signatures) == 0 {
+		s.logger.Error("no signatures found for container", telemetry.ContainerID, containerID)
+		return nil
+	}
 	var selectors []SelectorsFromSignatures
 	for _, sig := range signatures {
 		// verify which subject
 		sigSelectors, err := s.SelectorValuesFromSignature(sig)
 		if err != nil {
-			s.logger.Error("error extracting selectors from signature", "error", err)
+			s.logger.Error("error extracting selectors from signature", "error", err, telemetry.ContainerID, containerID)
 		}
 		if sigSelectors != nil {
 			selectors = append(selectors, *sigSelectors)
@@ -197,10 +202,10 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature) (*Se
 	issuer, err := getSignatureProvider(signature)
 
 	if err != nil {
-		return nil, fmt.Errorf("error getting signature issuer: %w", err)
+		return nil, fmt.Errorf("error getting signature provider: %w", err)
 	}
 	if issuer == "" {
-		return nil, fmt.Errorf("error getting signature issuer: %w", errors.New("empty issuer"))
+		return nil, fmt.Errorf("error getting signature provider: %w", errors.New("empty issuer"))
 	}
 
 	if issuerSubjects, ok := s.subjectAllowList[issuer]; !ok {
@@ -364,6 +369,9 @@ func getSignatureSubject(signature oci.Signature) (string, error) {
 	pl, err := signature.Payload()
 	if err != nil {
 		return "", err
+	}
+	if pl == nil {
+		return "", errors.New("signature payload is nil")
 	}
 	if err := json.Unmarshal(pl, &ss); err != nil {
 		return "", err

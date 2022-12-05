@@ -4,6 +4,7 @@
 package sigstore
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -409,6 +410,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 		containerID      string
 		subjectAllowList map[string]map[string]struct{}
 		want             []SelectorsFromSignatures
+		wantLog          string
 	}{
 		{
 			name: "extract selector from single image signature array",
@@ -510,6 +512,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 			},
 			containerID: "222222",
 			want:        nil,
+			wantLog:     "signature payload is nil",
 		},
 		{
 			name: "extract selector from image signature with subject certificate",
@@ -598,18 +601,20 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 			signatures:  []oci.Signature{},
 			containerID: "555555",
 			want:        nil,
+			wantLog:     "no signatures found for container: container_id=555555",
 		},
 		{
 			name:        "extract selector from nil array",
 			signatures:  nil,
 			containerID: "666666",
 			want:        nil,
+			wantLog:     "no signatures found for container: container_id=666666",
 		},
 		{
 			name: "invalid payload",
 			signatures: []oci.Signature{
 				signature{
-					payload: []byte(`{"critical": {}}`),
+					payload: []byte(`{a"critical": {}}`),
 					bundle: &bundle.RekorBundle{
 						Payload: bundle.RekorPayload{
 							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
@@ -621,16 +626,181 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 			},
 			containerID: "777777",
 			want:        nil,
+			wantLog:     "error getting signature subject: invalid character 'a' looking for beginning of object key string",
+		},
+		{
+			name: "extract selector from single image signature array with error getting provider",
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
+						},
+					},
+					cert: nil,
+				},
+			},
+			containerID: "888888",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}},
+			},
+			want:    nil,
+			wantLog: "error extracting selectors from signature: error=\"error getting signature provider: no certificate found in signature\" container_id=888888",
+		},
+		{
+			name: "extract selector from single image signature array with empty provider",
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
+						},
+					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"}, Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(``),
+						}},
+					},
+				},
+			},
+			containerID: "999999",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}},
+			},
+			want:    nil,
+			wantLog: "error extracting selectors from signature: error=\"error getting signature provider: empty issuer\" container_id=999999",
+		},
+		{
+			name: "extract selector from single image signature array with no provider extension",
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
+						},
+					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"}, Extensions: []pkix.Extension{},
+					},
+				},
+			},
+			containerID: "101010",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}},
+			},
+			want:    nil,
+			wantLog: "error extracting selectors from signature: error=\"error getting signature provider: no OIDC issuer found in certificate extensions\" container_id=101010",
+		},
+		{
+			name: "extract selector from single image signature array, error no log id",
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "",
+							IntegratedTime: 12345,
+						},
+					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
+				},
+			},
+			containerID: "101101",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}},
+			},
+			want:    nil,
+			wantLog: "error extracting selectors from signature: error=\"error getting signature log ID: empty log ID\" container_id=101101",
+		},
+		{
+			name: "extract selector from single image signature array, error no integrated time",
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 0,
+						},
+					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer1`),
+						}},
+					},
+				},
+			},
+			containerID: "121212",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}},
+			},
+			want:    nil,
+			wantLog: "error extracting selectors from signature: error=\"error getting signature integrated time: integrated time is 0\" container_id=121212",
+		},
+		{
+			name: "extract selector from single image signature array, issuer not in allowlist",
+			signatures: []oci.Signature{
+				signature{
+					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com"}}`),
+					bundle: &bundle.RekorBundle{
+						Payload: bundle.RekorPayload{
+							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+							LogID:          "samplelogID",
+							IntegratedTime: 12345,
+						},
+					},
+					cert: &x509.Certificate{
+						EmailAddresses: []string{"spirex@example.com"},
+						Extensions: []pkix.Extension{{
+							Id:    OIDCIssuerOID,
+							Value: []byte(`issuer2`),
+						}},
+					},
+				},
+			},
+			containerID: "131313",
+			subjectAllowList: map[string]map[string]struct{}{
+				"issuer1": {"spirex@example.com": struct{}{}},
+			},
+			want:    nil,
+			wantLog: "error extracting selectors from signature: error=\"signature issuer \\\"issuer2\\\" not in allow-list\" container_id=131313",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			buf := bytes.Buffer{}
+			newLog := hclog.New(&hclog.LoggerOptions{
+				Output: &buf,
+			})
 			s := sigstoreImpl{
-				logger:           hclog.Default(),
+				logger:           newLog,
 				subjectAllowList: tt.subjectAllowList,
 			}
 			got := s.ExtractSelectorsFromSignatures(tt.signatures, tt.containerID)
 			require.Equal(t, tt.want, got)
+			if len(tt.wantLog) > 0 {
+				require.Contains(t, buf.String(), tt.wantLog)
+			}
 		})
 	}
 }
