@@ -151,7 +151,7 @@ func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName strin
 		return nil, fmt.Errorf("could not validate image reference digest: %w", err)
 	}
 
-	co, err := s.functionHooks.checkOptsFunction(s.rekorURL)
+	co, err := s.functionHooks.checkOptsFunction(s.rekorURL, s.enforceSCT)
 	if err != nil {
 		return nil, fmt.Errorf("could not create cosign check options: %w", err)
 	}
