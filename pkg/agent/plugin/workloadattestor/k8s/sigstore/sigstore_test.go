@@ -113,9 +113,6 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 		functionBindings sigstoreFunctionBindings
 		rekorURL         url.URL
 	}
-	type args struct {
-		imageName string
-	}
 
 	defaultCheckOpts, _ := defaultCheckOptsFunction(rekorDefaultURL())
 	emptyURLCheckOpts, emptyError := defaultCheckOptsFunction(url.URL{})
@@ -125,7 +122,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 	tests := []struct {
 		name                     string
 		fields                   fields
-		args                     args
+		imageName                string
 		wantedFetchArguments     fetchFunctionArguments
 		wantedVerifyArguments    verifyFunctionArguments
 		wantedCheckOptsArguments checkOptsFunctionArguments
@@ -146,9 +143,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 				rekorURL: rekorDefaultURL(),
 			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-			},
+			imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -184,9 +179,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 				rekorURL: rekorDefaultURL(),
 			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-			},
+			imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -218,9 +211,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 				rekorURL: rekorDefaultURL(),
 			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-			},
+			imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -246,9 +237,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 				rekorURL: rekorDefaultURL(),
 			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-			},
+			imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -278,9 +267,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 				rekorURL: rekorDefaultURL(),
 			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-			},
+			imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -310,9 +297,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 				rekorURL: rekorDefaultURL(),
 			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-			},
+			imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -338,9 +323,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 				rekorURL: rekorDefaultURL(),
 			},
-			args: args{
-				imageName: "invali|].url.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-			},
+			imageName: "invali|].url.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			want:      nil,
 			wantedErr: fmt.Errorf("error parsing image reference: %w", errors.New("could not parse reference: invali|].url.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505")),
 		},
@@ -354,9 +337,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 				rekorURL: url.URL{},
 			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-			},
+			imageName: "docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -378,9 +359,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				},
 				rekorURL: rekorDefaultURL(),
 			},
-			args: args{
-				imageName: "docker-registry.com/some/image@sha256:4fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
-			},
+			imageName: "docker-registry.com/some/image@sha256:4fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505",
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("docker-registry.com/some/image@sha256:4fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -405,7 +384,7 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 				sigstorecache: NewCache(maximumAmountCache),
 				rekorURL:      tt.fields.rekorURL,
 			}
-			got, err := sigstore.FetchImageSignatures(context.Background(), tt.args.imageName)
+			got, err := sigstore.FetchImageSignatures(context.Background(), tt.imageName)
 			if tt.wantedErr != nil {
 				require.EqualError(t, err, tt.wantedErr.Error())
 			} else {
@@ -657,80 +636,54 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 }
 
 func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
-	type fields struct {
-		skippedImages map[string]struct{}
-	}
-	type args struct {
-		imageID string
-	}
 	tests := []struct {
-		name      string
-		fields    fields
-		args      args
-		want      bool
-		wantedErr error
+		name          string
+		skippedImages map[string]struct{}
+		imageID       string
+		want          bool
+		wantedErr     error
 	}{
 		{
 			name: "skipping only image in list",
-			fields: fields{
-				skippedImages: map[string]struct{}{
-					"sha256:sampleimagehash": struct{}{},
-				},
+			skippedImages: map[string]struct{}{
+				"sha256:sampleimagehash": struct{}{},
 			},
-			args: args{
-				imageID: "sha256:sampleimagehash",
-			},
-			want: true,
+			imageID: "sha256:sampleimagehash",
+			want:    true,
 		},
 		{
 			name: "skipping image in list",
-			fields: fields{
-				skippedImages: map[string]struct{}{
-					"sha256:sampleimagehash":  struct{}{},
-					"sha256:sampleimagehash2": struct{}{},
-					"sha256:sampleimagehash3": struct{}{},
-				},
+			skippedImages: map[string]struct{}{
+				"sha256:sampleimagehash":  struct{}{},
+				"sha256:sampleimagehash2": struct{}{},
+				"sha256:sampleimagehash3": struct{}{},
 			},
-			args: args{
-				imageID: "sha256:sampleimagehash2",
-			},
-			want: true,
+			imageID: "sha256:sampleimagehash2",
+			want:    true,
 		},
 		{
 			name: "image not in list",
-			fields: fields{
-				skippedImages: map[string]struct{}{
-					"sha256:sampleimagehash":  struct{}{},
-					"sha256:sampleimagehash3": struct{}{},
-				},
+			skippedImages: map[string]struct{}{
+				"sha256:sampleimagehash":  struct{}{},
+				"sha256:sampleimagehash3": struct{}{},
 			},
-			args: args{
-				imageID: "sha256:sampleimagehash2",
-			},
-			want: false,
+			imageID: "sha256:sampleimagehash2",
+			want:    false,
 		},
 		{
-			name: "empty skip list",
-			fields: fields{
-				skippedImages: nil,
-			},
-			args: args{
-				imageID: "sha256:sampleimagehash",
-			},
-			want: false,
+			name:          "empty skip list",
+			skippedImages: nil,
+			imageID:       "sha256:sampleimagehash",
+			want:          false,
 		},
 		{
 			name: "empty imageID",
-			fields: fields{
-				skippedImages: map[string]struct{}{
-					"sha256:sampleimagehash":  struct{}{},
-					"sha256:sampleimagehash2": struct{}{},
-					"sha256:sampleimagehash3": struct{}{},
-				},
+			skippedImages: map[string]struct{}{
+				"sha256:sampleimagehash":  struct{}{},
+				"sha256:sampleimagehash2": struct{}{},
+				"sha256:sampleimagehash3": struct{}{},
 			},
-			args: args{
-				imageID: "",
-			},
+			imageID:   "",
 			want:      false,
 			wantedErr: errors.New("image ID is empty"),
 		},
@@ -738,63 +691,47 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sigstore := sigstoreImpl{
-				skippedImages: tt.fields.skippedImages,
+				skippedImages: tt.skippedImages,
 			}
-			got, err := sigstore.ShouldSkipImage(tt.args.imageID)
+			got, err := sigstore.ShouldSkipImage(tt.imageID)
 			if tt.wantedErr != nil {
 				require.EqualError(t, err, tt.wantedErr.Error())
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, got, tt.want)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
-	type fields struct {
-		verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
-		fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
-		skippedImages              map[string]struct{}
-	}
-	type args struct {
-		imageID []string
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   map[string]struct{}
+		name          string
+		skippedImages map[string]struct{}
+		imageID       []string
+		want          map[string]struct{}
 	}{
 		{
-			name: "add skipped image to empty map",
-			args: args{
-				imageID: []string{"sha256:sampleimagehash"},
-			},
+			name:    "add skipped image to empty map",
+			imageID: []string{"sha256:sampleimagehash"},
 			want: map[string]struct{}{
 				"sha256:sampleimagehash": struct{}{},
 			},
 		},
 		{
 			name: "add skipped image",
-			fields: fields{
-				skippedImages: map[string]struct{}{
-					"sha256:sampleimagehash1": struct{}{},
-				},
+			skippedImages: map[string]struct{}{
+				"sha256:sampleimagehash1": struct{}{},
 			},
-			args: args{
-				imageID: []string{"sha256:sampleimagehash"},
-			},
+			imageID: []string{"sha256:sampleimagehash"},
 			want: map[string]struct{}{
 				"sha256:sampleimagehash":  struct{}{},
 				"sha256:sampleimagehash1": struct{}{},
 			},
 		},
 		{
-			name: "add a list of skipped images to empty map",
-			args: args{
-				imageID: []string{"sha256:sampleimagehash", "sha256:sampleimagehash1"},
-			},
+			name:    "add a list of skipped images to empty map",
+			imageID: []string{"sha256:sampleimagehash", "sha256:sampleimagehash1"},
 			want: map[string]struct{}{
 				"sha256:sampleimagehash":  struct{}{},
 				"sha256:sampleimagehash1": struct{}{},
@@ -802,14 +739,10 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 		},
 		{
 			name: "add a list of skipped images to a existing map",
-			fields: fields{
-				skippedImages: map[string]struct{}{
-					"sha256:sampleimagehash": struct{}{},
-				},
+			skippedImages: map[string]struct{}{
+				"sha256:sampleimagehash": struct{}{},
 			},
-			args: args{
-				imageID: []string{"sha256:sampleimagehash1", "sha256:sampleimagehash2"},
-			},
+			imageID: []string{"sha256:sampleimagehash1", "sha256:sampleimagehash2"},
 			want: map[string]struct{}{
 				"sha256:sampleimagehash":  struct{}{},
 				"sha256:sampleimagehash1": struct{}{},
@@ -820,85 +753,48 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sigstore := sigstoreImpl{
-				functionHooks: sigstoreFunctionHooks{
-					verifyFunction:             tt.fields.verifyFunction,
-					fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
-				},
-				skippedImages: tt.fields.skippedImages,
+				skippedImages: tt.skippedImages,
 			}
-			sigstore.AddSkippedImage(tt.args.imageID)
-			require.Equal(t, sigstore.skippedImages, tt.want)
+			sigstore.AddSkippedImage(tt.imageID)
+			require.Equal(t, tt.want, sigstore.skippedImages)
 		})
 	}
 }
 
 func TestSigstoreimpl_ClearSkipList(t *testing.T) {
-	type fields struct {
-		verifyFunction             func(context context.Context, ref name.Reference, co *cosign.CheckOpts) ([]oci.Signature, bool, error)
-		fetchImageManifestFunction func(ref name.Reference, options ...remote.Option) (*remote.Descriptor, error)
-		skippedImages              map[string]struct{}
-	}
 	tests := []struct {
-		name   string
-		fields fields
-		want   map[string]struct{}
+		skippedImages map[string]struct{}
+		name          string
 	}{
 		{
 			name: "clear single image in map",
-			fields: fields{
-
-				verifyFunction:             nil,
-				fetchImageManifestFunction: nil,
-				skippedImages: map[string]struct{}{
-					"sha256:sampleimagehash": struct{}{},
-				},
+			skippedImages: map[string]struct{}{
+				"sha256:sampleimagehash": struct{}{},
 			},
-			want: nil,
 		},
 		{
 			name: "clear multiple images map",
-			fields: fields{
-				verifyFunction:             nil,
-				fetchImageManifestFunction: nil,
-				skippedImages: map[string]struct{}{
-					"sha256:sampleimagehash":  struct{}{},
-					"sha256:sampleimagehash1": struct{}{},
-				},
+			skippedImages: map[string]struct{}{
+				"sha256:sampleimagehash":  struct{}{},
+				"sha256:sampleimagehash1": struct{}{},
 			},
-			want: nil,
 		},
 		{
-			name: "clear on empty map",
-			fields: fields{
-				verifyFunction:             nil,
-				fetchImageManifestFunction: nil,
-				skippedImages:              map[string]struct{}{},
-			},
-			want: nil,
+			name:          "clear on empty map",
+			skippedImages: map[string]struct{}{},
 		},
 		{
-			name: "clear on nil map",
-			fields: fields{
-				verifyFunction:             nil,
-				fetchImageManifestFunction: nil,
-				skippedImages:              nil,
-			},
-			want: nil,
+			name:          "clear on nil map",
+			skippedImages: nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sigstore := &sigstoreImpl{
-				functionHooks: sigstoreFunctionHooks{
-					verifyFunction:             tt.fields.verifyFunction,
-					fetchImageManifestFunction: tt.fields.fetchImageManifestFunction,
-				},
-				skippedImages: tt.fields.skippedImages,
+				skippedImages: tt.skippedImages,
 			}
 			sigstore.ClearSkipList()
-			if sigstore.skippedImages != nil {
-				t.Errorf("sigstore.skippedImages = %v, want %v", sigstore.skippedImages, tt.want)
-			}
+			require.Empty(t, sigstore.skippedImages)
 		})
 	}
 }
@@ -907,15 +803,11 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 	type fields struct {
 		verifyFunction             verifyFunctionBinding
 		fetchImageManifestFunction fetchFunctionBinding
-		skippedImages              map[string]struct{}
-	}
-	type args struct {
-		ref name.Reference
 	}
 	tests := []struct {
 		name                  string
 		fields                fields
-		args                  args
+		ref                   name.Reference
 		wantedFetchArguments  fetchFunctionArguments
 		wantedVerifyArguments verifyFunctionArguments
 		wantedErr             error
@@ -928,9 +820,7 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 					Manifest: []byte(`sometext`),
 				}, nil),
 			},
-			args: args{
-				ref: name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
-			},
+			ref: name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -943,9 +833,7 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 				verifyFunction:             createNilVerifyFunction(),
 				fetchImageManifestFunction: createFetchFunction(nil, errors.New("fetch error 123")),
 			},
-			args: args{
-				ref: name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
-			},
+			ref: name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -960,9 +848,7 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 					Manifest: nil,
 				}, nil),
 			},
-			args: args{
-				ref: name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
-			},
+			ref: name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("example.com/sampleimage@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505"),
 				options: nil,
@@ -977,9 +863,7 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 					Manifest: []byte("f0c62edf734ff52ee830c9eeef2ceefad94f7f089706d170f8d9dc64befb57cc"),
 				}, nil),
 			},
-			args: args{
-				ref: name.MustParseReference("example.com/sampleimage@sha256:f037cc8ec4cd38f95478773741fdecd48d721a527d19013031692edbf95fae69"),
-			},
+			ref: name.MustParseReference("example.com/sampleimage@sha256:f037cc8ec4cd38f95478773741fdecd48d721a527d19013031692edbf95fae69"),
 			wantedFetchArguments: fetchFunctionArguments{
 				ref:     name.MustParseReference("example.com/sampleimage@sha256:f037cc8ec4cd38f95478773741fdecd48d721a527d19013031692edbf95fae69"),
 				options: nil,
@@ -996,10 +880,9 @@ func TestSigstoreimpl_ValidateImage(t *testing.T) {
 					verifyFunction:             tt.fields.verifyFunction(t, &verifyArguments),
 					fetchImageManifestFunction: tt.fields.fetchImageManifestFunction(t, &fetchArguments),
 				},
-				skippedImages: tt.fields.skippedImages,
 			}
 
-			err := sigstore.ValidateImage(tt.args.ref)
+			err := sigstore.ValidateImage(tt.ref)
 			if tt.wantedErr != nil {
 				require.EqualError(t, err, tt.wantedErr.Error())
 			} else {
@@ -1149,7 +1032,6 @@ func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 	tests := []struct {
 		name             string
 		subjectAllowList map[string]map[string]struct{}
-		want             map[string]map[string]struct{}
 	}{
 
 		{
@@ -1163,7 +1045,6 @@ func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 					"spirex5@example.com": struct{}{},
 				},
 			},
-			want: nil,
 		},
 		{
 			name: "clear map with multiple issuers",
@@ -1181,17 +1062,14 @@ func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 					"spirex6@example.com": struct{}{},
 				},
 			},
-			want: nil,
 		},
 		{
 			name:             "clear empty map",
 			subjectAllowList: map[string]map[string]struct{}{},
-			want:             nil,
 		},
 		{
 			name:             "clear nil map",
 			subjectAllowList: nil,
-			want:             nil,
 		},
 	}
 	for _, tt := range tests {
@@ -1200,20 +1078,15 @@ func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 				subjectAllowList: tt.subjectAllowList,
 			}
 			sigstore.ClearAllowedSubjects()
-			if sigstore.subjectAllowList != nil {
-				t.Errorf("sigstore.subjectAllowList = %v, want %v", sigstore.subjectAllowList, tt.want)
-			}
+			require.Empty(t, sigstore.subjectAllowList)
 		})
 	}
 }
 
 func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
-	type args struct {
-		signature oci.Signature
-	}
 	tests := []struct {
 		name             string
-		args             args
+		signature        oci.Signature
 		containerID      string
 		subjectAllowList map[string][]string
 		want             *SelectorsFromSignatures
@@ -1221,23 +1094,21 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 	}{
 		{
 			name: "selector from signature",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
+						Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+				},
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "000000",
@@ -1253,23 +1124,21 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, empty subject",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "","key2": "value 2","key3": "value 3"}}`),
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
+						Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
-					cert: &x509.Certificate{
-						EmailAddresses: nil,
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+				},
+				cert: &x509.Certificate{
+					EmailAddresses: nil,
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID:      "111111",
@@ -1279,16 +1148,14 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, not in allowlist",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex1@example.com","key2": "value 2","key3": "value 3"}}`),
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex1@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex1@example.com","key2": "value 2","key3": "value 3"}}`),
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex1@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "222222",
@@ -1300,23 +1167,21 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
+						Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiTUVVQ0lRQ3llbThHY3Iwc1BGTVA3ZlRYYXpDTjU3TmNONStNanhKdzlPbzB4MmVNK0FJZ2RnQlA5NkJPMVRlL05kYmpIYlVlYjBCVXllNmRlUmdWdFFFdjVObzVzbUE9IgogICAgfQogIH0KfQ==",
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+				},
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "333333",
@@ -1332,23 +1197,21 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, allowedlist enabled, in allowlist, empty content",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiIgogICAgfQogIH0KfQ==",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
+						Body:           "ewogICJzcGVjIjogewogICAgInNpZ25hdHVyZSI6IHsKICAgICAgImNvbnRlbnQiOiAiIgogICAgfQogIH0KfQ==",
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+				},
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "444444",
@@ -1360,16 +1223,14 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, nil bundle",
-			args: args{
-				signature: nilBundleSignature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+			signature: nilBundleSignature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "555555",
@@ -1381,23 +1242,21 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, bundle payload body is not a string",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           42,
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
+						Body:           42,
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+				},
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "000000",
@@ -1409,23 +1268,21 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, bundle payload body is not valid base64",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "abc..........def",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
+						Body:           "abc..........def",
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+				},
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "000000",
@@ -1437,23 +1294,21 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, bundle payload body has no signature content",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICAgInNwZWMiOiB7CiAgICAgICJzaWduYXR1cmUiOiB7CiAgICAgIH0KICAgIH0KfQ==",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
+						Body:           "ewogICAgInNwZWMiOiB7CiAgICAgICJzaWduYXR1cmUiOiB7CiAgICAgIH0KICAgIH0KfQ==",
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+				},
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "000000",
@@ -1465,23 +1320,21 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, bundle payload body signature content is empty",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICAgInNwZWMiOiB7CiAgICAgICAgInNpZ25hdHVyZSI6IHsKICAgICAgICAiY29udGVudCI6ICIiCiAgICAgICAgfQogICAgfQp9",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
+						Body:           "ewogICAgInNwZWMiOiB7CiAgICAgICAgInNpZ25hdHVyZSI6IHsKICAgICAgICAiY29udGVudCI6ICIiCiAgICAgICAgfQogICAgfQp9",
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+				},
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "000000",
@@ -1493,23 +1346,21 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, bundle payload body is not a valid JSON",
-			args: args{
-				signature: signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					bundle: &bundle.RekorBundle{
-						Payload: bundle.RekorPayload{
-							Body:           "ewogICJzcGVjIjosLCB7CiAgICAic2lnbmF0dXJlIjogewogICAgICAiY29udGVudCI6ICJNRVVDSVFDeWVtOEdjcjBzUEZNUDdmVFhhekNONTdOY041K01qeEp3OU9vMHgyZU0rQUlnZGdCUDk2Qk8xVGUvTmRiakhiVWViMEJVeWU2ZGVSZ1Z0UUV2NU5vNXNtQT0iCiAgICB9CiAgfQp9",
-							LogID:          "samplelogID",
-							IntegratedTime: 12345,
-						},
+			signature: signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "02c15a8d1735c65bb8ca86c716615d3c0d8beb87dc68ed88bb49192f90b184e2"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				bundle: &bundle.RekorBundle{
+					Payload: bundle.RekorPayload{
+						Body:           "ewogICJzcGVjIjosLCB7CiAgICAic2lnbmF0dXJlIjogewogICAgICAiY29udGVudCI6ICJNRVVDSVFDeWVtOEdjcjBzUEZNUDdmVFhhekNONTdOY041K01qeEp3OU9vMHgyZU0rQUlnZGdCUDk2Qk8xVGUvTmRiakhiVWViMEJVeWU2ZGVSZ1Z0UUV2NU5vNXNtQT0iCiAgICB9CiAgfQp9",
+						LogID:          "samplelogID",
+						IntegratedTime: 12345,
 					},
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+				},
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "000000",
@@ -1520,29 +1371,23 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 			wantedErr: fmt.Errorf("error getting signature content: failed to parse bundle body: invalid character ',' looking for beginning of value"),
 		},
 		{
-			name: "selector from signature, empty signature array",
-			args: args{
-				signature: nil,
-			},
+			name:        "selector from signature, empty signature array",
+			signature:   nil,
 			containerID: "000000",
 			want:        nil,
 			wantedErr:   errors.New("error getting signature subject: signature is nil"),
 		},
 		{
-			name: "selector from signature, single image signature, no payload",
-			args: args{
-				signature: noPayloadSignature{},
-			},
+			name:        "selector from signature, single image signature, no payload",
+			signature:   noPayloadSignature{},
 			containerID: "000000",
 			want:        nil,
 			wantedErr:   errors.New("error getting signature subject: no payload test"),
 		},
 		{
 			name: "selector from signature, single image signature, no certs",
-			args: args{
-				signature: &noCertSignature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
-				},
+			signature: &noCertSignature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "spirex@example.com","key2": "value 2","key3": "value 3"}}`),
 			},
 			containerID: "000000",
 			want:        nil,
@@ -1550,16 +1395,14 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 		},
 		{
 			name: "selector from signature, single image signature,garbled subject in signature",
-			args: args{
-				signature: &signature{
-					payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "s\\\\||as\0\0aasdasd/....???/.>wd12<><,,,><{}{pirex@example.com","key2": "value 2","key3": "value 3"}}`),
-					cert: &x509.Certificate{
-						EmailAddresses: []string{"spirex@example.com"},
-						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
-							Value: []byte(`issuer1`),
-						}},
-					},
+			signature: &signature{
+				payload: []byte(`{"critical": {"identity": {"docker-reference": "docker-registry.com/some/image"},"image": {"docker-manifest-digest": "some digest"},"type": "some type"},"optional": {"subject": "s\\\\||as\0\0aasdasd/....???/.>wd12<><,,,><{}{pirex@example.com","key2": "value 2","key3": "value 3"}}`),
+				cert: &x509.Certificate{
+					EmailAddresses: []string{"spirex@example.com"},
+					Extensions: []pkix.Extension{{
+						Id:    OIDCIssuerOID,
+						Value: []byte(`issuer1`),
+					}},
 				},
 			},
 			containerID: "000000",
@@ -1579,8 +1422,8 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 					sigstore.AddAllowedSubject(issuer, subject)
 				}
 			}
-			got, err := sigstore.SelectorValuesFromSignature(tt.args.signature)
-			assert.Equal(t, got, tt.want)
+			got, err := sigstore.SelectorValuesFromSignature(tt.signature)
+			assert.Equal(t, tt.want, got)
 			if tt.wantedErr != nil {
 				require.EqualError(t, err, tt.wantedErr.Error())
 				return
@@ -1797,27 +1640,17 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 }
 
 func TestSigstoreimpl_SetRekorURL(t *testing.T) {
-	type fields struct {
-		rekorURL url.URL
-	}
-	type args struct {
-		rekorURL string
-	}
 	tests := []struct {
-		name      string
-		fields    fields
-		args      args
-		want      url.URL
-		wantedErr error
+		name        string
+		rekorURL    url.URL
+		rekorURLArg string
+		want        url.URL
+		wantedErr   error
 	}{
 		{
-			name: "SetRekorURL",
-			fields: fields{
-				rekorURL: url.URL{},
-			},
-			args: args{
-				rekorURL: "https://rekor.com",
-			},
+			name:        "SetRekorURL",
+			rekorURL:    url.URL{},
+			rekorURLArg: "https://rekor.com",
 			want: url.URL{
 				Scheme: "https",
 				Host:   "rekor.com",
@@ -1825,15 +1658,11 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 		},
 		{
 			name: "SetRekorURL with empty url",
-			fields: fields{
-				rekorURL: url.URL{
-					Scheme: "https",
-					Host:   "non.empty.url",
-				},
+			rekorURL: url.URL{
+				Scheme: "https",
+				Host:   "non.empty.url",
 			},
-			args: args{
-				rekorURL: "",
-			},
+			rekorURLArg: "",
 			want: url.URL{
 				Scheme: "https",
 				Host:   "non.empty.url",
@@ -1841,62 +1670,46 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 			wantedErr: fmt.Errorf("rekor URL is empty"),
 		},
 		{
-			name: "SetRekorURL with invalid URL",
-			fields: fields{
-				rekorURL: url.URL{},
-			},
-			args: args{
-				rekorURL: "http://invalid.{{}))}.url.com", // invalid url
-			},
-			want:      url.URL{},
-			wantedErr: fmt.Errorf("failed parsing rekor URI: parse %q: invalid character %q in host name", "http://invalid.{{}))}.url.com", "{"),
+			name:        "SetRekorURL with invalid URL",
+			rekorURL:    url.URL{},
+			rekorURLArg: "http://invalid.{{}))}.url.com", // invalid url
+			want:        url.URL{},
+			wantedErr:   fmt.Errorf("failed parsing rekor URI: parse %q: invalid character %q in host name", "http://invalid.{{}))}.url.com", "{"),
 		},
 		{
-			name: "SetRekorURL with empty host url",
-			fields: fields{
-				rekorURL: url.URL{},
-			},
-			args: args{
-				rekorURL: "path-no-host", // URI parser uses this as path, not host
-			},
-			want:      url.URL{},
-			wantedErr: fmt.Errorf("host is required on rekor URL"),
+			name:        "SetRekorURL with empty host url",
+			rekorURL:    url.URL{},
+			rekorURLArg: "path-no-host", // URI parser uses this as path, not host
+			want:        url.URL{},
+			wantedErr:   fmt.Errorf("host is required on rekor URL"),
 		},
 		{
-			name: "SetRekorURL with invalid URL scheme",
-			fields: fields{
-				rekorURL: url.URL{},
-			},
-			args: args{
-				rekorURL: "abc://invalid.scheme.com", // invalid scheme
-			},
-			want:      url.URL{},
-			wantedErr: fmt.Errorf("invalid rekor URL Scheme %q", "abc"),
+			name:        "SetRekorURL with invalid URL scheme",
+			rekorURL:    url.URL{},
+			rekorURLArg: "abc://invalid.scheme.com", // invalid scheme
+			want:        url.URL{},
+			wantedErr:   fmt.Errorf("invalid rekor URL Scheme %q", "abc"),
 		},
 		{
-			name: "SetRekorURL with empty URL scheme",
-			fields: fields{
-				rekorURL: url.URL{},
-			},
-			args: args{
-				rekorURL: "//no.scheme.com/path", // empty scheme
-			},
-			want:      url.URL{},
-			wantedErr: fmt.Errorf("invalid rekor URL Scheme \"\""),
+			name:        "SetRekorURL with empty URL scheme",
+			rekorURL:    url.URL{},
+			rekorURLArg: "//no.scheme.com/path", // empty scheme
+			want:        url.URL{},
+			wantedErr:   fmt.Errorf("invalid rekor URL Scheme \"\""),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sigstore := &sigstoreImpl{
-				rekorURL: tt.fields.rekorURL,
+				rekorURL: tt.rekorURL,
 			}
-			err := sigstore.SetRekorURL(tt.args.rekorURL)
+			err := sigstore.SetRekorURL(tt.rekorURLArg)
 			if tt.wantedErr != nil {
 				require.EqualError(t, err, tt.wantedErr.Error())
 			} else {
 				require.NoError(t, err)
 			}
-			require.Equal(t, sigstore.rekorURL, tt.want)
+			require.Equal(t, tt.want, sigstore.rekorURL)
 		})
 	}
 }
