@@ -1222,7 +1222,7 @@ func TestGetPublicKeys(t *testing.T) {
 			for _, fck := range storedFakeCryptoKeys {
 				storedFakeCryptoKeyVersions := fck.fetchFakeCryptoKeyVersions()
 				for _, fckv := range storedFakeCryptoKeyVersions {
-					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.fakeKMSClient, fckv.CryptoKeyVersion.Name)
+					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.plugin.log, ts.fakeKMSClient, fckv.CryptoKeyVersion.Name)
 					require.NoError(t, err)
 					require.Equal(t, pubKey, resp.PublicKeys[0].PkixData)
 				}
