@@ -34,4 +34,4 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push images
-        run: ./.github/workflows/scripts/push-scratch-images.sh nightly
+        run: ./.github/workflows/scripts/push-images.sh nightly -scratch
