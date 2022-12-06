@@ -3,7 +3,7 @@
 ARG goversion
 FROM --platform=${BUILDPLATFORM} golang:${goversion}-alpine as base
 WORKDIR /spire
-RUN apk add --no-cache file bash clang lld pkgconfig git make
+RUN apk --no-cache --update add file bash clang lld pkgconfig git make
 COPY go.* ./
 # https://go.dev/ref/mod#module-cache
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
@@ -16,7 +16,7 @@ FROM --platform=${BUILDPLATFORM} base as builder
 ARG TARGETPLATFORM
 ARG TARGETARCH
 COPY --link --from=xx / /
-RUN set -e ; xx-apk add build-base musl-dev libseccomp-dev
+RUN set -e ; xx-apk --no-cache --update add build-base musl-dev libseccomp-dev
 RUN install -d -o root -g root -m 1777 /newtmp
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
