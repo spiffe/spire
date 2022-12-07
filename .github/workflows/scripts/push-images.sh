@@ -61,9 +61,6 @@ echo "Pushing images ${OCI_IMAGES[*]} to ${registry} with tag ${version}".
 for img in "${OCI_IMAGES[@]}"; do
   image_variant="${img}${variant}"
   image_to_push="${registry}/${img}:${version}"
-  if [ "${variant}" = "-scratch" ] && [ "${img}" == "oidc-discovery-provider" ] ; then
-    image_to_push="${registry}/spire-oidc-provider:${version}"
-  fi
   docker tag "${image_variant}:latest-local" "${image_to_push}"
   docker push "${image_to_push}"
 done
