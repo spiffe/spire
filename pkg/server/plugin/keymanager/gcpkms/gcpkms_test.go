@@ -998,11 +998,13 @@ func TestGenerateKey(t *testing.T) {
 			if tt.testDisabled {
 				// An external system changes the state of the CryptoKeyVersion to be disabled.
 				fckv := &fakeCryptoKeyVersion{
-					CryptoKeyVersion: tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].CryptoKeyVersion,
-					privateKey:       tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].privateKey,
-					publicKey:        tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].publicKey,
+					publicKey: pubKey,
+					CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+						Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+						Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
+						State:     kmspb.CryptoKeyVersion_DISABLED,
+					},
 				}
-				fckv.State = kmspb.CryptoKeyVersion_DISABLED
 
 				fck, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(tt.fakeCryptoKeys[0].Name)
 				require.True(t, ok)
@@ -1222,7 +1224,7 @@ func TestGetPublicKeys(t *testing.T) {
 			for _, fck := range storedFakeCryptoKeys {
 				storedFakeCryptoKeyVersions := fck.fetchFakeCryptoKeyVersions()
 				for _, fckv := range storedFakeCryptoKeyVersions {
-					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.fakeKMSClient, fckv.CryptoKeyVersion.Name)
+					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.plugin.log, ts.fakeKMSClient, fckv.CryptoKeyVersion.Name)
 					require.NoError(t, err)
 					require.Equal(t, pubKey, resp.PublicKeys[0].PkixData)
 				}
