@@ -52,6 +52,9 @@ if [ "${variant}" = "-scratch" ] ; then
   org_name=$(echo "$GITHUB_REPOSITORY" | tr '/' "\n" | head -1 | tr -d "\n")
   org_name="${org_name:-spiffe}" # default to spiffe in case ran on local
   registry=ghcr.io/${org_name}
+
+  # don't publish k8s-workload-registrar for scratch images
+  OCI_IMAGES=("${OCI_IMAGES[@]/k8s-workload-registrar}")
 fi
 
 echo "Pushing images ${OCI_IMAGES[*]} to ${registry} with tag ${version}".
