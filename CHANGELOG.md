@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.2] - 2022-12-06
+
+### Security
+
+- Updated to Go 1.19.4 to address CVE-2022-41717.
+
 ## [1.5.1] - 2022-11-08
 
 ### Fixed
@@ -33,6 +39,12 @@
 ### Removed
 
 - NodeResolver plugin type and `azure_msi` builtin NodeResolver plugin (#3470)
+
+## [1.4.6] - 2022-12-06
+
+### Security
+
+- Updated to Go 1.19.4 to address CVE-2022-41717.
 
 ## [1.4.5] - 2022-11-01
 
