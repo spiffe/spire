@@ -14,3 +14,7 @@ if [ -n "${COVERALLS_TOKEN}" ]; then
     "$(go env GOPATH)"/bin/goveralls -coverprofile="${COVERPROFILE}" \
             -service=github
 fi
+
+# This ensures that running the tests didn't modify the source files, for
+# example by generating test keys that should have been checked in with the PR.
+make git-clean-check

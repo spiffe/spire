@@ -6,12 +6,14 @@ import (
 	"testing"
 
 	agentapi "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
 )
 
 func TestAppendFlag(t *testing.T) {
 	flagCases := []struct {
 		name           string
 		input          []string
+		extraFlags     []string
 		expectedFormat formatType
 		expectError    bool
 	}{
@@ -22,27 +24,40 @@ func TestAppendFlag(t *testing.T) {
 		},
 		{
 			name:        "requires a value",
-			input:       []string{"-format"},
+			input:       []string{"-output"},
 			expectError: true,
 		},
 		{
+			name:        "error when setting a different value more than once",
+			input:       []string{"-output", "json", "-format", "pretty"},
+			extraFlags:  []string{"format"},
+			expectError: true,
+		},
+		{
+			name:           "works when setting the same value more than once",
+			input:          []string{"-output", "pretty", "-format", "pretty"},
+			extraFlags:     []string{"format"},
+			expectedFormat: pretty,
+			expectError:    false,
+		},
+		{
 			name:        "requires a valid format",
-			input:       []string{"-format", "nonexistent"},
+			input:       []string{"-output", "nonexistent"},
 			expectError: true,
 		},
 		{
 			name:           "works when specifying pretty print",
-			input:          []string{"-format", "pretty"},
+			input:          []string{"-output", "pretty"},
 			expectedFormat: pretty,
 		},
 		{
 			name:           "works when specifying json",
-			input:          []string{"-format", "json"},
+			input:          []string{"-output", "json"},
 			expectedFormat: json,
 		},
 		{
 			name:           "input is case insensitive",
-			input:          []string{"-format", "jSoN"},
+			input:          []string{"-output", "jSoN"},
 			expectedFormat: json,
 		},
 	}
@@ -53,8 +68,10 @@ func TestAppendFlag(t *testing.T) {
 
 			fs := flag.NewFlagSet("testy", flag.ContinueOnError)
 			fs.SetOutput(new(bytes.Buffer))
-			AppendFlag(&p, fs)
-
+			defaultFlagValue := AppendFlag(&p, fs, nil)
+			for _, flagName := range c.extraFlags {
+				fs.Var(defaultFlagValue, flagName, "")
+			}
 			err := fs.Parse(c.input)
 			switch {
 			case err == nil:
@@ -87,7 +104,7 @@ func TestAppendFlagWithCustomPretty(t *testing.T) {
 	var p Printer
 
 	fs := flag.NewFlagSet("testy", flag.ContinueOnError)
-	AppendFlagWithCustomPretty(&p, fs, nil)
+	AppendFlagWithCustomPretty(&p, fs, nil, nil)
 	err := fs.Parse([]string{""})
 	if err != nil {
 		t.Fatalf("error when configured with nil pretty func: %v", err)
@@ -96,12 +113,12 @@ func TestAppendFlagWithCustomPretty(t *testing.T) {
 	p = nil
 	fs = flag.NewFlagSet("testy", flag.ContinueOnError)
 	invoked := make(chan struct{}, 1)
-	cp := func(_ ...interface{}) error {
+	cp := func(_ *commoncli.Env, _ ...interface{}) error {
 		invoked <- struct{}{}
 		return nil
 	}
-	AppendFlagWithCustomPretty(&p, fs, cp)
-	err = fs.Parse([]string{"-format", "pretty"})
+	AppendFlagWithCustomPretty(&p, fs, nil, cp)
+	err = fs.Parse([]string{"-output", "pretty"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -23,10 +23,16 @@ func printEntry(e *types.Entry, printf func(string, ...interface{}) error) {
 		_ = printf("Downstream       : %t\n", e.Downstream)
 	}
 
-	if e.Ttl == 0 {
-		_ = printf("TTL              : default\n")
+	if e.X509SvidTtl == 0 {
+		_ = printf("X509-SVID TTL    : default\n")
 	} else {
-		_ = printf("TTL              : %d\n", e.Ttl)
+		_ = printf("X509-SVID TTL    : %d\n", e.X509SvidTtl)
+	}
+
+	if e.JwtSvidTtl == 0 {
+		_ = printf("JWT-SVID TTL     : default\n")
+	} else {
+		_ = printf("JWT-SVID TTL     : %d\n", e.JwtSvidTtl)
 	}
 
 	if e.ExpiresAt != 0 {

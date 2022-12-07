@@ -2,7 +2,7 @@ package itclient
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
@@ -81,7 +81,7 @@ func NewInsecure(ctx context.Context) *Client {
 	}
 }
 
-func NewWithCert(ctx context.Context, cert *x509.Certificate, key *ecdsa.PrivateKey) *Client {
+func NewWithCert(ctx context.Context, cert *x509.Certificate, key crypto.Signer) *Client {
 	flag.Parse()
 
 	tlsConfig := tls.Config{

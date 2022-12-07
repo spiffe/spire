@@ -61,7 +61,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		SpiffeId:       ProtoFromID(spiffeID),
 		ParentId:       ProtoFromID(parentID),
 		Selectors:      ProtoFromSelectors(e.Selectors),
-		Ttl:            e.Ttl,
+		X509SvidTtl:    e.X509SvidTtl,
 		FederatesWith:  federatesWith,
 		Admin:          e.Admin,
 		Downstream:     e.Downstream,
@@ -69,6 +69,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		DnsNames:       append([]string(nil), e.DnsNames...),
 		RevisionNumber: e.RevisionNumber,
 		StoreSvid:      e.StoreSvid,
+		JwtSvidTtl:     e.JwtSvidTtl,
 	}, nil
 }
 
@@ -156,11 +157,6 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		}
 	}
 
-	var ttl int32
-	if mask.Ttl {
-		ttl = e.Ttl
-	}
-
 	var revisionNumber int64
 	if mask.RevisionNumber {
 		revisionNumber = e.RevisionNumber
@@ -169,6 +165,16 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 	var storeSVID bool
 	if mask.StoreSvid {
 		storeSVID = e.StoreSvid
+	}
+
+	var x509SvidTTL int32
+	if mask.X509SvidTtl {
+		x509SvidTTL = e.X509SvidTtl
+	}
+
+	var jwtSvidTTL int32
+	if mask.JwtSvidTtl {
+		jwtSvidTTL = e.JwtSvidTtl
 	}
 
 	return &common.RegistrationEntry{
@@ -181,8 +187,9 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		EntryExpiry:    expiresAt,
 		FederatesWith:  federatesWith,
 		Selectors:      selectors,
-		Ttl:            ttl,
 		RevisionNumber: revisionNumber,
 		StoreSvid:      storeSVID,
+		X509SvidTtl:    x509SvidTTL,
+		JwtSvidTtl:     jwtSvidTTL,
 	}, nil
 }

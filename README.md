@@ -8,7 +8,6 @@
 
 SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a toolchain of APIs for establishing trust between software systems across a wide variety of hosting platforms. SPIRE exposes the [SPIFFE Workload API](https://github.com/spiffe/go-spiffe/blob/main/v2/proto/spiffe/workload/workload.proto), which can attest running software systems and issue [SPIFFE IDs](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md) and [SVID](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md)s to them.  This in turn allows two workloads to establish trust between each other, for example by establishing an mTLS connection or by signing and verifying a JWT token. SPIRE can also enable workloads to securely authenticate to a secret store, a database, or a cloud provider service.
 
-
 - [Get SPIRE](#get-spire)
 - [Learn about SPIRE](#learn-about-spire)
 - [Integrate with SPIRE](#integrate-with-spire)
@@ -16,13 +15,12 @@ SPIRE (the [SPIFFE](https://github.com/spiffe/spiffe) Runtime Environment) is a 
 - [Further Reading](#further-reading)
 - [Security](#security)
 
-
-
 SPIRE is a [graduated](https://www.cncf.io/projects/spire/) project of the [Cloud Native Computing Foundation](https://cncf.io) (CNCF). If you are an organization that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF.
 
 ## Get SPIRE
 
 - Pre-built releases of SPIRE can be found at [https://github.com/spiffe/spire/releases](https://github.com/spiffe/spire/releases). These releases contain both SPIRE Server and SPIRE Agent binaries.
+- Container images are published for [spire-server](https://ghcr.io/spiffe/spire-server), [spire-agent](https://ghcr.io/spiffe/spire-agent), and [oidc-discovery-provider](https://ghcr.io/spiffe/spire-oidc-provider).
 - Alternatively, you can [build SPIRE from source](/CONTRIBUTING.md).
 
 ## Learn about SPIRE
@@ -46,7 +44,7 @@ For supported integration versions, see [Supported Integrations](/doc/supported_
 ## Contribute to SPIRE
 
 The SPIFFE community maintains the SPIRE project. Information on the various SIGs and relevant standards can be found in
-https://github.com/spiffe/spiffe.
+<https://github.com/spiffe/spiffe>.
 
 - See [CONTRIBUTING](https://github.com/spiffe/spire/blob/main/CONTRIBUTING.md) to get started.
 - Use [GitHub Issues](https://github.com/spiffe/spire/issues) to request features or file bugs.
@@ -71,3 +69,5 @@ A third party security firm ([Cure53](https://cure53.de/)) completed a security 
 ### Reporting Security Vulnerabilities
 
 If you've found a vulnerability or a potential vulnerability in SPIRE please let us know at security@spiffe.io. We'll send a confirmation email to acknowledge your report, and we'll send an additional email when we've identified the issue positively or negatively.
+
+<!-- markdownlint-configure-file { "MD041": false } -->

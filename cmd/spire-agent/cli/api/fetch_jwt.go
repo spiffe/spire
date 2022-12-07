@@ -8,20 +8,20 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 )
 
 func NewFetchJWTCommand() cli.Command {
-	return newFetchJWTCommand(common_cli.DefaultEnv, newWorkloadClient)
+	return newFetchJWTCommand(commoncli.DefaultEnv, newWorkloadClient)
 }
 
-func newFetchJWTCommand(env *common_cli.Env, clientMaker workloadClientMaker) cli.Command {
+func newFetchJWTCommand(env *commoncli.Env, clientMaker workloadClientMaker) cli.Command {
 	return adaptCommand(env, clientMaker, new(fetchJWTCommand))
 }
 
 type fetchJWTCommand struct {
-	audience common_cli.CommaStringsFlag
+	audience commoncli.CommaStringsFlag
 	spiffeID string
 	printer  cliprinter.Printer
 }
@@ -34,7 +34,7 @@ func (c *fetchJWTCommand) synopsis() string {
 	return "Fetches a JWT SVID from the Workload API"
 }
 
-func (c *fetchJWTCommand) run(ctx context.Context, env *common_cli.Env, client *workloadClient) error {
+func (c *fetchJWTCommand) run(ctx context.Context, env *commoncli.Env, client *workloadClient) error {
 	if len(c.audience) == 0 {
 		return errors.New("audience must be specified")
 	}
@@ -48,15 +48,14 @@ func (c *fetchJWTCommand) run(ctx context.Context, env *common_cli.Env, client *
 		return err
 	}
 
-	c.printer.MustPrintProto(svidResp, bundlesResp)
-	return nil
+	return c.printer.PrintProto(svidResp, bundlesResp)
 }
 
 func (c *fetchJWTCommand) appendFlags(fs *flag.FlagSet) {
 	fs.Var(&c.audience, "audience", "comma separated list of audience values")
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "SPIFFE ID subject (optional)")
-
-	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, printPrettyResult)
+	outputValue := cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, nil, printPrettyResult)
+	fs.Var(outputValue, "format", "deprecated; use -output")
 }
 
 func (c *fetchJWTCommand) fetchJWTSVID(ctx context.Context, client *workloadClient) (*workload.JWTSVIDResponse, error) {
@@ -78,7 +77,7 @@ func (c *fetchJWTCommand) fetchJWTBundles(ctx context.Context, client *workloadC
 	return stream.Recv()
 }
 
-func printPrettyResult(results ...interface{}) error {
+func printPrettyResult(_ *commoncli.Env, results ...interface{}) error {
 	errMsg := "internal error: cli printer; please report this bug"
 
 	svidResp, ok := results[0].(*workload.JWTSVIDResponse)

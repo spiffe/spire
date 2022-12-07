@@ -1,4 +1,4 @@
-#  Upstream Authority "vault" Plugin
+# Upstream Authority "vault" Plugin
 
 The vault plugin signs intermediate CA certificates for SPIRE using the Vault PKI Engine.
 The plugin does not support the `PublishJWTKey` RPC and is therefore not appropriate for use in nested SPIRE topologies where JWT-SVIDs are in use.
@@ -7,17 +7,17 @@ The plugin does not support the `PublishJWTKey` RPC and is therefore not appropr
 
 The plugin accepts the following configuration options:
 
-| key | type | required | description | default |
-|:----|:-----|:---------|:------------|:--------|
-| vault_addr  | string |   | The URL of the Vault server. (e.g., https://vault.example.com:8443/) | `${VAULT_ADDR}` |
-| namespace        | string |  | Name of the Vault namespace. This is only available in the Vault Enterprise. | `${VAULT_NAMESPACE}` |
-| pki_mount_point  | string |  | Name of the mount point where PKI secret engine is mounted | pki |
-| ca_cert_path     | string |  | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported. | `${VAULT_CACERT}` |
-| insecure_skip_verify  | bool |  | If true, vault client accepts any server certificates | false |
-| cert_auth        | struct |  | Configuration for the Client Certificate authentication method | |
-| token_auth       | struct |  | Configuration for the Token authentication method | |
-| approle_auth     | struct |  | Configuration for the AppRole authentication method | |
-| k8s_auth         | struct |  | Configuration for the Kubernetes authentication method | |
+| key                  | type   | required | description                                                                                                | default              |
+|:---------------------|:-------|:---------|:-----------------------------------------------------------------------------------------------------------|:---------------------|
+| vault_addr           | string |          | The URL of the Vault server. (e.g., <https://vault.example.com:8443/>)                                     | `${VAULT_ADDR}`      |
+| namespace            | string |          | Name of the Vault namespace. This is only available in the Vault Enterprise.                               | `${VAULT_NAMESPACE}` |
+| pki_mount_point      | string |          | Name of the mount point where PKI secret engine is mounted                                                 | pki                  |
+| ca_cert_path         | string |          | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported.   | `${VAULT_CACERT}`    |
+| insecure_skip_verify | bool   |          | If true, vault client accepts any server certificates                                                      | false                |
+| cert_auth            | struct |          | Configuration for the Client Certificate authentication method                                             |                      |
+| token_auth           | struct |          | Configuration for the Token authentication method                                                          |                      |
+| approle_auth         | struct |          | Configuration for the AppRole authentication method                                                        |                      |
+| k8s_auth             | struct |          | Configuration for the Kubernetes authentication method                                                     |                      |
 
 The plugin supports **Client Certificate**, **Token** and **AppRole** authentication methods.
 
@@ -29,7 +29,8 @@ The [`ca_ttl` SPIRE Server configurable](https://github.com/spiffe/spire/blob/ma
 To configure the TTL value, tune the engine.
 
 e.g.
-```
+
+```shell
 $ vault secrets tune -max-lease-ttl=8760h pki
 ```
 
@@ -43,12 +44,12 @@ path "pki/root/sign-intermediate" {
 
 ## Client Certificate Authentication
 
-| key | type | required | description | default |
-|:----|:-----|:---------|:------------|:--------|
-| cert_auth_mount_point | string |  | Name of the mount point where TLS certificate auth method is mounted | cert |
-| cert_auth_role_name | string | | Name of the Vault role. If given, the plugin authenticates against only the named role. Default to trying all roles. | |
-| client_cert_path | string | | Path to a client certificate file. Only PEM format is supported. | `${VAULT_CLIENT_CERT}` |
-| client_key_path  | string | | Path to a client private key file. Only PEM format is supported. | `${VAULT_CLIENT_KEY}` |
+| key                   | type   | required | description                                                                                                          | default                |
+|:----------------------|:-------|:---------|:---------------------------------------------------------------------------------------------------------------------|:-----------------------|
+| cert_auth_mount_point | string |          | Name of the mount point where TLS certificate auth method is mounted                                                 | cert                   |
+| cert_auth_role_name   | string |          | Name of the Vault role. If given, the plugin authenticates against only the named role. Default to trying all roles. |                        |
+| client_cert_path      | string |          | Path to a client certificate file. Only PEM format is supported.                                                     | `${VAULT_CLIENT_CERT}` |
+| client_key_path       | string |          | Path to a client private key file. Only PEM format is supported.                                                     | `${VAULT_CLIENT_KEY}`  |
 
 ```hcl
     UpstreamAuthority "vault" {
@@ -79,12 +80,12 @@ path "pki/root/sign-intermediate" {
         }
     }
 ```
+
 ## Token Authentication
 
-| key | type | required | description | default |
-|:----|:-----|:---------|:------------|:--------|
-| token | string | | Token string to set into "X-Vault-Token" header | `${VAULT_TOKEN}` |
-
+| key   | type   | required | description                                     | default          |
+|:------|:-------|:---------|:------------------------------------------------|:-----------------|
+| token | string |          | Token string to set into "X-Vault-Token" header | `${VAULT_TOKEN}` |
 
 ```hcl
     UpstreamAuthority "vault" {
@@ -100,13 +101,14 @@ path "pki/root/sign-intermediate" {
         }
     }
 ```
+
 ## AppRole Authentication
 
-| key | type | required | description | default |
-|:----|:-----|:---------|:------------|:--------|
-| approle_auth_mount_point | string | | Name of the mount point where the AppRole auth method is mounted | approle |
-| approle_id |string | | An identifier of AppRole | `${VAULT_APPROLE_ID}` |
-| approle_secret_id | string | | A credential of AppRole | `${VAULT_APPROLE_SECRET_ID}` |
+| key                      | type   | required | description                                                      | default                      |
+|:-------------------------|:-------|:---------|:-----------------------------------------------------------------|:-----------------------------|
+| approle_auth_mount_point | string |          | Name of the mount point where the AppRole auth method is mounted | approle                      |
+| approle_id               | string |          | An identifier of AppRole                                         | `${VAULT_APPROLE_ID}`        |
+| approle_secret_id        | string |          | A credential of AppRole                                          | `${VAULT_APPROLE_SECRET_ID}` |
 
 ```hcl
     UpstreamAuthority "vault" {
@@ -132,11 +134,11 @@ path "pki/root/sign-intermediate" {
 
 ## Kubernetes Authentication
 
-| key | type | required | description | default |
-|:----|:-----|:---------|:------------|:--------|
-| k8s_auth_mount_point | string | | Name of the mount point where the Kubernetes auth method is mounted | kubernetes |
-| k8s_auth_role_name   | string |✔| Name of the Vault role. The plugin authenticates against the named role | |
-| token_path           | string |✔| Path to the Kubernetes Service Account Token to use authentication with the Vault | | 
+| key                  | type   | required | description                                                                       | default    |
+|:---------------------|:-------|:---------|:----------------------------------------------------------------------------------|:-----------|
+| k8s_auth_mount_point | string |          | Name of the mount point where the Kubernetes auth method is mounted               | kubernetes |
+| k8s_auth_role_name   | string | ✔        | Name of the Vault role. The plugin authenticates against the named role           |            |
+| token_path           | string | ✔        | Path to the Kubernetes Service Account Token to use authentication with the Vault |            |
 
 ```hcl
     UpstreamAuthority "vault" {

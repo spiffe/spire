@@ -23,7 +23,7 @@ See [AWS Certificate Manager Private Certificate Authority](https://aws.amazon.c
 
 Sample configuration:
 
-```
+```hcl
 UpstreamAuthority "aws_pca" {
     plugin_data {
         region = "us-west-2"

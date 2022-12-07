@@ -3,7 +3,7 @@ on:
   pull_request: {}
   workflow_dispatch: {}
 env:
-  GO_VERSION: 1.19.2
+  GO_VERSION: 1.19.4
 permissions:
   contents: read
 
@@ -278,8 +278,6 @@ jobs:
     name: integration (windows)
     runs-on: windows-2022
     needs: images-windows
-    strategy:
-      fail-fast: false
     defaults:
       run:
         shell: msys2 {0}
@@ -379,7 +377,7 @@ jobs:
             mingw-w64-x86_64-toolchain
             unzip
       - name: Lint
-        run: make lint
+        run: make lint-code
       - name: Tidy check
         run: make tidy-check
       - name: Generate check

@@ -11,8 +11,8 @@ private key.
 The SPIFFE ID produced by the plugin is based on the certificate fingerprint,
 which is an unpadded url-safe base64 encoded sha256 hash of the certificate in openssh format.
 
-```
-spiffe://<trust-domain>/spire/agent/sshpop/<fingerprint>
+```xml
+spiffe://<trust_domain>/spire/agent/sshpop/<fingerprint>
 ```
 
 | Configuration           | Description                                                                                                                    | Default                                 |
@@ -24,11 +24,11 @@ spiffe://<trust-domain>/spire/agent/sshpop/<fingerprint>
 
 If both `cert_authorities` and `cert_authorities_path` are configured, the resulting set of authorized keys is the union of both sets.
 
-### Example Config
+## Example Config
 
-##### agent.conf
+### agent.conf
 
-```
+```hcl
     NodeAttestor "sshpop" {
         plugin_data {
             host_cert_path = "./conf/agent/dummy_agent_ssh_key-cert.pub"
@@ -37,9 +37,9 @@ If both `cert_authorities` and `cert_authorities_path` are configured, the resul
     }
 ```
 
-##### server.conf
+### server.conf
 
-```
+```hcl
     NodeAttestor "sshpop" {
         plugin_data {
             cert_authorities = ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEAWPAsKJ/qMYUIBeH7BLMRCE/bkUvMHX+7OZhANk45S"]

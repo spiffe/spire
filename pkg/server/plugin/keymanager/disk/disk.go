@@ -17,11 +17,17 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type Generator = keymanagerbase.Generator
+
 func BuiltIn() catalog.BuiltIn {
-	return builtin(New())
+	return asBuiltIn(newKeyManager(nil))
 }
 
-func builtin(p *KeyManager) catalog.BuiltIn {
+func TestBuiltIn(generator Generator) catalog.BuiltIn {
+	return asBuiltIn(newKeyManager(generator))
+}
+
+func asBuiltIn(p *KeyManager) catalog.BuiltIn {
 	return catalog.MakeBuiltIn("disk",
 		keymanagerv1.KeyManagerPluginServer(p),
 		configv1.ConfigServiceServer(p))
@@ -39,10 +45,11 @@ type KeyManager struct {
 	config *configuration
 }
 
-func New() *KeyManager {
+func newKeyManager(generator Generator) *KeyManager {
 	m := &KeyManager{}
-	m.Base = keymanagerbase.New(keymanagerbase.Funcs{
+	m.Base = keymanagerbase.New(keymanagerbase.Config{
 		WriteEntries: m.writeEntries,
+		Generator:    generator,
 	})
 	return m
 }
@@ -143,7 +150,7 @@ func writeEntries(path string, entries []*keymanagerbase.KeyEntry) error {
 		return status.Errorf(codes.Internal, "unable to marshal entries: %v", err)
 	}
 
-	if err := diskutil.AtomicWriteFile(path, jsonBytes, 0600); err != nil {
+	if err := diskutil.AtomicWritePrivateFile(path, jsonBytes); err != nil {
 		return status.Errorf(codes.Internal, "unable to write entries: %v", err)
 	}
 

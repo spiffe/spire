@@ -17,7 +17,8 @@ func Print(msgs []proto.Message, stdout, stderr io.Writer) error {
 
 	jms := []json.RawMessage{}
 	m := &protojson.MarshalOptions{
-		UseProtoNames: true,
+		UseProtoNames:   true,
+		EmitUnpopulated: true,
 	}
 
 	// Unfortunately, we can only marshal one message at a time, so

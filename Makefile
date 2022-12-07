@@ -38,8 +38,13 @@ help:
 	@echo "                                          support 'SUITES' variable for executing specific tests"
 	@echo "                                          e.g. SUITES='windows-suites/windows-workload-attestor' make integration-windows"
 	@echo
-	@echo "$(bold)Build and test:$(reset)"
-	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, lint the code, and run unit tests"
+	@echo "$(bold)Lint:$(reset)"
+	@echo "  $(cyan)lint$(reset)                                  - lint the code and markdown files"
+	@echo "  $(cyan)lint-code$(reset)                             - lint the code"
+	@echo "  $(cyan)lint-md$(reset)                               - lint markdown files"
+	@echo
+	@echo "$(bold)Build, lint and test:$(reset)"
+	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, run linters and unit tests"
 	@echo
 	@echo "$(bold)Docker image:$(reset)"
 	@echo "  $(cyan)images$(reset)                                - build all SPIRE Docker images"
@@ -129,6 +134,9 @@ golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
+markdown_lint_version = v0.32.2
+markdown_lint_image = ghcr.io/igorshubovych/markdownlint-cli:$(markdown_lint_version)
+
 protoc_version = 3.20.1
 ifeq ($(os1),windows)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-win64.zip
@@ -168,7 +176,7 @@ protos := \
 api-protos := \
 
 plugin-protos := \
-	proto/spire/common/plugin/plugin.proto 
+	proto/spire/common/plugin/plugin.proto
 
 service-protos := \
 
@@ -201,7 +209,11 @@ endif
 ############################################################################
 
 # Flags passed to all invocations of go test
-go_test_flags := -timeout=60s
+go_test_flags :=
+ifeq ($(NIGHTLY),)
+	# Cap unit-test timout to 60s unless we're running nightlies.
+	go_test_flags += -timeout=60s
+endif
 
 go_flags :=
 ifneq ($(GOPARALLEL),)
@@ -258,6 +270,8 @@ bin/:
 
 .PHONY: build-static
 
+# The build-static is intended to statically link to musl libc.
+# There are possibilities of unexpected errors when statically link to GLIBC.
 build-static: tidy bin/spire-server-static bin/spire-agent-static bin/k8s-workload-registrar-static bin/oidc-discovery-provider-static
 
 # https://7thzero.com/blog/golang-w-sqlite3-docker-scratch-image
@@ -295,13 +309,6 @@ else
 	$(E)$(go_path) go test $(go_flags) $(go_test_flags) -race ./...
 endif
 
-ci-race-test: | go-check
-ifneq ($(COVERPROFILE),)
-	$(E)SKIP_FLAKY_TESTS_UNDER_RACE_DETECTOR=1 $(go_path) go test $(go_flags) $(go_test_flags) -race -count=1 -coverprofile="$(COVERPROFILE)" ./...
-else
-	$(E)SKIP_FLAKY_TESTS_UNDER_RACE_DETECTOR=1 $(go_path) go test $(go_flags) $(go_test_flags) -race -count=1 ./...
-endif
-
 integration:
 ifeq ($(os1), windows)
 	$(error Integration tests are not supported on windows)
@@ -325,28 +332,26 @@ artifact: build
 # Docker Images
 #############################################################################
 
+define image_rule
+.PHONY: $1
+$1: $3
+	echo Building docker image $2 $(PLATFORM)…
+	$(E)docker build \
+		--build-arg goversion=$(go_version_full) \
+		--target $2 \
+		-t $2 -t $2:latest-local \
+		-f $3 \
+		.
+
+endef
+
 .PHONY: images
 images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
 
-.PHONY: spire-server-image
-spire-server-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-server -t spire-server .
-	docker tag spire-server:latest spire-server:latest-local
-
-.PHONY: spire-agent-image
-spire-agent-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-agent -t spire-agent .
-	docker tag spire-agent:latest spire-agent:latest-local
-
-.PHONY: k8s-workload-registrar-image
-k8s-workload-registrar-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target k8s-workload-registrar -t k8s-workload-registrar .
-	docker tag k8s-workload-registrar:latest k8s-workload-registrar:latest-local
-
-.PHONY: oidc-discovery-provider-image
-oidc-discovery-provider-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider -t oidc-discovery-provider .
-	docker tag oidc-discovery-provider:latest oidc-discovery-provider:latest-local
+$(eval $(call image_rule,spire-server-image,spire-server,Dockerfile))
+$(eval $(call image_rule,spire-agent-image,spire-agent,Dockerfile))
+$(eval $(call image_rule,k8s-workload-registrar-image,k8s-workload-registrar,Dockerfile))
+$(eval $(call image_rule,oidc-discovery-provider-image,oidc-discovery-provider,Dockerfile))
 
 #############################################################################
 # Docker Images FROM scratch
@@ -355,52 +360,22 @@ oidc-discovery-provider-image: Dockerfile
 .PHONY: scratch-images
 scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image oidc-discovery-provider-scratch-image
 
-.PHONY: spire-server-scratch-image
-spire-server-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-server-scratch -t spire-server-scratch -f Dockerfile.scratch .
-	docker tag spire-server-scratch:latest spire-server-scratch:latest-local
-
-.PHONY: spire-agent-scratch-image
-spire-agent-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target spire-agent-scratch -t spire-agent-scratch -f Dockerfile.scratch .
-	docker tag spire-agent-scratch:latest spire-agent-scratch:latest-local
-
-.PHONY: k8s-workload-registrar-scratch-image
-k8s-workload-registrar-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target k8s-workload-registrar-scratch -t k8s-workload-registrar-scratch -f Dockerfile.scratch .
-	docker tag k8s-workload-registrar-scratch:latest k8s-workload-registrar-scratch:latest-local
-
-.PHONY: oidc-discovery-provider-scratch-image
-oidc-discovery-provider-scratch-image: Dockerfile
-	docker build --build-arg goversion=$(go_version_full) --target oidc-discovery-provider-scratch -t oidc-discovery-provider-scratch -f Dockerfile.scratch .
-	docker tag oidc-discovery-provider-scratch:latest oidc-discovery-provider-scratch:latest-local
+$(eval $(call image_rule,spire-server-scratch-image,spire-server-scratch,Dockerfile.scratch))
+$(eval $(call image_rule,spire-agent-scratch-image,spire-agent-scratch,Dockerfile.scratch))
+$(eval $(call image_rule,k8s-workload-registrar-scratch-image,k8s-workload-registrar-scratch,Dockerfile.scratch))
+$(eval $(call image_rule,oidc-discovery-provider-scratch-image,oidc-discovery-provider-scratch,Dockerfile.scratch))
 
 #############################################################################
-# Docker Images
+# Windows Docker Images
 #############################################################################
 
 .PHONY: images-windows
-images-windows: spire-server-image-windows spire-agent-image-windows oidc-discovery-provider-image-windows
+images-windows: spire-server-windows-image spire-agent-windows-image k8s-workload-registrar-windows-image oidc-discovery-provider-windows-image
 
-.PHONY: spire-server-image-windows
-spire-server-image-windows: Dockerfile
-	docker build -f Dockerfile.windows --target spire-server-windows -t spire-server-windows .
-	docker tag spire-server-windows:latest spire-server-windows:latest-local
-
-.PHONY: spire-agent-image-windows
-spire-agent-image-windows: Dockerfile
-	docker build -f Dockerfile.windows --target spire-agent-windows -t spire-agent-windows .
-	docker tag spire-agent-windows:latest spire-agent-windows:latest-local
-
-.PHONY: k8s-workload-registrar-image-windows
-k8s-workload-registrar-image-windows: Dockerfile
-	docker build -f Dockerfile.windows --target k8s-workload-registrar-windows -t k8s-workload-registrar-windows .
-	docker tag k8s-workload-registrar-windows:latest k8s-workload-registrar-windows:latest-local
-
-.PHONY: oidc-discovery-provider-image-windows
-oidc-discovery-provider-image-windows: Dockerfile
-	docker build -f Dockerfile.windows --target oidc-discovery-provider-windows -t oidc-discovery-provider-windows .
-	docker tag oidc-discovery-provider-windows:latest oidc-discovery-provider-windows:latest-local
+$(eval $(call image_rule,spire-server-windows-image,spire-server-windows,Dockerfile.windows))
+$(eval $(call image_rule,spire-agent-windows-image,spire-agent-windows,Dockerfile.windows))
+$(eval $(call image_rule,k8s-workload-registrar-windows-image,k8s-workload-registrar-windows,Dockerfile.windows))
+$(eval $(call image_rule,oidc-discovery-provider-windows-image,oidc-discovery-provider-windows,Dockerfile.windows))
 
 #############################################################################
 # Code cleanliness
@@ -420,11 +395,13 @@ endif
 	@echo "Ensuring git repository is clean..."
 	$(E)$(MAKE) git-clean-check
 
-lint: lint-code
+lint: lint-code lint-md
 
 lint-code: $(golangci_lint_bin)
 	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run ./...
 
+lint-md:
+	$(E)docker run --rm -v "$(DIR):/workdir" $(markdown_lint_image) "**/*.md"
 
 #############################################################################
 # Code Generation

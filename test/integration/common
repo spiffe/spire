@@ -203,12 +203,14 @@ download-kubectl() {
 }
 
 start-kind-cluster() {
+    K8SIMAGE=kindest/node:v1.21.1@sha256:fae9a58f17f18f06aeac9772ca8b5ac680ebbed985e266f711d936e91d113bad
+
     local kind_path=$1
     local kind_name=$2
     local kind_config_path=$3
 
     log-info "starting cluster..."
-    "${kind_path}" create cluster --name "${kind_name}" --config "${kind_config_path}" || fail-now "unable to create cluster"
+    "${kind_path}" create cluster --name "${kind_name}" --config "${kind_config_path}" --image "${K8SIMAGE}" || fail-now "unable to create cluster"
 }
 
 load-images() {

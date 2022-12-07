@@ -239,7 +239,7 @@ func createBundle(t *testing.T, trustDomain string) (*types.Bundle, string) {
 	td := spiffeid.RequireTrustDomainFromString(trustDomain)
 	bundlePath := path.Join(t.TempDir(), "bundle.pem")
 	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
-	require.NoError(t, pemutil.SaveCertificates(bundlePath, ca.Bundle(), 0600))
+	require.NoError(t, os.WriteFile(bundlePath, pemutil.EncodeCertificates(ca.Bundle()), 0600))
 
 	return &types.Bundle{
 		TrustDomain: td.String(),

@@ -265,7 +265,8 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 func (s *Server) newCA(metrics telemetry.Metrics, healthChecker health.Checker) *ca.CA {
 	return ca.NewCA(ca.Config{
 		Metrics:         metrics,
-		X509SVIDTTL:     s.config.SVIDTTL,
+		X509SVIDTTL:     s.config.X509SVIDTTL,
+		JWTSVIDTTL:      s.config.JWTSVIDTTL,
 		JWTIssuer:       s.config.JWTIssuer,
 		TrustDomain:     s.config.TrustDomain,
 		CASubject:       s.config.CASubject,
@@ -352,7 +353,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 		Metrics:   metrics,
 		DataStore: cat.GetDataStore(),
 		Source: bundle_client.MergeTrustDomainConfigSources(
-			bundle_client.TrustDomainConfigMap(s.config.Federation.FederatesWith),
+			bundle_client.NewTrustDomainConfigSet(s.config.Federation.FederatesWith),
 			bundle_client.DataStoreTrustDomainConfigSource(log, cat.GetDataStore()),
 		),
 	})

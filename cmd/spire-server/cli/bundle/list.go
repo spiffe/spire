@@ -7,22 +7,26 @@ import (
 
 	"github.com/mitchellh/cli"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 )
 
 // NewListCommand creates a new "list" subcommand for "bundle" command.
 func NewListCommand() cli.Command {
-	return newListCommand(common_cli.DefaultEnv)
+	return newListCommand(commoncli.DefaultEnv)
 }
 
-func newListCommand(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(listCommand))
+func newListCommand(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &listCommand{env: env})
 }
 
 type listCommand struct {
-	id     string // SPIFFE ID of the trust bundle
-	format string
+	env          *commoncli.Env
+	id           string // SPIFFE ID of the trust bundle
+	bundleFormat string
+	printer      cliprinter.Printer
 }
 
 func (c *listCommand) Name() string {
@@ -35,10 +39,11 @@ func (c *listCommand) Synopsis() string {
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
-	fs.StringVar(&c.format, "format", util.FormatPEM, fmt.Sprintf("The format to list federated bundles. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The format to list federated bundles (only pretty output format supports this flag). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintList)
 }
 
-func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *listCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	bundleClient := serverClient.NewBundleClient()
 	if c.id != "" {
 		resp, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
@@ -47,7 +52,7 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		if err != nil {
 			return err
 		}
-		return printBundleWithFormat(env.Stdout, resp, c.format, false)
+		return c.printer.PrintProto(resp)
 	}
 
 	resp, err := bundleClient.ListFederatedBundles(ctx, &bundlev1.ListFederatedBundlesRequest{})
@@ -55,16 +60,27 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		return err
 	}
 
-	for i, b := range resp.Bundles {
-		if i != 0 {
-			if err := env.Println(); err != nil {
+	return c.printer.PrintProto(resp)
+}
+
+func (c *listCommand) prettyPrintList(env *commoncli.Env, results ...interface{}) error {
+	if listResp, ok := results[0].(*bundlev1.ListFederatedBundlesResponse); ok {
+		for i, bundle := range listResp.Bundles {
+			if i != 0 {
+				if err := env.Println(); err != nil {
+					return err
+				}
+			}
+
+			if err := printBundleWithFormat(env.Stdout, bundle, c.bundleFormat, true); err != nil {
 				return err
 			}
 		}
-
-		if err := printBundleWithFormat(env.Stdout, b, c.format, true); err != nil {
-			return err
-		}
+		return nil
 	}
-	return nil
+	if resp, ok := results[0].(*types.Bundle); ok {
+		return printBundleWithFormat(env.Stdout, resp, c.bundleFormat, false)
+	}
+
+	return cliprinter.ErrInternalCustomPrettyFunc
 }

@@ -8,6 +8,9 @@ permissions:
   contents: read
   packages: write
 
+env:
+  NIGHTLY: true
+
 jobs:
   build-and-publish-images:
     runs-on: ubuntu-20.04
@@ -31,4 +34,4 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push images
-        run: ./.github/workflows/scripts/push-scratch-images.sh nightly
+        run: ./.github/workflows/scripts/push-images.sh nightly -scratch

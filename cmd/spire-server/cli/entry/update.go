@@ -8,7 +8,8 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"google.golang.org/grpc/codes"
 
 	"golang.org/x/net/context"
@@ -16,11 +17,11 @@ import (
 
 // NewUpdateCommand creates a new "update" subcommand for "entry" command.
 func NewUpdateCommand() cli.Command {
-	return newUpdateCommand(common_cli.DefaultEnv)
+	return newUpdateCommand(commoncli.DefaultEnv)
 }
 
-func newUpdateCommand(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(updateCommand))
+func newUpdateCommand(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &updateCommand{env: env})
 }
 
 type updateCommand struct {
@@ -47,6 +48,12 @@ type updateCommand struct {
 	// TTL for certificates issued to this workload
 	ttl int
 
+	// TTL for x509 SVIDs issued to this workload
+	x509SvidTTL int
+
+	// TTL for JWT SVIDs issued to this workload
+	jwtSvidTTL int
+
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
 	federatesWith StringsFlag
 
@@ -61,6 +68,10 @@ type updateCommand struct {
 
 	// storeSVID determines if the issued SVID must be stored through an SVIDStore plugin
 	storeSVID bool
+
+	printer cliprinter.Printer
+
+	env *commoncli.Env
 }
 
 func (*updateCommand) Name() string {
@@ -75,7 +86,9 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.entryID, "entryID", "", "The Registration Entry ID of the record to update")
 	f.StringVar(&c.parentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
-	f.IntVar(&c.ttl, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry")
+	f.IntVar(&c.ttl, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry. This flag is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version")
+	f.IntVar(&c.x509SvidTTL, "x509SVIDTTL", 0, "The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl flag")
+	f.IntVar(&c.jwtSvidTTL, "jwtSVIDTTL", 0, "The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl flag")
 	f.StringVar(&c.path, "data", "", "Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.")
 	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
@@ -84,9 +97,10 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	f.BoolVar(&c.storeSVID, "storeSVID", false, "A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin")
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintUpdate)
 }
 
-func (c *updateCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *updateCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	if err := c.validate(); err != nil {
 		return err
 	}
@@ -102,29 +116,12 @@ func (c *updateCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return err
 	}
 
-	succeeded, failed, err := updateEntries(ctx, serverClient.NewEntryClient(), entries)
+	resp, err := updateEntries(ctx, serverClient.NewEntryClient(), entries)
 	if err != nil {
 		return err
 	}
 
-	// Print entries that succeeded to be updated
-	for _, e := range succeeded {
-		printEntry(e.Entry, env.Printf)
-	}
-
-	// Print entries that failed to be updated
-	for _, r := range failed {
-		env.ErrPrintf("Failed to update the following entry (code: %s, msg: %q):\n",
-			codes.Code(r.Status.Code),
-			r.Status.Message)
-		printEntry(r.Entry, env.ErrPrintf)
-	}
-
-	if len(failed) > 0 {
-		return errors.New("failed to update one or more entries")
-	}
-
-	return nil
+	return c.printer.PrintProto(resp)
 }
 
 // validate performs basic validation, even on fields that we
@@ -155,6 +152,18 @@ func (c *updateCommand) validate() (err error) {
 		return errors.New("a positive TTL is required")
 	}
 
+	if c.x509SvidTTL < 0 {
+		return errors.New("a positive x509-SVID TTL is required")
+	}
+
+	if c.jwtSvidTTL < 0 {
+		return errors.New("a positive JWT-SVID TTL is required")
+	}
+
+	if c.ttl > 0 && (c.x509SvidTTL > 0 || c.jwtSvidTTL > 0) {
+		return errors.New("use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag")
+	}
+
 	return nil
 }
 
@@ -170,13 +179,26 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 	}
 
 	e := &types.Entry{
-		Id:         c.entryID,
-		ParentId:   parentID,
-		SpiffeId:   spiffeID,
-		Ttl:        int32(c.ttl),
-		Downstream: c.downstream,
-		ExpiresAt:  c.entryExpiry,
-		DnsNames:   c.dnsNames,
+		Id:          c.entryID,
+		ParentId:    parentID,
+		SpiffeId:    spiffeID,
+		Downstream:  c.downstream,
+		ExpiresAt:   c.entryExpiry,
+		DnsNames:    c.dnsNames,
+		X509SvidTtl: int32(c.x509SvidTTL),
+		JwtSvidTtl:  int32(c.jwtSvidTTL),
+	}
+
+	// c.ttl is deprecated but usable if the new c.x509Svid field is not used.
+	// c.ttl should not be used to set the jwtSVIDTTL value because the previous
+	// behavior was to have a hard-coded 5 minute JWT TTL no matter what the value
+	// of ttl was set to.
+	// validate(...) ensures that either the new fields or the deprecated field is
+	// used, but never a mixture.
+	//
+	// https://github.com/spiffe/spire/issues/2700
+	if e.X509SvidTtl == 0 {
+		e.X509SvidTtl = int32(c.ttl)
 	}
 
 	selectors := []*types.Selector{}
@@ -196,25 +218,56 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func updateEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (succeeded, failed []*entryv1.BatchUpdateEntryResponse_Result, err error) {
-	resp, err := c.BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
+func updateEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (resp *entryv1.BatchUpdateEntryResponse, err error) {
+	resp, err = c.BatchUpdateEntry(ctx, &entryv1.BatchUpdateEntryRequest{
 		Entries: entries,
 	})
 	if err != nil {
-		return nil, nil, err
+		return
 	}
 
 	for i, r := range resp.Results {
+		if r.Status.Code != int32(codes.OK) {
+			// The Entry API does not include in the results the entries that
+			// failed to be updated, so we populate them from the request data.
+			r.Entry = entries[i]
+		}
+	}
+
+	return
+}
+
+func prettyPrintUpdate(env *commoncli.Env, results ...interface{}) error {
+	var succeeded, failed []*entryv1.BatchUpdateEntryResponse_Result
+	updateResp, ok := results[0].(*entryv1.BatchUpdateEntryResponse)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
+
+	for _, r := range updateResp.Results {
 		switch r.Status.Code {
 		case int32(codes.OK):
 			succeeded = append(succeeded, r)
 		default:
-			// The Entry API does not include in the results the entries that
-			// failed to be updated, so we populate them from the request data.
-			r.Entry = entries[i]
 			failed = append(failed, r)
 		}
 	}
+	// Print entries that succeeded to be updated
+	for _, e := range succeeded {
+		printEntry(e.Entry, env.Printf)
+	}
 
-	return succeeded, failed, nil
+	// Print entries that failed to be updated
+	for _, r := range failed {
+		env.ErrPrintf("Failed to update the following entry (code: %s, msg: %q):\n",
+			codes.Code(r.Status.Code),
+			r.Status.Message)
+		printEntry(r.Entry, env.ErrPrintf)
+	}
+
+	if len(failed) > 0 {
+		return errors.New("failed to update one or more entries")
+	}
+
+	return nil
 }

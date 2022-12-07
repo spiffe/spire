@@ -7,46 +7,46 @@ import (
 	"time"
 
 	"github.com/mitchellh/cli"
-
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/idutil"
-
 	"golang.org/x/net/context"
 )
 
 type listCommand struct {
+	env *commoncli.Env
 	// Type and value are delimited by a colon (:)
 	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
-	selectors common_cli.StringsFlag
-
+	selectors commoncli.StringsFlag
 	// Match used when filtering agents by selectors
 	matchSelectorsOn string
+	printer          cliprinter.Printer
 }
 
 // NewListCommand creates a new "list" subcommand for "agent" command.
 func NewListCommand() cli.Command {
-	return NewListCommandWithEnv(common_cli.DefaultEnv)
+	return NewListCommandWithEnv(commoncli.DefaultEnv)
 }
 
 // NewListCommandWithEnv creates a new "list" subcommand for "agent" command
 // using the environment specified
-func NewListCommandWithEnv(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(listCommand))
+func NewListCommandWithEnv(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &listCommand{env: env})
 }
 
 func (*listCommand) Name() string {
 	return "agent list"
 }
 
-func (listCommand) Synopsis() string {
+func (*listCommand) Synopsis() string {
 	return "Lists attested agents and their SPIFFE IDs"
 }
 
 // Run lists attested agents
-func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *listCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	filter := &agentv1.ListAgentsRequest_Filter{}
 	if len(c.selectors) > 0 {
 		matchBehavior, err := parseToSelectorMatch(c.matchSelectorsOn)
@@ -71,7 +71,7 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 	agentClient := serverClient.NewAgentClient()
 
 	pageToken := ""
-	var agents []*types.Agent
+	response := new(agentv1.ListAgentsResponse)
 	for {
 		listResponse, err := agentClient.ListAgents(ctx, &agentv1.ListAgentsRequest{
 			PageSize:  1000, // comfortably under the (4 MB/theoretical maximum size of 1 agent in MB)
@@ -81,11 +81,27 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 		if err != nil {
 			return err
 		}
-		agents = append(agents, listResponse.Agents...)
+		response.Agents = append(response.Agents, listResponse.Agents...)
 		if pageToken = listResponse.NextPageToken; pageToken == "" {
 			break
 		}
 	}
+
+	return c.printer.PrintProto(response)
+}
+
+func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
+	fs.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
+	fs.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintAgents)
+}
+
+func prettyPrintAgents(env *commoncli.Env, results ...interface{}) error {
+	listResp, ok := results[0].(*agentv1.ListAgentsResponse)
+	if !ok {
+		return errors.New("internal error: cli printer; please report this bug")
+	}
+	agents := listResp.Agents
 
 	if len(agents) == 0 {
 		return env.Printf("No attested agents found\n")
@@ -93,17 +109,11 @@ func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient
 
 	msg := fmt.Sprintf("Found %d attested ", len(agents))
 	msg = util.Pluralizer(msg, "agent", "agents", len(agents))
-	env.Printf(msg + ":\n\n")
-
+	env.Printf("%s:\n\n", msg)
 	return printAgents(env, agents...)
 }
 
-func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
-	fs.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
-}
-
-func printAgents(env *common_cli.Env, agents ...*types.Agent) error {
+func printAgents(env *commoncli.Env, agents ...*types.Agent) error {
 	for _, agent := range agents {
 		id, err := idutil.IDFromProto(agent.Id)
 		if err != nil {

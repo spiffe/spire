@@ -23,7 +23,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// newServerClient creates a new spire-sever client
+// newServerClient creates a new spire-server client
 func newServerClient(serverID spiffeid.ID, serverAddr string, workloadAPIAddr net.Addr, log hclog.Logger) *serverClient {
 	return &serverClient{
 		serverID:        serverID,

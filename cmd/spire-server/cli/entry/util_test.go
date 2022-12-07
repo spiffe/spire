@@ -19,6 +19,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+var availableFormats = []string{"pretty", "json"}
+
 func TestParseEntryJSON(t *testing.T) {
 	testCases := []struct {
 		name         string
@@ -69,10 +71,11 @@ func TestParseEntryJSON(t *testing.T) {
 						Value: "uid:1111",
 					},
 				},
-				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
-				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
-				Ttl:      200,
-				Admin:    true,
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
+				X509SvidTtl: 200,
+				JwtSvidTtl:  30,
+				Admin:       true,
 			}
 			entry2 := &types.Entry{
 				Selectors: []*types.Selector{
@@ -81,9 +84,10 @@ func TestParseEntryJSON(t *testing.T) {
 						Value: "uid:1111",
 					},
 				},
-				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
-				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
-				Ttl:      200,
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+				X509SvidTtl: 200,
+				JwtSvidTtl:  30,
 			}
 			entry3 := &types.Entry{
 				Selectors: []*types.Selector{
@@ -96,10 +100,11 @@ func TestParseEntryJSON(t *testing.T) {
 						Value: "key2:value",
 					},
 				},
-				SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
-				ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
-				StoreSvid: true,
-				Ttl:       200,
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+				StoreSvid:   true,
+				X509SvidTtl: 200,
+				JwtSvidTtl:  30,
 			}
 
 			expectedEntries := []*types.Entry{
@@ -249,4 +254,17 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *entry
 	})
 
 	return test
+}
+
+func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
+	switch format {
+	case "pretty":
+		require.Contains(t, stdoutString, expectedStdoutPretty)
+	case "json":
+		if expectedStdoutJSON != "" {
+			require.JSONEq(t, expectedStdoutJSON, stdoutString)
+		} else {
+			require.Empty(t, stdoutString)
+		}
+	}
 }

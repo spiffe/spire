@@ -20,16 +20,20 @@ enabled). In the latter case, the hostname is used to perform certificate
 server name validation against the kubelet certificate.
 
 > **Note** kubelet authentication via bearer token requires that the kubelet be
-> started with the `--authentication-token-webhook` flag. 
+> started with the `--authentication-token-webhook` flag.
 > See [Kubelet authentication/authorization](https://kubernetes.io/docs/reference/access-authn-authz/kubelet-authn-authz/)
 > for details.
 
-> **Note** The kubelet uses the TokenReview API to validate bearer tokens. 
+<!-- different notes -->
+
+> **Note** The kubelet uses the TokenReview API to validate bearer tokens.
 > This requires reachability to the Kubernetes API server. Therefore API server downtime can
 > interrupt workload attestation. The `--authentication-token-webhook-cache-ttl` kubelet flag
 > controls how long the kubelet caches TokenReview responses and may help to
 > mitigate this issue. A large cache ttl value is not recommended however, as
 > that can impact permission revocation.
+
+<!-- different notes -->
 
 > **Note** Anonymous authentication with the kubelet requires that the
 > kubelet be started with the `--anonymous-auth` flag. It is discouraged to use anonymous
@@ -37,13 +41,15 @@ server name validation against the kubelet certificate.
 > resource that maps to some privileged operations, such as executing commands in
 > containers and reading pod logs.
 
+<!-- different notes -->
+
 **Note** To run on Windows containers, Kubernetes v1.24+ and containerd v1.6+ are required,
 since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/) container is required on the agent container.
 
 | Configuration | Description |
 | ------------- | ----------- |
 | `disable_container_selectors` | If true, container selectors are not produced. This can be used to produce pod selectors when the workload pod is known but the workload container is not ready at the time of attestation. |
-| `kubelet_read_only_port` | The kubelet read-only port. This is mutually exlusive with `kubelet_secure_port`. |
+| `kubelet_read_only_port` | The kubelet read-only port. This is mutually exclusive with `kubelet_secure_port`.|
 | `kubelet_secure_port` | The kubelet secure port. It defaults to `10250` unless `kubelet_read_only_port` is set. |
 | `kubelet_ca_path` | The path on disk to a file containing CA certificates used to verify the kubelet certificate. Required unless `skip_kubelet_verification` is set. Defaults to the cluster CA bundle `/run/secrets/kubernetes.io/serviceaccount/ca.crt`. |
 | `skip_kubelet_verification` | If true, kubelet certificate verification is skipped |
@@ -113,15 +119,15 @@ Sigstore enabled selectors (available when configured to use sigstore)
 | k8s:${containerID}:image-signature-logid | A unique LogID for the Rekor transparency log​ (eg. "k8s:000000:image-signature-logid:samplelogID") |
 | k8s:${containerID}:image-signature-integrated-time | The time (in Unix timestamp format) when the image signature was integrated into the signature transparency log​ (eg. "k8s:000000:image-signature-integrated-time:12345") |
 | k8s:sigstore-validation   | The confirmation if the signature is valid, has value of "passed" (eg. "k8s:sigstore-validation:passed") |
-> **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of 
-> the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod, 
+> **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of
+> the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod,
 > respectively.
 
 ## Examples
 
 To use the kubelet read-only port:
 
-```
+```hcl
 WorkloadAttestor "k8s" {
   plugin_data {
     kubelet_read_only_port = 10255
@@ -131,7 +137,7 @@ WorkloadAttestor "k8s" {
 
 To use the secure kubelet port, verify via `/run/secrets/kubernetes.io/serviceaccount/ca.crt`, and authenticate via the default service account token:
 
-```
+```hcl
 WorkloadAttestor "k8s" {
   plugin_data {
   }
@@ -140,7 +146,7 @@ WorkloadAttestor "k8s" {
 
 To use the secure kubelet port, skip verification, and authenticate via the default service account token:
 
-```
+```hcl
 WorkloadAttestor "k8s" {
   plugin_data {
     skip_kubelet_verification = true
@@ -150,7 +156,7 @@ WorkloadAttestor "k8s" {
 
 To use the secure kubelet port, skip verification, and authenticate via some other token:
 
-```
+```hcl
 WorkloadAttestor "k8s" {
   plugin_data {
     skip_kubelet_verification = true
@@ -161,7 +167,7 @@ WorkloadAttestor "k8s" {
 
 To use the secure kubelet port, verify the kubelet certificate, and authenticate via an X509 client certificate:
 
-```
+```hcl
 WorkloadAttestor "k8s" {
   plugin_data {
     kubelet_ca_path = "/path/to/kubelet-ca.pem"

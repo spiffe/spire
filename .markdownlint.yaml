@@ -1,0 +1,7 @@
+MD013: false
+# We are not interested on requesting output when using "$" on shell documentation
+MD014: false
+MD024:
+  siblings_only: true
+# we use emphasis on all node attestors
+MD036: false

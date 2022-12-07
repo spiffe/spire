@@ -254,7 +254,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 		SpiffeID:  spiffeID,
 		PublicKey: csr.PublicKey,
 		DNSList:   entry.DnsNames,
-		TTL:       time.Duration(entry.Ttl) * time.Second,
+		TTL:       time.Duration(entry.X509SvidTtl) * time.Second,
 	})
 	if err != nil {
 		return &svidv1.BatchNewX509SVIDResponse_Result{
@@ -338,12 +338,12 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 		return nil, api.MakeErr(log, codes.NotFound, "entry not found or not authorized", nil)
 	}
 
-	jwtsvid, err := s.mintJWTSVID(ctx, entry.SpiffeId, req.Audience, entry.Ttl)
+	jwtsvid, err := s.mintJWTSVID(ctx, entry.SpiffeId, req.Audience, entry.JwtSvidTtl)
 	if err != nil {
 		return nil, err
 	}
 	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
-		telemetry.TTL: entry.Ttl,
+		telemetry.TTL: entry.JwtSvidTtl,
 	})
 
 	return &svidv1.NewJWTSVIDResponse{
@@ -377,7 +377,7 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	x509CASvid, err := s.ca.SignX509CASVID(ctx, ca.X509CASVIDParams{
 		SpiffeID:  s.td.ID(),
 		PublicKey: csr.PublicKey,
-		TTL:       time.Duration(entry.Ttl) * time.Second,
+		TTL:       time.Duration(entry.X509SvidTtl) * time.Second,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
