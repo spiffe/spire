@@ -12,6 +12,7 @@ import (
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -200,7 +201,7 @@ func TestCreate(t *testing.T) {
 			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
 					{
-						Status:                 &types.Status{},
+						Status:                 api.OK(),
 						FederationRelationship: frSPIFFE,
 					},
 				},
@@ -216,7 +217,7 @@ Endpoint SPIFFE ID        : spiffe://other.org/bundle
     {
       "status": {
         "code": 0,
-        "message": ""
+        "message": "OK"
       },
       "federation_relationship": {
         "trust_domain": "td-2.org",
@@ -239,7 +240,7 @@ Endpoint SPIFFE ID        : spiffe://other.org/bundle
 			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
 					{
-						Status:                 &types.Status{},
+						Status:                 api.OK(),
 						FederationRelationship: frSPIFFEAndBundle,
 					},
 				},
@@ -255,7 +256,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
     {
       "status": {
         "code": 0,
-        "message": ""
+        "message": "OK"
       },
       "federation_relationship": {
         "trust_domain": "td-3.org",
@@ -288,7 +289,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
 					{
-						Status:                 &types.Status{},
+						Status:                 api.OK(),
 						FederationRelationship: frWeb,
 					},
 				},
@@ -303,7 +304,7 @@ Bundle endpoint profile   : https_web
     {
       "status": {
         "code": 0,
-        "message": ""
+        "message": "OK"
       },
       "federation_relationship": {
         "trust_domain": "td-1.org",
@@ -368,9 +369,9 @@ Error: failed to create one or more federation relationships
 			},
 			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-					{FederationRelationship: frWeb, Status: &types.Status{}},
-					{FederationRelationship: frSPIFFE, Status: &types.Status{}},
-					{FederationRelationship: frPemAuthority, Status: &types.Status{}},
+					{FederationRelationship: frWeb, Status: api.OK()},
+					{FederationRelationship: frSPIFFE, Status: api.OK()},
+					{FederationRelationship: frPemAuthority, Status: api.OK()},
 				},
 			},
 			expOutPretty: `
@@ -393,7 +394,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
     {
       "status": {
         "code": 0,
-        "message": ""
+        "message": "OK"
       },
       "federation_relationship": {
         "trust_domain": "td-1.org",
@@ -405,7 +406,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
     {
       "status": {
         "code": 0,
-        "message": ""
+        "message": "OK"
       },
       "federation_relationship": {
         "trust_domain": "td-2.org",
@@ -419,7 +420,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
     {
       "status": {
         "code": 0,
-        "message": ""
+        "message": "OK"
       },
       "federation_relationship": {
         "trust_domain": "td-3.org",

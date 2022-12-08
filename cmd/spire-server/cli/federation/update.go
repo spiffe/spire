@@ -8,6 +8,7 @@ import (
 
 	"github.com/mitchellh/cli"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -24,10 +25,11 @@ func newUpdateCommand(env *commoncli.Env) cli.Command {
 }
 
 type updateCommand struct {
-	path    string
-	config  *federationRelationshipConfig
-	env     *commoncli.Env
-	printer cliprinter.Printer
+	path                    string
+	config                  *federationRelationshipConfig
+	env                     *commoncli.Env
+	printer                 cliprinter.Printer
+	federationRelationships []*types.FederationRelationship
 }
 
 func (*updateCommand) Name() string {
@@ -50,11 +52,12 @@ func (c *updateCommand) Run(ctx context.Context, env *commoncli.Env, serverClien
 	if err != nil {
 		return err
 	}
+	c.federationRelationships = federationRelationships
 
 	client := serverClient.NewTrustDomainClient()
 
 	resp, err := client.BatchUpdateFederationRelationship(ctx, &trustdomainv1.BatchUpdateFederationRelationshipRequest{
-		FederationRelationships: federationRelationships,
+		FederationRelationships: c.federationRelationships,
 	})
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
@@ -64,13 +67,8 @@ func (c *updateCommand) Run(ctx context.Context, env *commoncli.Env, serverClien
 }
 
 func (c *updateCommand) prettyPrintUpdate(env *commoncli.Env, results ...interface{}) error {
-	federationRelationships, err := getRelationships(c.config, c.path)
-	if err != nil {
-		return err
-	}
-
 	updateResp, ok := results[0].(*trustdomainv1.BatchUpdateFederationRelationshipResponse)
-	if !ok {
+	if !ok || len(c.federationRelationships) < len(updateResp.Results) {
 		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 
@@ -84,7 +82,7 @@ func (c *updateCommand) prettyPrintUpdate(env *commoncli.Env, results ...interfa
 		default:
 			// The trust domain API does not include in the results the relationships that
 			// failed to be updated, so we populate them from the request data.
-			r.FederationRelationship = federationRelationships[i]
+			r.FederationRelationship = c.federationRelationships[i]
 			failed = append(failed, r)
 		}
 	}

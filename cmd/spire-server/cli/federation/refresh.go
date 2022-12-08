@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
+	"github.com/spiffe/spire/pkg/server/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -48,13 +49,13 @@ func (c *refreshCommand) Run(ctx context.Context, env *commoncli.Env, serverClie
 	}
 
 	trustDomainClient := serverClient.NewTrustDomainClient()
-	resp, err := trustDomainClient.RefreshBundle(ctx, &trustdomain.RefreshBundleRequest{
+	_, err := trustDomainClient.RefreshBundle(ctx, &trustdomain.RefreshBundleRequest{
 		TrustDomain: c.id,
 	})
 
 	switch status.Code(err) {
 	case codes.OK:
-		return c.printer.PrintProto(resp)
+		return c.printer.PrintProto(api.OK())
 	case codes.NotFound:
 		return fmt.Errorf("there is no federation relationship with trust domain %q", c.id)
 	default:

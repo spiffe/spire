@@ -43,7 +43,7 @@ func TestRefresh(t *testing.T) {
 				TrustDomain: "spiffe://example.org",
 			},
 			expectOutPretty: "Bundle refreshed\n",
-			expectOutJSON:   "{}",
+			expectOutJSON:   `{"code":0,"message":"OK"}`,
 			refreshResp:     &emptypb.Empty{},
 		},
 		{

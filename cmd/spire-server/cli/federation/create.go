@@ -8,6 +8,7 @@ import (
 
 	"github.com/mitchellh/cli"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -29,10 +30,11 @@ func newCreateCommand(env *commoncli.Env) cli.Command {
 }
 
 type createCommand struct {
-	path    string
-	config  *federationRelationshipConfig
-	env     *commoncli.Env
-	printer cliprinter.Printer
+	path                    string
+	config                  *federationRelationshipConfig
+	env                     *commoncli.Env
+	printer                 cliprinter.Printer
+	federationRelationships []*types.FederationRelationship
 }
 
 func (*createCommand) Name() string {
@@ -55,6 +57,7 @@ func (c *createCommand) Run(ctx context.Context, env *commoncli.Env, serverClien
 	if err != nil {
 		return err
 	}
+	c.federationRelationships = federationRelationships
 
 	client := serverClient.NewTrustDomainClient()
 
@@ -69,13 +72,8 @@ func (c *createCommand) Run(ctx context.Context, env *commoncli.Env, serverClien
 }
 
 func (c *createCommand) prettyPrintCreate(env *commoncli.Env, results ...interface{}) error {
-	federationRelationships, err := getRelationships(c.config, c.path)
-	if err != nil {
-		return err
-	}
-
 	createResp, ok := results[0].(*trustdomainv1.BatchCreateFederationRelationshipResponse)
-	if !ok {
+	if !ok || len(c.federationRelationships) < len(createResp.Results) {
 		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 	// Process results
@@ -88,7 +86,7 @@ func (c *createCommand) prettyPrintCreate(env *commoncli.Env, results ...interfa
 		default:
 			// The trust domain API does not include in the results the relationships that
 			// failed to be created, so we populate them from the request data.
-			r.FederationRelationship = federationRelationships[i]
+			r.FederationRelationship = c.federationRelationships[i]
 			failed = append(failed, r)
 		}
 	}

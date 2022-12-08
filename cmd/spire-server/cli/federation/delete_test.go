@@ -6,6 +6,7 @@ import (
 
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -46,13 +47,13 @@ func TestDelete(t *testing.T) {
 			deleteResp: &trustdomainv1.BatchDeleteFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
 					{
-						Status:      &types.Status{Code: int32(codes.OK)},
+						Status:      api.OK(),
 						TrustDomain: "example.org",
 					},
 				},
 			},
 			expectOutPretty: "federation relationship deleted.\n",
-			expectOutJSON:   `{"results":[{"status":{"code":0,"message":""},"trust_domain":"example.org"}]}`,
+			expectOutJSON:   `{"results":[{"status":{"code":0,"message":"OK"},"trust_domain":"example.org"}]}`,
 		},
 		{
 			name:            "Empty ID",
