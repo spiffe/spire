@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"google.golang.org/grpc/codes"
 )
 
@@ -20,17 +21,17 @@ func NewSetCommand() cli.Command {
 }
 
 func newSetCommand(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(setCommand))
+	return util.AdaptCommand(env, &setCommand{env: env})
 }
 
 type setCommand struct {
+	env *common_cli.Env
 	// SPIFFE ID of the trust bundle
 	id string
-
 	// Path to the bundle on disk (optional). If empty, reads from stdin.
-	path string
-
-	format string
+	path         string
+	bundleFormat string
+	printer      cliprinter.Printer
 }
 
 func (c *setCommand) Name() string {
@@ -44,7 +45,8 @@ func (c *setCommand) Synopsis() string {
 func (c *setCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
 	fs.StringVar(&c.path, "path", "", "Path to the bundle data")
-	fs.StringVar(&c.format, "format", util.FormatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintSet)
 }
 
 func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
@@ -52,7 +54,7 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 		return errors.New("id flag is required")
 	}
 
-	format, err := validateFormat(c.format)
+	bundleFormat, err := validateFormat(c.bundleFormat)
 	if err != nil {
 		return err
 	}
@@ -62,7 +64,7 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 		return fmt.Errorf("unable to load bundle data: %w", err)
 	}
 
-	bundle, err := util.ParseBundle(bundleBytes, format, c.id)
+	bundle, err := util.ParseBundle(bundleBytes, bundleFormat, c.id)
 	if err != nil {
 		return err
 	}
@@ -75,7 +77,15 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 		return fmt.Errorf("failed to set federated bundle: %w", err)
 	}
 
-	result := resp.Results[0]
+	return c.printer.PrintProto(resp)
+}
+
+func prettyPrintSet(env *common_cli.Env, results ...interface{}) error {
+	setResp, ok := results[0].(*bundlev1.BatchSetFederatedBundleResponse)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
+	result := setResp.Results[0]
 	switch result.Status.Code {
 	case int32(codes.OK):
 		env.Println("bundle set.")
