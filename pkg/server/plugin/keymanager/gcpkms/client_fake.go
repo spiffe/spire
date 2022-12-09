@@ -279,6 +279,7 @@ type fakeKMSClient struct {
 	store                      fakeStore
 	tokeninfo                  *oauth2.Tokeninfo
 	updateCryptoKeyErr         error
+	keyIsDisabled              bool
 }
 
 func (k *fakeKMSClient) setAsymmetricSignErr(fakeError error) {
@@ -314,6 +315,13 @@ func (k *fakeKMSClient) setGetCryptoKeyVersionErr(fakeError error) {
 	defer k.mu.Unlock()
 
 	k.getCryptoKeyVersionErr = fakeError
+}
+
+func (k *fakeKMSClient) setIsKeyDisabled(ok bool) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.keyIsDisabled = ok
 }
 
 func (k *fakeKMSClient) setGetPublicKeyErr(fakeError error) {
@@ -534,6 +542,9 @@ func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetC
 		return nil, err
 	}
 
+	if k.keyIsDisabled {
+		fakeCryptoKeyVersion.CryptoKeyVersion.State = kmspb.CryptoKeyVersion_DISABLED
+	}
 	return fakeCryptoKeyVersion.CryptoKeyVersion, nil
 }
 
