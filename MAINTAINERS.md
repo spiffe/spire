@@ -81,13 +81,19 @@ The SPIRE project maintains active support for both the current and the previous
 
 ### Version Branches
 
-When a bug is discovered in the latest release that also affects releases of the prior major version, it is necessary to backport the fix.
+Each release must have its own release branch following the naming convention `release/vX.Y.Z` where `X` is the major version, `Y` is the minor version, and `Z` is patch version.
 
-If it is the first time that the prior major version is receiving a backported patch, then a version branch is created to track it. The version branch is named `vX.Y` where X and Y are the two most significant digits in the semantic version number. Its base is the last tag present in main for the release in question. For example, if SPIRE is on version 0.9.3, and the last 0.8 release was 0.8.4, then a `v0.8` branch is created with its base being the main commit tagged with `v0.8.4`.
+The base commit of the release branch is based on the type of release being generated:
+
+* Patch release for older minor release series. In this case, the new release branch is based off of the previous patch release branch for the same minor release series. Example: the latest release is v1.5.z, and the release being prepared is v1.4.5. The base commit should be the `release/v1.4.4` branch.
+* Security release for current minor release series. In this case, the new release branch should be based off of the previous release branch for the same minor release series. Example: the latest release is v1.5.0, and the release being prepared is v1.5.1. The base commit should be the `release/v1.5.0` branch.
+* Scheduled patch release for current minor release series OR scheduled minor release. In this case, the new release branch should be based off of a commit on the `main` branch. Example: the latest release is v1.5.0, and the release being prepared is v1.5.1. The base commit should be the candidate commit selected from the `main` branch.
+
+When a bug is discovered in the latest release that also affects releases of the prior minor version, it is necessary to backport the fix.
 
 Once the version branch is created, the patch is either cherry picked or backported into a PR against the version branch. The version branch is maintained via the same process as the main branch, including PR approval process etc.
 
-Releases for the previous major version are made directly from its version branch. Ensure that the CHANGELOG is updated in both the main and the version branch to reflect the new release.
+Ensure that the CHANGELOG is updated in both `main` and the version branch to reflect the new release.
 
 ### Releasing
 
@@ -103,45 +109,46 @@ A simple majority vote is required to authorize a SPIRE release at a specific co
 
 This section summarizes the steps necessary to execute a SPIRE release. Unless explicitly stated, the below steps must be executed in order.
 
-The following steps must be completed one week prior to release:
+The following steps must be completed by the primary on-call maintainer one week prior to release:
 
-* Ensure all changes intended to be included in the release are fully merged.
+* Ensure all changes intended to be included in the release are fully merged. For the spire-api-sdk and spire-plugin-sdk repositories, ensure that all changes intended for the upcoming release are merged into the main branch from the next branch.
 * Identify a specific commit as the release candidate.
-* Create a draft pull request against the main branch with the updates to the CHANGELOG following [these guidelines](doc/changelog_guidelines.md). This allows those tracking the project to have early visibility into what will be included in the upcoming release and an opportunity to provide feedback. The release date can be set as "TBD" while it is a draft.
-* Raise an issue "Release SPIRE X.Y.Z", and include the release candidate commit hash. Reference the pull request with the updates to the CHANGELOG.
+* Raise an issue "Release SPIRE X.Y.Z", and include the release candidate commit hash.
+* Create the release branch following the guidelines described in [Version branches](#version-branches).
 * If the current state of the main branch has diverged from the candidate commit due to other changes than the ones from the CHANGELOG:
-  * If there is not a version branch for this release, create a branch following the guidelines described in [Version branches](#version-branches).
-  * Create a GitHub project named `Release vX.X.X` to identify the PRs that will be cherry-picked. The project should have two statuses to track the progress: one to identify the PRs to be cherry-picked and one for those that have been merged in the version branch.
   * Make sure that the [version in the branch](pkg/common/version/version.go) has been bumped to the version that is being released and that the [upgrade integration test is updated](test/integration/suites/upgrade/README.md#maintenance).
-  * Cherry-pick into the version branch the commits for all the changes that must be included in the release.
+  * Cherry-pick into the version branch the commits for all the changes that must be included in the release. Ensure the PRs for these commits all target the release milestone in GitHub.
+* Create a draft pull request against the release branch with the updates to the CHANGELOG following [these guidelines](doc/changelog_guidelines.md). This allows those tracking the project to have early visibility into what will be included in the upcoming release and an opportunity to provide feedback. The release date can be set as "TBD" while it is a draft.
 
-**If this is a major release**, the following steps must be completed before releasing:
+**If this is a major or minor release**, the following steps must be completed by the secondary on-call maintainer at least one day before releasing:
 
 * Review and exercise all examples in spiffe.io and spire-examples repo against the release candidate hash.
 * Raise a PR for every example that updates included text and configuration to reflect current state and best practice.
   * Do not merge this PR yet. It will be updated later to use the real version pin rather than the commit hash.
   * If anything unusual is encountered during this process, a comment MUST be left on the release issue describing what was observed.
 
-The following steps must be completed to perform a release:
+The following steps must be completed by the primary on-call maintainer to perform a release:
 
-* Mark the pull request to update the CHANGELOG as "Ready for review". Make sure that it is updated with the final release date. **At least two approvals from maintainers are required in order to be able to merge it**. If a version branch was created for the realease, cherry-pick the final CHANGELOG changes into the version branch once they are merged.
-* If releasing from main and the current state of the main branch has diverged from the candidate commit due to just the CHANGELOG changes, the candidate commit is now the one that includes the updated CHANGELOG. If releasing from a version branch, the candidate commit is now the one that has the CHANGELOG changes cherry-picked in the branch.
-* Cut an annotated tag against the release candidate named `vX.X.X`, where `X.X.X` is the semantic version number of SPIRE.
-  * The first line of the annotation should be `vX.X.X` followed by the CHANGELOG. **There should be a newline between the version and the CHANGELOG**.
+* Mark the pull request to update the CHANGELOG as "Ready for review". Make sure that it is updated with the final release date. **At least two approvals from maintainers are required in order to be able to merge it**.
+* Cut an annotated tag against the release candidate named `vX.Y.Z`, where `X.Y.Z` is the semantic version number of SPIRE.
+  * The first line of the annotation should be `vX.Y.Z` followed by the CHANGELOG. **There should be a newline between the version and the CHANGELOG**. The tag should not contain the Markdown header formatting because the "#" symbol is interpreted as a comment by Git.
 * Push the annotated tag to SPIRE, and watch the build to completion.
   * If the build fails, or anything unusual is encountered, abort the release.
     * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary.
-* Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub rendering bug that you will notice before completing this task.
-* Close the GitHub project created to track the release process.
+* Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub Markdown rendering bug that you will notice before completing this task.
+* Create Git tags (not annotated) with the name `vX.Y.Z` in the [spire-api-sdk](https://github.com/spiffe/spire-api-sdk) and [spire-plugin-sdk](https://github.com/spiffe/spire-plugin-sdk) repositories for the HEAD commit of the main branch.
+* Open a PR targeted for the main branch that cherry-picks the changelog commit from the latest release so that the changelog on the main branch contains all the release notes.
+* Close the GitHub issue created to track the release process.
+* Broadcast news of release to the community via available means: SPIFFE Slack, Twitter, etc.
 * Open and merge a PR to bump the SPIRE version to the next projected version and [update the upgrade integration test](test/integration/suites/upgrade/README.md#maintenance).
   * For example, after releasing 0.10.0, update the version to 0.10.1, since it is more likely to be released before 0.11.0.
   * Ideally, this is the first commit merged following the release.
+* Create a new GitHub milestone for the next release, if not already created.
 
-**If this is a major release**, the following steps must be completed no later than one week after the release:
+**If this is a major or minor release**, the following steps must be completed by the secondary on-call maintainer no later than one week after the release:
 
 * PRs to update spiffe.io and spire-examples repo to the latest major version must be merged.
   * Ensure that the PRs have been updated to use the version tag instead of the commit sha.
-* Broadcast news of release to the community via available means: SPIFFE Slack, Twitter, etc.
 
 ## Community Interaction and Presence
 
