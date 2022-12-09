@@ -52,7 +52,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/mitchellh/cli v1.1.5
-	github.com/open-policy-agent/opa v0.47.0
+	github.com/open-policy-agent/opa v0.47.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/shirou/gopsutil/v3 v3.22.11
 	github.com/sirupsen/logrus v1.9.0
@@ -60,7 +60,7 @@ require (
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20221020001527-5895a0279944
 	github.com/spiffe/spire-plugin-sdk v1.4.1-0.20220912221658-c42ab2d657f6
 	github.com/stretchr/testify v1.8.1
-	github.com/uber-go/tally/v4 v4.1.3
+	github.com/uber-go/tally/v4 v4.1.4
 	github.com/zeebo/errs v1.3.0
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
