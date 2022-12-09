@@ -15,7 +15,7 @@
 
 - SPIRE-managed files on Windows now have correct security descriptors (#3577, #3604)
 - oidc-discovery-provider healthcheck HTTP server now binds to all network interfaces for visibility outside containers using virtual IP (#3580)
-- k8s-workload-registrar CRD and reconcile modes now have correct leader election RBAC YAML (#3617)
+- k8s-workload-registrar CRD and reconcile modes now have correct example leader election RBAC YAML (#3617)
 
 ## [1.5.2] - 2022-12-06
 
