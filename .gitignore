@@ -29,3 +29,7 @@ tools/spire-plugingen/spire-plugingen
 # Editor specific configuration
 .idea
 .vscode
+
+# Runtime version manager specific configuration
+# asdf config file
+.tool-versions

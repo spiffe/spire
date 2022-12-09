@@ -161,14 +161,14 @@ func (fs *fakeStore) fetchFakeCryptoKeys() map[string]*fakeCryptoKey {
 	return fakeCryptoKeys
 }
 
-func (fs *fakeStore) fetchFakeCryptoKeyVersion(name string) (*fakeCryptoKeyVersion, error) {
+func (fs *fakeStore) fetchFakeCryptoKeyVersion(name string) (fakeCryptoKeyVersion, error) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 
 	parent := path.Dir(path.Dir(name))
 	fakeCryptoKey, ok := fs.fakeCryptoKeys[parent]
 	if !ok {
-		return nil, fmt.Errorf("could not get parent CryptoKey for %q CryptoKeyVersion", name)
+		return fakeCryptoKeyVersion{}, fmt.Errorf("could not get parent CryptoKey for %q CryptoKeyVersion", name)
 	}
 
 	version := path.Base(name)
@@ -176,10 +176,10 @@ func (fs *fakeStore) fetchFakeCryptoKeyVersion(name string) (*fakeCryptoKeyVersi
 	defer fakeCryptoKey.mu.RUnlock()
 	fakeCryptokeyVersion, ok := fakeCryptoKey.fakeCryptoKeyVersions[version]
 	if ok {
-		return fakeCryptokeyVersion, nil
+		return *fakeCryptokeyVersion, nil
 	}
 
-	return nil, fmt.Errorf("could not find CryptoKeyVersion %q", version)
+	return fakeCryptoKeyVersion{}, fmt.Errorf("could not find CryptoKeyVersion %q", version)
 }
 
 func (fs *fakeStore) putFakeCryptoKey(fck *fakeCryptoKey) {
@@ -279,6 +279,7 @@ type fakeKMSClient struct {
 	store                      fakeStore
 	tokeninfo                  *oauth2.Tokeninfo
 	updateCryptoKeyErr         error
+	keyIsDisabled              bool
 }
 
 func (k *fakeKMSClient) setAsymmetricSignErr(fakeError error) {
@@ -314,6 +315,13 @@ func (k *fakeKMSClient) setGetCryptoKeyVersionErr(fakeError error) {
 	defer k.mu.Unlock()
 
 	k.getCryptoKeyVersionErr = fakeError
+}
+
+func (k *fakeKMSClient) setIsKeyDisabled(ok bool) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+
+	k.keyIsDisabled = ok
 }
 
 func (k *fakeKMSClient) setGetPublicKeyErr(fakeError error) {
@@ -516,7 +524,7 @@ func (k *fakeKMSClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.
 	}
 
 	fckv.CryptoKeyVersion = cryptoKeyVersion
-	fck.putFakeCryptoKeyVersion(fckv)
+	fck.putFakeCryptoKeyVersion(&fckv)
 
 	return cryptoKeyVersion, nil
 }
@@ -534,6 +542,9 @@ func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetC
 		return nil, err
 	}
 
+	if k.keyIsDisabled {
+		fakeCryptoKeyVersion.CryptoKeyVersion.State = kmspb.CryptoKeyVersion_DISABLED
+	}
 	return fakeCryptoKeyVersion.CryptoKeyVersion, nil
 }
 

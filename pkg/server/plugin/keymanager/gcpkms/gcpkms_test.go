@@ -958,6 +958,8 @@ func TestGenerateKey(t *testing.T) {
 			ts.fakeKMSClient.setGetTokeninfoErr(tt.getTokenInfoErr)
 			ts.fakeKMSClient.setUpdateCryptoKeyErr(tt.updateCryptoKeyErr)
 			ts.fakeKMSClient.setDestroyCryptoKeyVersionErr(tt.destroyCryptoKeyVersionErr)
+			ts.fakeKMSClient.setIsKeyDisabled(tt.testDisabled)
+
 			ts.plugin.hooks.scheduleDestroySignal = make(chan error)
 
 			configureReq := tt.configureReq
@@ -995,19 +997,6 @@ func TestGenerateKey(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if tt.testDisabled {
-				// An external system changes the state of the CryptoKeyVersion to be disabled.
-				fckv := &fakeCryptoKeyVersion{
-					CryptoKeyVersion: tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].CryptoKeyVersion,
-					privateKey:       tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].privateKey,
-					publicKey:        tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].publicKey,
-				}
-				fckv.State = kmspb.CryptoKeyVersion_DISABLED
-
-				fck, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(tt.fakeCryptoKeys[0].Name)
-				require.True(t, ok)
-				fck.putFakeCryptoKeyVersion(fckv)
-			}
 			if !tt.waitForDelete {
 				spiretest.AssertLogsContainEntries(t, ts.logHook.AllEntries(), tt.logs)
 				return
@@ -1222,7 +1211,7 @@ func TestGetPublicKeys(t *testing.T) {
 			for _, fck := range storedFakeCryptoKeys {
 				storedFakeCryptoKeyVersions := fck.fetchFakeCryptoKeyVersions()
 				for _, fckv := range storedFakeCryptoKeyVersions {
-					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.fakeKMSClient, fckv.CryptoKeyVersion.Name)
+					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.plugin.log, ts.fakeKMSClient, fckv.CryptoKeyVersion.Name)
 					require.NoError(t, err)
 					require.Equal(t, pubKey, resp.PublicKeys[0].PkixData)
 				}
