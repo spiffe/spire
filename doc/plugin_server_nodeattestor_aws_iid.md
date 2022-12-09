@@ -84,7 +84,7 @@ This plugin generates the following selectors related to the instance where the 
 | Availability Zone   | `aws_iid:az:us-west-2b`                               | The Availability Zone in which the instance is running.          |
 | IAM role            | `aws_iid:iamrole:arn:aws:iam::123456789012:role/Blog` | An IAM role within the instance profile for the instance         |
 | Image ID            | `aws_iid:image:id:ami-5fb8c835`                       | The ID of the AMI used to launch the instance.                   |
-| Instance ID         | `aws_iid:instance:id:ami-5fb8c835`                    | The ID of the instance.                                          |
+| Instance ID         | `aws_iid:instance:id:i-0b22a22eec53b9321`             | The ID of the instance.                                          |
 | Instance Tag        | `aws_iid:tag:name:blog`                               | The key (e.g. `name`) and value (e.g. `blog`) of an instance tag |
 | Region              | `aws_iid:region:us-west-2`                            | The Region in which the instance is running.                     |
 | Security Group ID   | `aws_iid:sg:id:sg-01234567`                           | The id of the security group the instance belongs to             |
