@@ -361,7 +361,7 @@ func TestConfigure(t *testing.T) {
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
 			ts.fakeKMSClient.setListCryptoKeysErr(tt.listCryptoKeysErr)
 			ts.fakeKMSClient.setGetCryptoKeyVersionErr(tt.getCryptoKeyVersionErr)
-			ts.fakeKMSClient.setGetPublicKeyErr(tt.getPublicKeyErr)
+			ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErr)
 
 			var configureRequest *configv1.ConfigureRequest
 			if tt.config != nil {
@@ -627,21 +627,22 @@ func TestEnqueueDestructionFailure(t *testing.T) {
 
 func TestGenerateKey(t *testing.T) {
 	for _, tt := range []struct {
-		configureReq   *configv1.ConfigureRequest
-		expectCode     codes.Code
-		expectMsg      string
-		destroyTime    *timestamp.Timestamp
-		fakeCryptoKeys []*fakeCryptoKey
-		generateKeyReq *keymanagerv1.GenerateKeyRequest
-		logs           []spiretest.LogEntry
-		name           string
-		testDisabled   bool
-		waitForDelete  bool
+		configureReq                 *configv1.ConfigureRequest
+		expectCode                   codes.Code
+		expectMsg                    string
+		destroyTime                  *timestamp.Timestamp
+		fakeCryptoKeys               []*fakeCryptoKey
+		generateKeyReq               *keymanagerv1.GenerateKeyRequest
+		logs                         []spiretest.LogEntry
+		name                         string
+		testDisabled                 bool
+		waitForDelete                bool
+		initialCryptoKeyVersionState kmspb.CryptoKeyVersion_CryptoKeyVersionState
 
 		createKeyErr               error
 		destroyCryptoKeyVersionErr error
 		getCryptoKeyVersionErr     error
-		getPublicKeyErr            error
+		getPublicKeyErrs           []error
 		getTokenInfoErr            error
 		updateCryptoKeyErr         error
 	}{
@@ -650,6 +651,19 @@ func TestGenerateKey(t *testing.T) {
 			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+		},
+		{
+			name: "success: keeps retrying when crypto key is in pending generation state",
+			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			initialCryptoKeyVersionState: kmspb.CryptoKeyVersion_PENDING_GENERATION,
+			getPublicKeyErrs: []error{
+				errors.New("error getting public key"),
+				errors.New("error getting public key"),
+				nil,
 			},
 		},
 		{
@@ -771,10 +785,10 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
-			name:            "get public key error",
-			expectMsg:       "failed to get public key: public key error",
-			expectCode:      codes.Internal,
-			getPublicKeyErr: errors.New("public key error"),
+			name:             "get public key error",
+			expectMsg:        "failed to get public key: public key error",
+			expectCode:       codes.Internal,
+			getPublicKeyErrs: []error{errors.New("public key error")},
 			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -954,6 +968,7 @@ func TestGenerateKey(t *testing.T) {
 			ts.fakeKMSClient.setDestroyTime(fakeTime)
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
 			ts.fakeKMSClient.setCreateCryptoKeyErr(tt.createKeyErr)
+			ts.fakeKMSClient.setInitialCryptoKeyVersionState(tt.initialCryptoKeyVersionState)
 			ts.fakeKMSClient.setGetCryptoKeyVersionErr(tt.getCryptoKeyVersionErr)
 			ts.fakeKMSClient.setGetTokeninfoErr(tt.getTokenInfoErr)
 			ts.fakeKMSClient.setUpdateCryptoKeyErr(tt.updateCryptoKeyErr)
@@ -981,7 +996,7 @@ func TestGenerateKey(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			ts.fakeKMSClient.setGetPublicKeyErr(tt.getPublicKeyErr)
+			ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErrs...)
 
 			resp, err := ts.plugin.GenerateKey(ctx, tt.generateKeyReq)
 			if tt.expectMsg != "" {
