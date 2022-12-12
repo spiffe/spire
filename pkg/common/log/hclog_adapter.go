@@ -87,6 +87,12 @@ func (a *HCLogAdapter) SetLevel(hclog.Level) {
 	// we don't currently.
 }
 
+func (a *HCLogAdapter) GetLevel() hclog.Level {
+	// We don't support dynamically setting the level with SetLevel(),
+	// so just return a default value here.
+	return hclog.NoLevel
+}
+
 func (a *HCLogAdapter) With(args ...interface{}) hclog.Logger {
 	e := a.CreateEntry(args)
 	return &HCLogAdapter{
