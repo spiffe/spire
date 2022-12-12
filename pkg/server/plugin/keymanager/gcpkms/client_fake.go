@@ -281,7 +281,7 @@ type fakeKMSClient struct {
 	store                        fakeStore
 	tokeninfo                    *oauth2.Tokeninfo
 	updateCryptoKeyErr           error
-	keyIsDisabled              bool
+	keyIsDisabled                bool
 }
 
 func (k *fakeKMSClient) setAsymmetricSignErr(fakeError error) {
