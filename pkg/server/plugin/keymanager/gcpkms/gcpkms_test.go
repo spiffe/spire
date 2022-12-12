@@ -480,12 +480,17 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	// Wait for dispose disposeCryptoKeysTask to be initialized.
 	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
 
+	// Since the CryptoKey doesn't have any enabled CryptoKeyVersions at
+	// this point, it should be set as inactive.
+	// Wait for the set inactive signal.
+	// The order is not respected, so verify no error is returned
+	// and that all signals recieved
 	for _, fck := range storedFakeCryptoKeys {
-		// Since the CryptoKey doesn't have any enabled CryptoKeyVersions at
-		// this point, it should be set as inactive.
-		// Wait for the set inactive signal.
-		_ = waitForSignal(t, ts.plugin.hooks.setInactiveSignal)
+		err = waitForSignal(t, ts.plugin.hooks.setInactiveSignal)
+		require.NoErrorf(t, err, "unexpected error on %v", fck.getName())
+	}
 
+	for _, fck := range storedFakeCryptoKeys {
 		// The CryptoKey should be inactive now.
 		fck, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(fck.getName())
 		require.True(t, ok)
