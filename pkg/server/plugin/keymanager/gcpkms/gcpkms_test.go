@@ -958,6 +958,8 @@ func TestGenerateKey(t *testing.T) {
 			ts.fakeKMSClient.setGetTokeninfoErr(tt.getTokenInfoErr)
 			ts.fakeKMSClient.setUpdateCryptoKeyErr(tt.updateCryptoKeyErr)
 			ts.fakeKMSClient.setDestroyCryptoKeyVersionErr(tt.destroyCryptoKeyVersionErr)
+			ts.fakeKMSClient.setIsKeyDisabled(tt.testDisabled)
+
 			ts.plugin.hooks.scheduleDestroySignal = make(chan error)
 
 			configureReq := tt.configureReq
@@ -995,21 +997,6 @@ func TestGenerateKey(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if tt.testDisabled {
-				// An external system changes the state of the CryptoKeyVersion to be disabled.
-				fckv := &fakeCryptoKeyVersion{
-					publicKey: pubKey,
-					CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-						Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-						Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
-						State:     kmspb.CryptoKeyVersion_DISABLED,
-					},
-				}
-
-				fck, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(tt.fakeCryptoKeys[0].Name)
-				require.True(t, ok)
-				fck.putFakeCryptoKeyVersion(fckv)
-			}
 			if !tt.waitForDelete {
 				spiretest.AssertLogsContainEntries(t, ts.logHook.AllEntries(), tt.logs)
 				return
