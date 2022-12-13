@@ -15,7 +15,6 @@ docker-compose exec -T spire-server \
     ash -c "
 cat /opt/spire/conf/fixture/ca.pem | 
     /opt/spire/bin/spire-server bundle set -id spiffe://federated.td" || fail-now "failed to create bundle (pem)"
-
 docker-compose exec -T spire-server \
     ash -c "
 /opt/spire/bin/spire-server bundle list -id spiffe://federated.td |
