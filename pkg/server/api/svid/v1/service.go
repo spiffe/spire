@@ -115,7 +115,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 	}
 
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
-		telemetry.ExpiresAt: x509SVID[0].NotAfter.Unix(),
+		telemetry.ExpiresAt: x509SVID[0].NotAfter.Format(time.RFC3339),
 	})
 
 	rpccontext.AuditRPCWithFields(ctx, commonX509SVIDLogFields)
