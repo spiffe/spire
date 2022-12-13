@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# Install openssl
-docker-compose exec -T spire-server \
-    apk add --no-cache --update openssl
-
 # Verify 'bundle count' correctly indicates a single bundle (the server bundle)
 docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 1 || fail-now "failed to count 1 bundle"
 
@@ -19,6 +15,7 @@ docker-compose exec -T spire-server \
     ash -c "
 cat /opt/spire/conf/fixture/ca.pem | 
     /opt/spire/bin/spire-server bundle set -id spiffe://federated.td" || fail-now "failed to create bundle (pem)"
+
 docker-compose exec -T spire-server \
     ash -c "
 /opt/spire/bin/spire-server bundle list -id spiffe://federated.td |

@@ -13,10 +13,18 @@ expLeafURI="URI:spiffe://example.org/ns/foo/sa/bar"
 
 log-debug "verifying CA..."
 
-./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- /opt/spire/bin/spire-server x509 mint -spiffeID spiffe://example.org/ns/foo/sa/bar -write .
-leafURIResult=$(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- cat svid.pem | openssl x509 -noout -text | grep URI | sed 's/^ *//g')
-leafIssuerResult=$(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- cat svid.pem | openssl x509 -noout -issuer)
-caSubjectResult=$(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- cat bundle.pem | openssl x509 -noout -subject)
+mintx509svid_out=mintx509svid-out.txt
+./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- /opt/spire/bin/spire-server x509 mint -spiffeID spiffe://example.org/ns/foo/sa/bar > $mintx509svid_out
+
+svid=svid.pem
+sed -n '/-----BEGIN CERTIFICATE-----/,/^$/{/^$/q; p;}' $mintx509svid_out > $svid
+
+bundle=bundle.pem
+sed -n '/Root CAs:/,/^$/p' $mintx509svid_out | sed -n '/-----BEGIN CERTIFICATE-----/,/^$/{/^$/q; p;}' > $bundle
+
+leafURIResult=$(openssl x509 -noout -text -in $svid | grep URI | sed 's/^ *//g')
+leafIssuerResult=$(openssl x509 -noout -issuer -in $svid)
+caSubjectResult=$(openssl x509 -noout -subject -in $bundle)
 
 if [ $(openssl version | awk '{print $1}') == 'LibreSSL' ]; then
     expLeafIssuer=$expLeafIssuerLibreSSL

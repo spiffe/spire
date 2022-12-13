@@ -132,7 +132,7 @@ build-mashup-image() {
     ENVOY_IMAGE_TAG="${ENVOY_VERSION}-latest"
 
     cat > Dockerfile <<EOF
-FROM spire-agent:latest-local as spire-agent
+FROM spire-agent-scratch:latest-local as spire-agent
 FROM envoyproxy/envoy-alpine:${ENVOY_IMAGE_TAG} AS envoy-agent-mashup
 COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent
 RUN apk --no-cache add dumb-init
