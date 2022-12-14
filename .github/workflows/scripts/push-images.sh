@@ -44,7 +44,7 @@ if [ -n "${variant}" ] && [ "${variant}" != "-scratch" ]; then
 fi
 
 OCI_IMAGES=(
-  spire-server spire-agent k8s-workload-registrar oidc-discovery-provider
+  spire-server spire-agent oidc-discovery-provider
 )
 
 registry=gcr.io/spiffe-io
@@ -52,15 +52,15 @@ if [ "${variant}" = "-scratch" ] ; then
   org_name=$(echo "$GITHUB_REPOSITORY" | tr '/' "\n" | head -1 | tr -d "\n")
   org_name="${org_name:-spiffe}" # default to spiffe in case ran on local
   registry=ghcr.io/${org_name}
+else
+  # Continue publishing the non-scratch k8s-workload-registrar to GCR
+  OCI_IMAGES+=( k8s-workload-registrar )
 fi
 
 echo "Pushing images ${OCI_IMAGES[*]} to ${registry} with tag ${version}".
 for img in "${OCI_IMAGES[@]}"; do
   image_variant="${img}${variant}"
   image_to_push="${registry}/${img}:${version}"
-  if [ "${variant}" = "-scratch" ] && [ "${img}" == "oidc-discovery-provider" ] ; then
-    image_to_push="${registry}/spire-oidc-provider:${version}"
-  fi
   docker tag "${image_variant}:latest-local" "${image_to_push}"
   docker push "${image_to_push}"
 done

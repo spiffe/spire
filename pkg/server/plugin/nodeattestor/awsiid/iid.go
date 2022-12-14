@@ -54,7 +54,15 @@ const (
 	// accessKeyIDVarName env var name for AWS access key ID
 	accessKeyIDVarName = "AWS_ACCESS_KEY_ID"
 	// secretAccessKeyVarName env car name for AWS secret access key
-	secretAccessKeyVarName = "AWS_SECRET_ACCESS_KEY" //nolint: gosec // false positive
+	secretAccessKeyVarName   = "AWS_SECRET_ACCESS_KEY" //nolint: gosec // false positive
+	azSelectorPrefix         = "az"
+	imageIDSelectorPrefix    = "image:id"
+	instanceIDSelectorPrefix = "instance:id"
+	regionSelectorPrefix     = "region"
+	sgIDSelectorPrefix       = "sg:id"
+	sgNameSelectorPrefix     = "sg:name"
+	tagSelectorPrefix        = "tag"
+	iamRoleSelectorPrefix    = "iamrole"
 )
 
 // BuiltIn creates a new built-in plugin
@@ -192,7 +200,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return err
 	}
 
-	selectorValues, err := p.resolveSelectors(stream.Context(), instancesDesc, awsClient)
+	selectorValues, err := p.resolveSelectors(stream.Context(), instancesDesc, attestationData, awsClient)
 	if err != nil {
 		return err
 	}
@@ -352,7 +360,7 @@ func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (i
 	return doc, nil
 }
 
-func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDesc *ec2.DescribeInstancesOutput, client Client) ([]string, error) {
+func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDesc *ec2.DescribeInstancesOutput, iiDoc imds.InstanceIdentityDocument, client Client) ([]string, error) {
 	selectorSet := map[string]bool{}
 	addSelectors := func(values []string) {
 		for _, value := range values {
@@ -386,6 +394,8 @@ func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDe
 		}
 	}
 
+	resolveIIDocSelectors(selectorSet, iiDoc)
+
 	// build and sort selectors
 	selectors := []string{}
 	for value := range selectorSet {
@@ -396,10 +406,17 @@ func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDe
 	return selectors, nil
 }
 
+func resolveIIDocSelectors(selectorSet map[string]bool, iiDoc imds.InstanceIdentityDocument) {
+	selectorSet[fmt.Sprintf("%s:%s", imageIDSelectorPrefix, iiDoc.ImageID)] = true
+	selectorSet[fmt.Sprintf("%s:%s", instanceIDSelectorPrefix, iiDoc.InstanceID)] = true
+	selectorSet[fmt.Sprintf("%s:%s", regionSelectorPrefix, iiDoc.Region)] = true
+	selectorSet[fmt.Sprintf("%s:%s", azSelectorPrefix, iiDoc.AvailabilityZone)] = true
+}
+
 func resolveTags(tags []ec2types.Tag) []string {
 	values := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		values = append(values, fmt.Sprintf("tag:%s:%s", aws.ToString(tag.Key), aws.ToString(tag.Value)))
+		values = append(values, fmt.Sprintf("%s:%s:%s", tagSelectorPrefix, aws.ToString(tag.Key), aws.ToString(tag.Value)))
 	}
 	return values
 }
@@ -408,8 +425,8 @@ func resolveSecurityGroups(sgs []ec2types.GroupIdentifier) []string {
 	values := make([]string, 0, len(sgs)*2)
 	for _, sg := range sgs {
 		values = append(values,
-			fmt.Sprintf("sg:id:%s", aws.ToString(sg.GroupId)),
-			fmt.Sprintf("sg:name:%s", aws.ToString(sg.GroupName)),
+			fmt.Sprintf("%s:%s", sgIDSelectorPrefix, aws.ToString(sg.GroupId)),
+			fmt.Sprintf("%s:%s", sgNameSelectorPrefix, aws.ToString(sg.GroupName)),
 		)
 	}
 	return values
@@ -422,7 +439,7 @@ func resolveInstanceProfile(instanceProfile *iamtypes.InstanceProfile) []string 
 	values := make([]string, 0, len(instanceProfile.Roles))
 	for _, role := range instanceProfile.Roles {
 		if role.Arn != nil {
-			values = append(values, fmt.Sprintf("iamrole:%s", aws.ToString(role.Arn)))
+			values = append(values, fmt.Sprintf("%s:%s", iamRoleSelectorPrefix, aws.ToString(role.Arn)))
 		}
 	}
 	return values
