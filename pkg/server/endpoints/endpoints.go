@@ -4,15 +4,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
-	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
-	"github.com/spiffe/spire/proto/spire/common"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -291,125 +288,19 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 // getTLSConfig returns a TLS Config hook for the gRPC server
 func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-		serverTLSCertificate := e.getServerCertificate()
-		bundleSet, err := e.getBundleSource(ctx)
-		if err != nil {
-			e.Log.WithError(err).WithField(telemetry.Address, hello.Conn.RemoteAddr().String()).Error("Could not generate TLS config for gRPC client")
-			return nil, err
-		}
+		serverSvid := newX509SVIDSource(e.getServerCertificate)
+		bundle := newBundleSource(func(td *spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+			return e.bundleGetter(ctx, td)
+		})
 
-		spiffeTLSConfig := &tls.Config{
-			MinVersion:            tls.VersionTLS12,
-			NextProtos:            []string{http2.NextProtoTLS},
-			Certificates:          []tls.Certificate{*serverTLSCertificate},
-			ClientAuth:            tls.RequestClientCert,
-			VerifyPeerCertificate: e.buildServerSpiffeAuthenticationFunction(bundleSet),
-		}
+		spiffeTLSConfig := tlsconfig.MTLSServerConfig(serverSvid, bundle, nil)
+		spiffeTLSConfig.ClientAuth = tls.RequestClientCert
+		spiffeTLSConfig.MinVersion = tls.VersionTLS12
+		spiffeTLSConfig.NextProtos = []string{http2.NextProtoTLS}
+		spiffeTLSConfig.VerifyPeerCertificate = e.serverSpiffeVerificationFunc(bundle)
 
 		return spiffeTLSConfig, nil
 	}
-}
-
-// buildServerSpiffeAuthenticationFunction returns a function that is used for peer certificate verification on TLS
-// connections. The function will verify that the peer certificate is valid, and that the SPIFFE ID of the peer belongs
-// to the server trust domain or if it is included in the admin_ids configuration permissive list. If the peer
-// certificate is not provided, the function will not make any verification and return nil.
-func (e *Endpoints) buildServerSpiffeAuthenticationFunction(bundleSet *x509bundle.Set) func(_ [][]byte, _ [][]*x509.Certificate) error {
-	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-		if rawCerts == nil {
-			return nil
-		}
-
-		peerSpiffeID, _, err := x509svid.ParseAndVerify(rawCerts, bundleSet)
-		if err != nil {
-			return err
-		}
-
-		permissiveIDsSet := make(map[spiffeid.ID]struct{})
-		for _, adminID := range e.AdminIDs {
-			permissiveIDsSet[adminID] = struct{}{}
-		}
-
-		if !peerSpiffeID.MemberOf(e.TrustDomain) {
-			if _, ok := permissiveIDsSet[peerSpiffeID]; !ok {
-				return fmt.Errorf("unexpected ID %q", permissiveIDsSet)
-			}
-		}
-		return nil
-	}
-}
-
-// getBundleSource returns the bundle source to be used in the TLS peer verification
-func (e *Endpoints) getBundleSource(ctx context.Context) (bundleSet *x509bundle.Set, err error) {
-	bundleSet = x509bundle.NewSet()
-
-	err = e.appendServerBundle(ctx, bundleSet)
-	if err != nil {
-		return
-	}
-
-	err = e.appendBundlesFromAdminIDs(ctx, bundleSet)
-	return
-}
-
-// appendServerBundle appends the server bundle to the given bundle set.
-func (e *Endpoints) appendServerBundle(ctx context.Context, bundleSet *x509bundle.Set) error {
-	commonServerBundle, err := e.DataStore.FetchBundle(ctx, e.TrustDomain.IDString())
-	if err != nil {
-		return fmt.Errorf("get bundle from datastore: %w", err)
-	}
-	if commonServerBundle == nil {
-		return fmt.Errorf("no bundle found for trust domain %s", e.TrustDomain.String())
-	}
-
-	serverBundle, err := parseBundle(e.TrustDomain, commonServerBundle)
-	if err != nil {
-		return fmt.Errorf("parse bundle: %w", err)
-	}
-
-	bundleSet.Add(serverBundle)
-	return nil
-}
-
-// appendBundlesFromAdminIDs appends the bundles from admin IDs trust domains to the given bundle set.
-func (e *Endpoints) appendBundlesFromAdminIDs(ctx context.Context, bundleSet *x509bundle.Set) error {
-	for _, adminID := range e.AdminIDs {
-		if !bundleSet.Has(adminID.TrustDomain()) {
-			commonBundle, err := e.DataStore.FetchBundle(ctx, adminID.TrustDomain().IDString())
-			if err != nil {
-				return fmt.Errorf("get bundle from datastore: %w", err)
-			}
-			if commonBundle == nil {
-				e.Log.
-					WithField(telemetry.AdminID, adminID.String()).
-					WithField(telemetry.TrustDomain, adminID.TrustDomain().String()).
-					Warn("No bundle found for foreign admin trust domain, admins from this trust doiman will not be able to connect")
-				continue
-			}
-
-			adminBundle, err := parseBundle(adminID.TrustDomain(), commonBundle)
-			if err != nil {
-				return fmt.Errorf("parse bundle: %w", err)
-			}
-			bundleSet.Add(adminBundle)
-		}
-	}
-
-	return nil
-}
-
-// parseBundle parses a *x509bundle.Bundle from a *common.bundle.
-func parseBundle(td spiffeid.TrustDomain, commonBundle *common.Bundle) (*x509bundle.Bundle, error) {
-	var caCerts []*x509.Certificate
-	for _, rootCA := range commonBundle.RootCas {
-		rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
-		if err != nil {
-			return nil, fmt.Errorf("parse bundle: %w", err)
-		}
-		caCerts = append(caCerts, rootCACerts...)
-	}
-
-	return x509bundle.FromX509Authorities(td, caCerts), nil
 }
 
 // getServerCertificate returns the server certificate to be used in the TLS config.
