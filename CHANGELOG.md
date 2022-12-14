@@ -9,7 +9,7 @@
 
 ### Changed
 
-- SPIRE-managed files on Windows now have correct security descriptors (#3577, #3604)
+- SPIRE-managed files on Windows no longer inherit permissions from parent directory (#3577, #3604)
 - Documentation improvements (#3534, #3546, #3461, #3565, #3630, #3632, #3639,)
 
 ### Fixed
