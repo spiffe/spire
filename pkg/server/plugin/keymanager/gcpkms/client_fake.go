@@ -343,22 +343,19 @@ func (k *fakeKMSClient) setGetPublicKeySequentialErrs(fakeErrors ...error) {
 }
 
 func (k *fakeKMSClient) nextGetPublicKeySequentialErr() error {
-	k.mu.RLock()
-	defer func() {
-		k.mu.RUnlock()
+	k.mu.Lock()
+	defer k.mu.Unlock()
 
-		k.mu.Lock()
-		if k.getPublicKeyErrsRing != nil {
-			k.getPublicKeyErrsRing = k.getPublicKeyErrsRing.Next()
-		}
-		k.mu.Unlock()
-	}()
-
-	if k.getPublicKeyErrsRing == nil || k.getPublicKeyErrsRing.Value == nil {
+	if k.getPublicKeyErrsRing == nil {
 		return nil
 	}
 
-	return k.getPublicKeyErrsRing.Value.(error)
+	value, ok := k.getPublicKeyErrsRing.Value.(error)
+	k.getPublicKeyErrsRing = k.getPublicKeyErrsRing.Next()
+	if !ok {
+		return nil
+	}
+	return value
 }
 
 func (k *fakeKMSClient) setGetTokeninfoErr(fakeError error) {
