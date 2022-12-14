@@ -328,49 +328,24 @@ func TestListenAndServe(t *testing.T) {
 		testRemoteCaller(ctx, t, target)
 	})
 
-	t.Run("Connection closed to unfederated foreign admin caller", func(t *testing.T) {
-		config := tlsconfig.MTLSClientConfig(unfederatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+	t.Run("Connection closed to misconfigured foreign admin caller", func(t *testing.T) {
+		unauthenticatedConfig := tlsconfig.MTLSClientConfig(unauthenticatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+		unauthorizedConfig := tlsconfig.MTLSClientConfig(unauthorizedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+		unfederatedConfig := tlsconfig.MTLSClientConfig(unfederatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 
-		timedContext, cancelFn := context.WithTimeout(ctx, 100*time.Millisecond)
-		defer cancelFn()
+		for _, config := range []*tls.Config{unauthenticatedConfig, unauthorizedConfig, unfederatedConfig} {
+			timedContext, cancelFn := context.WithTimeout(context.Background(), time.Second)
 
-		_, err := grpc.DialContext(timedContext, endpoints.TCPAddr.String(),
-			grpc.WithBlock(),
-			grpc.WithTransportCredentials(credentials.NewTLS(config)),
-			grpc.WithReturnConnectionError(),
-			grpc.WithBlock(),
-		)
-		require.EqualError(t, err, "context deadline exceeded: connection error: desc = \"error reading server preface: remote error: tls: bad certificate\"")
-	})
+			_, err := grpc.DialContext(timedContext, endpoints.TCPAddr.String(),
+				grpc.WithBlock(),
+				grpc.WithTransportCredentials(credentials.NewTLS(config)),
+				grpc.WithReturnConnectionError(),
+			)
 
-	t.Run("Connection closed to unauthorized foreign admin caller", func(t *testing.T) {
-		config := tlsconfig.MTLSClientConfig(unauthorizedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+			cancelFn()
 
-		timedContext, cancelFn := context.WithTimeout(ctx, 100*time.Millisecond)
-		defer cancelFn()
-
-		_, err := grpc.DialContext(timedContext, endpoints.TCPAddr.String(),
-			grpc.WithBlock(),
-			grpc.WithTransportCredentials(credentials.NewTLS(config)),
-			grpc.WithReturnConnectionError(),
-			grpc.WithBlock(),
-		)
-		require.EqualError(t, err, "context deadline exceeded: connection error: desc = \"error reading server preface: remote error: tls: bad certificate\"")
-	})
-
-	t.Run("Connection closed to unauthenticated foreign admin caller", func(t *testing.T) {
-		config := tlsconfig.MTLSClientConfig(unauthenticatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
-
-		timedContext, cancelFn := context.WithTimeout(ctx, 100*time.Millisecond)
-		defer cancelFn()
-
-		_, err := grpc.DialContext(timedContext, endpoints.TCPAddr.String(),
-			grpc.WithBlock(),
-			grpc.WithTransportCredentials(credentials.NewTLS(config)),
-			grpc.WithReturnConnectionError(),
-			grpc.WithBlock(),
-		)
-		require.EqualError(t, err, "context deadline exceeded: connection error: desc = \"error reading server preface: remote error: tls: bad certificate\"")
+			require.EqualError(t, err, "context deadline exceeded: connection error: desc = \"error reading server preface: remote error: tls: bad certificate\"")
+		}
 	})
 
 	// Assert that the bundle endpoint server was called to listen and serve
