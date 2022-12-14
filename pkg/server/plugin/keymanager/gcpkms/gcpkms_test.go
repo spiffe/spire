@@ -128,6 +128,7 @@ func TestConfigure(t *testing.T) {
 		listCryptoKeysErr      error
 		describeKeyErr         error
 		getPublicKeyErr        error
+		getPublicKeyErrCount   int
 	}{
 		{
 			name: "pass with keys",
@@ -326,7 +327,7 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name:       "get public key error",
+			name:       "get public key error max attempts",
 			expectMsg:  "failed to fetch entries: error getting public key: get public key error",
 			expectCode: codes.Internal,
 			config: &Config{
@@ -352,7 +353,8 @@ func TestConfigure(t *testing.T) {
 					},
 				},
 			},
-			getPublicKeyErr: errors.New("get public key error"),
+			getPublicKeyErr:      errors.New("get public key error"),
+			getPublicKeyErrCount: getPublicKeyMaxAttempts + 1,
 		},
 	} {
 		tt := tt
@@ -361,7 +363,7 @@ func TestConfigure(t *testing.T) {
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
 			ts.fakeKMSClient.setListCryptoKeysErr(tt.listCryptoKeysErr)
 			ts.fakeKMSClient.setGetCryptoKeyVersionErr(tt.getCryptoKeyVersionErr)
-			ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErr)
+			ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErr, tt.getPublicKeyErrCount)
 
 			var configureRequest *configv1.ConfigureRequest
 			if tt.config != nil {
@@ -642,7 +644,8 @@ func TestGenerateKey(t *testing.T) {
 		createKeyErr               error
 		destroyCryptoKeyVersionErr error
 		getCryptoKeyVersionErr     error
-		getPublicKeyErrs           []error
+		getPublicKeyErr            error
+		getPublicKeyErrCount       int
 		getTokenInfoErr            error
 		updateCryptoKeyErr         error
 	}{
@@ -660,11 +663,8 @@ func TestGenerateKey(t *testing.T) {
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
 			initialCryptoKeyVersionState: kmspb.CryptoKeyVersion_PENDING_GENERATION,
-			getPublicKeyErrs: []error{
-				errors.New("error getting public key"),
-				errors.New("error getting public key"),
-				nil,
-			},
+			getPublicKeyErr:              errors.New("error getting public key"),
+			getPublicKeyErrCount:         5,
 		},
 		{
 			name: "success: non existing key with special characters",
@@ -785,10 +785,11 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
-			name:             "get public key error",
-			expectMsg:        "failed to get public key: public key error",
-			expectCode:       codes.Internal,
-			getPublicKeyErrs: []error{errors.New("public key error")},
+			name:                 "get public key error",
+			expectMsg:            "failed to get public key: public key error",
+			expectCode:           codes.Internal,
+			getPublicKeyErr:      errors.New("public key error"),
+			getPublicKeyErrCount: 1,
 			generateKeyReq: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -996,7 +997,7 @@ func TestGenerateKey(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErrs...)
+			ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErr, tt.getPublicKeyErrCount)
 
 			resp, err := ts.plugin.GenerateKey(ctx, tt.generateKeyReq)
 			if tt.expectMsg != "" {

@@ -2,7 +2,6 @@ package gcpkms
 
 import (
 	"bytes"
-	"container/ring"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -271,7 +270,7 @@ type fakeKMSClient struct {
 	destroyTime                  *timestamppb.Timestamp
 	fakeIAMHandle                *fakeIAMHandle
 	getCryptoKeyVersionErr       error
-	getPublicKeyErrsRing         *ring.Ring
+	getPublicKeyErrs             []error
 	getTokeninfoErr              error
 	listCryptoKeysErr            error
 	listCryptoKeyVersionsErr     error
@@ -330,32 +329,25 @@ func (k *fakeKMSClient) setIsKeyDisabled(ok bool) {
 	k.keyIsDisabled = ok
 }
 
-func (k *fakeKMSClient) setGetPublicKeySequentialErrs(fakeErrors ...error) {
+func (k *fakeKMSClient) setGetPublicKeySequentialErrs(fakeError error, count int) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	errsRing := ring.New(len(fakeErrors))
-	for i := 0; i < errsRing.Len(); i++ {
-		errsRing.Value = fakeErrors[i]
-		errsRing = errsRing.Next()
+	fakeErrors := make([]error, count)
+	for i := 0; i < count; i++ {
+		fakeErrors[i] = fakeError
 	}
-
-	k.getPublicKeyErrsRing = errsRing
+	k.getPublicKeyErrs = fakeErrors
 }
 
 func (k *fakeKMSClient) nextGetPublicKeySequentialErr() error {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-
-	if k.getPublicKeyErrsRing == nil {
+	if len(k.getPublicKeyErrs) == 0 {
 		return nil
 	}
-
-	value, ok := k.getPublicKeyErrsRing.Value.(error)
-	k.getPublicKeyErrsRing = k.getPublicKeyErrsRing.Next()
-	if !ok {
-		return nil
-	}
-	return value
+	err := k.getPublicKeyErrs[0]
+	k.getPublicKeyErrs = k.getPublicKeyErrs[1:]
+	return err
 }
 
 func (k *fakeKMSClient) setGetTokeninfoErr(fakeError error) {
