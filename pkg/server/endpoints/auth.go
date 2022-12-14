@@ -48,8 +48,13 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td *spiffeid.TrustDomain) 
 		return nil, fmt.Errorf("get bundle from datastore: %w", err)
 	}
 	if commonServerBundle == nil {
-		if shouldLogFederationMisconfiguration() {
-			e.Log.WithField(telemetry.TrustDomainID, td.IDString()).Warn("No server bundle found")
+		if *td != e.TrustDomain && shouldLogFederationMisconfiguration() {
+			e.Log.
+				WithField(telemetry.TrustDomain, td.String()).
+				Warn(
+					"No bundle found for foreign admin trust domain, admins from this trust domain will not be able to connect. " +
+						"Make sure this trust domain is correctly federated.",
+				)
 		}
 		return nil, fmt.Errorf("no bundle found for trust domain %s", e.TrustDomain.String())
 	}
