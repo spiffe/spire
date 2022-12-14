@@ -47,14 +47,19 @@ import (
 )
 
 var (
-	testTD           = spiffeid.RequireTrustDomainFromString("domain.test")
-	foreignTD        = spiffeid.RequireTrustDomainFromString("foreign-domain.test")
-	serverID         = spiffeid.RequireFromPath(testTD, "/spire/server")
-	agentID          = spiffeid.RequireFromPath(testTD, "/spire/agent/foo")
-	adminID          = spiffeid.RequireFromPath(testTD, "/admin")
-	federatedAdminID = spiffeid.RequireFromPath(foreignTD, "/admin/federated")
-	downstreamID     = spiffeid.RequireFromPath(testTD, "/downstream")
-	rateLimit        = RateLimitConfig{
+	testTD                        = spiffeid.RequireTrustDomainFromString("domain.test")
+	foreignFederatedTD            = spiffeid.RequireTrustDomainFromString("foreign-domain.test")
+	foreignUnfederatedTD          = spiffeid.RequireTrustDomainFromString("foreign-domain-not-federated.test")
+	serverID                      = spiffeid.RequireFromPath(testTD, "/spire/server")
+	agentID                       = spiffeid.RequireFromPath(testTD, "/spire/agent/foo")
+	adminID                       = spiffeid.RequireFromPath(testTD, "/admin")
+	foreignAdminID                = spiffeid.RequireFromPath(foreignFederatedTD, "/admin/foreign")
+	unauthorizedForeignAdminID    = spiffeid.RequireFromPath(foreignFederatedTD, "/admin/foreign-not-authorized")
+	unfederatedForeignAdminID     = spiffeid.RequireFromPath(foreignUnfederatedTD, "/admin/foreign-not-federated")
+	unauthenticatedForeignAdminID = spiffeid.RequireFromPath(foreignFederatedTD, "/admin/foreign-not-authenticated")
+
+	downstreamID = spiffeid.RequireFromPath(testTD, "/downstream")
+	rateLimit    = RateLimitConfig{
 		Attestation: true,
 		Signing:     true,
 	}
@@ -179,11 +184,15 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 func TestListenAndServe(t *testing.T) {
 	ctx := context.Background()
 	ca := testca.New(t, testTD)
-	federationCA := testca.New(t, foreignTD)
+	federatedCA := testca.New(t, foreignFederatedTD)
+	unfederatedCA := testca.New(t, foreignUnfederatedTD)
 	serverSVID := ca.CreateX509SVID(serverID)
 	agentSVID := ca.CreateX509SVID(agentID)
 	adminSVID := ca.CreateX509SVID(adminID)
-	federateSVID := federationCA.CreateX509SVID(federatedAdminID)
+	foreignAdminSVID := federatedCA.CreateX509SVID(foreignAdminID)
+	unauthorizedForeignAdminSVID := federatedCA.CreateX509SVID(unauthorizedForeignAdminID)
+	unauthenticatedForeignAdminSVID := unfederatedCA.CreateX509SVID(unauthenticatedForeignAdminID)
+	unfederatedForeignAdminSVID := federatedCA.CreateX509SVID(unfederatedForeignAdminID)
 	downstreamSVID := ca.CreateX509SVID(downstreamID)
 
 	listener, err := net.Listen("tcp", "localhost:0")
@@ -228,7 +237,7 @@ func TestListenAndServe(t *testing.T) {
 		RateLimit:                    rateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 		AuthPolicyEngine:             pe,
-		AdminIDs:                     []spiffeid.ID{federateSVID.ID},
+		AdminIDs:                     []spiffeid.ID{foreignAdminSVID.ID},
 	}
 
 	// Prime the datastore with the:
@@ -236,7 +245,7 @@ func TestListenAndServe(t *testing.T) {
 	// - agent attested node information
 	// - admin registration entry
 	// - downstream registration entry
-	prepareDataStore(t, ds, []*testca.CA{ca, federationCA}, agentSVID)
+	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -275,7 +284,7 @@ func TestListenAndServe(t *testing.T) {
 	downstreamConn := dialTCP(tlsconfig.MTLSClientConfig(downstreamSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
 	defer downstreamConn.Close()
 
-	federatedAdminConn := dialTCP(tlsconfig.MTLSClientConfig(federateSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
+	federatedAdminConn := dialTCP(tlsconfig.MTLSClientConfig(foreignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
 	defer downstreamConn.Close()
 
 	t.Run("Bad Client SVID", func(t *testing.T) {
@@ -319,28 +328,49 @@ func TestListenAndServe(t *testing.T) {
 		testRemoteCaller(ctx, t, target)
 	})
 
-	t.Run("Invalidate connection with misconfigured foreign admin caller", func(t *testing.T) {
-		unauthenticatedConfig := tlsconfig.MTLSClientConfig(unauthenticatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
-		unauthorizedConfig := tlsconfig.MTLSClientConfig(unauthorizedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
-		unfederatedConfig := tlsconfig.MTLSClientConfig(unfederatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+	t.Run("Connection closed to unfederated foreign admin caller", func(t *testing.T) {
+		config := tlsconfig.MTLSClientConfig(unfederatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 
-		for _, config := range []*tls.Config{unauthenticatedConfig, unauthorizedConfig, unfederatedConfig} {
-			conn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(),
-				grpc.WithTransportCredentials(credentials.NewTLS(config)),
-			)
-			require.NoError(t, err)
+		timedContext, cancelFn := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancelFn()
 
-			_, err = entryv1.NewEntryClient(conn).ListEntries(ctx, nil)
-			require.Error(t, err)
+		_, err := grpc.DialContext(timedContext, endpoints.TCPAddr.String(),
+			grpc.WithBlock(),
+			grpc.WithTransportCredentials(credentials.NewTLS(config)),
+			grpc.WithReturnConnectionError(),
+			grpc.WithBlock(),
+		)
+		require.EqualError(t, err, "context deadline exceeded: connection error: desc = \"error reading server preface: remote error: tls: bad certificate\"")
+	})
 
-			switch {
-			case strings.Contains(err.Error(), "connection reset by peer"):
-			case strings.Contains(err.Error(), "tls: bad certificate"):
-				return
-			default:
-				t.Error("expected invalid connection for misconfigured foreign admin caller")
-			}
-		}
+	t.Run("Connection closed to unauthorized foreign admin caller", func(t *testing.T) {
+		config := tlsconfig.MTLSClientConfig(unauthorizedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+
+		timedContext, cancelFn := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancelFn()
+
+		_, err := grpc.DialContext(timedContext, endpoints.TCPAddr.String(),
+			grpc.WithBlock(),
+			grpc.WithTransportCredentials(credentials.NewTLS(config)),
+			grpc.WithReturnConnectionError(),
+			grpc.WithBlock(),
+		)
+		require.EqualError(t, err, "context deadline exceeded: connection error: desc = \"error reading server preface: remote error: tls: bad certificate\"")
+	})
+
+	t.Run("Connection closed to unauthenticated foreign admin caller", func(t *testing.T) {
+		config := tlsconfig.MTLSClientConfig(unauthenticatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+
+		timedContext, cancelFn := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancelFn()
+
+		_, err := grpc.DialContext(timedContext, endpoints.TCPAddr.String(),
+			grpc.WithBlock(),
+			grpc.WithTransportCredentials(credentials.NewTLS(config)),
+			grpc.WithReturnConnectionError(),
+			grpc.WithBlock(),
+		)
+		require.EqualError(t, err, "context deadline exceeded: connection error: desc = \"error reading server preface: remote error: tls: bad certificate\"")
 	})
 
 	// Assert that the bundle endpoint server was called to listen and serve
