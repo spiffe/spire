@@ -288,35 +288,22 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 // getTLSConfig returns a TLS Config hook for the gRPC server
 func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-		serverSvid := newX509SVIDSource(e.getServerCertificate)
-		bundle := newBundleSource(func(td *spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+		svidSrc := newX509SVIDSource(func() svid.State {
+			return e.SVIDObserver.State()
+		})
+		bundleSrc := newBundleSource(func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
 			return e.bundleGetter(ctx, td)
 		})
 
-		spiffeTLSConfig := tlsconfig.MTLSServerConfig(serverSvid, bundle, nil)
+		spiffeTLSConfig := tlsconfig.MTLSServerConfig(svidSrc, bundleSrc, nil)
+		// provided client certificates will be validated using the custom VerifyPeerCertificate hook
 		spiffeTLSConfig.ClientAuth = tls.RequestClientCert
 		spiffeTLSConfig.MinVersion = tls.VersionTLS12
 		spiffeTLSConfig.NextProtos = []string{http2.NextProtoTLS}
-		spiffeTLSConfig.VerifyPeerCertificate = e.serverSpiffeVerificationFunc(bundle)
+		spiffeTLSConfig.VerifyPeerCertificate = e.serverSpiffeVerificationFunc(bundleSrc)
 
 		return spiffeTLSConfig, nil
 	}
-}
-
-// getServerCertificate returns the server certificate to be used in the TLS config.
-func (e *Endpoints) getServerCertificate() *tls.Certificate {
-	svidState := e.SVIDObserver.State()
-
-	var certChain [][]byte
-	for _, cert := range svidState.SVID {
-		certChain = append(certChain, cert.Raw)
-	}
-
-	serverTLSCertificate := &tls.Certificate{
-		Certificate: certChain,
-		PrivateKey:  svidState.Key,
-	}
-	return serverTLSCertificate
 }
 
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
