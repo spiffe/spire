@@ -9,11 +9,11 @@
 
 ### Changed
 
+- SPIRE-managed files on Windows now have correct security descriptors (#3577, #3604)
 - Documentation improvements (#3534, #3546, #3461, #3565, #3630, #3632, #3639,)
 
 ### Fixed
 
-- SPIRE-managed files on Windows now have correct security descriptors (#3577, #3604)
 - oidc-discovery-provider healthcheck HTTP server now binds to all network interfaces for visibility outside containers using virtual IP (#3580)
 - k8s-workload-registrar CRD and reconcile modes now have correct example leader election RBAC YAML (#3617)
 
