@@ -328,23 +328,27 @@ func TestListenAndServe(t *testing.T) {
 		testRemoteCaller(ctx, t, target)
 	})
 
-	t.Run("Connection closed to misconfigured foreign admin caller", func(t *testing.T) {
+	t.Run("Invalidate connection with misconfigured foreign admin caller", func(t *testing.T) {
 		unauthenticatedConfig := tlsconfig.MTLSClientConfig(unauthenticatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 		unauthorizedConfig := tlsconfig.MTLSClientConfig(unauthorizedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 		unfederatedConfig := tlsconfig.MTLSClientConfig(unfederatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 
 		for _, config := range []*tls.Config{unauthenticatedConfig, unauthorizedConfig, unfederatedConfig} {
-			timedContext, cancelFn := context.WithTimeout(context.Background(), time.Second)
-
-			_, err := grpc.DialContext(timedContext, endpoints.TCPAddr.String(),
-				grpc.WithBlock(),
+			conn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(),
 				grpc.WithTransportCredentials(credentials.NewTLS(config)),
-				grpc.WithReturnConnectionError(),
 			)
+			require.NoError(t, err)
 
-			cancelFn()
+			_, err = entryv1.NewEntryClient(conn).ListEntries(ctx, nil)
+			require.Error(t, err)
 
-			require.EqualError(t, err, "context deadline exceeded: connection error: desc = \"error reading server preface: remote error: tls: bad certificate\"")
+			switch {
+			case strings.Contains(err.Error(), "connection reset by peer"):
+			case strings.Contains(err.Error(), "tls: bad certificate"):
+				return
+			default:
+				t.Error("expected invalid connection for misconfigured foreign admin caller")
+			}
 		}
 	})
 
