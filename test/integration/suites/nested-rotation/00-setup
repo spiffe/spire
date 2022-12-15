@@ -35,4 +35,4 @@ sed -i.bak "s#CGROUP_MATCHERS#$CGROUP_MATCHERS#" root/agent/agent.conf
 sed -i.bak "s#CGROUP_MATCHERS#$CGROUP_MATCHERS#" intermediateA/agent/agent.conf
 sed -i.bak "s#CGROUP_MATCHERS#$CGROUP_MATCHERS#" intermediateB/agent/agent.conf
 
-docker build --target nested-agent -t nested-agent .
+docker build --target nested-agent-alpine -t nested-agent-alpine .

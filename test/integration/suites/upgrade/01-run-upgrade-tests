@@ -8,26 +8,36 @@
 # something else to create the directory first).
 
 start-old-server() {
-    log-info "bringing up $1 agent..."
-    docker-up "spire-server-$1"
+    local _maxchecks=15
+    local _interval=1
+    log-info "bringing up $1 server..."
+    local ctr_name="spire-server-$1"
+    docker-up "${ctr_name}"
+    docker-wait-for-healthy "${ctr_name}" "${_maxchecks}" "${_interval}"
 }
 
 bootstrap-agent() {
-    log-debug "bootstrapping $1 agent..."
+    # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server bundle show \
-        > conf/agent/bootstrap.crt
+        -socketPath /opt/spire/data/server/socket/api.sock > conf/agent/bootstrap.crt
 }
 
 start-old-agent() {
+    local _maxchecks=15
+    local _interval=1
     log-info "bringing up $1 agent..."
-    docker-up "spire-agent-$1"
+    local ctr_name="spire-agent-$1"
+    docker-up "${ctr_name}"
+    docker-wait-for-healthy "${ctr_name}" "${_maxchecks}" "${_interval}"
 }
 
 create-registration-entry() {
     log-debug "creating registration entry..."
+    # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server entry create \
+        -socketPath /opt/spire/data/server/socket/api.sock \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/workload" \
         -selector "unix:uid:${UID}" \
@@ -52,14 +62,18 @@ check-old-agent-svid() {
     log-info "checking X509-SVID on $1 agent..."
         docker-compose exec -T "spire-agent-$1" \
             /opt/spire/bin/spire-agent api fetch x509 \
-            -socketPath /tmp/agent.sock \
+            -socketPath /opt/spire/data/agent/socket/api.sock \
             -write /opt/test/before-server-upgrade || fail-now "SVID check failed"
 }
 
 upgrade-server() {
+    local _maxchecks=15
+    local _interval=1
     log-info "upgrading $1 server to latest..."
     docker-stop "spire-server-$1"
-    docker-up spire-server-latest-local
+    local new_ctr_name="spire-server-latest-local"
+    docker-up "${new_ctr_name}"
+    docker-wait-for-healthy "${new_ctr_name}" "${_maxchecks}" "${_interval}"
     check-codebase-version-is-ahead "$1"
 }
 
@@ -84,9 +98,10 @@ check-old-agent-svid-after-upgrade() {
 
     for ((i=1;i<=_maxchecks;i++)); do
         log-info "checking X509-SVID after server upgrade ($i of $_maxchecks max)..."
+        # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
         docker-compose exec -T "spire-agent-$1" \
             /opt/spire/bin/spire-agent api fetch x509 \
-            -socketPath /tmp/agent.sock \
+            -socketPath /opt/spire/data/agent/socket/api.sock \
             -write /opt/test/after-server-upgrade || fail-now "SVID check failed"
         if ! cmp --silent svids/before-server-upgrade/svid.0.pem svids/after-server-upgrade/svid.0.pem; then
             # SVID has rotated
@@ -98,9 +113,13 @@ check-old-agent-svid-after-upgrade() {
 }
 
 upgrade-agent() {
+    local _maxchecks=15
+    local _interval=1
     log-info "upgrading $1 agent to latest..."
     docker-stop "spire-agent-$1"
-    docker-up spire-agent-latest-local
+    local new_ctr_name="spire-agent-latest-local"
+    docker-up "${new_ctr_name}"
+    docker-wait-for-healthy "${new_ctr_name}" "${_maxchecks}" "${_interval}"
 }
 
 stop-and-evict-agent() {
@@ -108,8 +127,10 @@ stop-and-evict-agent() {
     docker-stop "spire-agent-$1"
 
     log-info "evicting agent..."
+    # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
     docker-compose exec -T "spire-server-$1" \
         /opt/spire/bin/spire-server agent evict \
+        -socketPath /opt/spire/data/server/socket/api.sock \
         -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 
     rm -rf shared/agent-data/*
@@ -117,9 +138,10 @@ stop-and-evict-agent() {
 
 check-new-agent-svid-after-upgrade() {
     log-info "checking X509-SVID after agent upgrade..."
+    # TODO: Remove -socketPath argument in 1.7.0 and rely on the default socket path
     docker-compose exec -T spire-agent-latest-local \
         /opt/spire/bin/spire-agent api fetch x509 \
-        -socketPath /tmp/agent.sock \
+        -socketPath /opt/spire/data/agent/socket/api.sock \
         -write /opt/test/after-agent-upgrade || fail-now "SVID check failed"
 
     # SVIDs are cached in agent memory only. As the agent was restarted, there

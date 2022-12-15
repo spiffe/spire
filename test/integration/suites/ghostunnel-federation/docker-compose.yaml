@@ -1,12 +1,12 @@
 version: '3'
 services:
   upstream-spire-server:
-    image: spire-server:latest-local
+    image: spire-server-scratch:latest-local
     volumes:
       - ./conf/upstream/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   downstream-spire-server:
-    image: spire-server:latest-local
+    image: spire-server-scratch:latest-local
     volumes:
       - ./conf/downstream/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
