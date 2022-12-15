@@ -120,7 +120,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 
 	rpccontext.AuditRPCWithFields(ctx, commonX509SVIDLogFields)
 	log.WithField(telemetry.Expiration, x509SVID[0].NotAfter.Format(time.RFC3339)).
-		WithField(telemetry.SerialNumber, x509SVID[0].SerialNumber).
+		WithField(telemetry.SerialNumber, x509SVID[0].SerialNumber.String()).
 		WithFields(commonX509SVIDLogFields).
 		Debug("Signed X509 SVID")
 
@@ -264,7 +264,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 	}
 
 	log.WithField(telemetry.Expiration, x509Svid[0].NotAfter.Format(time.RFC3339)).
-		WithField(telemetry.SerialNumber, x509Svid[0].SerialNumber).
+		WithField(telemetry.SerialNumber, x509Svid[0].SerialNumber.String()).
 		WithField(telemetry.RevisionNumber, entry.RevisionNumber).
 		Debug("Signed X509 SVID")
 
