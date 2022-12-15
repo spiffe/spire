@@ -224,8 +224,8 @@ func mintJWTSVID(ctx context.Context, c *itclient.Client) error {
 		return errors.New("missing exp")
 	case claimsMap["iat"] == 0:
 		return errors.New("missing iat")
-	case claimsMap["sub"] != "spiffe://domain.test/new_workload":
-		return fmt.Errorf("unexpected sub: %q", claimsMap["sub"])
+	case claimsMap["sub"] != fmt.Sprintf("spiffe://%s/new_workload", c.Td.String()):
+		return fmt.Errorf("unexpected sub: %q, %s", claimsMap["sub"], fmt.Sprintf("spiffe://%q/new_workload", c.Td))
 	}
 
 	return nil
@@ -397,7 +397,7 @@ func countBundles(ctx context.Context, c *itclient.Client) error {
 		return validatePermissionError(err)
 	case err != nil:
 		return err
-	case resp.Count != 3:
+	case resp.Count != 4:
 		return fmt.Errorf("unexpected bundle count: %d", resp.Count)
 	}
 	return nil
@@ -410,7 +410,7 @@ func listFederatedBundles(ctx context.Context, c *itclient.Client) error {
 		return validatePermissionError(err)
 	case err != nil:
 		return err
-	case len(resp.Bundles) != 2:
+	case len(resp.Bundles) != 3:
 		return fmt.Errorf("unexpected bundles size: %d", len(resp.Bundles))
 	}
 
@@ -525,7 +525,7 @@ func countEntries(ctx context.Context, c *itclient.Client) error {
 		return validatePermissionError(err)
 	case err != nil:
 		return err
-	case resp.Count != 3:
+	case resp.Count < 3:
 		return fmt.Errorf("unexpected entry count: %d", resp.Count)
 	}
 	return nil
@@ -534,6 +534,7 @@ func countEntries(ctx context.Context, c *itclient.Client) error {
 func listEntries(ctx context.Context, c *itclient.Client) error {
 	expectedSpiffeIDs := []*types.SPIFFEID{
 		{TrustDomain: c.Td.String(), Path: "/admin"},
+		{TrustDomain: c.Td.String(), Path: "/agent-alias"},
 		{TrustDomain: c.Td.String(), Path: "/workload"},
 		{TrustDomain: c.Td.String(), Path: "/bar"},
 	}
@@ -543,7 +544,7 @@ func listEntries(ctx context.Context, c *itclient.Client) error {
 		return validatePermissionError(err)
 	case err != nil:
 		return err
-	case len(resp.Entries) != 3:
+	case len(resp.Entries) < 3:
 		return fmt.Errorf("unexpected entries size: %d", len(resp.Entries))
 	}
 
@@ -558,7 +559,7 @@ func listEntries(ctx context.Context, c *itclient.Client) error {
 
 	for _, e := range resp.Entries {
 		if !containsFunc(e.SpiffeId) {
-			return fmt.Errorf("unexpected entry: %v", e)
+			return fmt.Errorf("unexpected entry: %v", e.SpiffeId)
 		}
 	}
 

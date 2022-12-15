@@ -1,0 +1,15 @@
+#!/bin/bash
+
+docker-up spire-server-a spire-server-b
+
+log-debug "bootstrapping bundle from server b to server a..."
+docker-compose exec -T spire-server-b \
+    /opt/spire/bin/spire-server bundle show -format spiffe > conf/domain-a/server/downstream-domain.test.bundle
+docker-compose exec -T spire-server-a \
+    /opt/spire/bin/spire-server bundle set -format spiffe -id spiffe://domain-b.test -path /opt/spire/conf/server/downstream-domain.test.bundle
+
+log-debug "bootstrapping bundle from server a to server b..."
+docker-compose exec -T spire-server-a \
+    /opt/spire/bin/spire-server bundle show -format spiffe > conf/domain-b/server/downstream-domain.test.bundle
+docker-compose exec -T spire-server-b \
+    /opt/spire/bin/spire-server bundle set -format spiffe -id spiffe://domain-a.test -path /opt/spire/conf/server/downstream-domain.test.bundle
