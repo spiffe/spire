@@ -80,7 +80,7 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 
 ## Sigstore workload attestor for SPIRE
 
-#### Platform support
+### Platform support
 
 This capability is only supported on Unix systems.
 
