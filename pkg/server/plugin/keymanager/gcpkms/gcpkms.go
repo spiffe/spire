@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/iam"
+	"cloud.google.com/go/iam/apiv1/iampb"
 	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid"
@@ -27,7 +28,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	iampb "google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
