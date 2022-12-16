@@ -119,7 +119,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: spire-server
-          image: spire-server:latest-local
+          image: spire-server-scratch:latest-local
           imagePullPolicy: Never
           args: ["-config", "/run/spire/config/server.conf"]
           ports:

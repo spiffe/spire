@@ -1,13 +1,13 @@
 version: '3'
 services:
   upstream-spire-server:
-    image: spire-server:latest-local
+    image: spire-server-scratch:latest-local
     hostname: upstream-spire-server
     volumes:
       - ./conf/upstream/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   downstream-federated-spire-server:
-    image: spire-server:latest-local
+    image: spire-server-scratch:latest-local
     hostname: downstream-federated-spire-server
     volumes:
       - ./conf/downstream-federated/server:/opt/spire/conf/server
