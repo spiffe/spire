@@ -78,7 +78,7 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 
 > **Note** The sigstore project contains a transparency log called Rekor that provides an immutable, tamper-resistant ledger to record signed metadata to an immutable record. While it is possible to run your own instance, a public instance of rekor is available at `https://rekor.sigstore.dev/`.
 
-### Sigstore workload attestor for SPIRE
+## Sigstore workload attestor for SPIRE
 
 #### Platform support
 
