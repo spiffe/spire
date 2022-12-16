@@ -72,6 +72,3 @@ for img in "${OCI_IMAGES[@]}"; do
     docker image tag "localhost/oci/${image_variant}:latest" "${image_variant}:latest-local"
     docker image rm "localhost/oci/${image_variant}:latest"
 done
-
-# shellcheck disable=SC2046
-docker image rm $(docker images -qf dangling=true) 2>/dev/null || true
