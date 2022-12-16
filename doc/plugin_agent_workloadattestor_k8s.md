@@ -72,9 +72,13 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `rekor_url`                              | The rekor URL to use with cosign. Required. See notes below.                                                                                                                                                                                                                                                                                                        |
 | `enforce_sct`                            | A boolean to be set to false in case of a private deployment, not using public CT                                                                                                                                                                                                                                                                                   |
 
-> **Note** Cosign discourages the use of image tags for referencing docker images, and this plugin does not support attestation of sigstore selectors for workloads running on containers using tag-referenced images, which will then fail attestation for both sigstore and k8s selectors. In cases where this is necessary, add the digest string for the image in the `skip_signature_verification_image_list` setting (eg. `"sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"`). Note that sigstore signature attestation will still not be performed, but this will allow k8s selectors to be returned, along with the `"k8s:sigstore-validation:passed"` selector.  
+> **Note** Cosign discourages the use of image tags for referencing docker images, and this plugin does not support attestation of sigstore selectors for workloads running on containers using tag-referenced images, which will then fail attestation for both sigstore and k8s selectors. In cases where this is necessary, add the digest string for the image in the `skip_signature_verification_image_list` setting (eg. `"sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"`). Note that sigstore signature attestation will still not be performed, but this will allow k8s selectors to be returned, along with the `"k8s:sigstore-validation:passed"` selector.
 
-> **Note** Since the SPIRE Agent can also go through workload attestation, it will also need to be included in the skip list if either its image is not signed or has a digest reference string.  
+<!-- different notes -->
+
+> **Note** Since the SPIRE Agent can also go through workload attestation, it will also need to be included in the skip list if either its image is not signed or has a digest reference string.
+
+<!-- different notes -->
 
 > **Note** The sigstore project contains a transparency log called Rekor that provides an immutable, tamper-resistant ledger to record signed metadata to an immutable record. While it is possible to run your own instance, a public instance of rekor is available at `https://rekor.sigstore.dev/`.
 
