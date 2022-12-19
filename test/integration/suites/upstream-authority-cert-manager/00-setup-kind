@@ -17,7 +17,7 @@ download-kubectl "${KUBECTL_PATH}"
 start-kind-cluster "${KIND_PATH}" cert-manager-test ./conf/kind-config.yaml
 
 # Load the given images in the cluster.
-container_images=("spire-server:latest-local")
+container_images=("spire-server-scratch:latest-local")
 load-images "${KIND_PATH}" cert-manager-test "${container_images[@]}"
 
 # Set the kubectl context.
