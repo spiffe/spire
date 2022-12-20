@@ -8,18 +8,21 @@ import (
 	"github.com/mitchellh/cli"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 )
 
 func NewListCommand() cli.Command {
-	return newListCommand(common_cli.DefaultEnv)
+	return newListCommand(commoncli.DefaultEnv)
 }
 
-func newListCommand(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(listCommand))
+func newListCommand(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &listCommand{env: env})
 }
 
 type listCommand struct {
+	env     *commoncli.Env
+	printer cliprinter.Printer
 }
 
 func (c *listCommand) Name() string {
@@ -31,21 +34,29 @@ func (c *listCommand) Synopsis() string {
 }
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintList)
 }
 
-func (c *listCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *listCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	trustDomainClient := serverClient.NewTrustDomainClient()
 
 	resp, err := trustDomainClient.ListFederationRelationships(ctx, &trustdomainv1.ListFederationRelationshipsRequest{})
 	if err != nil {
 		return fmt.Errorf("error listing federation relationship: %w", err)
 	}
+	return c.printer.PrintProto(resp)
+}
 
-	msg := fmt.Sprintf("Found %v ", len(resp.FederationRelationships))
-	msg = util.Pluralizer(msg, "federation relationship", "federation relationships", len(resp.FederationRelationships))
+func prettyPrintList(env *commoncli.Env, results ...interface{}) error {
+	listResp, ok := results[0].(*trustdomainv1.ListFederationRelationshipsResponse)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
+	msg := fmt.Sprintf("Found %v ", len(listResp.FederationRelationships))
+	msg = util.Pluralizer(msg, "federation relationship", "federation relationships", len(listResp.FederationRelationships))
 
 	env.Println(msg)
-	for _, fr := range resp.FederationRelationships {
+	for _, fr := range listResp.FederationRelationships {
 		env.Println()
 		printFederationRelationship(fr, env.Printf)
 	}
