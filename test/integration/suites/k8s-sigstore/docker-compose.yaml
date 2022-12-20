@@ -1,0 +1,18 @@
+version: '3'
+services:
+  registry:
+    container_name: docker-registry-local
+    restart: always
+    image: registry:2
+    ports:
+      - 5000:5000
+    environment:
+      REGISTRY_HTTP_SECRET: "1"
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/domain.crt
+      REGISTRY_HTTP_TLS_KEY: /certs/domain.key
+    volumes:
+      - ./conf/docker-registry/certs:/certs
+networks:
+  default:
+    external: true
+    name: kind

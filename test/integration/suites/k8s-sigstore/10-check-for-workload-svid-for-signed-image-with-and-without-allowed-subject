@@ -1,0 +1,29 @@
+#!/bin/sh
+
+source init-kubectl
+source check_for_workload_svid
+
+CONTAINERS_ARRAY="
+    example-multiple-containers-signed-1
+    example-multiple-containers-signed-wrong-subject
+"
+for container_name in $CONTAINERS_ARRAY; do
+    check_for_workload_svid_multiple_containers "spiffe://example.org/ns/default/sa/default/workload-multiple-containers" example-multiple-containers $container_name 
+    if [ "${container_name}" = "example-multiple-containers-signed-1" ]; then
+        if [ "${DONE}" -eq 1 ]; then
+            log-info "SPIFFE ID found."
+        elif [ "${DONE}" -eq 0 ]; then
+            fail-now "timed out waiting for workload to obtain credentials."
+        else
+            fail-now "failed to check for svid"
+        fi
+    else
+        if [ "${DONE}" -eq 0 ]; then
+            log-info "No SPIFFE ID with subject selector provided for the image."
+        elif [ "${DONE}" -eq 1 ]; then
+            fail-now "Unexpected SPIFFE ID with subject selector provided for the image"
+        else
+            fail-now "failed to check for svid"
+        fi
+    fi
+done

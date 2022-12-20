@@ -1,0 +1,16 @@
+#!/bin/bash
+
+source init-kubectl
+
+if [ -z "$SUCCESS" ]; then
+   ${KUBEBIN} -nspire logs deployment/spire-server --all-containers || true
+   ${KUBEBIN} -nspire logs daemonset/spire-agent --all-containers || true
+   ${KUBEBIN} -nspire logs deployment/example-workload-signed --all-containers || true
+   ${KUBEBIN} -nspire logs deployment/example-workload-unsigned --all-containers || true
+   ${KUBEBIN} -nspire logs deployment/example-workload-signed-wrong-subject --all-containers || true
+   ${KUBEBIN} -nspire logs deployment/example-workload-signed-extra --all-containers || true
+fi
+
+export KUBECONFIG=
+./bin/kind delete cluster --name k8stest
+docker-down
