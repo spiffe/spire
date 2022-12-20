@@ -6,19 +6,13 @@ package sigstore
 import (
 	"bytes"
 	"context"
-	"crypto"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/url"
 	"testing"
-	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -40,38 +34,6 @@ const (
 var (
 	OIDCIssuerOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 1}
 )
-
-func createCertificate(template *x509.Certificate, parent *x509.Certificate, pub interface{}, priv crypto.Signer) (*x509.Certificate, error) {
-	certBytes, err := x509.CreateCertificate(rand.Reader, template, parent, pub, priv)
-	if err != nil {
-		return nil, err
-	}
-
-	return x509.ParseCertificate(certBytes)
-}
-
-func GenerateRootCa() (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	rootTemplate := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject: pkix.Name{
-			CommonName:   "sigstore",
-			Organization: []string{"sigstore.dev"},
-		},
-		NotBefore:             time.Now().Add(-5 * time.Minute),
-		NotAfter:              time.Now().Add(5 * time.Hour),
-		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}
-
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	cert, err := createCertificate(rootTemplate, rootTemplate, &priv.PublicKey, priv)
-	return cert, priv, err
-}
 
 func TestNew(t *testing.T) {
 	newcache := NewCache(maximumAmountCache)
@@ -115,7 +77,8 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 		rekorURL         url.URL
 	}
 
-	defaultCheckOpts, _ := defaultCheckOptsFunction(rekorDefaultURL())
+	defaultCheckOpts, err := defaultCheckOptsFunction(rekorDefaultURL())
+	require.NoError(t, err)
 	emptyURLCheckOpts, emptyError := defaultCheckOptsFunction(url.URL{})
 	require.Nil(t, emptyURLCheckOpts)
 	require.EqualError(t, emptyError, "rekor URL host is empty")
@@ -816,7 +779,7 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 		{
 			name: "skipping only image in list",
 			skippedImages: map[string]struct{}{
-				"sha256:sampleimagehash": struct{}{},
+				"sha256:sampleimagehash": {},
 			},
 			imageID: "sha256:sampleimagehash",
 			want:    true,
@@ -824,9 +787,9 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 		{
 			name: "skipping image in list",
 			skippedImages: map[string]struct{}{
-				"sha256:sampleimagehash":  struct{}{},
-				"sha256:sampleimagehash2": struct{}{},
-				"sha256:sampleimagehash3": struct{}{},
+				"sha256:sampleimagehash":  {},
+				"sha256:sampleimagehash2": {},
+				"sha256:sampleimagehash3": {},
 			},
 			imageID: "sha256:sampleimagehash2",
 			want:    true,
@@ -834,8 +797,8 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 		{
 			name: "image not in list",
 			skippedImages: map[string]struct{}{
-				"sha256:sampleimagehash":  struct{}{},
-				"sha256:sampleimagehash3": struct{}{},
+				"sha256:sampleimagehash":  {},
+				"sha256:sampleimagehash3": {},
 			},
 			imageID: "sha256:sampleimagehash2",
 			want:    false,
@@ -849,9 +812,9 @@ func TestSigstoreimpl_ShouldSkipImage(t *testing.T) {
 		{
 			name: "empty imageID",
 			skippedImages: map[string]struct{}{
-				"sha256:sampleimagehash":  struct{}{},
-				"sha256:sampleimagehash2": struct{}{},
-				"sha256:sampleimagehash3": struct{}{},
+				"sha256:sampleimagehash":  {},
+				"sha256:sampleimagehash2": {},
+				"sha256:sampleimagehash3": {},
 			},
 			imageID:   "",
 			want:      false,
@@ -885,38 +848,38 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 			name:    "add skipped image to empty map",
 			imageID: []string{"sha256:sampleimagehash"},
 			want: map[string]struct{}{
-				"sha256:sampleimagehash": struct{}{},
+				"sha256:sampleimagehash": {},
 			},
 		},
 		{
 			name: "add skipped image",
 			skippedImages: map[string]struct{}{
-				"sha256:sampleimagehash1": struct{}{},
+				"sha256:sampleimagehash1": {},
 			},
 			imageID: []string{"sha256:sampleimagehash"},
 			want: map[string]struct{}{
-				"sha256:sampleimagehash":  struct{}{},
-				"sha256:sampleimagehash1": struct{}{},
+				"sha256:sampleimagehash":  {},
+				"sha256:sampleimagehash1": {},
 			},
 		},
 		{
 			name:    "add a list of skipped images to empty map",
 			imageID: []string{"sha256:sampleimagehash", "sha256:sampleimagehash1"},
 			want: map[string]struct{}{
-				"sha256:sampleimagehash":  struct{}{},
-				"sha256:sampleimagehash1": struct{}{},
+				"sha256:sampleimagehash":  {},
+				"sha256:sampleimagehash1": {},
 			},
 		},
 		{
 			name: "add a list of skipped images to a existing map",
 			skippedImages: map[string]struct{}{
-				"sha256:sampleimagehash": struct{}{},
+				"sha256:sampleimagehash": {},
 			},
 			imageID: []string{"sha256:sampleimagehash1", "sha256:sampleimagehash2"},
 			want: map[string]struct{}{
-				"sha256:sampleimagehash":  struct{}{},
-				"sha256:sampleimagehash1": struct{}{},
-				"sha256:sampleimagehash2": struct{}{},
+				"sha256:sampleimagehash":  {},
+				"sha256:sampleimagehash1": {},
+				"sha256:sampleimagehash2": {},
 			},
 		},
 	}
@@ -939,14 +902,14 @@ func TestSigstoreimpl_ClearSkipList(t *testing.T) {
 		{
 			name: "clear single image in map",
 			skippedImages: map[string]struct{}{
-				"sha256:sampleimagehash": struct{}{},
+				"sha256:sampleimagehash": {},
 			},
 		},
 		{
 			name: "clear multiple images map",
 			skippedImages: map[string]struct{}{
-				"sha256:sampleimagehash":  struct{}{},
-				"sha256:sampleimagehash1": struct{}{},
+				"sha256:sampleimagehash":  {},
+				"sha256:sampleimagehash1": {},
 			},
 		},
 		{
@@ -1697,7 +1660,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 					checkOptsBinding: createNilCheckOptsFunction(),
 				},
 				skippedImages: map[string]struct{}{
-					"docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505": struct{}{},
+					"docker-registry.com/some/image@sha256:5fb2054478353fd8d514056d1745b3a9eef066deadda4b90967af7ca65ce6505": {},
 				},
 				rekorURL: rekorDefaultURL(),
 			},
