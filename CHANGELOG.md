@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.5.3] - 2022-12-14
+
+### Added
+
+- A new `gcp_kms` KeyManager plugin is now available (#3410, #3638, #3653, #3655)
+- `spire-server agent`, `spire-server bundle`, and `spire-server entry` CLI commands now support `-output` flag (#3523, #3624, #3628)
+
+### Changed
+
+- SPIRE-managed files on Windows no longer inherit permissions from parent directory (#3577, #3604)
+- Documentation improvements (#3534, #3546, #3461, #3565, #3630, #3632, #3639,)
+
+### Fixed
+
+- oidc-discovery-provider healthcheck HTTP server now binds to all network interfaces for visibility outside containers using virtual IP (#3580)
+- k8s-workload-registrar CRD and reconcile modes now have correct example leader election RBAC YAML (#3617)
+
+## [1.5.2] - 2022-12-06
+
+### Security
+
+- Updated to Go 1.19.4 to address CVE-2022-41717.
+
 ## [1.5.1] - 2022-11-08
 
 ### Fixed
@@ -33,6 +56,12 @@
 ### Removed
 
 - NodeResolver plugin type and `azure_msi` builtin NodeResolver plugin (#3470)
+
+## [1.4.6] - 2022-12-06
+
+### Security
+
+- Updated to Go 1.19.4 to address CVE-2022-41717.
 
 ## [1.4.5] - 2022-11-01
 

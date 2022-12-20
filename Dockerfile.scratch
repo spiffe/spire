@@ -7,11 +7,13 @@ ADD go.* ./
 RUN go mod download
 ADD . .
 RUN make build-static
+RUN install -d -o root -g root -m 1777 /newtmp
 
 FROM scratch AS spire-base
 WORKDIR /opt/spire
 CMD []
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /newtmp /tmp
 
 # SPIRE Server
 FROM spire-base AS spire-server-scratch

@@ -40,6 +40,30 @@ docker-up() {
     docker-compose up -d "$@" || fail-now "failed to bring up services."
 }
 
+docker-wait-for-healthy() {
+    if [ $# -ne 3 ]; then
+        fail-now "docker-wait-for-healthy: <container> <maxchecks> <interval>"
+    fi
+
+    local ctr_name=$1
+    local maxchecks=$2
+    local interval=$3
+    for ((i=1;i<=maxchecks;i++)); do
+        set +e
+        health_status=$(docker inspect --format '{{.State.Health.Status}}' "${ctr_name}" 2>/dev/null)
+        if [ "${health_status}" == "healthy" ]; then
+            return
+        else
+            log-debug "waiting for container ${ctr_name} to launch"
+        fi
+        set -e
+
+        sleep "${interval}"
+    done
+
+    fail-now "timed out waiting for ${ctr_name} to start"
+}
+
 docker-stop() {
     if [ $# -eq 0 ]; then
         log-debug "stopping services..."
@@ -108,7 +132,7 @@ build-mashup-image() {
     ENVOY_IMAGE_TAG="${ENVOY_VERSION}-latest"
 
     cat > Dockerfile <<EOF
-FROM spire-agent:latest-local as spire-agent
+FROM spire-agent-scratch:latest-local as spire-agent
 FROM envoyproxy/envoy-alpine:${ENVOY_IMAGE_TAG} AS envoy-agent-mashup
 COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent
 RUN apk --no-cache add dumb-init

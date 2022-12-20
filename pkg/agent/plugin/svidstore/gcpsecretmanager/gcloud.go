@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"cloud.google.com/go/iam/apiv1/iampb"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -16,7 +17,6 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -225,7 +225,7 @@ func (p *SecretManagerPlugin) shouldSetPolicy(ctx context.Context, secretName st
 	if !secretFound {
 		return true, nil
 	}
-	policy, err := p.secretManagerClient.GetIamPolicy(ctx, &iam.GetIamPolicyRequest{
+	policy, err := p.secretManagerClient.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
 		Resource: secretName,
 	})
 	if err != nil {
@@ -251,10 +251,10 @@ func (p *SecretManagerPlugin) shouldSetPolicy(ctx context.Context, secretName st
 
 func (p *SecretManagerPlugin) setIamPolicy(ctx context.Context, secretName string, opt *secretOptions) error {
 	// Create a policy without conditions and a single binding
-	resp, err := p.secretManagerClient.SetIamPolicy(ctx, &iam.SetIamPolicyRequest{
+	resp, err := p.secretManagerClient.SetIamPolicy(ctx, &iampb.SetIamPolicyRequest{
 		Resource: opt.secretName(),
-		Policy: &iam.Policy{
-			Bindings: []*iam.Binding{
+		Policy: &iampb.Policy{
+			Bindings: []*iampb.Binding{
 				{
 					Role:    opt.roleName,
 					Members: []string{opt.serviceAccount},
