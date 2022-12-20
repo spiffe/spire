@@ -23,7 +23,6 @@ wait-for-rollout() {
 ${KUBEBIN} create namespace spire
 ${KUBEBIN} apply -k ./conf/server
 wait-for-rollout spire deployment/spire-server
-${KUBEBIN} apply -k ./conf/webhook
 ${KUBEBIN} apply -k ./conf/agent
 wait-for-rollout spire daemonset/spire-agent
 

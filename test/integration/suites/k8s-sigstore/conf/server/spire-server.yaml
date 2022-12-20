@@ -156,61 +156,6 @@ data:
 
 ---
 
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: k8s-workload-registrar
-  namespace: spire
-data:
-  k8s-workload-registrar.conf: |
-    cert_path = "/run/spire/k8s-workload-registrar/certs/server-cert.pem"
-    key_path = "/run/spire/k8s-workload-registrar/secret/server-key.pem"
-    cacert_path = "/run/spire/k8s-workload-registrar/certs/cacert.pem"
-    trust_domain = "example.org"
-    cluster = "example-cluster"
-    server_socket_path = "/tmp/spire-server/private/api.sock"
-
----
-
-# ConfigMap containing the K8S Workload Registrar server certificate and
-# CA bundle used to verify the client certificate presented by the API server.
-#
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: k8s-workload-registrar-certs
-  namespace: spire
-data:
-  server-cert.pem: |
-    -----BEGIN CERTIFICATE-----
-    MIIB5zCCAY6gAwIBAgIIQhiO2hfTsKQwCgYIKoZIzj0EAwIwJDEiMCAGA1UEAxMZ
-    SzhTIFdPUktMT0FEIFJFR0lTVFJBUiBDQTAgFw0xOTA1MTMxOTE0MjNaGA85OTk5
-    MTIzMTIzNTk1OVowKDEmMCQGA1UEAxMdSzhTIFdPUktMT0FEIFJFR0lTVFJBUiBT
-    RVJWRVIwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARUw4pHmWCzrfjkXsen9+mS
-    PzifWV43s6SZ1J++xvDXM2jOhM86Vp/RdC0m2FNj3WYg6suRlEzvf/Fw2CsuZbmo
-    o4GjMIGgMA4GA1UdDwEB/wQEAwIDqDATBgNVHSUEDDAKBggrBgEFBQcDATAMBgNV
-    HRMBAf8EAjAAMB0GA1UdDgQWBBS+rw+LUFZAT45Ia8SnrfdWOBtAAzAfBgNVHSME
-    GDAWgBSbrFJP/YFLhe+FSq6yHYEsvS9EwjArBgNVHREEJDAigiBrOHMtd29ya2xv
-    YWQtcmVnaXN0cmFyLnNwaXJlLnN2YzAKBggqhkjOPQQDAgNHADBEAiBSaDzjPws6
-    Kt68mcJGAYBuWasdgdXJXeySzcnfieXe5AIgXwwaeq+deuF4+ckEY6WIzNWoIPOd
-    SDoLJWybQN17R0M=
-    -----END CERTIFICATE-----
-
-  cacert.pem: |
-    -----BEGIN CERTIFICATE-----
-    MIIBgTCCASigAwIBAgIIVLxbHbQsZQMwCgYIKoZIzj0EAwIwJDEiMCAGA1UEAxMZ
-    SzhTIFdPUktMT0FEIFJFR0lTVFJBUiBDQTAgFw0xOTA1MTMxOTE0MjNaGA85OTk5
-    MTIzMTIzNTk1OVowJDEiMCAGA1UEAxMZSzhTIFdPUktMT0FEIFJFR0lTVFJBUiBD
-    QTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJNq7IL77XWiWbohBOsmrCKMj+g3
-    z/+U0c5HmXRj7lbSpjofS0Y1RkTHMEJSvAoMHzssCe5/MDMHX5Xnn4r/LSGjQjBA
-    MA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBSbrFJP
-    /YFLhe+FSq6yHYEsvS9EwjAKBggqhkjOPQQDAgNHADBEAiBaun9z1WGCSkjx4P+x
-    mhZkiu1HsOifT9SGQx3in48OSgIgJm02lvnuuKcO/YT2CGHqZ7QjGAnJQY6uLgEQ
-    7CXLvcI=
-    -----END CERTIFICATE-----
-
----
-
 # This is the Deployment for the SPIRE server. It waits for SPIRE database to
 # initialize and uses the SPIRE healthcheck command for liveness/readiness
 # probes.
@@ -260,26 +205,6 @@ spec:
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
-        - name: k8s-workload-registrar
-          image: k8s-workload-registrar:latest-local
-          imagePullPolicy: Never
-          args: ["-config", "/run/spire/k8s-workload-registrar/conf/k8s-workload-registrar.conf"]
-          ports:
-          - containerPort: 8443
-            name: registrar-port
-          volumeMounts:
-          - name: spire-server-socket
-            mountPath: /tmp/spire-server/private
-            readOnly: true
-          - name: k8s-workload-registrar
-            mountPath: /run/spire/k8s-workload-registrar/conf
-            readOnly: true
-          - name: k8s-workload-registrar-certs
-            mountPath: /run/spire/k8s-workload-registrar/certs
-            readOnly: true
-          - name: k8s-workload-registrar-secret
-            mountPath: /run/spire/k8s-workload-registrar/secret
-            readOnly: true
       volumes:
         - name: spire-config
           configMap:
@@ -288,15 +213,9 @@ spec:
           hostPath:
             path: /run/spire/server-sockets
             type: DirectoryOrCreate
-        - name: k8s-workload-registrar
-          configMap:
-            name: k8s-workload-registrar
-        - name: k8s-workload-registrar-certs
-          configMap:
-            name: k8s-workload-registrar-certs
-        - name: k8s-workload-registrar-secret
+        - name: k8s-sigstore-secret
           secret:
-            secretName: k8s-workload-registrar-secret
+            secretName: k8s-sigstore-secret
 
 ---
 
@@ -315,18 +234,3 @@ spec:
       protocol: TCP
   selector:
     app: spire-server
-
----
-
-# Service definition for the admission webhook
-apiVersion: v1
-kind: Service
-metadata:
-  name: k8s-workload-registrar
-  namespace: spire
-spec:
-  selector:
-    app: spire-server
-  ports:
-    - port: 443
-      targetPort: registrar-port

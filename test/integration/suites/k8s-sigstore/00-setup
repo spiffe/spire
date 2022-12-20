@@ -52,7 +52,7 @@ sed 's/^/    /' ${PWD}/conf/docker-registry/certs/domain.crt >> ${PWD}/conf/regi
 cp ${PWD}/conf/registry-secret.yaml ${PWD}/conf/agent
 
 # Load the given images in the cluster.
-container_images=("spire-server:latest-local" "spire-agent:latest-local" "k8s-workload-registrar:latest-local")
+container_images=("spire-server:latest-local" "spire-agent:latest-local")
 load-images "${KIND_PATH}" k8stest "${container_images[@]}"
 
 # Set the kubectl context.
