@@ -62,14 +62,14 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) (
 
 	serverBundle, err := parseBundle(e.TrustDomain, commonServerBundle)
 	if err != nil {
-		return nil, fmt.Errorf("parse bundle: %w", err)
+		return nil, err
 	}
 
 	return serverBundle.X509Authorities(), nil
 }
 
 // serverSpiffeVerificationFunc returns a function that is used for peer certificate verification on TLS connections.
-// The returned function will verify that the peer certificate is valid, and apply a custom authorization with machMemberOrOneOf.
+// The returned function will verify that the peer certificate is valid, and apply a custom authorization with matchMemberOrOneOf.
 // If the peer certificate is not provided, the function will not make any verification and return nil.
 func (e *Endpoints) serverSpiffeVerificationFunc(bundleSource x509bundle.Source) func(_ [][]byte, _ [][]*x509.Certificate) error {
 	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
@@ -79,14 +79,14 @@ func (e *Endpoints) serverSpiffeVerificationFunc(bundleSource x509bundle.Source)
 
 		return tlsconfig.VerifyPeerCertificate(
 			bundleSource,
-			tlsconfig.AdaptMatcher(machMemberOrOneOf(e.TrustDomain, e.AdminIDs...)),
+			tlsconfig.AdaptMatcher(matchMemberOrOneOf(e.TrustDomain, e.AdminIDs...)),
 		)(rawCerts, nil)
 	}
 }
 
-// machMemberOrOneOf is a custom spiffeid.Matcher which will validate that the peerSpiffeID belongs to the server
+// matchMemberOrOneOf is a custom spiffeid.Matcher which will validate that the peerSpiffeID belongs to the server
 // trust domain or if it is included in the admin_ids configuration permissive list.
-func machMemberOrOneOf(trustDomain spiffeid.TrustDomain, adminIds ...spiffeid.ID) spiffeid.Matcher {
+func matchMemberOrOneOf(trustDomain spiffeid.TrustDomain, adminIds ...spiffeid.ID) spiffeid.Matcher {
 	permissiveIDsSet := make(map[spiffeid.ID]struct{})
 	for _, adminID := range adminIds {
 		permissiveIDsSet[adminID] = struct{}{}
