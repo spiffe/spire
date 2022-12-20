@@ -136,14 +136,8 @@ test-mysql-replication() {
     readonly_root_password=$(get_mysql_root_password "${readonly_service_name}")
 
     # Use:
-    # - regular replication for MySql 5.5 and 5.6.
     # - group replication for MySql 5.7 and 8.0
     case $service_prefix in
-      mysql-5-5 | mysql-5-6)
-        configure-readwrite-replication "${readwrite_service_name}" "${readwrite_root_password}"
-        configure-readonly-replication "${readonly_service_name}" "${readonly_root_password}" "${readwrite_service_name}"
-        ;;
-    
       mysql-5-7 | mysql-8-0)
         configure-readwrite-group-replication "${readwrite_service_name}" "${readwrite_root_password}"
         configure-readonly-group-replication "${readonly_service_name}" "${readonly_root_password}"
@@ -159,7 +153,5 @@ test-mysql-replication() {
     docker-stop "${readwrite_service_name}" "${readonly_service_name}"
 }
 
-test-mysql-replication mysql-5-5 || exit 1
-test-mysql-replication mysql-5-6 || exit 1
 test-mysql-replication mysql-5-7 || exit 1
 test-mysql-replication mysql-8-0 || exit 1
