@@ -81,6 +81,7 @@ data:
                 "https://accounts.google.com" = ["hpespirex@gmail.com"]
               }
               rekor_url = "https://rekor.sigstore.dev/"
+              enforce_sct = false
             }
           }
         }
