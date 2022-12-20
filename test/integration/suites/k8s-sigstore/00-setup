@@ -54,6 +54,8 @@ cp ${PWD}/conf/registry-secret.yaml ${PWD}/conf/agent
 # Load the given images in the cluster.
 container_images=("spire-server:latest-local" "spire-agent:latest-local")
 load-images "${KIND_PATH}" k8stest "${container_images[@]}"
+agent_image_id=$(docker inspect --format='{{.Id}}' spire-agent:latest-local)
+sed -i.bak "s/AGENT_ID/${agent_image_id}/" ${PWD}/conf/agent/spire-agent.yaml
 
 # Set the kubectl context.
 set-kubectl-context "${KUBECTL_PATH}" kind-k8stest
