@@ -63,4 +63,8 @@ for img in "${OCI_IMAGES[@]}"; do
   image_to_push="${registry}/${img}:${version}"
   docker tag "${image_variant}:latest-local" "${image_to_push}"
   docker push "${image_to_push}"
+
+  image_digest="$(docker inspect "${image_to_push}" --format '{{ index .RepoDigests 0 }}' | awk -F '@' '{ print $2 }')"
+
+  cosign sign "${registry}/${img}@${image_digest}"
 done
