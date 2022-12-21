@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	agentapi "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 )
@@ -19,13 +21,13 @@ func TestPrint(t *testing.T) {
 		{
 			name:      "normal_protobuf_message",
 			protoFunc: normalCountAgentsResponseMessage,
-			stdout:    "{\"count\":42}\n",
+			stdout:    `{"count":42}` + "\n",
 			stderr:    "",
 		},
 		{
 			name:      "double_protobuf_message",
 			protoFunc: doubleCountAgentsResponseMessage,
-			stdout:    "[{\"count\":42},{\"count\":42}]\n",
+			stdout:    `[{"count":42},{"count":42}]` + "\n",
 			stderr:    "",
 		},
 		{
@@ -41,9 +43,15 @@ func TestPrint(t *testing.T) {
 			stderr:    "",
 		},
 		{
-			name:      "message_with_unpopulated_fields",
-			protoFunc: unpopulatedFieldsMessage,
-			stdout:    "{\"count\":0}\n",
+			name:      "message_with_zeroed_values",
+			protoFunc: zeroedValuesMessage,
+			stdout:    `{"count":0}` + "\n",
+			stderr:    "",
+		},
+		{
+			name:      "message_with_null_pointers",
+			protoFunc: nullPointerMessage,
+			stdout:    `{"federation_relationships":[{"bundle_endpoint_url":"https://example.org/bundle","trust_domain":"example.org"}],"next_page_token":""}` + "\n",
 			stderr:    "",
 		},
 	}
@@ -69,10 +77,21 @@ func normalCountAgentsResponseMessage(_ *testing.T) []proto.Message {
 	}
 }
 
-func unpopulatedFieldsMessage(_ *testing.T) []proto.Message {
+func zeroedValuesMessage(_ *testing.T) []proto.Message {
 	return []proto.Message{
-		&agentapi.CountAgentsResponse{
-			Count: int32(0),
+		&agentapi.CountAgentsResponse{},
+	}
+}
+
+func nullPointerMessage(_ *testing.T) []proto.Message {
+	return []proto.Message{
+		&trustdomain.ListFederationRelationshipsResponse{
+			FederationRelationships: []*types.FederationRelationship{
+				{
+					TrustDomain:       "example.org",
+					BundleEndpointUrl: "https://example.org/bundle",
+				},
+			},
 		},
 	}
 }
