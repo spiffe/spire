@@ -3,7 +3,6 @@ package protojson
 import (
 	"encoding/json"
 	"io"
-	"reflect"
 
 	"github.com/spiffe/spire/pkg/common/cliprinter/internal/errorjson"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -52,8 +51,7 @@ func Print(msgs []proto.Message, stdout, stderr io.Writer) error {
 }
 
 func parseJSONMessages(jms []json.RawMessage) ([]json.RawMessage, error) {
-	parsedJms := []json.RawMessage{}
-
+	var parsedJms []json.RawMessage
 	for _, jm := range jms {
 		parsedJm, err := parseJSONMessage(jm)
 		if err != nil {
@@ -70,29 +68,30 @@ func parseJSONMessage(jm json.RawMessage) (json.RawMessage, error) {
 	if err := json.Unmarshal(jm, &jmMap); err != nil {
 		return nil, err
 	}
+
 	removeNulls(jmMap)
+
 	parsedJm, err := json.Marshal(jmMap)
 	if err != nil {
 		return nil, err
 	}
+
 	return parsedJm, nil
 }
 
-func removeNulls(m map[string]interface{}) {
-	val := reflect.ValueOf(m)
-	for _, e := range val.MapKeys() {
-		v := val.MapIndex(e)
-		if v.IsNil() {
-			delete(m, e.String())
+func removeNulls(jsonMap map[string]interface{}) {
+	for key, val := range jsonMap {
+		if val == nil {
+			delete(jsonMap, key)
 			continue
 		}
-		switch t := v.Interface().(type) {
+		switch v := val.(type) {
 		case map[string]interface{}:
-			removeNulls(t)
+			removeNulls(v)
 		case []interface{}:
-			for _, j := range t {
-				if n, ok := j.(map[string]interface{}); ok {
-					removeNulls(n)
+			for _, elem := range v {
+				if e, ok := elem.(map[string]interface{}); ok {
+					removeNulls(e)
 				}
 			}
 		}
