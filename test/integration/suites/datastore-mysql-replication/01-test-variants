@@ -98,31 +98,6 @@ START GROUP_REPLICATION;
     docker-compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
 }
 
-# Setup a primary server with regular replication.
-configure-readwrite-replication() {
-    service=$1
-    mysql_root_password=$2
-
-    replication_script="
-CREATE USER '${replication_user}'@'%' IDENTIFIED BY '${replication_user_pass}';
-GRANT REPLICATION SLAVE ON *.* TO ${replication_user}@'%';
-"
-     docker-compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
-}
-
-# Setup a replica server with regular replication.
-configure-readonly-replication() {
-    service=$1
-    mysql_root_password=$2
-    primary_service=$3
-
-    replication_script="
-CHANGE MASTER TO MASTER_HOST='${primary_service}', MASTER_USER='${replication_user}', MASTER_PASSWORD='${replication_user_pass}', MASTER_LOG_FILE='mysql-bin-1.000002', MASTER_LOG_POS=0;
-start slave;
-"
-    docker-compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
-}
-
 test-mysql-replication() {
     service_prefix=$1
     readwrite_service_name="${service_prefix}-readwrite"
@@ -135,31 +110,13 @@ test-mysql-replication() {
     readwrite_root_password=$(get_mysql_root_password "${readwrite_service_name}")
     readonly_root_password=$(get_mysql_root_password "${readonly_service_name}")
 
-    # Use:
-    # - regular replication for MySql 5.5 and 5.6.
-    # - group replication for MySql 5.7 and 8.0
-    case $service_prefix in
-      mysql-5-5 | mysql-5-6)
-        configure-readwrite-replication "${readwrite_service_name}" "${readwrite_root_password}"
-        configure-readonly-replication "${readonly_service_name}" "${readonly_root_password}" "${readwrite_service_name}"
-        ;;
-    
-      mysql-5-7 | mysql-8-0)
-        configure-readwrite-group-replication "${readwrite_service_name}" "${readwrite_root_password}"
-        configure-readonly-group-replication "${readonly_service_name}" "${readonly_root_password}"
-        ;;
-    
-      *)
-        fail-now "unsupported mysql version"
-        ;;
-    esac
+    configure-readwrite-group-replication "${readwrite_service_name}" "${readwrite_root_password}"
+    configure-readonly-group-replication "${readonly_service_name}" "${readonly_root_password}"
 
     log-info "running tests against ${readwrite_service_name} and ${readonly_service_name}..."
     ./mysql-replicated.test || fail-now "tests failed"
     docker-stop "${readwrite_service_name}" "${readonly_service_name}"
 }
 
-test-mysql-replication mysql-5-5 || exit 1
-test-mysql-replication mysql-5-6 || exit 1
 test-mysql-replication mysql-5-7 || exit 1
 test-mysql-replication mysql-8-0 || exit 1
