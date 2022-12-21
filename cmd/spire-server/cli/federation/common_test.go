@@ -103,6 +103,8 @@ const (
 }`
 )
 
+var availableFormats = []string{"pretty", "json"}
+
 type cmdTest struct {
 	stdin  *bytes.Buffer
 	stdout *bytes.Buffer
@@ -259,4 +261,17 @@ func createJSONDataFile(t *testing.T, data string) string {
 	jsonDataFilePath := path.Join(t.TempDir(), "bundle.pem")
 	require.NoError(t, os.WriteFile(jsonDataFilePath, []byte(data), 0600))
 	return jsonDataFilePath
+}
+
+func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
+	switch format {
+	case "pretty":
+		require.Contains(t, stdoutString, expectedStdoutPretty)
+	case "json":
+		if expectedStdoutJSON != "" {
+			require.JSONEq(t, expectedStdoutJSON, stdoutString)
+		} else {
+			require.Empty(t, stdoutString)
+		}
+	}
 }
