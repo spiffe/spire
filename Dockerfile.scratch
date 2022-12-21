@@ -19,12 +19,12 @@ FROM --platform=${BUILDPLATFORM} base as builder
 ARG TARGETPLATFORM
 ARG TARGETARCH
 COPY --link --from=xx / /
-RUN set -e ; xx-apk --no-cache --update add build-base musl-dev libseccomp-dev
 RUN install -d -o root -g root -m 1777 /newtmp
+RUN xx-go --wrap
+RUN set -e ; xx-apk --no-cache --update add build-base musl-dev libseccomp-dev
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     if [ "$TARGETARCH" = "arm64" ]; then CC=aarch64-alpine-linux-musl; fi && \
-    xx-go --wrap && \
     make build-static && \
     for f in $(find bin -executable -type f); do xx-verify $f; done
 
