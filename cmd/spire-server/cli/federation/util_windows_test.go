@@ -16,7 +16,7 @@ const (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -trustDomain string
     	Name of the trust domain to federate with (e.g., example.org)
   -trustDomainBundleFormat string
@@ -30,13 +30,13 @@ const (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 	listUsage = `Usage of federation list:
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 	refreshUsage = `Usage of federation refresh:
   -id string
@@ -44,13 +44,13 @@ const (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 	showUsage = `Usage of federation show:
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -trustDomain string
     	The trust domain name of the federation relationship to show
 `
@@ -66,7 +66,7 @@ const (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -trustDomain string
     	Name of the trust domain to federate with (e.g., example.org)
   -trustDomainBundleFormat string

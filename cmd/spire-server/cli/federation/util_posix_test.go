@@ -14,7 +14,7 @@ const (
   -endpointSpiffeID string
     	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -trustDomain string
@@ -28,13 +28,13 @@ const (
   -id string
     	SPIFFE ID of the trust domain
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	listUsage = `Usage of federation list:
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
@@ -42,13 +42,13 @@ const (
   -id string
     	SPIFFE ID of the trust domain
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	showUsage = `Usage of federation show:
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -trustDomain string
@@ -64,7 +64,7 @@ const (
   -endpointSpiffeID string
     	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
   -trustDomain string
