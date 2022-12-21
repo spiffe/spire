@@ -240,51 +240,51 @@ ifeq ($(git_dirty),)
 		go_ldflags += -X github.com/spiffe/spire/pkg/common/version.githash=$(git_hash)
 	endif
 endif
-go_ldflags := '${go_ldflags}'
 
 #############################################################################
 # Build Targets
 #############################################################################
 
 .PHONY: build
-
 build: tidy $(addprefix bin/,$(binaries))
 
-define binary_rule
-bin/%: FORCE | go-check
-	@echo Building $$@...
-	$(E)$(go_path) go build $$(go_flags) -ldflags $$(go_ldflags) -o $$@$(exe) $1
-endef
+go_build := $(go_path) go build $(go_flags) -ldflags '$(go_ldflags)' -o
 
-# main SPIRE binaries
-$(eval $(call binary_rule,./cmd/spire-server))
-$(eval $(call binary_rule,./cmd/spire-agent))
-$(eval $(call binary_rule,./support/k8s/k8s-workload-registrar))
-$(eval $(call binary_rule,./support/oidc-discovery-provider))
+bin/%: cmd/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build) $@$(exe) ./$<
+
+bin/%: support/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build) $@$(exe) ./$<
+
+bin/%: support/k8s/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build) $@$(exe) ./$<
 
 #############################################################################
 # Build Static binaries for scratch docker images
 #############################################################################
 
 .PHONY: build-static
-
 # The build-static is intended to statically link to musl libc.
 # There are possibilities of unexpected errors when statically link to GLIBC.
-build-static: tidy $(addprefix bin/,$(addsuffix -static,$(binaries)))
-
 # https://7thzero.com/blog/golang-w-sqlite3-docker-scratch-image
-define binary_rule_static
-bin/%: FORCE | go-check
-	@echo Building $$@...
-	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $$@$(exe) $1
+build-static: tidy $(addprefix bin/static/,$(binaries))
 
-endef
+go_build_static := $(go_path) go build $(go_flags) -ldflags '$(go_ldflags) -linkmode external -extldflags "-static"' -o
 
-# static builds
-$(eval $(call binary_rule_static,./cmd/spire-server))
-$(eval $(call binary_rule_static,./cmd/spire-agent))
-$(eval $(call binary_rule_static,./support/k8s/k8s-workload-registrar))
-$(eval $(call binary_rule_static,./support/oidc-discovery-provider))
+bin/static/%: cmd/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build_static) $@$(exe) ./$<
+
+bin/static/%: support/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build_static) $@$(exe) ./$<
+
+bin/static/%: support/k8s/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build_static) $@$(exe) ./$<
 
 #############################################################################
 # Test Targets
