@@ -34,7 +34,9 @@ func AppendFlagWithCustomPretty(p *Printer, fs *flag.FlagSet, env *commoncli.Env
 		customPretty: cp,
 	}
 
-	fs.Var(f, defaultFlagName, "Desired output format (pretty, json)")
+	fs.Var(f,
+		defaultFlagName,
+		fmt.Sprintf("Desired output format (pretty, json); default: %s.", formatTypeToStr(defaultFormatType)))
 	return f
 }
 

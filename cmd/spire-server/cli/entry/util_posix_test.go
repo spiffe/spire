@@ -22,7 +22,7 @@ const (
   -node
     	If set, this entry will be applied to matching nodes rather than workloads
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -parentID string
     	The SPIFFE ID of this record's parent
   -selector value
@@ -50,7 +50,7 @@ const (
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -parentID string
     	The Parent ID of the records to show
   -selector value
@@ -78,7 +78,7 @@ const (
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl flag
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -parentID string
     	The SPIFFE ID of this record's parent
   -selector value
@@ -98,13 +98,13 @@ const (
   -entryID string
     	The Registration Entry ID of the record to delete
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	countUsage = `Usage of entry count:
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
