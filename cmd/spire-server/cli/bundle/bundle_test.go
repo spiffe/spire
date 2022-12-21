@@ -196,7 +196,7 @@ func TestSet(t *testing.T) {
 			stdin:                cert1PEM,
 			args:                 []string{"-id", "spiffe://otherdomain.test"},
 			expectedStderrPretty: "Error: failed to set federated bundle: failed to set\n",
-			expectedStdoutJSON:   `{"results":[{"status":{"code":13,"message":"failed to set"},"bundle":null}]}`,
+			expectedStdoutJSON:   `{"results":[{"status":{"code":13,"message":"failed to set"}}]}`,
 			toSet: &types.Bundle{
 				TrustDomain: "spiffe://otherdomain.test",
 				X509Authorities: []*types.X509Certificate{
