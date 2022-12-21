@@ -10,7 +10,7 @@ var (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
 `
@@ -18,7 +18,7 @@ var (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -spiffeID string
     	The SPIFFE ID of the agent to ban (agent identity)
 `
@@ -26,7 +26,7 @@ var (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -spiffeID string
     	The SPIFFE ID of the agent to evict (agent identity)
 `
@@ -34,13 +34,13 @@ var (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 	showUsage = `Usage of agent show:
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -spiffeID string
     	The SPIFFE ID of the agent to show (agent identity)
 `
