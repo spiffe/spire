@@ -18,18 +18,18 @@ COPY --from=builder /newtmp /tmp
 # SPIRE Server
 FROM spire-base AS spire-server-scratch
 ENTRYPOINT ["/opt/spire/bin/spire-server", "run"]
-COPY --from=builder /spire/bin/spire-server-static bin/spire-server
+COPY --from=builder /spire/bin/static/spire-server bin/
 
 FROM spire-base AS spire-agent-scratch
 ENTRYPOINT ["/opt/spire/bin/spire-agent", "run"]
-COPY --from=builder /spire/bin/spire-agent-static bin/spire-agent
+COPY --from=builder /spire/bin/static/spire-agent bin/
 
 # K8S Workload Registrar
 FROM spire-base AS k8s-workload-registrar-scratch
 ENTRYPOINT ["/opt/spire/bin/k8s-workload-registrar"]
-COPY --from=builder /spire/bin/k8s-workload-registrar-static bin/k8s-workload-registrar
+COPY --from=builder /spire/bin/static/k8s-workload-registrar bin/
 
 # OIDC Discovery Provider
 FROM spire-base AS oidc-discovery-provider-scratch
 ENTRYPOINT ["/opt/spire/bin/oidc-discovery-provider"]
-COPY --from=builder /spire/bin/oidc-discovery-provider-static bin/oidc-discovery-provider
+COPY --from=builder /spire/bin/static/oidc-discovery-provider bin/
