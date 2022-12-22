@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/asn1"
 	"errors"
 	"fmt"
 	"net/url"
@@ -29,10 +28,6 @@ import (
 
 const (
 	maximumAmountCache = 10
-)
-
-var (
-	OIDCIssuerOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 1}
 )
 
 func TestNew(t *testing.T) {
