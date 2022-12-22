@@ -52,6 +52,8 @@ const (
 	labelNameLastUpdate = "spire-last-update"
 	labelNameServerTD   = "spire-server-td"
 	labelNameActive     = "spire-active"
+
+	getPublicKeyMaxAttempts = 10
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -1031,11 +1033,10 @@ func getOrCreateServerID(idPath string) (string, error) {
 func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kmsClient cloudKeyManagementService, cryptoKeyVersionName string) ([]byte, error) {
 	kmsPublicKey, errGetPublicKey := kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
 	attempts := 1
-	const maxAttempts = 10
 
 	log = log.With(cryptoKeyVersionNameTag, cryptoKeyVersionName)
 	for errGetPublicKey != nil {
-		if attempts > maxAttempts {
+		if attempts > getPublicKeyMaxAttempts {
 			log.Error("Could not get the public key because the CryptoKeyVersion is still being generated. Maximum number of attempts reached.")
 			return nil, errGetPublicKey
 		}
