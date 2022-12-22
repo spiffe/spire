@@ -214,7 +214,6 @@ func canonicalizePodUID(uid string) types.UID {
 
 func configureSigstoreClient(client sigstore.Sigstore, c *SigstoreHCLConfig, log hclog.Logger) error {
 	// Configure sigstore settings
-
 	enforceSCT := true
 	if c.EnforceSCT != nil {
 		enforceSCT = *c.EnforceSCT

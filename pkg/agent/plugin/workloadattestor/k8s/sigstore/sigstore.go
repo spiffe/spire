@@ -90,48 +90,6 @@ func New(cache Cache, logger hclog.Logger) Sigstore {
 	}
 }
 
-func defaultCheckOptsFunction(rekorURL url.URL, enforceSCT ...bool) (*cosign.CheckOpts, error) {
-	if len(enforceSCT) > 1 {
-		return nil, errors.New("enforceSCT can be only one value")
-	}
-	if len(enforceSCT) == 0 {
-		enforceSCT = append(enforceSCT, true)
-	}
-	switch {
-	case rekorURL.Host == "":
-		return nil, errors.New("rekor URL host is empty")
-	case rekorURL.Scheme == "":
-		return nil, errors.New("rekor URL scheme is empty")
-	case rekorURL.Path == "":
-		return nil, errors.New("rekor URL path is empty")
-	}
-
-	rootCerts, err := fulcio.GetRoots()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get fulcio root certificates: %w", err)
-	}
-
-	co := &cosign.CheckOpts{
-		// Set the rekor client
-		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)),
-		RootCerts:   rootCerts,
-		EnforceSCT:  enforceSCT[0],
-	}
-	co.IntermediateCerts, err = fulcio.GetIntermediates()
-
-	return co, err
-}
-
-type sigstoreImpl struct {
-	functionHooks    sigstoreFunctionHooks
-	skippedImages    map[string]struct{}
-	subjectAllowList map[string]map[string]struct{}
-	rekorURL         url.URL
-	logger           hclog.Logger
-	sigstorecache    Cache
-	enforceSCT       bool
-}
-
 func (s *sigstoreImpl) SetEnforceSCT(enforceSCT bool) {
 	s.enforceSCT = enforceSCT
 }
@@ -180,10 +138,10 @@ func (s *sigstoreImpl) ExtractSelectorsFromSignatures(signatures []oci.Signature
 		sigSelectors, err := s.SelectorValuesFromSignature(sig)
 		if err != nil {
 			s.logger.Error("error extracting selectors from signature", "error", err, telemetry.ContainerID, containerID)
+
+			continue
 		}
-		if sigSelectors != nil {
-			selectors = append(selectors, *sigSelectors)
-		}
+		selectors = append(selectors, *sigSelectors)
 	}
 	return selectors
 }
@@ -200,7 +158,6 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature) (*Se
 	}
 
 	issuer, err := getSignatureProvider(signature)
-
 	if err != nil {
 		return nil, fmt.Errorf("error getting signature provider: %w", err)
 	}
@@ -361,6 +318,38 @@ func (s *sigstoreImpl) SetRekorURL(rekorURL string) error {
 	return nil
 }
 
+func defaultCheckOptsFunction(rekorURL url.URL, enforceSCT ...bool) (*cosign.CheckOpts, error) {
+	if len(enforceSCT) > 1 {
+		return nil, errors.New("enforceSCT can be only one value")
+	}
+	if len(enforceSCT) == 0 {
+		enforceSCT = append(enforceSCT, true)
+	}
+	switch {
+	case rekorURL.Host == "":
+		return nil, errors.New("rekor URL host is empty")
+	case rekorURL.Scheme == "":
+		return nil, errors.New("rekor URL scheme is empty")
+	case rekorURL.Path == "":
+		return nil, errors.New("rekor URL path is empty")
+	}
+
+	rootCerts, err := fulcio.GetRoots()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get fulcio root certificates: %w", err)
+	}
+
+	co := &cosign.CheckOpts{
+		// Set the rekor client
+		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)),
+		RootCerts:   rootCerts,
+		EnforceSCT:  enforceSCT[0],
+	}
+	co.IntermediateCerts, err = fulcio.GetIntermediates()
+
+	return co, err
+}
+
 func getSignatureSubject(signature oci.Signature) (string, error) {
 	if signature == nil {
 		return "", errors.New("signature is nil")
@@ -431,7 +420,7 @@ func getBundleSignatureContent(bundle *bundle.RekorBundle) (string, error) {
 	body64, ok := bundle.Payload.Body.(string)
 	if !ok {
 		returnedType := fmt.Sprintf("expected payload body to be a string but got %T instead", bundle.Payload.Body)
-		return "", errors.New(returnedType)
+		return "", fmt.Errorf(returnedType)
 	}
 	body, err := base64.StdEncoding.DecodeString(body64)
 	if err != nil {
@@ -478,6 +467,16 @@ type verifyFunctionType func(context.Context, name.Reference, *cosign.CheckOpts)
 type fetchImageManifestFunctionType func(name.Reference, ...remote.Option) (*remote.Descriptor, error)
 
 type checkOptsFunctionType func(url.URL, ...bool) (*cosign.CheckOpts, error)
+
+type sigstoreImpl struct {
+	functionHooks    sigstoreFunctionHooks
+	skippedImages    map[string]struct{}
+	subjectAllowList map[string]map[string]struct{}
+	rekorURL         url.URL
+	logger           hclog.Logger
+	sigstorecache    Cache
+	enforceSCT       bool
+}
 
 type sigstoreFunctionHooks struct {
 	verifyFunction             verifyFunctionType
