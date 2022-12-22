@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"cloud.google.com/go/iam"
+	"cloud.google.com/go/iam/apiv1/iampb"
 	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/googleapis/gax-go/v2"
 	"github.com/spiffe/spire/test/clock"
@@ -25,7 +26,6 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
-	iampb "google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

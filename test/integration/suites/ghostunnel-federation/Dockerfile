@@ -1,4 +1,4 @@
-FROM spire-agent:latest-local as spire-agent
+FROM spire-agent-scratch:latest-local as spire-agent
 
 FROM ghostunnel/ghostunnel:latest AS ghostunnel-latest
 

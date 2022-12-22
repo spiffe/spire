@@ -24,7 +24,7 @@ const (
   -node
     	If set, this entry will be applied to matching nodes rather than workloads
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -parentID string
     	The SPIFFE ID of this record's parent
   -selector value
@@ -52,7 +52,7 @@ const (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -parentID string
     	The Parent ID of the records to show
   -selector value
@@ -80,7 +80,7 @@ const (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -parentID string
     	The SPIFFE ID of this record's parent
   -selector value
@@ -100,12 +100,12 @@ const (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 	countUsage = `Usage of entry count:
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 )

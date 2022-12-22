@@ -1,4 +1,4 @@
-FROM spire-agent:latest-local as spire-agent
+FROM spire-agent-scratch:latest-local as spire-agent
 
 FROM envoyproxy/envoy-alpine:v1.19.0 AS envoy-agent-mashup
 COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent

@@ -77,7 +77,7 @@ func setOwnerRef(owner metav1.Object, spiffeID *spiffeidv1beta1.SpiffeID, scheme
 	if ownerRef == nil {
 		return err
 	}
-	ownerRef.BlockOwnerDeletion = pointer.BoolPtr(false)
+	ownerRef.BlockOwnerDeletion = pointer.Bool(false)
 
 	return nil
 }
