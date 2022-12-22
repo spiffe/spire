@@ -84,7 +84,6 @@ func New(cache Cache, logger hclog.Logger) Sigstore {
 			checkOptsFunction:          defaultCheckOptsFunction,
 		},
 
-		enforceSCT:    true,
 		logger:        logger,
 		sigstorecache: cache,
 	}
@@ -318,13 +317,7 @@ func (s *sigstoreImpl) SetRekorURL(rekorURL string) error {
 	return nil
 }
 
-func defaultCheckOptsFunction(rekorURL url.URL, enforceSCT ...bool) (*cosign.CheckOpts, error) {
-	if len(enforceSCT) > 1 {
-		return nil, errors.New("enforceSCT can be only one value")
-	}
-	if len(enforceSCT) == 0 {
-		enforceSCT = append(enforceSCT, true)
-	}
+func defaultCheckOptsFunction(rekorURL url.URL, enforceSCT bool) (*cosign.CheckOpts, error) {
 	switch {
 	case rekorURL.Host == "":
 		return nil, errors.New("rekor URL host is empty")
@@ -343,7 +336,7 @@ func defaultCheckOptsFunction(rekorURL url.URL, enforceSCT ...bool) (*cosign.Che
 		// Set the rekor client
 		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)),
 		RootCerts:   rootCerts,
-		EnforceSCT:  enforceSCT[0],
+		EnforceSCT:  enforceSCT,
 	}
 	co.IntermediateCerts, err = fulcio.GetIntermediates()
 
@@ -466,7 +459,7 @@ type verifyFunctionType func(context.Context, name.Reference, *cosign.CheckOpts)
 
 type fetchImageManifestFunctionType func(name.Reference, ...remote.Option) (*remote.Descriptor, error)
 
-type checkOptsFunctionType func(url.URL, ...bool) (*cosign.CheckOpts, error)
+type checkOptsFunctionType func(url.URL, bool) (*cosign.CheckOpts, error)
 
 type sigstoreImpl struct {
 	functionHooks    sigstoreFunctionHooks

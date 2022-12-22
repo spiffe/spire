@@ -76,10 +76,11 @@ func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
 		functionBindings sigstoreFunctionBindings
 		rekorURL         url.URL
 	}
+	enforceSCT := true
 
-	defaultCheckOpts, err := defaultCheckOptsFunction(rekorDefaultURL())
+	defaultCheckOpts, err := defaultCheckOptsFunction(rekorDefaultURL(), enforceSCT)
 	require.NoError(t, err)
-	emptyURLCheckOpts, emptyError := defaultCheckOptsFunction(url.URL{})
+	emptyURLCheckOpts, emptyError := defaultCheckOptsFunction(url.URL{}, enforceSCT)
 	require.Nil(t, emptyURLCheckOpts)
 	require.EqualError(t, emptyError, "rekor URL host is empty")
 
@@ -1946,7 +1947,7 @@ func createNilFetchFunction() fetchFunctionBinding {
 
 func createCheckOptsFunction(returnCheckOpts *cosign.CheckOpts, returnErr error) checkOptsFunctionBinding {
 	bindCheckOptsArgumentsFunction := func(t require.TestingT, checkOptsArguments *checkOptsFunctionArguments) checkOptsFunctionType {
-		newCheckOptsFunction := func(url url.URL, enforceSCT ...bool) (*cosign.CheckOpts, error) {
+		newCheckOptsFunction := func(url url.URL, enforceSCT bool) (*cosign.CheckOpts, error) {
 			checkOptsArguments.url = url
 			return returnCheckOpts, returnErr
 		}
@@ -1957,7 +1958,7 @@ func createCheckOptsFunction(returnCheckOpts *cosign.CheckOpts, returnErr error)
 
 func createNilCheckOptsFunction() checkOptsFunctionBinding {
 	bindCheckOptsArgumentsFunction := func(t require.TestingT, checkOptsArguments *checkOptsFunctionArguments) checkOptsFunctionType {
-		failFunction := func(url url.URL, enforceSCT ...bool) (*cosign.CheckOpts, error) {
+		failFunction := func(url url.URL, enforceSCT bool) (*cosign.CheckOpts, error) {
 			require.FailNow(t, "nil check opts function should not be called")
 			return nil, fmt.Errorf("nil check opts function should not be called")
 		}
