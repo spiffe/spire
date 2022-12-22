@@ -3,6 +3,7 @@
 .data
 .glide
 .tmp
+.DS_Store
 *.swp
 *.log
 /bin
