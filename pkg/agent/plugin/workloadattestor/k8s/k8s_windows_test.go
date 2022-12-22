@@ -109,25 +109,6 @@ func TestContainerHelper(t *testing.T) {
 		assert.Empty(t, podID)
 		assert.Equal(t, "", containerID)
 	})
-
-	t.Run("configure fails when sigstore is enabled", func(t *testing.T) {
-		rekorURL := "https://test.org"
-		config := &HCLConfig{
-			Experimental: &ExperimentalK8SConfig{
-				Sigstore: &SigstoreHCLConfig{RekorURL: &rekorURL},
-			},
-		}
-		err := cHelper.Configure(config, hclog.NewNullLogger())
-		spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "sigstore configuration is not supported on windows environment")
-	})
-
-	t.Run("get os selectors returns empty list", func(t *testing.T) {
-		selectors, err := cHelper.GetOSSelectors(context.Background(), hclog.NewNullLogger(), &corev1.ContainerStatus{
-			ContainerID: "cID",
-		})
-		assert.NoError(t, err)
-		assert.Empty(t, selectors)
-	})
 }
 
 type fakeProcessHelper struct {
