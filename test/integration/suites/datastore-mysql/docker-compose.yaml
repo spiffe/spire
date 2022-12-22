@@ -1,27 +1,5 @@
 version: '3'
 services:
-  mysql-5-5:
-    image: mysql:5.5
-    environment:
-      - MYSQL_PASSWORD=test
-      - MYSQL_DATABASE=spire
-      - MYSQL_USER=spire
-      - MYSQL_RANDOM_ROOT_PASSWORD=yes
-    tmpfs:
-      - /var/lib/mysql
-    ports:
-      - "9999:3306"
-  mysql-5-6:
-    image: mysql:5.6
-    environment:
-      - MYSQL_PASSWORD=test
-      - MYSQL_DATABASE=spire
-      - MYSQL_USER=spire
-      - MYSQL_RANDOM_ROOT_PASSWORD=yes
-    tmpfs:
-      - /var/lib/mysql
-    ports:
-      - "9999:3306"
   mysql-5-7:
     image: mysql:5.7
     environment:

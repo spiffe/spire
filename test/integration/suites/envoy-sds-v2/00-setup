@@ -5,7 +5,7 @@
 LAST_ENVOY_RELEASE_WITH_V2=v1.16.0
 
 cat > Dockerfile <<EOF
-FROM spire-agent:latest-local as spire-agent
+FROM spire-agent-scratch:latest-local as spire-agent
 
 FROM envoyproxy/envoy-alpine:${LAST_ENVOY_RELEASE_WITH_V2} AS envoy-agent-mashup
 COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent

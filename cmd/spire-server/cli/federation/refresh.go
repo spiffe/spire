@@ -9,21 +9,25 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
+	"github.com/spiffe/spire/pkg/server/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func NewRefreshCommand() cli.Command {
-	return newRefreshCommand(common_cli.DefaultEnv)
+	return newRefreshCommand(commoncli.DefaultEnv)
 }
 
-func newRefreshCommand(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(refreshCommand))
+func newRefreshCommand(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &refreshCommand{env: env})
 }
 
 type refreshCommand struct {
-	id string
+	id      string
+	env     *commoncli.Env
+	printer cliprinter.Printer
 }
 
 func (c *refreshCommand) Name() string {
@@ -36,9 +40,10 @@ func (c *refreshCommand) Synopsis() string {
 
 func (c *refreshCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintRefresh)
 }
 
-func (c *refreshCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *refreshCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	if c.id == "" {
 		return errors.New("id is required")
 	}
@@ -47,13 +52,17 @@ func (c *refreshCommand) Run(ctx context.Context, env *common_cli.Env, serverCli
 	_, err := trustDomainClient.RefreshBundle(ctx, &trustdomain.RefreshBundleRequest{
 		TrustDomain: c.id,
 	})
+
 	switch status.Code(err) {
 	case codes.OK:
-		env.Println("Bundle refreshed")
-		return nil
+		return c.printer.PrintProto(api.OK())
 	case codes.NotFound:
 		return fmt.Errorf("there is no federation relationship with trust domain %q", c.id)
 	default:
 		return fmt.Errorf("failed to refresh bundle: %w", err)
 	}
+}
+
+func prettyPrintRefresh(env *commoncli.Env, _ ...interface{}) error {
+	return env.Println("Bundle refreshed")
 }

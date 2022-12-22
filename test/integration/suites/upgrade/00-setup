@@ -13,9 +13,16 @@ make-service() {
     local _version=$2
 cat <<EOF >> docker-compose.yaml
   spire-server-${_version}:
+    container_name: spire-server-${_version}
     image: ${_registry}spire-server:${_version}
     hostname: spire-server
     user: "${UID}"
+    healthcheck:
+      # TODO: Use default socket path in 1.7.0
+      test: ["CMD", "/opt/spire/bin/spire-server", "healthcheck", "-socketPath", "/opt/spire/data/server/socket/api.sock"]
+      interval: 1s
+      timeout: 3s
+      retries: 15
     networks:
       our-network:
         aliases:
@@ -25,9 +32,16 @@ cat <<EOF >> docker-compose.yaml
       - ./conf/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   spire-agent-${_version}:
+    container_name: spire-agent-${_version}
     image: ${_registry}spire-agent:${_version}
     hostname: spire-agent
     user: "${UID}"
+    healthcheck:
+      # TODO: Use default socket path in 1.7.0
+      test: ["CMD", "/opt/spire/bin/spire-agent", "healthcheck", "-socketPath", "/opt/spire/data/agent/socket/api.sock"]
+      interval: 1s
+      timeout: 3s
+      retries: 15
     networks:
       - our-network
     volumes:
@@ -51,5 +65,5 @@ EOF
 
 make-service "" latest-local
 while read -r version; do
-  make-service gcr.io/spiffe-io/ "${version}"
+  make-service ghcr.io/spiffe/ "${version}"
 done < versions.txt
