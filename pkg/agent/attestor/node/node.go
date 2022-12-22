@@ -259,6 +259,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*
 
 	return grpc.DialContext(ctx, a.c.ServerAddress,
 		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+		grpc.WithDisableServiceConfig(),
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithReturnConnectionError(),
