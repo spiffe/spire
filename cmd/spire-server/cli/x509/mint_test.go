@@ -34,9 +34,7 @@ import (
 var (
 	expectedUsage = `Usage of x509 mint:
   -dns value
-    	DNS name that will be included in SVID. Can be used more than once.
-  -output value
-    	Desired output format (pretty, json); default: pretty.` + common.AddrUsage +
+    	DNS name that will be included in SVID. Can be used more than once.` + common.AddrOutputUsage +
 		`  -spiffeID string
     	SPIFFE ID of the X509-SVID
   -ttl duration

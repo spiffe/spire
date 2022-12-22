@@ -35,9 +35,7 @@ qNV3lKIL59N7G2B4ojbhfSNneSIIpP448uPxUnaunaQZ+/m7+x9oobIp
 	availableFormats = []string{"pretty", "json"}
 	expectedUsage    = `Usage of jwt mint:
   -audience value
-    	Audience claim that will be included in the SVID. Can be used more than once.
-  -output value
-    	Desired output format (pretty, json); default: pretty.` + common.AddrUsage +
+    	Audience claim that will be included in the SVID. Can be used more than once.` + common.AddrOutputUsage +
 		`  -spiffeID string
     	SPIFFE ID of the JWT-SVID
   -ttl duration
