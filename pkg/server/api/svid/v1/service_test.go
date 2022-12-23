@@ -54,9 +54,9 @@ func TestServiceMintX509SVID(t *testing.T) {
 	x509CA := test.ca.X509CA()
 	now := test.ca.Clock().Now().UTC()
 	expiredAt := now.Add(test.ca.X509SVIDTTL())
-	expiresAtStr := strconv.FormatInt(expiredAt.Unix(), 10)
+	expiresAtStr := expiredAt.Format(time.RFC3339)
 	customExpiresAt := now.Add(10 * time.Second)
-	expiresAtCustomStr := strconv.FormatInt(customExpiresAt.Unix(), 10)
+	expiresAtCustomStr := customExpiresAt.Format(time.RFC3339)
 
 	for _, tt := range []struct {
 		name        string
