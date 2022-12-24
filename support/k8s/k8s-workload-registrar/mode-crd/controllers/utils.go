@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	spiffeidv1beta1 "github.com/spiffe/spire/support/k8s/k8s-workload-registrar/mode-crd/api/spiffeid/v1beta1"
@@ -131,8 +132,14 @@ func equalStringSlice(x, y []string) bool {
 
 func containsString(slice []string, s string) bool {
 	for _, item := range slice {
-		if item == s {
-			return true
+		if regex, err := regexp.Compile(item); err == nil {
+			if regex.MatchString(s) {
+				return true
+			}
+		} else {
+			if item == s {
+				return true
+			}
 		}
 	}
 	return false

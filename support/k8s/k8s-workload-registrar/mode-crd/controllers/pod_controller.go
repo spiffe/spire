@@ -18,7 +18,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"text/template"
 
@@ -206,14 +205,6 @@ func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Reconcile creates a new SPIFFE ID when pods are created
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
-	match1, _ := regexp.MatchString(`^kube-.*`, req.NamespacedName.Namespace)
-	match2, _ := regexp.MatchString(`^openshift.*`, req.NamespacedName.Namespace)
-
-	if match1 == true || match2 == true {
-		return ctrl.Result{}, nil
-	}
-
 	if containsString(r.c.DisabledNamespaces, req.NamespacedName.Namespace) {
 		return ctrl.Result{}, nil
 	}
@@ -228,7 +219,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// Pod needs to be assigned a node before it can get a SPIFFE ID.
+	// Pod needs to be assigned a node before it can get a SPIFFE ID
 	if pod.Spec.NodeName == "" {
 		return ctrl.Result{}, nil
 	}
