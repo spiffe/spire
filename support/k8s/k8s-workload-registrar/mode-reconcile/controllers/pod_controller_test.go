@@ -39,8 +39,6 @@ type PodControllerTestSuite struct {
 	ds          *fakedatastore.DataStore
 	entryClient *fakeentryclient.Client
 
-	k8sClient client.Client
-
 	log logr.Logger
 }
 
@@ -51,8 +49,6 @@ func (s *PodControllerTestSuite) SetupTest() {
 	s.entryClient = fakeentryclient.New(s.T(), spiffeid.RequireTrustDomainFromString(podControllerTestTrustDomain), s.ds, nil)
 
 	s.ctrl = mockCtrl
-
-	s.k8sClient = fake.NewClientBuilder().WithScheme(scheme.Scheme).Build()
 
 	s.log = zap.New()
 }
@@ -85,8 +81,9 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 	for _, tt := range tests {
 		tt := tt
 		s.Run(tt.first, func() {
+			k8sClient := createK8sClient()
 			r := NewPodReconciler(
-				s.k8sClient,
+				k8sClient,
 				s.log,
 				scheme.Scheme,
 				podControllerTestTrustDomain,
@@ -122,7 +119,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			_, err := s.ds.AppendBundle(ctx, &common.Bundle{TrustDomainId: "spiffe://example.io"})
 			s.Assert().NoError(err)
 
-			err = s.k8sClient.Create(ctx, &pod)
+			err = k8sClient.Create(ctx, &pod)
 			s.Assert().NoError(err)
 
 			_, err = r.Reconcile(ctx, ctrl.Request{
@@ -143,7 +140,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			pod.Annotations["spiffe"] = "annotation2"
 			pod.Spec.ServiceAccountName = "sa2"
 
-			err = s.k8sClient.Update(ctx, &pod)
+			err = k8sClient.Update(ctx, &pod)
 			s.Assert().NoError(err)
 
 			_, err = r.Reconcile(ctx, ctrl.Request{
@@ -166,7 +163,7 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 			s.Assert().NoError(err)
 			s.Assert().Len(es, 1)
 
-			err = s.k8sClient.Delete(ctx, &pod)
+			err = k8sClient.Delete(ctx, &pod)
 			s.Assert().NoError(err)
 
 			_, err = r.Reconcile(ctx, ctrl.Request{
@@ -189,8 +186,32 @@ func (s *PodControllerTestSuite) TestAddChangeRemovePod() {
 func (s *PodControllerTestSuite) TestAddDnsNames() {
 	ctx := context.TODO()
 
+	endpointsToCreate := corev1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc", Namespace: "bar"},
+		Subsets: []corev1.EndpointSubset{{
+			Addresses: []corev1.EndpointAddress{
+				{
+					IP: "123.123.123.123",
+					TargetRef: &corev1.ObjectReference{
+						Kind:      "Pod",
+						Namespace: "bar",
+						Name:      "foo",
+					},
+				},
+			},
+			Ports: []corev1.EndpointPort{
+				{
+					Name:     "endpointName",
+					Protocol: "TCP",
+					Port:     12345,
+				},
+			},
+		}},
+	}
+	k8sClient := createK8sClientWithEndpoint(&endpointsToCreate, "foo")
+
 	r := NewPodReconciler(
-		s.k8sClient,
+		k8sClient,
 		s.log,
 		scheme.Scheme,
 		podControllerTestTrustDomain,
@@ -218,7 +239,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 			PodIP: "123.123.123.124",
 		},
 	}
-	err := s.k8sClient.Create(ctx, &pod)
+	err := k8sClient.Create(ctx, &pod)
 	s.Assert().NoError(err)
 
 	_, err = r.Reconcile(ctx, ctrl.Request{
@@ -240,30 +261,7 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 		}, es[0].DnsNames)
 	}
 
-	endpointsToCreate := corev1.Endpoints{
-		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc", Namespace: "bar"},
-		Subsets: []corev1.EndpointSubset{{
-			Addresses: []corev1.EndpointAddress{
-				{
-					IP: "123.123.123.123",
-					TargetRef: &corev1.ObjectReference{
-						Kind:      "Pod",
-						Namespace: "bar",
-						Name:      "foo",
-					},
-				},
-			},
-			Ports: []corev1.EndpointPort{
-				{
-					Name:     "endpointName",
-					Protocol: "TCP",
-					Port:     12345,
-				},
-			},
-		}},
-	}
-
-	err = s.k8sClient.Create(ctx, &endpointsToCreate)
+	err = k8sClient.Create(ctx, &endpointsToCreate)
 	s.Assert().NoError(err)
 
 	_, err = r.Reconcile(ctx, ctrl.Request{
@@ -302,8 +300,32 @@ func (s *PodControllerTestSuite) TestAddDnsNames() {
 func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 	ctx := context.TODO()
 
+	endpointsToCreate := corev1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc", Namespace: "bar"},
+		Subsets: []corev1.EndpointSubset{{
+			Addresses: []corev1.EndpointAddress{
+				{
+					IP: "123.123.123.123",
+					TargetRef: &corev1.ObjectReference{
+						Kind:      "Pod",
+						Namespace: "bar",
+						Name:      "foo.3.0.0.woo",
+					},
+				},
+			},
+			Ports: []corev1.EndpointPort{
+				{
+					Name:     "endpointName",
+					Protocol: "TCP",
+					Port:     12345,
+				},
+			},
+		}},
+	}
+	k8sClient := createK8sClientWithEndpoint(&endpointsToCreate, "foo.3.0.0.woo")
+
 	r := NewPodReconciler(
-		s.k8sClient,
+		k8sClient,
 		s.log,
 		scheme.Scheme,
 		podControllerTestTrustDomain,
@@ -331,33 +353,10 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 			PodIP: "123.123.123.124",
 		},
 	}
-	err := s.k8sClient.Create(ctx, &pod)
+	err := k8sClient.Create(ctx, &pod)
 	s.Assert().NoError(err)
 
-	endpointsToCreate := corev1.Endpoints{
-		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc", Namespace: "bar"},
-		Subsets: []corev1.EndpointSubset{{
-			Addresses: []corev1.EndpointAddress{
-				{
-					IP: "123.123.123.123",
-					TargetRef: &corev1.ObjectReference{
-						Kind:      "Pod",
-						Namespace: "bar",
-						Name:      "foo.3.0.0.woo",
-					},
-				},
-			},
-			Ports: []corev1.EndpointPort{
-				{
-					Name:     "endpointName",
-					Protocol: "TCP",
-					Port:     12345,
-				},
-			},
-		}},
-	}
-
-	err = s.k8sClient.Create(ctx, &endpointsToCreate)
+	err = k8sClient.Create(ctx, &endpointsToCreate)
 	s.Assert().NoError(err)
 
 	_, err = r.Reconcile(ctx, ctrl.Request{
@@ -393,8 +392,31 @@ func (s *PodControllerTestSuite) TestDottedPodNamesDns() {
 func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 	ctx := context.TODO()
 
+	endpointsToCreate := corev1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc.3.0.0", Namespace: "bar"},
+		Subsets: []corev1.EndpointSubset{{
+			Addresses: []corev1.EndpointAddress{
+				{
+					IP: "123.123.123.123",
+					TargetRef: &corev1.ObjectReference{
+						Kind:      "Pod",
+						Namespace: "bar",
+						Name:      "foo",
+					},
+				},
+			},
+			Ports: []corev1.EndpointPort{
+				{
+					Name:     "endpointName",
+					Protocol: "TCP",
+					Port:     12345,
+				},
+			},
+		}},
+	}
+	k8sClient := createK8sClientWithEndpoint(&endpointsToCreate, "foo")
 	r := NewPodReconciler(
-		s.k8sClient,
+		k8sClient,
 		s.log,
 		scheme.Scheme,
 		podControllerTestTrustDomain,
@@ -422,33 +444,10 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 			PodIP: "123.123.123.124",
 		},
 	}
-	err := s.k8sClient.Create(ctx, &pod)
+	err := k8sClient.Create(ctx, &pod)
 	s.Assert().NoError(err)
 
-	endpointsToCreate := corev1.Endpoints{
-		ObjectMeta: metav1.ObjectMeta{Name: "foo-svc.3.0.0", Namespace: "bar"},
-		Subsets: []corev1.EndpointSubset{{
-			Addresses: []corev1.EndpointAddress{
-				{
-					IP: "123.123.123.123",
-					TargetRef: &corev1.ObjectReference{
-						Kind:      "Pod",
-						Namespace: "bar",
-						Name:      "foo",
-					},
-				},
-			},
-			Ports: []corev1.EndpointPort{
-				{
-					Name:     "endpointName",
-					Protocol: "TCP",
-					Port:     12345,
-				},
-			},
-		}},
-	}
-
-	err = s.k8sClient.Create(ctx, &endpointsToCreate)
+	err = k8sClient.Create(ctx, &endpointsToCreate)
 	s.Assert().NoError(err)
 
 	_, err = r.Reconcile(ctx, ctrl.Request{
@@ -476,8 +475,9 @@ func (s *PodControllerTestSuite) TestDottedServiceNamesDns() {
 func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
 	ctx := context.TODO()
 
+	k8sClient := createK8sClient()
 	r := NewPodReconciler(
-		s.k8sClient,
+		k8sClient,
 		s.log,
 		scheme.Scheme,
 		podControllerTestTrustDomain,
@@ -505,7 +505,7 @@ func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
 			PodIP: "123.123.123.124",
 		},
 	}
-	err := s.k8sClient.Create(ctx, &pod)
+	err := k8sClient.Create(ctx, &pod)
 	s.Assert().NoError(err)
 
 	_, err = r.Reconcile(ctx, ctrl.Request{
@@ -521,4 +521,20 @@ func (s *PodControllerTestSuite) TestSkipsDisabledNamespace() {
 	})
 	s.Assert().NoError(err)
 	s.Assert().Len(es, 0)
+}
+
+func createK8sClient() client.Client {
+	return fake.NewClientBuilder().
+		WithScheme(scheme.Scheme).
+		Build()
+}
+
+// createK8sClientWithEndpoint add Index to client, that is used to filter resources
+func createK8sClientWithEndpoint(endpoints *corev1.Endpoints, uid string) client.Client {
+	return fake.NewClientBuilder().
+		WithScheme(scheme.Scheme).
+		WithIndex(endpoints,
+			endpointSubsetAddressReferenceField,
+			func(client.Object) []string { return []string{uid} }).
+		Build()
 }
