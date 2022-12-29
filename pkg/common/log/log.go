@@ -12,12 +12,15 @@ type Logger struct {
 	io.Closer
 }
 
+var _ logrus.Hook = LocalTimeHook{}
+
 func NewLogger(options ...Option) (*Logger, error) {
 	logger := &Logger{
 		Logger: logrus.New(),
 		Closer: nopCloser{},
 	}
 	logger.SetOutput(os.Stdout)
+	setHooks(logger)
 
 	for _, option := range options {
 		if err := option(logger); err != nil {
@@ -26,6 +29,10 @@ func NewLogger(options ...Option) (*Logger, error) {
 	}
 
 	return logger, nil
+}
+
+func setHooks(logger *Logger) {
+	logger.AddHook(LocalTimeHook{})
 }
 
 type nopCloser struct{}
