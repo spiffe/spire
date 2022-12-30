@@ -62,7 +62,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/uber-go/tally/v4 v4.1.4
 	github.com/zeebo/errs v1.3.0
-	golang.org/x/crypto v0.1.0
+	golang.org/x/crypto v0.4.0
 	golang.org/x/net v0.4.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.3.0
