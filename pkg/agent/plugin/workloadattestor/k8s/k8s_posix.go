@@ -213,6 +213,14 @@ func canonicalizePodUID(uid string) types.UID {
 }
 
 func configureSigstoreClient(client sigstore.Sigstore, c *SigstoreHCLConfig, log hclog.Logger) error {
+	// Rekor URL is required
+	if c.RekorURL == nil {
+		return status.Errorf(codes.InvalidArgument, "missing Rekor URL")
+	}
+	if err := client.SetRekorURL(*c.RekorURL); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to set Rekor URL: %v", err)
+	}
+
 	// Configure sigstore settings
 	enforceSCT := true
 	if c.EnforceSCT != nil {
@@ -223,7 +231,7 @@ func configureSigstoreClient(client sigstore.Sigstore, c *SigstoreHCLConfig, log
 
 	client.ClearSkipList()
 	if c.SkippedImages != nil {
-		client.AddSkippedImage(c.SkippedImages)
+		client.AddSkippedImages(c.SkippedImages)
 	}
 	client.SetLogger(log)
 	client.ClearAllowedSubjects()
@@ -231,12 +239,6 @@ func configureSigstoreClient(client sigstore.Sigstore, c *SigstoreHCLConfig, log
 		for _, subject := range subjects {
 			client.AddAllowedSubject(issuer, subject)
 		}
-	}
-	if c.RekorURL == nil {
-		return status.Errorf(codes.InvalidArgument, "missing Rekor URL")
-	}
-	if err := client.SetRekorURL(*c.RekorURL); err != nil {
-		return status.Errorf(codes.InvalidArgument, "failed to parse Rekor URL: %v", err)
 	}
 	return nil
 }

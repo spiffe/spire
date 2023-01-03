@@ -219,7 +219,7 @@ func (s *Suite) TestFailedToCreateHelperFromConfigure() {
 			}
 			`),
 		plugintest.CaptureConfigureError(&err))
-	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "failed to parse Rekor URL: host is required on rekor URL")
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "failed to set Rekor URL: host is required on rekor URL")
 }
 
 func (s *Suite) TestHelperConfigure() {
@@ -293,7 +293,7 @@ func (s *Suite) TestHelperConfigure() {
 			},
 			clientErr: errors.New("oh no"),
 			errCode:   codes.InvalidArgument,
-			errMsg:    "failed to parse Rekor URL: oh no",
+			errMsg:    "failed to set Rekor URL: oh no",
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -771,7 +771,7 @@ func (s *sigstoreMock) AddAllowedSubject(issuer string, subject string) {
 	s.allowedSubjects[issuer][subject] = struct{}{}
 }
 
-func (s *sigstoreMock) AddSkippedImage(images []string) {
+func (s *sigstoreMock) AddSkippedImages(images []string) {
 	if s.skippedImages == nil {
 		s.skippedImages = make(map[string]struct{})
 	}

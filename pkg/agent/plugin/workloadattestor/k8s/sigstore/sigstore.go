@@ -46,7 +46,7 @@ type Sigstore interface {
 	SelectorValuesFromSignature(oci.Signature) (*SelectorsFromSignatures, error)
 	ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []SelectorsFromSignatures
 	ShouldSkipImage(imageID string) (bool, error)
-	AddSkippedImage(imageID []string)
+	AddSkippedImages(imageID []string)
 	ClearSkipList()
 	AddAllowedSubject(issuer string, subject string)
 	ClearAllowedSubjects()
@@ -73,6 +73,7 @@ type BundleBody struct {
 	Spec       BundleSpec `json:"spec"`
 }
 
+// Data extracted from signature
 type SelectorsFromSignatures struct {
 	Subject        string
 	Content        string
@@ -92,6 +93,22 @@ func New(cache Cache, logger hclog.Logger) Sigstore {
 		logger:        logger,
 		sigstorecache: cache,
 	}
+}
+
+type sigstoreImpl struct {
+	functionHooks    sigstoreFunctionHooks
+	skippedImages    map[string]struct{}
+	subjectAllowList map[string]map[string]struct{}
+	rekorURL         url.URL
+	logger           hclog.Logger
+	sigstorecache    Cache
+	enforceSCT       bool
+}
+
+type sigstoreFunctionHooks struct {
+	verifyFunction             verifyFunctionType
+	fetchImageManifestFunction fetchImageManifestFunctionType
+	checkOptsFunction          checkOptsFunctionType
 }
 
 func (s *sigstoreImpl) SetEnforceSCT(enforceSCT bool) {
@@ -212,7 +229,7 @@ func (s *sigstoreImpl) ShouldSkipImage(imageID string) (bool, error) {
 }
 
 // AddSkippedImage adds the image ID and selectors to the skip list.
-func (s *sigstoreImpl) AddSkippedImage(imageIDList []string) {
+func (s *sigstoreImpl) AddSkippedImages(imageIDList []string) {
 	if s.skippedImages == nil {
 		s.skippedImages = make(map[string]struct{})
 	}
@@ -464,19 +481,3 @@ type verifyFunctionType func(context.Context, name.Reference, *cosign.CheckOpts)
 type fetchImageManifestFunctionType func(name.Reference, ...remote.Option) (*remote.Descriptor, error)
 
 type checkOptsFunctionType func(url.URL, bool) (*cosign.CheckOpts, error)
-
-type sigstoreImpl struct {
-	functionHooks    sigstoreFunctionHooks
-	skippedImages    map[string]struct{}
-	subjectAllowList map[string]map[string]struct{}
-	rekorURL         url.URL
-	logger           hclog.Logger
-	sigstorecache    Cache
-	enforceSCT       bool
-}
-
-type sigstoreFunctionHooks struct {
-	verifyFunction             verifyFunctionType
-	fetchImageManifestFunction fetchImageManifestFunctionType
-	checkOptsFunction          checkOptsFunctionType
-}

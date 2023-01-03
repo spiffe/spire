@@ -884,7 +884,7 @@ func TestSigstoreimpl_AddSkippedImage(t *testing.T) {
 			sigstore := sigstoreImpl{
 				skippedImages: tt.skippedImages,
 			}
-			sigstore.AddSkippedImage(tt.imageID)
+			sigstore.AddSkippedImages(tt.imageID)
 			require.Equal(t, tt.want, sigstore.skippedImages)
 		})
 	}
