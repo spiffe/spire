@@ -261,25 +261,26 @@ func (h3 *fakeIAMHandle3) SetPolicy(ctx context.Context, policy *iam.Policy3) er
 type fakeKMSClient struct {
 	t *testing.T
 
-	mu                         sync.RWMutex
-	asymmetricSignErr          error
-	closeErr                   error
-	createCryptoKeyErr         error
-	destroyCryptoKeyVersionErr error
-	destroyTime                *timestamppb.Timestamp
-	fakeIAMHandle              *fakeIAMHandle
-	getCryptoKeyVersionErr     error
-	getPublicKeyErr            error
-	getTokeninfoErr            error
-	listCryptoKeysErr          error
-	listCryptoKeyVersionsErr   error
-	opts                       []option.ClientOption
-	pemCrc32C                  *wrapperspb.Int64Value
-	signatureCrc32C            *wrapperspb.Int64Value
-	store                      fakeStore
-	tokeninfo                  *oauth2.Tokeninfo
-	updateCryptoKeyErr         error
-	keyIsDisabled              bool
+	mu                           sync.RWMutex
+	asymmetricSignErr            error
+	closeErr                     error
+	createCryptoKeyErr           error
+	initialCryptoKeyVersionState kmspb.CryptoKeyVersion_CryptoKeyVersionState
+	destroyCryptoKeyVersionErr   error
+	destroyTime                  *timestamppb.Timestamp
+	fakeIAMHandle                *fakeIAMHandle
+	getCryptoKeyVersionErr       error
+	getPublicKeyErrs             []error
+	getTokeninfoErr              error
+	listCryptoKeysErr            error
+	listCryptoKeyVersionsErr     error
+	opts                         []option.ClientOption
+	pemCrc32C                    *wrapperspb.Int64Value
+	signatureCrc32C              *wrapperspb.Int64Value
+	store                        fakeStore
+	tokeninfo                    *oauth2.Tokeninfo
+	updateCryptoKeyErr           error
+	keyIsDisabled                bool
 }
 
 func (k *fakeKMSClient) setAsymmetricSignErr(fakeError error) {
@@ -294,6 +295,10 @@ func (k *fakeKMSClient) setCreateCryptoKeyErr(fakeError error) {
 	defer k.mu.Unlock()
 
 	k.createCryptoKeyErr = fakeError
+}
+
+func (k *fakeKMSClient) setInitialCryptoKeyVersionState(state kmspb.CryptoKeyVersion_CryptoKeyVersionState) {
+	k.initialCryptoKeyVersionState = state
 }
 
 func (k *fakeKMSClient) setDestroyCryptoKeyVersionErr(fakeError error) {
@@ -324,11 +329,25 @@ func (k *fakeKMSClient) setIsKeyDisabled(ok bool) {
 	k.keyIsDisabled = ok
 }
 
-func (k *fakeKMSClient) setGetPublicKeyErr(fakeError error) {
+func (k *fakeKMSClient) setGetPublicKeySequentialErrs(fakeError error, count int) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
+	fakeErrors := make([]error, count)
+	for i := 0; i < count; i++ {
+		fakeErrors[i] = fakeError
+	}
+	k.getPublicKeyErrs = fakeErrors
+}
 
-	k.getPublicKeyErr = fakeError
+func (k *fakeKMSClient) nextGetPublicKeySequentialErr() error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if len(k.getPublicKeyErrs) == 0 {
+		return nil
+	}
+	err := k.getPublicKeyErrs[0]
+	k.getPublicKeyErrs = k.getPublicKeyErrs[1:]
+	return err
 }
 
 func (k *fakeKMSClient) setGetTokeninfoErr(fakeError error) {
@@ -549,11 +568,10 @@ func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetC
 }
 
 func (k *fakeKMSClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKeyRequest, opts ...gax.CallOption) (*kmspb.PublicKey, error) {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
+	getPublicKeyErr := k.nextGetPublicKeySequentialErr()
 
-	if k.getPublicKeyErr != nil {
-		return nil, k.getPublicKeyErr
+	if getPublicKeyErr != nil {
+		return nil, getPublicKeyErr
 	}
 
 	fakeCryptoKeyVersion, err := k.store.fetchFakeCryptoKeyVersion(req.Name)
@@ -709,6 +727,7 @@ func (k *fakeKMSClient) createFakeCryptoKeyVersion(cryptoKey *kmspb.CryptoKey, v
 		},
 		CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 			Name:      path.Join(cryptoKey.Name, "cryptoKeyVersions", version),
+			State:     k.initialCryptoKeyVersionState,
 			Algorithm: cryptoKey.VersionTemplate.Algorithm,
 		},
 	}, nil

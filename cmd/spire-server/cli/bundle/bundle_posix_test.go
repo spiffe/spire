@@ -10,7 +10,7 @@ var (
   -id string
     	SPIFFE ID of the trust domain
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -path string
     	Path to the bundle data
   -socketPath string
@@ -18,7 +18,7 @@ var (
 `
 	countUsage = `Usage of bundle count:
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
@@ -28,7 +28,7 @@ var (
   -mode string
     	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
@@ -38,7 +38,7 @@ var (
   -id string
     	SPIFFE ID of the trust domain
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
@@ -46,7 +46,7 @@ var (
   -format string
     	The format to show the bundle (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `

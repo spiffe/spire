@@ -65,6 +65,7 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 	}
 	client, err := config.dialContext(ctx, config.Address,
 		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+		grpc.WithDisableServiceConfig(),
 		grpc.FailOnNonTempDialError(true),
 		grpc.WithBlock(),
 		grpc.WithReturnConnectionError(),

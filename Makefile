@@ -111,6 +111,8 @@ endif
 # Vars
 ############################################################################
 
+binaries := spire-server spire-agent oidc-discovery-provider k8s-workload-registrar
+
 build_dir := $(DIR)/.build/$(os1)-$(arch1)
 
 go_version_full := $(shell cat .go-version)
@@ -238,56 +240,51 @@ ifeq ($(git_dirty),)
 		go_ldflags += -X github.com/spiffe/spire/pkg/common/version.githash=$(git_hash)
 	endif
 endif
-go_ldflags := '${go_ldflags}'
 
 #############################################################################
 # Build Targets
 #############################################################################
 
 .PHONY: build
+build: tidy $(addprefix bin/,$(binaries))
 
-build: tidy bin/spire-server bin/spire-agent bin/k8s-workload-registrar bin/oidc-discovery-provider
+go_build := $(go_path) go build $(go_flags) -ldflags '$(go_ldflags)' -o
 
-define binary_rule
-.PHONY: $1
-$1: | go-check bin/
-	@echo Building $1...
-	$(E)$(go_path) go build $$(go_flags) -ldflags $$(go_ldflags) -o $1$(exe) $2
-endef
+bin/%: cmd/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build) $@$(exe) ./$<
 
-# main SPIRE binaries
-$(eval $(call binary_rule,bin/spire-server,./cmd/spire-server))
-$(eval $(call binary_rule,bin/spire-agent,./cmd/spire-agent))
-$(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
-$(eval $(call binary_rule,bin/oidc-discovery-provider,./support/oidc-discovery-provider))
+bin/%: support/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build) $@$(exe) ./$<
 
-bin/:
-	@mkdir -p $@
+bin/%: support/k8s/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build) $@$(exe) ./$<
 
 #############################################################################
 # Build Static binaries for scratch docker images
 #############################################################################
 
 .PHONY: build-static
-
 # The build-static is intended to statically link to musl libc.
 # There are possibilities of unexpected errors when statically link to GLIBC.
-build-static: tidy bin/spire-server-static bin/spire-agent-static bin/k8s-workload-registrar-static bin/oidc-discovery-provider-static
-
 # https://7thzero.com/blog/golang-w-sqlite3-docker-scratch-image
-define binary_rule_static
-.PHONY: $1
-$1: | go-check bin/
-	@echo Building $1...
-	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1$(exe) $2
+build-static: tidy $(addprefix bin/static/,$(binaries))
 
-endef
+go_build_static := $(go_path) go build $(go_flags) -ldflags '$(go_ldflags) -linkmode external -extldflags "-static"' -o
 
-# static builds
-$(eval $(call binary_rule_static,bin/spire-server-static,./cmd/spire-server))
-$(eval $(call binary_rule_static,bin/spire-agent-static,./cmd/spire-agent))
-$(eval $(call binary_rule_static,bin/k8s-workload-registrar-static,./support/k8s/k8s-workload-registrar))
-$(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oidc-discovery-provider))
+bin/static/%: cmd/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build_static) $@$(exe) ./$<
+
+bin/static/%: support/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build_static) $@$(exe) ./$<
+
+bin/static/%: support/k8s/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build_static) $@$(exe) ./$<
 
 #############################################################################
 # Test Targets
@@ -346,7 +343,7 @@ $1: $3
 endef
 
 .PHONY: images
-images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
+images: $(addsuffix -image,$(binaries))
 
 $(eval $(call image_rule,spire-server-image,spire-server,Dockerfile))
 $(eval $(call image_rule,spire-agent-image,spire-agent,Dockerfile))
@@ -358,7 +355,7 @@ $(eval $(call image_rule,oidc-discovery-provider-image,oidc-discovery-provider,D
 #############################################################################
 
 .PHONY: scratch-images
-scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image oidc-discovery-provider-scratch-image
+scratch-images: $(addsuffix -scratch-image,$(binaries))
 
 $(eval $(call image_rule,spire-server-scratch-image,spire-server-scratch,Dockerfile.scratch))
 $(eval $(call image_rule,spire-agent-scratch-image,spire-agent-scratch,Dockerfile.scratch))
@@ -370,7 +367,7 @@ $(eval $(call image_rule,oidc-discovery-provider-scratch-image,oidc-discovery-pr
 #############################################################################
 
 .PHONY: images-windows
-images-windows: spire-server-windows-image spire-agent-windows-image k8s-workload-registrar-windows-image oidc-discovery-provider-windows-image
+images-windows: $(addsuffix -windows-image,$(binaries))
 
 $(eval $(call image_rule,spire-server-windows-image,spire-server-windows,Dockerfile.windows))
 $(eval $(call image_rule,spire-agent-windows-image,spire-agent-windows,Dockerfile.windows))

@@ -3008,7 +3008,12 @@ func TestAttestAgent(t *testing.T) {
 						e.Data[telemetry.Address] = ""
 					}
 				}
-				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+				if tt.retry {
+					// Prevent cases where audit logs from previous calls are pushed after log is reset
+					spiretest.AssertLastLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+				} else {
+					spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+				}
 			}()
 
 			ctx, cancel := context.WithCancel(context.Background())

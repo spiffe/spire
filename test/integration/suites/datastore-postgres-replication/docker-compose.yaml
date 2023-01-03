@@ -1,31 +1,5 @@
 version: '3'
 services:
-  postgres-9-readwrite:
-    image: postgres:9
-    environment:
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_USER=postgres
-      - POSTGRES_DB=spire
-      - PG_REP_USER=rep
-      - PG_REP_PASSWORD=pass
-    volumes:
-      - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
-    ports:
-      - "9999:5432"
-  postgres-9-readonly:
-    image: postgres:9
-    user: postgres
-    environment:
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_USER=postgres
-      - PG_REP_USER=rep
-      - PG_REP_PASSWORD=pass
-      - PRINCIPAL_NAME=postgres-9-readwrite
-    entrypoint: ["/docker-entrypoint.sh", "postgres"]
-    volumes:
-      - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
-    ports:
-      - "10000:5432"
   postgres-10-readwrite:
     image: postgres:10
     environment:

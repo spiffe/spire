@@ -12,7 +12,7 @@ var (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
   -path string
     	Path to the bundle data
 `
@@ -22,13 +22,13 @@ var (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 	countUsage = `Usage of bundle count:
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 	listUsage = `Usage of bundle list:
   -format string
@@ -38,7 +38,7 @@ var (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 	deleteUsage = `Usage of bundle delete:
   -id string
@@ -48,6 +48,6 @@ var (
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
-    	Desired output format (pretty, json)
+    	Desired output format (pretty, json); default: pretty.
 `
 )
