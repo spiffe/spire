@@ -433,8 +433,7 @@ func getBundleSignatureContent(bundle *bundle.RekorBundle) (string, error) {
 	}
 	body64, ok := bundle.Payload.Body.(string)
 	if !ok {
-		returnedType := fmt.Sprintf("expected payload body to be a string but got %T instead", bundle.Payload.Body)
-		return "", fmt.Errorf(returnedType)
+		return "", fmt.Errorf("expected payload body to be a string but got %T instead", bundle.Payload.Body)
 	}
 	body, err := base64.StdEncoding.DecodeString(body64)
 	if err != nil {
