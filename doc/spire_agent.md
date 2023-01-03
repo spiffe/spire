@@ -173,6 +173,18 @@ On Windows platform, SPIRE Agent can optionally be run as a Windows service. Whe
 _Note: SPIRE does not automatically create the service in the system, it must be created by the user.
 When starting the service, all the arguments to execute SPIRE Agent with the `run` command must be passed as service arguments._
 
+##### Example to create the SPIRE Agent Windows service
+
+```
+sc.exe create spire-agent binpath=c:\spire\bin\spire-agent.exe
+```
+
+##### Example to run the SPIRE Agent Windows service
+
+```
+sc.exe start spire-agent run -config c:\spire\conf\agent\agent.conf
+```
+
 ### `spire-agent api fetch`
 
 Calls the workload API to fetch an X509-SVID. This command is aliased to `spire-agent api fetch x509`.

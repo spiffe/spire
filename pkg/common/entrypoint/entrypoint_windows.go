@@ -37,9 +37,9 @@ func NewEntryPoint(runCmdFn func(ctx context.Context, args []string) int) *Entry
 	return &EntryPoint{
 		runCmdFn: runCmdFn,
 		handler: &service{
-			RunFn: func(ctx context.Context, stop context.CancelFunc, args []string) int {
+			executeServiceFn: func(ctx context.Context, stop context.CancelFunc, args []string) int {
+				defer stop()
 				retCode := runCmdFn(ctx, args[1:])
-				stop()
 				return retCode
 			},
 		},
@@ -48,10 +48,12 @@ func NewEntryPoint(runCmdFn func(ctx context.Context, args []string) int) *Entry
 }
 
 func (e *EntryPoint) Main() int {
+	// Determining if SPIRE is running as a Windows service is done
+	// with a best-effort approach. If there is an error, just fallback
+	// to the behavior of not running as a Windows service.
 	isWindowsService, err := e.sc.IsWindowsService()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Could not determine if running as a Windows service: %v", err)
-		return 1
 	}
 	if isWindowsService {
 		errChan := make(chan error)

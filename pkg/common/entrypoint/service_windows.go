@@ -11,11 +11,21 @@ import (
 	"golang.org/x/sys/windows/svc"
 )
 
+const supportedCommand = "run"
+
 type service struct {
-	RunFn func(ctx context.Context, stop context.CancelFunc, args []string) int
+	mtx              sync.RWMutex
+	executeServiceFn func(ctx context.Context, stop context.CancelFunc, args []string) int
 }
 
 func (s *service) Execute(args []string, changeRequest <-chan svc.ChangeRequest, status chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
+	// Validate that we are executing the "run" command.
+	// First argument (args[0]) is always the process name. Command name is
+	// expected in the second argument (args[1]).
+	if len(args) < 2 || args[1] != supportedCommand {
+		return false, uint32(windows.ERROR_BAD_ARGUMENTS)
+	}
+
 	// Update the status to indicate that SPIRE is running.
 	// Only Stop and Shutdown commands are accepted (Interrogate is always accepted).
 	status <- svc.Status{
@@ -31,7 +41,9 @@ func (s *service) Execute(args []string, changeRequest <-chan svc.ChangeRequest,
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if retCode = s.RunFn(ctx, stop, args); retCode != 0 {
+		s.mtx.RLock()
+		defer s.mtx.RUnlock()
+		if retCode = s.executeServiceFn(ctx, stop, args); retCode != 0 {
 			retCode = int(windows.ERROR_FATAL_APP_EXIT)
 		}
 	}()
