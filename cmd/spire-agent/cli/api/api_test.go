@@ -24,11 +24,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 var availableFormats = []string{"pretty", "json"}
 
 const (
+	// TODO: Use testca instead of const tokens
+	// TODO: Add test cases for validating required flags
 	encodedJTW1 = "eyJhbGciOiJFUzI1NiIsImtpZCI6ImdWeVU1QzJFSm5lU3pHS3BMVmFMQllCNkdjTERLQlJjIiwidHlwIjoiSldUIn0.eyJhdWQiOlsiYXVkMSJdLCJleHAiOjE2NzI3NjU2ODgsImlhdCI6MTY3Mjc2NTM4OCwic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvbXlzZXJ2aWNlIn0.mCB3rREoOgH_yYddyVYc6vGeOACv2tjPmCoG_yxxhDkUlJfnmMsOvrnjK5nm1EFZAOIouNLYBRZk-waP31250w"
 	encodedJTW2 = "eyJhbGciOiJFUzI1NiIsImtpZCI6ImdWeVU1QzJFSm5lU3pHS3BMVmFMQllCNkdjTERLQlJjIiwidHlwIjoiSldUIn0.eyJhdWQiOlsiYXVkMSJdLCJleHAiOjE2NzI3Njg4NzEsImlhdCI6MTY3Mjc2ODU3MSwic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvbXlzZXJ2aWNlIn0.qV4jJJ4QmmuiW2nHv-o_7-RC21auGS1oU4DQkuhHpe4k2YRnnZ4A5OnjB_13p57niXeNopr-BuKMb9mP2BM9bg"
 
@@ -53,7 +58,6 @@ func TestFetchJWTCommand(t *testing.T) {
 		expectedStderr       string
 		expectedStdoutPretty string
 		expectedStdoutJSON   string
-		expectedCode         int
 	}{
 		{
 			name: "success fetching jwt with bundles",
@@ -118,7 +122,6 @@ bundle(spiffe://domain2.test):
     }
   }
 ]`, encodedJTW1, encodedJTW2, base64.StdEncoding.EncodeToString([]byte(bundleJWKS)), base64.StdEncoding.EncodeToString([]byte(bundleJWKS))),
-			expectedCode: 0,
 		},
 		{
 			name: "fail with error fetching bundles",
@@ -131,7 +134,6 @@ bundle(spiffe://domain2.test):
 				},
 			},
 			expectedStderr: "rpc error: code = Unknown desc = error fetching bundles\n",
-			expectedCode:   0,
 		},
 		{
 			name: "fail with error fetching svid",
@@ -155,7 +157,6 @@ bundle(spiffe://domain2.test):
 				},
 			},
 			expectedStderr: "rpc error: code = Unknown desc = error fetching svid\n",
-			expectedCode:   0,
 		},
 	}
 
@@ -176,7 +177,7 @@ bundle(spiffe://domain2.test):
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				assert.Empty(t, test.stderr.String())
-				assert.Equal(t, tt.expectedCode, rc)
+				assert.Equal(t, 0, rc)
 			})
 		}
 	}
@@ -195,7 +196,6 @@ func TestFetchX509Command(t *testing.T) {
 		expectedStderr       string
 		expectedStdoutPretty string
 		expectedStdoutJSON   string
-		expectedCode         int
 		expectedFileResult   bool
 	}{
 		{
@@ -332,7 +332,7 @@ Writing bundle #0 to file %s
 
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				assert.Empty(t, test.stderr.String())
-				assert.Equal(t, tt.expectedCode, rc)
+				assert.Equal(t, 0, rc)
 
 				if tt.expectedFileResult && format == "pretty" {
 					content, err := os.ReadFile(filepath.Join(testDir, "svid.0.pem"))
@@ -363,15 +363,90 @@ Writing bundle #0 to file %s
 
 func TestValidateJWTCommand(t *testing.T) {
 	tests := []struct {
-		name string
+		name                 string
+		args                 []string
+		fakeRequests         []*fakeworkloadapi.FakeRequest
+		expectedStderr       string
+		expectedStdoutPretty string
+		expectedStdoutJSON   string
 	}{
 		{
-			name: "test",
+			name: "valid svid",
+			args: []string{"-audience", "foo", "-svid", encodedJTW1},
+			fakeRequests: []*fakeworkloadapi.FakeRequest{
+				{
+					Req: &workload.ValidateJWTSVIDRequest{
+						Audience: "foo",
+						Svid:     encodedJTW1,
+					},
+					Resp: &workload.ValidateJWTSVIDResponse{
+						SpiffeId: "spiffe://example.org/foo",
+						Claims: &structpb.Struct{
+							Fields: map[string]*structpb.Value{
+								"aud": {
+									Kind: &structpb.Value_ListValue{
+										ListValue: &structpb.ListValue{
+											Values: []*structpb.Value{
+												{
+													Kind: &structpb.Value_StringValue{
+														StringValue: "foo",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedStdoutPretty: `SVID is valid.
+SPIFFE ID : spiffe://example.org/foo
+Claims    : {"aud":["foo"]}`,
+			expectedStdoutJSON: `{
+  "claims": {
+    "aud": [
+      "foo"
+    ]
+  },
+  "spiffe_id": "spiffe://example.org/foo"
+}`,
+		},
+		{
+			name: "invalid svid",
+			args: []string{"-audience", "invalid", "-svid", "invalid"},
+			fakeRequests: []*fakeworkloadapi.FakeRequest{
+				{
+					Req: &workload.ValidateJWTSVIDRequest{
+						Audience: "foo",
+						Svid:     encodedJTW1,
+					},
+					Resp: &workload.ValidateJWTSVIDResponse{},
+					Err:  status.Error(codes.InvalidArgument, "invalid svid"),
+				},
+			},
+			expectedStderr: "SVID is not valid: invalid svid\n",
 		},
 	}
 	for _, tt := range tests {
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, newValidateJWTCommand, tt.fakeRequests...)
+				args := tt.args
+				args = append(args, "-output", format)
+
+				rc := test.cmd.Run(test.args(args...))
+
+				if tt.expectedStderr != "" {
+					assert.Equal(t, 1, rc)
+					assert.Equal(t, tt.expectedStderr, test.stderr.String())
+					return
+				}
+
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				assert.Empty(t, test.stderr.String())
+				assert.Equal(t, 0, rc)
 			})
 		}
 	}
