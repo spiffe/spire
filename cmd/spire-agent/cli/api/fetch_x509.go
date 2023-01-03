@@ -212,7 +212,7 @@ func parseX509SVIDResponse(resp *workload.X509SVIDResponse) ([]*X509SVID, error)
 	for i, respSVID := range resp.Svids {
 		svid, err := parseX509SVID(respSVID, federatedBundles)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse svid entry %d for spiffe id %q: %w", i, svid.SPIFFEID, err)
+			return nil, fmt.Errorf("failed to parse svid entry %d for spiffe id %q: %w", i, respSVID.SpiffeId, err)
 		}
 		svids = append(svids, svid)
 	}

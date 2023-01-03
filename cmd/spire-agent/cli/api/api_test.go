@@ -2,18 +2,25 @@ package api
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadapi"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -43,8 +50,7 @@ func TestFetchJWTCommand(t *testing.T) {
 		name                 string
 		args                 []string
 		fakeRequests         []*fakeworkloadapi.FakeRequest
-		expectedStderrPretty string
-		expectedStderrJSON   string
+		expectedStderr       string
 		expectedStdoutPretty string
 		expectedStdoutJSON   string
 		expectedCode         int
@@ -124,10 +130,8 @@ bundle(spiffe://domain2.test):
 					Err:  errors.New("error fetching bundles"),
 				},
 			},
-			expectedStderrPretty: "rpc error: code = Unknown desc = error fetching bundles\n",
-			expectedStderrJSON:   "rpc error: code = Unknown desc = error fetching bundles\n",
-
-			expectedCode: 0,
+			expectedStderr: "rpc error: code = Unknown desc = error fetching bundles\n",
+			expectedCode:   0,
 		},
 		{
 			name: "fail with error fetching svid",
@@ -150,9 +154,8 @@ bundle(spiffe://domain2.test):
 					Err:  errors.New("error fetching svid"),
 				},
 			},
-			expectedStderrPretty: "rpc error: code = Unknown desc = error fetching svid\n",
-			expectedStderrJSON:   "rpc error: code = Unknown desc = error fetching svid\n",
-			expectedCode:         0,
+			expectedStderr: "rpc error: code = Unknown desc = error fetching svid\n",
+			expectedCode:   0,
 		},
 	}
 
@@ -165,18 +168,12 @@ bundle(spiffe://domain2.test):
 
 				rc := test.cmd.Run(test.args(args...))
 
-				if tt.expectedStderrPretty != "" && format == "pretty" {
+				if tt.expectedStderr != "" {
 					assert.Equal(t, 1, rc)
-					assert.Equal(t, tt.expectedStderrPretty, test.stderr.String())
-
+					assert.Equal(t, tt.expectedStderr, test.stderr.String())
 					return
 				}
-				if tt.expectedStderrJSON != "" && format == "json" {
-					assert.Equal(t, 1, rc)
-					assert.Equal(t, tt.expectedStderrJSON, test.stderr.String())
 
-					return
-				}
 				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
 				assert.Empty(t, test.stderr.String())
 				assert.Equal(t, tt.expectedCode, rc)
@@ -186,16 +183,179 @@ bundle(spiffe://domain2.test):
 }
 
 func TestFetchX509Command(t *testing.T) {
+	testDir := t.TempDir()
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	svid := ca.CreateX509SVID(spiffeid.RequireFromString("spiffe://example.org/foo"))
+
 	tests := []struct {
-		name string
+		name                 string
+		args                 []string
+		fakeRequests         []*fakeworkloadapi.FakeRequest
+		expectedStderr       string
+		expectedStdoutPretty string
+		expectedStdoutJSON   string
+		expectedCode         int
+		expectedFileResult   bool
 	}{
 		{
-			name: "test",
+			name: "success fetching x509 svid",
+			fakeRequests: []*fakeworkloadapi.FakeRequest{
+				{
+					Req: &workload.X509SVIDRequest{},
+					Resp: &workload.X509SVIDResponse{
+						Svids: []*workload.X509SVID{
+							{
+								SpiffeId:    svid.ID.String(),
+								X509Svid:    x509util.DERFromCertificates(svid.Certificates),
+								X509SvidKey: pkcs8FromSigner(t, svid.PrivateKey),
+								Bundle:      x509util.DERFromCertificates(ca.Bundle().X509Authorities()),
+							},
+						},
+						Crl:              [][]byte{},
+						FederatedBundles: map[string][]byte{},
+					},
+				},
+			},
+			expectedStdoutPretty: fmt.Sprintf(`
+SPIFFE ID:		spiffe://example.org/foo
+SVID Valid After:	%v
+SVID Valid Until:	%v
+CA #1 Valid After:	%v
+CA #1 Valid Until:	%v
+`,
+				svid.Certificates[0].NotBefore,
+				svid.Certificates[0].NotAfter,
+				ca.Bundle().X509Authorities()[0].NotBefore,
+				ca.Bundle().X509Authorities()[0].NotAfter,
+			),
+			expectedStdoutJSON: fmt.Sprintf(`{
+  "crl": [],
+  "federated_bundles": {},
+  "svids": [
+    {
+      "bundle": "%s",
+      "spiffe_id": "spiffe://example.org/foo",
+      "x509_svid": "%s",
+      "x509_svid_key": "%s"
+    }
+  ]
+}`,
+				base64.StdEncoding.EncodeToString(x509util.DERFromCertificates(ca.Bundle().X509Authorities())),
+				base64.StdEncoding.EncodeToString(x509util.DERFromCertificates(svid.Certificates)),
+				base64.StdEncoding.EncodeToString(pkcs8FromSigner(t, svid.PrivateKey)),
+			),
+		},
+		{
+			name: "success fetching x509 and writing to file",
+			args: []string{"-write", testDir},
+			fakeRequests: []*fakeworkloadapi.FakeRequest{
+				{
+					Req: &workload.X509SVIDRequest{},
+					Resp: &workload.X509SVIDResponse{
+						Svids: []*workload.X509SVID{
+							{
+								SpiffeId:    svid.ID.String(),
+								X509Svid:    x509util.DERFromCertificates(svid.Certificates),
+								X509SvidKey: pkcs8FromSigner(t, svid.PrivateKey),
+								Bundle:      x509util.DERFromCertificates(ca.Bundle().X509Authorities()),
+							},
+						},
+						Crl:              [][]byte{},
+						FederatedBundles: map[string][]byte{},
+					},
+				},
+			},
+			expectedStdoutPretty: fmt.Sprintf(`
+SPIFFE ID:		spiffe://example.org/foo
+SVID Valid After:	%v
+SVID Valid Until:	%v
+CA #1 Valid After:	%v
+CA #1 Valid Until:	%v
+
+Writing SVID #0 to file %s
+Writing key #0 to file %s
+Writing bundle #0 to file %s
+`,
+				svid.Certificates[0].NotBefore,
+				svid.Certificates[0].NotAfter,
+				ca.Bundle().X509Authorities()[0].NotBefore,
+				ca.Bundle().X509Authorities()[0].NotAfter,
+				fmt.Sprintf("%s/svid.0.pem.", testDir),
+				fmt.Sprintf("%s/svid.0.key.", testDir),
+				fmt.Sprintf("%s/bundle.0.pem.", testDir),
+			),
+			expectedStdoutJSON: fmt.Sprintf(`{
+  "crl": [],
+  "federated_bundles": {},
+  "svids": [
+    {
+      "bundle": "%s",
+      "spiffe_id": "spiffe://example.org/foo",
+      "x509_svid": "%s",
+      "x509_svid_key": "%s"
+    }
+  ]
+}`,
+				base64.StdEncoding.EncodeToString(x509util.DERFromCertificates(ca.Bundle().X509Authorities())),
+				base64.StdEncoding.EncodeToString(x509util.DERFromCertificates(svid.Certificates)),
+				base64.StdEncoding.EncodeToString(pkcs8FromSigner(t, svid.PrivateKey)),
+			),
+			expectedFileResult: true,
+		},
+		{
+			name: "fails fetching svid",
+			fakeRequests: []*fakeworkloadapi.FakeRequest{
+				{
+					Req:  &workload.X509SVIDRequest{},
+					Resp: &workload.X509SVIDResponse{},
+					Err:  errors.New("error fetching svid"),
+				},
+			},
+			expectedStderr: "rpc error: code = Unknown desc = error fetching svid\n",
 		},
 	}
 	for _, tt := range tests {
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				test := setupTest(t, newFetchX509Command, tt.fakeRequests...)
+				args := tt.args
+				args = append(args, "-output", format)
+
+				rc := test.cmd.Run(test.args(args...))
+
+				if tt.expectedStderr != "" {
+					assert.Equal(t, 1, rc)
+					assert.Equal(t, tt.expectedStderr, test.stderr.String())
+					return
+				}
+
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				assert.Empty(t, test.stderr.String())
+				assert.Equal(t, tt.expectedCode, rc)
+
+				if tt.expectedFileResult && format == "pretty" {
+					content, err := os.ReadFile(filepath.Join(testDir, "svid.0.pem"))
+					assert.NoError(t, err)
+					assert.Equal(t, pem.EncodeToMemory(&pem.Block{
+						Type:  "CERTIFICATE",
+						Bytes: svid.Certificates[0].Raw,
+					}), content)
+
+					content, err = os.ReadFile(filepath.Join(testDir, "svid.0.key"))
+					assert.NoError(t, err)
+					assert.Equal(t, string(pem.EncodeToMemory(&pem.Block{
+						Type:  "PRIVATE KEY",
+						Bytes: pkcs8FromSigner(t, svid.PrivateKey),
+					})), string(content))
+
+					content, err = os.ReadFile(filepath.Join(testDir, "bundle.0.pem"))
+					assert.NoError(t, err)
+					assert.Equal(t, pem.EncodeToMemory(&pem.Block{
+						Type:  "CERTIFICATE",
+						Bytes: ca.Bundle().X509Authorities()[0].Raw,
+					}), content)
+				}
 			})
 		}
 	}
@@ -251,10 +411,6 @@ func setupTest(t *testing.T, newCmd func(env *commoncli.Env, clientMaker workloa
 }
 
 type apiTest struct {
-	cert1    *x509.Certificate
-	cert2    *x509.Certificate
-	key1Pkix []byte
-
 	stdin  *bytes.Buffer
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
@@ -280,6 +436,7 @@ func assertOutputBasedOnFormat(t *testing.T, format, stdoutString string, expect
 	switch format {
 	case "pretty":
 		if expectedStdoutPretty != "" {
+			fmt.Printf("expectedStdoutPretty: %s", expectedStdoutPretty)
 			require.Contains(t, stdoutString, expectedStdoutPretty)
 		} else {
 			require.Empty(t, stdoutString)
@@ -291,4 +448,10 @@ func assertOutputBasedOnFormat(t *testing.T, format, stdoutString string, expect
 			require.Empty(t, stdoutString)
 		}
 	}
+}
+
+func pkcs8FromSigner(t *testing.T, key crypto.Signer) []byte {
+	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(t, err)
+	return keyBytes
 }
