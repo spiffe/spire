@@ -31,77 +31,60 @@ import (
 
 var availableFormats = []string{"pretty", "json"}
 
-const (
-	// TODO: Use testca instead of const tokens
-	// TODO: Add test cases for validating required flags
-	encodedJTW1 = "eyJhbGciOiJFUzI1NiIsImtpZCI6ImdWeVU1QzJFSm5lU3pHS3BMVmFMQllCNkdjTERLQlJjIiwidHlwIjoiSldUIn0.eyJhdWQiOlsiYXVkMSJdLCJleHAiOjE2NzI3NjU2ODgsImlhdCI6MTY3Mjc2NTM4OCwic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvbXlzZXJ2aWNlIn0.mCB3rREoOgH_yYddyVYc6vGeOACv2tjPmCoG_yxxhDkUlJfnmMsOvrnjK5nm1EFZAOIouNLYBRZk-waP31250w"
-	encodedJTW2 = "eyJhbGciOiJFUzI1NiIsImtpZCI6ImdWeVU1QzJFSm5lU3pHS3BMVmFMQllCNkdjTERLQlJjIiwidHlwIjoiSldUIn0.eyJhdWQiOlsiYXVkMSJdLCJleHAiOjE2NzI3Njg4NzEsImlhdCI6MTY3Mjc2ODU3MSwic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvbXlzZXJ2aWNlIn0.qV4jJJ4QmmuiW2nHv-o_7-RC21auGS1oU4DQkuhHpe4k2YRnnZ4A5OnjB_13p57niXeNopr-BuKMb9mP2BM9bg"
-
-	bundleJWKS = `{
-    "keys": [
-        {
-            "kty": "EC",
-            "kid": "gVyU5C2EJneSzGKpLVaLBYB6GcLDKBRc",
-            "crv": "P-256",
-            "x": "oQJPipZrnNI1zknPGO4_j0K9yE6-SKlsd34KaknbHa8",
-            "y": "2BuwqNOVko1sfxZEY2BbtvhFpBg-i5su-ZvieoZTRNM"
-        }
-    ]
-}`
-)
-
 func TestFetchJWTCommand(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	encodedSvid1 := ca.CreateJWTSVID(spiffeid.RequireFromString("spiffe://domain1.test"), []string{"foo"}).Marshal()
+	encodedSvid2 := ca.CreateJWTSVID(spiffeid.RequireFromString("spiffe://domain2.test"), []string{"foo"}).Marshal()
+	bundleJWKSBytes, err := ca.JWTBundle().Marshal()
+	require.NoError(t, err)
+
 	tests := []struct {
 		name                 string
 		args                 []string
 		fakeRequests         []*fakeworkloadapi.FakeRequest
 		expectedStderr       string
-		expectedStdoutPretty string
+		expectedStdoutPretty []string
 		expectedStdoutJSON   string
 	}{
 		{
 			name: "success fetching jwt with bundles",
-			args: []string{"-audience", "audience1", "-spiffeID", "spiffe://domain1.test"},
+			args: []string{"-audience", "foo", "-spiffeID", "spiffe://domain1.test"},
 			fakeRequests: []*fakeworkloadapi.FakeRequest{
 				{
 					Req: &workload.JWTBundlesRequest{},
 					Resp: &workload.JWTBundlesResponse{
 						Bundles: map[string][]byte{
-							"spiffe://domain1.test": []byte(bundleJWKS),
-							"spiffe://domain2.test": []byte(bundleJWKS),
+							"spiffe://domain1.test": bundleJWKSBytes,
+							"spiffe://domain2.test": bundleJWKSBytes,
 						},
 					},
 				},
 				{
 					Req: &workload.JWTSVIDRequest{
-						Audience: []string{"audience1"},
+						Audience: []string{"foo"},
 						SpiffeId: "spiffe://domain1.test",
 					},
 					Resp: &workload.JWTSVIDResponse{
 						Svids: []*workload.JWTSVID{
 							{
 								SpiffeId: "spiffe://domain1.test",
-								// Svid is a Encoded JWT using JWS Compact Serialization
-								Svid: encodedJTW1,
+								Svid:     encodedSvid1,
 							},
 							{
 								SpiffeId: "spiffe://domain2.test",
-								// Svid is a Encoded JWT using JWS Compact Serialization
-								Svid: encodedJTW2,
+								Svid:     encodedSvid2,
 							},
 						},
 					},
 				},
 			},
-			expectedStdoutPretty: fmt.Sprintf(`token(spiffe://domain1.test):
-	%s
-token(spiffe://domain2.test):
-	%s
-bundle(spiffe://domain1.test):
-	%s
-bundle(spiffe://domain2.test):
-	%s
-`, encodedJTW1, encodedJTW2, bundleJWKS, bundleJWKS),
+			expectedStdoutPretty: []string{
+				fmt.Sprintf("token(spiffe://domain1.test):\n\t%s", encodedSvid1),
+				fmt.Sprintf("token(spiffe://domain2.test):\n\t%s", encodedSvid2),
+				fmt.Sprintf("bundle(spiffe://domain1.test):\n\t%s", bundleJWKSBytes),
+				fmt.Sprintf("bundle(spiffe://domain2.test):\n\t%s", bundleJWKSBytes),
+			},
 			expectedStdoutJSON: fmt.Sprintf(`[
   {
     "svids": [
@@ -121,11 +104,11 @@ bundle(spiffe://domain2.test):
       "spiffe://domain2.test": "%s"
     }
   }
-]`, encodedJTW1, encodedJTW2, base64.StdEncoding.EncodeToString([]byte(bundleJWKS)), base64.StdEncoding.EncodeToString([]byte(bundleJWKS))),
+]`, encodedSvid1, encodedSvid2, base64.StdEncoding.EncodeToString(bundleJWKSBytes), base64.StdEncoding.EncodeToString(bundleJWKSBytes)),
 		},
 		{
 			name: "fail with error fetching bundles",
-			args: []string{"-audience", "audience1", "-spiffeID", "spiffe://domain1.test"},
+			args: []string{"-audience", "foo", "-spiffeID", "spiffe://domain1.test"},
 			fakeRequests: []*fakeworkloadapi.FakeRequest{
 				{
 					Req:  &workload.JWTBundlesRequest{},
@@ -137,19 +120,19 @@ bundle(spiffe://domain2.test):
 		},
 		{
 			name: "fail with error fetching svid",
-			args: []string{"-audience", "audience1", "-spiffeID", "spiffe://domain1.test"},
+			args: []string{"-audience", "foo", "-spiffeID", "spiffe://domain1.test"},
 			fakeRequests: []*fakeworkloadapi.FakeRequest{
 				{
 					Req: &workload.JWTBundlesRequest{},
 					Resp: &workload.JWTBundlesResponse{
 						Bundles: map[string][]byte{
-							"spiffe://domain1.test": []byte(bundleJWKS),
+							"spiffe://domain1.test": bundleJWKSBytes,
 						},
 					},
 				},
 				{
 					Req: &workload.JWTSVIDRequest{
-						Audience: []string{"audience1"},
+						Audience: []string{"foo"},
 						SpiffeId: "spiffe://domain1.test",
 					},
 					Resp: &workload.JWTSVIDResponse{},
@@ -157,6 +140,10 @@ bundle(spiffe://domain2.test):
 				},
 			},
 			expectedStderr: "rpc error: code = Unknown desc = error fetching svid\n",
+		},
+		{
+			name:           "fail when audience is not provided",
+			expectedStderr: "audience must be specified\n",
 		},
 	}
 
@@ -175,7 +162,7 @@ bundle(spiffe://domain2.test):
 					return
 				}
 
-				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutJSON, tt.expectedStdoutPretty...)
 				assert.Empty(t, test.stderr.String())
 				assert.Equal(t, 0, rc)
 			})
@@ -330,7 +317,7 @@ Writing bundle #0 to file %s
 					return
 				}
 
-				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutJSON, tt.expectedStdoutPretty)
 				assert.Empty(t, test.stderr.String())
 				assert.Equal(t, 0, rc)
 
@@ -362,6 +349,10 @@ Writing bundle #0 to file %s
 }
 
 func TestValidateJWTCommand(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	encodedSvid := ca.CreateJWTSVID(spiffeid.RequireFromString("spiffe://domain1.test"), []string{"foo"}).Marshal()
+
 	tests := []struct {
 		name                 string
 		args                 []string
@@ -372,12 +363,12 @@ func TestValidateJWTCommand(t *testing.T) {
 	}{
 		{
 			name: "valid svid",
-			args: []string{"-audience", "foo", "-svid", encodedJTW1},
+			args: []string{"-audience", "foo", "-svid", encodedSvid},
 			fakeRequests: []*fakeworkloadapi.FakeRequest{
 				{
 					Req: &workload.ValidateJWTSVIDRequest{
 						Audience: "foo",
-						Svid:     encodedJTW1,
+						Svid:     encodedSvid,
 					},
 					Resp: &workload.ValidateJWTSVIDResponse{
 						SpiffeId: "spiffe://example.org/foo",
@@ -420,13 +411,22 @@ Claims    : {"aud":["foo"]}`,
 				{
 					Req: &workload.ValidateJWTSVIDRequest{
 						Audience: "foo",
-						Svid:     encodedJTW1,
+						Svid:     encodedSvid,
 					},
 					Resp: &workload.ValidateJWTSVIDResponse{},
 					Err:  status.Error(codes.InvalidArgument, "invalid svid"),
 				},
 			},
 			expectedStderr: "SVID is not valid: invalid svid\n",
+		},
+		{
+			name:           "fail when audience is not provided",
+			expectedStderr: "audience must be specified\n",
+		},
+		{
+			name:           "fail when svid is not provided",
+			args:           []string{"-audience", "foo"},
+			expectedStderr: "svid must be specified\n",
 		},
 	}
 	for _, tt := range tests {
@@ -444,7 +444,7 @@ Claims    : {"aud":["foo"]}`,
 					return
 				}
 
-				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutPretty, tt.expectedStdoutJSON)
+				assertOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectedStdoutJSON, tt.expectedStdoutPretty)
 				assert.Empty(t, test.stderr.String())
 				assert.Equal(t, 0, rc)
 			})
@@ -507,12 +507,13 @@ func (s *apiTest) args(extra ...string) []string {
 	return append([]string{common.AddrArg, s.addr}, extra...)
 }
 
-func assertOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
+func assertOutputBasedOnFormat(t *testing.T, format, stdoutString, expectedStdoutJSON string, expectedStdoutPretty ...string) {
 	switch format {
 	case "pretty":
-		if expectedStdoutPretty != "" {
-			fmt.Printf("expectedStdoutPretty: %s", expectedStdoutPretty)
-			require.Contains(t, stdoutString, expectedStdoutPretty)
+		if len(expectedStdoutPretty) > 0 {
+			for _, expected := range expectedStdoutPretty {
+				require.Contains(t, stdoutString, expected)
+			}
 		} else {
 			require.Empty(t, stdoutString)
 		}
