@@ -21,7 +21,7 @@ import (
 
 var (
 	misconfigLogMtx   sync.Mutex
-	misconfigLogTimes = make(map[string]time.Time)
+	misconfigLogTimes = make(map[spiffeid.ID]time.Time)
 	misconfigClk      = clock.New()
 )
 
@@ -29,14 +29,14 @@ const misconfigLogEvery = time.Minute
 
 // shouldLogFederationMisconfiguration returns true if the last time a misconfiguration
 // was logged was more than misconfigLogEvery ago.
-func shouldLogFederationMisconfiguration(tdID string) bool {
+func shouldLogFederationMisconfiguration(id spiffeid.ID) bool {
 	misconfigLogMtx.Lock()
 	defer misconfigLogMtx.Unlock()
 
 	now := misconfigClk.Now()
-	last, ok := misconfigLogTimes[tdID]
+	last, ok := misconfigLogTimes[id]
 	if !ok || now.Sub(last) >= misconfigLogEvery {
-		misconfigLogTimes[tdID] = now
+		misconfigLogTimes[id] = now
 		return true
 	}
 	return false
@@ -49,7 +49,7 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) (
 		return nil, fmt.Errorf("get bundle from datastore: %w", err)
 	}
 	if commonServerBundle == nil {
-		if td != e.TrustDomain && shouldLogFederationMisconfiguration(td.IDString()) {
+		if td != e.TrustDomain && shouldLogFederationMisconfiguration(td.ID()) {
 			e.Log.
 				WithField(telemetry.TrustDomain, td.String()).
 				Warn(
@@ -57,7 +57,7 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) (
 						"Make sure this trust domain is correctly federated.",
 				)
 		}
-		return nil, fmt.Errorf("no bundle found for trust domain %q", e.TrustDomain)
+		return nil, fmt.Errorf("no bundle found for trust domain %q", td)
 	}
 
 	serverBundle, err := parseBundle(e.TrustDomain, commonServerBundle)
