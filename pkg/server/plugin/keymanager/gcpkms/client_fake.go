@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"cloud.google.com/go/iam"
+	"cloud.google.com/go/iam/apiv1/iampb"
 	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/googleapis/gax-go/v2"
 	"github.com/spiffe/spire/test/clock"
@@ -25,7 +26,6 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/oauth2/v2"
 	"google.golang.org/api/option"
-	iampb "google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -161,14 +161,14 @@ func (fs *fakeStore) fetchFakeCryptoKeys() map[string]*fakeCryptoKey {
 	return fakeCryptoKeys
 }
 
-func (fs *fakeStore) fetchFakeCryptoKeyVersion(name string) (*fakeCryptoKeyVersion, error) {
+func (fs *fakeStore) fetchFakeCryptoKeyVersion(name string) (fakeCryptoKeyVersion, error) {
 	fs.mu.RLock()
 	defer fs.mu.RUnlock()
 
 	parent := path.Dir(path.Dir(name))
 	fakeCryptoKey, ok := fs.fakeCryptoKeys[parent]
 	if !ok {
-		return nil, fmt.Errorf("could not get parent CryptoKey for %q CryptoKeyVersion", name)
+		return fakeCryptoKeyVersion{}, fmt.Errorf("could not get parent CryptoKey for %q CryptoKeyVersion", name)
 	}
 
 	version := path.Base(name)
@@ -176,10 +176,10 @@ func (fs *fakeStore) fetchFakeCryptoKeyVersion(name string) (*fakeCryptoKeyVersi
 	defer fakeCryptoKey.mu.RUnlock()
 	fakeCryptokeyVersion, ok := fakeCryptoKey.fakeCryptoKeyVersions[version]
 	if ok {
-		return fakeCryptokeyVersion, nil
+		return *fakeCryptokeyVersion, nil
 	}
 
-	return nil, fmt.Errorf("could not find CryptoKeyVersion %q", version)
+	return fakeCryptoKeyVersion{}, fmt.Errorf("could not find CryptoKeyVersion %q", version)
 }
 
 func (fs *fakeStore) putFakeCryptoKey(fck *fakeCryptoKey) {
@@ -261,24 +261,26 @@ func (h3 *fakeIAMHandle3) SetPolicy(ctx context.Context, policy *iam.Policy3) er
 type fakeKMSClient struct {
 	t *testing.T
 
-	mu                         sync.RWMutex
-	asymmetricSignErr          error
-	closeErr                   error
-	createCryptoKeyErr         error
-	destroyCryptoKeyVersionErr error
-	destroyTime                *timestamppb.Timestamp
-	fakeIAMHandle              *fakeIAMHandle
-	getCryptoKeyVersionErr     error
-	getPublicKeyErr            error
-	getTokeninfoErr            error
-	listCryptoKeysErr          error
-	listCryptoKeyVersionsErr   error
-	opts                       []option.ClientOption
-	pemCrc32C                  *wrapperspb.Int64Value
-	signatureCrc32C            *wrapperspb.Int64Value
-	store                      fakeStore
-	tokeninfo                  *oauth2.Tokeninfo
-	updateCryptoKeyErr         error
+	mu                           sync.RWMutex
+	asymmetricSignErr            error
+	closeErr                     error
+	createCryptoKeyErr           error
+	initialCryptoKeyVersionState kmspb.CryptoKeyVersion_CryptoKeyVersionState
+	destroyCryptoKeyVersionErr   error
+	destroyTime                  *timestamppb.Timestamp
+	fakeIAMHandle                *fakeIAMHandle
+	getCryptoKeyVersionErr       error
+	getPublicKeyErrs             []error
+	getTokeninfoErr              error
+	listCryptoKeysErr            error
+	listCryptoKeyVersionsErr     error
+	opts                         []option.ClientOption
+	pemCrc32C                    *wrapperspb.Int64Value
+	signatureCrc32C              *wrapperspb.Int64Value
+	store                        fakeStore
+	tokeninfo                    *oauth2.Tokeninfo
+	updateCryptoKeyErr           error
+	keyIsDisabled                bool
 }
 
 func (k *fakeKMSClient) setAsymmetricSignErr(fakeError error) {
@@ -293,6 +295,10 @@ func (k *fakeKMSClient) setCreateCryptoKeyErr(fakeError error) {
 	defer k.mu.Unlock()
 
 	k.createCryptoKeyErr = fakeError
+}
+
+func (k *fakeKMSClient) setInitialCryptoKeyVersionState(state kmspb.CryptoKeyVersion_CryptoKeyVersionState) {
+	k.initialCryptoKeyVersionState = state
 }
 
 func (k *fakeKMSClient) setDestroyCryptoKeyVersionErr(fakeError error) {
@@ -316,11 +322,32 @@ func (k *fakeKMSClient) setGetCryptoKeyVersionErr(fakeError error) {
 	k.getCryptoKeyVersionErr = fakeError
 }
 
-func (k *fakeKMSClient) setGetPublicKeyErr(fakeError error) {
+func (k *fakeKMSClient) setIsKeyDisabled(ok bool) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
-	k.getPublicKeyErr = fakeError
+	k.keyIsDisabled = ok
+}
+
+func (k *fakeKMSClient) setGetPublicKeySequentialErrs(fakeError error, count int) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	fakeErrors := make([]error, count)
+	for i := 0; i < count; i++ {
+		fakeErrors[i] = fakeError
+	}
+	k.getPublicKeyErrs = fakeErrors
+}
+
+func (k *fakeKMSClient) nextGetPublicKeySequentialErr() error {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if len(k.getPublicKeyErrs) == 0 {
+		return nil
+	}
+	err := k.getPublicKeyErrs[0]
+	k.getPublicKeyErrs = k.getPublicKeyErrs[1:]
+	return err
 }
 
 func (k *fakeKMSClient) setGetTokeninfoErr(fakeError error) {
@@ -516,7 +543,7 @@ func (k *fakeKMSClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.
 	}
 
 	fckv.CryptoKeyVersion = cryptoKeyVersion
-	fck.putFakeCryptoKeyVersion(fckv)
+	fck.putFakeCryptoKeyVersion(&fckv)
 
 	return cryptoKeyVersion, nil
 }
@@ -534,15 +561,17 @@ func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetC
 		return nil, err
 	}
 
+	if k.keyIsDisabled {
+		fakeCryptoKeyVersion.CryptoKeyVersion.State = kmspb.CryptoKeyVersion_DISABLED
+	}
 	return fakeCryptoKeyVersion.CryptoKeyVersion, nil
 }
 
 func (k *fakeKMSClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKeyRequest, opts ...gax.CallOption) (*kmspb.PublicKey, error) {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
+	getPublicKeyErr := k.nextGetPublicKeySequentialErr()
 
-	if k.getPublicKeyErr != nil {
-		return nil, k.getPublicKeyErr
+	if getPublicKeyErr != nil {
+		return nil, getPublicKeyErr
 	}
 
 	fakeCryptoKeyVersion, err := k.store.fetchFakeCryptoKeyVersion(req.Name)
@@ -698,6 +727,7 @@ func (k *fakeKMSClient) createFakeCryptoKeyVersion(cryptoKey *kmspb.CryptoKey, v
 		},
 		CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 			Name:      path.Join(cryptoKey.Name, "cryptoKeyVersions", version),
+			State:     k.initialCryptoKeyVersionState,
 			Algorithm: cryptoKey.VersionTemplate.Algorithm,
 		},
 	}, nil

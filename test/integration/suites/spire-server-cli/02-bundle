@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# Install openssl
-docker-compose exec -T spire-server \
-    apk add --update openssl && rm -rf /var/cache/apk/*
-
 # Verify 'bundle count' correctly indicates a single bundle (the server bundle)
 docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 1 || fail-now "failed to count 1 bundle"
 

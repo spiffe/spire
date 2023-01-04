@@ -4,11 +4,15 @@ on:
     tags:
       - 'v[0-9].[0-9]+.[0-9]+'
 env:
-  GO_VERSION: 1.19.3
+  GO_VERSION: 1.19.4
 jobs:
   cache-deps:
     name: cache-deps (linux)
     runs-on: ubuntu-20.04
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -28,6 +32,10 @@ jobs:
     name: lint (linux)
     runs-on: ubuntu-20.04
     needs: cache-deps
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -62,6 +70,10 @@ jobs:
         OS: [ubuntu-20.04, macos-latest]
     runs-on: ${{ matrix.OS }}
     needs: cache-deps
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -81,6 +93,10 @@ jobs:
     name: unit-test (linux with race detection)
     runs-on: ubuntu-20.04
     needs: cache-deps
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -100,6 +116,10 @@ jobs:
     name: artifacts (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps]
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -131,6 +151,10 @@ jobs:
     name: images (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps]
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -164,6 +188,10 @@ jobs:
     name: images (windows)
     runs-on: windows-2022
     needs: artifact-windows
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -187,6 +215,10 @@ jobs:
   scratch-images:
     runs-on: ubuntu-20.04
     needs: [cache-deps]
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -220,6 +252,10 @@ jobs:
     name: integration (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps, images, scratch-images]
+
+    permissions:
+      contents: read
+
     strategy:
       fail-fast: false
       matrix:
@@ -287,8 +323,10 @@ jobs:
     name: integration (windows)
     runs-on: windows-2022
     needs: images-windows
-    strategy:
-      fail-fast: false
+
+    permissions:
+      contents: read
+
     defaults:
       run:
         shell: msys2 {0}
@@ -336,6 +374,10 @@ jobs:
   cache-deps-windows:
     name: cache-deps (windows)
     runs-on: windows-2022
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -355,6 +397,10 @@ jobs:
     name: lint (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
+
+    permissions:
+      contents: read
+
     defaults:
       run:
         shell: msys2 {0}
@@ -388,7 +434,7 @@ jobs:
             mingw-w64-x86_64-toolchain
             unzip
       - name: Lint
-        run: make lint
+        run: make lint-code
       - name: Tidy check
         run: make tidy-check
       - name: Generate check
@@ -398,6 +444,10 @@ jobs:
     name: unit-test (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
+
+    permissions:
+      contents: read
+
     defaults:
       run:
         shell: msys2 {0}
@@ -430,6 +480,10 @@ jobs:
     name: artifact (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
+
+    permissions:
+      contents: read
+
     defaults:
       run:
         shell: msys2 {0}
@@ -480,6 +534,10 @@ jobs:
     runs-on: ubuntu-20.04
     needs: [lint, unit-test, unit-test-race-detector, artifacts, integration,
             lint-windows, unit-test-windows, artifact-windows, integration-windows]
+
+    permissions:
+      contents: read
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -503,6 +561,11 @@ jobs:
   publish-images:
     runs-on: ubuntu-20.04
     needs: [lint, unit-test, unit-test-race-detector, artifacts, integration]
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -526,15 +589,13 @@ jobs:
           registry: gcr.io
           username: _json_key
           password: ${{ secrets.GCR_JSON_KEY }}
-      # Push the images to GCR using the version number (without the "v" prefix).
       - name: Push images
-        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF#refs/tags/v}"
+        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF}"
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # Push the images to GHCR using the version number (without the "v" prefix).
       - name: Push images
-        run: ./.github/workflows/scripts/push-scratch-images.sh "${GITHUB_REF#refs/tags/v}"
+        run: ./.github/workflows/scripts/push-images.sh "${GITHUB_REF}" -scratch

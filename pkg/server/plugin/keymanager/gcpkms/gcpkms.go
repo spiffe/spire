@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/iam"
+	"cloud.google.com/go/iam/apiv1/iampb"
 	"cloud.google.com/go/kms/apiv1/kmspb"
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid"
@@ -27,7 +28,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	iampb "google.golang.org/genproto/googleapis/iam/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -52,6 +52,8 @@ const (
 	labelNameLastUpdate = "spire-last-update"
 	labelNameServerTD   = "spire-server-td"
 	labelNameActive     = "spire-active"
+
+	getPublicKeyMaxAttempts = 10
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -151,6 +153,9 @@ func newPlugin(
 }
 
 func (p *Plugin) Close() error {
+	if p.kmsClient == nil {
+		return nil
+	}
 	p.log.Debug("Closing the connection to the Cloud KMS API service")
 	return p.kmsClient.Close()
 }
@@ -410,7 +415,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	cryptoKeyVersionName := cryptoKey.Name + "/cryptoKeyVersions/1"
 	log.Debug("CryptoKeyVersion version added", cryptoKeyVersionNameTag, cryptoKeyVersionName)
 
-	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.kmsClient, cryptoKeyVersionName)
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersionName)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 	}
@@ -437,15 +442,21 @@ func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry key
 		return nil, err
 	}
 
+	log := p.log.With(cryptoKeyNameTag, entry.cryptoKey.Name)
+
 	// Check if the algorithm has changed and update if needed.
 	if entry.cryptoKey.VersionTemplate.Algorithm != algorithm {
 		entry.cryptoKey.VersionTemplate.Algorithm = algorithm
 		_, err := p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
 			CryptoKey: entry.cryptoKey,
+			UpdateMask: &fieldmaskpb.FieldMask{
+				Paths: []string{"version_template.algorithm"},
+			},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update CryptoKey with updated algorithm: %w", err)
 		}
+		log.Debug("CryptoKey updated", algorithmTag, algorithm)
 	}
 	cryptoKeyVersion, err := p.kmsClient.CreateCryptoKeyVersion(ctx, &kmspb.CreateCryptoKeyVersionRequest{
 		Parent: entry.cryptoKey.Name,
@@ -456,9 +467,9 @@ func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry key
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CryptoKeyVersion: %w", err)
 	}
-	p.log.Debug("CryptoKeyVersion added", cryptoKeyNameTag, entry.cryptoKey.Name, cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
+	log.Debug("CryptoKeyVersion added", cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
 
-	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.kmsClient, cryptoKeyVersion.Name)
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersion.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
@@ -477,7 +488,7 @@ func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry key
 	p.setKeyEntry(spireKeyID, newKeyEntry)
 
 	if err := p.enqueueDestruction(entry.cryptoKeyVersionName); err != nil {
-		p.log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
+		log.Error("Failed to enqueue CryptoKeyVersion for destruction", reasonTag, err)
 	}
 
 	return newKeyEntry.publicKey, nil
@@ -1019,10 +1030,42 @@ func getOrCreateServerID(idPath string) (string, error) {
 
 // getPublicKeyFromCryptoKeyVersion requests Cloud KMS to get the public key
 // of the specified CryptoKeyVersion.
-func getPublicKeyFromCryptoKeyVersion(ctx context.Context, kmsClient cloudKeyManagementService, cryptoKeyVersionName string) (pubKey []byte, err error) {
-	kmsPublicKey, err := kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
-	if err != nil {
-		return nil, err
+func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kmsClient cloudKeyManagementService, cryptoKeyVersionName string) ([]byte, error) {
+	kmsPublicKey, errGetPublicKey := kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
+	attempts := 1
+
+	log = log.With(cryptoKeyVersionNameTag, cryptoKeyVersionName)
+	for errGetPublicKey != nil {
+		if attempts > getPublicKeyMaxAttempts {
+			log.Error("Could not get the public key because the CryptoKeyVersion is still being generated. Maximum number of attempts reached.")
+			return nil, errGetPublicKey
+		}
+		cryptoKeyVersion, errGetCryptoKeyVersion := kmsClient.GetCryptoKeyVersion(ctx, &kmspb.GetCryptoKeyVersionRequest{
+			Name: cryptoKeyVersionName,
+		})
+		if errGetCryptoKeyVersion != nil {
+			return nil, errGetCryptoKeyVersion
+		}
+
+		// Check if the CryptoKeyVersion is still being generated or
+		// if it is now enabled.
+		// Longer generation times can be observed when using algorithms
+		// with large key sizes. (e.g. when rsa-4096 keys are used).
+		// One or two additional attempts is usually enough to find the
+		// CryptoKeyVersion enabled.
+		switch cryptoKeyVersion.State {
+		case kmspb.CryptoKeyVersion_PENDING_GENERATION:
+			// This is a recoverable error.
+		case kmspb.CryptoKeyVersion_ENABLED:
+			// The CryptoKeyVersion may be ready to be used now.
+		default:
+			// We cannot recover if it's in a different status.
+			return nil, errGetPublicKey
+		}
+
+		log.Warn("Could not get the public key because the CryptoKeyVersion is still being generated. Trying again.")
+		attempts++
+		kmsPublicKey, errGetPublicKey = kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
 	}
 
 	// Perform integrity verification.

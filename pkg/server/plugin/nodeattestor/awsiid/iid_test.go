@@ -43,15 +43,17 @@ const (
 )
 
 var (
-	testAWSCAKey       = testkey.MustRSA2048()
-	testInstance       = "test-instance"
-	testAccount        = "test-account"
-	testRegion         = "test-region"
-	testProfile        = "test-profile"
-	zeroDeviceIndex    = int32(0)
-	nonzeroDeviceIndex = int32(1)
-	instanceStoreType  = ec2types.DeviceTypeInstanceStore
-	ebsType            = ec2types.DeviceTypeEbs
+	testAWSCAKey         = testkey.MustRSA2048()
+	testInstance         = "test-instance"
+	testAccount          = "test-account"
+	testRegion           = "test-region"
+	testAvailabilityZone = "test-az"
+	testImageID          = "test-image-id"
+	testProfile          = "test-profile"
+	zeroDeviceIndex      = int32(0)
+	nonzeroDeviceIndex   = int32(1)
+	instanceStoreType    = ec2types.DeviceTypeInstanceStore
+	ebsType              = ec2types.DeviceTypeEbs
 )
 
 func TestAttest(t *testing.T) {
@@ -141,6 +143,12 @@ func TestAttest(t *testing.T) {
 		{
 			name:     "success with zero device index",
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
 		},
 		{
 			name:   "success with non-zero device index when check is disabled",
@@ -149,6 +157,12 @@ func TestAttest(t *testing.T) {
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
 		},
 		{
 			name:   "success with non-zero device index when local account is allow-listed",
@@ -157,6 +171,12 @@ func TestAttest(t *testing.T) {
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
 		},
 		{
 			name: "block device anti-tampering check rejects non-zero network device index",
@@ -215,11 +235,23 @@ func TestAttest(t *testing.T) {
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.AttachTime = aws.Time(interfaceAttachTime)
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
 		},
 		{
 			name:     "success with agent_path_template",
 			config:   `agent_path_template = "/{{ .PluginName }}/custom/{{ .AccountID }}/{{ .Region }}/{{ .InstanceID }}"`,
 			expectID: "spiffe://example.org/spire/agent/aws_iid/custom/test-account/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
 		},
 		{
 			name: "success with tags in template",
@@ -231,9 +263,15 @@ func TestAttest(t *testing.T) {
 					},
 				}
 			},
-			config:          `agent_path_template = "/{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
-			expectID:        "spiffe://example.org/spire/agent/aws_iid/zone1/host1",
-			expectSelectors: []*common.Selector{{Type: "aws_iid", Value: "tag:Hostname:host1"}},
+			config:   `agent_path_template = "/{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
+			expectID: "spiffe://example.org/spire/agent/aws_iid/zone1/host1",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+				{Type: caws.PluginName, Value: "tag:Hostname:host1"},
+			},
 		},
 		{
 			name:            "fails with missing tags in template",
@@ -270,8 +308,12 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "iamrole:role1"},
 				{Type: caws.PluginName, Value: "iamrole:role2"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
 				{Type: caws.PluginName, Value: "sg:id:TestGroup"},
 				{Type: caws.PluginName, Value: "sg:name:Test Group Name"},
 				{Type: caws.PluginName, Value: "tag:Hostname:host1"},
@@ -307,6 +349,10 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
 				{Type: caws.PluginName, Value: "sg:id:TestGroup"},
 				{Type: caws.PluginName, Value: "sg:name:Test Group Name"},
 				{Type: caws.PluginName, Value: "tag:Hostname:host1"},
@@ -525,9 +571,11 @@ func (c *fakeClient) GetInstanceProfile(ctx context.Context, input *iam.GetInsta
 func buildAttestationData(t *testing.T) caws.IIDAttestationData {
 	// doc body
 	doc := imds.InstanceIdentityDocument{
-		AccountID:  testAccount,
-		InstanceID: testInstance,
-		Region:     testRegion,
+		AccountID:        testAccount,
+		InstanceID:       testInstance,
+		Region:           testRegion,
+		AvailabilityZone: testAvailabilityZone,
+		ImageID:          testImageID,
 	}
 	docBytes, err := json.Marshal(doc)
 	require.NoError(t, err)

@@ -8,7 +8,8 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc/codes"
 
@@ -17,11 +18,11 @@ import (
 
 // NewCreateCommand creates a new "create" subcommand for "entry" command.
 func NewCreateCommand() cli.Command {
-	return newCreateCommand(common_cli.DefaultEnv)
+	return newCreateCommand(commoncli.DefaultEnv)
 }
 
-func newCreateCommand(env *common_cli.Env) cli.Command {
-	return util.AdaptCommand(env, new(createCommand))
+func newCreateCommand(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &createCommand{env: env})
 }
 
 type createCommand struct {
@@ -70,6 +71,10 @@ type createCommand struct {
 
 	// storeSVID determines if the issued SVID must be stored through an SVIDStore plugin
 	storeSVID bool
+
+	printer cliprinter.Printer
+
+	env *commoncli.Env
 }
 
 func (*createCommand) Name() string {
@@ -95,9 +100,10 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintCreate)
 }
 
-func (c *createCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *createCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
 	if err := c.validate(); err != nil {
 		return err
 	}
@@ -113,29 +119,12 @@ func (c *createCommand) Run(ctx context.Context, env *common_cli.Env, serverClie
 		return err
 	}
 
-	succeeded, failed, err := createEntries(ctx, serverClient.NewEntryClient(), entries)
+	resp, err := createEntries(ctx, serverClient.NewEntryClient(), entries)
 	if err != nil {
 		return err
 	}
 
-	// Print entries that succeeded to be created
-	for _, r := range succeeded {
-		printEntry(r.Entry, env.Printf)
-	}
-
-	// Print entries that failed to be created
-	for _, r := range failed {
-		env.ErrPrintf("Failed to create the following entry (code: %s, msg: %q):\n",
-			codes.Code(r.Status.Code),
-			r.Status.Message)
-		printEntry(r.Entry, env.ErrPrintf)
-	}
-
-	if len(failed) > 0 {
-		return errors.New("failed to create one or more entries")
-	}
-
-	return nil
+	return c.printer.PrintProto(resp)
 }
 
 // validate performs basic validation, even on fields that we
@@ -232,25 +221,21 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 	return []*types.Entry{e}, nil
 }
 
-func createEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (succeeded, failed []*entryv1.BatchCreateEntryResponse_Result, err error) {
-	resp, err := c.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{Entries: entries})
+func createEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.Entry) (resp *entryv1.BatchCreateEntryResponse, err error) {
+	resp, err = c.BatchCreateEntry(ctx, &entryv1.BatchCreateEntryRequest{Entries: entries})
 	if err != nil {
-		return nil, nil, err
+		return
 	}
 
 	for i, r := range resp.Results {
-		switch r.Status.Code {
-		case int32(codes.OK):
-			succeeded = append(succeeded, r)
-		default:
+		if r.Status.Code != int32(codes.OK) {
 			// The Entry API does not include in the results the entries that
 			// failed to be created, so we populate them from the request data.
 			r.Entry = entries[i]
-			failed = append(failed, r)
 		}
 	}
 
-	return succeeded, failed, nil
+	return
 }
 
 func getParentID(config *createCommand, td string) (*types.SPIFFEID, error) {
@@ -262,4 +247,38 @@ func getParentID(config *createCommand, td string) (*types.SPIFFEID, error) {
 		}, nil
 	}
 	return idStringToProto(config.parentID)
+}
+
+func prettyPrintCreate(env *commoncli.Env, results ...interface{}) error {
+	var succeeded, failed []*entryv1.BatchCreateEntryResponse_Result
+	createResp, ok := results[0].(*entryv1.BatchCreateEntryResponse)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
+
+	for _, r := range createResp.Results {
+		switch r.Status.Code {
+		case int32(codes.OK):
+			succeeded = append(succeeded, r)
+		default:
+			failed = append(failed, r)
+		}
+	}
+
+	for _, r := range succeeded {
+		printEntry(r.Entry, env.Printf)
+	}
+
+	for _, r := range failed {
+		env.ErrPrintf("Failed to create the following entry (code: %s, msg: %q):\n",
+			codes.Code(r.Status.Code),
+			r.Status.Message)
+		printEntry(r.Entry, env.ErrPrintf)
+	}
+
+	if len(failed) > 0 {
+		return errors.New("failed to create one or more entries")
+	}
+
+	return nil
 }

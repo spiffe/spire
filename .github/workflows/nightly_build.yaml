@@ -4,9 +4,6 @@ on:
     # Random minute number to avoid GH scheduler stampede
     - cron: '37 21 * * *'
   workflow_dispatch: {}
-permissions:
-  contents: read
-  packages: write
 
 env:
   NIGHTLY: true
@@ -14,6 +11,11 @@ env:
 jobs:
   build-and-publish-images:
     runs-on: ubuntu-20.04
+
+    permissions:
+      contents: read
+      packages: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -34,4 +36,4 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push images
-        run: ./.github/workflows/scripts/push-scratch-images.sh nightly
+        run: ./.github/workflows/scripts/push-images.sh nightly -scratch
