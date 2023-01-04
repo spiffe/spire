@@ -261,13 +261,13 @@ When starting the service, all the arguments to execute SPIRE Server with the `r
 ##### Example to create the SPIRE Server Windows service
 
 ```bash
-sc.exe create spire-server binpath=c:\spire\bin\spire-server.exe
+> sc.exe create spire-server binpath=c:\spire\bin\spire-server.exe
 ```
 
 ##### Example to run the SPIRE Server Windows service
 
 ```bash
-sc.exe start spire-server run -config c:\spire\conf\server\server.conf
+> sc.exe start spire-server run -config c:\spire\conf\server\server.conf
 ```
 
 ### `spire-server token generate`

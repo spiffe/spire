@@ -176,13 +176,13 @@ When starting the service, all the arguments to execute SPIRE Agent with the `ru
 ##### Example to create the SPIRE Agent Windows service
 
 ```bash
-sc.exe create spire-agent binpath=c:\spire\bin\spire-agent.exe
+> sc.exe create spire-agent binpath=c:\spire\bin\spire-agent.exe
 ```
 
 ##### Example to run the SPIRE Agent Windows service
 
 ```bash
-sc.exe start spire-agent run -config c:\spire\conf\agent\agent.conf
+> sc.exe start spire-agent run -config c:\spire\conf\agent\agent.conf
 ```
 
 ### `spire-agent api fetch`
