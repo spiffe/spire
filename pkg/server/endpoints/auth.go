@@ -21,7 +21,7 @@ import (
 
 var (
 	misconfigLogMtx   sync.Mutex
-	misconfigLogTimes = make(map[spiffeid.ID]time.Time)
+	misconfigLogTimes = make(map[spiffeid.TrustDomain]time.Time)
 	misconfigClk      = clock.New()
 )
 
@@ -29,14 +29,14 @@ const misconfigLogEvery = time.Minute
 
 // shouldLogFederationMisconfiguration returns true if the last time a misconfiguration
 // was logged was more than misconfigLogEvery ago.
-func shouldLogFederationMisconfiguration(id spiffeid.ID) bool {
+func shouldLogFederationMisconfiguration(td spiffeid.TrustDomain) bool {
 	misconfigLogMtx.Lock()
 	defer misconfigLogMtx.Unlock()
 
 	now := misconfigClk.Now()
-	last, ok := misconfigLogTimes[id]
+	last, ok := misconfigLogTimes[td]
 	if !ok || now.Sub(last) >= misconfigLogEvery {
-		misconfigLogTimes[id] = now
+		misconfigLogTimes[td] = now
 		return true
 	}
 	return false
@@ -49,7 +49,7 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) (
 		return nil, fmt.Errorf("get bundle from datastore: %w", err)
 	}
 	if commonServerBundle == nil {
-		if td != e.TrustDomain && shouldLogFederationMisconfiguration(td.ID()) {
+		if td != e.TrustDomain && shouldLogFederationMisconfiguration(td) {
 			e.Log.
 				WithField(telemetry.TrustDomain, td.String()).
 				Warn(
