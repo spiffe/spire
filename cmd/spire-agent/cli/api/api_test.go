@@ -31,6 +31,17 @@ import (
 
 var availableFormats = []string{"pretty", "json"}
 
+func TestFetchJWTCommandHelp(t *testing.T) {
+	test := setupTest(t, newFetchJWTCommandWithEnv)
+	test.cmd.Help()
+	require.Equal(t, fetchJWTUsage, test.stderr.String())
+}
+
+func TestFetchJWTCommandSynopsis(t *testing.T) {
+	test := setupTest(t, newFetchJWTCommandWithEnv)
+	require.Equal(t, "Fetches a JWT SVID from the Workload API", test.cmd.Synopsis())
+}
+
 func TestFetchJWTCommand(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := testca.New(t, td)
@@ -168,6 +179,17 @@ func TestFetchJWTCommand(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestFetchX509CommandHelp(t *testing.T) {
+	test := setupTest(t, newFetchX509Command)
+	test.cmd.Help()
+	require.Equal(t, fetchX509Usage, test.stderr.String())
+}
+
+func TestFetchX509CommandSynopsis(t *testing.T) {
+	test := setupTest(t, newFetchX509Command)
+	require.Equal(t, "Fetches X509 SVIDs from the Workload API", test.cmd.Synopsis())
 }
 
 func TestFetchX509Command(t *testing.T) {
@@ -346,6 +368,17 @@ Writing bundle #0 to file %s
 			})
 		}
 	}
+}
+
+func TestValidateJWTCommandHelp(t *testing.T) {
+	test := setupTest(t, newValidateJWTCommand)
+	test.cmd.Help()
+	require.Equal(t, validateJWTUsage, test.stderr.String())
+}
+
+func TestValidateJWTCommandSynopsis(t *testing.T) {
+	test := setupTest(t, newValidateJWTCommand)
+	require.Equal(t, "Validates a JWT SVID", test.cmd.Synopsis())
 }
 
 func TestValidateJWTCommand(t *testing.T) {
