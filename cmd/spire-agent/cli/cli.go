@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	stdlog "log"
 
 	"github.com/mitchellh/cli"
@@ -17,7 +18,7 @@ type CLI struct {
 	AllowUnknownConfig bool
 }
 
-func (cc *CLI) Run(args []string) int {
+func (cc *CLI) Run(ctx context.Context, args []string) int {
 	c := cli.NewCLI("spire-agent", version.Version())
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
@@ -37,7 +38,7 @@ func (cc *CLI) Run(args []string) int {
 			return &api.WatchCLI{}, nil
 		},
 		"run": func() (cli.Command, error) {
-			return run.NewRunCommand(cc.LogOptions, cc.AllowUnknownConfig), nil
+			return run.NewRunCommand(ctx, cc.LogOptions, cc.AllowUnknownConfig), nil
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil
