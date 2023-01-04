@@ -72,15 +72,17 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) (
 // The returned function will verify that the peer certificate is valid, and apply a custom authorization with matchMemberOrOneOf.
 // If the peer certificate is not provided, the function will not make any verification and return nil.
 func (e *Endpoints) serverSpiffeVerificationFunc(bundleSource x509bundle.Source) func(_ [][]byte, _ [][]*x509.Certificate) error {
+	verifyPeerCertificate := tlsconfig.VerifyPeerCertificate(
+		bundleSource,
+		tlsconfig.AdaptMatcher(matchMemberOrOneOf(e.TrustDomain, e.AdminIDs...)),
+	)
+
 	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 		if rawCerts == nil {
 			return nil
 		}
 
-		return tlsconfig.VerifyPeerCertificate(
-			bundleSource,
-			tlsconfig.AdaptMatcher(matchMemberOrOneOf(e.TrustDomain, e.AdminIDs...)),
-		)(rawCerts, nil)
+		return verifyPeerCertificate(rawCerts, nil)
 	}
 }
 
