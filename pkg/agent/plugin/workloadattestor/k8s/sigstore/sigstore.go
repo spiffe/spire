@@ -37,7 +37,7 @@ const (
 
 var (
 	// OIDC token issuer Object Identifier
-	OIDCIssuerOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 1}
+	oidcIssuerOID = asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 57264, 1, 1}
 )
 
 type Sigstore interface {
@@ -354,9 +354,10 @@ func defaultCheckOptsFunction(rekorURL url.URL, enforceSCT bool) (*cosign.CheckO
 		return nil, fmt.Errorf("failed to get fulcio root certificates: %w", err)
 	}
 
+	cfg := rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)
 	co := &cosign.CheckOpts{
 		// Set the rekor client
-		RekorClient: rekor.NewHTTPClientWithConfig(nil, rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)),
+		RekorClient: rekor.NewHTTPClientWithConfig(nil, cfg),
 		RootCerts:   rootCerts,
 		EnforceSCT:  enforceSCT,
 	}
@@ -419,7 +420,7 @@ func certOIDCProvider(cert *x509.Certificate) (string, error) {
 	}
 
 	for _, ext := range cert.Extensions {
-		if ext.Id.Equal(OIDCIssuerOID) {
+		if ext.Id.Equal(oidcIssuerOID) {
 			return string(ext.Value), nil
 		}
 	}

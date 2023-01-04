@@ -386,7 +386,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					cert: &x509.Certificate{
 						EmailAddresses: []string{"spirex@example.com"},
 						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
+							Id:    oidcIssuerOID,
 							Value: []byte(`issuer1`),
 						}},
 					},
@@ -420,7 +420,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					cert: &x509.Certificate{
 						EmailAddresses: []string{"spirex1@example.com"},
 						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
+							Id:    oidcIssuerOID,
 							Value: []byte(`issuer1`),
 						}},
 					},
@@ -437,7 +437,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					cert: &x509.Certificate{
 						EmailAddresses: []string{"spirex2@example.com"},
 						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
+							Id:    oidcIssuerOID,
 							Value: []byte(`issuer1`),
 						}},
 					},
@@ -484,7 +484,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 							"spirex2@example.com",
 						},
 						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
+							Id:    oidcIssuerOID,
 							Value: []byte(`issuer1`),
 						}},
 					},
@@ -529,7 +529,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 							},
 						},
 						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
+							Id:    oidcIssuerOID,
 							Value: []byte(`issuer1`),
 						}},
 					},
@@ -623,7 +623,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					},
 					cert: &x509.Certificate{
 						EmailAddresses: []string{"spirex@example.com"}, Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
+							Id:    oidcIssuerOID,
 							Value: []byte(``),
 						}},
 					},
@@ -675,7 +675,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					cert: &x509.Certificate{
 						EmailAddresses: []string{"spirex@example.com"},
 						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
+							Id:    oidcIssuerOID,
 							Value: []byte(`issuer1`),
 						}},
 					},
@@ -703,7 +703,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					cert: &x509.Certificate{
 						EmailAddresses: []string{"spirex@example.com"},
 						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
+							Id:    oidcIssuerOID,
 							Value: []byte(`issuer1`),
 						}},
 					},
@@ -731,7 +731,7 @@ func TestSigstoreimpl_ExtractSelectorsFromSignatures(t *testing.T) {
 					cert: &x509.Certificate{
 						EmailAddresses: []string{"spirex@example.com"},
 						Extensions: []pkix.Extension{{
-							Id:    OIDCIssuerOID,
+							Id:    oidcIssuerOID,
 							Value: []byte(`issuer2`),
 						}},
 					},
@@ -1235,7 +1235,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1265,7 +1265,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: nil,
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1282,7 +1282,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex1@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1308,7 +1308,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1338,7 +1338,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1357,7 +1357,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1383,7 +1383,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1409,7 +1409,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1435,7 +1435,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1461,7 +1461,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1487,7 +1487,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1529,7 +1529,7 @@ func TestSigstoreimpl_SelectorValuesFromSignature(t *testing.T) {
 				cert: &x509.Certificate{
 					EmailAddresses: []string{"spirex@example.com"},
 					Extensions: []pkix.Extension{{
-						Id:    OIDCIssuerOID,
+						Id:    oidcIssuerOID,
 						Value: []byte(`issuer1`),
 					}},
 				},
@@ -1610,7 +1610,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 							cert: &x509.Certificate{
 								EmailAddresses: []string{"spirex@example.com"},
 								Extensions: []pkix.Extension{{
-									Id:    OIDCIssuerOID,
+									Id:    oidcIssuerOID,
 									Value: []byte(`issuer1`),
 								}},
 							},
