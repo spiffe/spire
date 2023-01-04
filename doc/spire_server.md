@@ -255,6 +255,25 @@ Most of the configuration file above options have identical command-line counter
 | `-socketPath`  | Path to bind the SPIRE Server API socket to                                          |                         |
 | `-trustDomain` | The trust domain that this server belongs to (should be no more than 255 characters) |                         |
 
+#### Running SPIRE Server as a Windows service
+
+On Windows platform, SPIRE Server can optionally be run as a Windows service. When running as a Windows service, the only command supported is the `run` command.
+
+_Note: SPIRE does not automatically create the service in the system, it must be created by the user.
+When starting the service, all the arguments to execute SPIRE Server with the `run` command must be passed as service arguments._
+
+##### Example to create the SPIRE Server Windows service
+
+```bash
+> sc.exe create spire-server binpath=c:\spire\bin\spire-server.exe
+```
+
+##### Example to run the SPIRE Server Windows service
+
+```bash
+> sc.exe start spire-server run -config c:\spire\conf\server\server.conf
+```
+
 ### `spire-server token generate`
 
 Generates one node join token and creates a registration entry for it. This token can be used to
