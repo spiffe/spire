@@ -994,15 +994,17 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "admin ID does not belong to the trust domain",
+			msg: "admin ID of foreign trust domain",
 			input: func(c *Config) {
 				c.Server.AdminIDs = []string{
 					"spiffe://otherdomain.test/my/admin",
 				}
 			},
-			expectError: true,
+			expectError: false,
 			test: func(t *testing.T, c *server.Config) {
-				require.Nil(t, c)
+				require.Equal(t, []spiffeid.ID{
+					spiffeid.RequireFromString("spiffe://otherdomain.test/my/admin"),
+				}, c.AdminIDs)
 			},
 		},
 		{

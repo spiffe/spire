@@ -459,11 +459,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	for _, adminID := range c.Server.AdminIDs {
 		id, err := spiffeid.FromString(adminID)
-		switch {
-		case err != nil:
+		if err != nil {
 			return nil, fmt.Errorf("could not parse admin ID %q: %w", adminID, err)
-		case !id.MemberOf(sc.TrustDomain):
-			return nil, fmt.Errorf("admin ID %q does not belong to trust domain %q", id, sc.TrustDomain)
 		}
 		sc.AdminIDs = append(sc.AdminIDs, id)
 	}

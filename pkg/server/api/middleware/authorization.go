@@ -44,7 +44,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	if id, ok := rpccontext.CallerID(ctx); ok {
 		fields[telemetry.CallerID] = id.String()
 	}
-	// Add request ID to logger, it simplify debugging when calling batch endpints
+	// Add request ID to logger, it simplifies debugging when calling batch endpoints
 	requestID, err := uuid.NewV4()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create request ID: %v", err)
