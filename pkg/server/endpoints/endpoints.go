@@ -4,11 +4,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"net"
 	"os"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
@@ -32,7 +32,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
-	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
 )
@@ -289,65 +288,22 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 // getTLSConfig returns a TLS Config hook for the gRPC server
 func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo) (*tls.Config, error) {
 	return func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-		certs, roots, err := e.getCerts(ctx)
-		if err != nil {
-			e.Log.WithError(err).WithField(telemetry.Address, hello.Conn.RemoteAddr().String()).Error("Could not generate TLS config for gRPC client")
-			return nil, err
-		}
+		svidSrc := newX509SVIDSource(func() svid.State {
+			return e.SVIDObserver.State()
+		})
+		bundleSrc := newBundleSource(func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+			return e.bundleGetter(ctx, td)
+		})
 
-		return &tls.Config{
-			// Not all server APIs required a client certificate. Though if one
-			// is presented, verify it.
-			ClientAuth: tls.VerifyClientCertIfGiven,
+		spiffeTLSConfig := tlsconfig.MTLSServerConfig(svidSrc, bundleSrc, nil)
+		// provided client certificates will be validated using the custom VerifyPeerCertificate hook
+		spiffeTLSConfig.ClientAuth = tls.RequestClientCert
+		spiffeTLSConfig.MinVersion = tls.VersionTLS12
+		spiffeTLSConfig.NextProtos = []string{http2.NextProtoTLS}
+		spiffeTLSConfig.VerifyPeerCertificate = e.serverSpiffeVerificationFunc(bundleSrc)
 
-			Certificates: certs,
-			ClientCAs:    roots,
-
-			MinVersion: tls.VersionTLS12,
-
-			NextProtos: []string{http2.NextProtoTLS},
-		}, nil
+		return spiffeTLSConfig, nil
 	}
-}
-
-// getCerts queries the datastore and returns a TLS serving certificate(s) plus
-// the current CA root bundle.
-func (e *Endpoints) getCerts(ctx context.Context) ([]tls.Certificate, *x509.CertPool, error) {
-	bundle, err := e.DataStore.FetchBundle(dscache.WithCache(ctx), e.TrustDomain.IDString())
-	if err != nil {
-		return nil, nil, fmt.Errorf("get bundle from datastore: %w", err)
-	}
-	if bundle == nil {
-		return nil, nil, errors.New("bundle not found")
-	}
-
-	var caCerts []*x509.Certificate
-	for _, rootCA := range bundle.RootCas {
-		rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("parse bundle: %w", err)
-		}
-		caCerts = append(caCerts, rootCACerts...)
-	}
-
-	caPool := x509.NewCertPool()
-	for _, c := range caCerts {
-		caPool.AddCert(c)
-	}
-
-	svidState := e.SVIDObserver.State()
-
-	certChain := [][]byte{}
-	for _, cert := range svidState.SVID {
-		certChain = append(certChain, cert.Raw)
-	}
-
-	tlsCert := tls.Certificate{
-		Certificate: certChain,
-		PrivateKey:  svidState.Key,
-	}
-
-	return []tls.Certificate{tlsCert}, caPool, nil
 }
 
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
