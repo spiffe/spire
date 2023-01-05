@@ -5,9 +5,3 @@ FROM spire-server-windows:latest-local as spire-base
 COPY --from=spire-agent-windows C:/spire/bin/spire-agent.exe C:/spire/bin/spire-agent.exe
 
 ENTRYPOINT [ "cmd" ]
-
-
-
-
-
-
