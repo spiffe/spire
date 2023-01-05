@@ -12,8 +12,6 @@ type Logger struct {
 	io.Closer
 }
 
-var _ logrus.Hook = LocalTimeHook{}
-
 func NewLogger(options ...Option) (*Logger, error) {
 	logger := &Logger{
 		Logger: logrus.New(),
