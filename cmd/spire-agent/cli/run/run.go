@@ -111,17 +111,19 @@ type experimentalConfig struct {
 }
 
 type Command struct {
+	ctx                context.Context
 	logOptions         []log.Option
 	env                *common_cli.Env
 	allowUnknownConfig bool
 }
 
-func NewRunCommand(logOptions []log.Option, allowUnknownConfig bool) cli.Command {
-	return newRunCommand(common_cli.DefaultEnv, logOptions, allowUnknownConfig)
+func NewRunCommand(ctx context.Context, logOptions []log.Option, allowUnknownConfig bool) cli.Command {
+	return newRunCommand(ctx, common_cli.DefaultEnv, logOptions, allowUnknownConfig)
 }
 
-func newRunCommand(env *common_cli.Env, logOptions []log.Option, allowUnknownConfig bool) *Command {
+func newRunCommand(ctx context.Context, env *common_cli.Env, logOptions []log.Option, allowUnknownConfig bool) *Command {
 	return &Command{
+		ctx:                ctx,
 		env:                env,
 		logOptions:         logOptions,
 		allowUnknownConfig: allowUnknownConfig,
@@ -183,7 +185,11 @@ func (cmd *Command) Run(args []string) int {
 
 	a := agent.New(c)
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx := cmd.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	err = a.Run(ctx)

@@ -10,6 +10,13 @@ import (
 
 const defaultFlagName = "output"
 
+var flagDescription = fmt.Sprintf(
+	"Desired output format (%s, %s); default: %s.",
+	formatTypeToStr(pretty),
+	formatTypeToStr(json),
+	formatTypeToStr(defaultFormatType),
+)
+
 // AppendFlag adds the -format flag to the provided flagset, and populates
 // the referenced Printer interface with a properly configured printer.
 func AppendFlag(p *Printer, fs *flag.FlagSet, env *commoncli.Env) *FormatterFlag {
@@ -34,7 +41,7 @@ func AppendFlagWithCustomPretty(p *Printer, fs *flag.FlagSet, env *commoncli.Env
 		customPretty: cp,
 	}
 
-	fs.Var(f, defaultFlagName, "Desired output format (pretty, json)")
+	fs.Var(f, defaultFlagName, flagDescription)
 	return f
 }
 

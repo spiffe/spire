@@ -773,8 +773,8 @@ func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string,
 	return nil
 }
 
-func (c *fakeKubeClient) Informer(callback informerCallback) cache.SharedIndexInformer {
-	return nil
+func (c *fakeKubeClient) Informer(callback informerCallback) (cache.SharedIndexInformer, error) {
+	return nil, nil
 }
 
 func (c *fakeKubeClient) getConfigMap(namespace, configMap string) *corev1.ConfigMap {
