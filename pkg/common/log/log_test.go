@@ -40,13 +40,19 @@ func TestLocalTimeHook(t *testing.T) {
 			require.NoError(t, err)
 
 			logger.
-				WithField("createdAt", baseTime).
+				WithField("time", baseTime).
+				WithField("timePointer", &baseTime).
 				WithField("unixTime", baseTime.Unix()).
 				Info("Info log with time and string fields")
 
 			assert.Equalf(t,
 				expected,
-				testHook.LastEntry().Data["createdAt"].(time.Time).String(),
+				testHook.LastEntry().Data["time"].(time.Time).String(),
+				"Timezone should be in %s format", tz,
+			)
+			assert.Equalf(t,
+				expected,
+				testHook.LastEntry().Data["timePointer"].(*time.Time).String(),
 				"Timezone should be in %s format", tz,
 			)
 			assert.Equalf(t,

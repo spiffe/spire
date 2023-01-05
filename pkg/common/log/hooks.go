@@ -18,8 +18,14 @@ func (l LocalTimeHook) Levels() []logrus.Level {
 func (l LocalTimeHook) Fire(entry *logrus.Entry) error {
 	// Convert all log fields with type time.Time to local time.
 	for k, v := range entry.Data {
-		if t, ok := v.(time.Time); ok {
+		switch t := v.(type) {
+		case time.Time:
 			entry.Data[k] = t.Local()
+		case *time.Time:
+			if t != nil {
+				tLocal := t.Local()
+				entry.Data[k] = &tLocal
+			}
 		}
 	}
 	return nil
