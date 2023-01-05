@@ -2,7 +2,6 @@ package awssecret
 
 import (
 	"context"
-	"crypto"
 	"crypto/x509"
 	"os"
 	"sync"
@@ -42,6 +41,7 @@ type Configuration struct {
 	Region          string `hcl:"region" json:"region"`
 	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn"`
 	KeyFileARN      string `hcl:"key_file_arn" json:"key_file_arn"`
+	BundleFileARN   string `hcl:"bundle_file_arn" json:"bundle_file_arn"`
 	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	SecurityToken   string `hcl:"secret_token" json:"secret_token"`
@@ -54,9 +54,10 @@ type Plugin struct {
 
 	log hclog.Logger
 
-	mtx        sync.RWMutex
-	cert       *x509.Certificate
-	upstreamCA *x509svid.UpstreamCA
+	mtx           sync.RWMutex
+	upstreamCerts []*x509.Certificate
+	bundleCerts   []*x509.Certificate
+	upstreamCA    *x509svid.UpstreamCA
 
 	hooks struct {
 		clock     clock.Clock
@@ -94,8 +95,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "failed to create AWS client: %v", err)
 	}
 
-	key, cert, err := fetchFromSecretsManager(ctx, config, sm)
+	keyPEMstr, certsPEMstr, bundleCertsPEMstr, err := fetchFromSecretsManager(ctx, config, sm)
 	if err != nil {
+		p.log.Error("Error loading files from AWS: %v", err)
 		return nil, err
 	}
 
@@ -107,13 +109,16 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.cert = cert
-	p.upstreamCA = x509svid.NewUpstreamCA(
-		x509util.NewMemoryKeypair(cert, key),
-		trustDomain,
-		x509svid.UpstreamCAOptions{
-			Clock: p.hooks.clock,
-		})
+	upstreamCA, upstreamCerts, bundleCerts, err := p.loadUpstreamCAAndCerts(
+		trustDomain, keyPEMstr, certsPEMstr, bundleCertsPEMstr,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	p.upstreamCerts = upstreamCerts
+	p.bundleCerts = bundleCerts
+	p.upstreamCA = upstreamCA
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -133,12 +138,12 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 		return status.Errorf(codes.Internal, "unable to sign CSR: %v", err)
 	}
 
-	x509CAChain, err := x509certificate.ToPluginProtos([]*x509.Certificate{cert})
+	x509CAChain, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{cert}, p.upstreamCerts...))
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}
 
-	upstreamX509Roots, err := x509certificate.ToPluginProtos([]*x509.Certificate{p.cert})
+	upstreamX509Roots, err := x509certificate.ToPluginProtos(p.bundleCerts)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
 	}
@@ -154,38 +159,99 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReq
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
-func fetchFromSecretsManager(ctx context.Context, config *Configuration, sm secretsManagerClient) (crypto.PrivateKey, *x509.Certificate, error) {
-	keyPEMstr, err := readARN(ctx, sm, config.KeyFileARN)
-	if err != nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.KeyFileARN, err)
-	}
-
+func (p *Plugin) loadUpstreamCAAndCerts(trustDomain spiffeid.TrustDomain, keyPEMstr, certsPEMstr, bundleCertsPEMstr string) (*x509svid.UpstreamCA, []*x509.Certificate, []*x509.Certificate, error) {
 	key, err := pemutil.ParsePrivateKey([]byte(keyPEMstr))
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "unable to parse private key: %v", err)
+		return nil, nil, nil, status.Errorf(codes.Internal, "unable to parse private key: %v", err)
 	}
 
-	certPEMstr, err := readARN(ctx, sm, config.CertFileARN)
+	certs, err := pemutil.ParseCertificates([]byte(certsPEMstr))
 	if err != nil {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.CertFileARN, err)
+		return nil, nil, nil, status.Errorf(codes.Internal, "unable to parse certificate: %v", err)
 	}
 
-	cert, err := pemutil.ParseCertificate([]byte(certPEMstr))
+	caCert := certs[0] // pemutil guarantees at least one cert
+
+	var trustBundle []*x509.Certificate
+	if bundleCertsPEMstr == "" {
+		// If there is no bundle payload configured then the value of certs
+		// must be a self-signed cert. We enforce this by requiring that there is
+		// exactly one certificate; this certificate is reused for the trust
+		// bundle and bundleCertsPEMstr is ignored
+		if len(certs) != 1 {
+			return nil, nil, nil, status.Error(codes.InvalidArgument, "with no bundle_file_arn configured only self-signed CAs are supported")
+		}
+		trustBundle = certs
+		certs = nil
+	} else {
+		// If there is a bundle, instead of using the payload of cert_file_arn
+		// to populate the trust bundle, we assume that certs is a chain of
+		// intermediates and populate the trust bundle with roots from
+		// bundle_file_arn
+		trustBundle, err = pemutil.ParseCertificates([]byte(bundleCertsPEMstr))
+		if err != nil {
+			return nil, nil, nil, status.Errorf(codes.InvalidArgument, "unable to load upstream CA bundle: %v", err)
+		}
+	}
+
+	matched, err := x509util.CertificateMatchesPrivateKey(caCert, key)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "unable to parse certificate: %v", err)
+		return nil, nil, nil, status.Errorf(codes.InvalidArgument, "unable to verify CA cert matches private key: %v", err)
 	}
-
-	// Validate cert matches private key
-	matched, err := x509util.CertificateMatchesPrivateKey(cert, key)
-	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "unable to validate certificate: %v", err)
-	}
-
 	if !matched {
-		return nil, nil, status.Errorf(codes.InvalidArgument, "certificate and private key does not match")
+		return nil, nil, nil, status.Error(codes.InvalidArgument, "unable to load upstream CA: certificate and private key do not match")
 	}
 
-	return key, cert, nil
+	intermediates := x509.NewCertPool()
+	roots := x509.NewCertPool()
+
+	for _, c := range certs {
+		intermediates.AddCert(c)
+	}
+	for _, c := range trustBundle {
+		roots.AddCert(c)
+	}
+	selfVerifyOpts := x509.VerifyOptions{
+		Intermediates: intermediates,
+		Roots:         roots,
+	}
+	_, err = caCert.Verify(selfVerifyOpts)
+	if err != nil {
+		return nil, nil, nil, status.Error(codes.InvalidArgument, "unable to load upstream CA: certificate could not be validated with the provided bundle or is not self signed")
+	}
+
+	// If we get to this point we've successfully validated that:
+	// - cert_file_arn contains a single self-signed certificate OR
+	// - cert_file_arn contains a chain of certificates which terminate at a root
+	//   which is provided in bundle_file_arn
+	return x509svid.NewUpstreamCA(
+		x509util.NewMemoryKeypair(caCert, key),
+		trustDomain,
+		x509svid.UpstreamCAOptions{
+			Clock: p.hooks.clock,
+		},
+	), certs, trustBundle, nil
+}
+
+func fetchFromSecretsManager(ctx context.Context, config *Configuration, sm secretsManagerClient) (string, string, string, error) {
+	keyPEMstr, err := readARN(ctx, sm, config.KeyFileARN)
+	if err != nil {
+		return "", "", "", status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.KeyFileARN, err)
+	}
+
+	certsPEMstr, err := readARN(ctx, sm, config.CertFileARN)
+	if err != nil {
+		return "", "", "", status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.CertFileARN, err)
+	}
+	var bundlePEMstr string
+	if config.BundleFileARN != "" {
+		bundlePEMstr, err = readARN(ctx, sm, config.BundleFileARN)
+		if err != nil {
+			return "", "", "", status.Errorf(codes.InvalidArgument, "unable to read %s: %v", config.BundleFileARN, err)
+		}
+	}
+
+	return keyPEMstr, certsPEMstr, bundlePEMstr, nil
 }
 
 func (p *Plugin) validateConfig(req *configv1.ConfigureRequest) (*Configuration, error) {
