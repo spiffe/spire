@@ -21,7 +21,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: example-multiple-containers-signed-1
-          image: docker-registry-local:5000/workload:signed
+          image: docker-registry-local:5001/workload:signed
           imagePullPolicy: IfNotPresent
           command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
@@ -30,7 +30,7 @@ spec:
               mountPath: /tmp/spire-agent/public
               readOnly: true
         - name: example-multiple-containers-signed-2
-          image: docker-registry-local:5000/workload:signed
+          image: docker-registry-local:5001/workload:signed
           imagePullPolicy: IfNotPresent
           command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
@@ -39,7 +39,7 @@ spec:
               mountPath: /tmp/spire-agent/public
               readOnly: true
         - name: example-multiple-containers-unsigned-1
-          image: docker-registry-local:5000/workload:unsigned
+          image: docker-registry-local:5001/workload:unsigned
           imagePullPolicy: IfNotPresent
           command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
@@ -48,7 +48,7 @@ spec:
               mountPath: /tmp/spire-agent/public
               readOnly: true
         - name: example-multiple-containers-unsigned-2
-          image: docker-registry-local:5000/workload:unsigned
+          image: docker-registry-local:5001/workload:unsigned
           imagePullPolicy: IfNotPresent
           command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
@@ -57,7 +57,7 @@ spec:
               mountPath: /tmp/spire-agent/public
               readOnly: true
         - name: example-multiple-containers-unsigned-skiplist-1
-          image: docker-registry-local:5000/workload:unsigned-skiplist1
+          image: docker-registry-local:5001/workload:unsigned-skiplist1
           imagePullPolicy: IfNotPresent
           command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
@@ -66,7 +66,7 @@ spec:
               mountPath: /tmp/spire-agent/public
               readOnly: true
         - name: example-multiple-containers-unsigned-skiplist-2
-          image: docker-registry-local:5000/workload:unsigned-skiplist2
+          image: docker-registry-local:5001/workload:unsigned-skiplist2
           imagePullPolicy: IfNotPresent
           command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]
@@ -75,7 +75,7 @@ spec:
               mountPath: /tmp/spire-agent/public
               readOnly: true
         - name: example-multiple-containers-signed-wrong-subject
-          image: docker-registry-local:5000/workload:signed-wrong-subject
+          image: docker-registry-local:5001/workload:signed-wrong-subject
           imagePullPolicy: IfNotPresent
           command: ["/usr/bin/dumb-init", "/opt/spire/bin/spire-agent", "api", "watch"]
           args: ["-socketPath", "/tmp/spire-agent/public/api.sock"]

@@ -5,11 +5,14 @@ services:
     restart: always
     image: registry:2
     ports:
-      - 5000:5000
+      - 5001:5001
     environment:
       REGISTRY_HTTP_SECRET: "1"
       REGISTRY_HTTP_TLS_CERTIFICATE: /certs/domain.crt
       REGISTRY_HTTP_TLS_KEY: /certs/domain.key
+      # Update port since default (5000) is generaly used by another process 
+      # on MacOS
+      REGISTRY_HTTP_ADDR: 0.0.0.0:5001
     volumes:
       - ./conf/docker-registry/certs:/certs
 networks:

@@ -6,6 +6,7 @@ mkdir -p ./bin
 
 KIND_PATH=./bin/kind
 KUBECTL_PATH=./bin/kubectl
+REGISTRY_HTTP_ADDR="docker-registry-local:5001"
 
 # Download kind at the expected version at the given path.
 download-kind "${KIND_PATH}"
@@ -33,14 +34,14 @@ start-kind-cluster "${KIND_PATH}" k8stest ./conf/kind-config.yaml
 docker-up registry
 
 #copy signed images from public to local registry
-docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/projectsigstore/cosign:v1.2.1 copy hpespirex/spire-workload:signed docker-registry-local:5000/workload:signed
-docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/projectsigstore/cosign:v1.2.1 copy hpespirex/spire-workload:signed-wrong-subject docker-registry-local:5000/workload:signed-wrong-subject
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/projectsigstore/cosign:v1.2.1 copy hpespirex/spire-workload:signed ${REGISTRY_HTTP_ADDR}/workload:signed
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/projectsigstore/cosign:v1.2.1 copy hpespirex/spire-workload:signed-wrong-subject ${REGISTRY_HTTP_ADDR}/workload:signed-wrong-subject
 #copying unsigned image with crane tool from public to local registry
-docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:unsigned docker-registry-local:5000/workload:unsigned
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:unsigned ${REGISTRY_HTTP_ADDR}/workload:unsigned
 
 #copying unsigned images for skiplist with crane tool from public to local registry
-docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:alternate-unsigned docker-registry-local:5000/workload:unsigned-skiplist1
-docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:alternate-unsigned docker-registry-local:5000/workload:unsigned-skiplist2
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:alternate-unsigned ${REGISTRY_HTTP_ADDR}/workload:unsigned-skiplist1
+docker run --network="kind" -v "${PWD}"/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt gcr.io/go-containerregistry/crane:v0.7.0 copy hpespirex/spire-workload:alternate-unsigned ${REGISTRY_HTTP_ADDR}/workload:unsigned-skiplist2
 
 #copy certificate to ssl certicates dest folder on kind cluster
 docker exec k8stest-control-plane cp /mnt/reg-certificate/docker-registry/certs/domain.crt /etc/ssl/certs/

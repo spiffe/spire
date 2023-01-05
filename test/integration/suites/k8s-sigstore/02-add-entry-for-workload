@@ -108,4 +108,4 @@ add_entry_for_workload_with_multi_container_pods_skiplist() {
 }
 
 add_entry_for_workload_with_multi_container_pods spire example-multiple-containers spiffe://example.org/ns/default/sa/default/workload-multiple-containers
-add_entry_for_workload_with_multi_container_pods_skiplist spire example-multiple-containers spiffe://example.org/ns/default/sa/default/workload-multiple-containers docker-registry-local:5000/workload:unsigned-skiplist1
+add_entry_for_workload_with_multi_container_pods_skiplist spire example-multiple-containers spiffe://example.org/ns/default/sa/default/workload-multiple-containers docker-registry-local:5001/workload:unsigned-skiplist1
