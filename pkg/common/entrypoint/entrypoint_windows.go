@@ -5,6 +5,7 @@ package entrypoint
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -99,7 +100,7 @@ func isWindowsService() (bool, error) {
 		err = windows.NtQuerySystemInformation(windows.SystemProcessInformation, unsafe.Pointer(parentProcess), infoSize, &infoSize)
 		if err == nil {
 			break
-		} else if err != windows.STATUS_INFO_LENGTH_MISMATCH {
+		} else if !errors.Is(err, windows.STATUS_INFO_LENGTH_MISMATCH) {
 			return false, err
 		}
 	}
