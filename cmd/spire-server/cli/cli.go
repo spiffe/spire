@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	stdlog "log"
 
 	"github.com/mitchellh/cli"
@@ -25,7 +26,7 @@ type CLI struct {
 }
 
 // Run configures the server CLI commands and subcommands.
-func (cc *CLI) Run(args []string) int {
+func (cc *CLI) Run(ctx context.Context, args []string) int {
 	c := cli.NewCLI("spire-server", version.Version())
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
@@ -93,7 +94,7 @@ func (cc *CLI) Run(args []string) int {
 			return federation.NewUpdateCommand(), nil
 		},
 		"run": func() (cli.Command, error) {
-			return run.NewRunCommand(cc.LogOptions, cc.AllowUnknownConfig), nil
+			return run.NewRunCommand(ctx, cc.LogOptions, cc.AllowUnknownConfig), nil
 		},
 		"token generate": func() (cli.Command, error) {
 			return token.NewGenerateCommand(), nil
