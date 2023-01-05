@@ -26,18 +26,17 @@ func TestLocalTimeHook(t *testing.T) {
 		"Australia/Sydney":  "2021-01-01 23:00:00 +1100 AEDT",
 	}
 
+	testHook := test.Hook{}
+	logger, err := NewLogger(
+		func(logger *Logger) error {
+			logger.AddHook(&testHook)
+			return nil
+		})
+	require.NoError(t, err)
+
 	for tz, expected := range localTimeSamples {
 		t.Run(tz, func(t *testing.T) {
-			loc, err := time.LoadLocation(tz)
-			require.NoError(t, err)
-			time.Local = loc
-
-			testHook := test.Hook{}
-			logger, err := NewLogger(
-				func(logger *Logger) error {
-					logger.AddHook(&testHook)
-					return nil
-				})
+			time.Local, err = time.LoadLocation(tz)
 			require.NoError(t, err)
 
 			logger.
