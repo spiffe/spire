@@ -39,6 +39,7 @@ func Print(msgs []proto.Message, stdout, stderr io.Writer) error {
 	parsedJms, err := parseJSONMessages(jms)
 	if err != nil {
 		_ = errorjson.Print(err, stdout, stderr)
+		return err
 	}
 
 	if len(parsedJms) == 1 {
@@ -71,12 +72,7 @@ func parseJSONMessage(jm json.RawMessage) (json.RawMessage, error) {
 
 	removeNulls(jmMap)
 
-	parsedJm, err := json.Marshal(jmMap)
-	if err != nil {
-		return nil, err
-	}
-
-	return parsedJm, nil
+	return json.Marshal(jmMap)
 }
 
 func removeNulls(jsonMap map[string]interface{}) {
