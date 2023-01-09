@@ -77,11 +77,9 @@ func parseJSONMessage(jm json.RawMessage) (json.RawMessage, error) {
 
 func removeNulls(jsonMap map[string]interface{}) {
 	for key, val := range jsonMap {
-		if val == nil {
-			delete(jsonMap, key)
-			continue
-		}
 		switch v := val.(type) {
+		case nil:
+			delete(jsonMap, key)
 		case map[string]interface{}:
 			removeNulls(v)
 		case []interface{}:
@@ -93,17 +91,18 @@ func removeNulls(jsonMap map[string]interface{}) {
 func removeNullsFromSlice(slice []interface{}) []interface{} {
 	var newSlice = make([]interface{}, 0)
 	for _, val := range slice {
-		if val != nil {
-			newSlice = append(newSlice, val)
-		}
-	}
-	for i, val := range newSlice {
 		switch v := val.(type) {
+		case nil:
+			continue
 		case map[string]interface{}:
 			removeNulls(v)
+			newSlice = append(newSlice, v)
 		case []interface{}:
-			newSlice[i] = removeNullsFromSlice(v)
+			newSlice = append(newSlice, removeNullsFromSlice(v))
+		default:
+			newSlice = append(newSlice, v)
 		}
 	}
+
 	return newSlice
 }
