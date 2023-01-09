@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -838,11 +839,23 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 
 	clk.Add(SVIDSyncInterval * 2)
 
+	var wg sync.WaitGroup
+	done := make(chan struct{})
+	//Move clk in go routine to avoid potential race condition
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		moveClk(clk, done)
+	}()
+
 	sub1Err := <-sub1ErrCh
 	assert.NoError(t, sub1Err, "subscriber 1 error")
 
 	sub2Err := <-sub2ErrCh
 	assert.NoError(t, sub2Err, "subscriber 2 error")
+	//clean-up
+	close(done)
+	wg.Wait()
 }
 
 func TestNewLRUCache(t *testing.T) {
@@ -951,4 +964,15 @@ func subscribeToWorkloadUpdates(t *testing.T, cache *LRUCache, selectors []*comm
 	subscriber, err := cache.subscribeToWorkloadUpdates(context.Background(), selectors, nil)
 	assert.NoError(t, err)
 	return subscriber
+}
+
+func moveClk(clk *clock.Mock, done <-chan struct{}) {
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			clk.Add(SVIDSyncInterval * 2)
+		}
+	}
 }
