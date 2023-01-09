@@ -85,11 +85,25 @@ func removeNulls(jsonMap map[string]interface{}) {
 		case map[string]interface{}:
 			removeNulls(v)
 		case []interface{}:
-			for _, elem := range v {
-				if e, ok := elem.(map[string]interface{}); ok {
-					removeNulls(e)
-				}
-			}
+			jsonMap[key] = removeNullsFromSlice(v)
 		}
 	}
+}
+
+func removeNullsFromSlice(slice []interface{}) []interface{} {
+	var newSlice = make([]interface{}, 0)
+	for _, val := range slice {
+		if val != nil {
+			newSlice = append(newSlice, val)
+		}
+	}
+	for i, val := range newSlice {
+		switch v := val.(type) {
+		case map[string]interface{}:
+			removeNulls(v)
+		case []interface{}:
+			newSlice[i] = removeNullsFromSlice(v)
+		}
+	}
+	return newSlice
 }
