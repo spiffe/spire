@@ -841,7 +841,7 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 
 	var wg sync.WaitGroup
 	done := make(chan struct{})
-	//Move clk in go routine to avoid potential race condition
+	// Move clk in go routine to avoid potential race condition
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -853,7 +853,7 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 
 	sub2Err := <-sub2ErrCh
 	assert.NoError(t, sub2Err, "subscriber 2 error")
-	//clean-up
+	// clean-up
 	close(done)
 	wg.Wait()
 }
