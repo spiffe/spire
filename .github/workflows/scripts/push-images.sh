@@ -21,7 +21,23 @@ function usage {
   grep '^##' "$0" | sed -e 's/^##//' -e "s/__PROG__/$me/" >&2
 }
 
+function normalize_path {
+  # Remove all /./ sequences.
+  local path=${1//\/.\//\/}
+  local npath
+  # Remove first dir/.. sequence.
+  npath="${path//[^\/][^\/]*\/\.\.\//}"
+  # Remove remaining dir/.. sequence.
+  while [[ $npath != "$path" ]] ; do
+    path=$npath
+    npath="${path//[^\/][^\/]*\/\.\.\//}"
+  done
+  echo "$path"
+}
+
 me=$(basename "$0")
+BASEDIR=$(dirname "$0")
+ROOTDIR="$(normalize_path "$BASEDIR/../../../")"
 
 version="$1"
 if [ -z "${version}" ]; then
@@ -37,7 +53,7 @@ version="${version#refs/tags/v}"
 version="${version#v}"
 
 variant="$2"
-if [ -n "${variant}" ] && [ "${variant}" != "-scratch" ]; then
+if [ -n "${variant}" ] && [ "${variant}" != "-scratch" ] ; then
   usage
   echo -e "\n Errors:\n * The only supported variant is '-scratch'." >&2
   exit 1
@@ -60,7 +76,9 @@ fi
 echo "Pushing images ${OCI_IMAGES[*]} to ${registry} with tag ${version}".
 for img in "${OCI_IMAGES[@]}"; do
   image_variant="${img}${variant}"
+  oci_dir="ocidir://${ROOTDIR}oci/${image_variant}"
   image_to_push="${registry}/${img}:${version}"
-  docker tag "${image_variant}:latest-local" "${image_to_push}"
-  docker push "${image_to_push}"
+  
+  regctl image import "${oci_dir}" "${image_variant}-image.tar"
+  regctl image copy "${oci_dir}" "${image_to_push}"
 done

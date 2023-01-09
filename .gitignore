@@ -34,3 +34,7 @@ tools/spire-plugingen/spire-plugingen
 # Runtime version manager specific configuration
 # asdf config file
 .tool-versions
+
+# oci artifacts
+*-image.tar
+oci/

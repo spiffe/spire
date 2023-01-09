@@ -8,14 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -26,6 +25,8 @@ import (
 )
 
 func TestConfigure(t *testing.T) {
+	clk := clock.NewMock(t)
+	_, fakeStorageClientCreator := generateTestData(t, clk)
 	for _, tt := range []struct {
 		test               string
 		overrideCoreConfig *catalog.CoreConfig
@@ -37,6 +38,7 @@ func TestConfigure(t *testing.T) {
 		region          string
 		certFileARN     string
 		keyFileARN      string
+		bundleFileARN   string
 		accessKeyID     string
 		secretAccessKey string
 		securityToken   string
@@ -167,7 +169,31 @@ func TestConfigure(t *testing.T) {
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "certificate and private key does not match",
+			expectMsgPrefix: "unable to load upstream CA: certificate and private key do not match",
+		},
+		{
+			test:            "additional bundle set",
+			region:          "region_1",
+			certFileARN:     "cert",
+			keyFileARN:      "key",
+			bundleFileARN:   "bundle",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+		},
+		{
+			test:            "invalid bundle set",
+			region:          "region_1",
+			certFileARN:     "cert",
+			keyFileARN:      "key",
+			bundleFileARN:   "missing_bundle",
+			accessKeyID:     "access_key_id",
+			secretAccessKey: "secret_access_key",
+			securityToken:   "security_token",
+			assumeRoleARN:   "assume_role_arn",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "unable to read missing_bundle: secret not found",
 		},
 	} {
 		tt := tt
@@ -193,6 +219,7 @@ func TestConfigure(t *testing.T) {
 					Region:          tt.region,
 					CertFileARN:     tt.certFileARN,
 					KeyFileARN:      tt.keyFileARN,
+					BundleFileARN:   tt.bundleFileARN,
 					AccessKeyID:     tt.accessKeyID,
 					SecretAccessKey: tt.secretAccessKey,
 					SecurityToken:   tt.securityToken,
@@ -201,8 +228,8 @@ func TestConfigure(t *testing.T) {
 			}
 
 			p := new(Plugin)
-			p.hooks.clock = clock.NewMock()
-			p.hooks.newClient = newFakeSecretsManagerClient
+			p.hooks.clock = clk
+			p.hooks.newClient = fakeStorageClientCreator
 
 			plugintest.Load(t, builtin(p), nil, options...)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
@@ -212,10 +239,10 @@ func TestConfigure(t *testing.T) {
 
 func TestMintX509CA(t *testing.T) {
 	key := testkey.NewEC256(t)
-	clk := clock.NewMock()
+	clk := clock.NewMock(t)
+	certsAndKeys, fakeStorageClientCreator := generateTestData(t, clk)
 
-	x509Authority, err := pemutil.LoadCertificates("testdata/keys/EC/cert.pem")
-	require.NoError(t, err, "failed to load X509 Authority from disk")
+	x509Authority := []*x509.Certificate{certsAndKeys.rootCert}
 
 	makeCSR := func(spiffeID string) []byte {
 		csr, err := util.NewCSRTemplateWithKey(spiffeID, key)
@@ -233,6 +260,17 @@ func TestMintX509CA(t *testing.T) {
 		AssumeRoleARN:   "assume_role_arn",
 	}
 
+	withBundleConfiguration := &Configuration{
+		Region:          "region_1",
+		CertFileARN:     "intermediate_cert",
+		KeyFileARN:      "intermediate_key",
+		BundleFileARN:   "bundle",
+		AccessKeyID:     "access_key_id",
+		SecretAccessKey: "secret_access_key",
+		SecurityToken:   "security_token",
+		AssumeRoleARN:   "assume_role_arn",
+	}
+
 	for _, tt := range []struct {
 		test                    string
 		configuration           *Configuration
@@ -243,6 +281,7 @@ func TestMintX509CA(t *testing.T) {
 		expectX509CASpiffeID    string
 		expectedX509Authorities []*x509.Certificate
 		expectTTL               time.Duration
+		numExpectedCAs          int
 	}{
 		{
 			test:                    "valid CSR",
@@ -252,6 +291,16 @@ func TestMintX509CA(t *testing.T) {
 			expectTTL:               x509svid.DefaultUpstreamCATTL + time.Hour,
 			expectX509CASpiffeID:    "spiffe://example.org",
 			expectedX509Authorities: x509Authority,
+			numExpectedCAs:          1,
+		},
+		{
+			test:                    "CA is intermediate",
+			configuration:           withBundleConfiguration,
+			csr:                     makeCSR("spiffe://example.org"),
+			expectTTL:               x509svid.DefaultUpstreamCATTL,
+			expectX509CASpiffeID:    "spiffe://example.org",
+			expectedX509Authorities: x509Authority,
+			numExpectedCAs:          2,
 		},
 		{
 			test:                    "using default ttl",
@@ -260,6 +309,7 @@ func TestMintX509CA(t *testing.T) {
 			expectTTL:               x509svid.DefaultUpstreamCATTL,
 			expectX509CASpiffeID:    "spiffe://example.org",
 			expectedX509Authorities: x509Authority,
+			numExpectedCAs:          1,
 		},
 		{
 			test:            "configuration fail",
@@ -282,7 +332,7 @@ func TestMintX509CA(t *testing.T) {
 			p.hooks.getenv = func(s string) string {
 				return ""
 			}
-			p.hooks.newClient = newFakeSecretsManagerClient
+			p.hooks.newClient = fakeStorageClientCreator
 
 			var err error
 			options := []plugintest.Option{
@@ -310,7 +360,7 @@ func TestMintX509CA(t *testing.T) {
 				return
 			}
 
-			if assert.Len(t, x509CA, 1, "only expect 1 x509CA") {
+			if assert.Len(t, x509CA, tt.numExpectedCAs, "only expecting %d x509CA", tt.numExpectedCAs) {
 				cert := x509CA[0]
 				// assert key
 				isEqual, err := cryptoutil.PublicKeyEqual(cert.PublicKey, key.Public())
@@ -320,6 +370,11 @@ func TestMintX509CA(t *testing.T) {
 				// assert ttl
 				ttl := cert.NotAfter.Sub(clk.Now())
 				assert.Equal(t, tt.expectTTL, ttl, "TTL does not match")
+
+				// assert expected intermediate is in chain
+				if tt.configuration.CertFileARN == "intermediate_cert" {
+					assert.Equal(t, certsAndKeys.intermediateCert, x509CA[1])
+				}
 
 				// assert CA has expected SpiffeID
 				assert.Equal(t, tt.expectX509CASpiffeID, cert.URIs[0].String())
@@ -336,9 +391,11 @@ func TestMintX509CA(t *testing.T) {
 }
 
 func TestPublishJWTKey(t *testing.T) {
+	clk := clock.NewMock(t)
+	_, fakeStorageClientCreator := generateTestData(t, clk)
 	p := new(Plugin)
-	p.hooks.clock = clock.NewMock()
-	p.hooks.newClient = newFakeSecretsManagerClient
+	p.hooks.clock = clk
+	p.hooks.newClient = fakeStorageClientCreator
 
 	ua := new(upstreamauthority.V1)
 	plugintest.Load(t, builtin(p), ua,
