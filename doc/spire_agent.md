@@ -169,6 +169,25 @@ the following flags are available:
 | `-trustBundleUrl`                | URL to download the SPIRE server CA bundle                                          |                       |
 | `-trustDomain`                   | The trust domain that this agent belongs to (should be no more than 255 characters) |                       |
 
+#### Running SPIRE Agent as a Windows service
+
+On Windows platform, SPIRE Agent can optionally be run as a Windows service. When running as a Windows service, the only command supported is the `run` command.
+
+_Note: SPIRE does not automatically create the service in the system, it must be created by the user.
+When starting the service, all the arguments to execute SPIRE Agent with the `run` command must be passed as service arguments._
+
+##### Example to create the SPIRE Agent Windows service
+
+```bash
+> sc.exe create spire-agent binpath=c:\spire\bin\spire-agent.exe
+```
+
+##### Example to run the SPIRE Agent Windows service
+
+```bash
+> sc.exe start spire-agent run -config c:\spire\conf\agent\agent.conf
+```
+
 ### `spire-agent api fetch`
 
 Calls the workload API to fetch an X509-SVID. This command is aliased to `spire-agent api fetch x509`.

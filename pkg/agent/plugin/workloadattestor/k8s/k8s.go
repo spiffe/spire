@@ -40,6 +40,7 @@ const (
 	defaultTokenPath         = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
 	defaultNodeNameEnv       = "MY_NODE_NAME"
 	defaultReloadInterval    = time.Minute
+	maximumAmountCache       = 10
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -119,6 +120,29 @@ type HCLConfig struct {
 	// but the container may not be in a ready state at the time of attestation
 	// (e.g. when a postStart hook has yet to complete).
 	DisableContainerSelectors bool `hcl:"disable_container_selectors"`
+
+	// Experimental enables experimental features.
+	Experimental *ExperimentalK8SConfig `hcl:"experimental,omitempty"`
+}
+
+type ExperimentalK8SConfig struct {
+	// Sigstore contains sigstore specific configs.
+	Sigstore *SigstoreHCLConfig `hcl:"sigstore,omitempty"`
+}
+
+// SigstoreHCLConfig holds the sigstore configuration parsed from HCL
+type SigstoreHCLConfig struct {
+	// EnforceSCT is the parameter to be set as false in case of a private deployment not using the public CT
+	EnforceSCT *bool `hcl:"enforce_sct, omitempty"`
+
+	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
+	RekorURL *string `hcl:"rekor_url,omitempty"`
+
+	// SkippedImages is a list of images that should skip sigstore verification
+	SkippedImages []string `hcl:"skip_signature_verification_image_list"`
+
+	// AllowedSubjects is a list of subjects that should be allowed after verification
+	AllowedSubjects map[string][]string `hcl:"allowed_subjects_list"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -142,6 +166,8 @@ type k8sConfig struct {
 }
 
 type ContainerHelper interface {
+	Configure(config *HCLConfig, log hclog.Logger) error
+	GetOSSelectors(ctx context.Context, log hclog.Logger, containerStatus *corev1.ContainerStatus) ([]string, error)
 	GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error)
 }
 
@@ -222,7 +248,16 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(&item)...)
 				if !config.DisableContainerSelectors {
 					selectorValues = append(selectorValues, getSelectorValuesFromWorkloadContainerStatus(containerStatus)...)
+
+					osSelector, err := p.c.GetOSSelectors(ctx, log, containerStatus)
+					switch {
+					case err != nil:
+						return nil, err
+					case len(osSelector) > 0:
+						selectorValues = append(selectorValues, osSelector...)
+					}
 				}
+
 			case podKnown && config.DisableContainerSelectors:
 				// The workload container was not found (i.e. not ready yet?)
 				// but the pod is known. If container selectors have been
@@ -305,8 +340,8 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Error(codes.InvalidArgument, "cannot use both the read-only and secure port")
 	}
 
-	containerHelper, err := createHelper(p)
-	if err != nil {
+	containerHelper := createHelper(p)
+	if err := containerHelper.Configure(config, p.log); err != nil {
 		return nil, err
 	}
 
@@ -340,6 +375,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		ReloadInterval:             reloadInterval,
 		DisableContainerSelectors:  config.DisableContainerSelectors,
 	}
+
 	if err := p.reloadKubeletClient(c); err != nil {
 		return nil, err
 	}
