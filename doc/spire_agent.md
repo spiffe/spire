@@ -63,6 +63,7 @@ This may be useful for templating configuration files, for example across differ
 | `sds`                             | Optional SDS configuration section                                                                                             |                                  |
 | `trust_bundle_path`               | Path to the SPIRE server CA bundle                                                                                             |                                  |
 | `trust_bundle_url`                | URL to download the initial SPIRE server trust bundle                                                                          |                                  |
+| `trust_bundle_format`             | Format of the initial trust bundle, pem or spiffe                                                                              | pem                              |
 | `trust_domain`                    | The trust domain that this agent belongs to (should be no more than 255 characters)                                            |                                  |
 | `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&gt;                                                                  | ec-p256                          |
 
