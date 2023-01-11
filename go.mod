@@ -26,7 +26,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.18.16
 	github.com/aws/aws-sdk-go-v2/service/kms v1.20.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.18.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.17.6
+	github.com/aws/aws-sdk-go-v2/service/sts v1.18.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/docker/docker v20.10.22+incompatible
