@@ -14,11 +14,19 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
       packages: write
+
+    env:
+      COSIGN_EXPERIMENTAL: 1
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v2.8.1
+        with:
+          cosign-release: v1.13.1
       - name: Install regctl
         uses: regclient/actions/regctl-installer@main
       - name: Build images

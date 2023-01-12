@@ -81,4 +81,8 @@ for img in "${OCI_IMAGES[@]}"; do
   
   regctl image import "${oci_dir}" "${image_variant}-image.tar"
   regctl image copy "${oci_dir}" "${image_to_push}"
+
+  image_digest="$(jq -r '.manifests[0].digest' "${ROOTDIR}oci/${image_variant}/index.json")"
+
+  cosign sign "${registry}/${img}@${image_digest}"
 done
