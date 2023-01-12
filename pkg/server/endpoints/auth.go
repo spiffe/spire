@@ -21,7 +21,7 @@ import (
 
 var (
 	misconfigLogMtx   sync.Mutex
-	misconfigLogTimes = make(map[string]time.Time)
+	misconfigLogTimes = make(map[spiffeid.TrustDomain]time.Time)
 	misconfigClk      = clock.New()
 )
 
@@ -29,14 +29,14 @@ const misconfigLogEvery = time.Minute
 
 // shouldLogFederationMisconfiguration returns true if the last time a misconfiguration
 // was logged was more than misconfigLogEvery ago.
-func shouldLogFederationMisconfiguration(tdID string) bool {
+func shouldLogFederationMisconfiguration(td spiffeid.TrustDomain) bool {
 	misconfigLogMtx.Lock()
 	defer misconfigLogMtx.Unlock()
 
 	now := misconfigClk.Now()
-	last, ok := misconfigLogTimes[tdID]
+	last, ok := misconfigLogTimes[td]
 	if !ok || now.Sub(last) >= misconfigLogEvery {
-		misconfigLogTimes[tdID] = now
+		misconfigLogTimes[td] = now
 		return true
 	}
 	return false
@@ -49,7 +49,7 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) (
 		return nil, fmt.Errorf("get bundle from datastore: %w", err)
 	}
 	if commonServerBundle == nil {
-		if td != e.TrustDomain && shouldLogFederationMisconfiguration(td.IDString()) {
+		if td != e.TrustDomain && shouldLogFederationMisconfiguration(td) {
 			e.Log.
 				WithField(telemetry.TrustDomain, td.String()).
 				Warn(
@@ -57,36 +57,38 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) (
 						"Make sure this trust domain is correctly federated.",
 				)
 		}
-		return nil, fmt.Errorf("no bundle found for trust domain %q", e.TrustDomain)
+		return nil, fmt.Errorf("no bundle found for trust domain %q", td)
 	}
 
 	serverBundle, err := parseBundle(e.TrustDomain, commonServerBundle)
 	if err != nil {
-		return nil, fmt.Errorf("parse bundle: %w", err)
+		return nil, err
 	}
 
 	return serverBundle.X509Authorities(), nil
 }
 
 // serverSpiffeVerificationFunc returns a function that is used for peer certificate verification on TLS connections.
-// The returned function will verify that the peer certificate is valid, and apply a custom authorization with machMemberOrOneOf.
+// The returned function will verify that the peer certificate is valid, and apply a custom authorization with matchMemberOrOneOf.
 // If the peer certificate is not provided, the function will not make any verification and return nil.
 func (e *Endpoints) serverSpiffeVerificationFunc(bundleSource x509bundle.Source) func(_ [][]byte, _ [][]*x509.Certificate) error {
+	verifyPeerCertificate := tlsconfig.VerifyPeerCertificate(
+		bundleSource,
+		tlsconfig.AdaptMatcher(matchMemberOrOneOf(e.TrustDomain, e.AdminIDs...)),
+	)
+
 	return func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 		if rawCerts == nil {
 			return nil
 		}
 
-		return tlsconfig.VerifyPeerCertificate(
-			bundleSource,
-			tlsconfig.AdaptMatcher(machMemberOrOneOf(e.TrustDomain, e.AdminIDs...)),
-		)(rawCerts, nil)
+		return verifyPeerCertificate(rawCerts, nil)
 	}
 }
 
-// machMemberOrOneOf is a custom spiffeid.Matcher which will validate that the peerSpiffeID belongs to the server
+// matchMemberOrOneOf is a custom spiffeid.Matcher which will validate that the peerSpiffeID belongs to the server
 // trust domain or if it is included in the admin_ids configuration permissive list.
-func machMemberOrOneOf(trustDomain spiffeid.TrustDomain, adminIds ...spiffeid.ID) spiffeid.Matcher {
+func matchMemberOrOneOf(trustDomain spiffeid.TrustDomain, adminIds ...spiffeid.ID) spiffeid.Matcher {
 	permissiveIDsSet := make(map[spiffeid.ID]struct{})
 	for _, adminID := range adminIds {
 		permissiveIDsSet[adminID] = struct{}{}
