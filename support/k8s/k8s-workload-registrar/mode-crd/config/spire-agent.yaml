@@ -79,10 +79,6 @@ data:
         }
       }
 
-      WorkloadAttestor "unix" {
-          plugin_data {
-          }
-      }
     }
 
 ---
