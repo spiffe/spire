@@ -111,6 +111,10 @@ endif
 # Vars
 ############################################################################
 
+PLATFORMS ?= linux/amd64,linux/arm64
+
+binaries := spire-server spire-agent oidc-discovery-provider k8s-workload-registrar
+
 build_dir := $(DIR)/.build/$(os1)-$(arch1)
 
 go_version_full := $(shell cat .go-version)
@@ -238,56 +242,51 @@ ifeq ($(git_dirty),)
 		go_ldflags += -X github.com/spiffe/spire/pkg/common/version.githash=$(git_hash)
 	endif
 endif
-go_ldflags := '${go_ldflags}'
 
 #############################################################################
 # Build Targets
 #############################################################################
 
 .PHONY: build
+build: tidy $(addprefix bin/,$(binaries))
 
-build: tidy bin/spire-server bin/spire-agent bin/k8s-workload-registrar bin/oidc-discovery-provider
+go_build := $(go_path) go build $(go_flags) -ldflags '$(go_ldflags)' -o
 
-define binary_rule
-.PHONY: $1
-$1: | go-check bin/
-	@echo Building $1...
-	$(E)$(go_path) go build $$(go_flags) -ldflags $$(go_ldflags) -o $1$(exe) $2
-endef
+bin/%: cmd/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build) $@$(exe) ./$<
 
-# main SPIRE binaries
-$(eval $(call binary_rule,bin/spire-server,./cmd/spire-server))
-$(eval $(call binary_rule,bin/spire-agent,./cmd/spire-agent))
-$(eval $(call binary_rule,bin/k8s-workload-registrar,./support/k8s/k8s-workload-registrar))
-$(eval $(call binary_rule,bin/oidc-discovery-provider,./support/oidc-discovery-provider))
+bin/%: support/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build) $@$(exe) ./$<
 
-bin/:
-	@mkdir -p $@
+bin/%: support/k8s/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build) $@$(exe) ./$<
 
 #############################################################################
 # Build Static binaries for scratch docker images
 #############################################################################
 
 .PHONY: build-static
-
 # The build-static is intended to statically link to musl libc.
 # There are possibilities of unexpected errors when statically link to GLIBC.
-build-static: tidy bin/spire-server-static bin/spire-agent-static bin/k8s-workload-registrar-static bin/oidc-discovery-provider-static
-
 # https://7thzero.com/blog/golang-w-sqlite3-docker-scratch-image
-define binary_rule_static
-.PHONY: $1
-$1: | go-check bin/
-	@echo Building $1...
-	$(E)$(go_path) CGO_ENABLED=1 go build $$(go_flags) -ldflags '-s -w -linkmode external -extldflags "-static"' -o $1$(exe) $2
+build-static: tidy $(addprefix bin/static/,$(binaries))
 
-endef
+go_build_static := $(go_path) go build $(go_flags) -ldflags '$(go_ldflags) -linkmode external -extldflags "-static"' -o
 
-# static builds
-$(eval $(call binary_rule_static,bin/spire-server-static,./cmd/spire-server))
-$(eval $(call binary_rule_static,bin/spire-agent-static,./cmd/spire-agent))
-$(eval $(call binary_rule_static,bin/k8s-workload-registrar-static,./support/k8s/k8s-workload-registrar))
-$(eval $(call binary_rule_static,bin/oidc-discovery-provider-static,./support/oidc-discovery-provider))
+bin/static/%: cmd/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build_static) $@$(exe) ./$<
+
+bin/static/%: support/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build_static) $@$(exe) ./$<
+
+bin/static/%: support/k8s/% FORCE | go-check
+	@echo Building $@…
+	$(E)$(go_build_static) $@$(exe) ./$<
 
 #############################################################################
 # Test Targets
@@ -332,10 +331,57 @@ artifact: build
 # Docker Images
 #############################################################################
 
+.PHONY: container-builder
+container-builder:
+	$(E)docker buildx create --platform $(PLATFORMS) --name container-builder --node container-builder0 --use
+
 define image_rule
 .PHONY: $1
-$1: $3
+$1: $3 container-builder
 	echo Building docker image $2 $(PLATFORM)…
+	$(E)docker buildx build \
+		--platform $(PLATFORMS) \
+		--build-arg goversion=$(go_version_full) \
+		--target $2 \
+		-o type=oci,dest=$2-image.tar \
+		-f $3 \
+		.
+
+endef
+
+.PHONY: images
+images: $(addsuffix -image,$(binaries))
+
+$(eval $(call image_rule,spire-server-image,spire-server,Dockerfile))
+$(eval $(call image_rule,spire-agent-image,spire-agent,Dockerfile))
+$(eval $(call image_rule,k8s-workload-registrar-image,k8s-workload-registrar,Dockerfile))
+$(eval $(call image_rule,oidc-discovery-provider-image,oidc-discovery-provider,Dockerfile))
+
+load-images:
+	.github/workflows/scripts/load-oci-archives.sh
+
+#############################################################################
+# Docker Images FROM scratch
+#############################################################################
+
+.PHONY: scratch-images
+scratch-images: $(addsuffix -scratch-image,$(binaries))
+
+$(eval $(call image_rule,spire-server-scratch-image,spire-server-scratch,Dockerfile.scratch))
+$(eval $(call image_rule,spire-agent-scratch-image,spire-agent-scratch,Dockerfile.scratch))
+$(eval $(call image_rule,k8s-workload-registrar-scratch-image,k8s-workload-registrar-scratch,Dockerfile.scratch))
+$(eval $(call image_rule,oidc-discovery-provider-scratch-image,oidc-discovery-provider-scratch,Dockerfile.scratch))
+
+load-scratch-images:
+	.github/workflows/scripts/load-oci-archives.sh -scratch
+
+#############################################################################
+# Windows Docker Images
+#############################################################################
+define windows_image_rule
+.PHONY: $1
+$1: $3
+	echo Building docker image $2…
 	$(E)docker build \
 		--build-arg goversion=$(go_version_full) \
 		--target $2 \
@@ -345,37 +391,13 @@ $1: $3
 
 endef
 
-.PHONY: images
-images: spire-server-image spire-agent-image k8s-workload-registrar-image oidc-discovery-provider-image
-
-$(eval $(call image_rule,spire-server-image,spire-server,Dockerfile))
-$(eval $(call image_rule,spire-agent-image,spire-agent,Dockerfile))
-$(eval $(call image_rule,k8s-workload-registrar-image,k8s-workload-registrar,Dockerfile))
-$(eval $(call image_rule,oidc-discovery-provider-image,oidc-discovery-provider,Dockerfile))
-
-#############################################################################
-# Docker Images FROM scratch
-#############################################################################
-
-.PHONY: scratch-images
-scratch-images: spire-server-scratch-image spire-agent-scratch-image k8s-workload-registrar-scratch-image oidc-discovery-provider-scratch-image
-
-$(eval $(call image_rule,spire-server-scratch-image,spire-server-scratch,Dockerfile.scratch))
-$(eval $(call image_rule,spire-agent-scratch-image,spire-agent-scratch,Dockerfile.scratch))
-$(eval $(call image_rule,k8s-workload-registrar-scratch-image,k8s-workload-registrar-scratch,Dockerfile.scratch))
-$(eval $(call image_rule,oidc-discovery-provider-scratch-image,oidc-discovery-provider-scratch,Dockerfile.scratch))
-
-#############################################################################
-# Windows Docker Images
-#############################################################################
-
 .PHONY: images-windows
-images-windows: spire-server-windows-image spire-agent-windows-image k8s-workload-registrar-windows-image oidc-discovery-provider-windows-image
+images-windows: $(addsuffix -windows-image,$(binaries))
 
-$(eval $(call image_rule,spire-server-windows-image,spire-server-windows,Dockerfile.windows))
-$(eval $(call image_rule,spire-agent-windows-image,spire-agent-windows,Dockerfile.windows))
-$(eval $(call image_rule,k8s-workload-registrar-windows-image,k8s-workload-registrar-windows,Dockerfile.windows))
-$(eval $(call image_rule,oidc-discovery-provider-windows-image,oidc-discovery-provider-windows,Dockerfile.windows))
+$(eval $(call windows_image_rule,spire-server-windows-image,spire-server-windows,Dockerfile.windows))
+$(eval $(call windows_image_rule,spire-agent-windows-image,spire-agent-windows,Dockerfile.windows))
+$(eval $(call windows_image_rule,k8s-workload-registrar-windows-image,k8s-workload-registrar-windows,Dockerfile.windows))
+$(eval $(call windows_image_rule,oidc-discovery-provider-windows-image,oidc-discovery-provider-windows,Dockerfile.windows))
 
 #############################################################################
 # Code cleanliness
