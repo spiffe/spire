@@ -22,17 +22,16 @@ const (
 
 type Cache struct {
 	ds         datastore.DataStore
-	bundlesMtx sync.RWMutex
+	bundlesMtx sync.Mutex
 	bundles    map[spiffeid.TrustDomain]*bundleEntry
 	clock      clock.Clock
 }
 
 func NewCache(ds datastore.DataStore, clk clock.Clock) *Cache {
 	return &Cache{
-		ds:         ds,
-		clock:      clk,
-		bundlesMtx: sync.RWMutex{},
-		bundles:    make(map[spiffeid.TrustDomain]*bundleEntry),
+		ds:      ds,
+		clock:   clk,
+		bundles: make(map[spiffeid.TrustDomain]*bundleEntry),
 	}
 }
 
@@ -60,9 +59,7 @@ func (c *Cache) FetchBundleX509(ctx context.Context, td spiffeid.TrustDomain) (*
 			return nil, err
 		}
 		if bundle == nil {
-			c.bundlesMtx.Lock()
-			delete(c.bundles, td)
-			c.bundlesMtx.Unlock()
+			c.deleteEntry(td)
 			return nil, nil
 		}
 
@@ -78,6 +75,12 @@ func (c *Cache) FetchBundleX509(ctx context.Context, td spiffeid.TrustDomain) (*
 		entry.bundle = bundle
 	}
 	return entry.x509Bundle, nil
+}
+
+func (c *Cache) deleteEntry(td spiffeid.TrustDomain) {
+	c.bundlesMtx.Lock()
+	delete(c.bundles, td)
+	c.bundlesMtx.Unlock()
 }
 
 // parseBundle parses a *x509bundle.Bundle from a *common.bundle.
