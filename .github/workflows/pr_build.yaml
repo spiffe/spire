@@ -11,10 +11,6 @@ jobs:
   cache-deps:
     name: cache-deps (linux)
     runs-on: ubuntu-20.04
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -34,10 +30,6 @@ jobs:
     name: lint (linux)
     runs-on: ubuntu-20.04
     needs: cache-deps
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -72,10 +64,6 @@ jobs:
         OS: [ubuntu-20.04, macos-latest]
     runs-on: ${{ matrix.OS }}
     needs: cache-deps
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -95,10 +83,6 @@ jobs:
     name: unit-test (linux with race detection)
     runs-on: ubuntu-20.04
     needs: cache-deps
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -118,10 +102,6 @@ jobs:
     name: artifacts (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps]
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -153,10 +133,6 @@ jobs:
     name: images (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps]
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -194,10 +170,6 @@ jobs:
     name: images (windows)
     runs-on: windows-2022
     needs: artifact-windows
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -221,10 +193,6 @@ jobs:
   scratch-images:
     runs-on: ubuntu-20.04
     needs: [cache-deps]
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -262,10 +230,6 @@ jobs:
     name: integration (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps, images, scratch-images]
-
-    permissions:
-      contents: read
-
     strategy:
       fail-fast: false
       matrix:
@@ -328,10 +292,6 @@ jobs:
     name: integration (windows)
     runs-on: windows-2022
     needs: images-windows
-
-    permissions:
-      contents: read
-
     defaults:
       run:
         shell: msys2 {0}
@@ -379,10 +339,6 @@ jobs:
   cache-deps-windows:
     name: cache-deps (windows)
     runs-on: windows-2022
-
-    permissions:
-      contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -402,10 +358,6 @@ jobs:
     name: lint (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
-
-    permissions:
-      contents: read
-
     defaults:
       run:
         shell: msys2 {0}
@@ -449,10 +401,6 @@ jobs:
     name: unit-test (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
-
-    permissions:
-      contents: read
-
     defaults:
       run:
         shell: msys2 {0}
@@ -485,10 +433,6 @@ jobs:
     name: artifact (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
-
-    permissions:
-      contents: read
-
     defaults:
       run:
         shell: msys2 {0}
