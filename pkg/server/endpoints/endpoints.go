@@ -10,6 +10,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -62,6 +63,7 @@ type Endpoints struct {
 	SVIDObserver                 svid.Observer
 	TrustDomain                  spiffeid.TrustDomain
 	DataStore                    datastore.DataStore
+	BundleCache                  *bundle.Cache
 	APIServers                   APIServers
 	BundleEndpointServer         Server
 	Log                          logrus.FieldLogger
@@ -117,12 +119,15 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return nil, err
 	}
 
+	ds := c.Catalog.GetDataStore()
+
 	return &Endpoints{
 		TCPAddr:                      c.TCPAddr,
 		LocalAddr:                    c.LocalAddr,
 		SVIDObserver:                 c.SVIDObserver,
 		TrustDomain:                  c.TrustDomain,
-		DataStore:                    c.Catalog.GetDataStore(),
+		DataStore:                    ds,
+		BundleCache:                  bundle.NewCache(ds, c.Clock),
 		APIServers:                   c.makeAPIServers(ef),
 		BundleEndpointServer:         c.maybeMakeBundleEndpointServer(),
 		Log:                          c.Log,
