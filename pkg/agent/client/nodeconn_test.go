@@ -26,6 +26,7 @@ func TestNewNodeConn(t *testing.T) {
 
 func newTestConn(t *testing.T) *grpc.ClientConn {
 	client := newClient(&Config{
+		Addr:          "unix:///foo",
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
 		TrustDomain:   trustDomain,
