@@ -171,8 +171,8 @@ cloud.google.com/go/iap v1.4.0/go.mod h1:RGFwRJdihTINIe4wZ2iCP0zF/qu18ZwyKxrhMhy
 cloud.google.com/go/ids v1.1.0/go.mod h1:WIuwCaYVOzHIj2OhN9HAwvW+DBdmUAdcWlFxRl+KubM=
 cloud.google.com/go/iot v1.3.0/go.mod h1:r7RGh2B61+B8oz0AGE+J72AhA0G7tdXItODWsaA2oLs=
 cloud.google.com/go/kms v1.5.0/go.mod h1:QJS2YY0eJGBg3mnDfuaCyLauWwBJiHRboYxJ++1xJNg=
-cloud.google.com/go/kms v1.7.0 h1:8FCf8C7qfOuSr6YzOQ4RGjJvswSRFeOpur3nHOlJbio=
-cloud.google.com/go/kms v1.7.0/go.mod h1:k2UdVoNIHLJi/Rnng6dN0vlq7lS3jHSDiZasft+gmYE=
+cloud.google.com/go/kms v1.8.0 h1:VrJLOsMRzW7IqTTYn+OYupqF3iKSE060Nrn+PECrYjg=
+cloud.google.com/go/kms v1.8.0/go.mod h1:4xFEhYFqvW+4VMELtZyxomGSYtSQKzM178ylFW4jMAg=
 cloud.google.com/go/language v1.4.0/go.mod h1:F9dRpNFQmJbkaop6g0JhSBXCNlO90e1KWx5iDdxbWic=
 cloud.google.com/go/language v1.6.0/go.mod h1:6dJ8t3B+lUYfStgls25GusK04NLh3eDLQnWM3mdEbhI=
 cloud.google.com/go/language v1.7.0/go.mod h1:DJ6dYN/W+SQOjF8e1hLQXMF21AkH2w9wiPzPCJa2MIE=
