@@ -536,7 +536,7 @@ jobs:
             lint-windows, unit-test-windows, artifact-windows, integration-windows]
 
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout
