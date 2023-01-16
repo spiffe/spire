@@ -79,10 +79,6 @@ data:
         }
       }
 
-      WorkloadAttestor "unix" {
-          plugin_data {
-          }
-      }
     }
 
 ---
@@ -110,7 +106,7 @@ spec:
       serviceAccountName: spire-agent
       containers:
         - name: spire-agent
-          image: ghcr.io/spiffe/spire-agent:1.5.1
+          image: gcr.io/spiffe-io/spire-agent:1.5.3
           args: ["-config", "/run/spire/config/agent.conf"]
           volumeMounts:
             - name: spire-config
