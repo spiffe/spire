@@ -60,7 +60,7 @@ require (
 	github.com/sigstore/rekor v1.0.1
 	github.com/sigstore/sigstore v1.5.0
 	github.com/sirupsen/logrus v1.9.0
-	github.com/spiffe/go-spiffe/v2 v2.1.1
+	github.com/spiffe/go-spiffe/v2 v2.1.2
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20221020001527-5895a0279944
 	github.com/spiffe/spire-plugin-sdk v1.4.1-0.20220912221658-c42ab2d657f6
 	github.com/stretchr/testify v1.8.1
@@ -72,7 +72,7 @@ require (
 	golang.org/x/sys v0.4.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.107.0
-	google.golang.org/genproto v0.0.0-20221227171554-f9683d7f8bef
+	google.golang.org/genproto v0.0.0-20230109162033-3c3c17ce83e6
 	google.golang.org/grpc v1.52.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/square/go-jose.v2 v2.6.0
@@ -335,11 +335,11 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/exp v0.0.0-20220823124025-807a23277127 // indirect
-	golang.org/x/mod v0.6.0 // indirect
+	golang.org/x/mod v0.7.0 // indirect
 	golang.org/x/oauth2 v0.3.0 // indirect
 	golang.org/x/term v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
-	golang.org/x/tools v0.2.0 // indirect
+	golang.org/x/tools v0.5.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
