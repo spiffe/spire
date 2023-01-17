@@ -1,6 +1,8 @@
 #!/bin/bash
 source ./common
 
-create-service spire-agent C:\\spire\\bin\\spire-agent.exe
+docker-up spire-agent
+
+create-service spire-agent C:/spire/bin/spire-agent.exe
 start-service spire-agent run -config C:/spire/conf/agent/agent.conf
 assert-service-status spire-agent RUNNING
