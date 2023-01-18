@@ -6,4 +6,4 @@ docker-compose exec -T -u ContainerUser spire-agent  \
 
 log-debug "test fetch JWT SVID..."
 docker-compose exec -T -u ContainerUser spire-agent \
-    c:/spire/bin/spire-agent api fetch jwt -audience mydb fail-now "failed to fetch x509"
+    c:/spire/bin/spire-agent api fetch jwt -audience mydb || fail-now "failed to fetch JWT"
