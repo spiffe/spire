@@ -584,28 +584,18 @@ jobs:
         uses: sigstore/cosign-installer@v2.8.1
         with:
           cosign-release: v1.13.1
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@main
       - name: Download archived images
         uses: actions/download-artifact@v3
         with:
           name: images
           path: .
-      - name: Install regctl
-        uses: regclient/actions/regctl-installer@main
       - name: Download archived scratch images
         uses: actions/download-artifact@v3
         with:
           name: scratch-images
           path: .
-      - name: Log in to GCR
-        uses: docker/login-action@v2
-        with:
-          registry: gcr.io
-          username: _json_key
-          password: ${{ secrets.GCR_JSON_KEY }}
-      - name: Push images
-        run: |
-          tar xzvf images.tar.gz
-          ./.github/workflows/scripts/push-images.sh "${GITHUB_REF}"
       - name: Log in to GHCR
         uses: docker/login-action@v2
         with:
@@ -616,3 +606,13 @@ jobs:
         run: |
           tar xzvf scratch-images.tar.gz
           ./.github/workflows/scripts/push-images.sh "${GITHUB_REF}" -scratch
+      - name: Log in to GCR
+        uses: docker/login-action@v2
+        with:
+          registry: gcr.io
+          username: _json_key
+          password: ${{ secrets.GCR_JSON_KEY }}
+      - name: Push images
+        run: |
+          tar xzvf images.tar.gz
+          ./.github/workflows/scripts/push-images.sh "${GITHUB_REF}"
