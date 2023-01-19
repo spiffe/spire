@@ -1359,6 +1359,18 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 				StoreSvid:   true,
 			},
 		},
+		{
+			name: "entry with hint",
+			entry: &common.RegistrationEntry{
+				Selectors: []*common.Selector{
+					{Type: "Type1", Value: "Value1"},
+				},
+				SpiffeId:    "SpiffeId",
+				ParentId:    "ParentId",
+				X509SvidTtl: 1,
+				Hint:        "external",
+			},
+		},
 	} {
 		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -1490,47 +1502,48 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		}
 	}
 
-	makeEntry := func(parentIDSuffix, spiffeIDSuffix string, selectors ...string) *common.RegistrationEntry {
+	makeEntry := func(parentIDSuffix, spiffeIDSuffix, hint string, selectors ...string) *common.RegistrationEntry {
 		return &common.RegistrationEntry{
 			EntryId:   fmt.Sprintf("%s%s%s", parentIDSuffix, spiffeIDSuffix, strings.Join(selectors, "")),
 			ParentId:  makeID(parentIDSuffix),
 			SpiffeId:  makeID(spiffeIDSuffix),
 			Selectors: makeSelectors(selectors...),
+			Hint:      hint,
 		}
 	}
 
-	foobarAB1 := makeEntry("foo", "bar", "A", "B")
+	foobarAB1 := makeEntry("foo", "bar", "external", "A", "B")
 	foobarAB1.FederatesWith = []string{"spiffe://federated1.test"}
-	foobarAD12 := makeEntry("foo", "bar", "A", "D")
+	foobarAD12 := makeEntry("foo", "bar", "", "A", "D")
 	foobarAD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	foobarCB2 := makeEntry("foo", "bar", "C", "B")
+	foobarCB2 := makeEntry("foo", "bar", "internal", "C", "B")
 	foobarCB2.FederatesWith = []string{"spiffe://federated2.test"}
-	foobarCD12 := makeEntry("foo", "bar", "C", "D")
+	foobarCD12 := makeEntry("foo", "bar", "", "C", "D")
 	foobarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
 
-	foobarB := makeEntry("foo", "bar", "B")
+	foobarB := makeEntry("foo", "bar", "", "B")
 
-	foobuzAD1 := makeEntry("foo", "buz", "A", "D")
+	foobuzAD1 := makeEntry("foo", "buz", "", "A", "D")
 	foobuzAD1.FederatesWith = []string{"spiffe://federated1.test"}
-	foobuzCD := makeEntry("foo", "buz", "C", "D")
+	foobuzCD := makeEntry("foo", "buz", "", "C", "D")
 
-	bazbarAB1 := makeEntry("baz", "bar", "A", "B")
+	bazbarAB1 := makeEntry("baz", "bar", "", "A", "B")
 	bazbarAB1.FederatesWith = []string{"spiffe://federated1.test"}
-	bazbarAD12 := makeEntry("baz", "bar", "A", "D")
+	bazbarAD12 := makeEntry("baz", "bar", "", "A", "D")
 	bazbarAD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	bazbarCB2 := makeEntry("baz", "bar", "C", "B")
+	bazbarCB2 := makeEntry("baz", "bar", "", "C", "B")
 	bazbarCB2.FederatesWith = []string{"spiffe://federated2.test"}
-	bazbarCD12 := makeEntry("baz", "bar", "C", "D")
+	bazbarCD12 := makeEntry("baz", "bar", "", "C", "D")
 	bazbarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	bazbarAE3 := makeEntry("baz", "bar", "A", "E")
+	bazbarAE3 := makeEntry("baz", "bar", "", "A", "E")
 	bazbarAE3.FederatesWith = []string{"spiffe://federated3.test"}
 
-	bazbuzAB12 := makeEntry("baz", "buz", "A", "B")
+	bazbuzAB12 := makeEntry("baz", "buz", "", "A", "B")
 	bazbuzAB12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	bazbuzB := makeEntry("baz", "buz", "B")
-	bazbuzCD := makeEntry("baz", "buz", "C", "D")
+	bazbuzB := makeEntry("baz", "buz", "", "B")
+	bazbuzCD := makeEntry("baz", "buz", "", "C", "D")
 
-	zizzazX := makeEntry("ziz", "zaz", "X")
+	zizzazX := makeEntry("ziz", "zaz", "", "X")
 
 	for _, tt := range []struct {
 		test                  string
@@ -2099,7 +2112,8 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 				}
 
 				var tokensIn []string
-				var actualIDsOut [][]string
+				var actualEntriesOut = make(map[string]*common.RegistrationEntry)
+				var expectedEntriesOut = make(map[string]*common.RegistrationEntry)
 				req := &datastore.ListRegistrationEntriesRequest{
 					Pagination:      pagination,
 					ByParentID:      tt.byParentID,
@@ -2111,7 +2125,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 				for i := 0; ; i++ {
 					// Don't loop forever if there is a bug
 					if i > len(tt.entries) {
-						require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
+						require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualEntriesOut)
 					}
 					if req.Pagination != nil {
 						tokensIn = append(tokensIn, req.Pagination.Token)
@@ -2126,13 +2140,12 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 						assert.Nil(t, resp.Pagination, "response has pagination")
 					}
 
-					var idSet []string
 					for _, entry := range resp.Entries {
 						entryID, ok := entryIDMap[entry.EntryId]
 						require.True(t, ok, "entry with id %q was not created by this test", entry.EntryId)
-						idSet = append(idSet, entryID)
+						entry.EntryId = entryID
+						actualEntriesOut[entryID] = entry
 					}
-					actualIDsOut = append(actualIDsOut, idSet)
 
 					if resp.Pagination == nil || resp.Pagination.Token == "" {
 						break
@@ -2145,13 +2158,10 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 					expectEntriesOut = [][]*common.RegistrationEntry{tt.expectEntriesOut}
 				}
 
-				var expectIDsOut [][]string
 				for _, entrySet := range expectEntriesOut {
-					var idSet []string
 					for _, entry := range entrySet {
-						idSet = append(idSet, entry.EntryId)
+						expectedEntriesOut[entry.EntryId] = entry
 					}
-					expectIDsOut = append(expectIDsOut, idSet)
 				}
 
 				if withPagination {
@@ -2159,7 +2169,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 				} else {
 					assert.Empty(t, tokensIn, "unexpected request tokens")
 				}
-				assert.Equal(t, expectIDsOut, actualIDsOut, "unexpected response entries")
+				assert.Equal(t, expectedEntriesOut, actualEntriesOut, "unexpected response entries")
 			})
 		}
 	}
@@ -2211,14 +2221,16 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry.JwtSvidTtl = 21
 	entry.Admin = true
 	entry.Downstream = true
+	entry.Hint = "internal"
 
 	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.Require().NoError(err)
 	// Verify output has expected values
-	s.Require().Equal(int32(11), entry.X509SvidTtl)
-	s.Require().Equal(int32(21), entry.JwtSvidTtl)
-	s.Require().True(entry.Admin)
-	s.Require().True(entry.Downstream)
+	s.Require().Equal(int32(11), updatedRegistrationEntry.X509SvidTtl)
+	s.Require().Equal(int32(21), updatedRegistrationEntry.JwtSvidTtl)
+	s.Require().True(updatedRegistrationEntry.Admin)
+	s.Require().True(updatedRegistrationEntry.Downstream)
+	s.Require().Equal("internal", updatedRegistrationEntry.Hint)
 
 	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
 	s.Require().NoError(err)
@@ -2297,6 +2309,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		DnsNames:      []string{"dns2"},
 		Downstream:    false,
 		StoreSvid:     true,
+		Hint:          "internal",
 	}
 	badEntry := &common.RegistrationEntry{
 		ParentId:      "not a good parent id",
@@ -2464,6 +2477,15 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		{name: "Update DnsNames, Good Data, Mask False",
 			mask:   &common.RegistrationEntryMask{Downstream: false},
 			update: func(e *common.RegistrationEntry) { e.Downstream = newEntry.Downstream },
+			result: func(e *common.RegistrationEntry) {}},
+		// HINT -- This field isn't validated so we just check with good data
+		{name: "Update Hint, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{Hint: true},
+			update: func(e *common.RegistrationEntry) { e.Hint = newEntry.Hint },
+			result: func(e *common.RegistrationEntry) { e.Hint = newEntry.Hint }},
+		{name: "Update Hint, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Hint: false},
+			update: func(e *common.RegistrationEntry) { e.Hint = newEntry.Hint },
 			result: func(e *common.RegistrationEntry) {}},
 		// This should update all fields
 		{name: "Test With Nil Mask",
