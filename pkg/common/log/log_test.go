@@ -6,11 +6,62 @@ import (
 	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestLocalTimeHook(t *testing.T) {
+	baseTime := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	localTimeSamples := map[string]string{
+		"UTC":               "2021-01-01 12:00:00 +0000 UTC",
+		"America/Sao_Paulo": "2021-01-01 09:00:00 -0300 -03",
+		"America/New_York":  "2021-01-01 07:00:00 -0500 EST",
+		"Africa/Cairo":      "2021-01-01 14:00:00 +0200 EET",
+		"Asia/Tokyo":        "2021-01-01 21:00:00 +0900 JST",
+		"Europe/London":     "2021-01-01 12:00:00 +0000 GMT",
+		"Australia/Sydney":  "2021-01-01 23:00:00 +1100 AEDT",
+	}
+
+	testHook := test.Hook{}
+	logger, err := NewLogger(
+		func(logger *Logger) error {
+			logger.AddHook(&testHook)
+			return nil
+		})
+	require.NoError(t, err)
+
+	for tz, expected := range localTimeSamples {
+		t.Run(tz, func(t *testing.T) {
+			time.Local, err = time.LoadLocation(tz)
+			require.NoError(t, err)
+
+			logger.
+				WithField("time", baseTime).
+				WithField("timePointer", &baseTime).
+				WithField("unixTime", baseTime.Unix()).
+				Info("Info log with time and string fields")
+
+			assert.Equalf(t,
+				expected,
+				testHook.LastEntry().Data["time"].(time.Time).String(),
+				"Timezone should be in %s format", tz,
+			)
+			assert.Equalf(t,
+				expected,
+				testHook.LastEntry().Data["timePointer"].(*time.Time).String(),
+				"Timezone should be in %s format", tz,
+			)
+			assert.Equalf(t,
+				int64(1609502400),
+				testHook.LastEntry().Data["unixTime"].(int64),
+				"other field types should be unchanged")
+		})
+	}
+}
 
 // Basic smoketest: set up a logger, make sure options work
 func TestLogger(t *testing.T) {

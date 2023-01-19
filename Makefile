@@ -111,6 +111,8 @@ endif
 # Vars
 ############################################################################
 
+PLATFORMS ?= linux/amd64,linux/arm64
+
 binaries := spire-server spire-agent oidc-discovery-provider k8s-workload-registrar
 
 build_dir := $(DIR)/.build/$(os1)-$(arch1)
@@ -329,14 +331,19 @@ artifact: build
 # Docker Images
 #############################################################################
 
+.PHONY: container-builder
+container-builder:
+	$(E)docker buildx create --platform $(PLATFORMS) --name container-builder --node container-builder0 --use
+
 define image_rule
 .PHONY: $1
-$1: $3
+$1: $3 container-builder
 	echo Building docker image $2 $(PLATFORM)…
-	$(E)docker build \
+	$(E)docker buildx build \
+		--platform $(PLATFORMS) \
 		--build-arg goversion=$(go_version_full) \
 		--target $2 \
-		-t $2 -t $2:latest-local \
+		-o type=oci,dest=$2-image.tar \
 		-f $3 \
 		.
 
@@ -350,6 +357,9 @@ $(eval $(call image_rule,spire-agent-image,spire-agent,Dockerfile))
 $(eval $(call image_rule,k8s-workload-registrar-image,k8s-workload-registrar,Dockerfile))
 $(eval $(call image_rule,oidc-discovery-provider-image,oidc-discovery-provider,Dockerfile))
 
+load-images:
+	.github/workflows/scripts/load-oci-archives.sh
+
 #############################################################################
 # Docker Images FROM scratch
 #############################################################################
@@ -362,17 +372,32 @@ $(eval $(call image_rule,spire-agent-scratch-image,spire-agent-scratch,Dockerfil
 $(eval $(call image_rule,k8s-workload-registrar-scratch-image,k8s-workload-registrar-scratch,Dockerfile.scratch))
 $(eval $(call image_rule,oidc-discovery-provider-scratch-image,oidc-discovery-provider-scratch,Dockerfile.scratch))
 
+load-scratch-images:
+	.github/workflows/scripts/load-oci-archives.sh -scratch
+
 #############################################################################
 # Windows Docker Images
 #############################################################################
+define windows_image_rule
+.PHONY: $1
+$1: $3
+	echo Building docker image $2…
+	$(E)docker build \
+		--build-arg goversion=$(go_version_full) \
+		--target $2 \
+		-t $2 -t $2:latest-local \
+		-f $3 \
+		.
+
+endef
 
 .PHONY: images-windows
 images-windows: $(addsuffix -windows-image,$(binaries))
 
-$(eval $(call image_rule,spire-server-windows-image,spire-server-windows,Dockerfile.windows))
-$(eval $(call image_rule,spire-agent-windows-image,spire-agent-windows,Dockerfile.windows))
-$(eval $(call image_rule,k8s-workload-registrar-windows-image,k8s-workload-registrar-windows,Dockerfile.windows))
-$(eval $(call image_rule,oidc-discovery-provider-windows-image,oidc-discovery-provider-windows,Dockerfile.windows))
+$(eval $(call windows_image_rule,spire-server-windows-image,spire-server-windows,Dockerfile.windows))
+$(eval $(call windows_image_rule,spire-agent-windows-image,spire-agent-windows,Dockerfile.windows))
+$(eval $(call windows_image_rule,k8s-workload-registrar-windows-image,k8s-workload-registrar-windows,Dockerfile.windows))
+$(eval $(call windows_image_rule,oidc-discovery-provider-windows-image,oidc-discovery-provider-windows,Dockerfile.windows))
 
 #############################################################################
 # Code cleanliness

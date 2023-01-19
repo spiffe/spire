@@ -271,8 +271,8 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:       slot.id,
-		telemetry.IssuedAt:   timeField(slot.issuedAt),
-		telemetry.Expiration: timeField(slot.x509CA.Certificate.NotAfter),
+		telemetry.IssuedAt:   slot.issuedAt,
+		telemetry.Expiration: slot.x509CA.Certificate.NotAfter,
 		telemetry.SelfSigned: m.upstreamClient == nil,
 	}).Info("X509 CA prepared")
 	return nil
@@ -281,8 +281,8 @@ func (m *Manager) prepareX509CA(ctx context.Context, slot *x509CASlot) (err erro
 func (m *Manager) activateX509CA() {
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:       m.currentX509CA.id,
-		telemetry.IssuedAt:   timeField(m.currentX509CA.issuedAt),
-		telemetry.Expiration: timeField(m.currentX509CA.x509CA.Certificate.NotAfter),
+		telemetry.IssuedAt:   m.currentX509CA.issuedAt,
+		telemetry.Expiration: m.currentX509CA.x509CA.Certificate.NotAfter,
 	}).Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
 
@@ -365,8 +365,8 @@ func (m *Manager) prepareJWTKey(ctx context.Context, slot *jwtKeySlot) (err erro
 
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:       slot.id,
-		telemetry.IssuedAt:   timeField(slot.issuedAt),
-		telemetry.Expiration: timeField(slot.jwtKey.NotAfter),
+		telemetry.IssuedAt:   slot.issuedAt,
+		telemetry.Expiration: slot.jwtKey.NotAfter,
 	}).Info("JWT key prepared")
 	return nil
 }
@@ -419,8 +419,8 @@ func (m *Manager) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (
 func (m *Manager) activateJWTKey() {
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:       m.currentJWTKey.id,
-		telemetry.IssuedAt:   timeField(m.currentJWTKey.issuedAt),
-		telemetry.Expiration: timeField(m.currentJWTKey.jwtKey.NotAfter),
+		telemetry.IssuedAt:   m.currentJWTKey.issuedAt,
+		telemetry.Expiration: m.currentJWTKey.jwtKey.NotAfter,
 	}).Info("JWT key activated")
 	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
 	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
@@ -1174,10 +1174,6 @@ func keyIDFromBytes(choices []byte) string {
 		buf.WriteByte(alphabet[int(choice)%len(alphabet)])
 	}
 	return buf.String()
-}
-
-func timeField(t time.Time) string {
-	return t.UTC().Format(time.RFC3339)
 }
 
 func containsJwtSigningKeyid(keys []*common.PublicKey, kid string) bool {

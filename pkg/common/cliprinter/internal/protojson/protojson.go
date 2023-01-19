@@ -34,13 +34,75 @@ func Print(msgs []proto.Message, stdout, stderr io.Writer) error {
 
 		jms = append(jms, jb)
 	}
-
 	var err error
-	if len(jms) == 1 {
-		err = json.NewEncoder(stdout).Encode(jms[0])
+
+	parsedJms, err := parseJSONMessages(jms)
+	if err != nil {
+		_ = errorjson.Print(err, stdout, stderr)
+		return err
+	}
+
+	if len(parsedJms) == 1 {
+		err = json.NewEncoder(stdout).Encode(parsedJms[0])
 	} else {
-		err = json.NewEncoder(stdout).Encode(jms)
+		err = json.NewEncoder(stdout).Encode(parsedJms)
 	}
 
 	return err
+}
+
+func parseJSONMessages(jms []json.RawMessage) ([]json.RawMessage, error) {
+	var parsedJms []json.RawMessage
+	for _, jm := range jms {
+		parsedJm, err := parseJSONMessage(jm)
+		if err != nil {
+			return nil, err
+		}
+		parsedJms = append(parsedJms, parsedJm)
+	}
+
+	return parsedJms, nil
+}
+
+func parseJSONMessage(jm json.RawMessage) (json.RawMessage, error) {
+	var jmMap map[string]interface{}
+	if err := json.Unmarshal(jm, &jmMap); err != nil {
+		return nil, err
+	}
+
+	removeNulls(jmMap)
+
+	return json.Marshal(jmMap)
+}
+
+func removeNulls(jsonMap map[string]interface{}) {
+	for key, val := range jsonMap {
+		switch v := val.(type) {
+		case nil:
+			delete(jsonMap, key)
+		case map[string]interface{}:
+			removeNulls(v)
+		case []interface{}:
+			jsonMap[key] = removeNullsFromSlice(v)
+		}
+	}
+}
+
+func removeNullsFromSlice(slice []interface{}) []interface{} {
+	var newSlice = make([]interface{}, 0)
+	for _, val := range slice {
+		switch v := val.(type) {
+		case nil:
+			continue
+		case map[string]interface{}:
+			removeNulls(v)
+			newSlice = append(newSlice, v)
+		case []interface{}:
+			newSlice = append(newSlice, removeNullsFromSlice(v))
+		default:
+			newSlice = append(newSlice, v)
+		}
+	}
+
+	return newSlice
 }

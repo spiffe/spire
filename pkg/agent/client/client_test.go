@@ -573,7 +573,7 @@ func TestNewAgentClientFailsDial(t *testing.T) {
 	})
 	agentClient, conn, err := client.newAgentClient(context.Background())
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "dial tcp: missing address")
+	require.Contains(t, err.Error(), "failed to dial")
 	require.Nil(t, agentClient)
 	require.Nil(t, conn)
 }
@@ -585,7 +585,7 @@ func TestNewBundleClientFailsDial(t *testing.T) {
 	})
 	agentClient, conn, err := client.newBundleClient(context.Background())
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "dial tcp: missing address")
+	require.Contains(t, err.Error(), "failed to dial")
 	require.Nil(t, agentClient)
 	require.Nil(t, conn)
 }
@@ -597,7 +597,7 @@ func TestNewEntryClientFailsDial(t *testing.T) {
 	})
 	agentClient, conn, err := client.newEntryClient(context.Background())
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "dial tcp: missing address")
+	require.Contains(t, err.Error(), "failed to dial")
 	require.Nil(t, agentClient)
 	require.Nil(t, conn)
 }
@@ -609,7 +609,7 @@ func TestNewSVIDClientFailsDial(t *testing.T) {
 	})
 	agentClient, conn, err := client.newSVIDClient(context.Background())
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "dial tcp: missing address")
+	require.Contains(t, err.Error(), "failed to dial")
 	require.Nil(t, agentClient)
 	require.Nil(t, conn)
 }
@@ -721,6 +721,7 @@ func createClient() (*client, *testClient) {
 	}
 
 	client := newClient(&Config{
+		Addr:          "unix:///foo",
 		Log:           log,
 		KeysAndBundle: keysAndBundle,
 		RotMtx:        new(sync.RWMutex),

@@ -176,10 +176,14 @@ jobs:
           key: ${{ runner.os }}-tools-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-tools-
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
       - name: Build images
         run: make images
       - name: Export images
-        run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local | gzip > images.tar.gz
+        run: tar -czvf images.tar.gz *-image.tar
       - name: Archive images
         uses: actions/upload-artifact@v3
         with:
@@ -240,10 +244,14 @@ jobs:
           key: ${{ runner.os }}-tools-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-tools-
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
       - name: Build scratch images
         run: make scratch-images
       - name: Export scratch images
-        run: docker save spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local oidc-discovery-provider-scratch:latest-local | gzip > scratch-images.tar.gz
+        run: tar -czvf scratch-images.tar.gz *-scratch-image.tar
       - name: Archive scratch images
         uses: actions/upload-artifact@v3
         with:
@@ -276,6 +284,8 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@main
       - name: Load cached deps
         uses: actions/cache@v3
         with:
@@ -299,9 +309,13 @@ jobs:
           name: scratch-images
           path: .
       - name: Load archived images
-        run: zcat images.tar.gz | docker load
+        run: |
+          tar xvf images.tar.gz
+          make load-images
       - name: Load archived scratch images
-        run: zcat scratch-images.tar.gz | docker load
+        run: |
+          tar xvf scratch-images.tar.gz
+          make load-scratch-images
       - name: Run integration tests
         env:
           NUM_RUNNERS: ${{ matrix.num_runners }}
