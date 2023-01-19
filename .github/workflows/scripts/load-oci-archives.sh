@@ -7,11 +7,10 @@
 ##
 ## Usage example(s):
 ##   ./__PROG__
-##   ./__PROG__ -scratch
-##   PLATFORM=linux/arm64 ./__PROG__ -scratch
+##   PLATFORM=linux/arm64 ./__PROG__
 ##
 ## Commands
-## - ./__PROG__ <image-variant>    loads the oci tarball for the optional variant into Docker.
+## - ./__PROG__ loads the oci tarball into Docker.
 
 function usage {
   grep '^##' "$0" | sed -e 's/^##//' -e "s/__PROG__/$me/" >&2
@@ -38,14 +37,6 @@ ROOTDIR="$(normalize_path "$BASEDIR/../../../")"
 command -v regctl >/dev/null 2>&1 || { usage; echo -e "\n * The regctl cli is required to run this script." >&2 ; exit 1; }
 command -v docker >/dev/null 2>&1 || { usage; echo -e "\n * The docker cli is required to run this script." >&2 ; exit 1; }
 
-variant="$1"
-
-if [ -n "$variant" ] && [ "$variant" != "-scratch" ] ; then
-    usage
-    echo -e "The only supported variants are '-scratch'." >&2
-    exit 1
-fi
-
 # Takes the current platform architecture or plaftorm as defined externally in a platform variable.
 # e.g.:
 # linux/amd64
@@ -58,17 +49,16 @@ OCI_IMAGES=(
 
 echo "Importing ${OCI_IMAGES[*]} into docker".
 for img in "${OCI_IMAGES[@]}"; do
-    image_variant="${img}${variant}"
-    oci_dir="ocidir://${ROOTDIR}oci/${image_variant}"
-    platform_tar="${image_variant}-${PLATFORM}-image.tar"
+    oci_dir="ocidir://${ROOTDIR}oci/${img}"
+    platform_tar="${img}-${PLATFORM}-image.tar"
     
     # regclient works with directories rather than tars, so import the OCI tar to a directory
-    regctl image import "$oci_dir" "${image_variant}-image.tar"
+    regctl image import "$oci_dir" "${img}-image.tar"
     dig="$(regctl image digest --platform "$PLATFORM" "$oci_dir")"
     # export the single platform image using the digest
     regctl image export "$oci_dir@${dig}" "${platform_tar}"
     
     docker load < "${platform_tar}"
-    docker image tag "localhost/oci/${image_variant}:latest" "${image_variant}:latest-local"
-    docker image rm "localhost/oci/${image_variant}:latest"
+    docker image tag "localhost/oci/${img}:latest" "${img}:latest-local"
+    docker image rm "localhost/oci/${img}:latest"
 done

@@ -2,7 +2,7 @@ version: '3'
 services:
   # Root
   root-server:
-    image: spire-server-scratch:latest-local
+    image: spire-server:latest-local
     hostname: root-server
     volumes:
       - ./root/server:/opt/spire/conf/server
@@ -10,7 +10,7 @@ services:
   root-agent:
     # Share the host pid namespace so this agent can attest the intermediate servers
     pid: "host"
-    image: spire-agent-scratch:latest-local
+    image: spire-agent:latest-local
     depends_on: ["root-server"]
     hostname: root-agent
     volumes:
@@ -23,7 +23,7 @@ services:
   intermediateA-server:
     # Share the host pid namespace so this server can be attested by the root agent
     pid: "host"
-    image: spire-server-scratch:latest-local
+    image: spire-server:latest-local
     hostname: intermediateA-server
     labels:
       # label to attest server against root-agent
@@ -50,7 +50,7 @@ services:
   leafA-server:
     # Share the host pid namespace so this server can be attested by the intermediateA agent
     pid: "host"
-    image: spire-server-scratch:latest-local
+    image: spire-server:latest-local
     hostname: leafA-server
     labels:
       # Label to attest server against intermediateA-agent
@@ -72,7 +72,7 @@ services:
   intermediateB-server:
     # Share the host pid namespace so this server can be attested by the root agent
     pid: "host"
-    image: spire-server-scratch:latest-local
+    image: spire-server:latest-local
     hostname: intermediateB-server
     depends_on: ["root-server","root-agent"]
     labels:
@@ -99,7 +99,7 @@ services:
   leafB-server:
     # Share the host pid namespace so this server can be attested by the intermediateB agent
     pid: "host"
-    image: spire-server-scratch:latest-local
+    image: spire-server:latest-local
     hostname: leafB-server
     depends_on: ["intermediateB-server","intermediateB-agent"]
     labels:
