@@ -99,7 +99,7 @@ if [ ${#steps[@]} -eq 0 ]; then
     fail-now "test suite has no steps"
 fi
 for step in "${steps[@]}"; do
-    if ! run-step "$step"; then 
+    if ! run-step "$step"; then
         fail-now "step $(basename "$step") failed"
     fi
 done
