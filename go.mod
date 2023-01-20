@@ -77,7 +77,7 @@ require (
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/square/go-jose.v2 v2.6.0
 	k8s.io/api v0.26.0
-	k8s.io/apimachinery v0.26.0
+	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v0.26.0
 	k8s.io/kube-aggregator v0.26.0
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
