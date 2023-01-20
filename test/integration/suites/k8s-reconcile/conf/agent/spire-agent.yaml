@@ -113,7 +113,7 @@ spec:
       serviceAccountName: spire-agent
       containers:
         - name: spire-agent
-          image: spire-agent-scratch:latest-local
+          image: spire-agent:latest-local
           imagePullPolicy: Never
           args: ["-config", "/run/spire/config/agent.conf"]
           volumeMounts:

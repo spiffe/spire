@@ -89,3 +89,4 @@ The following environment variables are available to the teardown script:
 * [Self Test](suites/self-test/README.md)
 * [SPIRE Server CLI](suites/spire-server-cli/README.md)
 * [Upgrade](suites/upgrade/README.md)
+* [Windows Service](suites-windows/windows-service/README.md)
