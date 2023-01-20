@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -2169,7 +2170,13 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 				} else {
 					assert.Empty(t, tokensIn, "unexpected request tokens")
 				}
-				assert.Equal(t, expectedEntriesOut, actualEntriesOut, "unexpected response entries")
+
+				assert.Len(t, actualEntriesOut, len(expectedEntriesOut), "unexpected number of entries returned")
+				for id, expectedEntry := range expectedEntriesOut {
+					// Some databases are not returning federated IDs in the same order (e.g. mysql)
+					sort.Strings(actualEntriesOut[id].FederatesWith)
+					spiretest.AssertProtoEqual(t, expectedEntry, actualEntriesOut[id])
+				}
 			})
 		}
 	}
