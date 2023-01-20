@@ -1,15 +1,28 @@
 version: '3'
 services:
-  spire-server:
+  spire-server-a:
     image: spire-server:latest-local
     hostname: spire-server
     volumes:
-      - ./conf/server:/opt/spire/conf/server
+      - ./conf/domain-a/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
-  spire-agent:
+  spire-agent-a:
     image: spire-agent:latest-local
     hostname: spire-agent
-    depends_on: ["spire-server"]
+    depends_on: [ "spire-server-a" ]
     volumes:
-      - ./conf/agent:/opt/spire/conf/agent
-    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+      - ./conf/domain-a/agent:/opt/spire/conf/agent
+    command: [ "-config", "/opt/spire/conf/agent/agent.conf" ]
+  spire-server-b:
+    image: spire-server:latest-local
+    hostname: spire-server-foreign-td
+    volumes:
+      - ./conf/domain-b/server:/opt/spire/conf/server
+    command: [ "-config", "/opt/spire/conf/server/server.conf" ]
+  spire-agent-b:
+    image: spire-agent:latest-local
+    hostname: spire-agent-foreign-td
+    depends_on: [ "spire-server-b" ]
+    volumes:
+      - ./conf/domain-b/agent:/opt/spire/conf/agent
+    command: [ "-config", "/opt/spire/conf/agent/agent.conf" ]
