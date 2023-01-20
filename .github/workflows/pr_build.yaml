@@ -218,50 +218,10 @@ jobs:
           name: images-windows
           path: images-windows.tar.gz
 
-  scratch-images:
-    runs-on: ubuntu-20.04
-    needs: [cache-deps]
-
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Setup go
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Load cached deps
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      - name: Load cached build tools
-        uses: actions/cache@v3
-        with:
-          path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Build scratch images
-        run: make scratch-images
-      - name: Export scratch images
-        run: tar -czvf scratch-images.tar.gz *-scratch-image.tar
-      - name: Archive scratch images
-        uses: actions/upload-artifact@v3
-        with:
-          name: scratch-images
-          path: scratch-images.tar.gz
-
   integration:
     name: integration (linux)
     runs-on: ubuntu-20.04
-    needs: [cache-deps, images, scratch-images]
+    needs: [cache-deps, images]
 
     permissions:
       contents: read
@@ -303,19 +263,10 @@ jobs:
         with:
           name: images
           path: .
-      - name: Download archived scratch images
-        uses: actions/download-artifact@v3
-        with:
-          name: scratch-images
-          path: .
       - name: Load archived images
         run: |
           tar xvf images.tar.gz
           make load-images
-      - name: Load archived scratch images
-        run: |
-          tar xvf scratch-images.tar.gz
-          make load-scratch-images
       - name: Run integration tests
         env:
           NUM_RUNNERS: ${{ matrix.num_runners }}
