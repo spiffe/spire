@@ -385,6 +385,10 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	if !mask.JwtSvidTtl {
 		e.JwtSvidTtl = 0
 	}
+
+	if !mask.Hint {
+		e.Hint = ""
+	}
 }
 
 func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *types.EntryMask, outputMask *types.EntryMask) *entryv1.BatchUpdateEntryResponse_Result {

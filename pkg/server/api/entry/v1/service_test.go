@@ -1471,6 +1471,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		FederatesWith: []string{"domain1.org"},
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
+		Hint: "external",
 	}
 	// Registration entry for test entry
 	testDSEntry := &common.RegistrationEntry{
@@ -1488,6 +1489,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		FederatesWith: []string{"spiffe://domain1.org"},
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
+		Hint: "external",
 	}
 
 	for _, tt := range []struct {
@@ -1724,6 +1726,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						X509SvidTtl:   45,
 						JwtSvidTtl:    30,
 						StoreSvid:     false,
+						Hint: "external",
 					},
 				},
 			},
