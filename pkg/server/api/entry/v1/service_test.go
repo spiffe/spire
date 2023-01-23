@@ -193,6 +193,7 @@ func TestListEntries(t *testing.T) {
 		FederatesWith: []string{
 			federatedTd.IDString(),
 		},
+		Hint: "internal",
 	}
 	secondChildRegEntry := &common.RegistrationEntry{
 		ParentId: parentID.String(),
@@ -204,6 +205,7 @@ func TestListEntries(t *testing.T) {
 			federatedTd.IDString(),
 			secondFederatedTd.IDString(),
 		},
+		Hint: "external",
 	}
 	badRegEntry := &common.RegistrationEntry{
 		ParentId: spiffeid.RequireFromSegments(td, "malformed").String(),
@@ -245,6 +247,7 @@ func TestListEntries(t *testing.T) {
 		FederatesWith: []string{
 			federatedTd.String(),
 		},
+		Hint: "internal",
 	}
 
 	expectedSecondChild := &types.Entry{
@@ -258,6 +261,7 @@ func TestListEntries(t *testing.T) {
 			federatedTd.String(),
 			secondFederatedTd.String(),
 		},
+		Hint: "external",
 	}
 
 	for _, tt := range []struct {
@@ -1212,7 +1216,7 @@ func TestGetEntry(t *testing.T) {
 		EntryExpiry: expiresAt,
 		DnsNames:    []string{"dns1", "dns2"},
 		Downstream:  true,
-		Hint: "internal",
+		Hint:        "internal",
 	})
 	require.NoError(t, err)
 
@@ -1277,7 +1281,7 @@ func TestGetEntry(t *testing.T) {
 				DnsNames:      []string{"dns1", "dns2"},
 				Downstream:    true,
 				ExpiresAt:     expiresAt,
-				Hint: "internal",
+				Hint:          "internal",
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -3231,7 +3235,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 		{
 			name:           "Success Don't Update X509SVIDTTL",
 			initialEntries: []*types.Entry{initialEntry},
-			inputMask:      &types.EntryMask{
+			inputMask: &types.EntryMask{
 				// With this empty, the update operation should be a no-op
 			},
 			outputMask: &types.EntryMask{
@@ -3676,7 +3680,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 		{
 			name:           "Success Empty Input Mask",
 			initialEntries: []*types.Entry{initialEntry},
-			inputMask:      &types.EntryMask{
+			inputMask: &types.EntryMask{
 				// With this empty, the update operation should be a no-op
 			},
 			outputMask: &types.EntryMask{
