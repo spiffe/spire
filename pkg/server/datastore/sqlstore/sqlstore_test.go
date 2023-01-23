@@ -2192,6 +2192,10 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 
 				assert.Len(t, actualEntriesOut, len(expectedEntriesOut), "unexpected number of entries returned")
 				for id, expectedEntry := range expectedEntriesOut {
+					if _, ok := actualEntriesOut[id];!ok {
+						t.Errorf("Expected entry %q not found", id)
+						continue
+					}
 					// Some databases are not returning federated IDs in the same order (e.g. mysql)
 					sort.Strings(actualEntriesOut[id].FederatesWith)
 					spiretest.AssertProtoEqual(t, expectedEntry, actualEntriesOut[id])
