@@ -97,8 +97,7 @@ type serverConfig struct {
 	ProfilingNames   []string `hcl:"profiling_names"`
 
 	// Deprecated: remove in SPIRE 1.6.0
-	DefaultSVIDTTL  string `hcl:"default_svid_ttl"`
-	OmitX509SVIDUID *bool  `hcl:"omit_x509svid_uid"`
+	DefaultSVIDTTL string `hcl:"default_svid_ttl"`
 
 	UnusedKeys []string `hcl:",unusedKeys"`
 }
@@ -612,11 +611,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	// RFC3280(4.1.2.4) requires the issuer DN be set.
 	if isPKIXNameEmpty(sc.CASubject) {
 		sc.CASubject = defaultCASubject
-	}
-
-	if c.Server.OmitX509SVIDUID != nil {
-		sc.Log.Warn("The omit_x509svid_uid flag is deprecated and will be removed from a future release")
-		sc.OmitX509SVIDUID = *c.Server.OmitX509SVIDUID
 	}
 
 	sc.PluginConfigs = *c.Plugins
