@@ -186,7 +186,7 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 	var hint string
 	if mask.Hint {
 		if len(e.Hint) > HintMaximumLength {
-			return nil, errors.New(fmt.Sprintf("hint is too long, max length is %d characters", HintMaximumLength))
+			return nil, fmt.Errorf("hint is too long, max length is %d characters", HintMaximumLength)
 		}
 		hint = e.Hint
 	}

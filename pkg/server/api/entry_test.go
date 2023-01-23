@@ -48,7 +48,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			expectEntry: &types.Entry{
 				Id:          "entry1",
@@ -69,7 +69,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 		},
 		{
@@ -144,7 +144,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -165,7 +165,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			mask: protoutil.AllTrueEntryMask,
 		},
@@ -213,7 +213,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -234,16 +234,16 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			mask: protoutil.AllTrueEntryMask,
-			err: "invalid parent ID: \"spiffe://invalid/foo\" is not a member of trust domain \"example.org\"",
+			err:  "invalid parent ID: \"spiffe://invalid/foo\" is not a member of trust domain \"example.org\"",
 		},
 		{
 			name: "invalid spiffe id",
 			entry: &types.Entry{
 				Id:          "entry1",
-				ParentId:       &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
 				SpiffeId:    &types.SPIFFEID{TrustDomain: "invalid", Path: "/bar"},
 				X509SvidTtl: 70,
 				JwtSvidTtl:  80,
@@ -263,7 +263,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -284,16 +284,16 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			mask: protoutil.AllTrueEntryMask,
-			err: "invalid spiffe ID: \"spiffe://invalid/bar\" is not a member of trust domain \"example.org\"",
+			err:  "invalid spiffe ID: \"spiffe://invalid/bar\" is not a member of trust domain \"example.org\"",
 		},
 		{
 			name: "invalid dns names",
 			entry: &types.Entry{
 				Id:          "entry1",
-				ParentId:       &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
 				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 				X509SvidTtl: 70,
 				JwtSvidTtl:  80,
@@ -313,7 +313,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{""},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -334,10 +334,10 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			mask: protoutil.AllTrueEntryMask,
-			err: "invalid DNS name: empty or only whitespace",
+			err:  "invalid DNS name: empty or only whitespace",
 		},
 		{
 			name: "invalid federates with",
@@ -359,7 +359,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -380,10 +380,10 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			mask: protoutil.AllTrueEntryMask,
-			err: "invalid federated trust domain: trust domain is missing",
+			err:  "invalid federated trust domain: trust domain is missing",
 		},
 		{
 			name: "invalid selectors",
@@ -393,7 +393,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 				X509SvidTtl: 70,
 				JwtSvidTtl:  80,
-				Selectors: []*types.Selector{},
+				Selectors:   []*types.Selector{},
 				FederatesWith: []string{
 					"domain1.com",
 					// types entries use the trust domain name but we should
@@ -406,7 +406,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -427,10 +427,10 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			mask: protoutil.AllTrueEntryMask,
-			err: "selector list is empty",
+			err:  "selector list is empty",
 		},
 		{
 			name: "invalid hint",
@@ -456,7 +456,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: strings.Repeat("this hint field is invalid, because it exceeds the maximum length of 1024 bytes",1024),
+				Hint:           strings.Repeat("this hint field is invalid, because it exceeds the maximum length of 1024 bytes", 1024),
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -477,12 +477,11 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			mask: protoutil.AllTrueEntryMask,
-			err: "hint is too long, max length is 1024 characters",
+			err:  "hint is too long, max length is 1024 characters",
 		},
-
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -534,7 +533,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -555,7 +554,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
-				Hint: "external",
+				Hint:           "external",
 			},
 		},
 		{
