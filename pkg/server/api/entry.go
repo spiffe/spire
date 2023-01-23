@@ -12,6 +12,10 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
+const (
+	HintMaximumLength = 1024
+)
+
 // RegistrationEntriesToProto converts RegistrationEntry's into Entry's
 func RegistrationEntriesToProto(es []*common.RegistrationEntry) ([]*types.Entry, error) {
 	if es == nil {
@@ -70,6 +74,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		RevisionNumber: e.RevisionNumber,
 		StoreSvid:      e.StoreSvid,
 		JwtSvidTtl:     e.JwtSvidTtl,
+		Hint:           e.Hint,
 	}, nil
 }
 
@@ -177,6 +182,14 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		jwtSvidTTL = e.JwtSvidTtl
 	}
 
+	// TODO(guilhermocc): Add Hint
+	var hint string
+	if mask.Hint {
+		if len(e.Hint) > HintMaximumLength {
+			return nil, errors.New(fmt.Sprintf("hint is too long, max length is %d characters", HintMaximumLength))
+		}
+		hint = e.Hint
+	}
 	return &common.RegistrationEntry{
 		EntryId:        e.Id,
 		ParentId:       parentID.String(),
@@ -191,5 +204,6 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		StoreSvid:      storeSVID,
 		X509SvidTtl:    x509SvidTTL,
 		JwtSvidTtl:     jwtSvidTTL,
+		Hint:           hint,
 	}, nil
 }
