@@ -216,12 +216,6 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
 
-	// The agent health check currently exercises the Workload API. Since this
-	// can happen with some frequency, it has a tendency to fill up logs with
-	// hard-to-filter details if we're not careful (e.g. issue #1537). Only log
-	// if it is not the agent itself.
-	quietLogging := rpccontext.CallerPID(ctx) == os.Getpid()
-
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		log.WithError(err).Error("Workload attestation failed")
@@ -235,6 +229,9 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 	defer subscriber.Finish()
 
+	// The agent health check currently exercises the Workload API.
+	// Only log if it is not the agent itself.
+	quietLogging := isAgent(ctx)
 	for {
 		select {
 		case update := <-subscriber.Updates():
@@ -265,11 +262,14 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 	defer subscriber.Finish()
 
+	// The agent health check currently exercises the Workload API.
+	// Only log if it is not the agent itself.
+	quietLogging := isAgent(ctx)
 	var previousResp *workload.X509BundlesResponse
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			previousResp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp)
+			previousResp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp, quietLogging)
 			if err != nil {
 				return err
 			}
@@ -279,9 +279,11 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 }
 
-func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse) (*workload.X509BundlesResponse, error) {
+func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool) (*workload.X509BundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
-		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		if !quietLogging {
+			log.WithField(telemetry.Registered, false).Error("No identity issued")
+		}
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -445,6 +447,12 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 	return &workload.JWTBundlesResponse{
 		Bundles: bundles,
 	}, nil
+}
+
+// isAgent returns true if the caller PID from the provided context is the
+// agent's process ID.
+func isAgent(ctx context.Context) bool {
+	return rpccontext.CallerPID(ctx) == os.Getpid()
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*bundleutil.Bundle) {
