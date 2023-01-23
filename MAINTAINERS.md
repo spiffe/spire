@@ -137,12 +137,15 @@ The following steps must be completed by the primary on-call maintainer to perfo
     * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary.
 * Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub Markdown rendering bug that you will notice before completing this task.
 * Create Git tags (not annotated) with the name `vX.Y.Z` in the [spire-api-sdk](https://github.com/spiffe/spire-api-sdk) and [spire-plugin-sdk](https://github.com/spiffe/spire-plugin-sdk) repositories for the HEAD commit of the main branch.
-* Open a PR targeted for the main branch that cherry-picks the changelog commit from the latest release so that the changelog on the main branch contains all the release notes.
+* Open a PR targeted for the main branch with the following changes:
+  * Cherry-pick of the changelog commit from the latest release so that the changelog on the main branch contains all the release notes.
+  * Bump the SPIRE version to the next projected version. As for determining the next projected version, the project generally releases three patch releases per minor release cycle (e.g. `vX.Y.[0-3]`), not including dedicated security releases. The version needs to be updated in the following places:
+    * Next projected version goes in [version.go](pkg/common/version/version.go)
+    * Previous version should be added to upgrade integration test, following additional guidelines described in test [README.md](test/integration/suites/upgrade/README.md#maintenance)
+    * Previous version should be added to [SQL Datastore migration comments](pkg/server/datastore/sqlstore/migration.go), if not already present
+  * This needs to be the first commit merged following the release because the upgrade integration test will start failing on CI for all PRs until the test is brought up to date.
 * Close the GitHub issue created to track the release process.
 * Broadcast news of release to the community via available means: SPIFFE Slack, Twitter, etc.
-* Open and merge a PR to bump the SPIRE version to the next projected version and [update the upgrade integration test](test/integration/suites/upgrade/README.md#maintenance).
-  * For example, after releasing 0.10.0, update the version to 0.10.1, since it is more likely to be released before 0.11.0.
-  * Ideally, this is the first commit merged following the release.
 * Create a new GitHub milestone for the next release, if not already created.
 
 **If this is a major or minor release**, the following steps must be completed by the secondary on-call maintainer no later than one week after the release:
