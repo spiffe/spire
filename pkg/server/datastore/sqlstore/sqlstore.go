@@ -2742,6 +2742,17 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 		})
 	}
 
+	if req.ByHint != "" {
+		subquery := new(strings.Builder)
+		subquery.WriteString("SELECT id AS e_id FROM registered_entries WHERE ")
+		subquery.WriteString("hint = ?")
+		args = append(args, req.ByHint)
+		root.children = append(root.children, idFilterNode{
+			idColumn: "id",
+			query:    []string{subquery.String()},
+		})
+	}
+
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
 		switch req.BySelectors.Match {
 		case datastore.Subset, datastore.MatchAny:

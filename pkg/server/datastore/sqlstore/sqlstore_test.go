@@ -1530,7 +1530,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 
 	bazbarAB1 := makeEntry("baz", "bar", "", "A", "B")
 	bazbarAB1.FederatesWith = []string{"spiffe://federated1.test"}
-	bazbarAD12 := makeEntry("baz", "bar", "", "A", "D")
+	bazbarAD12 := makeEntry("baz", "bar", "external", "A", "D")
 	bazbarAD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
 	bazbarCB2 := makeEntry("baz", "bar", "", "C", "B")
 	bazbarCB2.FederatesWith = []string{"spiffe://federated2.test"}
@@ -1552,6 +1552,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 		pageSize              int32
 		byParentID            string
 		bySpiffeID            string
+		byHint                string
 		bySelectors           *datastore.BySelectors
 		byFederatesWith       *datastore.ByFederatesWith
 		expectEntriesOut      []*common.RegistrationEntry
@@ -1605,6 +1606,23 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
 			expectPagedTokensIn:   []string{"", "1", "3"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarCB2}, {}},
+		},
+		// by Hint
+		{
+			test:                  "by Hint, two matches",
+			entries:               []*common.RegistrationEntry{foobarAB1, bazbarAD12, foobarCB2, bazbarCD12},
+			byHint:                "external",
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, bazbarAD12},
+			expectPagedTokensIn:   []string{"", "1", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {bazbarAD12}, {}},
+		},
+		{
+			test:                  "by Hint, no match",
+			entries:               []*common.RegistrationEntry{foobarAB1, bazbarAD12, foobarCB2, bazbarCD12},
+			byHint:                "none",
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
 		},
 		// by federates with
 		{
@@ -2121,6 +2139,7 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 					BySpiffeID:      tt.bySpiffeID,
 					BySelectors:     tt.bySelectors,
 					ByFederatesWith: tt.byFederatesWith,
+					ByHint:          tt.byHint,
 				}
 
 				for i := 0; ; i++ {

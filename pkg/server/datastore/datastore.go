@@ -168,6 +168,7 @@ type ListRegistrationEntriesRequest struct {
 	BySpiffeID      string
 	Pagination      *Pagination
 	ByFederatesWith *ByFederatesWith
+	ByHint          string
 }
 
 type ListRegistrationEntriesResponse struct {
