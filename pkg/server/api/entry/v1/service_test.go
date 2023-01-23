@@ -1191,7 +1191,7 @@ func TestGetEntry(t *testing.T) {
 	test := setupServiceTest(t, ds)
 	defer test.Cleanup()
 
-	// Create fedeated bundles, that we use on "FederatesWith"
+	// Create federated bundles, that we use on "FederatesWith"
 	createFederatedBundles(t, test.ds)
 
 	parent := spiffeid.RequireFromSegments(td, "foo")
@@ -1212,6 +1212,7 @@ func TestGetEntry(t *testing.T) {
 		EntryExpiry: expiresAt,
 		DnsNames:    []string{"dns1", "dns2"},
 		Downstream:  true,
+		Hint: "internal",
 	})
 	require.NoError(t, err)
 
@@ -1276,6 +1277,7 @@ func TestGetEntry(t *testing.T) {
 				DnsNames:      []string{"dns1", "dns2"},
 				Downstream:    true,
 				ExpiresAt:     expiresAt,
+				Hint: "internal",
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -3757,7 +3759,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			ds := fakedatastore.New(t)
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
-			// Create fedeated bundles, that we use on "FederatesWith"
+			// Create federated bundles, that we use on "FederatesWith"
 			createFederatedBundles(t, test.ds)
 
 			// First create the initial entries
