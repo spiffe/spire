@@ -1,0 +1,66 @@
+#!/bin/bash
+
+assert-synced-entry() {
+  # Check at most 30 times (with one second in between) that the agent has
+  # successfully synced down the workload entry.
+  MAXCHECKS=30
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+      log-info "checking for synced entry ($i of $MAXCHECKS max)..."
+      if grep -wq "$1" conf/agent/logs.txt; then
+        return 0
+      fi
+      sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "timed out waiting for agent to sync down entry"
+}
+
+assert-service-status() {
+  MAXCHECKS=10
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "checking for $1 service $2 ($i of $MAXCHECKS max)..."
+    scCommand=$([ "$2" == "STOPPED" ] && echo "query" || echo "interrogate")
+    if docker-compose exec -T -u ContainerAdministrator "$1" sc "$scCommand" "$1" | grep -wq "$2"; then
+      log-info "$1 is in $2 state"
+      return 0
+    fi
+    sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "$1 service failed to reach $2 state"
+}
+
+assert-graceful-shutdown() {
+  MAXCHECKS=10
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+      log-info "checking for graceful shutdown ($i of $MAXCHECKS max)..."
+      if grep -wq "stopped gracefully" conf/"$1"/logs.txt; then
+        log-info "$1 stopped gracefully"
+        return 0
+      fi
+      sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "timed out waiting for $1 graceful shutdown"
+}
+
+create-service() {
+  log-info "creating $1 service..."
+  docker-compose exec -T -u ContainerAdministrator "$1" \
+      sc create "$1" binPath="$2" ||  grep "STOPPED" fail-now "failed to create $1 service"
+}
+
+stop-service() {
+  log-info "stopping $1 service..."
+  docker-compose exec -T -u ContainerAdministrator "$1" \
+      sc stop "$1" || fail-now "failed to stop $1 service"
+}
+
+start-service(){
+  log-info "starting $1 service..."
+  docker-compose exec -T -u ContainerAdministrator "$1" \
+      sc start "$@" | grep -wq  "START_PENDING" || fail-now "failed to start $2 service"
+}

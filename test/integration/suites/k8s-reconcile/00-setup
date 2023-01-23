@@ -23,7 +23,7 @@ rm conf/kind-config.yaml.bak
 start-kind-cluster "${KIND_PATH}" k8stest ./conf/kind-config.yaml
 
 # Load the given images in the cluster.
-container_images=("spire-server-scratch:latest-local" "spire-agent-scratch:latest-local" "k8s-workload-registrar-scratch:latest-local")
+container_images=("spire-server:latest-local" "spire-agent:latest-local" "k8s-workload-registrar:latest-local")
 load-images "${KIND_PATH}" k8stest "${container_images[@]}"
 
 # Set the kubectl context.
