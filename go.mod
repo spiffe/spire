@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/kms v1.8.0
 	cloud.google.com/go/secretmanager v1.10.0
 	cloud.google.com/go/security v1.11.0
-	cloud.google.com/go/storage v1.28.1
+	cloud.google.com/go/storage v1.29.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
@@ -72,7 +72,7 @@ require (
 	golang.org/x/sys v0.4.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.108.0
-	google.golang.org/genproto v0.0.0-20230109162033-3c3c17ce83e6
+	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f
 	google.golang.org/grpc v1.52.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/square/go-jose.v2 v2.6.0
