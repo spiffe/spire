@@ -2743,14 +2743,11 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 	}
 
 	if req.ByHint != "" {
-		subquery := new(strings.Builder)
-		subquery.WriteString("SELECT id AS e_id FROM registered_entries WHERE ")
-		subquery.WriteString("hint = ?")
-		args = append(args, req.ByHint)
 		root.children = append(root.children, idFilterNode{
 			idColumn: "id",
-			query:    []string{subquery.String()},
+			query:    []string{"SELECT id AS e_id FROM registered_entries WHERE hint = ?"},
 		})
+		args = append(args, req.ByHint)
 	}
 
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
