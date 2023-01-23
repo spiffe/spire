@@ -1471,7 +1471,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		FederatesWith: []string{"domain1.org"},
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
-		Hint: "external",
+		Hint:          "external",
 	}
 	// Registration entry for test entry
 	testDSEntry := &common.RegistrationEntry{
@@ -1489,7 +1489,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		FederatesWith: []string{"spiffe://domain1.org"},
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
-		Hint: "external",
+		Hint:          "external",
 	}
 
 	for _, tt := range []struct {
@@ -1528,6 +1528,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "external",
 					},
 				},
 				{
@@ -1555,6 +1556,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.X509SVIDTTL:    "0",
 						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "",
 					},
 				},
 				{
@@ -1574,6 +1576,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.X509SVIDTTL:    "0",
 						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "",
 					},
 				},
 			},
@@ -1667,6 +1670,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.X509SVIDTTL:    "0",
 						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "true",
+						telemetry.Hint:           "",
 					},
 				},
 			},
@@ -1726,7 +1730,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						X509SvidTtl:   45,
 						JwtSvidTtl:    30,
 						StoreSvid:     false,
-						Hint: "external",
+						Hint:          "external",
 					},
 				},
 			},
@@ -1752,6 +1756,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "external",
 					},
 				},
 			},
@@ -1789,6 +1794,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "external",
 					},
 				},
 			},
@@ -1856,6 +1862,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "",
 					},
 				},
 			},
@@ -1911,6 +1918,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.StatusCode:     "AlreadyExists",
 						telemetry.StatusMessage:  "similar entry already exists",
 						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "",
 					},
 				},
 			},
@@ -1949,6 +1957,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "InvalidArgument",
 						telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is missing",
+						telemetry.Hint:           "",
 					},
 				},
 			},
@@ -1987,6 +1996,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.Hint:           "external",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to create entry: creating error",
@@ -2037,6 +2047,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.Hint:           "external",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: scheme is missing or invalid",
@@ -2565,97 +2576,6 @@ func TestGetAuthorizedEntries(t *testing.T) {
 	}
 }
 
-func createFederatedBundles(t *testing.T, ds datastore.DataStore) {
-	_, err := ds.CreateBundle(ctx, &common.Bundle{
-		TrustDomainId: federatedTd.IDString(),
-		RootCas: []*common.Certificate{
-			{
-				DerBytes: []byte("federated bundle"),
-			},
-		},
-	})
-	require.NoError(t, err)
-	_, err = ds.CreateBundle(ctx, &common.Bundle{
-		TrustDomainId: secondFederatedTd.IDString(),
-		RootCas: []*common.Certificate{
-			{
-				DerBytes: []byte("second federated bundle"),
-			},
-		},
-	})
-	require.NoError(t, err)
-}
-
-func createTestEntries(t *testing.T, ds datastore.DataStore, entry ...*common.RegistrationEntry) map[string]*common.RegistrationEntry {
-	entriesMap := make(map[string]*common.RegistrationEntry)
-
-	for _, e := range entry {
-		registrationEntry, err := ds.CreateRegistrationEntry(ctx, e)
-		require.NoError(t, err)
-
-		entriesMap[registrationEntry.SpiffeId] = registrationEntry
-	}
-
-	return entriesMap
-}
-
-type serviceTest struct {
-	client       entryv1.EntryClient
-	ef           *entryFetcher
-	done         func()
-	ds           datastore.DataStore
-	logHook      *test.Hook
-	withCallerID bool
-}
-
-func (s *serviceTest) Cleanup() {
-	s.done()
-}
-
-func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
-	ef := &entryFetcher{}
-	service := entry.New(entry.Config{
-		TrustDomain:  td,
-		DataStore:    ds,
-		EntryFetcher: ef,
-	})
-
-	log, logHook := test.NewNullLogger()
-	registerFn := func(s *grpc.Server) {
-		entry.RegisterService(s, service)
-	}
-
-	test := &serviceTest{
-		ds:      ds,
-		logHook: logHook,
-		ef:      ef,
-	}
-
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
-		ctx = rpccontext.WithLogger(ctx, log)
-		if test.withCallerID {
-			ctx = rpccontext.WithCallerID(ctx, agentID)
-		}
-		return ctx, nil
-	})
-
-	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
-		ppMiddleware,
-		// Add audit log with local tracking disabled
-		middleware.WithAuditLog(false),
-	))
-	server := grpc.NewServer(
-		grpc.UnaryInterceptor(unaryInterceptor),
-		grpc.StreamInterceptor(streamInterceptor),
-	)
-
-	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
-	test.done = done
-	test.client = entryv1.NewEntryClient(conn)
-
-	return test
-}
-
 func TestBatchUpdateEntry(t *testing.T) {
 	parent := &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"}
 	entry1SpiffeID := &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"}
@@ -2703,6 +2623,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 		ExpiresAt:     999999999,
 		DnsNames:      []string{"dns3", "dns4"},
 		Downstream:    false,
+		Hint:          "newHint",
 	}
 	for _, tt := range []struct {
 		name            string
@@ -3262,6 +3183,50 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 		},
 		{
+			name:           "Success Update Hint",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				Hint: true,
+			},
+			outputMask: &types.EntryMask{
+				Hint: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					Hint: "newHint",
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.Hint = "newHint"
+				modifiedEntry.RevisionNumber = 1
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Hint: "newHint",
+					},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.Hint:           "newHint",
+						},
+					},
+				}
+			},
+		},
+		{
 			name:           "Success Don't Update X509SVIDTTL",
 			initialEntries: []*types.Entry{initialEntry},
 			inputMask:      &types.EntryMask{
@@ -3627,6 +3592,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						DnsNames:       []string{"dns3", "dns4"},
 						Downstream:     false,
 						RevisionNumber: 1,
+						Hint:           "newHint",
 					},
 				},
 			},
@@ -3650,6 +3616,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.X509SVIDTTL:    "400000",
 							telemetry.JWTSVIDTTL:     "300000",
 							telemetry.StoreSvid:      "false",
+							telemetry.Hint:           "newHint",
 						},
 					},
 				}
@@ -3854,6 +3821,97 @@ func TestBatchUpdateEntry(t *testing.T) {
 			}
 		})
 	}
+}
+
+func createFederatedBundles(t *testing.T, ds datastore.DataStore) {
+	_, err := ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: federatedTd.IDString(),
+		RootCas: []*common.Certificate{
+			{
+				DerBytes: []byte("federated bundle"),
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: secondFederatedTd.IDString(),
+		RootCas: []*common.Certificate{
+			{
+				DerBytes: []byte("second federated bundle"),
+			},
+		},
+	})
+	require.NoError(t, err)
+}
+
+func createTestEntries(t *testing.T, ds datastore.DataStore, entry ...*common.RegistrationEntry) map[string]*common.RegistrationEntry {
+	entriesMap := make(map[string]*common.RegistrationEntry)
+
+	for _, e := range entry {
+		registrationEntry, err := ds.CreateRegistrationEntry(ctx, e)
+		require.NoError(t, err)
+
+		entriesMap[registrationEntry.SpiffeId] = registrationEntry
+	}
+
+	return entriesMap
+}
+
+type serviceTest struct {
+	client       entryv1.EntryClient
+	ef           *entryFetcher
+	done         func()
+	ds           datastore.DataStore
+	logHook      *test.Hook
+	withCallerID bool
+}
+
+func (s *serviceTest) Cleanup() {
+	s.done()
+}
+
+func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
+	ef := &entryFetcher{}
+	service := entry.New(entry.Config{
+		TrustDomain:  td,
+		DataStore:    ds,
+		EntryFetcher: ef,
+	})
+
+	log, logHook := test.NewNullLogger()
+	registerFn := func(s *grpc.Server) {
+		entry.RegisterService(s, service)
+	}
+
+	test := &serviceTest{
+		ds:      ds,
+		logHook: logHook,
+		ef:      ef,
+	}
+
+	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+		ctx = rpccontext.WithLogger(ctx, log)
+		if test.withCallerID {
+			ctx = rpccontext.WithCallerID(ctx, agentID)
+		}
+		return ctx, nil
+	})
+
+	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
+		ppMiddleware,
+		// Add audit log with local tracking disabled
+		middleware.WithAuditLog(false),
+	))
+	server := grpc.NewServer(
+		grpc.UnaryInterceptor(unaryInterceptor),
+		grpc.StreamInterceptor(streamInterceptor),
+	)
+
+	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
+	test.done = done
+	test.client = entryv1.NewEntryClient(conn)
+
+	return test
 }
 
 type fakeDS struct {

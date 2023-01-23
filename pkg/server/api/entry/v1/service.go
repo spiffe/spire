@@ -416,6 +416,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 			StoreSvid:     inputMask.StoreSvid,
 			X509SvidTtl:   inputMask.X509SvidTtl,
 			JwtSvidTtl:    inputMask.JwtSvidTtl,
+			Hint:          inputMask.Hint,
 		}
 	}
 	dsEntry, err := s.ds.UpdateRegistrationEntry(ctx, convEntry, mask)
@@ -509,6 +510,10 @@ func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *ty
 
 	if inputMask == nil || inputMask.StoreSvid {
 		fields[telemetry.StoreSvid] = proto.StoreSvid
+	}
+
+	if inputMask == nil || inputMask.Hint {
+		fields[telemetry.Hint] = proto.Hint
 	}
 
 	return fields
