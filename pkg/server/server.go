@@ -264,14 +264,13 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 
 func (s *Server) newCA(metrics telemetry.Metrics, healthChecker health.Checker) *ca.CA {
 	return ca.NewCA(ca.Config{
-		Metrics:         metrics,
-		X509SVIDTTL:     s.config.X509SVIDTTL,
-		JWTSVIDTTL:      s.config.JWTSVIDTTL,
-		JWTIssuer:       s.config.JWTIssuer,
-		TrustDomain:     s.config.TrustDomain,
-		CASubject:       s.config.CASubject,
-		HealthChecker:   healthChecker,
-		OmitX509SVIDUID: s.config.OmitX509SVIDUID,
+		Metrics:       metrics,
+		X509SVIDTTL:   s.config.X509SVIDTTL,
+		JWTSVIDTTL:    s.config.JWTSVIDTTL,
+		JWTIssuer:     s.config.JWTIssuer,
+		TrustDomain:   s.config.TrustDomain,
+		CASubject:     s.config.CASubject,
+		HealthChecker: healthChecker,
 	})
 }
 

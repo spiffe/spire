@@ -111,16 +111,15 @@ type JWTKey struct {
 }
 
 type Config struct {
-	Log             logrus.FieldLogger
-	Metrics         telemetry.Metrics
-	TrustDomain     spiffeid.TrustDomain
-	X509SVIDTTL     time.Duration
-	JWTSVIDTTL      time.Duration
-	JWTIssuer       string
-	Clock           clock.Clock
-	CASubject       pkix.Name
-	HealthChecker   health.Checker
-	OmitX509SVIDUID bool
+	Log           logrus.FieldLogger
+	Metrics       telemetry.Metrics
+	TrustDomain   spiffeid.TrustDomain
+	X509SVIDTTL   time.Duration
+	JWTSVIDTTL    time.Duration
+	JWTIssuer     string
+	Clock         clock.Clock
+	CASubject     pkix.Name
+	HealthChecker health.Checker
 }
 
 type CA struct {
@@ -196,7 +195,7 @@ func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.
 
 	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
 
-	x509SVID, err := signX509SVID(ca.c.TrustDomain, x509CA, params, notBefore, notAfter, ca.c.OmitX509SVIDUID)
+	x509SVID, err := signX509SVID(ca.c.TrustDomain, x509CA, params, notBefore, notAfter)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +280,7 @@ func (ca *CA) capLifetime(ttl time.Duration, expirationCap time.Time) (notBefore
 	return notBefore, notAfter
 }
 
-func signX509SVID(td spiffeid.TrustDomain, x509CA *X509CA, params X509SVIDParams, notBefore, notAfter time.Time, omitUID bool) ([]*x509.Certificate, error) {
+func signX509SVID(td spiffeid.TrustDomain, x509CA *X509CA, params X509SVIDParams, notBefore, notAfter time.Time) ([]*x509.Certificate, error) {
 	if x509CA == nil {
 		return nil, errs.New("X509 CA is not available for signing")
 	}
@@ -305,10 +304,8 @@ func signX509SVID(td spiffeid.TrustDomain, x509CA *X509CA, params X509SVIDParams
 		}
 	}
 
-	// Append the unique ID to the subject, unless disabled
-	if !omitUID {
-		template.Subject.ExtraNames = append(template.Subject.ExtraNames, x509svid.UniqueIDAttribute(params.SpiffeID))
-	}
+	// Append the unique ID to the subject.
+	template.Subject.ExtraNames = append(template.Subject.ExtraNames, x509svid.UniqueIDAttribute(params.SpiffeID))
 
 	// Explicitly set the AKI on the signed certificate, otherwise it won't be
 	// added if the subject and issuer match name match (however unlikely).
