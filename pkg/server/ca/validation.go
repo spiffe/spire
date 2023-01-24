@@ -46,7 +46,7 @@ func (v X509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, ups
 		Signer:        v.Signer,
 		Certificate:   x509CA,
 		UpstreamChain: upstreamChain,
-	}, params, x509CA.NotBefore, x509CA.NotAfter, false)
+	}, params, x509CA.NotBefore, x509CA.NotAfter)
 	if err != nil {
 		return fmt.Errorf("unable to sign throwaway SVID for X509 CA validation: %w", err)
 	}

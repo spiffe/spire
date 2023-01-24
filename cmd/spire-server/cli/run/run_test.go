@@ -1007,47 +1007,6 @@ func TestNewServerConfig(t *testing.T) {
 				}, c.AdminIDs)
 			},
 		},
-		{
-			msg: "omit_x509svid_uid is unset",
-			input: func(c *Config) {
-				c.Server.OmitX509SVIDUID = nil
-			},
-			test: func(t *testing.T, c *server.Config) {
-				require.False(t, c.OmitX509SVIDUID)
-			},
-		},
-		{
-			msg: "omit_x509svid_uid is set to false",
-			input: func(c *Config) {
-				value := false
-				c.Server.OmitX509SVIDUID = &value
-			},
-			logOptions: assertLogsContainEntries([]spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "The omit_x509svid_uid flag is deprecated and will be removed from a future release",
-				},
-			}),
-			test: func(t *testing.T, c *server.Config) {
-				require.False(t, c.OmitX509SVIDUID)
-			},
-		},
-		{
-			msg: "omit_x509svid_uid is set to true",
-			input: func(c *Config) {
-				value := true
-				c.Server.OmitX509SVIDUID = &value
-			},
-			logOptions: assertLogsContainEntries([]spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "The omit_x509svid_uid flag is deprecated and will be removed from a future release",
-				},
-			}),
-			test: func(t *testing.T, c *server.Config) {
-				require.True(t, c.OmitX509SVIDUID)
-			},
-		},
 	}
 	cases = append(cases, newServerConfigCasesOS()...)
 
