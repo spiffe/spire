@@ -1,0 +1,24 @@
+version: '3'
+
+services:
+  spire-server:
+    image: spire-server-windows:latest-local
+    hostname: spire-server
+    volumes:
+      - ./conf/server:c:/spire/conf/server
+    user: ContainerAdministrator
+    entrypoint:
+      - cmd
+    command:
+      - cmd /c ping -t localhost > NUL
+  spire-agent:
+    image: spire-agent-windows:latest-local
+    hostname: spire-agent
+    depends_on: ["spire-server"]
+    volumes:
+      - ./conf/agent:c:/spire/conf/agent
+    user: ContainerAdministrator
+    entrypoint:
+      - cmd
+    command:
+      - cmd /c ping -t localhost > NUL

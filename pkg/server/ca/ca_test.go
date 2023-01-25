@@ -427,36 +427,6 @@ func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *
 	return createCACertificate(s.T(), s.clock, cn, parent)
 }
 
-func TestOmitX509SVIDUID(t *testing.T) {
-	clk := clock.NewMock(t)
-	log, _ := test.NewNullLogger()
-
-	ca := NewCA(Config{
-		Log:         log,
-		Metrics:     telemetry.Blackhole{},
-		TrustDomain: trustDomainExample,
-		X509SVIDTTL: time.Minute,
-		Clock:       clk,
-		CASubject: pkix.Name{
-			CommonName: "TESTCA",
-		},
-		HealthChecker:   fakehealthchecker.New(),
-		OmitX509SVIDUID: true,
-	})
-	ca.SetX509CA(&X509CA{
-		Signer:      testSigner,
-		Certificate: createCACertificate(t, clk, "CA", nil),
-	})
-
-	certs, err := ca.SignX509SVID(context.Background(), X509SVIDParams{
-		SpiffeID:  spiffeid.RequireFromString("spiffe://example.org/workload"),
-		PublicKey: testSigner.Public(),
-	})
-	require.NoError(t, err)
-	require.Len(t, certs, 1)
-	require.Equal(t, "O=SPIRE,C=US", certs[0].Subject.String())
-}
-
 func createCACertificate(t *testing.T, clk clock.Clock, cn string, parent *x509.Certificate) *x509.Certificate {
 	keyID, err := x509util.GetSubjectKeyID(testSigner.Public())
 	require.NoError(t, err)

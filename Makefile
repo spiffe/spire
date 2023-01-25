@@ -52,12 +52,6 @@ help:
 	@echo "  $(cyan)spire-agent-image$(reset)                     - build SPIRE agent Docker image"
 	@echo "  $(cyan)k8s-workload-registrar-image$(reset)          - build Kubernetes Workload Registrar Docker image"
 	@echo "  $(cyan)oidc-discovery-provider-image$(reset)         - build OIDC Discovery Provider Docker image"
-	@echo "$(bold)Docker from scratch image:$(reset)"
-	@echo "  $(cyan)scratch-images$(reset)                        - build all SPIRE Docker from scratch images"
-	@echo "  $(cyan)spire-server-scratch-image$(reset)            - build SPIRE server Docker scratch image"
-	@echo "  $(cyan)spire-agent-scratch-image$(reset)             - build SPIRE agent Docker scratch image"
-	@echo "  $(cyan)k8s-workload-registrar-scratch-image$(reset)  - build Kubernetes Workload Registrar Docker scratch image"
-	@echo "  $(cyan)oidc-discovery-provider-scratch-image$(reset) - build OIDC Discovery Provider Docker image"
 	@echo "$(bold)Windows docker image:$(reset)"
 	@echo "  $(cyan)images-windows$(reset)                        - build all SPIRE Docker images for windows"
 	@echo "  $(cyan)spire-server-image-windows$(reset)            - build SPIRE server Docker image for windows"
@@ -265,7 +259,7 @@ bin/%: support/k8s/% FORCE | go-check
 	$(E)$(go_build) $@$(exe) ./$<
 
 #############################################################################
-# Build Static binaries for scratch docker images
+# Build static binaries for docker images
 #############################################################################
 
 .PHONY: build-static
@@ -359,21 +353,6 @@ $(eval $(call image_rule,oidc-discovery-provider-image,oidc-discovery-provider,D
 
 load-images:
 	.github/workflows/scripts/load-oci-archives.sh
-
-#############################################################################
-# Docker Images FROM scratch
-#############################################################################
-
-.PHONY: scratch-images
-scratch-images: $(addsuffix -scratch-image,$(binaries))
-
-$(eval $(call image_rule,spire-server-scratch-image,spire-server-scratch,Dockerfile.scratch))
-$(eval $(call image_rule,spire-agent-scratch-image,spire-agent-scratch,Dockerfile.scratch))
-$(eval $(call image_rule,k8s-workload-registrar-scratch-image,k8s-workload-registrar-scratch,Dockerfile.scratch))
-$(eval $(call image_rule,oidc-discovery-provider-scratch-image,oidc-discovery-provider-scratch,Dockerfile.scratch))
-
-load-scratch-images:
-	.github/workflows/scripts/load-oci-archives.sh -scratch
 
 #############################################################################
 # Windows Docker Images

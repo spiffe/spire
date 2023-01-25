@@ -71,10 +71,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	uptime.ReportMetrics(ctx, metrics)
 
 	cat, err := catalog.Load(ctx, catalog.Config{
-		Log:          a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
-		Metrics:      metrics,
-		TrustDomain:  a.c.TrustDomain,
-		PluginConfig: a.c.PluginConfigs,
+		Log:           a.c.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+		Metrics:       metrics,
+		TrustDomain:   a.c.TrustDomain,
+		PluginConfigs: a.c.PluginConfigs,
 	})
 	if err != nil {
 		return err

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+log-debug "test admin workload..."
+docker-compose exec -u 1001 -T spire-agent-a \
+	/opt/spire/conf/agent/adminclient -trustDomain domain-a.test -serverAddr spire-server-a:8081 || fail-now "failed to check admin endpoints"
+
+log-debug "test foreign admin workload..."
+docker-compose exec -u 1003 -T spire-agent-b \
+  /opt/spire/conf/agent/adminclient -trustDomain domain-a.test -serverAddr spire-server-a:8081 || fail-now "failed to check admin foreign td endpoints"
+
+log-debug "test regular workload..."
+docker-compose exec -u 1002 -T spire-agent-a \
+	/opt/spire/conf/agent/adminclient -trustDomain domain-a.test -serverAddr spire-server-a:8081 -expectErrors || fail-now "failed to check admin endpoints"

@@ -1,0 +1,8 @@
+#!/bin/bash
+source ./common
+
+start-service spire-server run -config invalid-config-path
+assert-service-status spire-server STOPPED
+
+start-service spire-agent run -config invalid-config-path
+assert-service-status spire-agent STOPPED

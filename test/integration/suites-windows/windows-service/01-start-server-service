@@ -1,0 +1,8 @@
+#!/bin/bash
+source ./common
+
+docker-up spire-server
+
+create-service spire-server C:/spire/bin/spire-server.exe
+start-service spire-server run -config C:/spire/conf/server/server.conf
+assert-service-status spire-server RUNNING

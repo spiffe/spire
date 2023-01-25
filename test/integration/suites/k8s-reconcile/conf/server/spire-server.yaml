@@ -206,7 +206,7 @@ spec:
       shareProcessNamespace: true
       containers:
         - name: spire-server
-          image: spire-server-scratch:latest-local
+          image: spire-server:latest-local
           imagePullPolicy: Never
           args: ["-config", "/run/spire/config/server.conf"]
           ports:
@@ -231,7 +231,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
         - name: k8s-workload-registrar
-          image: k8s-workload-registrar-scratch:latest-local
+          image: k8s-workload-registrar:latest-local
           imagePullPolicy: Never
           args: ["-config", "/run/spire/k8s-workload-registrar/conf/k8s-workload-registrar.conf"]
           ports:

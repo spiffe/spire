@@ -34,15 +34,15 @@ type Catalog interface {
 	GetWorkloadAttestors() []workloadattestor.WorkloadAttestor
 }
 
-type HCLPluginConfigMap = catalog.HCLPluginConfigMap
+type PluginConfigs = catalog.PluginConfigs
 
-type HCLPluginConfig = catalog.HCLPluginConfig
+type PluginConfig = catalog.PluginConfig
 
 type Config struct {
-	Log          logrus.FieldLogger
-	TrustDomain  spiffeid.TrustDomain
-	PluginConfig HCLPluginConfigMap
-	Metrics      telemetry.Metrics
+	Log           logrus.FieldLogger
+	TrustDomain   spiffeid.TrustDomain
+	PluginConfigs PluginConfigs
+	Metrics       telemetry.Metrics
 }
 
 type Repository struct {
@@ -78,13 +78,8 @@ func (repo *Repository) Close() {
 }
 
 func Load(ctx context.Context, config Config) (_ *Repository, err error) {
-	if c, ok := config.PluginConfig[nodeAttestorType][jointoken.PluginName]; ok && c.IsEnabled() && c.IsExternal() {
+	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
 		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
-	}
-
-	pluginConfigs, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
-	if err != nil {
-		return nil, err
 	}
 
 	// Load the plugins and populate the repository
@@ -96,7 +91,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 		CoreConfig: catalog.CoreConfig{
 			TrustDomain: config.TrustDomain,
 		},
-		PluginConfigs: pluginConfigs,
+		PluginConfigs: config.PluginConfigs,
 		HostServices: []pluginsdk.ServiceServer{
 			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
 		},
