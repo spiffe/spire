@@ -1,19 +1,24 @@
 package catalog
 
 import (
-	"sort"
 	"testing"
 
+	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/stretchr/testify/require"
 )
 
-func TestParsePluginConfigsFromHCLFailure(t *testing.T) {
-	_, err := ParsePluginConfigsFromHCL(`NOT-VALID-HCL`)
-	require.Error(t, err)
-}
-
-func TestParsePluginConfigsFromHCLSuccess(t *testing.T) {
-	config, err := ParsePluginConfigsFromHCL(`
+func TestParsePluginConfigsFromHCLNode(t *testing.T) {
+	root := struct {
+		Plugins ast.Node
+	}{}
+	err := hcl.Decode(&root, `plugins {
+	TYPE1 "NAME3" {
+		plugin_data = "DATA3"
+		enabled = false
+	}
+	TYPE4 "NAME4" {
+	}
 	TYPE1 "NAME1" {
 		plugin_cmd = "CMD1"
 		plugin_data = "DATA1"
@@ -25,56 +30,67 @@ func TestParsePluginConfigsFromHCLSuccess(t *testing.T) {
 		plugin_data = "DATA2"
 		enabled = true
 	}
-	TYPE3 "NAME3" {
-		plugin_data = "DATA3"
-		enabled = false
-	}
-	TYPE4 "NAME4" {
-	}
-`)
+}`)
 	require.NoError(t, err)
 
-	sortPluginConfig(config)
-	require.Equal(t, []PluginConfig{
-		{
-			Name:     "NAME1",
-			Type:     "TYPE1",
-			Path:     "CMD1",
-			Data:     `"DATA1"`,
-			Disabled: false,
-		},
-		{
-			Name:     "NAME2",
-			Type:     "TYPE2",
-			Path:     "CMD2",
-			Args:     []string{"foo", "bar", "baz"},
-			Checksum: "CHECKSUM2",
-			Data:     `"DATA2"`,
-			Disabled: false,
-		},
-		{
-			Name:     "NAME3",
-			Type:     "TYPE3",
-			Data:     `"DATA3"`,
-			Disabled: true,
-		},
-		{
-			Name: "NAME4",
-			Type: "TYPE4",
-		},
-	}, config)
-}
+	configs, err := PluginConfigsFromHCLNode(root.Plugins)
+	require.NoError(t, err)
 
-func sortPluginConfig(c []PluginConfig) {
-	sort.Slice(c, func(i, j int) bool {
-		a := c[i]
-		b := c[j]
-		if a.Type > b.Type {
-			return false
-		}
-		if a.Type < b.Type {
-			return true
-		}
-		return a.Name < b.Name
-	})
+	pluginA := PluginConfig{
+		Name:     "NAME3",
+		Type:     "TYPE1",
+		Data:     `"DATA3"`,
+		Disabled: true,
+	}
+	pluginB := PluginConfig{
+		Name: "NAME4",
+		Type: "TYPE4",
+	}
+	pluginC := PluginConfig{
+		Name:     "NAME1",
+		Type:     "TYPE1",
+		Path:     "CMD1",
+		Data:     `"DATA1"`,
+		Disabled: false,
+	}
+	pluginD := PluginConfig{
+		Name:     "NAME2",
+		Type:     "TYPE2",
+		Path:     "CMD2",
+		Args:     []string{"foo", "bar", "baz"},
+		Checksum: "CHECKSUM2",
+		Data:     `"DATA2"`,
+		Disabled: false,
+	}
+
+	// The declaration order should be preserved.
+	require.Equal(t, PluginConfigs{
+		pluginA,
+		pluginB,
+		pluginC,
+		pluginD,
+	}, configs)
+
+	// Only A and C are of type TYPE1
+	matching, remaining := configs.FilterByType("TYPE1")
+
+	require.Equal(t, PluginConfigs{
+		pluginA,
+		pluginC,
+	}, matching)
+
+	require.Equal(t, PluginConfigs{
+		pluginB,
+		pluginD,
+	}, remaining)
+
+	c, ok := configs.Find("TYPE1", "NAME1")
+	require.Equal(t, pluginC, c)
+	require.True(t, ok)
+
+	_, ok = configs.Find("WHATEVER", "NAME1")
+	require.False(t, ok)
+
+	_, ok = configs.Find("TYPE1", "WHATEVER")
+	require.False(t, ok)
 }

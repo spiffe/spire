@@ -1,7 +1,6 @@
 package run
 
 import (
-	"bytes"
 	"crypto/x509/pkix"
 	"io"
 	"os"
@@ -11,7 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/printer"
+	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -66,39 +65,40 @@ func TestParseConfigGood(t *testing.T) {
 	assert.True(t, c.Server.AuditLogEnabled)
 	testParseConfigGoodOS(t, c)
 
+	// Parse/reprint cycle trims outer whitespace
+	const data = `join_token = "PLUGIN-SERVER-NOT-A-SECRET"`
+
 	// Check for plugins configurations
-	pluginConfigs := *c.Plugins
-	expectedData := "join_token = \"PLUGIN-SERVER-NOT-A-SECRET\""
-	var data bytes.Buffer
-	err = printer.DefaultConfig.Fprint(&data, pluginConfigs["plugin_type_server"]["plugin_name_server"].PluginData)
-	assert.NoError(t, err)
+	expectedPluginConfigs := catalog.PluginConfigs{
+		{
+			Type:     "plugin_type_server",
+			Name:     "plugin_name_server",
+			Path:     "./pluginServerCmd",
+			Checksum: "pluginServerChecksum",
+			Data:     data,
+			Disabled: false,
+		},
+		{
+			Type:     "plugin_type_server",
+			Name:     "plugin_disabled",
+			Path:     "./pluginServerCmd",
+			Checksum: "pluginServerChecksum",
+			Data:     data,
+			Disabled: true,
+		},
+		{
+			Type:     "plugin_type_server",
+			Name:     "plugin_enabled",
+			Path:     "./pluginServerCmd",
+			Checksum: "pluginServerChecksum",
+			Data:     data,
+			Disabled: false,
+		},
+	}
 
-	assert.Len(t, pluginConfigs, 1)
-	assert.Len(t, pluginConfigs["plugin_type_server"], 3)
-
-	// Default config
-	pluginConfig := pluginConfigs["plugin_type_server"]["plugin_name_server"]
-	assert.Nil(t, pluginConfig.Enabled)
-	assert.Equal(t, pluginConfig.IsEnabled(), true)
-	assert.Equal(t, pluginConfig.PluginChecksum, "pluginServerChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginServerCmd")
-	assert.Equal(t, expectedData, data.String())
-
-	// Disabled plugin
-	pluginConfig = pluginConfigs["plugin_type_server"]["plugin_disabled"]
-	assert.NotNil(t, pluginConfig.Enabled)
-	assert.Equal(t, pluginConfig.IsEnabled(), false)
-	assert.Equal(t, pluginConfig.PluginChecksum, "pluginServerChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginServerCmd")
-	assert.Equal(t, expectedData, data.String())
-
-	// Enabled plugin
-	pluginConfig = pluginConfigs["plugin_type_server"]["plugin_enabled"]
-	assert.NotNil(t, pluginConfig.Enabled)
-	assert.Equal(t, pluginConfig.IsEnabled(), true)
-	assert.Equal(t, pluginConfig.PluginChecksum, "pluginServerChecksum")
-	assert.Equal(t, pluginConfig.PluginCmd, "./pluginServerCmd")
-	assert.Equal(t, expectedData, data.String())
+	pluginConfigs, err := catalog.PluginConfigsFromHCLNode(c.Plugins)
+	require.NoError(t, err)
+	require.Equal(t, expectedPluginConfigs, pluginConfigs)
 }
 
 func TestMergeInput(t *testing.T) {
@@ -1010,7 +1010,7 @@ func defaultValidConfig() *Config {
 	c.Server.DataDir = "."
 	c.Server.TrustDomain = "example.org"
 
-	c.Plugins = &catalog.HCLPluginConfigMap{}
+	c.Plugins = &ast.ObjectList{}
 
 	return c
 }

@@ -57,11 +57,11 @@ var (
 
 // Config contains all available configurables, arranged by section
 type Config struct {
-	Server       *serverConfig               `hcl:"server"`
-	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
-	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
-	HealthChecks health.Config               `hcl:"health_checks"`
-	UnusedKeys   []string                    `hcl:",unusedKeys"`
+	Server       *serverConfig        `hcl:"server"`
+	Plugins      ast.Node             `hcl:"plugins"`
+	Telemetry    telemetry.FileConfig `hcl:"telemetry"`
+	HealthChecks health.Config        `hcl:"health_checks"`
+	UnusedKeys   []string             `hcl:",unusedKeys"`
 }
 
 type serverConfig struct {
@@ -594,7 +594,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CASubject = defaultCASubject
 	}
 
-	sc.PluginConfigs = *c.Plugins
+	sc.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
+	if err != nil {
+		return nil, err
+	}
 	sc.Telemetry = c.Telemetry
 	sc.HealthChecks = c.HealthChecks
 

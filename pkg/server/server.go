@@ -255,7 +255,7 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
 		TrustDomain:      s.config.TrustDomain,
-		PluginConfig:     s.config.PluginConfigs,
+		PluginConfigs:    s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
 		HealthChecker:    healthChecker,
