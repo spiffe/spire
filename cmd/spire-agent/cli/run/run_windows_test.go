@@ -184,7 +184,7 @@ func TestParseConfigGood(t *testing.T) {
 		{
 			Type:     "plugin_type_agent",
 			Name:     "plugin_disabled",
-			Path:     "./pluginAgentCmd",
+			Path:     ".\\pluginAgentCmd",
 			Checksum: "pluginAgentChecksum",
 			Data:     data,
 			Disabled: true,
@@ -192,7 +192,7 @@ func TestParseConfigGood(t *testing.T) {
 		{
 			Type:     "plugin_type_agent",
 			Name:     "plugin_enabled",
-			Path:     "./pluginAgentCmd",
+			Path:     "c:/temp/pluginAgentCmd",
 			Checksum: "pluginAgentChecksum",
 			Data:     data,
 			Disabled: false,
