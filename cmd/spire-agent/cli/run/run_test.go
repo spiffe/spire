@@ -10,11 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -911,7 +911,7 @@ func defaultValidConfig() *Config {
 	c.Agent.TrustBundlePath = path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt")
 	c.Agent.TrustDomain = "example.org"
 
-	c.Plugins = &catalog.HCLPluginConfigMap{}
+	c.Plugins = &ast.ObjectList{}
 
 	return c
 }

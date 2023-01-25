@@ -20,7 +20,7 @@ import (
 
 type Config struct {
 	// Configurations for server plugins
-	PluginConfigs common.HCLPluginConfigMap
+	PluginConfigs common.PluginConfigs
 
 	Log logrus.FieldLogger
 

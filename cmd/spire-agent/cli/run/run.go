@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
@@ -56,11 +57,11 @@ const (
 
 // Config contains all available configurables, arranged by section
 type Config struct {
-	Agent        *agentConfig                `hcl:"agent"`
-	Plugins      *catalog.HCLPluginConfigMap `hcl:"plugins"`
-	Telemetry    telemetry.FileConfig        `hcl:"telemetry"`
-	HealthChecks health.Config               `hcl:"health_checks"`
-	UnusedKeys   []string                    `hcl:",unusedKeys"`
+	Agent        *agentConfig         `hcl:"agent"`
+	Plugins      ast.Node             `hcl:"plugins"`
+	Telemetry    telemetry.FileConfig `hcl:"telemetry"`
+	HealthChecks health.Config        `hcl:"health_checks"`
+	UnusedKeys   []string             `hcl:",unusedKeys"`
 }
 
 type agentConfig struct {
@@ -522,7 +523,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
 
-	ac.PluginConfigs = *c.Plugins
+	ac.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
+	if err != nil {
+		return nil, err
+	}
+
 	ac.Telemetry = c.Telemetry
 	ac.HealthChecks = c.HealthChecks
 

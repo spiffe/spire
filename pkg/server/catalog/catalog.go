@@ -47,14 +47,12 @@ type Catalog interface {
 	GetUpstreamAuthority() (upstreamauthority.UpstreamAuthority, bool)
 }
 
-type HCLPluginConfigMap = catalog.HCLPluginConfigMap
-
-type HCLPluginConfig = catalog.HCLPluginConfig
+type PluginConfigs = catalog.PluginConfigs
 
 type Config struct {
-	Log          logrus.FieldLogger
-	TrustDomain  spiffeid.TrustDomain
-	PluginConfig HCLPluginConfigMap
+	Log           logrus.FieldLogger
+	TrustDomain   spiffeid.TrustDomain
+	PluginConfigs PluginConfigs
 
 	Metrics          telemetry.Metrics
 	IdentityProvider *identityprovider.IdentityProvider
@@ -112,7 +110,7 @@ func (repo *Repository) Close() {
 }
 
 func Load(ctx context.Context, config Config) (_ *Repository, err error) {
-	if c, ok := config.PluginConfig[nodeAttestorType][jointoken.PluginName]; ok && c.IsEnabled() && c.IsExternal() {
+	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
 		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
 	}
 
@@ -127,18 +125,12 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
-	dataStoreConfig := config.PluginConfig[dataStoreType]
-	delete(config.PluginConfig, dataStoreType)
-	sqlDataStore, err := loadSQLDataStore(ctx, config.Log, dataStoreConfig)
+	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
+	sqlDataStore, err := loadSQLDataStore(ctx, config.Log, dataStoreConfigs)
 	if err != nil {
 		return nil, err
 	}
 	repo.dataStoreCloser = sqlDataStore
-
-	pluginConfigs, err := catalog.PluginConfigsFromHCL(config.PluginConfig)
-	if err != nil {
-		return nil, err
-	}
 
 	repo.catalogCloser, err = catalog.Load(ctx, catalog.Config{
 		Log: config.Log,
@@ -170,26 +162,20 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	return repo, nil
 }
 
-func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfig map[string]catalog.HCLPluginConfig) (*ds_sql.Plugin, error) {
+func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
 	switch {
-	case len(datastoreConfig) == 0:
+	case len(datastoreConfigs) == 0:
 		return nil, errors.New("expecting a DataStore plugin")
-	case len(datastoreConfig) > 1:
+	case len(datastoreConfigs) > 1:
 		return nil, errors.New("only one DataStore plugin is allowed")
 	}
 
-	sqlHCLConfig, ok := datastoreConfig[ds_sql.PluginName]
-	if !ok {
+	sqlConfig := datastoreConfigs[0]
+
+	if sqlConfig.Name != ds_sql.PluginName {
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
-
-	sqlConfig, err := catalog.PluginConfigFromHCL(dataStoreType, ds_sql.PluginName, sqlHCLConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	// Is the plugin external?
-	if sqlConfig.Path != "" {
+	if sqlConfig.IsExternal() {
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
