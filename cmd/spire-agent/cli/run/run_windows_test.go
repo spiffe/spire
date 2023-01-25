@@ -9,8 +9,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/log"
