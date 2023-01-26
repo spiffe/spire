@@ -18,7 +18,7 @@ You may use all, some, or none of the collectors. The following collectors suppo
 
 | Configuration     | Type          | Description                                                   | Default |
 |-------------------|---------------|---------------------------------------------------------------|---------|
-| `InMem`           | `InMem`       | In-memory configuration                                       | running |
+| `InMem`           | `InMem`       | In-memory configuration                                       |         |
 | `Prometheus`      | `Prometheus`  | Prometheus configuration                                      |         |
 | `DogStatsd`       | `[]DogStatsd` | List of DogStatsd configurations                              |         |
 | `Statsd`          | `[]Statsd`    | List of Statsd configurations                                 |         |
@@ -56,11 +56,9 @@ You may use all, some, or none of the collectors. The following collectors suppo
 
 ### `In-Mem`
 
-| Configuration | Type   | Description                                                                                                                                                                    | Default |
-|---------------|--------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `enabled`     | `bool` | Enable this collector. This flag is deprecated and will be removed in a future release. To disable in-memory telemetry collection omit the InMem configuration block entirely. | `false` |
+The In-Memory metrics collector does not have configuration settings.
 
-Here is a sample configuration:
+### Sample telemetry configuration
 
 ```hcl
 telemetry {

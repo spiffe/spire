@@ -25,18 +25,8 @@ func newInmemRunner(c *MetricsConfig) (sinkRunner, error) {
 		log: c.Logger,
 	}
 
-	// Don't enable If the InMem block is not present, or is present with
-	// the deprecated "enabled" flag explicitly set to false.
-	// TODO: Remove the deprecated "enabled" flag in 1.6.0.
-	inMem := c.FileConfig.InMem
-	switch {
-	case inMem == nil:
+	if c.FileConfig.InMem == nil {
 		return runner, nil
-	case inMem.DeprecatedEnabled != nil:
-		c.Logger.Warn("The enabled flag is deprecated in the InMem configuration and will be removed in a future release; omit the InMem block to disable in-memory telemetry")
-		if !*inMem.DeprecatedEnabled {
-			return runner, nil
-		}
 	}
 
 	if logger, ok := c.Logger.(interface{ Writer() *io.PipeWriter }); ok {
