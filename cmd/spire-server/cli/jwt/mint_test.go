@@ -420,6 +420,8 @@ func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expec
 	case "json":
 		if expectedStdoutJSON != "" {
 			require.JSONEq(t, expectedStdoutJSON, stdoutString)
+		} else {
+			require.Empty(t, stdoutString)
 		}
 	}
 }
