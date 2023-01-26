@@ -14,9 +14,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/proto/spire/common"
 )
 
 var (
@@ -44,11 +42,11 @@ func shouldLogFederationMisconfiguration(td spiffeid.TrustDomain) bool {
 
 // bundleGetter fetches the bundle for the given trust domain and parse it as x509 certificates.
 func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
-	commonServerBundle, err := e.DataStore.FetchBundle(dscache.WithCache(ctx), td.IDString())
+	serverBundle, err := e.BundleCache.FetchBundleX509(ctx, td)
 	if err != nil {
 		return nil, fmt.Errorf("get bundle from datastore: %w", err)
 	}
-	if commonServerBundle == nil {
+	if serverBundle == nil {
 		if td != e.TrustDomain && shouldLogFederationMisconfiguration(td) {
 			e.Log.
 				WithField(telemetry.TrustDomain, td.String()).
@@ -58,11 +56,6 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) (
 				)
 		}
 		return nil, fmt.Errorf("no bundle found for trust domain %q", td)
-	}
-
-	serverBundle, err := parseBundle(e.TrustDomain, commonServerBundle)
-	if err != nil {
-		return nil, err
 	}
 
 	return serverBundle.X509Authorities(), nil
@@ -103,20 +96,6 @@ func matchMemberOrOneOf(trustDomain spiffeid.TrustDomain, adminIds ...spiffeid.I
 
 		return nil
 	}
-}
-
-// parseBundle parses a *x509bundle.Bundle from a *common.bundle.
-func parseBundle(td spiffeid.TrustDomain, commonBundle *common.Bundle) (*x509bundle.Bundle, error) {
-	var caCerts []*x509.Certificate
-	for _, rootCA := range commonBundle.RootCas {
-		rootCACerts, err := x509.ParseCertificates(rootCA.DerBytes)
-		if err != nil {
-			return nil, fmt.Errorf("parse bundle: %w", err)
-		}
-		caCerts = append(caCerts, rootCACerts...)
-	}
-
-	return x509bundle.FromX509Authorities(td, caCerts), nil
 }
 
 type x509SVIDSource struct {
