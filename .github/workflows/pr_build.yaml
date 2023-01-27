@@ -485,3 +485,14 @@ jobs:
         with:
           name: binaries
           path: ./artifacts/
+
+  success:
+    runs-on: ubuntu-20.04
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration,
+            lint-windows, unit-test-windows, artifact-windows, integration-windows]
+
+    permissions:
+      contents: read
+    steps:
+      - name: Declare victory!
+        run: echo "# Successful" >> $GITHUB_STEP_SUMMARY
