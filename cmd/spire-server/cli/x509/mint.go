@@ -132,7 +132,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	}
 
 	if c.write == "" {
-		return c.printer.PrintStruct(&MintResult{
+		return c.printer.PrintStruct(&mintResult{
 			X509SVID:   resp.Svid.CertChain,
 			PrivateKey: keyBytes,
 			RootCAs:    rootCAs,
@@ -171,7 +171,7 @@ func ttlToSeconds(ttl time.Duration) int32 {
 	return int32((ttl + time.Second - 1) / time.Second)
 }
 
-type MintResult struct {
+type mintResult struct {
 	X509SVID   [][]byte `json:"x509_svid"`
 	PrivateKey []byte   `json:"private_key"`
 	RootCAs    [][]byte `json:"root_cas"`
@@ -179,7 +179,7 @@ type MintResult struct {
 
 func (c *mintCommand) prettyPrintMint(env *commoncli.Env, results ...interface{}) error {
 	if resultInterface, ok := results[0].([]interface{}); ok {
-		result, ok := resultInterface[0].(*MintResult)
+		result, ok := resultInterface[0].(*mintResult)
 		if !ok {
 			return errors.New("unexpected type")
 		}
