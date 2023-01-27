@@ -158,16 +158,18 @@ import (
 // | v1.5.2  |        |                                                                           |
 // | v1.5.3  |        |                                                                           |
 // | v1.5.4  |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v1.6.0  | 20     | Removes x509_svid_ttl column from registered_entries                      |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 19
+	latestSchemaVersion = 20
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
 	// from the code after a minor release, this number should be updated.
-	lastMinorReleaseSchemaVersion = 18
+	lastMinorReleaseSchemaVersion = 19
 )
 
 var (
@@ -379,9 +381,9 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// list can be opportunistically pruned after every minor release but won't
 	// break things if it isn't.
 	switch currVersion {
-	case 18:
-		// DEPRECATED: remove this migration in 1.5.0
-		err = migrateToV19(tx)
+	case 19:
+		// DEPRECATED: remove this migration in 1.7.0
+		err = migrateToV20(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -392,10 +394,24 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	return nextVersion, nil
 }
 
-func migrateToV19(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
-		return sqlError.Wrap(err)
+func migrateToV20(tx *gorm.DB) error {
+	// Drop the x509_svid_ttl column from the registered_entries table, if it exists
+	if err := dropColumnIfExists(tx, RegisteredEntry{}, "x509_svid_ttl"); err != nil {
+		return err
 	}
+
+	return nil
+}
+
+// dropColumnIfExists drops the column from the model's table, if it exists. All data in
+// the dropped column will be lost.
+func dropColumnIfExists(tx *gorm.DB, model interface{}, columnName string) error {
+	if tx.Model(model).Dialect().HasColumn(tx.NewScope(model).TableName(), columnName) {
+		if err := tx.Model(model).DropColumn(columnName).Error; err != nil {
+			return sqlError.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
