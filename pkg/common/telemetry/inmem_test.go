@@ -11,7 +11,6 @@ import (
 )
 
 func TestInMem(t *testing.T) {
-
 	for _, tt := range []struct {
 		test               string
 		inMemConfig        *InMem
