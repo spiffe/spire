@@ -11,9 +11,6 @@ import (
 )
 
 func TestInMem(t *testing.T) {
-	enabled := true
-	disabled := false
-
 	for _, tt := range []struct {
 		test               string
 		inMemConfig        *InMem
@@ -31,28 +28,6 @@ func TestInMem(t *testing.T) {
 			test:          "enabled when InMem block declared but deprecated enabled flag unset",
 			inMemConfig:   &InMem{},
 			expectEnabled: true,
-		},
-		{
-			test:          "enabled when InMem block declared and deprecated enabled flag set to true",
-			inMemConfig:   &InMem{DeprecatedEnabled: &enabled},
-			expectEnabled: true,
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "The enabled flag is deprecated in the InMem configuration and will be removed in a future release; omit the InMem block to disable in-memory telemetry",
-				},
-			},
-		},
-		{
-			test:          "disabled when InMem block declared and deprecated enabled flag set to false",
-			inMemConfig:   &InMem{DeprecatedEnabled: &disabled},
-			expectEnabled: false,
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "The enabled flag is deprecated in the InMem configuration and will be removed in a future release; omit the InMem block to disable in-memory telemetry",
-				},
-			},
 		},
 		{
 			test:               "disabled when unexpected logger passed",
