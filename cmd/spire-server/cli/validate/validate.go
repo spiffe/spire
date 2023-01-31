@@ -3,23 +3,23 @@ package validate
 import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
 )
 
 const commandName = "validate"
 
 func NewValidateCommand() cli.Command {
-	return newValidateCommand(common_cli.DefaultEnv)
+	return newValidateCommand(commoncli.DefaultEnv)
 }
 
-func newValidateCommand(env *common_cli.Env) *validateCommand {
+func newValidateCommand(env *commoncli.Env) *validateCommand {
 	return &validateCommand{
 		env: env,
 	}
 }
 
 type validateCommand struct {
-	env *common_cli.Env
+	env *commoncli.Env
 }
 
 // Help prints the server cmd usage
