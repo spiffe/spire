@@ -408,16 +408,9 @@ func TestValidateJWTCommand(t *testing.T) {
 						Claims: &structpb.Struct{
 							Fields: map[string]*structpb.Value{
 								"aud": {
-									Kind: &structpb.Value_ListValue{
-										ListValue: &structpb.ListValue{
-											Values: []*structpb.Value{
-												{
-													Kind: &structpb.Value_StringValue{
-														StringValue: "foo",
-													},
-												},
-											},
-										},
+									Kind: &structpb.Value_ListValue{ListValue: &structpb.ListValue{
+										Values: []*structpb.Value{{Kind: &structpb.Value_StringValue{StringValue: "foo"}}},
+									},
 									},
 								},
 							},
