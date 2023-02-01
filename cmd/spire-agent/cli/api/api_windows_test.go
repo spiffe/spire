@@ -10,7 +10,7 @@ const (
   -format value
     	deprecated; use -output
   -namedPipeName string
-    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
+    	Pipe name of the SPIRE Agent API named pipe (default "\\spire-agent\\public\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
   -spiffeID string
@@ -20,7 +20,7 @@ const (
 `
 	fetchX509Usage = `Usage of fetch x509:
   -namedPipeName string
-    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
+    	Pipe name of the SPIRE Agent API named pipe (default "\\spire-agent\\public\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
   -silent
@@ -34,7 +34,7 @@ const (
   -audience string
     	expected audience value
   -namedPipeName string
-    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
+    	Pipe name of the SPIRE Agent API named pipe (default "\\spire-agent\\public\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
   -svid string
