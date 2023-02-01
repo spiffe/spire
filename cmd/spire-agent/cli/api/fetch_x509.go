@@ -152,7 +152,10 @@ func (c *fetchX509Command) writeFile(filename string, data []byte) error {
 }
 
 func (c *fetchX509Command) prettyPrintFetchX509(env *commoncli.Env, results ...interface{}) error {
-	resp := results[0].(*workload.X509SVIDResponse)
+	resp, ok := results[0].(*workload.X509SVIDResponse)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
 
 	svids, err := parseAndValidateX509SVIDResponse(resp)
 	if err != nil {

@@ -79,18 +79,16 @@ func (c *fetchJWTCommand) fetchJWTBundles(ctx context.Context, client *workloadC
 }
 
 func printPrettyResult(env *commoncli.Env, results ...interface{}) error {
-	errMsg := "internal error: cli printer; please report this bug"
-
 	svidResp, ok := results[0].(*workload.JWTSVIDResponse)
 	if !ok {
-		env.Println(errMsg)
-		return errors.New(errMsg)
+		env.Println(cliprinter.ErrInternalCustomPrettyFunc.Error())
+		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 
 	bundlesResp, ok := results[1].(*workload.JWTBundlesResponse)
 	if !ok {
-		env.Println(errMsg)
-		return errors.New(errMsg)
+		env.Println(cliprinter.ErrInternalCustomPrettyFunc.Error())
+		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 
 	for _, svid := range svidResp.Svids {

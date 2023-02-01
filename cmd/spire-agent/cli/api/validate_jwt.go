@@ -77,7 +77,10 @@ func (c *validateJWTCommand) validateJWTSVID(ctx context.Context, client *worklo
 }
 
 func prettyPrintValidate(env *commoncli.Env, results ...interface{}) error {
-	resp := results[0].(*workload.ValidateJWTSVIDResponse)
+	resp, ok := results[0].(*workload.ValidateJWTSVIDResponse)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
 	if err := env.Println("SVID is valid."); err != nil {
 		return err
 	}
