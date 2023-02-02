@@ -24,6 +24,7 @@ import (
 	ds_sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
+	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
@@ -32,14 +33,16 @@ import (
 )
 
 const (
-	dataStoreType         = "DataStore"
-	keyManagerType        = "KeyManager"
-	nodeAttestorType      = "NodeAttestor"
-	notifierType          = "Notifier"
-	upstreamAuthorityType = "UpstreamAuthority"
+	credentialComposerType = "CredentialComposer" //nolint: gosec // this is not a hardcoded credential...
+	dataStoreType          = "DataStore"
+	keyManagerType         = "KeyManager"
+	nodeAttestorType       = "NodeAttestor"
+	notifierType           = "Notifier"
+	upstreamAuthorityType  = "UpstreamAuthority"
 )
 
 type Catalog interface {
+	GetCredentialComposers() []credentialcomposer.CredentialComposer
 	GetDataStore() datastore.DataStore
 	GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool)
 	GetKeyManager() keymanager.KeyManager
@@ -63,6 +66,7 @@ type Config struct {
 type datastoreRepository struct{ datastore.Repository }
 
 type Repository struct {
+	credentialComposerRepository
 	datastoreRepository
 	keyManagerRepository
 	nodeAttestorRepository
@@ -76,6 +80,8 @@ type Repository struct {
 
 func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
 	return map[string]catalog.PluginRepo{
+		// TODO: wire this up once we're ready to release the feature
+		//credentialComposerType: &repo.credentialComposerRepository,
 		keyManagerType:        &repo.keyManagerRepository,
 		nodeAttestorType:      &repo.nodeAttestorRepository,
 		notifierType:          &repo.notifierRepository,
