@@ -250,6 +250,8 @@ func subjectFromV1(in *credentialcomposerv1.DistinguishedName) (pkix.Name, error
 		OrganizationalUnit: in.OrganizationalUnit,
 		Locality:           in.Locality,
 		Province:           in.Province,
+		StreetAddress:      in.StreetAddress,
+		PostalCode:         in.PostalCode,
 		SerialNumber:       in.SerialNumber,
 		CommonName:         in.CommonName,
 		ExtraNames:         extraNames,
@@ -266,6 +268,8 @@ func subjectToV1(in pkix.Name) (*credentialcomposerv1.DistinguishedName, error) 
 		Organization:       in.Organization,
 		OrganizationalUnit: in.OrganizationalUnit,
 		Locality:           in.Locality,
+		StreetAddress:      in.StreetAddress,
+		PostalCode:         in.PostalCode,
 		Province:           in.Province,
 		SerialNumber:       in.SerialNumber,
 		CommonName:         in.CommonName,
@@ -370,9 +374,6 @@ func extraNamesFromV1(ins []*credentialcomposerv1.AttributeTypeAndValue) ([]pkix
 }
 
 func parseOID(s string) (_ asn1.ObjectIdentifier, err error) {
-	if len(s) == 0 {
-		return nil, errors.New("invalid OID: cannot be empty")
-	}
 	parts := strings.Split(s, ".")
 	oid := make(asn1.ObjectIdentifier, len(parts))
 	for i, part := range parts {
