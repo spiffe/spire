@@ -2,9 +2,9 @@
 
 ## Recently completed
 
-* [Support for using Google Cloud Key Management Service to create, maintain, and rotate server key pairs](#3410)
-* [Ability to have separate X.509-SVID and JWT-SVID TTLs, which can be configured both at the entry-level and server default level](#3445)
-* [Experimental support for limiting the number of SVIDs in the agent's cache](#3181)
+* [Support for using Google Cloud Key Management Service to create, maintain, and rotate server key pairs](https://github.com/spiffe/spire/pull/3410)
+* [Ability to have separate X.509-SVID and JWT-SVID TTLs, which can be configured both at the entry-level and server default level](https://github.com/spiffe/spire/pull/3445)
+* [Experimental support for limiting the number of SVIDs in the agent's cache](https://github.com/spiffe/spire/pull/3181)
 * [Experimental Windows support](https://github.com/spiffe/spire/projects/12)
 
 ## Near-Term and Medium-Term
