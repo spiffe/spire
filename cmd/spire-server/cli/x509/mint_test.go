@@ -6,6 +6,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -33,7 +34,7 @@ import (
 var (
 	expectedUsage = `Usage of x509 mint:
   -dns value
-    	DNS name that will be included in SVID. Can be used more than once.` + common.AddrUsage +
+    	DNS name that will be included in SVID. Can be used more than once.` + common.AddrOutputUsage +
 		`  -spiffeID string
     	SPIFFE ID of the X509-SVID
   -ttl duration
@@ -64,7 +65,8 @@ JMSEiviWUClVHE8G6t55aCHoBQ==
 )
 
 var (
-	testKey, _ = pemutil.ParseSigner([]byte(testKeyPEM))
+	testKey, _       = pemutil.ParseSigner([]byte(testKeyPEM))
+	availableFormats = []string{"pretty", "json"}
 )
 
 func TestMintSynopsis(t *testing.T) {
@@ -121,6 +123,14 @@ func TestMintRun(t *testing.T) {
 			},
 		},
 	}
+	block, _ := pem.Decode([]byte(testKeyPEM))
+	privateKeyBase64 := base64.StdEncoding.EncodeToString(block.Bytes)
+
+	var certDerPem, rootCaPem bytes.Buffer
+	err = pem.Encode(&certDerPem, &pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	require.NoError(t, err)
+	err = pem.Encode(&rootCaPem, &pem.Block{Type: "CERTIFICATE", Bytes: x509Authority.Raw})
+	require.NoError(t, err)
 
 	testCases := []struct {
 		name string
@@ -144,7 +154,9 @@ func TestMintRun(t *testing.T) {
 		bundleErr error
 
 		// generate key returned error
-		generateErr error
+		generateErr     error
+		expStdoutPretty string
+		expStdoutJSON   string
 	}{
 		{
 			name:              "missing spiffeID flag",
@@ -224,6 +236,24 @@ func TestMintRun(t *testing.T) {
 				},
 			},
 			bundle: bundle,
+			expStdoutPretty: fmt.Sprintf(`X509-SVID:
+%s
+Private key:
+%s
+Root CAs:
+%s
+`, certDerPem.String(), testKeyPEM, rootCaPem.String()),
+			expStdoutJSON: fmt.Sprintf(`[
+  {
+    "x509_svid": [
+      "%s"
+    ],
+    "private_key": "%s",
+    "root_cas": [
+      "%s"
+    ]
+  }
+]`, base64.StdEncoding.EncodeToString(certDER), privateKeyBase64, base64.StdEncoding.EncodeToString(x509Authority.Raw)),
 		},
 		{
 			name:     "success with ttl and dnsnames, written to directory",
@@ -237,94 +267,92 @@ func TestMintRun(t *testing.T) {
 					ExpiresAt: notAfter.Unix(),
 				},
 			},
-			bundle: bundle,
-			stderr: fmt.Sprintf("X509-SVID lifetime was capped shorter than specified ttl; expires %q\n", notAfter.UTC().Format(time.RFC3339)),
+			bundle:          bundle,
+			expStdoutPretty: "",
+			expStdoutJSON:   `{}`,
+			stderr:          fmt.Sprintf("X509-SVID lifetime was capped shorter than specified ttl; expires %q\n", notAfter.UTC().Format(time.RFC3339)),
 		},
 	}
 
-	for _, testCase := range testCases {
-		testCase := testCase
-		t.Run(testCase.name, func(t *testing.T) {
-			server.setMintX509SVIDResponse(testCase.resp)
-			server.resetMintX509SVIDRequest()
+	for _, tt := range testCases {
+		for _, format := range availableFormats {
+			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
+				server.setMintX509SVIDResponse(tt.resp)
+				server.resetMintX509SVIDRequest()
 
-			server.bundle = testCase.bundle
-			server.bundleErr = testCase.bundleErr
+				server.bundle = tt.bundle
+				server.bundleErr = tt.bundleErr
 
-			stdout := new(bytes.Buffer)
-			stderr := new(bytes.Buffer)
-			cmd := newMintCommand(&common_cli.Env{
-				Stdin:   strings.NewReader(testCase.stdin),
-				Stdout:  stdout,
-				Stderr:  stderr,
-				BaseDir: dir,
-			}, func() (crypto.Signer, error) {
-				if testCase.generateErr != nil {
-					return nil, testCase.generateErr
+				stdout := new(bytes.Buffer)
+				stderr := new(bytes.Buffer)
+				cmd := newMintCommand(&common_cli.Env{
+					Stdin:   strings.NewReader(tt.stdin),
+					Stdout:  stdout,
+					Stderr:  stderr,
+					BaseDir: dir,
+				}, func() (crypto.Signer, error) {
+					if tt.generateErr != nil {
+						return nil, tt.generateErr
+					}
+					return testKey, nil
+				})
+
+				args := []string{common.AddrArg, common.GetAddr(addr)}
+				if tt.spiffeID != "" {
+					args = append(args, "-spiffeID", tt.spiffeID)
 				}
-				return testKey, nil
-			})
+				if tt.ttl != 0 {
+					args = append(args, "-ttl", fmt.Sprint(tt.ttl))
+				}
+				if tt.write != "" {
+					args = append(args, "-write", tt.write)
+				}
+				for _, dnsName := range tt.dnsNames {
+					args = append(args, "-dns", dnsName)
+				}
+				args = append(args, tt.extraArgs...)
+				args = append(args, "-output", format)
 
-			args := []string{common.AddrArg, common.GetAddr(addr)}
-			if testCase.spiffeID != "" {
-				args = append(args, "-spiffeID", testCase.spiffeID)
-			}
-			if testCase.ttl != 0 {
-				args = append(args, "-ttl", fmt.Sprint(testCase.ttl))
-			}
-			if testCase.write != "" {
-				args = append(args, "-write", testCase.write)
-			}
-			for _, dnsName := range testCase.dnsNames {
-				args = append(args, "-dns", dnsName)
-			}
-			args = append(args, testCase.extraArgs...)
+				code := cmd.Run(args)
 
-			code := cmd.Run(args)
+				assert.Equal(t, tt.code, code, "exit code does not match")
+				assert.Equal(t, tt.stderr, stderr.String(), "stderr does not match")
 
-			assert.Equal(t, testCase.code, code, "exit code does not match")
-			assert.Equal(t, testCase.stderr, stderr.String(), "stderr does not match")
+				req := server.lastMintX509SVIDRequest()
+				if tt.noRequestExpected {
+					assert.Nil(t, req)
+					return
+				}
 
-			req := server.lastMintX509SVIDRequest()
-			if testCase.noRequestExpected {
-				assert.Nil(t, req)
-				return
-			}
+				if assert.NotNil(t, req) {
+					assert.NotEmpty(t, req.Csr)
+					csr, err := x509.ParseCertificateRequest(req.Csr)
+					require.NoError(t, err)
 
-			if assert.NotNil(t, req) {
-				assert.NotEmpty(t, req.Csr)
-				csr, err := x509.ParseCertificateRequest(req.Csr)
-				require.NoError(t, err)
+					id := spiffeid.RequireFromString(tt.spiffeID)
+					require.Equal(t, id.URL(), csr.URIs[0])
 
-				id := spiffeid.RequireFromString(testCase.spiffeID)
-				require.Equal(t, id.URL(), csr.URIs[0])
+					require.Equal(t, tt.dnsNames, csr.DNSNames)
+					assert.Equal(t, int32(tt.ttl/time.Second), req.Ttl)
+				}
 
-				require.Equal(t, testCase.dnsNames, csr.DNSNames)
-				assert.Equal(t, int32(testCase.ttl/time.Second), req.Ttl)
-			}
-
-			// assert output file contents
-			if code == 0 {
-				if testCase.write != "" {
-					assert.Equal(t, fmt.Sprintf(`X509-SVID written to %s
+				// assert output file contents
+				if code == 0 {
+					if tt.write != "" {
+						assert.Equal(t, fmt.Sprintf(`X509-SVID written to %s
 Private key written to %s
 Root CAs written to %s
 `, svidPath, keyPath, bundlePath),
-						stdout.String(), "stdout does not write output paths")
-					assertFileData(t, filepath.Join(dir, testCase.write, "svid.pem"), svidPEM)
-					assertFileData(t, filepath.Join(dir, testCase.write, "key.pem"), testKeyPEM)
-					assertFileData(t, filepath.Join(dir, testCase.write, "bundle.pem"), testX509Authority)
-				} else {
-					assert.Equal(t, fmt.Sprintf(`X509-SVID:
-%s
-Private key:
-%s
-Root CAs:
-%s
-`, svidPEM, testKeyPEM, testX509Authority), stdout.String(), "stdout does not write out PEM")
+							stdout.String(), "stdout does not write output paths")
+						assertFileData(t, filepath.Join(dir, tt.write, "svid.pem"), svidPEM)
+						assertFileData(t, filepath.Join(dir, tt.write, "key.pem"), testKeyPEM)
+						assertFileData(t, filepath.Join(dir, tt.write, "bundle.pem"), testX509Authority)
+					} else {
+						requireOutputBasedOnFormat(t, format, stdout.String(), tt.expStdoutPretty, tt.expStdoutJSON)
+					}
 				}
-			}
-		})
+			})
+		}
 	}
 }
 
@@ -381,5 +409,18 @@ func assertFileData(t *testing.T, path string, expectedData string) {
 	b, err := os.ReadFile(path)
 	if assert.NoError(t, err) {
 		assert.Equal(t, expectedData, string(b))
+	}
+}
+
+func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
+	switch format {
+	case "pretty":
+		require.Contains(t, stdoutString, expectedStdoutPretty)
+	case "json":
+		if expectedStdoutJSON != "" {
+			require.JSONEq(t, expectedStdoutJSON, stdoutString)
+		} else {
+			require.Empty(t, stdoutString)
+		}
 	}
 }

@@ -222,6 +222,7 @@ func TestListenAndServe(t *testing.T) {
 		SVIDObserver: newSVIDObserver(serverSVID),
 		TrustDomain:  testTD,
 		DataStore:    ds,
+		BundleCache:  bundle.NewCache(ds, clk),
 		APIServers: APIServers{
 			AgentServer:       &agentv1.UnimplementedAgentServer{},
 			BundleServer:      &bundlev1.UnimplementedBundleServer{},

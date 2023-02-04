@@ -67,8 +67,7 @@ Bundle endpoint profile   : https_web
 			expectedStdoutJSON: `{
   "trust_domain": "example-1.test",
   "bundle_endpoint_url": "https://bundle-endpoint-1.test/endpoint",
-  "https_web": {},
-  "trust_domain_bundle": null
+  "https_web": {}
 }`,
 		},
 		{

@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.4] - 2023-01-12
+
+### Added
+
+- Support to run SPIRE as a Windows service (#3625)
+- Configure admin SPIFFE IDs from federated trust domains (#3642)
+- New selectors in the `aws_iid` NodeAttestor plugin (#3640)
+- Support for additional upstream root certificates to the `awssecret` UpstreamAuthority plugin (#3578)
+- Serial number and revision number to SVID minting logging (#3699)
+- `spire-server federation` CLI commands now support the `-output` flag (#3660)
+
+### Fixed
+
+- Service configurations provided by the gRPC resolver are now ignored by SPIRE Agent (#3712)
+- CLI commands that supported the `-output` flag now properly shows the default value for the flag (#3713)
+
 ## [1.5.3] - 2022-12-14
 
 ### Added

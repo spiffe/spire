@@ -176,10 +176,14 @@ jobs:
           key: ${{ runner.os }}-tools-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-tools-
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
       - name: Build images
         run: make images
       - name: Export images
-        run: docker save spire-server:latest-local spire-agent:latest-local k8s-workload-registrar:latest-local oidc-discovery-provider:latest-local | gzip > images.tar.gz
+        run: tar -czvf images.tar.gz *-image.tar
       - name: Archive images
         uses: actions/upload-artifact@v3
         with:
@@ -214,46 +218,10 @@ jobs:
           name: images-windows
           path: images-windows.tar.gz
 
-  scratch-images:
-    runs-on: ubuntu-20.04
-    needs: [cache-deps]
-
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Setup go
-        uses: actions/setup-go@v3
-        with:
-          go-version: ${{ env.GO_VERSION }}
-      - name: Load cached deps
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      - name: Load cached build tools
-        uses: actions/cache@v3
-        with:
-          path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
-      - name: Build scratch images
-        run: make scratch-images
-      - name: Export scratch images
-        run: docker save spire-server-scratch:latest-local spire-agent-scratch:latest-local k8s-workload-registrar-scratch:latest-local oidc-discovery-provider-scratch:latest-local | gzip > scratch-images.tar.gz
-      - name: Archive scratch images
-        uses: actions/upload-artifact@v3
-        with:
-          name: scratch-images
-          path: scratch-images.tar.gz
-
   integration:
     name: integration (linux)
     runs-on: ubuntu-20.04
-    needs: [cache-deps, images, scratch-images]
+    needs: [cache-deps, images]
 
     permissions:
       contents: read
@@ -276,6 +244,8 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@main
       - name: Load cached deps
         uses: actions/cache@v3
         with:
@@ -293,15 +263,10 @@ jobs:
         with:
           name: images
           path: .
-      - name: Download archived scratch images
-        uses: actions/download-artifact@v3
-        with:
-          name: scratch-images
-          path: .
       - name: Load archived images
-        run: zcat images.tar.gz | docker load
-      - name: Load archived scratch images
-        run: zcat scratch-images.tar.gz | docker load
+        run: |
+          tar xvf images.tar.gz
+          make load-images
       - name: Run integration tests
         env:
           NUM_RUNNERS: ${{ matrix.num_runners }}
@@ -520,3 +485,14 @@ jobs:
         with:
           name: binaries
           path: ./artifacts/
+
+  success:
+    runs-on: ubuntu-20.04
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration,
+            lint-windows, unit-test-windows, artifact-windows, integration-windows]
+
+    permissions:
+      contents: read
+    steps:
+      - name: Declare victory!
+        run: echo "# Successful" >> $GITHUB_STEP_SUMMARY

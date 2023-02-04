@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/server/catalog"
@@ -25,11 +23,24 @@ func Test(t *testing.T) {
 		{
 			desc: "join_token node attestor cannot be overridden",
 			prepareConfig: func(dir string, config *catalog.Config) {
-				config.PluginConfig["NodeAttestor"]["join_token"] = catalog.HCLPluginConfig{
-					PluginCmd: filepath.Join(dir, "does-not-exist"),
+				for i, pluginConfig := range config.PluginConfigs {
+					if pluginConfig.Type == "NodeAttestor" && pluginConfig.Name == "join_token" {
+						config.PluginConfigs[i].Path = filepath.Join(dir, "does-not-exist")
+					}
 				}
 			},
 			expectErr: "the built-in join_token node attestor cannot be overridden by an external plugin",
+		},
+		{
+			desc: "datastore cannot be overridden",
+			prepareConfig: func(dir string, config *catalog.Config) {
+				for i, pluginConfig := range config.PluginConfigs {
+					if pluginConfig.Type == "DataStore" {
+						config.PluginConfigs[i].Path = filepath.Join(dir, "does-not-exist")
+					}
+				}
+			},
+			expectErr: `pluggability for the DataStore is deprecated; only the built-in "sql" plugin is supported`,
 		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -39,23 +50,23 @@ func Test(t *testing.T) {
 			config := catalog.Config{
 				Log:           log,
 				HealthChecker: fakeHealthChecker{},
-				PluginConfig: catalog.HCLPluginConfigMap{
-					"DataStore": {
-						"sql": {
-							PluginData: astPrintf(t, `
+				PluginConfigs: catalog.PluginConfigs{
+					{
+						Type: "DataStore",
+						Name: "sql",
+						Data: fmt.Sprintf(`
 						database_type = "sqlite3"
 						connection_string = %q
 					`, filepath.Join(dir, "test.sql")),
-						},
 					},
-					"KeyManager": {
-						"memory": {},
+					{
+						Type: "KeyManager",
+						Name: "memory",
 					},
-					"NodeAttestor": {
-						"join_token": {},
+					{
+						Type: "NodeAttestor",
+						Name: "join_token",
 					},
-					"Notifier":          {},
-					"UpstreamAuthority": {},
 				},
 			}
 			if tt.prepareConfig != nil {
@@ -78,10 +89,3 @@ func Test(t *testing.T) {
 type fakeHealthChecker struct{}
 
 func (fakeHealthChecker) AddCheck(name string, checkable health.Checkable) error { return nil }
-
-func astPrintf(t *testing.T, format string, args ...interface{}) ast.Node {
-	var n ast.Node
-	err := hcl.Decode(&n, fmt.Sprintf(format, args...))
-	require.NoError(t, err)
-	return n
-}
