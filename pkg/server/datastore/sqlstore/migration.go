@@ -170,7 +170,7 @@ const (
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
 	// from the code after a minor release, this number should be updated.
-	lastMinorReleaseSchemaVersion = 20
+	lastMinorReleaseSchemaVersion = 19
 )
 
 var (
