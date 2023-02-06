@@ -17,7 +17,7 @@ var (
 	// pristine database created by a SPIRE release that runs that schema
 	// version.
 	migrationDumps = map[int]string{
-		19: `
+		20: `
 			PRAGMA foreign_keys=OFF;
 			BEGIN TRANSACTION;
 			CREATE TABLE IF NOT EXISTS "federated_registration_entries" ("bundle_id" integer,"registered_entry_id" integer, PRIMARY KEY ("bundle_id","registered_entry_id"));
