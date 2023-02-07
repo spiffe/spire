@@ -107,6 +107,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		peer            *peer.Peer
 		rego            string
 		agentAuthorizer middleware.AgentAuthorizer
+		entryFetcher    middleware.EntryFetcherFunc
 		adminIDs        []spiffeid.ID
 		authorizerErr   error
 		expectCode      codes.Code
@@ -306,6 +307,19 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			rego:       simpleRego(map[string]bool{}),
 			expectMsg:  "no peer information available",
 		},
+		{
+			name:       "entry fetcher error is handled",
+			fullMethod: fakeFullMethod,
+			peer:       downstreamPeer,
+			rego: simpleRego(map[string]bool{
+				"allow_if_downstream": true,
+			}),
+			entryFetcher: func(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error) {
+				return nil, errors.New("entry fetcher error")
+			},
+			expectCode: codes.Internal,
+			expectMsg:  "failed to fetch caller entries: entry fetcher error",
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -317,7 +331,8 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			if tt.agentAuthorizer == nil {
 				tt.agentAuthorizer = noAgentAuthorizer
 			}
-			m := middleware.WithAuthorization(policyEngine, entryFetcher, tt.agentAuthorizer, tt.adminIDs)
+
+			m := middleware.WithAuthorization(policyEngine, entryFetcherForTest(tt.entryFetcher), tt.agentAuthorizer, tt.adminIDs)
 
 			// Set up the incoming context with a logger and optionally a peer.
 			log, _ := test.NewNullLogger()
@@ -439,6 +454,14 @@ func (a *testAgentAuthorizer) AuthorizeAgent(ctx context.Context, agentID spiffe
 	}
 
 	return st.Err()
+}
+
+func entryFetcherForTest(replace middleware.EntryFetcherFunc) middleware.EntryFetcherFunc {
+	if replace != nil {
+		return replace
+	}
+
+	return entryFetcher
 }
 
 func simpleRego(m map[string]bool) string {
