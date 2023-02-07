@@ -3,68 +3,56 @@ package fakeworkloadapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
-	"sync"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 )
 
-type Result interface {
-	result()
-}
-
-type fetchX509SVIDResult func(workload.SpiffeWorkloadAPI_FetchX509SVIDServer) (bool, error)
-
-func (fn fetchX509SVIDResult) do(stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) (done bool, err error) {
-	return fn(stream)
-}
-
-func (fn fetchX509SVIDResult) result() {}
-
-func FetchX509SVIDErrorOnce(err error) Result {
-	return fetchX509SVIDResult(func(workload.SpiffeWorkloadAPI_FetchX509SVIDServer) (bool, error) {
-		return true, err
-	})
-}
-
-func FetchX509SVIDErrorAlways(err error) Result {
-	return fetchX509SVIDResult(func(workload.SpiffeWorkloadAPI_FetchX509SVIDServer) (bool, error) {
-		return false, err
-	})
-}
-
-func FetchX509SVIDResponses(responses ...*workload.X509SVIDResponse) Result {
-	return fetchX509SVIDResult(func(stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) (bool, error) {
-		for _, response := range responses {
-			if err := stream.Send(response); err != nil {
-				return true, err
-			}
-		}
-		return true, nil
-	})
+type FakeRequest struct {
+	Req  proto.Message
+	Resp proto.Message
+	Err  error
 }
 
 type WorkloadAPI struct {
 	workload.UnimplementedSpiffeWorkloadAPIServer
 	addr net.Addr
+	t    *testing.T
 
-	mu                   sync.Mutex
-	fetchX509SVIDResults []fetchX509SVIDResult
+	ExpFetchJWTSVIDReq    *workload.JWTSVIDRequest
+	ExpFetchJWTBundlesReq *workload.JWTBundlesRequest
+
+	fetchX509SVIDRequest   FakeRequest
+	fetchJWTSVIDRequest    FakeRequest
+	fetchJWTBundlesRequest FakeRequest
+	validateJWTRequest     FakeRequest
 }
 
-func New(t *testing.T, results ...Result) *WorkloadAPI {
+func New(t *testing.T, responses ...*FakeRequest) *WorkloadAPI {
 	w := new(WorkloadAPI)
+	w.t = t
 
-	for _, result := range results {
-		switch result := result.(type) {
-		case fetchX509SVIDResult:
-			w.fetchX509SVIDResults = append(w.fetchX509SVIDResults, result)
+	for _, response := range responses {
+		if response == nil {
+			continue
+		}
+		switch response.Resp.(type) {
+		case *workload.X509SVIDResponse:
+			w.fetchX509SVIDRequest = *response
+		case *workload.JWTSVIDResponse:
+			w.fetchJWTSVIDRequest = *response
+		case *workload.JWTBundlesResponse:
+			w.fetchJWTBundlesRequest = *response
+		case *workload.ValidateJWTSVIDResponse:
+			w.validateJWTRequest = *response
 		default:
-			require.FailNow(t, "unexpected result type %T", result)
+			require.FailNow(t, "unexpected result type %T", response.Resp)
 		}
 	}
 
@@ -82,57 +70,82 @@ func (w *WorkloadAPI) FetchX509SVID(req *workload.X509SVIDRequest, stream worklo
 		return err
 	}
 
-	// service all of the results
-	for {
-		result := w.nextFetchX509SVIDResult()
-		if result == nil {
-			break
-		}
-
-		done, err := result.do(stream)
-		if done {
-			w.advanceFetchX509SVIDResult()
-		}
-
-		if err != nil {
-			return err
-		}
+	if w.fetchX509SVIDRequest.Err != nil {
+		return w.fetchX509SVIDRequest.Err
 	}
 
-	// wait for the context to be canceled
-	<-stream.Context().Done()
+	if request, ok := w.fetchX509SVIDRequest.Req.(*workload.X509SVIDRequest); ok {
+		spiretest.AssertProtoEqual(w.t, request, req)
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchX509SVIDRequest.Req))
+	}
+
+	if response, ok := w.fetchX509SVIDRequest.Resp.(*workload.X509SVIDResponse); ok {
+		_ = stream.Send(response)
+		<-stream.Context().Done()
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchX509SVIDRequest.Resp))
+	}
+
 	return nil
 }
 
-func (w *WorkloadAPI) FetchJWTSVID(context.Context, *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
-	return nil, errors.New("unimplemented")
-}
-
-func (w *WorkloadAPI) FetchJWTBundles(*workload.JWTBundlesRequest, workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
-	return errors.New("unimplemented")
-}
-
-func (w *WorkloadAPI) ValidateJWTSVID(context.Context, *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
-	return nil, errors.New("unimplemented")
-}
-
-func (w *WorkloadAPI) nextFetchX509SVIDResult() fetchX509SVIDResult {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if len(w.fetchX509SVIDResults) == 0 {
-		return nil
+func (w *WorkloadAPI) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
+	if w.fetchJWTSVIDRequest.Err != nil {
+		return nil, w.fetchJWTSVIDRequest.Err
 	}
-	return w.fetchX509SVIDResults[0]
+	if request, ok := w.fetchJWTSVIDRequest.Req.(*workload.JWTSVIDRequest); ok {
+		spiretest.AssertProtoEqual(w.t, request, req)
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchJWTSVIDRequest.Req))
+	}
+
+	if response, ok := w.fetchJWTSVIDRequest.Resp.(*workload.JWTSVIDResponse); ok {
+		return response, nil
+	}
+	require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchJWTSVIDRequest.Resp))
+	return nil, nil
 }
 
-func (w *WorkloadAPI) advanceFetchX509SVIDResult() {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	if len(w.fetchX509SVIDResults) > 0 {
-		w.fetchX509SVIDResults = w.fetchX509SVIDResults[1:]
+func (w *WorkloadAPI) FetchJWTBundles(req *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
+	if err := checkSecurityHeader(stream.Context()); err != nil {
+		return err
 	}
+
+	if w.fetchJWTBundlesRequest.Err != nil {
+		return w.fetchJWTBundlesRequest.Err
+	}
+
+	if request, ok := w.fetchJWTBundlesRequest.Req.(*workload.JWTBundlesRequest); ok {
+		spiretest.AssertProtoEqual(w.t, request, req)
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchJWTBundlesRequest.Req))
+	}
+
+	if response, ok := w.fetchJWTBundlesRequest.Resp.(*workload.JWTBundlesResponse); ok {
+		_ = stream.Send(response)
+		<-stream.Context().Done()
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchJWTBundlesRequest.Resp))
+	}
+	return nil
+}
+
+func (w *WorkloadAPI) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
+	if w.validateJWTRequest.Err != nil {
+		return nil, w.validateJWTRequest.Err
+	}
+	if request, ok := w.validateJWTRequest.Req.(*workload.ValidateJWTSVIDRequest); ok {
+		spiretest.AssertProtoEqual(w.t, request, req)
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.validateJWTRequest.Req))
+	}
+
+	if response, ok := w.validateJWTRequest.Resp.(*workload.ValidateJWTSVIDResponse); ok {
+		return response, nil
+	}
+	require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.validateJWTRequest.Resp))
+	return nil, nil
 }
 
 func checkSecurityHeader(ctx context.Context) error {
