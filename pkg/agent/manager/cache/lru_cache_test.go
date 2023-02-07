@@ -8,18 +8,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLRUCacheFetchWorkloadUpdate(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 	// populate the cache with FOO and BAR without SVIDS
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
@@ -50,7 +50,7 @@ func TestLRUCacheFetchWorkloadUpdate(t *testing.T) {
 }
 
 func TestLRUCacheMatchingRegistrationIdentities(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	// populate the cache with FOO and BAR without SVIDS
 	foo := makeRegistrationEntry("FOO", "A")
@@ -79,7 +79,7 @@ func TestLRUCacheMatchingRegistrationIdentities(t *testing.T) {
 }
 
 func TestLRUCacheCountSVIDs(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	// populate the cache with FOO and BAR without SVIDS
 	foo := makeRegistrationEntry("FOO", "A")
@@ -103,7 +103,7 @@ func TestLRUCacheCountSVIDs(t *testing.T) {
 }
 
 func TestLRUCacheBundleChanges(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	bundleStream := cache.SubscribeToBundleChanges()
 	assert.Equal(t, makeBundles(bundleV1), bundleStream.Value())
@@ -127,7 +127,7 @@ func TestLRUCacheBundleChanges(t *testing.T) {
 }
 
 func TestLRUCacheAllSubscribersNotifiedOnBundleChange(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	// create some subscribers and assert they get the initial bundle
 	subA := subscribeToWorkloadUpdates(t, cache, makeSelectors("A"))
@@ -147,7 +147,7 @@ func TestLRUCacheAllSubscribersNotifiedOnBundleChange(t *testing.T) {
 }
 
 func TestLRUCacheSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	// initialize the cache with an entry FOO that has a valid SVID and
 	// selector "A"
@@ -221,7 +221,7 @@ func TestLRUCacheSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 }
 
 func TestLRUCacheSubscribersGetEntriesWithSelectorSubsets(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	// create subscribers for each combination of selectors
 	subA := subscribeToWorkloadUpdates(t, cache, makeSelectors("A"))
@@ -270,7 +270,7 @@ func TestLRUCacheSubscribersGetEntriesWithSelectorSubsets(t *testing.T) {
 }
 
 func TestLRUCacheSubscriberIsNotNotifiedIfNothingChanges(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	foo := makeRegistrationEntry("FOO", "A")
 	cache.UpdateEntries(&UpdateEntries{
@@ -296,7 +296,7 @@ func TestLRUCacheSubscriberIsNotNotifiedIfNothingChanges(t *testing.T) {
 }
 
 func TestLRUCacheSubscriberNotifiedOnSVIDChanges(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	foo := makeRegistrationEntry("FOO", "A")
 	cache.UpdateEntries(&UpdateEntries{
@@ -323,7 +323,7 @@ func TestLRUCacheSubscriberNotifiedOnSVIDChanges(t *testing.T) {
 }
 
 func TestLRUCacheSubscriberNotificationsOnSelectorChanges(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	// initialize the cache with a FOO entry with selector A and an SVID
 	foo := makeRegistrationEntry("FOO", "A")
@@ -374,7 +374,7 @@ func TestLRUCacheSubscriberNotificationsOnSelectorChanges(t *testing.T) {
 }
 
 func TestLRUCacheSubscriberNotifiedWhenEntryDropped(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	subA := subscribeToWorkloadUpdates(t, cache, makeSelectors("A"))
 	defer subA.Finish()
@@ -417,7 +417,7 @@ func TestLRUCacheSubscriberNotifiedWhenEntryDropped(t *testing.T) {
 }
 
 func TestLRUCacheSubscriberOnlyGetsEntriesWithSVID(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	foo := makeRegistrationEntry("FOO", "A")
 	updateEntries := &UpdateEntries{
@@ -441,7 +441,7 @@ func TestLRUCacheSubscriberOnlyGetsEntriesWithSVID(t *testing.T) {
 }
 
 func TestLRUCacheSubscribersDoNotBlockNotifications(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	sub := subscribeToWorkloadUpdates(t, cache, makeSelectors("A"))
 	defer sub.Finish()
@@ -460,7 +460,7 @@ func TestLRUCacheSubscribersDoNotBlockNotifications(t *testing.T) {
 }
 
 func TestLRUCacheCheckSVIDCallback(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	// no calls because there are no registration entries
 	cache.UpdateEntries(&UpdateEntries{
@@ -507,7 +507,7 @@ func TestLRUCacheCheckSVIDCallback(t *testing.T) {
 }
 
 func TestLRUCacheGetStaleEntries(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	bar := makeRegistrationEntryWithTTL("BAR", 130, 140, "B")
 
@@ -561,7 +561,7 @@ func TestLRUCacheGetStaleEntries(t *testing.T) {
 }
 
 func TestLRUCacheSubscriberNotNotifiedOnDifferentSVIDChanges(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
@@ -586,7 +586,7 @@ func TestLRUCacheSubscriberNotNotifiedOnDifferentSVIDChanges(t *testing.T) {
 }
 
 func TestLRUCacheSubscriberNotNotifiedOnOverlappingSVIDChanges(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	foo := makeRegistrationEntry("FOO", "A", "C")
 	bar := makeRegistrationEntry("FOO", "A", "B")
@@ -611,7 +611,7 @@ func TestLRUCacheSubscriberNotNotifiedOnOverlappingSVIDChanges(t *testing.T) {
 }
 
 func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
-	clk := clock.NewMock()
+	clk := clock.NewMock(t)
 	cache := newTestLRUCacheWithConfig(10, clk)
 
 	clk.Add(1 * time.Second)
@@ -696,7 +696,7 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 }
 
 func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
-	clk := clock.NewMock()
+	clk := clock.NewMock(t)
 	cache := newTestLRUCacheWithConfig(10, clk)
 
 	// create entries more than maxSvidCacheSize
@@ -730,7 +730,7 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 }
 
 func TestSyncSVIDsWithSubscribers(t *testing.T) {
-	clk := clock.NewMock()
+	clk := clock.NewMock(t)
 	cache := newTestLRUCacheWithConfig(5, clk)
 
 	updateEntries := createUpdateEntries(5, makeBundles(bundleV1))
@@ -760,7 +760,7 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 }
 
 func TestNotify(t *testing.T) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(t)
 
 	foo := makeRegistrationEntry("FOO", "A")
 	cache.UpdateEntries(&UpdateEntries{
@@ -776,7 +776,7 @@ func TestNotify(t *testing.T) {
 }
 
 func TestSubscribeToLRUCacheChanges(t *testing.T) {
-	clk := clock.NewMock()
+	clk := clock.NewMock(t)
 	cache := newTestLRUCacheWithConfig(1, clk)
 
 	foo := makeRegistrationEntry("FOO", "A")
@@ -836,27 +836,36 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 	})
 	assert.Equal(t, 2, cache.CountSVIDs())
 
-	clk.Add(SVIDSyncInterval * 2)
+	clk.WaitForAfter(time.Second, "waiting for after to get called")
+	clk.Add(SVIDSyncInterval * 4)
 
-	sub1Err := <-sub1ErrCh
-	assert.NoError(t, sub1Err, "subscriber 1 error")
+	select {
+	case sub1Err := <-sub1ErrCh:
+		assert.NoError(t, sub1Err, "subscriber 1 error")
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "timed out waiting for SVID")
+	}
 
-	sub2Err := <-sub2ErrCh
-	assert.NoError(t, sub2Err, "subscriber 2 error")
+	select {
+	case sub2Err := <-sub2ErrCh:
+		assert.NoError(t, sub2Err, "subscriber 2 error")
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "timed out waiting for SVID")
+	}
 }
 
 func TestNewLRUCache(t *testing.T) {
 	// negative value
-	cache := newTestLRUCacheWithConfig(-5, clock.NewMock())
+	cache := newTestLRUCacheWithConfig(-5, clock.NewMock(t))
 	require.Equal(t, DefaultSVIDCacheMaxSize, cache.svidCacheMaxSize)
 
 	// zero value
-	cache = newTestLRUCacheWithConfig(0, clock.NewMock())
+	cache = newTestLRUCacheWithConfig(0, clock.NewMock(t))
 	require.Equal(t, DefaultSVIDCacheMaxSize, cache.svidCacheMaxSize)
 }
 
 func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
-	cache := newTestLRUCache()
+	cache := newTestLRUCache(b)
 
 	const numEntries = 1000
 	const numWorkloads = 1000
@@ -900,10 +909,10 @@ func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
 	}
 }
 
-func newTestLRUCache() *LRUCache {
+func newTestLRUCache(t testing.TB) *LRUCache {
 	log, _ := test.NewNullLogger()
 	return NewLRUCache(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1,
-		telemetry.Blackhole{}, 0, clock.NewMock())
+		telemetry.Blackhole{}, 0, clock.NewMock(t))
 }
 
 func newTestLRUCacheWithConfig(svidCacheMaxSize int, clk clock.Clock) *LRUCache {
