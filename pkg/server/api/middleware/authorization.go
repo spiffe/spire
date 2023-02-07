@@ -56,7 +56,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	}
 
 	var deniedDetails *types.PermissionDeniedDetails
-	ctx, allow, err := m.opaAuth(ctx, req, methodName)
+	authCtx, allow, err := m.opaAuth(ctx, req, methodName)
 	if err != nil {
 		statusErr := status.Convert(err)
 		if statusErr.Code() != codes.PermissionDenied {
@@ -67,7 +67,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 		deniedDetails = deniedDetailsFromStatus(statusErr)
 	}
 	if allow {
-		return ctx, nil
+		return authCtx, nil
 	}
 
 	st := status.Newf(codes.PermissionDenied, "authorization denied for method %s", methodName)
