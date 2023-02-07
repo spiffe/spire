@@ -22,7 +22,7 @@ COPY --link --from=xx / /
 
 # For users that wish to run SPIRE containers as a non-root user,
 # provide a default unprivileged user such that the default paths
-# that SPIRE will try to read from/write to/create at runtime
+# that SPIRE will try to read from, write to, and create at runtime
 # can be given the correct file ownership/permissions at build time.
 ARG spireuid=1000
 ARG spiregid=1000

@@ -29,14 +29,14 @@ Example `docker run` command for SPIRE Server with non-root user configuration:
 $ docker run \
     --user 1000:1000 \
     -p 8081:8081 \
-    -v /path/to/server/config:/etc/spire/server
+    -v /path/to/server/config:/etc/spire/server \
     ghcr.io/spiffe/spire-server:v1.6.0 \
     -config /etc/spire/server/server.conf
 ```
 
 SPIRE plugin configuration may also depend on disk for various state and configuration.
 The example configs do not cover every possible plugin dependency on a directory.
-See #Directories-available-in-release-images for natively supported directories that can be used for plugin data.
+See [Directories-available-in-release-images](#directories-available-in-release-images) for natively supported directories that can be used for plugin data.
 
 ### (Advanced) Option 2) Use custom paths and/or specific non-root user in SPIRE configuration files
 
@@ -49,7 +49,7 @@ If you want to run SPIRE as a non-root user that is not uid `1000`, you will nee
 
 ## Directories available in release images
 
-To address the previously mentioned limitations with scratch-based images, the SPIRE release images come with some commonly used directories pre-installed (see #Directories-available-in-release-images) with correct permissions for a user with uid `1000` and group with gid `1000`.
+To address the previously mentioned limitations with scratch-based images, the SPIRE release images come with some commonly used directories pre-installed with correct permissions for a user with uid `1000` and group with gid `1000`.
 
 ### Common directories
 
