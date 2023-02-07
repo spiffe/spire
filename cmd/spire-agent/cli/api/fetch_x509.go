@@ -16,21 +16,25 @@ import (
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
-	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 )
 
 func NewFetchX509Command() cli.Command {
-	return newFetchX509Command(common_cli.DefaultEnv, newWorkloadClient)
+	return newFetchX509Command(commoncli.DefaultEnv, newWorkloadClient)
 }
 
-func newFetchX509Command(env *common_cli.Env, clientMaker workloadClientMaker) cli.Command {
-	return adaptCommand(env, clientMaker, new(fetchX509Command))
+func newFetchX509Command(env *commoncli.Env, clientMaker workloadClientMaker) cli.Command {
+	return adaptCommand(env, clientMaker, &fetchX509Command{env: env})
 }
 
 type fetchX509Command struct {
 	silent    bool
 	writePath string
+	env       *commoncli.Env
+	printer   cliprinter.Printer
+	respTime  time.Duration
 }
 
 func (*fetchX509Command) name() string {
@@ -41,35 +45,21 @@ func (*fetchX509Command) synopsis() string {
 	return "Fetches X509 SVIDs from the Workload API"
 }
 
-func (c *fetchX509Command) run(ctx context.Context, env *common_cli.Env, client *workloadClient) error {
+func (c *fetchX509Command) run(ctx context.Context, env *commoncli.Env, client *workloadClient) error {
 	start := time.Now()
 	resp, err := c.fetchX509SVID(ctx, client)
-	respTime := time.Since(start)
+	c.respTime = time.Since(start)
 	if err != nil {
 		return err
 	}
 
-	svids, err := parseAndValidateX509SVIDResponse(resp)
-	if err != nil {
-		return err
-	}
-
-	if !c.silent {
-		printX509SVIDResponse(svids, respTime)
-	}
-
-	if c.writePath != "" {
-		if err := c.writeResponse(svids); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return c.printer.PrintProto(resp)
 }
 
 func (c *fetchX509Command) appendFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.silent, "silent", false, "Suppress stdout")
-	fs.StringVar(&c.writePath, "write", "", "Write SVID data to the specified path (optional)")
+	fs.StringVar(&c.writePath, "write", "", "Write SVID data to the specified path (optional; only available for pretty output format)")
+	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintFetchX509)
 }
 
 func (c *fetchX509Command) fetchX509SVID(ctx context.Context, client *workloadClient) (*workload.X509SVIDResponse, error) {
@@ -90,19 +80,19 @@ func (c *fetchX509Command) writeResponse(svids []*X509SVID) error {
 		keyPath := path.Join(c.writePath, fmt.Sprintf("svid.%v.key", i))
 		bundlePath := path.Join(c.writePath, fmt.Sprintf("bundle.%v.pem", i))
 
-		fmt.Printf("Writing SVID #%d to file %s.\n", i, svidPath)
+		c.env.Printf("Writing SVID #%d to file %s.\n", i, svidPath)
 		err := c.writeCerts(svidPath, svid.Certificates)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Writing key #%d to file %s.\n", i, keyPath)
+		c.env.Printf("Writing key #%d to file %s.\n", i, keyPath)
 		err = c.writeKey(keyPath, svid.PrivateKey)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("Writing bundle #%d to file %s.\n", i, bundlePath)
+		c.env.Printf("Writing bundle #%d to file %s.\n", i, bundlePath)
 		err = c.writeCerts(bundlePath, svid.Bundle)
 		if err != nil {
 			return err
@@ -116,7 +106,7 @@ func (c *fetchX509Command) writeResponse(svids []*X509SVID) error {
 
 		for j, trustDomain := range federatedDomains {
 			bundlePath := path.Join(c.writePath, fmt.Sprintf("federated_bundle.%d.%d.pem", i, j))
-			fmt.Printf("Writing federated bundle #%d for trust domain %s to file %s.\n", j, trustDomain, bundlePath)
+			c.env.Printf("Writing federated bundle #%d for trust domain %s to file %s.\n", j, trustDomain, bundlePath)
 			err = c.writeCerts(bundlePath, svid.FederatedBundles[trustDomain])
 			if err != nil {
 				return err
@@ -161,6 +151,30 @@ func (c *fetchX509Command) writeFile(filename string, data []byte) error {
 	return diskutil.WritePubliclyReadableFile(filename, data)
 }
 
+func (c *fetchX509Command) prettyPrintFetchX509(env *commoncli.Env, results ...interface{}) error {
+	resp, ok := results[0].(*workload.X509SVIDResponse)
+	if !ok {
+		return cliprinter.ErrInternalCustomPrettyFunc
+	}
+
+	svids, err := parseAndValidateX509SVIDResponse(resp)
+	if err != nil {
+		return err
+	}
+
+	if !c.silent {
+		printX509SVIDResponse(env, svids, c.respTime)
+	}
+
+	if c.writePath != "" {
+		if err := c.writeResponse(svids); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 type X509SVID struct {
 	SPIFFEID         string
 	Certificates     []*x509.Certificate
@@ -201,7 +215,7 @@ func parseX509SVIDResponse(resp *workload.X509SVIDResponse) ([]*X509SVID, error)
 	for i, respSVID := range resp.Svids {
 		svid, err := parseX509SVID(respSVID, federatedBundles)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse svid entry %d for spiffe id %q: %w", i, svid.SPIFFEID, err)
+			return nil, fmt.Errorf("failed to parse svid entry %d for spiffe id %q: %w", i, respSVID.SpiffeId, err)
 		}
 		svids = append(svids, svid)
 	}
