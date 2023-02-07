@@ -55,12 +55,14 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 		ctx = rpccontext.WithLogger(ctx, rpccontext.Logger(ctx).WithFields(fields))
 	}
 
+	logger := rpccontext.Logger(ctx)
+
 	var deniedDetails *types.PermissionDeniedDetails
 	ctx, allow, err := m.opaAuth(ctx, req, methodName)
 	if err != nil {
 		statusErr := status.Convert(err)
 		if statusErr.Code() != codes.PermissionDenied {
-			rpccontext.Logger(ctx).WithError(err).Error("Authorization failure from OPA auth")
+			logger.WithError(err).Error("Authorization failure from OPA auth")
 			return nil, err
 		}
 
@@ -79,7 +81,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	}
 
 	deniedErr := st.Err()
-	rpccontext.Logger(ctx).WithError(deniedErr).Error("Failed to authenticate caller")
+	logger.WithError(deniedErr).Error("Failed to authenticate caller")
 	return nil, deniedErr
 }
 
