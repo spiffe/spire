@@ -407,7 +407,7 @@ func migrateToV20(tx *gorm.DB) error {
 }
 
 func migrateToV21(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&RegisteredEntry{}, &Selector{}).Error; err != nil {
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
