@@ -127,12 +127,12 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.50.0
+golangci_lint_version = v1.51.1
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
-markdown_lint_version = v0.32.2
+markdown_lint_version = v0.33.0
 markdown_lint_image = ghcr.io/igorshubovych/markdownlint-cli:$(markdown_lint_version)
 
 protoc_version = 3.20.1
