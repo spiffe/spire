@@ -11,6 +11,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
@@ -98,7 +99,7 @@ func (w *watcher) OnX509ContextUpdate(x509Context *workloadapi.X509Context) {
 			FederatedBundles: federatedBundles,
 		})
 	}
-	printX509SVIDResponse(svids, time.Since(w.updateTime))
+	printX509SVIDResponse(commoncli.DefaultEnv, svids, time.Since(w.updateTime))
 	w.updateTime = time.Now()
 }
 
