@@ -59,6 +59,7 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 * [Sigstore](https://github.com/sigstore/fulcio)  
 * [Tekton](https://github.com/tektoncd/chains)  
 * [Tornjak](https://github.com/spiffe/tornjak)  
+* [Traefik](https://github.com/traefik/traefik)
 
 ## Case Studies/User Stories
 
