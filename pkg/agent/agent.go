@@ -219,7 +219,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 	config := &manager.Config{
 		SVID:             as.SVID,
 		SVIDKey:          as.Key,
-		Bundle:           bundle,
+		Bundle:           bundleutil.SPIFFEBundleToBundleUtil(as.Bundle),
 		Catalog:          cat,
 		TrustDomain:      a.c.TrustDomain,
 		ServerAddr:       a.c.ServerAddress,
