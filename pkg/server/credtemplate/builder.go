@@ -41,7 +41,7 @@ const (
 )
 
 // DefaultX509CASubject is the default subject set on workload X509SVIDs
-// TODO: this is a historic, but poor default. we should revisit.
+// TODO: This is a historic, but poor, default. We should revisit (see issue #3841).
 func DefaultX509CASubject() pkix.Name {
 	return pkix.Name{
 		Country:      []string{"US"},
@@ -50,7 +50,7 @@ func DefaultX509CASubject() pkix.Name {
 }
 
 // DefaultX509SVIDSubject is the default subject set on workload X509SVIDs
-// TODO: this is a historic, but poor default. we should revisit.
+// TODO: This is a historic, but poor, default. We should revisit (see issue #3841).
 func DefaultX509SVIDSubject() pkix.Name {
 	return pkix.Name{
 		Country:      []string{"US"},
@@ -372,10 +372,9 @@ func (b *Builder) buildX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.P
 		return nil, err
 	}
 
+	tmpl.Subject = b.config.X509SVIDSubject
 	if subject.String() != "" {
 		tmpl.Subject = subject
-	} else {
-		tmpl.Subject = b.config.X509SVIDSubject
 	}
 
 	tmpl.NotBefore, tmpl.NotAfter = b.computeX509SVIDLifetime(parentChain, ttl)
