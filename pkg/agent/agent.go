@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid/store"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
@@ -214,7 +215,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 	config := &manager.Config{
 		SVID:             as.SVID,
 		SVIDKey:          as.Key,
-		Bundle:           as.Bundle,
+		Bundle:           bundleutil.SPIFFEBundleToBundleUtil(as.Bundle),
 		Catalog:          cat,
 		TrustDomain:      a.c.TrustDomain,
 		ServerAddr:       a.c.ServerAddress,

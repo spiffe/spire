@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -53,6 +54,34 @@ func BundleFromProto(b *common.Bundle) (*Bundle, error) {
 		rootCAs:        rootCAs,
 		jwtSigningKeys: jwtSigningKeys,
 	}, nil
+}
+
+// SPIFFEBundleToBundleUtil is a temporary function that converts a spiffebundle.Bundle to bundleutil.Bundle. This function
+// should be used only for restricting the scope of the changes in places that use bundleutil.Bundle. It should be
+// removed as soon as we don't have any other reference to bundleutil.Bundle.
+func SPIFFEBundleToBundleUtil(b *spiffebundle.Bundle) *Bundle {
+	return &Bundle{
+		b:              BundleProtoFromRootCAs(b.TrustDomain().IDString(), b.X509Authorities()),
+		rootCAs:        b.X509Authorities(),
+		jwtSigningKeys: b.JWTAuthorities(),
+	}
+}
+
+func SPIFFEBundleFromProto(b *common.Bundle) (*spiffebundle.Bundle, error) {
+	rootCAs, err := RootCAsFromBundleProto(b)
+	if err != nil {
+		return nil, err
+	}
+	jwtSigningKeys, err := JWTSigningKeysFromBundleProto(b)
+	if err != nil {
+		return nil, err
+	}
+
+	bundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString(b.TrustDomainId))
+	bundle.SetX509Authorities(rootCAs)
+	bundle.SetJWTAuthorities(jwtSigningKeys)
+
+	return bundle, nil
 }
 
 func BundleFromRootCA(trustDomain spiffeid.TrustDomain, rootCA *x509.Certificate) *Bundle {
