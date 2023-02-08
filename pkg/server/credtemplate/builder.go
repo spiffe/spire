@@ -41,7 +41,7 @@ const (
 )
 
 // DefaultX509CASubject is the default subject set on workload X509SVIDs
-// TODO: this is a hostoric, but poor default. we should revisit.
+// TODO: this is a historic, but poor default. we should revisit.
 func DefaultX509CASubject() pkix.Name {
 	return pkix.Name{
 		Country:      []string{"US"},
@@ -50,7 +50,7 @@ func DefaultX509CASubject() pkix.Name {
 }
 
 // DefaultX509SVIDSubject is the default subject set on workload X509SVIDs
-// TODO: this is a hostoric, but poor default. we should revisit.
+// TODO: this is a historic, but poor default. we should revisit.
 func DefaultX509SVIDSubject() pkix.Name {
 	return pkix.Name{
 		Country:      []string{"US"},
@@ -302,13 +302,13 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 	params.Audience = dropEmptyValues(params.Audience)
 
 	if params.SPIFFEID.IsZero() {
-		return nil, fmt.Errorf("invalid JWT-SVID ID: cannot be empty")
+		return nil, errors.New("invalid JWT-SVID ID: cannot be empty")
 	}
 	if err := api.VerifyTrustDomainMemberID(b.config.TrustDomain, params.SPIFFEID); err != nil {
 		return nil, fmt.Errorf("invalid JWT-SVID ID: %w", err)
 	}
 	if len(params.Audience) == 0 {
-		return nil, fmt.Errorf("invalid JWT-SVID audience: cannot be empty")
+		return nil, errors.New("invalid JWT-SVID audience: cannot be empty")
 	}
 
 	now := b.config.Clock.Now()
@@ -361,7 +361,7 @@ func (b *Builder) buildX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.P
 		return nil, errors.New("parent chain required to build X509-SVID template")
 	}
 	if spiffeID.IsZero() {
-		return nil, fmt.Errorf("invalid X509-SVID ID: cannot be empty")
+		return nil, errors.New("invalid X509-SVID ID: cannot be empty")
 	}
 	if err := api.VerifyTrustDomainMemberID(b.config.TrustDomain, spiffeID); err != nil {
 		return nil, fmt.Errorf("invalid X509-SVID ID: %w", err)
