@@ -19,7 +19,39 @@ FROM --platform=${BUILDPLATFORM} base as builder
 ARG TARGETPLATFORM
 ARG TARGETARCH
 COPY --link --from=xx / /
-RUN install -d -o root -g root -m 1777 /newtmp
+
+# For users that wish to run SPIRE containers as a non-root user,
+# provide a default unprivileged user such that the default paths
+# that SPIRE will try to read from, write to, and create at runtime
+# can be given the correct file ownership/permissions at build time.
+ARG spireuid=1000
+ARG spiregid=1000
+
+# Set up directories that SPIRE expects by default
+# Set up base directories
+RUN install -d -o root -g root -m 777 /spireroot
+RUN install -d -o root -g root -m 755 /spireroot/etc/ssl/certs
+RUN install -d -o root -g root -m 755 /spireroot/run
+RUN install -d -o root -g root -m 755 /spireroot/var/lib
+RUN install -d -o root -g root -m 1777 /spireroot/tmp
+
+# Set up directories used by SPIRE
+RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireroot/etc/spire
+RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireroot/run/spire
+RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireroot/var/lib/spire
+
+# Set up spire-server directories
+RUN cp -r /spireroot /spireserverroot
+RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireserverroot/etc/spire/server
+RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireserverroot/run/spire/server/private
+RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireserverroot/var/lib/spire/server
+
+# Set up spire-agent directories
+RUN cp -r /spireroot /spireagentroot
+RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireagentroot/etc/spire/agent
+RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireagentroot/run/spire/agent/public
+RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireagentroot/var/lib/spire/agent
+
 RUN xx-go --wrap
 RUN set -e ; xx-apk --no-cache --update add build-base musl-dev libseccomp-dev
 ENV CGO_ENABLED=1
@@ -33,23 +65,29 @@ FROM --platform=${BUILDPLATFORM} scratch AS spire-base
 WORKDIR /opt/spire
 CMD []
 COPY --link --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --link --from=builder /newtmp /tmp
 
 # SPIRE Server
 FROM spire-base AS spire-server
+USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-server", "run"]
+COPY --link --from=builder /spireserverroot /
 COPY --link --from=builder /spire/bin/static/spire-server bin/
 
+# SPIRE Agent
 FROM spire-base AS spire-agent
+USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-agent", "run"]
+COPY --link --from=builder /spireagentroot /
 COPY --link --from=builder /spire/bin/static/spire-agent bin/
 
 # K8S Workload Registrar
 FROM spire-base AS k8s-workload-registrar
+USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/k8s-workload-registrar"]
 COPY --link --from=builder /spire/bin/static/k8s-workload-registrar bin/
 
 # OIDC Discovery Provider
 FROM spire-base AS oidc-discovery-provider
+USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/oidc-discovery-provider"]
 COPY --link --from=builder /spire/bin/static/oidc-discovery-provider bin/
