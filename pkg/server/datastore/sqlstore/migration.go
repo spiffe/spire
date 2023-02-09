@@ -160,11 +160,13 @@ import (
 // | v1.5.4  |        |                                                                           |
 // |*********|********|***************************************************************************|
 // | v1.6.0  | 20     | Removes x509_svid_ttl column from registered_entries                      |
+// |         |--------|---------------------------------------------------------------------------|
+// |         | 21     | Add index in hint column from registered_entries                          |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 20
+	latestSchemaVersion = 21
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -384,6 +386,9 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	case 19:
 		// DEPRECATED: remove this migration in 1.7.0
 		err = migrateToV20(tx)
+	case 20:
+		// DEPRECATED: remove this migration in 1.7.0
+		err = migrateToV21(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -400,6 +405,13 @@ func migrateToV20(tx *gorm.DB) error {
 		return err
 	}
 
+	return nil
+}
+
+func migrateToV21(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
 	return nil
 }
 

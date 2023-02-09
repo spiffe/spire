@@ -96,7 +96,7 @@ type RegisteredEntry struct {
 
 	// Hint is a "hint string" passed to the workload to distinguish between
 	// multiple SVIDs
-	Hint string
+	Hint string `gorm:"index"`
 
 	// TTL of JWT identities derived from this entry
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
