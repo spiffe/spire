@@ -81,12 +81,6 @@ ENTRYPOINT ["/opt/spire/bin/spire-agent", "run"]
 COPY --link --from=builder /spireagentroot /
 COPY --link --from=builder /spire/bin/static/spire-agent bin/
 
-# K8S Workload Registrar
-FROM spire-base AS k8s-workload-registrar
-USER ${spireuid}:${spiregid}
-ENTRYPOINT ["/opt/spire/bin/k8s-workload-registrar"]
-COPY --link --from=builder /spire/bin/static/k8s-workload-registrar bin/
-
 # OIDC Discovery Provider
 FROM spire-base AS oidc-discovery-provider
 USER ${spireuid}:${spiregid}

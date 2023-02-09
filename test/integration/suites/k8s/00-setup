@@ -13,17 +13,11 @@ download-kind "${KIND_PATH}"
 # Download kubectl at the expected version.
 download-kubectl "${KUBECTL_PATH}"
 
-# We must supply an absolute path to the configuration directory. Replace the
-# CONFDIR variable in the kind configuration with the conf directory of the 
-# running test.
-sed -i.bak "s#CONFDIR#${PWD}/conf#g" conf/kind-config.yaml
-rm conf/kind-config.yaml.bak
-
-# Start the kind cluster.
-start-kind-cluster "${KIND_PATH}" k8stest ./conf/kind-config.yaml
+# Start the kind cluster
+start-kind-cluster "${KIND_PATH}" k8stest
 
 # Load the given images in the cluster.
-container_images=("spire-server:latest-local" "spire-agent:latest-local" "k8s-workload-registrar:latest-local")
+container_images=("spire-server:latest-local" "spire-agent:latest-local")
 load-images "${KIND_PATH}" k8stest "${container_images[@]}"
 
 # Set the kubectl context.
