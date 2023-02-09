@@ -23,7 +23,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup dep cache
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -46,12 +46,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Setup build tool cache
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -84,7 +84,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -107,7 +107,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -130,12 +130,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -165,12 +165,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -247,12 +247,12 @@ jobs:
       - name: Install regctl
         uses: regclient/actions/regctl-installer@b6614f5f56245066b533343a85f4109bdc38c8cc # ratchet:regclient/actions/regctl-installer@main
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -294,12 +294,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -339,7 +339,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup dep cache
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -365,12 +365,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Setup build tool cache
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
@@ -409,7 +409,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -442,12 +442,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@4723a57e26efda3a62cbde1812113b730952852d # ratchet:actions/cache@v3.2.4
+        uses: actions/cache@627f0f41f6904a5b1efbaed9f96d9eb58e92e920 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ github.sha }}
