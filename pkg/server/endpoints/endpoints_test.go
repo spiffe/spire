@@ -344,8 +344,11 @@ func TestListenAndServe(t *testing.T) {
 			require.Error(t, err)
 
 			switch {
-			case strings.Contains(err.Error(), "connection reset by peer"):
+			// This message can be returned on macOS
+			case strings.Contains(err.Error(), "write: broken pipe"):
+			// This message can be returned on Windows
 			case strings.Contains(err.Error(), "connection was forcibly closed by the remote host"):
+			case strings.Contains(err.Error(), "connection reset by peer"):
 			case strings.Contains(err.Error(), "tls: bad certificate"):
 				return
 			default:
