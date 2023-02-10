@@ -56,15 +56,43 @@ func BundleFromProto(b *common.Bundle) (*Bundle, error) {
 	}, nil
 }
 
-// SPIFFEBundleToBundleUtil is a temporary function that converts a spiffebundle.Bundle to bundleutil.Bundle. This function
-// should be used only for restricting the scope of the changes in places that use bundleutil.Bundle. It should be
-// removed as soon as we don't have any other reference to bundleutil.Bundle.
-func SPIFFEBundleToBundleUtil(b *spiffebundle.Bundle) *Bundle {
+// SPIFFEBundleToBundleUtil is a temporary function that converts a spiffebundle.Bundle to bundleutil.Bundle. This
+// function should be used only for restricting the scope of the changes in places that still use bundleutil.Bundle.
+// It should be removed as soon as we don't have any other reference to bundleutil.Bundle.
+func SPIFFEBundleToBundleUtil(b *spiffebundle.Bundle) (*Bundle, error) {
+	bundleProto, err := SPIFFEBundleToProto(b)
+	if err != nil {
+		return nil, err
+	}
 	return &Bundle{
-		b:              BundleProtoFromRootCAs(b.TrustDomain().IDString(), b.X509Authorities()),
+		b:              bundleProto,
 		rootCAs:        b.X509Authorities(),
 		jwtSigningKeys: b.JWTAuthorities(),
+	}, nil
+}
+
+func SPIFFEBundleToProto(b *spiffebundle.Bundle) (*common.Bundle, error) {
+	bundle := &common.Bundle{
+		TrustDomainId: b.TrustDomain().IDString(),
 	}
+	for _, rootCA := range b.X509Authorities() {
+		bundle.RootCas = append(bundle.RootCas, &common.Certificate{
+			DerBytes: rootCA.Raw,
+		})
+	}
+
+	for kid, key := range b.JWTAuthorities() {
+		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal public key: %w", err)
+		}
+		bundle.JwtSigningKeys = append(bundle.JwtSigningKeys, &common.PublicKey{
+			PkixBytes: pkixBytes,
+			Kid:       kid,
+		})
+	}
+
+	return bundle, nil
 }
 
 func SPIFFEBundleFromProto(b *common.Bundle) (*spiffebundle.Bundle, error) {
