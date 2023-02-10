@@ -30,7 +30,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/docker/docker v23.0.0+incompatible
-	github.com/envoyproxy/go-control-plane v0.10.3
+	github.com/envoyproxy/go-control-plane v0.11.0
 	github.com/go-logr/logr v1.2.3
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/gofrs/uuid v4.4.0+incompatible
