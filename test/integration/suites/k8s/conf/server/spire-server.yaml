@@ -165,22 +165,6 @@ data:
 
 ---
 
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: k8s-workload-registrar
-  namespace: spire
-data:
-  k8s-workload-registrar.conf: |
-    mode = "reconcile"
-    trust_domain = "example.org"
-    cluster = "example-cluster"
-    server_socket_path = "/tmp/spire-server/private/api.sock"
-    leader_election = true
-    metrics_addr = "0.0.0.0:18080"
-
----
-
 # This is the Deployment for the SPIRE server. It waits for SPIRE database to
 # initialize and uses the SPIRE healthcheck command for liveness/readiness
 # probes.
@@ -230,20 +214,6 @@ spec:
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
-        - name: k8s-workload-registrar
-          image: k8s-workload-registrar:latest-local
-          imagePullPolicy: Never
-          args: ["-config", "/run/spire/k8s-workload-registrar/conf/k8s-workload-registrar.conf"]
-          ports:
-          - containerPort: 8443
-            name: registrar-port
-          volumeMounts:
-          - name: spire-server-socket
-            mountPath: /tmp/spire-server/private
-            readOnly: true
-          - name: k8s-workload-registrar
-            mountPath: /run/spire/k8s-workload-registrar/conf
-            readOnly: true
       volumes:
         - name: spire-config
           configMap:
@@ -252,9 +222,6 @@ spec:
           hostPath:
             path: /run/spire/server-sockets
             type: DirectoryOrCreate
-        - name: k8s-workload-registrar
-          configMap:
-            name: k8s-workload-registrar
 
 ---
 
@@ -273,18 +240,3 @@ spec:
       protocol: TCP
   selector:
     app: spire-server
-
----
-
-# Service definition for the admission webhook
-apiVersion: v1
-kind: Service
-metadata:
-  name: k8s-workload-registrar
-  namespace: spire
-spec:
-  selector:
-    app: spire-server
-  ports:
-    - port: 443
-      targetPort: registrar-port
