@@ -118,10 +118,7 @@ func SPIFFEBundleToBundleUtil(b *spiffebundle.Bundle) (*Bundle, error) {
 }
 
 func SPIFFEBundleToProto(b *spiffebundle.Bundle) (*common.Bundle, error) {
-	refreshHint, ok := b.RefreshHint()
-	if !ok {
-		refreshHint = 0
-	}
+	refreshHint, _ := b.RefreshHint()
 
 	bundle := &common.Bundle{
 		TrustDomainId: b.TrustDomain().IDString(),
