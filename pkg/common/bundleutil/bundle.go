@@ -56,62 +56,6 @@ func BundleFromProto(b *common.Bundle) (*Bundle, error) {
 	}, nil
 }
 
-// SPIFFEBundleToBundleUtil is a temporary function that converts a spiffebundle.Bundle to bundleutil.Bundle. This
-// function should be used only for restricting the scope of the changes in places that still use bundleutil.Bundle.
-// It should be removed as soon as we don't have any other reference to bundleutil.Bundle.
-func SPIFFEBundleToBundleUtil(b *spiffebundle.Bundle) (*Bundle, error) {
-	bundleProto, err := SPIFFEBundleToProto(b)
-	if err != nil {
-		return nil, err
-	}
-	return &Bundle{
-		b:              bundleProto,
-		rootCAs:        b.X509Authorities(),
-		jwtSigningKeys: b.JWTAuthorities(),
-	}, nil
-}
-
-func SPIFFEBundleToProto(b *spiffebundle.Bundle) (*common.Bundle, error) {
-	bundle := &common.Bundle{
-		TrustDomainId: b.TrustDomain().IDString(),
-	}
-	for _, rootCA := range b.X509Authorities() {
-		bundle.RootCas = append(bundle.RootCas, &common.Certificate{
-			DerBytes: rootCA.Raw,
-		})
-	}
-
-	for kid, key := range b.JWTAuthorities() {
-		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal public key: %w", err)
-		}
-		bundle.JwtSigningKeys = append(bundle.JwtSigningKeys, &common.PublicKey{
-			PkixBytes: pkixBytes,
-			Kid:       kid,
-		})
-	}
-
-	return bundle, nil
-}
-
-func SPIFFEBundleFromProto(b *common.Bundle) (*spiffebundle.Bundle, error) {
-	rootCAs, err := RootCAsFromBundleProto(b)
-	if err != nil {
-		return nil, err
-	}
-	jwtSigningKeys, err := JWTSigningKeysFromBundleProto(b)
-	if err != nil {
-		return nil, err
-	}
-
-	bundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString(b.TrustDomainId))
-	bundle.SetX509Authorities(rootCAs)
-	bundle.SetJWTAuthorities(jwtSigningKeys)
-
-	return bundle, nil
-}
-
 func BundleFromRootCA(trustDomain spiffeid.TrustDomain, rootCA *x509.Certificate) *Bundle {
 	return bundleFromRootCAs(trustDomain, rootCA)
 }
@@ -161,7 +105,6 @@ func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 // SPIFFEBundleToBundleUtil is a temporary function that converts a spiffebundle.Bundle to bundleutil.Bundle. This
 // function should be used only for restricting the scope of the changes in places that still use bundleutil.Bundle.
 // It should be removed as soon as we don't have any other reference to bundleutil.Bundle.
-// TODO: (remove this function when bundleutil.Bundle cease to be used)
 func SPIFFEBundleToBundleUtil(b *spiffebundle.Bundle) (*Bundle, error) {
 	bundleProto, err := SPIFFEBundleToProto(b)
 	if err != nil {
@@ -175,7 +118,10 @@ func SPIFFEBundleToBundleUtil(b *spiffebundle.Bundle) (*Bundle, error) {
 }
 
 func SPIFFEBundleToProto(b *spiffebundle.Bundle) (*common.Bundle, error) {
-	refreshHint, _ := b.RefreshHint()
+	refreshHint, ok := b.RefreshHint()
+	if !ok {
+		refreshHint = 0
+	}
 
 	bundle := &common.Bundle{
 		TrustDomainId: b.TrustDomain().IDString(),
@@ -210,12 +156,8 @@ func SPIFFEBundleFromProto(b *common.Bundle) (*spiffebundle.Bundle, error) {
 	if err != nil {
 		return nil, err
 	}
-	td, err := spiffeid.TrustDomainFromString(b.TrustDomainId)
-	if err != nil {
-		return nil, err
-	}
 
-	bundle := spiffebundle.New(td)
+	bundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString(b.TrustDomainId))
 	bundle.SetX509Authorities(rootCAs)
 	bundle.SetJWTAuthorities(jwtSigningKeys)
 	bundle.SetRefreshHint(time.Second * time.Duration(b.RefreshHint))

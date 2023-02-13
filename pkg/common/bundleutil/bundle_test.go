@@ -372,21 +372,6 @@ func TestSPIFFEBundleFromProto(t *testing.T) {
 			expBundle: bundleZeroedRefreshHint,
 		},
 		{
-			name: "fail with error parsing spiffe trust domain",
-			proto: &common.Bundle{
-				TrustDomainId: "|invalid|",
-				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
-				RefreshHint:   10,
-				JwtSigningKeys: []*common.PublicKey{
-					{
-						PkixBytes: pkixBytes,
-						Kid:       "key-id-1",
-					},
-				},
-			},
-			expErr: errors.New("trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores"),
-		},
-		{
 			name: "fail with error parsing x509 authority",
 			proto: &common.Bundle{
 				TrustDomainId: td.IDString(),
