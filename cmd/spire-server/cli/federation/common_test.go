@@ -246,7 +246,7 @@ func createBundle(t *testing.T, trustDomain string) (*types.Bundle, string) {
 	return &types.Bundle{
 		TrustDomain: td.String(),
 		X509Authorities: []*types.X509Certificate{
-			{Asn1: ca.X509CA().Certificate.Raw},
+			{Asn1: ca.Bundle()[0].Raw},
 		},
 	}, bundlePath
 }

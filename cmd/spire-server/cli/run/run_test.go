@@ -18,7 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
-	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -806,7 +806,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.CASubject = nil
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, defaultCASubject, c.CASubject)
+				require.Equal(t, credtemplate.DefaultX509CASubject(), c.CASubject)
 			},
 		},
 		{
@@ -815,7 +815,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.CASubject = &caSubjectConfig{}
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, defaultCASubject, c.CASubject)
+				require.Equal(t, credtemplate.DefaultX509CASubject(), c.CASubject)
 			},
 		},
 		{
@@ -1526,13 +1526,13 @@ func TestHasCompatibleTTLs(t *testing.T) {
 	for _, testCase := range cases {
 		testCase := testCase
 		if testCase.caTTL == 0 {
-			testCase.caTTL = ca.DefaultCATTL
+			testCase.caTTL = credtemplate.DefaultX509CATTL
 		}
 		if testCase.x509SvidTTL == 0 {
-			testCase.x509SvidTTL = ca.DefaultX509SVIDTTL
+			testCase.x509SvidTTL = credtemplate.DefaultX509SVIDTTL
 		}
 		if testCase.jwtSvidTTL == 0 {
-			testCase.jwtSvidTTL = ca.DefaultJWTSVIDTTL
+			testCase.jwtSvidTTL = credtemplate.DefaultJWTSVIDTTL
 		}
 
 		t.Run(testCase.msg, func(t *testing.T) {
@@ -1573,7 +1573,7 @@ func TestMaxSVIDTTL(t *testing.T) {
 		},
 	} {
 		if v.caTTL == 0 {
-			v.caTTL = ca.DefaultCATTL
+			v.caTTL = credtemplate.DefaultX509CATTL
 		}
 
 		assert.Equal(t, v.expect, printMaxSVIDTTL(v.caTTL))
@@ -1649,10 +1649,10 @@ func TestMinCATTL(t *testing.T) {
 		},
 	} {
 		if v.x509SVIDTTL == 0 {
-			v.x509SVIDTTL = ca.DefaultX509SVIDTTL
+			v.x509SVIDTTL = credtemplate.DefaultX509SVIDTTL
 		}
 		if v.jwtSVIDTTL == 0 {
-			v.jwtSVIDTTL = ca.DefaultJWTSVIDTTL
+			v.jwtSVIDTTL = credtemplate.DefaultJWTSVIDTTL
 		}
 
 		// The expected value is the MinCATTL calculated from the largest of the available TTLs

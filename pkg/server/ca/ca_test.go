@@ -16,6 +16,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/credtemplate"
+	"github.com/spiffe/spire/pkg/server/credvalidator"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/stretchr/testify/require"
@@ -65,30 +67,196 @@ func (s *CATestSuite) SetupTest() {
 	log, logHook := test.NewNullLogger()
 	s.logHook = logHook
 
+	credBuilder, err := credtemplate.NewBuilder(credtemplate.Config{
+		TrustDomain:   trustDomainExample,
+		Clock:         s.clock,
+		X509CASubject: pkix.Name{CommonName: "TESTCA"},
+		X509SVIDTTL:   time.Minute,
+	})
+	s.Require().NoError(err)
+
+	credValidator, err := credvalidator.New(credvalidator.Config{
+		TrustDomain: trustDomainExample,
+		Clock:       s.clock,
+	})
+	s.Require().NoError(err)
+
 	s.healthChecker = fakehealthchecker.New()
 	s.ca = NewCA(Config{
-		Log:         log,
-		Metrics:     telemetry.Blackhole{},
-		TrustDomain: trustDomainExample,
-		X509SVIDTTL: time.Minute,
-		Clock:       s.clock,
-		CASubject: pkix.Name{
-			CommonName: "TESTCA",
-		},
+		Log:           log,
+		Clock:         s.clock,
+		Metrics:       telemetry.Blackhole{},
+		TrustDomain:   trustDomainExample,
+		CredBuilder:   credBuilder,
+		CredValidator: credValidator,
 		HealthChecker: s.healthChecker,
 	})
 	s.setX509CA(true)
 	s.setJWTKey()
 }
 
-func (s *CATestSuite) TestSignX509SVIDNoCASet() {
+func (s *CATestSuite) TestSignServerX509SVIDNoCASet() {
 	s.ca.SetX509CA(nil)
-	_, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
+	_, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())
 	s.Require().EqualError(err, "X509 CA is not available for signing")
 }
 
-func (s *CATestSuite) TestSignX509SVID() {
-	svidChain, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
+func (s *CATestSuite) TestSignServerX509SVID() {
+	svidChain, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svidChain, 1)
+
+	svid := svidChain[0]
+
+	s.False(svid.NotBefore.IsZero(), "NotBefore is not set")
+	s.False(svid.NotAfter.IsZero(), "NotAfter is not set")
+	s.NotEmpty(svid.SubjectKeyId, "SubjectKeyId is not set")
+	s.NotEmpty(svid.AuthorityKeyId, "AuthorityKeyId is not set")
+	s.Equal(x509.KeyUsageKeyEncipherment|x509.KeyUsageKeyAgreement|x509.KeyUsageDigitalSignature, svid.KeyUsage, "key usage does not match")
+	s.Equal([]x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}, svid.ExtKeyUsage, "ext key usage does not match")
+	s.False(svid.IsCA, "CA bit is set")
+	s.True(svid.BasicConstraintsValid, "Basic constraints are not valid")
+
+	// SPIFFE ID should be set to that of the trust domain
+	if s.Len(svid.URIs, 1, "has no URIs") {
+		s.Equal("spiffe://example.org/spire/server", svid.URIs[0].String())
+	}
+
+	// Subject is calculated by SPIRE Server and should not be pulled from the CSR.
+	s.Equal("O=SPIRE,C=US,2.5.4.45=#13203237323538663032373464643334303764623137653930626334623961646632", svid.Subject.String())
+}
+
+func (s *CATestSuite) TestSignServerX509SVIDUsesDefaultTTLIfTTLUnspecified() {
+	svid, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid, 1)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
+}
+
+func (s *CATestSuite) TestSignServerX509SVIDUsesDefaultTTLAndNoCNDNS() {
+	svid, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid, 1)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
+	s.Require().Empty(svid[0].DNSNames)
+	s.Require().Empty(svid[0].Subject.CommonName)
+}
+
+func (s *CATestSuite) TestSignServerX509SVIDReturnsChainIfIntermediate() {
+	s.setX509CA(false)
+
+	svid, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid, 3)
+	s.Require().NotNil(svid[0])
+	s.Require().Equal(s.caCert, svid[1])
+	s.Require().Equal(s.upstreamCert, svid[2])
+}
+
+func (s *CATestSuite) TestSignServerX509SVIDChangesSerialNumber() {
+	svid1, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid1, 1)
+	svid2, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid2, 1)
+	s.Require().NotEqual(0, svid2[0].SerialNumber.Cmp(svid1[0].SerialNumber))
+}
+
+func (s *CATestSuite) TestSignAgentX509SVIDNoCASet() {
+	s.ca.SetX509CA(nil)
+	_, err := s.ca.SignAgentX509SVID(ctx, s.createAgentX509SVIDParams())
+	s.Require().EqualError(err, "X509 CA is not available for signing")
+}
+
+func (s *CATestSuite) TestSignAgentX509SVID() {
+	svidChain, err := s.ca.SignAgentX509SVID(ctx, s.createAgentX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svidChain, 1)
+
+	svid := svidChain[0]
+
+	s.False(svid.NotBefore.IsZero(), "NotBefore is not set")
+	s.False(svid.NotAfter.IsZero(), "NotAfter is not set")
+	s.NotEmpty(svid.SubjectKeyId, "SubjectKeyId is not set")
+	s.NotEmpty(svid.AuthorityKeyId, "AuthorityKeyId is not set")
+	s.Equal(x509.KeyUsageKeyEncipherment|x509.KeyUsageKeyAgreement|x509.KeyUsageDigitalSignature, svid.KeyUsage, "key usage does not match")
+	s.Equal([]x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}, svid.ExtKeyUsage, "ext key usage does not match")
+	s.False(svid.IsCA, "CA bit is set")
+	s.True(svid.BasicConstraintsValid, "Basic constraints are not valid")
+
+	// SPIFFE ID should be set to that of the trust domain
+	if s.Len(svid.URIs, 1, "has no URIs") {
+		s.Equal("spiffe://example.org/spire/agent/foo/foo1", svid.URIs[0].String())
+	}
+
+	// Subject is calculated by SPIRE Server and should not be pulled from the CSR.
+	s.Equal("O=SPIRE,C=US,2.5.4.45=#13203565613834343735306363306235393262363730383830636133376238343363", svid.Subject.String())
+}
+
+func (s *CATestSuite) TestSignAgentX509SVIDCannotSignTrustDomainID() {
+	params := AgentX509SVIDParams{
+		SPIFFEID:  spiffeid.RequireFromString("spiffe://example.org"),
+		PublicKey: testSigner.Public(),
+	}
+	_, err := s.ca.SignAgentX509SVID(ctx, params)
+	s.Require().EqualError(err, `invalid X509-SVID ID: "spiffe://example.org" is not a member of trust domain "example.org"; path is empty`)
+}
+
+func (s *CATestSuite) TestSignAgentX509SVIDUsesDefaultTTLIfTTLUnspecified() {
+	svid, err := s.ca.SignAgentX509SVID(ctx, s.createAgentX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid, 1)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
+}
+
+func (s *CATestSuite) TestSignAgentX509SVIDUsesDefaultTTLAndNoCNDNS() {
+	svid, err := s.ca.SignAgentX509SVID(ctx, s.createAgentX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid, 1)
+	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
+	s.Require().Empty(svid[0].DNSNames)
+	s.Require().Empty(svid[0].Subject.CommonName)
+}
+
+func (s *CATestSuite) TestSignAgentX509SVIDReturnsChainIfIntermediate() {
+	s.setX509CA(false)
+
+	svid, err := s.ca.SignAgentX509SVID(ctx, s.createAgentX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid, 3)
+	s.Require().NotNil(svid[0])
+	s.Require().Equal(s.caCert, svid[1])
+	s.Require().Equal(s.upstreamCert, svid[2])
+}
+
+func (s *CATestSuite) TestSignAgentX509SVIDValidatesTrustDomain() {
+	_, err := s.ca.SignAgentX509SVID(ctx, s.createAgentX509SVIDParamsInDomain(trustDomainFoo))
+	s.Require().EqualError(err, `invalid X509-SVID ID: "spiffe://foo.com/spire/agent/foo/foo1" is not a member of trust domain "example.org"`)
+}
+
+func (s *CATestSuite) TestSignAgentX509SVIDChangesSerialNumber() {
+	svid1, err := s.ca.SignAgentX509SVID(ctx, s.createAgentX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid1, 1)
+	svid2, err := s.ca.SignAgentX509SVID(ctx, s.createAgentX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().Len(svid2, 1)
+	s.Require().NotEqual(0, svid2[0].SerialNumber.Cmp(svid1[0].SerialNumber))
+}
+
+func (s *CATestSuite) TestSignWorkloadX509SVIDNoCASet() {
+	s.ca.SetX509CA(nil)
+	_, err := s.ca.SignWorkloadX509SVID(ctx, s.createWorkloadX509SVIDParams())
+	s.Require().EqualError(err, "X509 CA is not available for signing")
+}
+
+func (s *CATestSuite) TestSignWorkloadX509SVID() {
+	svidChain, err := s.ca.SignWorkloadX509SVID(ctx, s.createWorkloadX509SVIDParams())
 	s.Require().NoError(err)
 	s.Require().Len(svidChain, 1)
 
@@ -112,25 +280,25 @@ func (s *CATestSuite) TestSignX509SVID() {
 	s.Equal("O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531", svid.Subject.String())
 }
 
-func (s *CATestSuite) TestSignX509SVIDCannotSignTrustDomainID() {
-	params := X509SVIDParams{
-		SpiffeID:  spiffeid.RequireFromString("spiffe://example.org"),
+func (s *CATestSuite) TestSignWorkloadX509SVIDCannotSignTrustDomainID() {
+	params := WorkloadX509SVIDParams{
+		SPIFFEID:  spiffeid.RequireFromString("spiffe://example.org"),
 		PublicKey: testSigner.Public(),
 	}
-	_, err := s.ca.SignX509SVID(ctx, params)
-	s.Require().EqualError(err, `"spiffe://example.org" is not a member of trust domain "example.org"; path is empty`)
+	_, err := s.ca.SignWorkloadX509SVID(ctx, params)
+	s.Require().EqualError(err, `invalid X509-SVID ID: "spiffe://example.org" is not a member of trust domain "example.org"; path is empty`)
 }
 
-func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLIfTTLUnspecified() {
-	svid, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
+func (s *CATestSuite) TestSignWorkloadX509SVIDUsesDefaultTTLIfTTLUnspecified() {
+	svid, err := s.ca.SignWorkloadX509SVID(ctx, s.createWorkloadX509SVIDParams())
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
 }
 
-func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLAndNoCNDNS() {
-	svid, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
+func (s *CATestSuite) TestSignWorkloadX509SVIDUsesDefaultTTLAndNoCNDNS() {
+	svid, err := s.ca.SignWorkloadX509SVID(ctx, s.createWorkloadX509SVIDParams())
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
@@ -139,31 +307,31 @@ func (s *CATestSuite) TestSignX509SVIDUsesDefaultTTLAndNoCNDNS() {
 	s.Require().Empty(svid[0].Subject.CommonName)
 }
 
-func (s *CATestSuite) TestSignX509SVIDSingleDNS() {
-	params := s.createX509SVIDParams()
-	params.DNSList = []string{"somehost1"}
-	svid, err := s.ca.SignX509SVID(ctx, params)
+func (s *CATestSuite) TestSignWorkloadX509SVIDSingleDNS() {
+	params := s.createWorkloadX509SVIDParams()
+	params.DNSNames = []string{"somehost1"}
+	svid, err := s.ca.SignWorkloadX509SVID(ctx, params)
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
-	s.Require().Equal(params.DNSList, svid[0].DNSNames)
+	s.Require().Equal(params.DNSNames, svid[0].DNSNames)
 	s.Require().Equal("somehost1", svid[0].Subject.CommonName)
 }
 
-func (s *CATestSuite) TestSignX509SVIDMultipleDNS() {
-	params := s.createX509SVIDParams()
-	params.DNSList = []string{"somehost1", "somehost2", "somehost3"}
-	svid, err := s.ca.SignX509SVID(ctx, params)
+func (s *CATestSuite) TestSignWorkloadX509SVIDMultipleDNS() {
+	params := s.createWorkloadX509SVIDParams()
+	params.DNSNames = []string{"somehost1", "somehost2", "somehost3"}
+	svid, err := s.ca.SignWorkloadX509SVID(ctx, params)
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
-	s.Require().Equal(params.DNSList, svid[0].DNSNames)
+	s.Require().Equal(params.DNSNames, svid[0].DNSNames)
 	s.Require().Equal("somehost1", svid[0].Subject.CommonName)
 }
 
-func (s *CATestSuite) TestSignX509SVIDWithSubject() {
+func (s *CATestSuite) TestSignWorkloadX509SVIDWithSubject() {
 	subject := pkix.Name{
 		Organization: []string{"ORG"},
 		Country:      []string{"US", "EN"},
@@ -200,11 +368,11 @@ func (s *CATestSuite) TestSignX509SVIDWithSubject() {
 	for _, testCase := range testCases {
 		testCase := testCase
 		s.T().Run(testCase.name, func(t *testing.T) {
-			params := s.createX509SVIDParams()
+			params := s.createWorkloadX509SVIDParams()
 			params.Subject = testCase.subject
-			params.DNSList = testCase.dns
+			params.DNSNames = testCase.dns
 
-			svid, err := s.ca.SignX509SVID(ctx, params)
+			svid, err := s.ca.SignWorkloadX509SVID(ctx, params)
 			require.NoError(t, err)
 
 			require.Len(t, svid, 1)
@@ -215,10 +383,10 @@ func (s *CATestSuite) TestSignX509SVIDWithSubject() {
 	}
 }
 
-func (s *CATestSuite) TestSignX509SVIDReturnsChainIfIntermediate() {
+func (s *CATestSuite) TestSignWorkloadX509SVIDReturnsChainIfIntermediate() {
 	s.setX509CA(false)
 
-	svid, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
+	svid, err := s.ca.SignWorkloadX509SVID(ctx, s.createWorkloadX509SVIDParams())
 	s.Require().NoError(err)
 	s.Require().Len(svid, 3)
 	s.Require().NotNil(svid[0])
@@ -226,36 +394,36 @@ func (s *CATestSuite) TestSignX509SVIDReturnsChainIfIntermediate() {
 	s.Require().Equal(s.upstreamCert, svid[2])
 }
 
-func (s *CATestSuite) TestSignX509SVIDUsesTTLIfSpecified() {
-	params := s.createX509SVIDParams()
+func (s *CATestSuite) TestSignWorkloadX509SVIDUsesTTLIfSpecified() {
+	params := s.createWorkloadX509SVIDParams()
 	params.TTL = time.Minute + time.Second
-	svid, err := s.ca.SignX509SVID(ctx, params)
+	svid, err := s.ca.SignWorkloadX509SVID(ctx, params)
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(time.Minute+time.Second), svid[0].NotAfter)
 }
 
-func (s *CATestSuite) TestSignX509SVIDCapsTTLToCATTL() {
-	params := s.createX509SVIDParams()
+func (s *CATestSuite) TestSignWorkloadX509SVIDCapsTTLToCATTL() {
+	params := s.createWorkloadX509SVIDParams()
 	params.TTL = time.Hour
-	svid, err := s.ca.SignX509SVID(ctx, params)
+	svid, err := s.ca.SignWorkloadX509SVID(ctx, params)
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(10*time.Minute), svid[0].NotAfter)
 }
 
-func (s *CATestSuite) TestSignX509SVIDValidatesTrustDomain() {
-	_, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParamsInDomain(trustDomainFoo))
-	s.Require().EqualError(err, `"spiffe://foo.com/workload" is not a member of trust domain "example.org"`)
+func (s *CATestSuite) TestSignWorkloadX509SVIDValidatesTrustDomain() {
+	_, err := s.ca.SignWorkloadX509SVID(ctx, s.createWorkloadX509SVIDParamsInDomain(trustDomainFoo))
+	s.Require().EqualError(err, `invalid X509-SVID ID: "spiffe://foo.com/workload" is not a member of trust domain "example.org"`)
 }
 
-func (s *CATestSuite) TestSignX509SVIDChangesSerialNumber() {
-	svid1, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
+func (s *CATestSuite) TestSignWorkloadX509SVIDChangesSerialNumber() {
+	svid1, err := s.ca.SignWorkloadX509SVID(ctx, s.createWorkloadX509SVIDParams())
 	s.Require().NoError(err)
 	s.Require().Len(svid1, 1)
-	svid2, err := s.ca.SignX509SVID(ctx, s.createX509SVIDParams())
+	svid2, err := s.ca.SignWorkloadX509SVID(ctx, s.createWorkloadX509SVIDParams())
 	s.Require().NoError(err)
 	s.Require().Len(svid2, 1)
 	s.Require().NotEqual(0, svid2[0].SerialNumber.Cmp(svid1[0].SerialNumber))
@@ -263,21 +431,21 @@ func (s *CATestSuite) TestSignX509SVIDChangesSerialNumber() {
 
 func (s *CATestSuite) TestNoJWTKeySet() {
 	s.ca.SetJWTKey(nil)
-	_, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, 0))
+	_, err := s.ca.SignWorkloadJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, 0))
 	s.Require().EqualError(err, "JWT key is not available for signing")
 }
 
-func (s *CATestSuite) TestSignJWTSVIDUsesDefaultTTLIfTTLUnspecified() {
-	token, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, 0))
+func (s *CATestSuite) TestSignWorkloadJWTSVIDUsesDefaultTTLIfTTLUnspecified() {
+	token, err := s.ca.SignWorkloadJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, 0))
 	s.Require().NoError(err)
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
 	s.Require().Equal(s.clock.Now(), issuedAt)
-	s.Require().Equal(s.clock.Now().Add(DefaultJWTSVIDTTL), expiresAt)
+	s.Require().Equal(s.clock.Now().Add(credtemplate.DefaultJWTSVIDTTL), expiresAt)
 }
 
-func (s *CATestSuite) TestSignJWTSVIDUsesTTLIfSpecified() {
-	token, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, time.Minute+time.Second))
+func (s *CATestSuite) TestSignWorkloadJWTSVIDUsesTTLIfSpecified() {
+	token, err := s.ca.SignWorkloadJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, time.Minute+time.Second))
 	s.Require().NoError(err)
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
@@ -285,8 +453,8 @@ func (s *CATestSuite) TestSignJWTSVIDUsesTTLIfSpecified() {
 	s.Require().Equal(s.clock.Now().Add(time.Minute+time.Second), expiresAt)
 }
 
-func (s *CATestSuite) TestSignJWTSVIDCapsTTLToKeyExpiry() {
-	token, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, time.Hour))
+func (s *CATestSuite) TestSignWorkloadJWTSVIDCapsTTLToKeyExpiry() {
+	token, err := s.ca.SignWorkloadJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, time.Hour))
 	s.Require().NoError(err)
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	s.Require().NoError(err)
@@ -294,26 +462,26 @@ func (s *CATestSuite) TestSignJWTSVIDCapsTTLToKeyExpiry() {
 	s.Require().Equal(s.clock.Now().Add(10*time.Minute), expiresAt)
 }
 
-func (s *CATestSuite) TestSignJWTSVIDValidatesJSR() {
+func (s *CATestSuite) TestSignWorkloadJWTSVIDValidatesJSR() {
 	// spiffe id for wrong trust domain
-	_, err := s.ca.SignJWTSVID(ctx, s.createJWTSVIDParams(trustDomainFoo, 0))
-	s.Require().EqualError(err, `"spiffe://foo.com/workload" is not a member of trust domain "example.org"`)
+	_, err := s.ca.SignWorkloadJWTSVID(ctx, s.createJWTSVIDParams(trustDomainFoo, 0))
+	s.Require().EqualError(err, `invalid JWT-SVID ID: "spiffe://foo.com/workload" is not a member of trust domain "example.org"`)
 
 	// audience is required
 	noAudience := s.createJWTSVIDParams(trustDomainExample, 0)
 	noAudience.Audience = nil
-	_, err = s.ca.SignJWTSVID(ctx, noAudience)
-	s.Require().EqualError(err, "unable to sign JWT SVID: audience is required")
+	_, err = s.ca.SignWorkloadJWTSVID(ctx, noAudience)
+	s.Require().EqualError(err, `invalid JWT-SVID audience: cannot be empty`)
 }
 
-func (s *CATestSuite) TestSignX509CASVIDNoCASet() {
+func (s *CATestSuite) TestSignDownstreamX509CANoCASet() {
 	s.ca.SetX509CA(nil)
-	_, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams(trustDomainExample))
+	_, err := s.ca.SignDownstreamX509CA(ctx, s.createDownstreamX509CAParams())
 	s.Require().EqualError(err, "X509 CA is not available for signing")
 }
 
-func (s *CATestSuite) TestSignX509CASVID() {
-	svidChain, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams(trustDomainExample))
+func (s *CATestSuite) TestSignDownstreamX509CA() {
+	svidChain, err := s.ca.SignDownstreamX509CA(ctx, s.createDownstreamX509CAParams())
 	s.Require().NoError(err)
 	s.Require().Len(svidChain, 1)
 
@@ -337,17 +505,12 @@ func (s *CATestSuite) TestSignX509CASVID() {
 	s.Equal("CN=CA,OU=DOWNSTREAM-1,O=TestOrg", svid.Subject.String())
 }
 
-func (s *CATestSuite) TestSignX509CASVIDUsesDefaultTTLIfTTLUnspecified() {
-	svid, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams(trustDomainExample))
+func (s *CATestSuite) TestSignDownstreamX509CAUsesDefaultTTLIfTTLUnspecified() {
+	svid, err := s.ca.SignDownstreamX509CA(ctx, s.createDownstreamX509CAParams())
 	s.Require().NoError(err)
 	s.Require().Len(svid, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
-}
-
-func (s *CATestSuite) TestSignCAX509SVIDValidatesTrustDomain() {
-	_, err := s.ca.SignX509CASVID(ctx, s.createX509CASVIDParams(trustDomainFoo))
-	s.Require().EqualError(err, `"spiffe://foo.com" is not a member of trust domain "example.org"`)
 }
 
 func (s *CATestSuite) TestHealthChecks() {
@@ -397,27 +560,43 @@ func (s *CATestSuite) setJWTKey() {
 	})
 }
 
-func (s *CATestSuite) createX509SVIDParams() X509SVIDParams {
-	return s.createX509SVIDParamsInDomain(trustDomainExample)
-}
-
-func (s *CATestSuite) createX509SVIDParamsInDomain(trustDomain spiffeid.TrustDomain) X509SVIDParams {
-	return X509SVIDParams{
-		SpiffeID:  spiffeid.RequireFromPath(trustDomain, "/workload"),
+func (s *CATestSuite) createServerX509SVIDParams() ServerX509SVIDParams {
+	return ServerX509SVIDParams{
 		PublicKey: testSigner.Public(),
 	}
 }
 
-func (s *CATestSuite) createX509CASVIDParams(trustDomain spiffeid.TrustDomain) X509CASVIDParams {
-	return X509CASVIDParams{
-		SpiffeID:  trustDomain.ID(),
+func (s *CATestSuite) createAgentX509SVIDParams() AgentX509SVIDParams {
+	return s.createAgentX509SVIDParamsInDomain(trustDomainExample)
+}
+
+func (s *CATestSuite) createAgentX509SVIDParamsInDomain(trustDomain spiffeid.TrustDomain) AgentX509SVIDParams {
+	return AgentX509SVIDParams{
+		SPIFFEID:  spiffeid.RequireFromPath(trustDomain, "/spire/agent/foo/foo1"),
 		PublicKey: testSigner.Public(),
 	}
 }
 
-func (s *CATestSuite) createJWTSVIDParams(trustDomain spiffeid.TrustDomain, ttl time.Duration) JWTSVIDParams {
-	return JWTSVIDParams{
-		SpiffeID: spiffeid.RequireFromPath(trustDomain, "/workload"),
+func (s *CATestSuite) createWorkloadX509SVIDParams() WorkloadX509SVIDParams {
+	return s.createWorkloadX509SVIDParamsInDomain(trustDomainExample)
+}
+
+func (s *CATestSuite) createWorkloadX509SVIDParamsInDomain(trustDomain spiffeid.TrustDomain) WorkloadX509SVIDParams {
+	return WorkloadX509SVIDParams{
+		SPIFFEID:  spiffeid.RequireFromPath(trustDomain, "/workload"),
+		PublicKey: testSigner.Public(),
+	}
+}
+
+func (s *CATestSuite) createDownstreamX509CAParams() DownstreamX509CAParams {
+	return DownstreamX509CAParams{
+		PublicKey: testSigner.Public(),
+	}
+}
+
+func (s *CATestSuite) createJWTSVIDParams(trustDomain spiffeid.TrustDomain, ttl time.Duration) WorkloadJWTSVIDParams {
+	return WorkloadJWTSVIDParams{
+		SPIFFEID: spiffeid.RequireFromPath(trustDomain, "/workload"),
 		Audience: []string{"AUDIENCE"},
 		TTL:      ttl,
 	}

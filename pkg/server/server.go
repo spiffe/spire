@@ -25,6 +25,8 @@ import (
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/pkg/server/credtemplate"
+	"github.com/spiffe/spire/pkg/server/credvalidator"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
@@ -116,11 +118,21 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	serverCA := s.newCA(metrics, healthChecker)
+	credBuilder, err := s.newCredBuilder(cat)
+	if err != nil {
+		return err
+	}
+
+	credValidator, err := s.newCredValidator()
+	if err != nil {
+		return err
+	}
+
+	serverCA := s.newCA(metrics, credBuilder, credValidator, healthChecker)
 
 	// CA manager needs to be initialized before the rotator, otherwise the
 	// server CA plugin won't be able to sign CSRs
-	caManager, err := s.newCAManager(ctx, cat, metrics, serverCA, healthChecker)
+	caManager, err := s.newCAManager(ctx, cat, metrics, serverCA, credBuilder, credValidator, healthChecker)
 	if err != nil {
 		return err
 	}
@@ -262,27 +274,44 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 	})
 }
 
-func (s *Server) newCA(metrics telemetry.Metrics, healthChecker health.Checker) *ca.CA {
+func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, error) {
+	return credtemplate.NewBuilder(credtemplate.Config{
+		TrustDomain:         s.config.TrustDomain,
+		X509CASubject:       s.config.CASubject,
+		AgentSVIDTTL:        s.config.AgentTTL,
+		X509SVIDTTL:         s.config.X509SVIDTTL,
+		JWTSVIDTTL:          s.config.JWTSVIDTTL,
+		JWTIssuer:           s.config.JWTIssuer,
+		CredentialComposers: cat.GetCredentialComposers(),
+	})
+}
+
+func (s *Server) newCredValidator() (*credvalidator.Validator, error) {
+	return credvalidator.New(credvalidator.Config{
+		TrustDomain: s.config.TrustDomain,
+	})
+}
+
+func (s *Server) newCA(metrics telemetry.Metrics, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator, healthChecker health.Checker) *ca.CA {
 	return ca.NewCA(ca.Config{
+		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
 		Metrics:       metrics,
-		X509SVIDTTL:   s.config.X509SVIDTTL,
-		JWTSVIDTTL:    s.config.JWTSVIDTTL,
-		JWTIssuer:     s.config.JWTIssuer,
 		TrustDomain:   s.config.TrustDomain,
-		CASubject:     s.config.CASubject,
+		CredBuilder:   credBuilder,
+		CredValidator: credValidator,
 		HealthChecker: healthChecker,
 	})
 }
 
-func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA, healthChecker health.Checker) (*ca.Manager, error) {
+func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator, healthChecker health.Checker) (*ca.Manager, error) {
 	caManager := ca.NewManager(ca.ManagerConfig{
 		CA:            serverCA,
 		Catalog:       cat,
 		TrustDomain:   s.config.TrustDomain,
 		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
 		Metrics:       metrics,
-		CATTL:         s.config.CATTL,
-		CASubject:     s.config.CASubject,
+		CredBuilder:   credBuilder,
+		CredValidator: credValidator,
 		Dir:           s.config.DataDir,
 		X509CAKeyType: s.config.CAKeyType,
 		JWTKeyType:    s.config.JWTKeyType,
@@ -305,11 +334,10 @@ func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.M
 
 func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (*svid.Rotator, error) {
 	svidRotator := svid.NewRotator(&svid.RotatorConfig{
-		ServerCA:    serverCA,
-		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
-		Metrics:     metrics,
-		TrustDomain: s.config.TrustDomain,
-		KeyType:     s.config.CAKeyType,
+		ServerCA: serverCA,
+		Log:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
+		Metrics:  metrics,
+		KeyType:  s.config.CAKeyType,
 	})
 	if err := svidRotator.Initialize(ctx); err != nil {
 		return nil, err
@@ -325,7 +353,6 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		TrustDomain:         s.config.TrustDomain,
 		Catalog:             catalog,
 		ServerCA:            serverCA,
-		AgentTTL:            s.config.AgentTTL,
 		Log:                 s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		Metrics:             metrics,
 		Manager:             caManager,
