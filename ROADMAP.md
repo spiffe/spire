@@ -9,15 +9,15 @@
 
 ## Near-Term and Medium-Term
 
-* Key Revocation and Forced Rotation (In Progress)
+* [Key Revocation and Forced Rotation (In Progress)](https://github.com/spiffe/spire/issues/1934)
 * Provide a turn-key Kubernetes experience that adheres to security best practices  (In Progress)
-* Deprecate the Notifier plugin interface in favor of a BundlePublisher interface, implementing plugins that push bundles to remote locations (In Progress)
+* [Deprecate the Notifier plugin interface in favor of a BundlePublisher interface, implementing plugins that push bundles to remote locations (In Progress)](https://github.com/spiffe/spire/issues/2909)
 * Support for supply chain provenance attestation by verification of binary signing (e.g. TUF/notary/in-toto metadata validation)
 * Secretless authentication to Google Compute Platform by expanding OIDC Federation integration support
 
 ## Long-Term
 
-* Re-evaluate SPIRE Server API authorization
+* [Re-evaluate SPIRE Server API authorization](https://github.com/spiffe/spire/issues/3620)
 * Ensure error messages are indicative of a direction towards resolution
 * Secretless authentication to Microsoft Azure by expanding OIDC Federation integration support
 
