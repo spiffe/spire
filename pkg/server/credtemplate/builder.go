@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -115,6 +115,9 @@ type Config struct {
 
 type Builder struct {
 	config Config
+
+	x509CAID spiffeid.ID
+	serverID spiffeid.ID
 }
 
 func NewBuilder(config Config) (*Builder, error) {
@@ -147,8 +150,17 @@ func NewBuilder(config Config) (*Builder, error) {
 	if config.NewSerialNumber == nil {
 		config.NewSerialNumber = x509util.NewSerialNumber
 	}
+
+	serverID, err := idutil.ServerID(config.TrustDomain)
+	if err != nil {
+		// This check is purely defensive; idutil.ServerID should not fail since the trust domain is valid.
+		return nil, err
+	}
+
 	return &Builder{
-		config: config,
+		config:   config,
+		x509CAID: config.TrustDomain.ID(),
+		serverID: serverID,
 	}, nil
 }
 
@@ -228,13 +240,7 @@ func (b *Builder) BuildDownstreamX509CATemplate(ctx context.Context, params Down
 }
 
 func (b *Builder) BuildServerX509SVIDTemplate(ctx context.Context, params ServerX509SVIDParams) (*x509.Certificate, error) {
-	spiffeID, err := idutil.ServerID(b.config.TrustDomain)
-	if err != nil {
-		// This check is purely defensive; idutil.ServerID should not fail since the trust domain is valid.
-		return nil, err
-	}
-
-	tmpl, err := b.buildX509SVIDTemplate(spiffeID, params.PublicKey, params.ParentChain, pkix.Name{}, 0)
+	tmpl, err := b.buildX509SVIDTemplate(b.serverID, params.PublicKey, params.ParentChain, pkix.Name{}, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +349,7 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 }
 
 func (b *Builder) buildX509CATemplate(publicKey crypto.PublicKey, parentChain []*x509.Certificate, ttl time.Duration) (*x509.Certificate, error) {
-	tmpl, err := b.buildBaseTemplate(b.config.TrustDomain.ID(), publicKey, parentChain)
+	tmpl, err := b.buildBaseTemplate(b.x509CAID, publicKey, parentChain)
 	if err != nil {
 		return nil, err
 	}
@@ -390,6 +396,93 @@ func (b *Builder) buildX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.P
 	tmpl.Subject.ExtraNames = append(tmpl.Subject.ExtraNames, x509svid.UniqueIDAttribute(spiffeID))
 
 	return tmpl, nil
+}
+
+func (b *Builder) ValidateX509CA(ca *x509.Certificate) error {
+	if !ca.BasicConstraintsValid {
+		return errors.New("invalid X509 CA: basic constraints are not valid")
+	}
+	if !ca.IsCA {
+		return errors.New("invalid X509 CA: cA constraint is not set")
+	}
+	if ca.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return errors.New("invalid X509 CA: keyCertSign key usage must be set")
+	}
+	if ca.KeyUsage&^(x509.KeyUsageCertSign|x509.KeyUsageCRLSign) > 0 {
+		return errors.New("invalid X509 CA: only keyCertSign and cRLSign key usage can be set")
+	}
+	if err := checkURISAN(ca, b.x509CAID); err != nil {
+		return fmt.Errorf("invalid X509 CA: %w", err)
+	}
+	if err := checkX509CertificateExpiration(ca, b.config.Clock.Now()); err != nil {
+		return fmt.Errorf("invalid X509 CA: %w", err)
+	}
+	return nil
+}
+
+func (b *Builder) ValidateX509SVID(svid *x509.Certificate, id spiffeid.ID) error {
+	if !svid.BasicConstraintsValid {
+		return errors.New("invalid X509-SVID: basic constraints are not valid")
+	}
+	if svid.IsCA {
+		return errors.New("invalid X509-SVID: cA constraint must not be set")
+	}
+	if svid.KeyUsage&x509.KeyUsageDigitalSignature == 0 {
+		return errors.New("invalid X509-SVID: digitalSignature key usage must be set")
+	}
+	if svid.KeyUsage&^(x509.KeyUsageDigitalSignature|x509.KeyUsageKeyEncipherment|x509.KeyUsageKeyAgreement) > 0 {
+		return errors.New("invalid X509-SVID: only digitalSignature, keyEncipherment, and keyAgreement key usage can be set")
+	}
+
+	if len(svid.ExtKeyUsage) > 0 {
+		hasServerAuth := hasExtKeyUsage(svid.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
+		hasClientAuth := hasExtKeyUsage(svid.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
+		switch {
+		case !hasServerAuth && hasClientAuth:
+			return errors.New("invalid X509-SVID: missing serverAuth extended key usage")
+		case hasServerAuth && !hasClientAuth:
+			return errors.New("invalid X509-SVID: missing clientAuth extended key usage")
+		case !hasServerAuth && !hasClientAuth:
+			return errors.New("invalid X509-SVID: missing both serverAuth and clientAuth extended key usage")
+		}
+	}
+
+	if err := checkURISAN(svid, id); err != nil {
+		return fmt.Errorf("invalid X509-SVID: %w", err)
+	}
+	if err := checkX509CertificateExpiration(svid, b.config.Clock.Now()); err != nil {
+		return fmt.Errorf("invalid X509-SVID: %w", err)
+	}
+	return nil
+}
+
+func (b *Builder) ValidateWorkloadJWTSVID(rawToken string, id spiffeid.ID) error {
+	token, err := jwt.ParseSigned(rawToken)
+	if err != nil {
+		return fmt.Errorf("failed to parse JWT-SVID for validation: %w", err)
+	}
+
+	var claims jwt.Claims
+	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return fmt.Errorf("failed to extract JWT-SVID claims for validation: %w", err)
+	}
+
+	now := b.config.Clock.Now()
+	switch {
+	case claims.Subject != id.String():
+		return fmt.Errorf(`invalid JWT-SVID "sub" claim: expected %q but got %q`, id, claims.Subject)
+	case claims.Expiry == nil:
+		return errors.New(`invalid JWT-SVID "exp" claim: required but missing`)
+	case !claims.Expiry.Time().After(now):
+		return fmt.Errorf(`invalid JWT-SVID "exp" claim: already expired as of %s`, claims.Expiry.Time().Format(time.RFC3339))
+	case claims.NotBefore != nil && claims.NotBefore.Time().After(now):
+		return fmt.Errorf(`invalid JWT-SVID "nbf" claim: not yet valid until %s`, claims.NotBefore.Time().Format(time.RFC3339))
+	case len(claims.Audience) == 0:
+		return errors.New(`invalid JWT-SVID "aud" claim: required but missing`)
+	case hasEmptyAudienceValue(claims.Audience):
+		return errors.New(`invalid JWT-SVID "aud" claim: contains empty value`)
+	}
+	return nil
 }
 
 func (b *Builder) buildBaseTemplate(spiffeID spiffeid.ID, publicKey crypto.PublicKey, parentChain []*x509.Certificate) (*x509.Certificate, error) {
@@ -489,4 +582,46 @@ func dropEmptyValues(ss []string) []string {
 	}
 	ss = ss[:next]
 	return ss
+}
+
+func checkURISAN(cert *x509.Certificate, id spiffeid.ID) error {
+	if len(cert.URIs) == 0 {
+		return errors.New("missing URI SAN")
+	}
+	if len(cert.URIs) > 1 {
+		return fmt.Errorf("expected URI SAN %q but got %q", id, cert.URIs)
+	}
+	if cert.URIs[0].String() != id.String() {
+		return fmt.Errorf("expected URI SAN %q but got %q", id, cert.URIs[0])
+	}
+	return nil
+}
+
+func checkX509CertificateExpiration(cert *x509.Certificate, now time.Time) error {
+	if !cert.NotBefore.IsZero() && now.Before(cert.NotBefore) {
+		return fmt.Errorf("not yet valid until %s", cert.NotBefore.Format(time.RFC3339))
+	}
+	if !cert.NotAfter.IsZero() && now.After(cert.NotAfter) {
+		return fmt.Errorf("already expired as of %s", cert.NotAfter.Format(time.RFC3339))
+	}
+	return nil
+}
+
+func hasExtKeyUsage(extKeyUsage []x509.ExtKeyUsage, want x509.ExtKeyUsage) bool {
+	for _, candidate := range extKeyUsage {
+		if candidate == want {
+			return true
+		}
+	}
+	return false
+}
+
+func hasEmptyAudienceValue(audience jwt.Audience) bool {
+	// shift audience
+	for _, value := range audience {
+		if value == "" {
+			return true
+		}
+	}
+	return false
 }
