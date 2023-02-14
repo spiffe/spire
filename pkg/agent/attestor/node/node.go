@@ -73,7 +73,7 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 	if bundle == nil {
 		log.Info("Bundle is not found")
 	} else {
-		log = log.WithField(telemetry.TrustDomainID, bundle.TrustDomain().ID())
+		log = log.WithField(telemetry.TrustDomainID, bundle.TrustDomain().IDString())
 		log.Info("Bundle loaded")
 	}
 

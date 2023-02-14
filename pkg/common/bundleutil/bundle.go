@@ -105,6 +105,7 @@ func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 // SPIFFEBundleToBundleUtil is a temporary function that converts a spiffebundle.Bundle to bundleutil.Bundle. This
 // function should be used only for restricting the scope of the changes in places that still use bundleutil.Bundle.
 // It should be removed as soon as we don't have any other reference to bundleutil.Bundle.
+// TODO: (remove this function when bundleutil.Bundle cease to be used)
 func SPIFFEBundleToBundleUtil(b *spiffebundle.Bundle) (*Bundle, error) {
 	bundleProto, err := SPIFFEBundleToProto(b)
 	if err != nil {
@@ -153,8 +154,12 @@ func SPIFFEBundleFromProto(b *common.Bundle) (*spiffebundle.Bundle, error) {
 	if err != nil {
 		return nil, err
 	}
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomainId)
+	if err != nil {
+		return nil, err
+	}
 
-	bundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString(b.TrustDomainId))
+	bundle := spiffebundle.New(td)
 	bundle.SetX509Authorities(rootCAs)
 	bundle.SetJWTAuthorities(jwtSigningKeys)
 	bundle.SetRefreshHint(time.Second * time.Duration(b.RefreshHint))
