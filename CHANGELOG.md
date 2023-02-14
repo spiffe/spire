@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.4.7] - 2023-02-14
+
+### Security
+- Updated to Go 1.19.6 and golang.org/x/net v0.7.0 to address CVE-2022-41723, CVE-2022-41724, CVE-2022-41725.
+
+## [1.4.6] - 2022-12-06
+
+### Security
+- Updated to Go 1.19.4 to address CVE-2022-41717.
+
 ## [1.4.5] - 2022-11-01
 
 ### Security
