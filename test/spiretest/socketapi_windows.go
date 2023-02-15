@@ -18,6 +18,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+var rnd = init()
+
 func StartWorkloadAPI(t *testing.T, server workload.SpiffeWorkloadAPIServer) net.Addr {
 	return StartWorkloadAPIOnNamedPipe(t, namedpipe.GetPipeName(GetRandNamedPipeAddr().String()), server)
 }
@@ -51,9 +53,9 @@ func ServeGRPCServerOnRandPipeName(t *testing.T, server *grpc.Server) net.Addr {
 }
 
 func GetRandNamedPipeAddr() net.Addr {
-	return namedpipe.AddrFromName(fmt.Sprintf("spire-test-%x", rand.Uint64())) // nolint: gosec // used for testing only
+	return namedpipe.AddrFromName(fmt.Sprintf("spire-test-%x", rnd.Uint64())) // nolint: gosec // used for testing only
 }
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
+func init() *rand.Rand {
+	return rand.New(rand.NewSource(time.Now().UnixNano()))
 }
