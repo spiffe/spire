@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var rnd = init()
+var rnd *rand.Rand = init()
 
 func StartWorkloadAPI(t *testing.T, server workload.SpiffeWorkloadAPIServer) net.Addr {
 	return StartWorkloadAPIOnNamedPipe(t, namedpipe.GetPipeName(GetRandNamedPipeAddr().String()), server)
