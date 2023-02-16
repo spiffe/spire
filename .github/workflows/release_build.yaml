@@ -52,9 +52,7 @@ jobs:
         uses: actions/cache@6998d139ddd3e68c71e9e398d8e40b71a2f39812 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
+          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Lint
         run: make lint
       - name: Tidy check
@@ -136,9 +134,7 @@ jobs:
         uses: actions/cache@6998d139ddd3e68c71e9e398d8e40b71a2f39812 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
+          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh
       - name: Archive artifacts
@@ -171,9 +167,7 @@ jobs:
         uses: actions/cache@6998d139ddd3e68c71e9e398d8e40b71a2f39812 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
+          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Build images
         run: make images
       - name: Export images
@@ -258,9 +252,7 @@ jobs:
         uses: actions/cache@6998d139ddd3e68c71e9e398d8e40b71a2f39812 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
+          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Download archived images
         uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # ratchet:actions/download-artifact@v3.0.2
         with:
@@ -307,9 +299,7 @@ jobs:
         uses: actions/cache@6998d139ddd3e68c71e9e398d8e40b71a2f39812 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
+          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Install msys2
         uses: msys2/setup-msys2@d40200dc2db4c351366b048a9565ad82919e1c24 # ratchet:msys2/setup-msys2@v2
         with:
@@ -378,9 +368,7 @@ jobs:
         uses: actions/cache@6998d139ddd3e68c71e9e398d8e40b71a2f39812 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
+          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Install msys2
         uses: msys2/setup-msys2@d40200dc2db4c351366b048a9565ad82919e1c24 # ratchet:msys2/setup-msys2@v2
         with:
@@ -455,9 +443,7 @@ jobs:
         uses: actions/cache@6998d139ddd3e68c71e9e398d8e40b71a2f39812 # ratchet:actions/cache@v3.2.4
         with:
           path: .build
-          key: ${{ runner.os }}-tools-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-tools-
+          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Install msys2
         uses: msys2/setup-msys2@d40200dc2db4c351366b048a9565ad82919e1c24 # ratchet:msys2/setup-msys2@v2
         with:
