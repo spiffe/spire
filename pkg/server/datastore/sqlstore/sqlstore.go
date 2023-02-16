@@ -1650,8 +1650,6 @@ func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string) (*common.Attes
 	return modelToAttestedNode(nodeModel), nil
 }
 
-//func deleteNodeSelector(tx *gorm.DB, selectorID) error {}
-
 func setNodeSelectors(tx *gorm.DB, spiffeID string, selectors []*common.Selector) error {
 	// Previously the deletion of the previous set of node selectors was
 	// implemented via query like DELETE FROM node_resolver_map_entries WHERE

@@ -1099,33 +1099,38 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 }
 
 func (s *PluginSuite) TestDeleteAttestedNode() {
-	entry := &common.AttestedNode{
+	entryFoo := &common.AttestedNode{
 		SpiffeId:            "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	}
+	entryBar := &common.AttestedNode{
+		SpiffeId:            "bar",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
 	s.Run("delete non-existing attested node", func() {
-		_, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
+		_, err := s.ds.DeleteAttestedNode(ctx, entryFoo.SpiffeId)
 		s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 	})
 
 	s.Run("delete attested node that don't have selectors associated", func() {
-		_, err := s.ds.CreateAttestedNode(ctx, entry)
+		_, err := s.ds.CreateAttestedNode(ctx, entryFoo)
 		s.Require().NoError(err)
 
-		deletedNode, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
+		deletedNode, err := s.ds.DeleteAttestedNode(ctx, entryFoo.SpiffeId)
 		s.Require().NoError(err)
-		s.AssertProtoEqual(entry, deletedNode)
+		s.AssertProtoEqual(entryFoo, deletedNode)
 
-		attestedNode, err := s.ds.FetchAttestedNode(ctx, entry.SpiffeId)
+		attestedNode, err := s.ds.FetchAttestedNode(ctx, entryFoo.SpiffeId)
 		s.Require().NoError(err)
 		s.Nil(attestedNode)
 	})
 
 	s.Run("delete attested node with associated selectors", func() {
-		// delete attested and associated selectors
 		selectors := []*common.Selector{
 			{Type: "TYPE1", Value: "VALUE1"},
 			{Type: "TYPE2", Value: "VALUE2"},
@@ -1133,26 +1138,34 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 			{Type: "TYPE4", Value: "VALUE4"},
 		}
 
-		_, err := s.ds.CreateAttestedNode(ctx, entry)
+		_, err := s.ds.CreateAttestedNode(ctx, entryFoo)
 		s.Require().NoError(err)
-		err = s.ds.SetNodeSelectors(ctx, entry.SpiffeId, selectors)
+		err = s.ds.SetNodeSelectors(ctx, entryFoo.SpiffeId, selectors)
+		s.Require().NoError(err)
+		err = s.ds.SetNodeSelectors(ctx, entryBar.SpiffeId, selectors)
 		s.Require().NoError(err)
 
-		nodeSelectors, err := s.ds.GetNodeSelectors(ctx, entry.SpiffeId, datastore.TolerateStale)
+		nodeSelectors, err := s.ds.GetNodeSelectors(ctx, entryFoo.SpiffeId, datastore.TolerateStale)
 		s.Require().NoError(err)
 		s.Equal(selectors, nodeSelectors)
 
-		deletedNode, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
+		deletedNode, err := s.ds.DeleteAttestedNode(ctx, entryFoo.SpiffeId)
 		s.Require().NoError(err)
-		s.AssertProtoEqual(entry, deletedNode)
+		s.AssertProtoEqual(entryFoo, deletedNode)
 
 		attestedNode, err := s.ds.FetchAttestedNode(ctx, deletedNode.SpiffeId)
 		s.Require().NoError(err)
 		s.Nil(attestedNode)
 
-		nodeSelectors, err = s.ds.GetNodeSelectors(ctx, deletedNode.SpiffeId, datastore.TolerateStale)
+		// check that selectors for deleted node are gone
+		deletedSelectors, err := s.ds.GetNodeSelectors(ctx, deletedNode.SpiffeId, datastore.TolerateStale)
 		s.Require().NoError(err)
-		s.Nil(nodeSelectors)
+		s.Nil(deletedSelectors)
+
+		// check that selectors for entryBar are still there
+		nodeSelectors, err = s.ds.GetNodeSelectors(ctx, entryBar.SpiffeId, datastore.TolerateStale)
+		s.Require().NoError(err)
+		s.Equal(selectors, nodeSelectors)
 	})
 }
 
