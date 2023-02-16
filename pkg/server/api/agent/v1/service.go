@@ -100,9 +100,14 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 		if filter.ByBanned != nil {
 			byBanned = &filter.ByBanned.Value
 		}
+		var byCanReAttest *bool
+		if filter.ByCanReAttest != nil {
+			byCanReAttest = &filter.ByCanReAttest.Value
+		}
 
 		listReq.ByAttestationType = filter.ByAttestationType
 		listReq.ByBanned = byBanned
+		listReq.ByCanReAttest = byCanReAttest
 
 		if filter.BySelectorMatch != nil {
 			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)
@@ -635,6 +640,10 @@ func applyMask(a *types.Agent, mask *types.AgentMask) {
 	if !mask.Banned {
 		a.Banned = false
 	}
+
+	if !mask.CanReAttest {
+		a.CanReAttest = false
+	}
 }
 
 func validateAttestAgentParams(params *agentv1.AttestAgentRequest_Params) error {
@@ -682,6 +691,10 @@ func fieldsFromFilterRequest(filter *agentv1.ListAgentsRequest_Filter) logrus.Fi
 
 	if filter.ByBanned != nil {
 		fields[telemetry.ByBanned] = filter.ByBanned.Value
+	}
+
+	if filter.ByCanReAttest != nil {
+		fields[telemetry.ByCanReAttest] = filter.ByCanReAttest.Value
 	}
 
 	if filter.BySelectorMatch != nil {

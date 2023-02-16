@@ -1283,9 +1283,9 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 		}
 	}
 
-	// Filter by CanReattest. This is similar to ByBanned
-	if req.ByCanReattest != nil {
-		if *req.ByCanReattest {
+	// Filter by CanReAttest. This is similar to ByBanned
+	if req.ByCanReAttest != nil {
+		if *req.ByCanReAttest {
 			builder.WriteString("\t\tAND can_reattest = true\n")
 		} else {
 			builder.WriteString("\t\tAND can_reattest = false\n")
@@ -1511,8 +1511,8 @@ FROM attested_node_entries N
 		}
 
 		// Filter by CanReattest. This is similar to ByBanned
-		if req.ByCanReattest != nil {
-			if *req.ByCanReattest {
+		if req.ByCanReAttest != nil {
+			if *req.ByCanReAttest {
 				builder.WriteString("\t\tAND can_reattest = true\n")
 			} else {
 				builder.WriteString("\t\tAND can_reattest = false\n")

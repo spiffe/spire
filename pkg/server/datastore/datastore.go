@@ -135,7 +135,7 @@ type ListAttestedNodesRequest struct {
 	BySelectorMatch   *BySelectors
 	FetchSelectors    bool
 	Pagination        *Pagination
-	ByCanReattest     *bool
+	ByCanReAttest     *bool
 }
 
 type ListAttestedNodesResponse struct {
