@@ -345,13 +345,13 @@ agent {
 SPIRE agent has support for the [Envoy](https://envoyproxy.io) [Secret Discovery Service](https://www.envoyproxy.io/docs/envoy/latest/configuration/security/secret) (SDS).
 SDS is served over the same Unix domain socket as the Workload API. Envoy processes connecting to SDS are attested as workloads.
 
-[`auth.TlsCertificate`](https://www.envoyproxy.io/docs/envoy/latest/api-v2/api/v2/auth/cert.proto#envoy-api-msg-auth-tlscertificate)
+[`tlsv3.TlsCertificate`](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#extensions-transport-sockets-tls-v3-tlscertificate)
 resources containing X509-SVIDs can be fetched using the SPIFFE ID of the workload as the resource name
-(e.g. `spiffe://example.org/database`). Alternatively, if the default name "default" is used, the `auth.TlsCertificate`
+(e.g. `spiffe://example.org/database`). Alternatively, if the default name "default" is used, the `tlsv3.TlsCertificate`
 containing the default X509-SVID for the workload (i.e. Envoy) is fetched.
 The default name is configurable (see `default_svid_name` under [SDS Configuration](#sds-configuration)).
 
-[`auth.CertificateValidationContext`](https://www.envoyproxy.io/docs/envoy/latest/api-v2/api/v2/auth/cert.proto#auth-certificatevalidationcontext)
+[`tlsv3.CertificateValidationContext`](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/transport_sockets/tls/v3/common.proto#extensions-transport-sockets-tls-v3-certificatevalidationcontext)
 resources containing trusted CA certificates can be fetched using the SPIFFE ID
 of the desired trust domain as the resource name (e.g. `spiffe://example.org`).
 In addition, two other special resource names are available. The first, which
