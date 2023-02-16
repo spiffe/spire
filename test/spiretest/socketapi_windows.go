@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
