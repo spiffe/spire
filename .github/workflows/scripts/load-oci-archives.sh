@@ -44,7 +44,7 @@ command -v docker >/dev/null 2>&1 || { usage; echo -e "\n * The docker cli is re
 # linux/arm64/v7
 PLATFORM="${PLATFORM:-local}"
 OCI_IMAGES=(
-    spire-server spire-agent k8s-workload-registrar oidc-discovery-provider
+    spire-server spire-agent oidc-discovery-provider
 )
 
 echo "Importing ${OCI_IMAGES[*]} into docker".

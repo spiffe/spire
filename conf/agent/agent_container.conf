@@ -1,0 +1,25 @@
+agent {
+    data_dir = "/var/lib/spire/agent/.data"
+    log_level = "DEBUG"
+    server_address = "127.0.0.1"
+    server_port = "8081"
+    socket_path ="/run/spire/agent/public/api.sock"
+    trust_bundle_path = "/etc/spire/agent/dummy_root_ca.crt"
+    trust_domain = "example.org"
+}
+
+plugins {
+    NodeAttestor "join_token" {
+        plugin_data {
+        }
+    }
+    KeyManager "disk" {
+        plugin_data {
+            directory = "/var/lib/spire/agent/.data"
+        }
+    }
+    WorkloadAttestor "unix" {
+        plugin_data {
+        }
+    }
+}

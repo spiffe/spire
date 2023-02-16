@@ -68,10 +68,6 @@ cp "${REPODIR}"/LICENSE "${EXTRAS_STAGING}"
 mkdir -p "${STAGING}"/bin "${EXTRAS_STAGING}"/bin
 cp "${BINDIR}"/spire-server${BINARY_EXTENSION} "${STAGING}"/bin
 cp "${BINDIR}"/spire-agent${BINARY_EXTENSION} "${STAGING}"/bin
-# Exclude registrar from windows artifact
-if [ $OS != "windows" ]; then 
-    cp "${BINDIR}"/k8s-workload-registrar${BINARY_EXTENSION} "${EXTRAS_STAGING}"/bin
-fi
 cp "${BINDIR}"/oidc-discovery-provider${BINARY_EXTENSION} "${EXTRAS_STAGING}"/bin
 
 mkdir -p "${OUTDIR}"

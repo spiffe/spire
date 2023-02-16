@@ -344,11 +344,15 @@ func TestListenAndServe(t *testing.T) {
 			require.Error(t, err)
 
 			switch {
+			// This message can be returned on macOS
+			case strings.Contains(err.Error(), "write: broken pipe"):
+			// This message can be returned on Windows
+			case strings.Contains(err.Error(), "connection was forcibly closed by the remote host"):
 			case strings.Contains(err.Error(), "connection reset by peer"):
 			case strings.Contains(err.Error(), "tls: bad certificate"):
 				return
 			default:
-				t.Error("expected invalid connection for misconfigured foreign admin caller")
+				t.Errorf("expected invalid connection for misconfigured foreign admin caller: %s", err.Error())
 			}
 		}
 	})

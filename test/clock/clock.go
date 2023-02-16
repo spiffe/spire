@@ -24,6 +24,11 @@ type Mock struct {
 
 // NewMock creates a mock clock which can be precisely controlled
 func NewMock(t testing.TB) *Mock {
+	return NewMockAt(t, time.Now())
+}
+
+// NewMockAt creates a mock clock which can be precisely controlled at a specific time.
+func NewMockAt(t testing.TB, now time.Time) *Mock {
 	m := &Mock{
 		Mock:    clock.NewMock(),
 		t:       t,
@@ -40,7 +45,7 @@ func NewMock(t testing.TB) *Mock {
 	//
 	// TODO: plumb the clock into the TLS configs. (Clock).Now should be passed to "crypto/tls".(Config).Time
 	// and then this can be removed as a clock could be use with a zero value at that point.
-	m.Set(time.Now().Truncate(time.Second))
+	m.Set(now.Truncate(time.Second))
 	return m
 }
 
