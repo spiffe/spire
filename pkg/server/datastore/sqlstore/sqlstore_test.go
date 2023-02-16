@@ -1106,20 +1106,54 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	// delete it before it exists
-	_, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
-	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
+	s.Run("delete non-existing attested node", func() {
+		_, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
+		s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
+	})
 
-	_, err = s.ds.CreateAttestedNode(ctx, entry)
-	s.Require().NoError(err)
+	s.Run("delete attested node that don't have selectors associated", func() {
+		_, err := s.ds.CreateAttestedNode(ctx, entry)
+		s.Require().NoError(err)
 
-	deletedNode, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
-	s.Require().NoError(err)
-	s.AssertProtoEqual(entry, deletedNode)
+		deletedNode, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
+		s.Require().NoError(err)
+		s.AssertProtoEqual(entry, deletedNode)
 
-	attestedNode, err := s.ds.FetchAttestedNode(ctx, entry.SpiffeId)
-	s.Require().NoError(err)
-	s.Nil(attestedNode)
+		attestedNode, err := s.ds.FetchAttestedNode(ctx, entry.SpiffeId)
+		s.Require().NoError(err)
+		s.Nil(attestedNode)
+	})
+
+	s.Run("delete attested node with associated selectors", func() {
+		// delete attested and associated selectors
+		selectors := []*common.Selector{
+			{Type: "TYPE1", Value: "VALUE1"},
+			{Type: "TYPE2", Value: "VALUE2"},
+			{Type: "TYPE3", Value: "VALUE3"},
+			{Type: "TYPE4", Value: "VALUE4"},
+		}
+
+		_, err := s.ds.CreateAttestedNode(ctx, entry)
+		s.Require().NoError(err)
+		err = s.ds.SetNodeSelectors(ctx, entry.SpiffeId, selectors)
+		s.Require().NoError(err)
+
+		nodeSelectors, err := s.ds.GetNodeSelectors(ctx, entry.SpiffeId, datastore.TolerateStale)
+		s.Require().NoError(err)
+		s.Equal(selectors, nodeSelectors)
+
+		deletedNode, err := s.ds.DeleteAttestedNode(ctx, entry.SpiffeId)
+		s.Require().NoError(err)
+		s.AssertProtoEqual(entry, deletedNode)
+
+		attestedNode, err := s.ds.FetchAttestedNode(ctx, deletedNode.SpiffeId)
+		s.Require().NoError(err)
+		s.Nil(attestedNode)
+
+		nodeSelectors, err = s.ds.GetNodeSelectors(ctx, deletedNode.SpiffeId, datastore.TolerateStale)
+		s.Require().NoError(err)
+		s.Nil(nodeSelectors)
+	})
 }
 
 func (s *PluginSuite) TestNodeSelectors() {

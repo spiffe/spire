@@ -262,7 +262,7 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 // DeleteAttestedNode deletes the given attested node
 func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		attestedNode, err = deleteAttestedNode(tx, spiffeID)
+		attestedNode, err = deleteAttestedNodeAndSelectors(tx, spiffeID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -1628,18 +1628,29 @@ func updateAttestedNode(tx *gorm.DB, n *common.AttestedNode, mask *common.Attest
 	return modelToAttestedNode(model), nil
 }
 
-func deleteAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
-	var model AttestedNode
-	if err := tx.Find(&model, "spiffe_id = ?", spiffeID).Error; err != nil {
+func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
+	var (
+		nodeModel         AttestedNode
+		nodeSelectorModel NodeSelector
+	)
+
+	// batch delete all associated node selectors
+	if err := tx.Where("spiffe_id = ?", spiffeID).Delete(&nodeSelectorModel).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	if err := tx.Delete(&model).Error; err != nil {
+	if err := tx.Find(&nodeModel, "spiffe_id = ?", spiffeID).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	return modelToAttestedNode(model), nil
+	if err := tx.Delete(&nodeModel).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	return modelToAttestedNode(nodeModel), nil
 }
+
+//func deleteNodeSelector(tx *gorm.DB, selectorID) error {}
 
 func setNodeSelectors(tx *gorm.DB, spiffeID string, selectors []*common.Selector) error {
 	// Previously the deletion of the previous set of node selectors was
