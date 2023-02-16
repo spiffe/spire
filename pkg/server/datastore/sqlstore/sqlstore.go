@@ -259,7 +259,7 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 	return node, nil
 }
 
-// DeleteAttestedNode deletes the given attested node
+// DeleteAttestedNode deletes the given attested node and the associated node selectors.
 func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		attestedNode, err = deleteAttestedNodeAndSelectors(tx, spiffeID)

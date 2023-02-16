@@ -1140,8 +1140,10 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 
 		_, err := s.ds.CreateAttestedNode(ctx, entryFoo)
 		s.Require().NoError(err)
+		// create selectors for entryFoo
 		err = s.ds.SetNodeSelectors(ctx, entryFoo.SpiffeId, selectors)
 		s.Require().NoError(err)
+		// create selectors for entryBar
 		err = s.ds.SetNodeSelectors(ctx, entryBar.SpiffeId, selectors)
 		s.Require().NoError(err)
 
