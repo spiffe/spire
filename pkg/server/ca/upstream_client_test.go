@@ -25,7 +25,7 @@ import (
 
 var (
 	caKey       = testkey.MustEC256()
-	csr, _      = generateServerCACSR()
+	csr         = generateServerCACSR()
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 )
 
@@ -254,26 +254,26 @@ func makePublicKey(t *testing.T, kid string) *common.PublicKey {
 	}
 }
 
-func generateServerCACSR() ([]byte, error) {
+func generateServerCACSR() []byte {
 	builder, err := credtemplate.NewBuilder(credtemplate.Config{
 		TrustDomain:   trustDomain,
 		X509CASubject: pkix.Name{CommonName: "FAKE CA"},
 	})
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	template, err := builder.BuildUpstreamSignedX509CACSR(context.Background(), credtemplate.UpstreamSignedX509CAParams{
 		PublicKey: caKey.Public(),
 	})
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, template, caKey)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
-	return csr, nil
+	return csr
 }

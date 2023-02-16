@@ -339,7 +339,7 @@ func (ca *CA) signX509SVID(x509CA *X509CA, template *x509.Certificate) ([]*x509.
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign X509 SVID: %w", err)
 	}
-	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics)
+	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics)
 	return makeCertChain(x509CA, x509SVID), nil
 }
 
