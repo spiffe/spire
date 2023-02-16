@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 // This file is used during testing. It is built as an external binary
@@ -11,6 +12,7 @@ import (
 	"net"
 	"os"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -22,7 +24,7 @@ func main() {
 	if socketPath == "" {
 		fmt.Fprintf(os.Stdout, "i'm alive!")
 
-		select {}
+		time.Sleep(1 * time.Minute)
 	}
 
 	if socketPath == "" {
