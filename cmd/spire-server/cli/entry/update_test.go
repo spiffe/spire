@@ -26,7 +26,7 @@ func TestUpdateSynopsis(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	entry0JSON := `{
         "id": "entry-id",
-		"hint": "",
+        "hint": "",
         "spiffe_id": {
           "trust_domain": "example.org",
           "path": "/workload"
@@ -64,7 +64,7 @@ func TestUpdate(t *testing.T) {
       }`
 	entry0AdminJSON := `{
         "id": "entry-id",
-		"hint": "",
+        "hint": "",
         "spiffe_id": {
           "trust_domain": "example.org",
           "path": "/workload"
@@ -102,7 +102,7 @@ func TestUpdate(t *testing.T) {
       }`
 	entry1JSON := `{
         "id": "entry-id-1",
-		"hint": "",
+        "hint": "",
         "spiffe_id": {
           "trust_domain": "example.org",
           "path": "/Blog"
@@ -131,7 +131,7 @@ func TestUpdate(t *testing.T) {
     }`
 	entry2JSON := `{
         "id": "entry-id-2",
-		"hint": "",
+        "hint": "",
         "spiffe_id": {
           "trust_domain": "example.org",
           "path": "/Database"
@@ -160,7 +160,7 @@ func TestUpdate(t *testing.T) {
     }`
 	entry3JSON := `{
         "id": "entry-id-3",
-		"hint": "",
+        "hint": "",
         "spiffe_id": {
           "trust_domain": "example.org",
           "path": "/Storesvid"
@@ -192,7 +192,7 @@ func TestUpdate(t *testing.T) {
       }`
 	nonExistentEntryJSON := `{
         "id": "non-existent-id",
-		"hint": "",
+        "hint": "",
         "spiffe_id": {
           "trust_domain": "example.org",
           "path": "/workload"
