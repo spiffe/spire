@@ -3,7 +3,7 @@ module github.com/spiffe/spire
 go 1.19
 
 require (
-	cloud.google.com/go/iam v0.10.0
+	cloud.google.com/go/iam v0.12.0
 	cloud.google.com/go/kms v1.8.0
 	cloud.google.com/go/secretmanager v1.10.0
 	cloud.google.com/go/security v1.12.0
@@ -70,7 +70,7 @@ require (
 	golang.org/x/sys v0.5.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.110.0
-	google.golang.org/genproto v0.0.0-20230209215440-0dfe4f8abfcc
+	google.golang.org/genproto v0.0.0-20230216225411-c8e22ba71e44
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.1
 	gopkg.in/square/go-jose.v2 v2.6.0
