@@ -21,7 +21,7 @@ var (
 `
 	socketAddrArg         = "-socketPath"
 	socketAddrUnavailable = "/tmp/doesnotexist.sock"
-	unavailableErr        = "Failed to check health: rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing dial unix /tmp/doesnotexist.sock: connect: no such file or directory\"\nAgent is unhealthy: unable to determine health\n"
+	unavailableErr        = "Failed to check health: rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial unix /tmp/doesnotexist.sock: connect: no such file or directory\"\nAgent is unhealthy: unable to determine health\n"
 )
 
 func startGRPCSocketServer(t *testing.T, registerFn func(srv *grpc.Server)) string {

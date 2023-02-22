@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/x509svid"
@@ -24,11 +23,12 @@ import (
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 var (
 	ctx              = context.Background()
-	now              = time.Now().UTC().Add(time.Hour).Truncate(time.Minute)
+	now              = time.Now().Add(time.Hour).Truncate(time.Minute)
 	td               = spiffeid.RequireTrustDomainFromString("domain.test")
 	sn               = big.NewInt(99)
 	publicKey        = testkey.MustEC256().Public()

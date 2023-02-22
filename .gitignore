@@ -19,11 +19,9 @@ svid.*.pem
 # within the respective main packages.
 /spire-server
 /spire-agent
-/k8s-workload-registrar
 /oidc-discovery-provider
 cmd/spire-server/spire-server
 cmd/spire-agent/spire-agent
-support/k8s/k8s-workload-registrar/k8s-workload-registrar
 support/oidc-discovery-provider/oidc-discovery-provider
 tools/spire-plugingen/spire-plugingen
 

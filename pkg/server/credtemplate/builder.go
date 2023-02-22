@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -115,6 +115,9 @@ type Config struct {
 
 type Builder struct {
 	config Config
+
+	x509CAID spiffeid.ID
+	serverID spiffeid.ID
 }
 
 func NewBuilder(config Config) (*Builder, error) {
@@ -147,8 +150,17 @@ func NewBuilder(config Config) (*Builder, error) {
 	if config.NewSerialNumber == nil {
 		config.NewSerialNumber = x509util.NewSerialNumber
 	}
+
+	serverID, err := idutil.ServerID(config.TrustDomain)
+	if err != nil {
+		// This check is purely defensive; idutil.ServerID should not fail since the trust domain is valid.
+		return nil, err
+	}
+
 	return &Builder{
-		config: config,
+		config:   config,
+		x509CAID: config.TrustDomain.ID(),
+		serverID: serverID,
 	}, nil
 }
 
@@ -228,13 +240,7 @@ func (b *Builder) BuildDownstreamX509CATemplate(ctx context.Context, params Down
 }
 
 func (b *Builder) BuildServerX509SVIDTemplate(ctx context.Context, params ServerX509SVIDParams) (*x509.Certificate, error) {
-	spiffeID, err := idutil.ServerID(b.config.TrustDomain)
-	if err != nil {
-		// This check is purely defensive; idutil.ServerID should not fail since the trust domain is valid.
-		return nil, err
-	}
-
-	tmpl, err := b.buildX509SVIDTemplate(spiffeID, params.PublicKey, params.ParentChain, pkix.Name{}, 0)
+	tmpl, err := b.buildX509SVIDTemplate(b.serverID, params.PublicKey, params.ParentChain, pkix.Name{}, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -343,7 +349,7 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 }
 
 func (b *Builder) buildX509CATemplate(publicKey crypto.PublicKey, parentChain []*x509.Certificate, ttl time.Duration) (*x509.Certificate, error) {
-	tmpl, err := b.buildBaseTemplate(b.config.TrustDomain.ID(), publicKey, parentChain)
+	tmpl, err := b.buildBaseTemplate(b.x509CAID, publicKey, parentChain)
 	if err != nil {
 		return nil, err
 	}

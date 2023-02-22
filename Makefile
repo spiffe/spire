@@ -50,13 +50,11 @@ help:
 	@echo "  $(cyan)images$(reset)                                - build all SPIRE Docker images"
 	@echo "  $(cyan)spire-server-image$(reset)                    - build SPIRE server Docker image"
 	@echo "  $(cyan)spire-agent-image$(reset)                     - build SPIRE agent Docker image"
-	@echo "  $(cyan)k8s-workload-registrar-image$(reset)          - build Kubernetes Workload Registrar Docker image"
 	@echo "  $(cyan)oidc-discovery-provider-image$(reset)         - build OIDC Discovery Provider Docker image"
 	@echo "$(bold)Windows docker image:$(reset)"
 	@echo "  $(cyan)images-windows$(reset)                        - build all SPIRE Docker images for windows"
 	@echo "  $(cyan)spire-server-image-windows$(reset)            - build SPIRE server Docker image for windows"
 	@echo "  $(cyan)spire-agent-image-windows$(reset)             - build SPIRE agent Docker image for windows"
-	@echo "  $(cyan)k8s-workload-registrar-image-windows$(reset)  - build Kubernetes Workload Registrar Docker image for windows"
 	@echo "  $(cyan)oidc-discovery-provider-image-windows$(reset) - build OIDC Discovery Provider Docker image for windows"
 	@echo "$(bold)Developer support:$(reset)"
 	@echo "  $(cyan)dev-image$(reset)                             - build the development Docker image"
@@ -107,7 +105,7 @@ endif
 
 PLATFORMS ?= linux/amd64,linux/arm64
 
-binaries := spire-server spire-agent oidc-discovery-provider k8s-workload-registrar
+binaries := spire-server spire-agent oidc-discovery-provider
 
 build_dir := $(DIR)/.build/$(os1)-$(arch1)
 
@@ -348,7 +346,6 @@ images: $(addsuffix -image,$(binaries))
 
 $(eval $(call image_rule,spire-server-image,spire-server,Dockerfile))
 $(eval $(call image_rule,spire-agent-image,spire-agent,Dockerfile))
-$(eval $(call image_rule,k8s-workload-registrar-image,k8s-workload-registrar,Dockerfile))
 $(eval $(call image_rule,oidc-discovery-provider-image,oidc-discovery-provider,Dockerfile))
 
 load-images:
@@ -375,7 +372,6 @@ images-windows: $(addsuffix -windows-image,$(binaries))
 
 $(eval $(call windows_image_rule,spire-server-windows-image,spire-server-windows,Dockerfile.windows))
 $(eval $(call windows_image_rule,spire-agent-windows-image,spire-agent-windows,Dockerfile.windows))
-$(eval $(call windows_image_rule,k8s-workload-registrar-windows-image,k8s-workload-registrar-windows,Dockerfile.windows))
 $(eval $(call windows_image_rule,oidc-discovery-provider-windows-image,oidc-discovery-provider-windows,Dockerfile.windows))
 
 #############################################################################

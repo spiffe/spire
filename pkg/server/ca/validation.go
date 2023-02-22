@@ -4,11 +4,16 @@ import (
 	"crypto"
 	"crypto/x509"
 	"fmt"
+	"math/big"
+	"net/url"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/credvalidator"
 )
 
 var (
@@ -18,40 +23,46 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzLY1/SRlsMJExTnuvzBO292RjGjU
 -----END PUBLIC KEY-----`))
 )
 
-type X509CAValidator struct {
-	TrustDomain spiffeid.TrustDomain
-	Signer      crypto.Signer
+type x509CAValidator struct {
+	TrustDomain   spiffeid.TrustDomain
+	CredValidator *credvalidator.Validator
+	Signer        crypto.Signer
+	Clock         clock.Clock
 }
 
-func (v X509CAValidator) ValidateUpstreamX509CA(x509CA, upstreamRoots []*x509.Certificate) error {
+func (v *x509CAValidator) ValidateUpstreamX509CA(x509CA, upstreamRoots []*x509.Certificate) error {
 	return v.validateX509CA(x509CA[0], upstreamRoots, x509CA)
 }
-func (v X509CAValidator) ValidateSelfSignedX509CA(x509CA *x509.Certificate) error {
+
+func (v *x509CAValidator) ValidateSelfSignedX509CA(x509CA *x509.Certificate) error {
 	return v.validateX509CA(x509CA, []*x509.Certificate{x509CA}, nil)
 }
 
-func (v X509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, upstreamChain []*x509.Certificate) error {
+func (v *x509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, upstreamChain []*x509.Certificate) error {
+	if err := v.CredValidator.ValidateX509CA(x509CA); err != nil {
+		return fmt.Errorf("invalid upstream-signed X509 CA: %w", err)
+	}
+
 	spiffeID, err := spiffeid.FromPath(v.TrustDomain, "/spire/throwaway")
 	if err != nil {
 		return fmt.Errorf("unexpected error making ID for validation: %w", err)
 	}
-	params := X509SVIDParams{
-		SpiffeID:  spiffeID,
-		PublicKey: validationPubkey,
-	}
 
 	bundle := x509bundle.FromX509Authorities(v.TrustDomain, x509Roots)
 
-	svid, err := signX509SVID(v.TrustDomain, &X509CA{
-		Signer:        v.Signer,
-		Certificate:   x509CA,
-		UpstreamChain: upstreamChain,
-	}, params, x509CA.NotBefore, x509CA.NotAfter)
+	svid, err := x509util.CreateCertificate(&x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotAfter:     x509CA.NotAfter,
+		NotBefore:    x509CA.NotBefore,
+		URIs:         []*url.URL{spiffeID.URL()},
+	}, x509CA, validationPubkey, v.Signer)
 	if err != nil {
-		return fmt.Errorf("unable to sign throwaway SVID for X509 CA validation: %w", err)
+		return fmt.Errorf("failed to sign validation certificate: %w", err)
 	}
 
-	if _, _, err := x509svid.Verify(svid, bundle); err != nil {
+	svidChain := append([]*x509.Certificate{svid}, upstreamChain...)
+
+	if _, _, err := x509svid.Verify(svidChain, bundle); err != nil {
 		return fmt.Errorf("X509 CA produced an invalid X509-SVID chain: %w", err)
 	}
 	return nil
