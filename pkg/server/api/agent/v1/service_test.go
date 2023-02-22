@@ -350,7 +350,7 @@ func TestListAgents(t *testing.T) {
 						Id:                   api.ProtoFromID(node1ID),
 						AttestationType:      "t1",
 						Banned:               false,
-						CanReAttest:          false,
+						CanReattest:          false,
 						X509SvidExpiresAt:    notAfter,
 						X509SvidSerialNumber: "badcafe",
 						Selectors: []*types.Selector{
@@ -362,7 +362,7 @@ func TestListAgents(t *testing.T) {
 						Id:                   api.ProtoFromID(node2ID),
 						AttestationType:      "t2",
 						Banned:               false,
-						CanReAttest:          false,
+						CanReattest:          false,
 						X509SvidExpiresAt:    notAfter,
 						X509SvidSerialNumber: "deadbeef",
 						Selectors: []*types.Selector{
@@ -374,7 +374,7 @@ func TestListAgents(t *testing.T) {
 						Id:                   api.ProtoFromID(node3ID),
 						AttestationType:      "t3",
 						Banned:               true,
-						CanReAttest:          true,
+						CanReattest:          true,
 						X509SvidExpiresAt:    notAfter,
 						X509SvidSerialNumber: "",
 					},
@@ -495,7 +495,7 @@ func TestListAgents(t *testing.T) {
 			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
 				Filter: &agentv1.ListAgentsRequest_Filter{
-					ByCanReAttest: &wrapperspb.BoolValue{Value: true},
+					ByCanReattest: &wrapperspb.BoolValue{Value: true},
 				},
 			},
 			expectResp: &agentv1.ListAgentsResponse{
@@ -510,7 +510,7 @@ func TestListAgents(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "success",
 						telemetry.Type:          "audit",
-						telemetry.ByCanReAttest: "true",
+						telemetry.ByCanReattest: "true",
 					},
 				},
 			},
@@ -520,7 +520,7 @@ func TestListAgents(t *testing.T) {
 			req: &agentv1.ListAgentsRequest{
 				OutputMask: &types.AgentMask{},
 				Filter: &agentv1.ListAgentsRequest_Filter{
-					ByCanReAttest: &wrapperspb.BoolValue{Value: false},
+					ByCanReattest: &wrapperspb.BoolValue{Value: false},
 				},
 			},
 			expectResp: &agentv1.ListAgentsResponse{
@@ -536,7 +536,7 @@ func TestListAgents(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "success",
 						telemetry.Type:          "audit",
-						telemetry.ByCanReAttest: "false",
+						telemetry.ByCanReattest: "false",
 					},
 				},
 			},

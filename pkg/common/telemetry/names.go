@@ -160,8 +160,8 @@ const (
 	// ByBanned tags filtering by banned agents
 	ByBanned = "by_banned"
 
-	// ByCanReAttest tags filtering by agents that can re-attest
-	ByCanReAttest = "by_can_re_attest"
+	// ByCanReattest tags filtering by agents that can re-attest
+	ByCanReattest = "by_can_reattest"
 
 	// BySelectorMatch tags Match used when filtering by Selectors
 	BySelectorMatch = "by_selector_match"
