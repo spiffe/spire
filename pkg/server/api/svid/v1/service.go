@@ -97,11 +97,11 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		}
 	}
 
-	x509SVID, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  id,
+	x509SVID, err := s.ca.SignWorkloadX509SVID(ctx, ca.WorkloadX509SVIDParams{
+		SPIFFEID:  id,
 		PublicKey: csr.PublicKey,
 		TTL:       time.Duration(req.Ttl) * time.Second,
-		DNSList:   csr.DNSNames,
+		DNSNames:  csr.DNSNames,
 		Subject:   csr.Subject,
 	})
 	if err != nil {
@@ -251,10 +251,10 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 	}
 	log = log.WithField(telemetry.SPIFFEID, spiffeID.String())
 
-	x509Svid, err := s.ca.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  spiffeID,
+	x509Svid, err := s.ca.SignWorkloadX509SVID(ctx, ca.WorkloadX509SVIDParams{
+		SPIFFEID:  spiffeID,
 		PublicKey: csr.PublicKey,
-		DNSList:   entry.DnsNames,
+		DNSNames:  entry.DnsNames,
 		TTL:       time.Duration(entry.X509SvidTtl) * time.Second,
 	})
 	if err != nil {
@@ -292,8 +292,8 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 		return nil, api.MakeErr(log, codes.InvalidArgument, "at least one audience is required", nil)
 	}
 
-	token, err := s.ca.SignJWTSVID(ctx, ca.JWTSVIDParams{
-		SpiffeID: id,
+	token, err := s.ca.SignWorkloadJWTSVID(ctx, ca.WorkloadJWTSVIDParams{
+		SPIFFEID: id,
 		TTL:      time.Duration(ttl) * time.Second,
 		Audience: audience,
 	})
@@ -377,8 +377,7 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		return nil, err
 	}
 
-	x509CASvid, err := s.ca.SignX509CASVID(ctx, ca.X509CASVIDParams{
-		SpiffeID:  s.td.ID(),
+	x509CASvid, err := s.ca.SignDownstreamX509CA(ctx, ca.DownstreamX509CAParams{
 		PublicKey: csr.PublicKey,
 		TTL:       time.Duration(entry.X509SvidTtl) * time.Second,
 	})
