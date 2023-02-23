@@ -118,5 +118,11 @@ test-mysql-replication() {
     docker-stop "${readwrite_service_name}" "${readonly_service_name}"
 }
 
-test-mysql-replication mysql-5-7 || exit 1
+arch=$(uname -m)
+if [ $arch = "amd64" ] || [ $arch = "x86_64" ]; then
+    test-mysql-replication mysql-5-7 || exit 1
+else
+    log-warn "skipping MySQL 5.7 test on $arch"
+fi
+
 test-mysql-replication mysql-8-0 || exit 1
