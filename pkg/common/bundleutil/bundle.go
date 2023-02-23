@@ -188,6 +188,7 @@ func (b *Bundle) ToSPIFFEBundle() (*spiffebundle.Bundle, error) {
 
 	bundle.SetX509Authorities(b.rootCAs)
 	bundle.SetJWTAuthorities(b.jwtSigningKeys)
+	bundle.SetRefreshHint(b.RefreshHint())
 
 	return bundle, nil
 }
