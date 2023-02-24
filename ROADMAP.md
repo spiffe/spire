@@ -2,26 +2,23 @@
 
 ## Recently completed
 
-* Use SPIRE on workloads [running on platforms where installing an agent is not possible](https://github.com/spiffe/spire/projects/9) (New!)
-* Provide an [API](https://github.com/spiffe/spire-api-sdk/blob/main/proto/spire/api/server/trustdomain/v1/trustdomain.proto) on SPIRE Server to allow programmatic configuration of federation relationships (New!)
-* [API](https://github.com/spiffe/spire-api-sdk) and [Plugin](https://github.com/spiffe/spire-plugin-sdk) SDKs for Integration authors
-* Expand [support of TPM node attestation](https://github.com/spiffe/spire/pull/2111) to provide first-class verification and identification of TPM metadata (New!)
-* Support for using [Cert-Manager as an upstream authority](https://github.com/spiffe/spire/pull/2274) to SPIRE (New!)
-* AWS Support: Support for using [AWS KMS to store signing keys](https://github.com/spiffe/spire/pull/2066), [Support for internet-restricted environments](https://github.com/spiffe/spire/pull/2119)
-* Support for using [GCP Certificate Authority Service as an upstream authority](https://github.com/spiffe/spire/pull/2172)
+* [Support for using Google Cloud Key Management Service to create, maintain, and rotate server key pairs](https://github.com/spiffe/spire/pull/3410)
+* [Ability to have separate X.509-SVID and JWT-SVID TTLs, which can be configured both at the entry-level and server default level](https://github.com/spiffe/spire/pull/3445)
+* [Experimental support for limiting the number of SVIDs in the agent's cache](https://github.com/spiffe/spire/pull/3181)
+* [Experimental Windows support](https://github.com/spiffe/spire/projects/12)
 
 ## Near-Term and Medium-Term
 
+* [Key Revocation and Forced Rotation (In Progress)](https://github.com/spiffe/spire/issues/1934)
 * Provide a turn-key Kubernetes experience that adheres to security best practices  (In Progress)
-* Provide a privileged API on SPIRE Agent to delegate SVID management to platform integrators (In Progress)
+* [Deprecate the Notifier plugin interface in favor of a BundlePublisher interface, implementing plugins that push bundles to remote locations (In Progress)](https://github.com/spiffe/spire/issues/2909)
 * Support for supply chain provenance attestation by verification of binary signing (e.g. TUF/notary/in-toto metadata validation)
 * Secretless authentication to Google Compute Platform by expanding OIDC Federation integration support
 
 ## Long-Term
 
-* Key Revocation and Forced Rotation
+* [Re-evaluate SPIRE Server API authorization](https://github.com/spiffe/spire/issues/3620)
 * Ensure error messages are indicative of a direction towards resolution
-* Improve health-check subsystem
 * Secretless authentication to Microsoft Azure by expanding OIDC Federation integration support
 
 ***

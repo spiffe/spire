@@ -303,6 +303,9 @@ endif
 integration:
 ifeq ($(os1), windows)
 	$(error Integration tests are not supported on windows)
+else ifeq (,$(filter $(arch2),arm64,aarch64))
+	# TODO: Remove this special handling of arm64 in 1.7.0
+	$(E)(export IGNORE_SUITES=suites/upgrade && ./test/integration/test.sh $(SUITES))
 else
 	$(E)./test/integration/test.sh $(SUITES)
 endif
