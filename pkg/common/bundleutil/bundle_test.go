@@ -2,12 +2,15 @@ package bundleutil
 
 // Basic imports
 import (
+	"crypto"
 	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	testlog "github.com/sirupsen/logrus/hooks/test"
@@ -186,6 +189,238 @@ func TestCommonBundleFromProto(t *testing.T) {
 
 			require.NoError(t, err)
 			spiretest.AssertProtoEqual(t, tt.expectBundle, bundle)
+		})
+	}
+}
+
+func TestSPIFFEBundleToBundleUtil(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	rootCA := ca.X509Authorities()[0]
+	pkixBytes, err := x509.MarshalPKIXPublicKey(ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
+	bundle := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
+	err = bundle.AddJWTAuthority("key-id-1", ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
+	bundle.SetRefreshHint(time.Second * 10)
+	bundleNoRefreshHint := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
+	bundleInvalidKey := spiffebundle.FromJWTAuthorities(td, map[string]crypto.PublicKey{"some-key": "invalid format"})
+
+	tests := []struct {
+		name      string
+		bundle    *spiffebundle.Bundle
+		expBundle *Bundle
+		expErr    error
+	}{
+		{
+			name:   "success with jwt and x509 authorities",
+			bundle: bundle,
+			expBundle: &Bundle{
+				b: &common.Bundle{
+					TrustDomainId: td.IDString(),
+					RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+					RefreshHint:   10,
+					JwtSigningKeys: []*common.PublicKey{
+						{
+							PkixBytes: pkixBytes,
+							Kid:       "key-id-1",
+						},
+					},
+				},
+				rootCAs: ca.X509Authorities(),
+				jwtSigningKeys: map[string]crypto.PublicKey{
+					"key-id-1": ca.X509Authorities()[0].PublicKey,
+				},
+			},
+		},
+		{
+			name:   "success spiffe bundle with no refreshHint set",
+			bundle: bundleNoRefreshHint,
+			expBundle: &Bundle{
+				b: &common.Bundle{
+					TrustDomainId: td.IDString(),
+					RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+					RefreshHint:   0,
+				},
+				rootCAs:        ca.X509Authorities(),
+				jwtSigningKeys: map[string]crypto.PublicKey{},
+			},
+		},
+		{
+			name:   "fail with error marshaling jwt public key",
+			bundle: bundleInvalidKey,
+			expErr: errors.New("failed to marshal public key: x509: unsupported public key type: string"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SPIFFEBundleToBundleUtil(tt.bundle)
+
+			if tt.expErr != nil {
+				require.EqualError(t, err, tt.expErr.Error())
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expBundle, got)
+		})
+	}
+}
+
+func TestSPIFFEBundleToProto(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	rootCA := ca.X509Authorities()[0]
+	pkixBytes, err := x509.MarshalPKIXPublicKey(ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
+	bundle := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
+	err = bundle.AddJWTAuthority("key-id-1", ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
+	bundle.SetRefreshHint(time.Second * 10)
+	bundleNoRefreshHint := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
+	bundleInvalidKey := spiffebundle.FromJWTAuthorities(td, map[string]crypto.PublicKey{"some-key": "invalid format"})
+
+	tests := []struct {
+		name     string
+		bundle   *spiffebundle.Bundle
+		expProto *common.Bundle
+		expErr   error
+	}{
+		{
+			name:   "success with jwt and x509 authorities",
+			bundle: bundle,
+			expProto: &common.Bundle{
+				TrustDomainId: td.IDString(),
+				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+				RefreshHint:   10,
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: pkixBytes,
+						Kid:       "key-id-1",
+					},
+				},
+			},
+		},
+		{
+			name:   "success spiffe bundle with no refreshHint set",
+			bundle: bundleNoRefreshHint,
+			expProto: &common.Bundle{
+				TrustDomainId: td.IDString(),
+				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+				RefreshHint:   0,
+			},
+		},
+		{
+			name:   "fail with error marshaling jwt public key",
+			bundle: bundleInvalidKey,
+			expErr: errors.New("failed to marshal public key: x509: unsupported public key type: string"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SPIFFEBundleToProto(tt.bundle)
+
+			if tt.expErr != nil {
+				require.EqualError(t, err, tt.expErr.Error())
+				return
+			}
+			require.NoError(t, err)
+			spiretest.AssertProtoEqual(t, tt.expProto, got)
+		})
+	}
+}
+
+func TestSPIFFEBundleFromProto(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	rootCA := ca.X509Authorities()[0]
+	pkixBytes, err := x509.MarshalPKIXPublicKey(ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
+	bundle := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
+	err = bundle.AddJWTAuthority("key-id-1", ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
+	bundle.SetRefreshHint(time.Second * 10)
+	bundleZeroedRefreshHint := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
+	bundleZeroedRefreshHint.SetRefreshHint(0)
+
+	tests := []struct {
+		name      string
+		proto     *common.Bundle
+		expBundle *spiffebundle.Bundle
+		expErr    error
+	}{
+		{
+			name: "success with jwt and x509 authorities",
+			proto: &common.Bundle{
+				TrustDomainId: td.IDString(),
+				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+				RefreshHint:   10,
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: pkixBytes,
+						Kid:       "key-id-1",
+					},
+				},
+			},
+			expBundle: bundle,
+		},
+		{
+			name: "success spiffe bundle with no refreshHint set",
+			proto: &common.Bundle{
+				TrustDomainId: td.IDString(),
+				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+			},
+			expBundle: bundleZeroedRefreshHint,
+		},
+		{
+			name: "fail with error parsing spiffe trust domain",
+			proto: &common.Bundle{
+				TrustDomainId: "|invalid|",
+				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+				RefreshHint:   10,
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: pkixBytes,
+						Kid:       "key-id-1",
+					},
+				},
+			},
+			expErr: errors.New("trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores"),
+		},
+		{
+			name: "fail with error parsing x509 authority",
+			proto: &common.Bundle{
+				TrustDomainId: td.IDString(),
+				RootCas:       []*common.Certificate{{DerBytes: []byte("invalid")}},
+			},
+			expErr: errors.New("unable to parse root CA 0: x509: malformed certificate"),
+		},
+		{
+			name: "fail with error parsing jwt authority",
+			proto: &common.Bundle{
+				TrustDomainId: td.IDString(),
+				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: []byte("invalid"),
+					},
+				},
+			},
+			expErr: errors.New("unable to parse JWT signing key 0: asn1: structure error: tags don't match (16 vs" +
+				" {class:1 tag:9 length:110 isCompound:true}) {optional:false explicit:false application:false " +
+				"private:false defaultValue:<nil> tag:<nil> stringType:0 timeType:0 set:false omitEmpty:false} " +
+				"publicKeyInfo @2"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := SPIFFEBundleFromProto(tt.proto)
+
+			if tt.expErr != nil {
+				require.EqualError(t, err, tt.expErr.Error())
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expBundle, got)
 		})
 	}
 }

@@ -3,6 +3,7 @@ package svid
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"math/big"
 	"sync"
 	"testing"
@@ -31,8 +32,8 @@ func TestRotator(t *testing.T) {
 type RotatorTestSuite struct {
 	suite.Suite
 
-	r        *Rotator
 	serverCA *fakeserverca.CA
+	r        *Rotator
 	logHook  *test.Hook
 	clock    *clock.Mock
 }
@@ -51,12 +52,11 @@ func (s *RotatorTestSuite) SetupTest() {
 	s.logHook = hook
 
 	s.r = NewRotator(&RotatorConfig{
-		ServerCA:    s.serverCA,
-		Log:         log,
-		Metrics:     telemetry.Blackhole{},
-		TrustDomain: trustDomain,
-		Clock:       s.clock,
-		KeyType:     keymanager.ECP256,
+		ServerCA: s.serverCA,
+		Log:      log,
+		Metrics:  telemetry.Blackhole{},
+		Clock:    s.clock,
+		KeyType:  keymanager.ECP256,
 	})
 }
 
@@ -112,8 +112,8 @@ func (s *RotatorTestSuite) TestRotationFails() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Intentionally change the trust domain to trigger a rotation error
-	s.r.c.TrustDomain = spiffeid.RequireTrustDomainFromString("wrong-td.org")
+	// Inject an error into the rotation flow.
+	s.serverCA.SetError(errors.New("oh no"))
 
 	wg.Add(1)
 	errCh := make(chan error, 1)
@@ -136,7 +136,7 @@ func (s *RotatorTestSuite) TestRotationFails() {
 			Level:   logrus.ErrorLevel,
 			Message: "Could not rotate server SVID",
 			Data: logrus.Fields{
-				logrus.ErrorKey: `"spiffe://wrong-td.org/spire/server" is not a member of trust domain "example.org"`,
+				logrus.ErrorKey: "oh no",
 			},
 		},
 		{

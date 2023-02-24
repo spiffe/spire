@@ -3,9 +3,9 @@ package ca
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -13,73 +13,79 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/zeebo/errs"
-)
-
-const (
-	// DefaultX509SVIDTTL is the TTL given to X509 SVIDs if not overridden by
-	// the server config.
-	DefaultX509SVIDTTL = time.Hour
-
-	// DefaultJWTSVIDTTL is the TTL given to JWT SVIDs if a different TTL is
-	// not provided in the signing request.
-	DefaultJWTSVIDTTL = time.Minute * 5
+	"github.com/spiffe/spire/pkg/server/credtemplate"
+	"github.com/spiffe/spire/pkg/server/credvalidator"
+	"gopkg.in/square/go-jose.v2"
+	"gopkg.in/square/go-jose.v2/cryptosigner"
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 // ServerCA is an interface for Server CAs
 type ServerCA interface {
-	SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.Certificate, error)
-	SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x509.Certificate, error)
-	SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, error)
+	SignDownstreamX509CA(ctx context.Context, params DownstreamX509CAParams) ([]*x509.Certificate, error)
+	SignServerX509SVID(ctx context.Context, params ServerX509SVIDParams) ([]*x509.Certificate, error)
+	SignAgentX509SVID(ctx context.Context, params AgentX509SVIDParams) ([]*x509.Certificate, error)
+	SignWorkloadX509SVID(ctx context.Context, params WorkloadX509SVIDParams) ([]*x509.Certificate, error)
+	SignWorkloadJWTSVID(ctx context.Context, params WorkloadJWTSVIDParams) (string, error)
 }
 
-// X509SVIDParams are parameters relevant to X509 SVID creation
-type X509SVIDParams struct {
-	// SPIFFE ID of the SVID
-	SpiffeID spiffeid.ID
-
+// DownstreamX509CAParams are parameters relevant to downstream X.509 CA creation
+type DownstreamX509CAParams struct {
 	// Public Key
 	PublicKey crypto.PublicKey
 
 	// TTL is the desired time-to-live of the SVID. Regardless of the TTL, the
 	// lifetime of the certificate will be capped to that of the signing cert.
 	TTL time.Duration
+}
 
-	// DNSList is used to add DNS SAN's to the X509 SVID. The first entry
+// ServerX509SVIDParams are parameters relevant to server X509-SVID creation
+type ServerX509SVIDParams struct {
+	// Public Key
+	PublicKey crypto.PublicKey
+}
+
+// AgentX509SVIDParams are parameters relevant to agent X509-SVID creation
+type AgentX509SVIDParams struct {
+	// Public Key
+	PublicKey crypto.PublicKey
+
+	// SPIFFE ID of the agent
+	SPIFFEID spiffeid.ID
+}
+
+// WorkloadX509SVIDParams are parameters relevant to workload X509-SVID creation
+type WorkloadX509SVIDParams struct {
+	// Public Key
+	PublicKey crypto.PublicKey
+
+	// SPIFFE ID of the SVID
+	SPIFFEID spiffeid.ID
+
+	// DNSNames is used to add DNS SAN's to the X509 SVID. The first entry
 	// is also added as the CN.
-	DNSList []string
+	DNSNames []string
+
+	// TTL is the desired time-to-live of the SVID. Regardless of the TTL, the
+	// lifetime of the certificate will be capped to that of the signing cert.
+	TTL time.Duration
 
 	// Subject of the SVID. Default subject is used if it is empty.
 	Subject pkix.Name
 }
 
-// X509CASVIDParams are parameters relevant to X509 CA SVID creation
-type X509CASVIDParams struct {
+// WorkloadJWTSVIDParams are parameters relevant to workload JWT-SVID creation
+type WorkloadJWTSVIDParams struct {
 	// SPIFFE ID of the SVID
-	SpiffeID spiffeid.ID
-
-	// Public Key
-	PublicKey crypto.PublicKey
+	SPIFFEID spiffeid.ID
 
 	// TTL is the desired time-to-live of the SVID. Regardless of the TTL, the
-	// lifetime of the certificate will be capped to that of the signing cert.
-	TTL time.Duration
-}
-
-// JWTSVIDParams are parameters relevant to JWT SVID creation
-type JWTSVIDParams struct {
-	// SPIFFE ID of the SVID
-	SpiffeID spiffeid.ID
-
-	// TTL is the desired time-to-live of the SVID. Regardless of the TTL, the
-	// lifetime of the certificate will be capped to that of the signing cert.
+	// lifetime of the token will be capped to that of the signing key.
 	TTL time.Duration
 
 	// Audience is used for audience claims
@@ -112,43 +118,30 @@ type JWTKey struct {
 
 type Config struct {
 	Log           logrus.FieldLogger
+	Clock         clock.Clock
 	Metrics       telemetry.Metrics
 	TrustDomain   spiffeid.TrustDomain
-	X509SVIDTTL   time.Duration
-	JWTSVIDTTL    time.Duration
-	JWTIssuer     string
-	Clock         clock.Clock
-	CASubject     pkix.Name
+	CredBuilder   *credtemplate.Builder
+	CredValidator *credvalidator.Validator
 	HealthChecker health.Checker
 }
 
 type CA struct {
 	c Config
 
-	mu     sync.RWMutex
-	x509CA *X509CA
-	jwtKey *JWTKey
-
-	jwtSigner *jwtsvid.Signer
+	mu          sync.RWMutex
+	x509CA      *X509CA
+	x509CAChain []*x509.Certificate
+	jwtKey      *JWTKey
 }
 
 func NewCA(config Config) *CA {
-	if config.X509SVIDTTL <= 0 {
-		config.X509SVIDTTL = DefaultX509SVIDTTL
-	}
-	if config.JWTSVIDTTL <= 0 {
-		config.JWTSVIDTTL = DefaultJWTSVIDTTL
-	}
 	if config.Clock == nil {
 		config.Clock = clock.New()
 	}
 
 	ca := &CA{
 		c: config,
-		jwtSigner: jwtsvid.NewSigner(jwtsvid.SignerConfig{
-			Clock:  config.Clock,
-			Issuer: config.JWTIssuer,
-		}),
 	}
 
 	_ = config.HealthChecker.AddCheck("server.ca", &caHealth{
@@ -169,6 +162,14 @@ func (ca *CA) SetX509CA(x509CA *X509CA) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
 	ca.x509CA = x509CA
+	switch {
+	case x509CA == nil:
+		ca.x509CAChain = nil
+	case len(x509CA.UpstreamChain) > 0:
+		ca.x509CAChain = x509CA.UpstreamChain
+	default:
+		ca.x509CAChain = []*x509.Certificate{x509CA.Certificate}
+	}
 }
 
 func (ca *CA) JWTKey() *JWTKey {
@@ -183,158 +184,193 @@ func (ca *CA) SetJWTKey(jwtKey *JWTKey) {
 	ca.jwtKey = jwtKey
 }
 
-func (ca *CA) SignX509SVID(ctx context.Context, params X509SVIDParams) ([]*x509.Certificate, error) {
-	x509CA := ca.X509CA()
-	if x509CA == nil {
-		return nil, errs.New("X509 CA is not available for signing")
-	}
-
-	if params.TTL <= 0 {
-		params.TTL = ca.c.X509SVIDTTL
-	}
-
-	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
-
-	x509SVID, err := signX509SVID(ca.c.TrustDomain, x509CA, params, notBefore, notAfter)
+func (ca *CA) SignDownstreamX509CA(ctx context.Context, params DownstreamX509CAParams) ([]*x509.Certificate, error) {
+	x509CA, caChain, err := ca.getX509CA()
 	if err != nil {
 		return nil, err
 	}
 
-	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics)
-	return x509SVID, nil
-}
-
-func (ca *CA) SignX509CASVID(ctx context.Context, params X509CASVIDParams) ([]*x509.Certificate, error) {
-	x509CA := ca.X509CA()
-	if x509CA == nil {
-		return nil, errs.New("X509 CA is not available for signing")
-	}
-
-	if params.TTL <= 0 {
-		params.TTL = ca.c.X509SVIDTTL
-	}
-
-	notBefore, notAfter := ca.capLifetime(params.TTL, x509CA.Certificate.NotAfter)
-	serialNumber, err := x509util.NewSerialNumber()
+	template, err := ca.c.CredBuilder.BuildDownstreamX509CATemplate(ctx, credtemplate.DownstreamX509CAParams{
+		ParentChain: caChain,
+		PublicKey:   params.PublicKey,
+		TTL:         params.TTL,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// Don't allow the downstream server to control the subject of the CA
-	// certificate. Additionally, set the OU to a 1-based downstream "level"
-	// for soft debugging support.
-	subject := x509CA.Certificate.Subject
-	subject.OrganizationalUnit = []string{fmt.Sprintf("DOWNSTREAM-%d", 1+len(x509CA.UpstreamChain))}
-
-	template, err := CreateServerCATemplate(params.SpiffeID, params.PublicKey, ca.c.TrustDomain, notBefore, notAfter, serialNumber, subject)
+	downstreamCA, err := x509util.CreateCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to create downstream X509 CA: %w", err)
 	}
-	// Explicitly set the AKI on the signed certificate, otherwise it won't be
-	// added if the subject and issuer match name matches (unlikely due to the
-	// OU override below, but just to be safe).
-	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
 
-	cert, err := createCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
-	if err != nil {
-		return nil, errs.New("unable to create X509 CA SVID: %v", err)
+	if err := ca.c.CredValidator.ValidateX509CA(downstreamCA); err != nil {
+		return nil, fmt.Errorf("invalid downstream X509 CA: %w", err)
 	}
 
 	telemetry_server.IncrServerCASignX509CACounter(ca.c.Metrics)
 
-	return makeSVIDCertChain(x509CA, cert), nil
+	return makeCertChain(x509CA, downstreamCA), nil
 }
 
-func (ca *CA) SignJWTSVID(ctx context.Context, params JWTSVIDParams) (string, error) {
-	jwtKey := ca.JWTKey()
-	if jwtKey == nil {
-		return "", errs.New("JWT key is not available for signing")
+func (ca *CA) SignServerX509SVID(ctx context.Context, params ServerX509SVIDParams) ([]*x509.Certificate, error) {
+	x509CA, caChain, err := ca.getX509CA()
+	if err != nil {
+		return nil, err
 	}
 
-	if err := api.VerifyTrustDomainWorkloadID(ca.c.TrustDomain, params.SpiffeID); err != nil {
+	template, err := ca.c.CredBuilder.BuildServerX509SVIDTemplate(ctx, credtemplate.ServerX509SVIDParams{
+		ParentChain: caChain,
+		PublicKey:   params.PublicKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	svidChain, err := ca.signX509SVID(x509CA, template)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ca.c.CredValidator.ValidateServerX509SVID(svidChain[0]); err != nil {
+		return nil, fmt.Errorf("invalid server X509-SVID: %w", err)
+	}
+
+	return svidChain, nil
+}
+
+func (ca *CA) SignAgentX509SVID(ctx context.Context, params AgentX509SVIDParams) ([]*x509.Certificate, error) {
+	x509CA, caChain, err := ca.getX509CA()
+	if err != nil {
+		return nil, err
+	}
+
+	template, err := ca.c.CredBuilder.BuildAgentX509SVIDTemplate(ctx, credtemplate.AgentX509SVIDParams{
+		ParentChain: caChain,
+		PublicKey:   params.PublicKey,
+		SPIFFEID:    params.SPIFFEID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	svidChain, err := ca.signX509SVID(x509CA, template)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ca.c.CredValidator.ValidateX509SVID(svidChain[0], params.SPIFFEID); err != nil {
+		return nil, fmt.Errorf("invalid agent X509-SVID: %w", err)
+	}
+
+	return svidChain, nil
+}
+
+func (ca *CA) SignWorkloadX509SVID(ctx context.Context, params WorkloadX509SVIDParams) ([]*x509.Certificate, error) {
+	x509CA, caChain, err := ca.getX509CA()
+	if err != nil {
+		return nil, err
+	}
+
+	template, err := ca.c.CredBuilder.BuildWorkloadX509SVIDTemplate(ctx, credtemplate.WorkloadX509SVIDParams{
+		ParentChain: caChain,
+		PublicKey:   params.PublicKey,
+		SPIFFEID:    params.SPIFFEID,
+		DNSNames:    params.DNSNames,
+		TTL:         params.TTL,
+		Subject:     params.Subject,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	svidChain, err := ca.signX509SVID(x509CA, template)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ca.c.CredValidator.ValidateX509SVID(svidChain[0], params.SPIFFEID); err != nil {
+		return nil, fmt.Errorf("invalid workload X509-SVID: %w", err)
+	}
+
+	return svidChain, nil
+}
+
+func (ca *CA) SignWorkloadJWTSVID(ctx context.Context, params WorkloadJWTSVIDParams) (string, error) {
+	jwtKey := ca.JWTKey()
+	if jwtKey == nil {
+		return "", errors.New("JWT key is not available for signing")
+	}
+
+	claims, err := ca.c.CredBuilder.BuildWorkloadJWTSVIDClaims(ctx, credtemplate.WorkloadJWTSVIDParams{
+		SPIFFEID:      params.SPIFFEID,
+		Audience:      params.Audience,
+		TTL:           params.TTL,
+		ExpirationCap: jwtKey.NotAfter,
+	})
+	if err != nil {
 		return "", err
 	}
 
-	ttl := params.TTL
-	if ttl <= 0 {
-		ttl = ca.c.JWTSVIDTTL
-	}
-	_, expiresAt := ca.capLifetime(ttl, jwtKey.NotAfter)
-
-	token, err := ca.jwtSigner.SignToken(params.SpiffeID, params.Audience, expiresAt, jwtKey.Signer, jwtKey.Kid)
+	token, err := ca.signJWTSVID(jwtKey, claims)
 	if err != nil {
-		return "", errs.New("unable to sign JWT SVID: %v", err)
+		return "", fmt.Errorf("unable to sign JWT SVID: %w", err)
+	}
+
+	if err := ca.c.CredValidator.ValidateWorkloadJWTSVID(token, params.SPIFFEID); err != nil {
+		return "", err
 	}
 
 	telemetry_server.IncrServerCASignJWTSVIDCounter(ca.c.Metrics)
 	return token, nil
 }
 
-func (ca *CA) capLifetime(ttl time.Duration, expirationCap time.Time) (notBefore, notAfter time.Time) {
-	now := ca.c.Clock.Now()
-	notBefore = now.Add(-backdate)
-	notAfter = now.Add(ttl)
-	if notAfter.After(expirationCap) {
-		notAfter = expirationCap
+func (ca *CA) getX509CA() (*X509CA, []*x509.Certificate, error) {
+	ca.mu.RLock()
+	defer ca.mu.RUnlock()
+	if ca.x509CA == nil {
+		return nil, nil, errors.New("X509 CA is not available for signing")
 	}
-	return notBefore, notAfter
+	return ca.x509CA, ca.x509CAChain, nil
 }
 
-func signX509SVID(td spiffeid.TrustDomain, x509CA *X509CA, params X509SVIDParams, notBefore, notAfter time.Time) ([]*x509.Certificate, error) {
-	if x509CA == nil {
-		return nil, errs.New("X509 CA is not available for signing")
-	}
-
-	serialNumber, err := x509util.NewSerialNumber()
+func (ca *CA) signX509SVID(x509CA *X509CA, template *x509.Certificate) ([]*x509.Certificate, error) {
+	x509SVID, err := x509util.CreateCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to sign X509 SVID: %w", err)
 	}
-
-	template, err := CreateX509SVIDTemplate(params.SpiffeID, params.PublicKey, td, notBefore, notAfter, serialNumber)
-	if err != nil {
-		return nil, err
-	}
-
-	if params.Subject.String() != "" {
-		template.Subject = params.Subject
-	} else {
-		template.Subject = pkix.Name{
-			Country:      []string{"US"},
-			Organization: []string{"SPIRE"},
-		}
-	}
-
-	// Append the unique ID to the subject.
-	template.Subject.ExtraNames = append(template.Subject.ExtraNames, x509svid.UniqueIDAttribute(params.SpiffeID))
-
-	// Explicitly set the AKI on the signed certificate, otherwise it won't be
-	// added if the subject and issuer match name match (however unlikely).
-	template.AuthorityKeyId = x509CA.Certificate.SubjectKeyId
-
-	// for non-CA certificates, add DNS names to certificate. the first DNS
-	// name is also added as the common name.
-	if len(params.DNSList) > 0 {
-		template.Subject.CommonName = params.DNSList[0]
-		template.DNSNames = params.DNSList
-	}
-
-	cert, err := createCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
-	if err != nil {
-		return nil, errs.New("unable to create X509 SVID: %v", err)
-	}
-
-	return makeSVIDCertChain(x509CA, cert), nil
+	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics)
+	return makeCertChain(x509CA, x509SVID), nil
 }
 
-func makeSVIDCertChain(x509CA *X509CA, cert *x509.Certificate) []*x509.Certificate {
-	return append([]*x509.Certificate{cert}, x509CA.UpstreamChain...)
-}
-
-func createCertificate(template, parent *x509.Certificate, pub, priv interface{}) (*x509.Certificate, error) {
-	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, priv)
+func (ca *CA) signJWTSVID(jwtKey *JWTKey, claims map[string]interface{}) (string, error) {
+	alg, err := cryptoutil.JoseAlgFromPublicKey(jwtKey.Signer.Public())
 	if err != nil {
-		return nil, errs.New("unable to create X509 SVID: %v", err)
+		return "", fmt.Errorf("failed to determine JWT key algorithm: %w", err)
 	}
 
-	return x509.ParseCertificate(certDER)
+	jwtSigner, err := jose.NewSigner(
+		jose.SigningKey{
+			Algorithm: alg,
+			Key: jose.JSONWebKey{
+				Key:   cryptosigner.Opaque(jwtKey.Signer),
+				KeyID: jwtKey.Kid,
+			},
+		},
+		new(jose.SignerOptions).WithType("JWT"),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to configure JWT signer: %w", err)
+	}
+
+	signedToken, err := jwt.Signed(jwtSigner).Claims(claims).CompactSerialize()
+	if err != nil {
+		return "", fmt.Errorf("failed to sign JWT SVID: %w", err)
+	}
+
+	return signedToken, nil
+}
+
+func makeCertChain(x509CA *X509CA, leaf *x509.Certificate) []*x509.Certificate {
+	return append([]*x509.Certificate{leaf}, x509CA.UpstreamChain...)
 }

@@ -1626,7 +1626,7 @@ func TestRenewAgent(t *testing.T) {
 
 		dsError        []error
 		createNode     *common.AttestedNode
-		agentTTL       time.Duration
+		agentSVIDTTL   time.Duration
 		expectLogs     []spiretest.LogEntry
 		failCallerID   bool
 		failSigning    bool
@@ -1636,9 +1636,9 @@ func TestRenewAgent(t *testing.T) {
 		rateLimiterErr error
 	}{
 		{
-			name:       "success",
-			createNode: cloneAttestedNode(defaultNode),
-			agentTTL:   42 * time.Minute,
+			name:         "success",
+			createNode:   cloneAttestedNode(defaultNode),
+			agentSVIDTTL: 42 * time.Minute,
 			expectLogs: []spiretest.LogEntry{
 				renewingMessage,
 				{
@@ -1892,7 +1892,7 @@ func TestRenewAgent(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup test
-			test := setupServiceTest(t, tt.agentTTL)
+			test := setupServiceTest(t, tt.agentSVIDTTL)
 			defer test.Cleanup()
 
 			if tt.createNode != nil {
@@ -1913,8 +1913,8 @@ func TestRenewAgent(t *testing.T) {
 			expiredAt := now.Add(test.ca.X509SVIDTTL())
 
 			// Verify non-default agent TTL if set
-			if tt.agentTTL != 0 {
-				expiredAt = now.Add(tt.agentTTL)
+			if tt.agentSVIDTTL != 0 {
+				expiredAt = now.Add(tt.agentSVIDTTL)
 			}
 
 			// Send param message
@@ -3084,8 +3084,10 @@ func (s *serviceTest) Cleanup() {
 	}
 }
 
-func setupServiceTest(t *testing.T, agentTTL time.Duration) *serviceTest {
-	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
+func setupServiceTest(t *testing.T, agentSVIDTTL time.Duration) *serviceTest {
+	ca := fakeserverca.New(t, td, &fakeserverca.Options{
+		AgentSVIDTTL: agentSVIDTTL,
+	})
 	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
 	clk := clock.NewMock(t)
@@ -3096,7 +3098,6 @@ func setupServiceTest(t *testing.T, agentTTL time.Duration) *serviceTest {
 		TrustDomain: td,
 		Clock:       clk,
 		Catalog:     cat,
-		AgentTTL:    agentTTL,
 	})
 
 	log, logHook := test.NewNullLogger()

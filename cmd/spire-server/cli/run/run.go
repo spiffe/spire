@@ -35,6 +35,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 )
@@ -47,11 +48,6 @@ const (
 )
 
 var (
-	defaultCASubject = pkix.Name{
-		Country:      []string{"US"},
-		Organization: []string{"SPIFFE"},
-	}
-
 	defaultRateLimit = true
 )
 
@@ -479,7 +475,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	default:
 		// If neither new nor deprecated config value is set, then use hard-coded default TTL
 		// Note, due to back-compat issues we cannot set this default inside defaultConfig() function
-		sc.X509SVIDTTL = ca.DefaultX509SVIDTTL
+		sc.X509SVIDTTL = credtemplate.DefaultX509SVIDTTL
 	}
 
 	if c.Server.DefaultJWTSVIDTTL != "" {
@@ -491,7 +487,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	} else {
 		// If not set using new field then use hard-coded default TTL
 		// Note, due to back-compat issues we cannot set this default inside defaultConfig() function
-		sc.JWTSVIDTTL = ca.DefaultJWTSVIDTTL
+		sc.JWTSVIDTTL = credtemplate.DefaultJWTSVIDTTL
 	}
 
 	if c.Server.CATTL != "" {
@@ -591,7 +587,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	// RFC3280(4.1.2.4) requires the issuer DN be set.
 	if isPKIXNameEmpty(sc.CASubject) {
-		sc.CASubject = defaultCASubject
+		sc.CASubject = credtemplate.DefaultX509CASubject()
 	}
 
 	sc.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
@@ -824,7 +820,7 @@ func defaultConfig() *Config {
 		Server: &serverConfig{
 			BindAddress:  "0.0.0.0",
 			BindPort:     8081,
-			CATTL:        ca.DefaultCATTL.String(),
+			CATTL:        credtemplate.DefaultX509CATTL.String(),
 			LogLevel:     defaultLogLevel,
 			LogFormat:    log.DefaultFormat,
 			Experimental: experimentalConfig{},

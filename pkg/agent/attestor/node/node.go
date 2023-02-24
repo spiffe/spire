@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/storage"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -34,7 +34,7 @@ const (
 type AttestationResult struct {
 	SVID         []*x509.Certificate
 	Key          keymanager.Key
-	Bundle       *bundleutil.Bundle
+	Bundle       *spiffebundle.Bundle
 	Reattestable bool
 }
 
@@ -73,7 +73,7 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 	if bundle == nil {
 		log.Info("Bundle is not found")
 	} else {
-		log = log.WithField(telemetry.TrustDomainID, bundle.TrustDomainID())
+		log = log.WithField(telemetry.TrustDomainID, bundle.TrustDomain().IDString())
 		log.Info("Bundle loaded")
 	}
 
@@ -147,7 +147,7 @@ func IsSVIDExpired(svid []*x509.Certificate, timeNow func() time.Time) bool {
 	return timeNow().Add(clockSkew).Sub(certExpiresAt) >= 0
 }
 
-func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
+func (a *attestor) loadBundle() (*spiffebundle.Bundle, error) {
 	bundle, err := a.c.Storage.LoadBundle()
 	if errors.Is(err, storage.ErrNotCached) {
 		if a.c.InsecureBootstrap {
@@ -165,7 +165,7 @@ func (a *attestor) loadBundle() (*bundleutil.Bundle, error) {
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
-	return bundleutil.BundleFromRootCAs(a.c.TrustDomain, bundle), nil
+	return spiffebundle.FromX509Authorities(a.c.TrustDomain, bundle), nil
 }
 
 // Read agent SVID from data dir. If an error is encountered, it will be logged and `nil`
@@ -183,7 +183,7 @@ func (a *attestor) readSVIDFromDisk() ([]*x509.Certificate, bool) {
 
 // newSVID obtains an agent svid for the given private key by performing node attesatation. The bundle is
 // necessary in order to validate the SPIRE server we are attesting to. Returns the SVID and an updated bundle.
-func (a *attestor) newSVID(ctx context.Context, key keymanager.Key, bundle *bundleutil.Bundle) (_ []*x509.Certificate, _ *bundleutil.Bundle, _ bool, err error) {
+func (a *attestor) newSVID(ctx context.Context, key keymanager.Key, bundle *spiffebundle.Bundle) (_ []*x509.Certificate, _ *spiffebundle.Bundle, _ bool, err error) {
 	counter := telemetry_agent.StartNodeAttestorNewSVIDCall(a.c.Metrics)
 	defer counter.Done(&err)
 	telemetry_common.AddAttestorType(counter, a.c.NodeAttestor.Name())
@@ -212,12 +212,12 @@ func (a *attestor) newSVID(ctx context.Context, key keymanager.Key, bundle *bund
 	return newSVID, newBundle, reattestable, nil
 }
 
-func (a *attestor) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*grpc.ClientConn, error) {
+func (a *attestor) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) (*grpc.ClientConn, error) {
 	if bundle != nil {
 		return client.DialServer(ctx, client.DialServerConfig{
 			Address:     a.c.ServerAddress,
 			TrustDomain: a.c.TrustDomain,
-			GetBundle:   bundle.RootCAs,
+			GetBundle:   bundle.X509Authorities,
 		})
 	}
 

@@ -80,12 +80,11 @@ type Repository struct {
 
 func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
 	return map[string]catalog.PluginRepo{
-		// TODO: wire this up once we're ready to release the feature
-		//credentialComposerType: &repo.credentialComposerRepository,
-		keyManagerType:        &repo.keyManagerRepository,
-		nodeAttestorType:      &repo.nodeAttestorRepository,
-		notifierType:          &repo.notifierRepository,
-		upstreamAuthorityType: &repo.upstreamAuthorityRepository,
+		credentialComposerType: &repo.credentialComposerRepository,
+		keyManagerType:         &repo.keyManagerRepository,
+		nodeAttestorType:       &repo.nodeAttestorRepository,
+		notifierType:           &repo.notifierRepository,
+		upstreamAuthorityType:  &repo.upstreamAuthorityRepository,
 	}
 }
 

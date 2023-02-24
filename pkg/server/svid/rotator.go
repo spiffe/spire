@@ -4,12 +4,10 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
-	"fmt"
 	"time"
 
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/ca"
@@ -89,14 +87,7 @@ func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 		return err
 	}
 
-	serverID, err := idutil.ServerID(r.c.TrustDomain)
-	if err != nil {
-		// this should never fail; it is purely defensive
-		return fmt.Errorf("unable to determine server ID: %w", err)
-	}
-
-	svid, err := r.c.ServerCA.SignX509SVID(ctx, ca.X509SVIDParams{
-		SpiffeID:  serverID,
+	svid, err := r.c.ServerCA.SignServerX509SVID(ctx, ca.ServerX509SVIDParams{
 		PublicKey: signer.Public(),
 	})
 	if err != nil {

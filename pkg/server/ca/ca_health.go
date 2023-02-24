@@ -31,8 +31,8 @@ func (h *caHealth) CheckHealth() health.State {
 
 	spiffeID, err := spiffeid.FromPath(h.td, "/for/health/check/only")
 	if err == nil {
-		_, err = h.ca.SignX509SVID(ctx, X509SVIDParams{
-			SpiffeID:  spiffeID,
+		_, err = h.ca.SignWorkloadX509SVID(ctx, WorkloadX509SVIDParams{
+			SPIFFEID:  spiffeID,
 			PublicKey: caHealthKey,
 		})
 	}

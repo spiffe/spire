@@ -349,7 +349,7 @@ func TestAttestor(t *testing.T) {
 			require.NotNil(result.Key)
 			require.NotNil(result.Bundle)
 
-			rootCAs := result.Bundle.RootCAs()
+			rootCAs := result.Bundle.X509Authorities()
 			require.Len(rootCAs, 1)
 			require.Equal(rootCAs[0].Raw, caCert.Raw)
 			require.Equal(result.Reattestable, testCase.agentService.reattestable)
