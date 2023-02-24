@@ -10,6 +10,6 @@ jobs:
 
     steps:
       - name: 'Checkout Repository'
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # ratchet:actions/checkout@v3.3.0
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
       - name: 'Dependency Review'
-        uses: actions/dependency-review-action@c090f4e553673e6e505ea70d6a95362ee12adb94 # ratchet:actions/dependency-review-action@v3.0.3
+        uses: actions/dependency-review-action@c090f4e553673e6e505ea70d6a95362ee12adb94 # v3.0.3
