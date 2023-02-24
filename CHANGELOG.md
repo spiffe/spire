@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.6.0] - 2023-02-28
+
+### Added
+
+- Credential Composer plugins are now supported (#3819, #3832, #3862, #3869)
+- K8s workload attestor now can emmit Sigstore selectors (#3159)
+- Scratch images now supports arm64 (#3607)
+- Scratch images are now signed using Sigstore (#3707)
+- `spire-server mint` CLI command now support the `-output` flag (#3800)
+- `spire-agent` CLI commands now support the `-output` flag (#3818)
+- Release images now add non-root users and default folders (#3811)
+- Agent accept bootstrap bundles in SPIFFE format (#3753)
+
+### Changed
+
+- Plugins of the same type now runs in the order they are defined (#3797)
+- Database index for registration entry hint column (#3828)
+- Documentation improvements (#3826, #3842, #3870)
+
+### Fixed
+
+- Authorization middleware now fail successfully when operation failure happens during retrieving entries (#3842)
+- Health check operations no longer logs errors on normal operations (#3786)
+- Logs now emits timestamps in local time (#3734)
+
+### Removed
+
+- Non-scratch images are no longer published (#3785)
+- k8s-workload-registar is no longer maintained (#3853)
+- Database column `x509_svid_ttl` from table `registered_entries`
+- The deprecated `enabled` flag from InMem telemetry config (#3796)
+- The deprecated `default_svid_ttl` configurable (#3795)
+- The deprecated `omit_x509svid_uid` configurable (#3794)
+
 ## [1.5.5] - 2023-02-14
 
 ### Security
