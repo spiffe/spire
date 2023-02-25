@@ -273,10 +273,10 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 			// built a set of selectors for the record being removed, drop the
 			// record for each selector index, and add the entry selectors to
 			// the notify set.
-			clearSelectorSet(selRem)
-			selRem.Merge(record.entry.Selectors...)
-			c.delSelectorIndicesRecord(selRem, record)
-			notifySets = append(notifySets, selRem)
+			notifySet, notifySetDone := allocSelectorSet(record.entry.Selectors...)
+			defer notifySetDone()
+			c.delSelectorIndicesRecord(notifySet, record)
+			notifySets = append(notifySets, notifySet)
 			delete(c.records, id)
 			delete(c.svids, id)
 			// Remove stale entry since, registration entry is no longer on cache.
@@ -329,17 +329,15 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 		// are notified.
 		if selectorsChanged {
 			if existingEntry != nil {
-				notifySet, selSetDone := allocSelectorSet()
-				defer selSetDone()
-				notifySet.Merge(existingEntry.Selectors...)
+				notifySet, notifySetDone := allocSelectorSet(existingEntry.Selectors...)
+				defer notifySetDone()
 				notifySets = append(notifySets, notifySet)
 			}
 		}
 
 		if federatedBundlesChanged || selectorsChanged {
-			notifySet, selSetDone := allocSelectorSet()
-			defer selSetDone()
-			notifySet.Merge(newEntry.Selectors...)
+			notifySet, notifySetDone := allocSelectorSet(newEntry.Selectors...)
+			defer notifySetDone()
 			notifySets = append(notifySets, notifySet)
 		}
 
@@ -427,8 +425,8 @@ func (c *LRUCache) UpdateSVIDs(update *UpdateSVIDs) {
 	defer c.mu.Unlock()
 
 	// Allocate a set of selectors that
-	notifySet, selSetDone := allocSelectorSet()
-	defer selSetDone()
+	notifySet, notifySetDone := allocSelectorSet()
+	defer notifySetDone()
 
 	// Add/update records for registration entries in the update
 	for entryID, svid := range update.X509SVIDs {
