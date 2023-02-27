@@ -7,7 +7,7 @@
 - Support for customization of SVID and CA attributes through CredentialComposer plugins (#3819, #3832, #3862, #3869)
 - Experimental support to validate container images signatures through sigstore selectors (#3159)
 - Published scratch images now support ARM64 architecture (#3607)
-- Published Scratch images are now signed using Sigstore (#3707)
+- Published scratch images are now signed using Sigstore (#3707)
 - `spire-server mint` and `spire-server token generate` CLI commands now support the `-output` flag (#3800)
 - `spire-agent api` CLI command now supports the `-output` flag (#3818)
 - Release images now include a non-root user and default folders (#3811)
