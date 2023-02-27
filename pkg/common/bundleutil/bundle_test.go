@@ -384,7 +384,7 @@ func TestSPIFFEBundleFromProto(t *testing.T) {
 					},
 				},
 			},
-			expErr: errors.New("trust domain characte	rs are limited to lowercase letters, numbers, dots, dashes, and underscores"),
+			expErr: errors.New("trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores"),
 		},
 		{
 			name: "fail with error parsing x509 authority",

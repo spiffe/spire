@@ -77,6 +77,10 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 	if req.Filter != nil {
 		rpccontext.AddRPCAuditFields(ctx, fieldsFromListEntryFilter(ctx, s.td, req.Filter))
 
+		if req.Filter.ByHint != nil {
+			listReq.ByHint = req.Filter.ByHint.GetValue()
+		}
+
 		if req.Filter.ByParentId != nil {
 			parentID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, req.Filter.ByParentId)
 			if err != nil {
@@ -521,6 +525,10 @@ func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *ty
 
 func fieldsFromListEntryFilter(ctx context.Context, td spiffeid.TrustDomain, filter *entryv1.ListEntriesRequest_Filter) logrus.Fields {
 	fields := logrus.Fields{}
+
+	if filter.ByHint != nil {
+		fields[telemetry.Hint] = filter.ByHint.Value
+	}
 
 	if filter.ByParentId != nil {
 		if parentID, err := api.TrustDomainMemberIDFromProto(ctx, td, filter.ByParentId); err == nil {

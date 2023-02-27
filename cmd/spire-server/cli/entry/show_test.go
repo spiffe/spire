@@ -502,6 +502,7 @@ func getJSONPrintedEntry(idx int) string {
       ],
       "x509_svid_ttl": 0,
       "federates_with": [],
+      "hint": "",
       "admin": false,
       "downstream": false,
       "expires_at": "0",
@@ -533,6 +534,7 @@ func getJSONPrintedEntry(idx int) string {
       ],
       "x509_svid_ttl": 0,
       "federates_with": [],
+      "hint": "",
       "admin": false,
       "downstream": false,
       "expires_at": "0",
@@ -566,6 +568,7 @@ func getJSONPrintedEntry(idx int) string {
       "federates_with": [
         "spiffe://domain.test"
       ],
+      "hint": "",
       "admin": false,
       "downstream": false,
       "expires_at": "0",
@@ -593,6 +596,7 @@ func getJSONPrintedEntry(idx int) string {
       ],
       "x509_svid_ttl": 0,
       "federates_with": [],
+      "hint": "",
       "admin": false,
       "downstream": false,
       "expires_at": "1552410266",

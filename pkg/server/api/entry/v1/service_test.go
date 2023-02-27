@@ -399,9 +399,9 @@ func TestListEntries(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status:   "success",
-						telemetry.Type:     "audit",
-						telemetry.SPIFFEID: "spiffe://example.org/child",
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+						telemetry.Hint:   "internal",
 					},
 				},
 			},
@@ -1667,7 +1667,77 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 		},
 		{
-			name: "Valid Store SVID entry",
+			name: "valid entry with hint",
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id:       "entry1",
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/svidstore"},
+						Hint:     "internal",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/agent",
+						telemetry.Selectors:      "type:value1,type:value2",
+						telemetry.RevisionNumber: "0",
+						telemetry.SPIFFEID:       "spiffe://example.org/svidstore",
+						telemetry.X509SVIDTTL:    "0",
+						telemetry.JWTSVIDTTL:     "0",
+						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "internal",
+					},
+				},
+			},
+			outputMask: &types.EntryMask{
+				ParentId: true,
+				SpiffeId: true,
+				Hint:     true,
+			},
+			reqEntries: []*types.Entry{
+				{
+					Id: "entry1",
+					ParentId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "/agent",
+					},
+					SpiffeId: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "/svidstore",
+					},
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "value1"},
+						{Type: "type", Value: "value2"},
+					},
+					Hint: "internal",
+				}},
+			expectDsEntries: map[string]*common.RegistrationEntry{
+				"entry1": {
+					EntryId:  "entry1",
+					ParentId: "spiffe://example.org/agent",
+					SpiffeId: "spiffe://example.org/svidstore",
+					Selectors: []*common.Selector{
+						{Type: "type", Value: "value1"},
+						{Type: "type", Value: "value2"},
+					},
+					Hint: "internal",
+				},
+			},
+		},
+		{
+			name: "valid store SVID entry",
 			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},

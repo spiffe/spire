@@ -49,6 +49,7 @@ func TestUpdate(t *testing.T) {
           "spiffe://domaina.test",
           "spiffe://domainb.test"
         ],
+        "hint": "",
         "admin": false,
         "downstream": false,
         "expires_at": "1552410266",
@@ -85,6 +86,7 @@ func TestUpdate(t *testing.T) {
           "spiffe://domaina.test",
           "spiffe://domainb.test"
         ],
+        "hint": "",
         "admin": true,
         "downstream": true,
         "expires_at": "1552410266",
@@ -114,6 +116,7 @@ func TestUpdate(t *testing.T) {
         ],
 		"x509_svid_ttl": 200,
         "federates_with": [],
+        "hint": "",
         "admin": true,
         "downstream": false,
         "expires_at": "0",
@@ -141,6 +144,7 @@ func TestUpdate(t *testing.T) {
         ],
 		"x509_svid_ttl": 200,
         "federates_with": [],
+        "hint": "",
         "admin": false,
         "downstream": false,
         "expires_at": "0",
@@ -172,6 +176,7 @@ func TestUpdate(t *testing.T) {
         ],
 		"x509_svid_ttl": 200,
         "federates_with": [],
+        "hint": "",
         "admin": false,
         "downstream": false,
         "expires_at": "0",
@@ -198,6 +203,7 @@ func TestUpdate(t *testing.T) {
           }
         ],
         "federates_with": [],
+        "hint": "",
         "admin": false,
         "downstream": false,
         "expires_at": "0",
