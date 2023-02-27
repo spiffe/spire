@@ -18,7 +18,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	//"google.golang.org/protobuf/types/known/wrapperspb"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -29,6 +28,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 var (
@@ -386,26 +386,26 @@ func TestListEntries(t *testing.T) {
 				},
 			},
 		},
-		//{
-		//	name:            "filter by Hint",
-		//	expectedEntries: []*types.Entry{expectedChild},
-		//	request: &entryv1.ListEntriesRequest{
-		//		Filter: &entryv1.ListEntriesRequest_Filter{
-		//			ByHint: *wrapperspb.String("internal"),
-		//		},
-		//	},
-		//	expectLogs: []spiretest.LogEntry{
-		//		{
-		//			Level:   logrus.InfoLevel,
-		//			Message: "API accessed",
-		//			Data: logrus.Fields{
-		//				telemetry.Status:   "success",
-		//				telemetry.Type:     "audit",
-		//				telemetry.SPIFFEID: "spiffe://example.org/child",
-		//			},
-		//		},
-		//	},
-		//},
+		{
+			name:            "filter by Hint",
+			expectedEntries: []*types.Entry{expectedChild},
+			request: &entryv1.ListEntriesRequest{
+				Filter: &entryv1.ListEntriesRequest_Filter{
+					ByHint: wrapperspb.String("internal"),
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:   "success",
+						telemetry.Type:     "audit",
+						telemetry.SPIFFEID: "spiffe://example.org/child",
+					},
+				},
+			},
+		},
 		{
 			name:            "filter by selectors exact match",
 			expectedEntries: []*types.Entry{expectedSecondChild},
