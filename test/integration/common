@@ -201,7 +201,14 @@ download-kind() {
     KINDVERSION=v0.11.1
     KINDPATH=$(command -v kind || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
-    KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-amd64"
+    ARCH=$(uname -m)
+    if [ "${ARCH}" = "x86_64" ]; then
+        ARCH=amd64
+    elif [ "${ARCH}" = "aarch64" ]; then
+        ARCH=arm64
+    fi
+
+    KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-$ARCH"
 
     local kind_path=$1
     # Ensure kind exists at the expected version
@@ -216,7 +223,14 @@ download-kubectl() {
     KUBECTLVERSION=v1.21.1
     KUBECTLPATH=$(command -v kubectl || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
-    KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/amd64/kubectl"
+    ARCH=$(uname -m)
+    if [ "${ARCH}" = "x86_64" ]; then
+        ARCH=amd64
+    elif [ "${ARCH}" = "aarch64" ]; then
+        ARCH=arm64
+    fi
+
+    KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/$ARCH/kubectl"
 
     local kubectl_path=$1
     # Ensure kubectl exists at the expected version
@@ -228,7 +242,7 @@ download-kubectl() {
 }
 
 start-kind-cluster() {
-    K8SIMAGE=kindest/node:v1.21.1@sha256:fae9a58f17f18f06aeac9772ca8b5ac680ebbed985e266f711d936e91d113bad
+    K8SIMAGE=kindest/node:v1.21.1
 
     local kind_path=$1
     local kind_name=$2
