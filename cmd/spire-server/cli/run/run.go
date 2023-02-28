@@ -34,7 +34,7 @@ import (
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
-	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/ca/camanage"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -519,7 +519,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			var message string
 
 			switch {
-			case ttlCheck.ttl < ca.MaxSVIDTTL():
+			case ttlCheck.ttl < camanage.MaxSVIDTTL():
 				// TTL is smaller than our cap, but the CA TTL
 				// is not large enough to accommodate it
 				message = fmt.Sprintf("%s is too high for the configured "+
@@ -529,7 +529,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 					"when CA rotations are scheduled.",
 					ttlCheck.name, ttlCheck.name, printMaxSVIDTTL(sc.CATTL), printMinCATTL(ttlCheck.ttl), ttlCheck.name,
 				)
-			case sc.CATTL < ca.MinCATTLForSVIDTTL(ca.MaxSVIDTTL()):
+			case sc.CATTL < camanage.MinCATTLForSVIDTTL(camanage.MaxSVIDTTL()):
 				// TTL is larger than our cap, it needs to be
 				// decreased no matter what. Additionally, the CA TTL is
 				// too small to accommodate the maximum SVID TTL.
@@ -538,7 +538,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 					"may be issued. Please set %s to %v or less, and the "+
 					"ca_ttl to %v or more, to guarantee the full %s "+
 					"lifetime when CA rotations are scheduled.",
-					ttlCheck.name, ttlCheck.name, printDuration(ca.MaxSVIDTTL()), printMinCATTL(ca.MaxSVIDTTL()), ttlCheck.name,
+					ttlCheck.name, ttlCheck.name, printDuration(camanage.MaxSVIDTTL()), printMinCATTL(camanage.MaxSVIDTTL()), ttlCheck.name,
 				)
 			default:
 				// TTL is larger than our cap and needs to be
@@ -848,17 +848,17 @@ func keyTypeFromString(s string) (keymanager.KeyType, error) {
 // a scheduled CA rotation, this function will return false. This method should
 // be called for each SVID TTL we may use
 func hasCompatibleTTL(caTTL time.Duration, svidTTL time.Duration) bool {
-	return svidTTL <= ca.MaxSVIDTTLForCATTL(caTTL)
+	return svidTTL <= camanage.MaxSVIDTTLForCATTL(caTTL)
 }
 
 // printMaxSVIDTTL calculates the display string for a sufficiently short SVID TTL
 func printMaxSVIDTTL(caTTL time.Duration) string {
-	return printDuration(ca.MaxSVIDTTLForCATTL(caTTL))
+	return printDuration(camanage.MaxSVIDTTLForCATTL(caTTL))
 }
 
 // printMinCATTL calculates the display string for a sufficiently large CA TTL
 func printMinCATTL(svidTTL time.Duration) string {
-	return printDuration(ca.MinCATTLForSVIDTTL(svidTTL))
+	return printDuration(camanage.MinCATTLForSVIDTTL(svidTTL))
 }
 
 func printDuration(d time.Duration) string {
