@@ -7,7 +7,8 @@
       }
     ],
     "spiffe_id": "SpiffeId1",
-    "ttl": 1
+    "ttl": 1,
+    "hint": "internal"
   },
   {
     "selectors": [
@@ -21,7 +22,8 @@
       }
     ],
     "spiffe_id": "SpiffeId2",
-    "ttl": 3
+    "ttl": 3,
+    "hint":  "external"
   },
   {
     "selectors": [
