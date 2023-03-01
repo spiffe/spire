@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.6.0] - 2023-02-28
+
+### Added
+
+- Support for customization of SVID and CA attributes through CredentialComposer plugins (#3819, #3832, #3862, #3869)
+- Experimental support to validate container images signatures through sigstore selectors (#3159)
+- Published scratch images now support ARM64 architecture (#3607)
+- Published scratch images are now signed using Sigstore (#3707)
+- `spire-server mint` and `spire-server token generate` CLI commands now support the `-output` flag (#3800)
+- `spire-agent api` CLI command now supports the `-output` flag (#3818)
+- Release images now include a non-root user and default folders (#3811)
+- Agent accepts bootstrap bundles in SPIFFE format (#3753)
+- Database index for registration entry hint column (#3828)
+
+### Changed
+
+- Plugins are configured and executed in the order they are defined (#3797)
+- Documentation improvements (#3826, #3842, #3870)
+
+### Fixed
+
+- Server crash when authorization layer was unable to talk to the datastore (#3829)
+- Timestamps in logs are now consistently in local time (#3734)
+
+### Removed
+
+- Non-scratch images are no longer published (#3785)
+- `k8s-workload-registar` is no longer released and maintained (#3853)
+- Unused database column `x509_svid_ttl` from `registered_entries` table (#3808)
+- The deprecated `enabled` flag from InMem telemetry config (#3796)
+- The deprecated `default_svid_ttl` configurable (#3795)
+- The deprecated `omit_x509svid_uid` configurable (#3794)
+
 ## [1.5.5] - 2023-02-14
 
 ### Security
