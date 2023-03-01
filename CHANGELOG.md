@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.1] - 2023-03-1
+
+### Fixed
+
+- Different CA TTL than configured (#3934)
+
 ## [1.6.0] - 2023-02-28
 
 ### Added
