@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -4010,6 +4011,59 @@ func (s *PluginSuite) TestUpdateFederationRelationship() {
 			s.Require().Equal(tt.expFR, updatedFR)
 		})
 	}
+}
+
+func (s *PluginSuite) TestCleanStaleNodeResolverEntries() {
+	deletedNodeSPIFFEID := "thisNodeDoesNotExist"
+	existentNode := &common.AttestedNode{
+		SpiffeId:            "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	}
+
+	selectors := []*common.Selector{
+		{Type: "TYPE1", Value: "VALUE1"},
+		{Type: "TYPE2", Value: "VALUE2"},
+		{Type: "TYPE3", Value: "VALUE3"},
+		{Type: "TYPE4", Value: "VALUE4"},
+	}
+	_, err := s.ds.CreateAttestedNode(ctx, existentNode)
+	require.NoError(s.T(), err)
+	err = s.ds.SetNodeSelectors(ctx, existentNode.SpiffeId, selectors)
+	require.NoError(s.T(), err)
+	nodeSelectors, err := s.ds.GetNodeSelectors(ctx, existentNode.SpiffeId, datastore.RequireCurrent)
+	s.Require().NoError(err)
+	s.Equal(selectors, nodeSelectors)
+
+	err = s.ds.SetNodeSelectors(ctx, deletedNodeSPIFFEID, selectors)
+	require.NoError(s.T(), err)
+	staleNodeSelectors, err := s.ds.GetNodeSelectors(ctx, deletedNodeSPIFFEID, datastore.RequireCurrent)
+	s.Require().NoError(err)
+	s.Equal(selectors, staleNodeSelectors)
+
+	err = s.ds.withWriteTx(ctx, func(tx *gorm.DB) error {
+		cleanUpError := cleanStaleNodeResolverEntries(tx, s.ds.log)
+		s.Require().NoError(cleanUpError)
+		return nil
+	})
+	s.Require().NoError(err)
+	spiretest.AssertLastLogs(s.T(), []*logrus.Entry{s.hook.LastEntry()}, []spiretest.LogEntry{
+		{
+			Level:   logrus.InfoLevel,
+			Message: "Deleted 4 stale node resolver entries",
+		},
+	})
+
+	// Check that stale node selectors were deleted since the underlying attested node entry does not exist
+	staleNodeSelectors, err = s.ds.GetNodeSelectors(ctx, deletedNodeSPIFFEID, datastore.RequireCurrent)
+	s.Require().NoError(err)
+	s.Empty(staleNodeSelectors)
+
+	// Check that foo node selectors were not deleted because the attested node entry still exists
+	nodeSelectors, err = s.ds.GetNodeSelectors(ctx, existentNode.SpiffeId, datastore.RequireCurrent)
+	s.Require().NoError(err)
+	s.Equal(selectors, nodeSelectors)
 }
 
 func (s *PluginSuite) TestMigration() {
