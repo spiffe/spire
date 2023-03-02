@@ -175,7 +175,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2.4.1
       - name: Build images
-        run: make images
+        run: make images-no-load
       - name: Export images
         run: tar -czvf images.tar.gz *-image.tar
       - name: Archive images
