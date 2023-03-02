@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -4042,13 +4041,20 @@ func (s *PluginSuite) TestCleanStaleNodeResolverEntries() {
 	s.Require().NoError(err)
 	s.Equal(selectors, staleNodeSelectors)
 
-	err = s.ds.withWriteTx(ctx, func(tx *gorm.DB) error {
-		cleanUpError := cleanStaleNodeResolverEntries(tx, s.ds.log)
-		s.Require().NoError(cleanUpError)
-		return nil
-	})
+	// Initialize a new datastore to force a cleanup of stale node resolver entries
+	dbPath := s.ds.db.connectionString
+	databaseType := s.ds.db.databaseType
+	err = s.ds.Close()
+	s.ds.db = nil
+	err = s.ds.Configure(ctx, fmt.Sprintf(`
+			database_type = "%s"
+			log_sql = true
+			connection_string = "%s"
+            ro_connection_string = "%s"
+		`, databaseType, dbPath, TestROConnString))
 	s.Require().NoError(err)
-	spiretest.AssertLastLogs(s.T(), []*logrus.Entry{s.hook.LastEntry()}, []spiretest.LogEntry{
+
+	spiretest.AssertLogsContainEntries(s.T(), s.hook.AllEntries(), []spiretest.LogEntry{
 		{
 			Level:   logrus.InfoLevel,
 			Message: "Deleted 4 stale node resolver entries",
