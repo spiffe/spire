@@ -1,3 +1,4 @@
+
 syntax = "proto3";
 package spire.common;
 option go_package = "github.com/spiffe/spire/proto/spire/common";
@@ -90,6 +91,9 @@ message RegistrationEntry {
     bool store_svid = 12;
     /** Time to live for JWT-SVIDs generated from this entry, if set will override ttl field. */
     int32 jwt_svid_ttl = 13;
+    /** An operator-specified string used to provide guidance on how this
+    identity should be used by a workload when more than one SVID is returned. */
+    string hint = 14;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */
@@ -106,6 +110,7 @@ message RegistrationEntryMask {
     bool dns_names = 10;
     bool store_svid = 11;
     bool jwt_svid_ttl = 12;
+    bool hint = 13;
 }
 
 
