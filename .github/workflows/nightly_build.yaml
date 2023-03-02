@@ -30,7 +30,7 @@ jobs:
       - name: Install regctl
         uses: regclient/actions/regctl-installer@b6614f5f56245066b533343a85f4109bdc38c8cc # main
       - name: Build images
-        run: make images load-images
+        run: make images
       - name: Log in to GHCR
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
         with:
