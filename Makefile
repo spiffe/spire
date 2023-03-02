@@ -48,6 +48,7 @@ help:
 	@echo
 	@echo "$(bold)Docker image:$(reset)"
 	@echo "  $(cyan)images$(reset)                                - build all SPIRE Docker images"
+	@echo "  $(cyan)images-no-load$(reset)                        - build all SPIRE Docker images but don't load them into the local docker registry"
 	@echo "  $(cyan)spire-server-image$(reset)                    - build SPIRE server Docker image"
 	@echo "  $(cyan)spire-agent-image$(reset)                     - build SPIRE agent Docker image"
 	@echo "  $(cyan)oidc-discovery-provider-image$(reset)         - build OIDC Discovery Provider Docker image"
@@ -344,13 +345,18 @@ $1: $3 container-builder
 
 endef
 
-.PHONY: images
-images: $(addsuffix -image,$(binaries))
-
 $(eval $(call image_rule,spire-server-image,spire-server,Dockerfile))
 $(eval $(call image_rule,spire-agent-image,spire-agent,Dockerfile))
 $(eval $(call image_rule,oidc-discovery-provider-image,oidc-discovery-provider,Dockerfile))
 
+.PHONY: images-no-load
+images-no-load: $(addsuffix -image,$(binaries))
+
+.PHONY: images
+images: images-no-load
+	.github/workflows/scripts/load-oci-archives.sh
+
+.PHONY: load-images
 load-images:
 	.github/workflows/scripts/load-oci-archives.sh
 
