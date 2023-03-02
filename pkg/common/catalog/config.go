@@ -162,7 +162,7 @@ func PluginConfigsFromHCLNode(pluginsNode ast.Node) (PluginConfigs, error) {
 				return nil, err
 			}
 		default:
-			return nil, fmt.Errorf("expected one or two keys on the plugin item but got %d", len(pluginObject.Keys))
+			return nil, fmt.Errorf("expected one or two keys on the plugin item for type %q but got %d", pluginType, len(pluginObject.Keys))
 		}
 	}
 	return pluginConfigs, nil

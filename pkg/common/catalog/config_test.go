@@ -172,4 +172,20 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 		_, err = PluginConfigsFromHCLNode(root.Plugins)
 		require.EqualError(t, err, `plugin "TYPE"/"NAME" declared more than once`)
 	})
+
+	t.Run("Unexpected key count", func(t *testing.T) {
+		config := `
+			plugins {
+				"TYPE" "NAME" "BOGUS" {
+				}
+			}`
+		root := struct {
+			Plugins ast.Node
+		}{}
+		err := hcl.Decode(&root, config)
+		require.NoError(t, err)
+
+		_, err = PluginConfigsFromHCLNode(root.Plugins)
+		require.EqualError(t, err, `expected one or two keys on the plugin item for type "TYPE" but got 3`)
+	})
 }
