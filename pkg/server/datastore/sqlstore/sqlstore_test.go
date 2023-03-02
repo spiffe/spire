@@ -4045,6 +4045,7 @@ func (s *PluginSuite) TestCleanStaleNodeResolverEntries() {
 	dbPath := s.ds.db.connectionString
 	databaseType := s.ds.db.databaseType
 	err = s.ds.Close()
+	s.Require().NoError(err)
 	s.ds.db = nil
 	err = s.ds.Configure(ctx, fmt.Sprintf(`
 			database_type = "%s"
