@@ -750,26 +750,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 }
 
 func cleanStaleNodeResolverEntries(tx *gorm.DB, log logrus.FieldLogger) error {
-	nodeSelectorTable := NodeSelector{}.TableName()
-	attestedNodeTable := AttestedNode{}.TableName()
-	var staleNodeSelectors []NodeSelector
-
-	err := tx.Table(nodeSelectorTable).
-		Select(fmt.Sprintf("%s.id", nodeSelectorTable)).
-		Joins(fmt.Sprintf("LEFT JOIN %s ON %s.spiffe_id = %s.spiffe_id", attestedNodeTable, attestedNodeTable, nodeSelectorTable)).
-		Where(fmt.Sprintf("%s.spiffe_id IS NULL", attestedNodeTable)).
-		Scan(&staleNodeSelectors).Error
-
-	if err != nil {
-		return sqlError.Wrap(err)
-	}
-
-	staleSelectorIDs := make([]uint, 0, len(staleNodeSelectors))
-	for _, staleNodeSelector := range staleNodeSelectors {
-		staleSelectorIDs = append(staleSelectorIDs, staleNodeSelector.ID)
-	}
-
-	result := tx.Delete(&NodeSelector{}, staleSelectorIDs)
+	result := tx.Delete(&NodeSelector{}, fmt.Sprintf("spiffe_id NOT IN (SELECT spiffe_id FROM %s)",AttestedNode{}.TableName()))
 
 	if result.Error != nil {
 		return sqlError.Wrap(result.Error)
