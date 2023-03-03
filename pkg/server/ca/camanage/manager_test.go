@@ -598,6 +598,26 @@ func TestRunFailsIfNotifierFails(t *testing.T) {
 	assert.Equal(t, "Notifier failed to handle event", entry.Message)
 }
 
+func TestPreparationThresholdCap(t *testing.T) {
+	issuedAt := time.Now()
+	notAfter := issuedAt.Add(365 * 24 * time.Hour)
+
+	// Expect the preparation threshold to get capped since 1/2 of the lifetime
+	// exceeds the thirty day cap.
+	threshold := preparationThreshold(issuedAt, notAfter)
+	require.Equal(t, thirtyDays, notAfter.Sub(threshold))
+}
+
+func TestActivationThreshholdCap(t *testing.T) {
+	issuedAt := time.Now()
+	notAfter := issuedAt.Add(365 * 24 * time.Hour)
+
+	// Expect the activation threshold to get capped since 1/6 of the lifetime
+	// exceeds the seven day cap.
+	threshold := keyActivationThreshold(issuedAt, notAfter)
+	require.Equal(t, sevenDays, notAfter.Sub(threshold))
+}
+
 func TestAlternateKeyTypes(t *testing.T) {
 	upstreamAuthority, _ := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
