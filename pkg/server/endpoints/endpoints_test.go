@@ -34,7 +34,6 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
-	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,18 +82,6 @@ func TestNew(t *testing.T) {
 	require.NoError(t, err)
 
 	serverCA := fakeserverca.New(t, testTD, nil)
-	manager, err := camanage.NewManager(ctx, camanage.Config{
-		CA:            serverCA,
-		Catalog:       cat,
-		TrustDomain:   testTD,
-		CredBuilder:   serverCA.CredBuilder(),
-		CredValidator: serverCA.CredValidator(),
-		Dir:           spiretest.TempDir(t),
-		Log:           log,
-		Metrics:       metrics,
-		Clock:         clk,
-	})
-	require.NoError(t, err)
 
 	endpoints, err := New(ctx, Config{
 		TCPAddr:          tcpAddr,
@@ -104,7 +91,7 @@ func TestNew(t *testing.T) {
 		Catalog:          cat,
 		ServerCA:         serverCA,
 		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
-		JWTKeyPublisher:  manager,
+		JWTKeyPublisher:  &fakeJWTKeyPublisher{},
 		Log:              log,
 		Metrics:          metrics,
 		RateLimit:        rateLimit,
@@ -149,18 +136,6 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	require.NoError(t, err)
 
 	serverCA := fakeserverca.New(t, testTD, nil)
-	manager, err := camanage.NewManager(ctx, camanage.Config{
-		CA:            serverCA,
-		Catalog:       cat,
-		TrustDomain:   testTD,
-		CredBuilder:   serverCA.CredBuilder(),
-		CredValidator: serverCA.CredValidator(),
-		Dir:           spiretest.TempDir(t),
-		Log:           log,
-		Metrics:       metrics,
-		Clock:         clk,
-	})
-	require.NoError(t, err)
 
 	endpoints, err := New(ctx, Config{
 		TCPAddr:          tcpAddr,
@@ -170,7 +145,7 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 		Catalog:          cat,
 		ServerCA:         serverCA,
 		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
-		JWTKeyPublisher:  manager,
+		JWTKeyPublisher:  &fakeJWTKeyPublisher{},
 		Log:              log,
 		Metrics:          metrics,
 		RateLimit:        rateLimit,
@@ -984,4 +959,8 @@ func (o *svidObserver) State() svid.State {
 		SVID: o.svid.Certificates,
 		Key:  o.svid.PrivateKey,
 	}
+}
+
+type fakeJWTKeyPublisher struct {
+	camanage.JwtKeyPublisher
 }
