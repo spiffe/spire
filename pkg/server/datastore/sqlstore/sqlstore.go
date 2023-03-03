@@ -740,7 +740,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 			return nil, "", false, nil, err
 		}
 		// TODO: we should keep this logic for a minor release cycle to make sure stale entries are removed eventually.
-		// Delete this function in a future release.
+		// Remove in SPIRE 1.8.0
 		if err := cleanStaleNodeResolverEntries(db, ds.log); err != nil {
 			ds.log.WithError(err).Error("Failed to clean stale node resolver entries")
 		}
