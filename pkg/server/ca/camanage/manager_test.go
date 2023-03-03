@@ -50,6 +50,94 @@ var (
 	testTrustDomain = spiffeid.RequireTrustDomainFromString("domain.test")
 )
 
+func TestGetCurrentJWTKeySlot(t *testing.T) {
+	ctx := context.Background()
+
+	test := setupTest(t)
+	test.initSelfSignedManager()
+
+	t.Run("no authority created", func(t *testing.T) {
+		slot := test.m.GetCurrentJWTKeySlot()
+
+		require.Nil(t, slot.jwtKey)
+		require.Empty(t, slot.issuedAt)
+	})
+
+	t.Run("slot returned", func(t *testing.T) {
+		require.NoError(t, test.m.PrepareJWTKey(ctx))
+
+		slot := test.m.GetCurrentJWTKeySlot()
+		require.NotNil(t, slot.jwtKey)
+		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+	})
+}
+
+func TestGetNextJWTKeySlot(t *testing.T) {
+	ctx := context.Background()
+
+	test := setupTest(t)
+	test.initAndActivateSelfSignedManager(ctx)
+
+	t.Run("no next created", func(t *testing.T) {
+		slot := test.m.GetNextJWTKeySlot()
+
+		require.Nil(t, slot.jwtKey)
+		require.Empty(t, slot.issuedAt)
+	})
+
+	t.Run("next returned", func(t *testing.T) {
+		require.NoError(t, test.m.PrepareJWTKey(ctx))
+
+		slot := test.m.GetNextJWTKeySlot()
+		require.NotNil(t, slot.jwtKey)
+		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+	})
+}
+
+func TestGetCurrentX509CASlot(t *testing.T) {
+	ctx := context.Background()
+
+	test := setupTest(t)
+	test.initSelfSignedManager()
+
+	t.Run("no authority created", func(t *testing.T) {
+		slot := test.m.GetCurrentX509CASlot()
+
+		require.Nil(t, slot.x509CA)
+		require.Empty(t, slot.issuedAt)
+	})
+
+	t.Run("slot returned", func(t *testing.T) {
+		require.NoError(t, test.m.PrepareX509CA(ctx))
+
+		slot := test.m.GetCurrentX509CASlot()
+		require.NotNil(t, slot.x509CA)
+		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+	})
+}
+
+func TestGetNextX509CASlot(t *testing.T) {
+	ctx := context.Background()
+
+	test := setupTest(t)
+	test.initAndActivateSelfSignedManager(ctx)
+
+	t.Run("no next created", func(t *testing.T) {
+		slot := test.m.GetNextX509CASlot()
+
+		require.Nil(t, slot.x509CA)
+		require.Empty(t, slot.issuedAt)
+	})
+
+	t.Run("next returned", func(t *testing.T) {
+		require.NoError(t, test.m.PrepareX509CA(ctx))
+
+		slot := test.m.GetNextX509CASlot()
+		require.NotNil(t, slot.x509CA)
+		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+	})
+}
+
 func TestPersistence(t *testing.T) {
 	ctx := context.Background()
 
