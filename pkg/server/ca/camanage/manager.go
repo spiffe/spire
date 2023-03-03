@@ -128,10 +128,13 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
 		s.currentX509CA = currentX509CA.(*X509CASlot)
 
+		// TODO: Activation on journal depends on dates, it will need to be
+		// refactored to allow set an Status, because when forcing rotations,
+		// we are not longer able to depends on dates
 		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
 			// activate the X509CA immediately if it is set and not within
 			// activation time of the next X509CA.
-			s.ActivateX509CA()
+			s.activateX509CA()
 		}
 	}
 
@@ -142,10 +145,13 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	if currentJWTKey, ok := slots[CurrentJWTKeySlot]; ok {
 		s.currentJWTKey = currentJWTKey.(*JwtKeySlot)
 
+		// TODO: Activation on journal depends on dates, it will need to be
+		// refactored to allow set an Status, because when forcing rotations,
+		// we are not longer able to depends on dates
 		if !currentJWTKey.IsEmpty() && !currentJWTKey.ShouldActivateNext(now) {
 			// activate the JWT key immediately if it is set and not within
 			// activation time of the next JWT key.
-			s.ActivateJWTKey()
+			s.activateJWTKey()
 		}
 	}
 
@@ -232,21 +238,7 @@ func (m *Manager) ActivateX509CA() {
 	m.x509CAMutex.RLock()
 	defer m.x509CAMutex.RUnlock()
 
-	m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       m.currentX509CA.id,
-		telemetry.IssuedAt:   m.currentX509CA.issuedAt,
-		telemetry.Expiration: m.currentX509CA.x509CA.Certificate.NotAfter,
-	}).Info("X509 CA activated")
-	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
-
-	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
-	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
-	m.c.Log.WithFields(logrus.Fields{
-		telemetry.TrustDomainID: m.c.TrustDomain.IDString(),
-		telemetry.TTL:           ttl.Seconds(),
-	}).Debug("Successfully rotated X.509 CA")
-
-	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
+	m.activateX509CA()
 }
 
 func (m *Manager) RotateX509CA() {
@@ -255,7 +247,7 @@ func (m *Manager) RotateX509CA() {
 
 	m.currentX509CA, m.nextX509CA = m.nextX509CA, m.currentX509CA
 	m.nextX509CA.Reset()
-	m.ActivateX509CA()
+	m.activateX509CA()
 }
 
 func (m *Manager) GetCurrentJWTKeySlot() *JwtKeySlot {
@@ -332,13 +324,7 @@ func (m *Manager) ActivateJWTKey() {
 	m.jwtKeyMutex.RLock()
 	defer m.jwtKeyMutex.RUnlock()
 
-	m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       m.currentJWTKey.id,
-		telemetry.IssuedAt:   m.currentJWTKey.issuedAt,
-		telemetry.Expiration: m.currentJWTKey.jwtKey.NotAfter,
-	}).Info("JWT key activated")
-	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
-	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
+	m.activateJWTKey()
 }
 
 func (m *Manager) RotateJWTKey() {
@@ -347,7 +333,7 @@ func (m *Manager) RotateJWTKey() {
 
 	m.currentJWTKey, m.nextJWTKey = m.nextJWTKey, m.currentJWTKey
 	m.nextJWTKey.Reset()
-	m.ActivateJWTKey()
+	m.activateJWTKey()
 }
 
 // PublishJWTKey publishes the passed JWK to the upstream server using the configured
@@ -447,6 +433,34 @@ func (m *Manager) NotifyBundleLoaded(ctx context.Context) error {
 			return n.NotifyAndAdviseBundleLoaded(ctx, bundle)
 		},
 	)
+}
+
+func (m *Manager) activateJWTKey() {
+	m.c.Log.WithFields(logrus.Fields{
+		telemetry.Slot:       m.currentJWTKey.id,
+		telemetry.IssuedAt:   m.currentJWTKey.issuedAt,
+		telemetry.Expiration: m.currentJWTKey.jwtKey.NotAfter,
+	}).Info("JWT key activated")
+	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
+	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
+}
+
+func (m *Manager) activateX509CA() {
+	m.c.Log.WithFields(logrus.Fields{
+		telemetry.Slot:       m.currentX509CA.id,
+		telemetry.IssuedAt:   m.currentX509CA.issuedAt,
+		telemetry.Expiration: m.currentX509CA.x509CA.Certificate.NotAfter,
+	}).Info("X509 CA activated")
+	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
+
+	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
+	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
+	m.c.Log.WithFields(logrus.Fields{
+		telemetry.TrustDomainID: m.c.TrustDomain.IDString(),
+		telemetry.TTL:           ttl.Seconds(),
+	}).Debug("Successfully rotated X.509 CA")
+
+	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
 }
 
 func (m *Manager) bundleUpdated() {
