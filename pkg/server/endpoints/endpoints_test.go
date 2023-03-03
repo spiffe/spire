@@ -23,7 +23,7 @@ import (
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
-	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/ca/camanage"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
@@ -31,7 +31,6 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
-	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
@@ -84,8 +83,7 @@ func TestNew(t *testing.T) {
 	require.NoError(t, err)
 
 	serverCA := fakeserverca.New(t, testTD, nil)
-	healthChecker := fakehealthchecker.New()
-	manager := ca.NewManager(ca.ManagerConfig{
+	manager, err := camanage.NewManager(ctx, camanage.Config{
 		CA:            serverCA,
 		Catalog:       cat,
 		TrustDomain:   testTD,
@@ -95,8 +93,8 @@ func TestNew(t *testing.T) {
 		Log:           log,
 		Metrics:       metrics,
 		Clock:         clk,
-		HealthChecker: healthChecker,
 	})
+	require.NoError(t, err)
 
 	endpoints, err := New(ctx, Config{
 		TCPAddr:          tcpAddr,
@@ -106,7 +104,7 @@ func TestNew(t *testing.T) {
 		Catalog:          cat,
 		ServerCA:         serverCA,
 		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
-		JWTKeyPublisher:          manager,
+		JWTKeyPublisher:  manager,
 		Log:              log,
 		Metrics:          metrics,
 		RateLimit:        rateLimit,
@@ -151,8 +149,7 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	require.NoError(t, err)
 
 	serverCA := fakeserverca.New(t, testTD, nil)
-	healthChecker := fakehealthchecker.New()
-	manager := ca.NewManager(ca.ManagerConfig{
+	manager, err := camanage.NewManager(ctx, camanage.Config{
 		CA:            serverCA,
 		Catalog:       cat,
 		TrustDomain:   testTD,
@@ -162,8 +159,8 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 		Log:           log,
 		Metrics:       metrics,
 		Clock:         clk,
-		HealthChecker: healthChecker,
 	})
+	require.NoError(t, err)
 
 	endpoints, err := New(ctx, Config{
 		TCPAddr:          tcpAddr,
@@ -173,7 +170,7 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 		Catalog:          cat,
 		ServerCA:         serverCA,
 		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
-		JWTKeyPublisher:          manager,
+		JWTKeyPublisher:  manager,
 		Log:              log,
 		Metrics:          metrics,
 		RateLimit:        rateLimit,

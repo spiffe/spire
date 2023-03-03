@@ -177,7 +177,7 @@ func TestPersistence(t *testing.T) {
 	test.requireJWTKeyEqual(t, secondJWTKey, test.nextJWTKey())
 }
 
-func NoSlotLoadedWhenJournalIsLost(t *testing.T) {
+func TestSlotLoadedWhenJournalIsLost(t *testing.T) {
 	ctx := context.Background()
 
 	test := setupTest(t)
@@ -194,8 +194,8 @@ func NoSlotLoadedWhenJournalIsLost(t *testing.T) {
 	test.wipeJournal(t)
 	test.initSelfSignedManager()
 	// After journal is lost no slot is found
-	require.Nil(t, test.currentX509CA())
-	require.Nil(t, test.currentJWTKey())
+	require.True(t, test.m.GetCurrentJWTKeySlot().IsEmpty())
+	require.True(t, test.m.GetCurrentX509CASlot().IsEmpty())
 }
 
 func TestSelfSigning(t *testing.T) {
@@ -239,7 +239,7 @@ func TestUpstreamSigned(t *testing.T) {
 	}
 
 	// The trust bundle should contain the upstream root
-	test.requireBundleRootCAs(t, ctx, fakeUA.X509Root())
+	test.requireBundleRootCAs(ctx, t, fakeUA.X509Root())
 
 	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	assert.Equal(t,
@@ -304,7 +304,7 @@ func TestUpstreamIntermediateSigned(t *testing.T) {
 	}
 
 	// The trust bundle should contain the upstream root
-	test.requireBundleRootCAs(t, ctx, fakeUA.X509Root())
+	test.requireBundleRootCAs(ctx, t, fakeUA.X509Root())
 
 	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
 	assert.Equal(t,
@@ -355,7 +355,7 @@ func TestX509CARotation(t *testing.T) {
 	// after initialization, we should have a current X509CA but no next.
 	first := test.currentX509CA()
 	assert.Nil(t, test.nextX509CA(), "second X509CA should not be prepared yet")
-	test.requireBundleRootCAs(t, ctx, first.Certificate)
+	test.requireBundleRootCAs(ctx, t, first.Certificate)
 
 	// Prepare new X509CA. the current X509CA should stay
 	// the same but the next X509CA should have been prepared and added to
@@ -364,7 +364,7 @@ func TestX509CARotation(t *testing.T) {
 	test.requireX509CAEqual(t, first, test.currentX509CA())
 	second := test.nextX509CA()
 	assert.NotNil(t, second, "second X509CA should have been prepared")
-	test.requireBundleRootCAs(t, ctx, first.Certificate, second.Certificate)
+	test.requireBundleRootCAs(ctx, t, first.Certificate, second.Certificate)
 
 	// we should now have a bundle update notification due to the preparation
 	test.waitForBundleUpdatedNotification(ctx, notifyCh)
@@ -382,7 +382,7 @@ func TestX509CARotation(t *testing.T) {
 	test.requireX509CAEqual(t, second, test.currentX509CA())
 	third := test.nextX509CA()
 	assert.NotNil(t, third, "third X509CA should have been prepared")
-	test.requireBundleRootCAs(t, ctx, first.Certificate, second.Certificate, third.Certificate)
+	test.requireBundleRootCAs(ctx, t, first.Certificate, second.Certificate, third.Certificate)
 
 	// we should now have another bundle update notification due to the preparation
 	test.waitForBundleUpdatedNotification(ctx, notifyCh)
@@ -434,7 +434,7 @@ func TestJWTKeyRotation(t *testing.T) {
 	// after initialization, we should have a current JWTKey but no next.
 	first := test.currentJWTKey()
 	assert.Nil(t, test.nextJWTKey(), "second JWTKey should not be prepared yet")
-	test.requireBundleJWTKeys(t, ctx, first)
+	test.requireBundleJWTKeys(ctx, t, first)
 
 	// prepare next. the current JWTKey should stay
 	// the same but the next JWTKey should have been prepared and added to
@@ -443,7 +443,7 @@ func TestJWTKeyRotation(t *testing.T) {
 	test.requireJWTKeyEqual(t, first, test.currentJWTKey())
 	second := test.nextJWTKey()
 	assert.NotNil(t, second, "second JWTKey should have been prepared")
-	test.requireBundleJWTKeys(t, ctx, first, second)
+	test.requireBundleJWTKeys(ctx, t, first, second)
 
 	// we should now have a bundle update notification due to the preparation
 	test.waitForBundleUpdatedNotification(ctx, notifyCh)
@@ -461,7 +461,7 @@ func TestJWTKeyRotation(t *testing.T) {
 	test.requireJWTKeyEqual(t, second, test.currentJWTKey())
 	third := test.nextJWTKey()
 	assert.NotNil(t, second, "third JWTKey should have been prepared")
-	test.requireBundleJWTKeys(t, ctx, first, second, third)
+	test.requireBundleJWTKeys(ctx, t, first, second, third)
 
 	// we should now have a bundle update notification due to the preparation
 	test.waitForBundleUpdatedNotification(ctx, notifyCh)
@@ -499,8 +499,8 @@ func TestPruneBundle(t *testing.T) {
 	firstJWTKey := test.currentJWTKey()
 	secondX509CA := test.nextX509CA()
 	secondJWTKey := test.nextJWTKey()
-	test.requireBundleRootCAs(t, ctx, firstX509CA.Certificate, secondX509CA.Certificate)
-	test.requireBundleJWTKeys(t, ctx, firstJWTKey, secondJWTKey)
+	test.requireBundleRootCAs(ctx, t, firstX509CA.Certificate, secondX509CA.Certificate)
+	test.requireBundleJWTKeys(ctx, t, firstJWTKey, secondJWTKey)
 
 	// kick off a goroutine to service bundle update notifications. This is
 	// typically handled by Run() but using it would complicate the test.
@@ -510,14 +510,14 @@ func TestPruneBundle(t *testing.T) {
 	// advance just past the expiration time of the first and prune. nothing
 	// should change.
 	test.setTimeAndPrune(firstExpiresTime.Add(time.Minute))
-	test.requireBundleRootCAs(t, ctx, firstX509CA.Certificate, secondX509CA.Certificate)
-	test.requireBundleJWTKeys(t, ctx, firstJWTKey, secondJWTKey)
+	test.requireBundleRootCAs(ctx, t, firstX509CA.Certificate, secondX509CA.Certificate)
+	test.requireBundleJWTKeys(ctx, t, firstJWTKey, secondJWTKey)
 
 	// advance beyond the safety threshold of the first, prune, and assert that
 	// the first has been pruned
 	test.addTimeAndPrune(safetyThreshold)
-	test.requireBundleRootCAs(t, ctx, secondX509CA.Certificate)
-	test.requireBundleJWTKeys(t, ctx, secondJWTKey)
+	test.requireBundleRootCAs(ctx, t, secondX509CA.Certificate)
+	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
 
 	// we should now have a bundle update notification due to the pruning
 	test.waitForBundleUpdatedNotification(ctx, notifyCh)
@@ -526,8 +526,8 @@ func TestPruneBundle(t *testing.T) {
 	// changes because we can't prune out the whole bundle.
 	test.clock.Set(secondExpiresTime.Add(time.Minute + safetyThreshold))
 	require.EqualError(t, test.m.PruneBundle(context.Background()), "unable to prune bundle: rpc error: code = Unknown desc = prune failed: would prune all certificates")
-	test.requireBundleRootCAs(t, ctx, secondX509CA.Certificate)
-	test.requireBundleJWTKeys(t, ctx, secondJWTKey)
+	test.requireBundleRootCAs(ctx, t, secondX509CA.Certificate)
+	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
 }
 
 func TestMigration(t *testing.T) {
@@ -861,18 +861,12 @@ func (m *managerTest) initUpstreamSignedManager(upstreamAuthority upstreamauthor
 }
 
 func (m *managerTest) initAndActivateUpstreamSignedManager(ctx context.Context, upstreamAuthority upstreamauthority.UpstreamAuthority) {
-	m.cat.SetUpstreamAuthority(upstreamAuthority)
+	m.initUpstreamSignedManager(upstreamAuthority)
 
-	c := m.selfSignedConfig()
-	manager, err := NewManager(context.Background(), c)
-	require.NoError(m.t, err)
-
-	require.NoError(m.t, manager.PrepareJWTKey(ctx))
-	manager.ActivateJWTKey()
-	require.NoError(m.t, manager.PrepareX509CA(ctx))
-	manager.ActivateX509CA()
-
-	m.m = manager
+	require.NoError(m.t, m.m.PrepareJWTKey(ctx))
+	m.m.ActivateJWTKey()
+	require.NoError(m.t, m.m.PrepareX509CA(ctx))
+	m.m.ActivateX509CA()
 }
 
 func (m *managerTest) selfSignedConfig() Config {
@@ -913,16 +907,8 @@ func (m *managerTest) requireX509CAEqual(t *testing.T, expected, actual *ca.X509
 	require.Equal(t, m.getX509CAInfo(expected), m.getX509CAInfo(actual), msgAndArgs...)
 }
 
-func (m *managerTest) requireX509CANotEqual(t *testing.T, expected, actual *ca.X509CA, msgAndArgs ...interface{}) {
-	require.NotEqual(t, m.getX509CAInfo(expected), m.getX509CAInfo(actual), msgAndArgs...)
-}
-
 func (m *managerTest) requireJWTKeyEqual(t *testing.T, expected, actual *ca.JWTKey, msgAndArgs ...interface{}) {
 	require.Equal(t, m.getJWTKeyInfo(expected), m.getJWTKeyInfo(actual), msgAndArgs...)
-}
-
-func (m *managerTest) requireJWTKeyNotEqual(t *testing.T, expected, actual *ca.JWTKey, msgAndArgs ...interface{}) {
-	require.NotEqual(t, m.getJWTKeyInfo(expected), m.getJWTKeyInfo(actual), msgAndArgs...)
 }
 
 func (m *managerTest) getX509CAInfo(x509CA *ca.X509CA) x509CAInfo {
@@ -959,7 +945,7 @@ func (m *managerTest) getSignerInfo(signer crypto.Signer) signerInfo {
 	}
 }
 
-func (m *managerTest) requireBundleRootCAs(t *testing.T, ctx context.Context, rootCAs ...*x509.Certificate) {
+func (m *managerTest) requireBundleRootCAs(ctx context.Context, t *testing.T, rootCAs ...*x509.Certificate) {
 	expected := &common.Bundle{}
 	for _, rootCA := range rootCAs {
 		expected.RootCas = append(expected.RootCas, &common.Certificate{
@@ -973,7 +959,7 @@ func (m *managerTest) requireBundleRootCAs(t *testing.T, ctx context.Context, ro
 	})
 }
 
-func (m *managerTest) requireBundleJWTKeys(t *testing.T, ctx context.Context, jwtKeys ...*ca.JWTKey) {
+func (m *managerTest) requireBundleJWTKeys(ctx context.Context, t *testing.T, jwtKeys ...*ca.JWTKey) {
 	expected := &common.Bundle{}
 	for _, jwtKey := range jwtKeys {
 		publicKey, err := publicKeyFromJWTKey(jwtKey)
@@ -1037,7 +1023,6 @@ func (m *managerTest) addTimeAndPrune(d time.Duration) {
 
 func (m *managerTest) wipeJournal(t *testing.T) {
 	require.NoError(t, os.Remove(filepath.Join(m.m.c.Dir, "journal.pem")))
-
 }
 
 func (m *managerTest) waitForBundleUpdatedNotification(ctx context.Context, ch <-chan *common.Bundle) {
