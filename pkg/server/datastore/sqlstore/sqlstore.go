@@ -750,7 +750,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 }
 
 func cleanStaleNodeResolverEntries(tx *gorm.DB, log logrus.FieldLogger) error {
-	result := tx.Delete(&NodeSelector{}, fmt.Sprintf("spiffe_id NOT IN (SELECT spiffe_id FROM %s)",AttestedNode{}.TableName()))
+	result := tx.Delete(&NodeSelector{}, fmt.Sprintf("spiffe_id NOT IN (SELECT spiffe_id FROM %s)", AttestedNode{}.TableName()))
 
 	if result.Error != nil {
 		return sqlError.Wrap(result.Error)
