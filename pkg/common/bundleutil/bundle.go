@@ -175,6 +175,24 @@ func bundleFromRootCAs(trustDomain spiffeid.TrustDomain, rootCAs ...*x509.Certif
 	return b
 }
 
+// ToSPIFFEBundle is a temporary function that converts a bundleutil.Bundle to spiffebundle.Bundle. This
+// function should be used only for restricting the scope of the changes in places that use bundleutil.Bundle. It should
+// be removed as soon as we don't have any other reference to bundleutil.Bundle.
+// TODO: (remove this function when bundleutil.Bundle cease to be used)
+func (b *Bundle) ToSPIFFEBundle() (*spiffebundle.Bundle, error) {
+	td, err := spiffeid.TrustDomainFromString(b.b.TrustDomainId)
+	if err != nil {
+		return nil, err
+	}
+	bundle := spiffebundle.New(td)
+
+	bundle.SetX509Authorities(b.rootCAs)
+	bundle.SetJWTAuthorities(b.jwtSigningKeys)
+	bundle.SetRefreshHint(b.RefreshHint())
+
+	return bundle, nil
+}
+
 func (b *Bundle) Proto() *common.Bundle {
 	return cloneBundle(b.b)
 }

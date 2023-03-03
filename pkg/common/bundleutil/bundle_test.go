@@ -425,6 +425,72 @@ func TestSPIFFEBundleFromProto(t *testing.T) {
 	}
 }
 
+func TestToSPIFFEBundle(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	rootCA := ca.X509Authorities()[0]
+	pkixBytes, err := x509.MarshalPKIXPublicKey(ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
+	bundle := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
+	err = bundle.AddJWTAuthority("key-id-1", ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
+	bundle.SetRefreshHint(time.Second * 10)
+
+	tests := []struct {
+		name      string
+		bundle    *Bundle
+		expBundle *spiffebundle.Bundle
+		expErr    error
+	}{
+		{
+			name: "success with jwt and x509 authorities",
+			bundle: &Bundle{
+				b: &common.Bundle{
+					TrustDomainId: td.IDString(),
+					RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+					RefreshHint:   10,
+					JwtSigningKeys: []*common.PublicKey{
+						{
+							PkixBytes: pkixBytes,
+							Kid:       "key-id-1",
+						},
+					},
+				},
+				rootCAs: ca.X509Authorities(),
+				jwtSigningKeys: map[string]crypto.PublicKey{
+					"key-id-1": ca.X509Authorities()[0].PublicKey,
+				},
+			},
+			expBundle: bundle,
+		},
+		{
+			name: "fail with error parsing spiffe trust domain",
+			bundle: &Bundle{
+				b: &common.Bundle{
+					TrustDomainId: "|invalid|",
+					RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+					RefreshHint:   0,
+				},
+				rootCAs:        ca.X509Authorities(),
+				jwtSigningKeys: map[string]crypto.PublicKey{},
+			},
+			expErr: errors.New("trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.bundle.ToSPIFFEBundle()
+
+			if tt.expErr != nil {
+				require.EqualError(t, err, tt.expErr.Error())
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expBundle, got)
+		})
+	}
+}
+
 func createBundle(certs []*x509.Certificate, jwtKeys []*common.PublicKey) *common.Bundle {
 	bundle := BundleProtoFromRootCAs("spiffe://foo", certs)
 	bundle.JwtSigningKeys = jwtKeys

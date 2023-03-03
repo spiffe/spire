@@ -16,10 +16,10 @@ import (
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -345,22 +345,34 @@ type validationContextBuilder interface {
 }
 
 func (h *Handler) getValidationContextBuilder(req *discovery_v3.DiscoveryRequest, upd *cache.WorkloadUpdate) (validationContextBuilder, error) {
+	bundle, err := upd.Bundle.ToSPIFFEBundle()
+	if err != nil {
+		return nil, err
+	}
+	federatedBundles := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
+	for td, federatedBundle := range upd.FederatedBundles {
+		spiffeFederatedBundle, err := federatedBundle.ToSPIFFEBundle()
+		if err != nil {
+			return nil, err
+		}
+		federatedBundles[td] = spiffeFederatedBundle
+	}
 	if !h.isSPIFFECertValidationDisabled(req) && supportsSPIFFEAuthExtension(req) {
-		return newSpiffeBuilder(upd.Bundle, upd.FederatedBundles)
+		return newSpiffeBuilder(bundle, federatedBundles)
 	}
 
-	return newRootCABuilder(upd.Bundle, upd.FederatedBundles), nil
+	return newRootCABuilder(bundle, federatedBundles), nil
 }
 
 type rootCABuilder struct {
-	bundles map[string]*bundleutil.Bundle
+	bundles map[string]*spiffebundle.Bundle
 }
 
-func newRootCABuilder(bundle *bundleutil.Bundle, federatedBundles map[spiffeid.TrustDomain]*bundleutil.Bundle) validationContextBuilder {
-	bundles := make(map[string]*bundleutil.Bundle, len(federatedBundles)+1)
+func newRootCABuilder(bundle *spiffebundle.Bundle, federatedBundles map[spiffeid.TrustDomain]*spiffebundle.Bundle) validationContextBuilder {
+	bundles := make(map[string]*spiffebundle.Bundle, len(federatedBundles)+1)
 	// Only include tdBundle if it is not nil, which shouldn't ever be the case. This is purely defensive.
 	if bundle != nil {
-		bundles[bundle.TrustDomainID()] = bundle
+		bundles[bundle.TrustDomain().IDString()] = bundle
 	}
 
 	for td, federatedBundle := range federatedBundles {
@@ -377,7 +389,7 @@ func (b *rootCABuilder) buildOne(resourceName, trustDomain string) (*any.Any, er
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "no bundle found for trust domain: %q", trustDomain)
 	}
-	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
+	caBytes := pemutil.EncodeCertificates(bundle.X509Authorities())
 	return anypb.New(&tls_v3.Secret{
 		Name: resourceName,
 		Type: &tls_v3.Secret_ValidationContext{
@@ -397,19 +409,15 @@ func (b *rootCABuilder) buildAll(resourceName string) (*any.Any, error) {
 }
 
 type spiffeBuilder struct {
-	bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
+	bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
 }
 
-func newSpiffeBuilder(tdBundle *bundleutil.Bundle, federatedBundles map[spiffeid.TrustDomain]*bundleutil.Bundle) (validationContextBuilder, error) {
-	bundles := make(map[spiffeid.TrustDomain]*bundleutil.Bundle, len(federatedBundles)+1)
+func newSpiffeBuilder(tdBundle *spiffebundle.Bundle, federatedBundles map[spiffeid.TrustDomain]*spiffebundle.Bundle) (validationContextBuilder, error) {
+	bundles := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle, len(federatedBundles)+1)
 
 	// Only include tdBundle if it is not nil, which shouldn't ever be the case. This is purely defensive.
 	if tdBundle != nil {
-		td, err := spiffeid.TrustDomainFromString(tdBundle.TrustDomainID())
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to parse bundle's trust domain: %v", err)
-		}
-		bundles[td] = tdBundle
+		bundles[tdBundle.TrustDomain()] = tdBundle
 	}
 
 	// Add all federated bundles
@@ -432,7 +440,7 @@ func (b *spiffeBuilder) buildOne(resourceName, trustDomainID string) (*any.Any, 
 		return nil, status.Errorf(codes.NotFound, "no bundle found for trust domain: %q", trustDomainID)
 	}
 
-	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
+	caBytes := pemutil.EncodeCertificates(bundle.X509Authorities())
 	typedConfig, err := anypb.New(&tls_v3.SPIFFECertValidatorConfig{
 		TrustDomains: []*tls_v3.SPIFFECertValidatorConfig_TrustDomain{
 			{
@@ -468,7 +476,7 @@ func (b *spiffeBuilder) buildAll(resourceName string) (*any.Any, error) {
 	// Create SPIFFE validator config
 	for td, bundle := range b.bundles {
 		// bundle := bundles[td]
-		caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
+		caBytes := pemutil.EncodeCertificates(bundle.X509Authorities())
 		configTrustDomains = append(configTrustDomains, &tls_v3.SPIFFECertValidatorConfig_TrustDomain{
 			Name: td.String(),
 			TrustBundle: &core_v3.DataSource{

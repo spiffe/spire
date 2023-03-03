@@ -14,9 +14,9 @@ import (
 	core_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -253,16 +253,20 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 
 	// TODO: verify the type url
 	if upd.Bundle != nil {
+		bundle, err := upd.Bundle.ToSPIFFEBundle()
+		if err != nil {
+			return nil, err
+		}
 		switch {
 		case returnAllEntries || names[upd.Bundle.TrustDomainID()]:
-			validationContext, err := buildValidationContext(upd.Bundle, "")
+			validationContext, err := buildValidationContext(bundle, "")
 			if err != nil {
 				return nil, err
 			}
 			delete(names, upd.Bundle.TrustDomainID())
 			resp.Resources = append(resp.Resources, validationContext)
 		case names[h.c.DefaultBundleName]:
-			validationContext, err := buildValidationContext(upd.Bundle, h.c.DefaultBundleName)
+			validationContext, err := buildValidationContext(bundle, h.c.DefaultBundleName)
 			if err != nil {
 				return nil, err
 			}
@@ -272,8 +276,12 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 	}
 
 	for _, federatedBundle := range upd.FederatedBundles {
+		spiffeFederatedBundle, err := federatedBundle.ToSPIFFEBundle()
+		if err != nil {
+			return nil, err
+		}
 		if returnAllEntries || names[federatedBundle.TrustDomainID()] {
-			validationContext, err := buildValidationContext(federatedBundle, "")
+			validationContext, err := buildValidationContext(spiffeFederatedBundle, "")
 			if err != nil {
 				return nil, err
 			}
@@ -346,12 +354,12 @@ func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*anyp
 	})
 }
 
-func buildValidationContext(bundle *bundleutil.Bundle, defaultBundleName string) (*anypb.Any, error) {
-	name := bundle.TrustDomainID()
+func buildValidationContext(bundle *spiffebundle.Bundle, defaultBundleName string) (*anypb.Any, error) {
+	name := bundle.TrustDomain().IDString()
 	if defaultBundleName != "" {
 		name = defaultBundleName
 	}
-	caBytes := pemutil.EncodeCertificates(bundle.RootCAs())
+	caBytes := pemutil.EncodeCertificates(bundle.X509Authorities())
 	return anypb.New(&auth_v2.Secret{
 		Name: name,
 		Type: &auth_v2.Secret_ValidationContext{
