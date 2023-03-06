@@ -86,7 +86,7 @@ func TestUpdate(t *testing.T) {
           "spiffe://domaina.test",
           "spiffe://domainb.test"
         ],
-        "hint": "",
+        "hint": "external",
         "admin": true,
         "downstream": true,
         "expires_at": "1552410266",
@@ -116,7 +116,7 @@ func TestUpdate(t *testing.T) {
         ],
 		"x509_svid_ttl": 200,
         "federates_with": [],
-        "hint": "",
+        "hint": "external",
         "admin": true,
         "downstream": false,
         "expires_at": "0",
@@ -228,6 +228,7 @@ func TestUpdate(t *testing.T) {
 		ExpiresAt:     1552410266,
 		DnsNames:      []string{"unu1000", "ung1000"},
 		Downstream:    true,
+		Hint:          "external",
 	}
 
 	entryStoreSvid := &types.Entry{
@@ -265,6 +266,7 @@ func TestUpdate(t *testing.T) {
 		X509SvidTtl: 200,
 		JwtSvidTtl:  300,
 		Admin:       true,
+		Hint:        "external",
 	}
 
 	entry3 := &types.Entry{
@@ -304,6 +306,7 @@ func TestUpdate(t *testing.T) {
 		ExpiresAt:     1552410266,
 		DnsNames:      []string{"unu1000", "ung1000"},
 		Downstream:    true,
+		Hint:          "external",
 	}
 
 	fakeRespOKFromFile := &entryv1.BatchUpdateEntryResponse{
@@ -432,6 +435,7 @@ func TestUpdate(t *testing.T) {
 				"-dns", "unu1000",
 				"-dns", "ung1000",
 				"-downstream",
+				"-hint", "external",
 			},
 			expReq: &entryv1.BatchUpdateEntryRequest{
 				Entries: []*types.Entry{entry1},
@@ -452,6 +456,7 @@ FederatesWith    : spiffe://domainb.test
 DNS name         : unu1000
 DNS name         : ung1000
 Admin            : true
+Hint             : external
 
 `, time.Unix(1552410266, 0).UTC()),
 			expOutJSON: fmt.Sprintf(`{
@@ -482,6 +487,7 @@ Admin            : true
 				"-dns", "unu1000",
 				"-dns", "ung1000",
 				"-downstream",
+				"-hint", "external",
 			},
 			expReq: &entryv1.BatchUpdateEntryRequest{
 				Entries: []*types.Entry{entry5},
@@ -502,6 +508,7 @@ FederatesWith    : spiffe://domainb.test
 DNS name         : unu1000
 DNS name         : ung1000
 Admin            : true
+Hint             : external
 
 `, time.Unix(1552410266, 0).UTC()),
 			expOutJSON: fmt.Sprintf(`{
@@ -592,6 +599,7 @@ X509-SVID TTL    : 200
 JWT-SVID TTL     : 300
 Selector         : unix:uid:1111
 Admin            : true
+Hint             : external
 
 Entry ID         : entry-id-2
 SPIFFE ID        : spiffe://example.org/Database

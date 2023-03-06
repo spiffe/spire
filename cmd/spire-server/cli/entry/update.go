@@ -69,6 +69,9 @@ type updateCommand struct {
 	// storeSVID determines if the issued SVID must be stored through an SVIDStore plugin
 	storeSVID bool
 
+	// Entry hint, used to disambiguate entries with the same SPIFFE ID
+	hint string
+
 	printer cliprinter.Printer
 
 	env *commoncli.Env
@@ -97,6 +100,7 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	f.BoolVar(&c.storeSVID, "storeSVID", false, "A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin")
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
+	f.StringVar(&c.hint, "hint", "", "The entry hint, used to disambiguate entries with the same SPIFFE ID")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintUpdate)
 }
 
@@ -187,6 +191,7 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 		DnsNames:    c.dnsNames,
 		X509SvidTtl: int32(c.x509SvidTTL),
 		JwtSvidTtl:  int32(c.jwtSvidTTL),
+		Hint:        c.hint,
 	}
 
 	// c.ttl is deprecated but usable if the new c.x509Svid field is not used.

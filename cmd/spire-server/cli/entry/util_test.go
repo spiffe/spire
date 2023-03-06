@@ -88,6 +88,7 @@ func TestParseEntryJSON(t *testing.T) {
 				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
 				X509SvidTtl: 200,
 				JwtSvidTtl:  30,
+				Hint:        "internal",
 			}
 			entry3 := &types.Entry{
 				Selectors: []*types.Selector{
