@@ -1,9 +1,11 @@
 package workload_test
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"os"
 	"sync/atomic"
@@ -680,13 +682,21 @@ func TestFetchJWTBundles(t *testing.T) {
 
 	x509SVID := ca.CreateX509SVID(workloadID)
 
+	indent := func(in []byte) []byte {
+		buf := new(bytes.Buffer)
+		require.NoError(t, json.Indent(buf, in, "", "    "))
+		return buf.Bytes()
+	}
+
 	bundle := ca.Bundle()
 	bundleJWKS, err := bundle.JWTBundle().Marshal()
 	require.NoError(t, err)
+	bundleJWKS = indent(bundleJWKS)
 
 	federatedBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
 	federatedBundleJWKS, err := federatedBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
+	federatedBundleJWKS = indent(federatedBundleJWKS)
 
 	for _, tt := range []struct {
 		name                          string
@@ -843,13 +853,21 @@ func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
 
 	x509SVID := ca.CreateX509SVID(workloadID)
 
+	indent := func(in []byte) []byte {
+		buf := new(bytes.Buffer)
+		require.NoError(t, json.Indent(buf, in, "", "    "))
+		return buf.Bytes()
+	}
+
 	bundle := ca.Bundle()
 	bundleJWKS, err := bundle.JWTBundle().Marshal()
 	require.NoError(t, err)
+	bundleJWKS = indent(bundleJWKS)
 
 	otherBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
 	otherBundleJWKS, err := otherBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
+	otherBundleJWKS = indent(otherBundleJWKS)
 
 	updates := []*cache.WorkloadUpdate{
 		{
@@ -908,13 +926,21 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 
 	x509SVID := ca.CreateX509SVID(workloadID)
 
+	indent := func(in []byte) []byte {
+		buf := new(bytes.Buffer)
+		require.NoError(t, json.Indent(buf, in, "", "    "))
+		return buf.Bytes()
+	}
+
 	bundle := ca.Bundle()
 	bundleJWKS, err := bundle.JWTBundle().Marshal()
 	require.NoError(t, err)
+	bundleJWKS = indent(bundleJWKS)
 
 	otherBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
 	otherBundleJWKS, err := otherBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
+	otherBundleJWKS = indent(otherBundleJWKS)
 
 	updates := []*cache.WorkloadUpdate{
 		{

@@ -1,6 +1,7 @@
 package workload
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -430,7 +431,7 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 	}
 
 	bundles := make(map[string][]byte)
-	jwksBytes, err := update.Bundle.JWTBundle().Marshal()
+	jwksBytes, err := marshalIdentBundle(update.Bundle)
 	if err != nil {
 		return nil, err
 	}
@@ -438,7 +439,7 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
-			jwksBytes, err := federatedBundle.JWTBundle().Marshal()
+			jwksBytes, err := marshalIdentBundle(federatedBundle)
 			if err != nil {
 				return nil, err
 			}
@@ -449,6 +450,16 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 	return &workload.JWTBundlesResponse{
 		Bundles: bundles,
 	}, nil
+}
+
+func marshalIdentBundle(bundle *spiffebundle.Bundle) ([]byte, error) {
+	jwkBytes, err := bundle.JWTBundle().Marshal()
+	if err != nil {
+		return nil, err
+	}
+	buf := new(bytes.Buffer)
+	err = json.Indent(buf, jwkBytes, "", "    ")
+	return buf.Bytes(), err
 }
 
 // isAgent returns true if the caller PID from the provided context is the
