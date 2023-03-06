@@ -78,7 +78,7 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 
 			var rootCAs []*x509.Certificate
 			if bundle := bundles[c.TrustDomain]; bundle != nil {
-				rootCAs = bundle.RootCAs()
+				rootCAs = bundle.X509Authorities()
 			}
 			return s.SVID, s.Key, rootCAs
 		},

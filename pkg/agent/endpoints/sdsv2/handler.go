@@ -253,20 +253,16 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 
 	// TODO: verify the type url
 	if upd.Bundle != nil {
-		bundle, err := upd.Bundle.ToSPIFFEBundle()
-		if err != nil {
-			return nil, err
-		}
 		switch {
-		case returnAllEntries || names[upd.Bundle.TrustDomainID()]:
-			validationContext, err := buildValidationContext(bundle, "")
+		case returnAllEntries || names[upd.Bundle.TrustDomain().IDString()]:
+			validationContext, err := buildValidationContext(upd.Bundle, "")
 			if err != nil {
 				return nil, err
 			}
-			delete(names, upd.Bundle.TrustDomainID())
+			delete(names, upd.Bundle.TrustDomain().IDString())
 			resp.Resources = append(resp.Resources, validationContext)
 		case names[h.c.DefaultBundleName]:
-			validationContext, err := buildValidationContext(bundle, h.c.DefaultBundleName)
+			validationContext, err := buildValidationContext(upd.Bundle, h.c.DefaultBundleName)
 			if err != nil {
 				return nil, err
 			}
@@ -276,16 +272,12 @@ func (h *Handler) buildResponse(versionInfo string, req *api_v2.DiscoveryRequest
 	}
 
 	for _, federatedBundle := range upd.FederatedBundles {
-		spiffeFederatedBundle, err := federatedBundle.ToSPIFFEBundle()
-		if err != nil {
-			return nil, err
-		}
-		if returnAllEntries || names[federatedBundle.TrustDomainID()] {
-			validationContext, err := buildValidationContext(spiffeFederatedBundle, "")
+		if returnAllEntries || names[federatedBundle.TrustDomain().IDString()] {
+			validationContext, err := buildValidationContext(federatedBundle, "")
 			if err != nil {
 				return nil, err
 			}
-			delete(names, federatedBundle.TrustDomainID())
+			delete(names, federatedBundle.TrustDomain().IDString())
 			resp.Resources = append(resp.Resources, validationContext)
 		}
 	}

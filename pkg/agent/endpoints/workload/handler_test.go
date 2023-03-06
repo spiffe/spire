@@ -1,11 +1,9 @@
 package workload_test
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"os"
 	"sync/atomic"
@@ -24,7 +22,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
@@ -127,9 +124,9 @@ func TestFetchX509SVID(t *testing.T) {
 				Identities: []cache.Identity{
 					identityFromX509SVID(x509SVID1),
 				},
-				Bundle: utilBundleFromBundle(t, bundle),
-				FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-					federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+				Bundle: bundle,
+				FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+					federatedBundle.TrustDomain(): federatedBundle,
 				},
 			}},
 			expectCode: codes.OK,
@@ -155,7 +152,7 @@ func TestFetchX509SVID(t *testing.T) {
 						identityFromX509SVID(x509SVID1),
 						identityFromX509SVID(x509SVID2),
 					},
-					Bundle: utilBundleFromBundle(t, bundle),
+					Bundle: bundle,
 				},
 			},
 			expectCode: codes.OK,
@@ -302,9 +299,9 @@ func TestFetchX509Bundles(t *testing.T) {
 					Identities: []cache.Identity{
 						identityFromX509SVID(x509SVID),
 					},
-					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
 					},
 				},
 			},
@@ -322,9 +319,9 @@ func TestFetchX509Bundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{},
-					Bundle:     utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					Bundle:     bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
 					},
 				},
 			},
@@ -374,13 +371,13 @@ func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, otherBundle),
+			Bundle: otherBundle,
 		},
 	}
 
@@ -435,19 +432,19 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, otherBundle),
+			Bundle: otherBundle,
 		},
 	}
 
@@ -683,21 +680,13 @@ func TestFetchJWTBundles(t *testing.T) {
 
 	x509SVID := ca.CreateX509SVID(workloadID)
 
-	indent := func(in []byte) []byte {
-		buf := new(bytes.Buffer)
-		require.NoError(t, json.Indent(buf, in, "", "    "))
-		return buf.Bytes()
-	}
-
 	bundle := ca.Bundle()
 	bundleJWKS, err := bundle.JWTBundle().Marshal()
 	require.NoError(t, err)
-	bundleJWKS = indent(bundleJWKS)
 
 	federatedBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
 	federatedBundleJWKS, err := federatedBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
-	federatedBundleJWKS = indent(federatedBundleJWKS)
 
 	for _, tt := range []struct {
 		name                          string
@@ -791,9 +780,9 @@ func TestFetchJWTBundles(t *testing.T) {
 					Identities: []cache.Identity{
 						identityFromX509SVID(x509SVID),
 					},
-					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
 					},
 				},
 			},
@@ -811,9 +800,9 @@ func TestFetchJWTBundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{},
-					Bundle:     utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					Bundle:     bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
 					},
 				},
 			},
@@ -854,34 +843,26 @@ func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
 
 	x509SVID := ca.CreateX509SVID(workloadID)
 
-	indent := func(in []byte) []byte {
-		buf := new(bytes.Buffer)
-		require.NoError(t, json.Indent(buf, in, "", "    "))
-		return buf.Bytes()
-	}
-
 	bundle := ca.Bundle()
 	bundleJWKS, err := bundle.JWTBundle().Marshal()
 	require.NoError(t, err)
-	bundleJWKS = indent(bundleJWKS)
 
 	otherBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
 	otherBundleJWKS, err := otherBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
-	otherBundleJWKS = indent(otherBundleJWKS)
 
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, otherBundle),
+			Bundle: otherBundle,
 		},
 	}
 
@@ -927,40 +908,32 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 
 	x509SVID := ca.CreateX509SVID(workloadID)
 
-	indent := func(in []byte) []byte {
-		buf := new(bytes.Buffer)
-		require.NoError(t, json.Indent(buf, in, "", "    "))
-		return buf.Bytes()
-	}
-
 	bundle := ca.Bundle()
 	bundleJWKS, err := bundle.JWTBundle().Marshal()
 	require.NoError(t, err)
-	bundleJWKS = indent(bundleJWKS)
 
 	otherBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
 	otherBundleJWKS, err := otherBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
-	otherBundleJWKS = indent(otherBundleJWKS)
 
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
 				identityFromX509SVID(x509SVID),
 			},
-			Bundle: utilBundleFromBundle(t, otherBundle),
+			Bundle: otherBundle,
 		},
 	}
 
@@ -1014,13 +987,13 @@ func TestValidateJWTSVID(t *testing.T) {
 	federatedSVID := ca2.CreateJWTSVID(spiffeid.RequireFromPath(td2, "/federated-workload"), []string{"AUDIENCE"})
 
 	updatesWithBundleOnly := []*cache.WorkloadUpdate{{
-		Bundle: utilBundleFromBundle(t, bundle),
+		Bundle: bundle,
 	}}
 
 	updatesWithFederatedBundle := []*cache.WorkloadUpdate{{
-		Bundle: utilBundleFromBundle(t, bundle),
-		FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-			federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+		Bundle: bundle,
+		FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+			federatedBundle.TrustDomain(): federatedBundle,
 		},
 	}}
 
@@ -1450,38 +1423,8 @@ func identityFromX509SVID(svid *x509svid.SVID) cache.Identity {
 	}
 }
 
-func utilBundleFromBundle(t *testing.T, bundle *spiffebundle.Bundle) *bundleutil.Bundle {
-	b, err := bundleutil.BundleFromProto(commonBundleFromBundle(t, bundle))
-	require.NoError(t, err)
-	return b
-}
-
-func commonBundleFromBundle(t *testing.T, bundle *spiffebundle.Bundle) *common.Bundle {
-	bundleProto := &common.Bundle{
-		TrustDomainId: bundle.TrustDomain().IDString(),
-	}
-	for _, x509Authority := range bundle.X509Authorities() {
-		bundleProto.RootCas = append(bundleProto.RootCas, &common.Certificate{
-			DerBytes: x509Authority.Raw,
-		})
-	}
-	for keyID, jwtAuthority := range bundle.JWTAuthorities() {
-		bundleProto.JwtSigningKeys = append(bundleProto.JwtSigningKeys, &common.PublicKey{
-			Kid:       keyID,
-			PkixBytes: pkixFromPublicKey(t, jwtAuthority),
-		})
-	}
-	return bundleProto
-}
-
 func pkcs8FromSigner(t *testing.T, key crypto.Signer) []byte {
 	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
-	require.NoError(t, err)
-	return keyBytes
-}
-
-func pkixFromPublicKey(t *testing.T, publicKey crypto.PublicKey) []byte {
-	keyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	require.NoError(t, err)
 	return keyBytes
 }

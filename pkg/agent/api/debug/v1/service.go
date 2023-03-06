@@ -123,7 +123,7 @@ func (s *Service) getCertificateChain(svid []*x509.Certificate) ([]*x509.Certifi
 	cachedBundle := s.m.GetBundle()
 
 	// Create bundle source using SVID roots, and verify certificate to extract SVID chain
-	bundleSource := x509bundle.FromX509Authorities(s.td, cachedBundle.RootCAs())
+	bundleSource := x509bundle.FromX509Authorities(s.td, cachedBundle.X509Authorities())
 	_, certs, err := x509svid.Verify(svid, bundleSource)
 	if err != nil {
 		s.log.WithError(err).Error("Failed to verify agent SVID")

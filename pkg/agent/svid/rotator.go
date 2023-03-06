@@ -270,7 +270,7 @@ func (r *rotator) getBundle() (*bundleutil.Bundle, error) {
 		return nil, errors.New("bundle not found")
 	}
 
-	return bundle, nil
+	return bundleutil.SPIFFEBundleToBundleUtil(bundle)
 }
 
 func (r *rotator) generateKey(ctx context.Context) (keymanager.Key, error) {
