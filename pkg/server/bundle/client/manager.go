@@ -261,7 +261,7 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 	timer := m.clock.Timer(time.Hour)
 	defer timer.Stop()
 
-	log := m.log.WithField("trust_domain", trustDomain)
+	log := m.log.WithField("trust_domain", trustDomain.String())
 	for {
 		var nextRefresh time.Duration
 		log.Debug("Polling for bundle update")

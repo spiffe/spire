@@ -1148,7 +1148,7 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 		err = s.ds.SetNodeSelectors(ctx, entryBar.SpiffeId, selectors)
 		s.Require().NoError(err)
 
-		nodeSelectors, err := s.ds.GetNodeSelectors(ctx, entryFoo.SpiffeId, datastore.TolerateStale)
+		nodeSelectors, err := s.ds.GetNodeSelectors(ctx, entryFoo.SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.Equal(selectors, nodeSelectors)
 
@@ -1161,12 +1161,12 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 		s.Nil(attestedNode)
 
 		// check that selectors for deleted node are gone
-		deletedSelectors, err := s.ds.GetNodeSelectors(ctx, deletedNode.SpiffeId, datastore.TolerateStale)
+		deletedSelectors, err := s.ds.GetNodeSelectors(ctx, deletedNode.SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.Nil(deletedSelectors)
 
 		// check that selectors for entryBar are still there
-		nodeSelectors, err = s.ds.GetNodeSelectors(ctx, entryBar.SpiffeId, datastore.TolerateStale)
+		nodeSelectors, err = s.ds.GetNodeSelectors(ctx, entryBar.SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.Equal(selectors, nodeSelectors)
 	})
