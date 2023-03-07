@@ -57,16 +57,19 @@ func TestGetCurrentJWTKeySlot(t *testing.T) {
 	test.initSelfSignedManager()
 
 	t.Run("no authority created", func(t *testing.T) {
-		slot := test.m.GetCurrentJWTKeySlot()
+		currentSlot := test.m.GetCurrentJWTKeySlot()
 
-		require.Nil(t, slot.jwtKey)
+		slot := currentSlot.(*JwtKeySlot)
+
+		require.True(t, slot.IsEmpty())
 		require.Empty(t, slot.issuedAt)
 	})
 
 	t.Run("slot returned", func(t *testing.T) {
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
-		slot := test.m.GetCurrentJWTKeySlot()
+		currentSlot := test.m.GetCurrentJWTKeySlot()
+		slot := currentSlot.(*JwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
 	})
@@ -79,7 +82,8 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 	test.initAndActivateSelfSignedManager(ctx)
 
 	t.Run("no next created", func(t *testing.T) {
-		slot := test.m.GetNextJWTKeySlot()
+		nextSlot := test.m.GetNextJWTKeySlot()
+		slot := nextSlot.(*JwtKeySlot)
 
 		require.Nil(t, slot.jwtKey)
 		require.Empty(t, slot.issuedAt)
@@ -88,7 +92,8 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 	t.Run("next returned", func(t *testing.T) {
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
-		slot := test.m.GetNextJWTKeySlot()
+		nextSlot := test.m.GetNextJWTKeySlot()
+		slot := nextSlot.(*JwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
 	})
@@ -101,8 +106,9 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 	test.initSelfSignedManager()
 
 	t.Run("no authority created", func(t *testing.T) {
-		slot := test.m.GetCurrentX509CASlot()
+		currentSlot := test.m.GetCurrentX509CASlot()
 
+		slot := currentSlot.(*X509CASlot)
 		require.Nil(t, slot.x509CA)
 		require.Empty(t, slot.issuedAt)
 	})
@@ -110,7 +116,8 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 	t.Run("slot returned", func(t *testing.T) {
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
-		slot := test.m.GetCurrentX509CASlot()
+		currentSlot := test.m.GetCurrentX509CASlot()
+		slot := currentSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
 	})
@@ -123,7 +130,8 @@ func TestGetNextX509CASlot(t *testing.T) {
 	test.initAndActivateSelfSignedManager(ctx)
 
 	t.Run("no next created", func(t *testing.T) {
-		slot := test.m.GetNextX509CASlot()
+		nextSlot := test.m.GetNextX509CASlot()
+		slot := nextSlot.(*X509CASlot)
 
 		require.Nil(t, slot.x509CA)
 		require.Empty(t, slot.issuedAt)
@@ -132,7 +140,8 @@ func TestGetNextX509CASlot(t *testing.T) {
 	t.Run("next returned", func(t *testing.T) {
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
-		slot := test.m.GetNextX509CASlot()
+		nextSlot := test.m.GetNextX509CASlot()
+		slot := nextSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
 	})

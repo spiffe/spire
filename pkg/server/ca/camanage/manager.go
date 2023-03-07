@@ -166,14 +166,14 @@ func (m *Manager) Close() {
 	_ = m.upstreamClient.Close()
 }
 
-func (m *Manager) GetCurrentX509CASlot() *X509CASlot {
+func (m *Manager) GetCurrentX509CASlot() Slot {
 	m.x509CAMutex.RLock()
 	defer m.x509CAMutex.RUnlock()
 
 	return m.currentX509CA
 }
 
-func (m *Manager) GetNextX509CASlot() *X509CASlot {
+func (m *Manager) GetNextX509CASlot() Slot {
 	m.x509CAMutex.RLock()
 	defer m.x509CAMutex.RUnlock()
 
@@ -250,14 +250,14 @@ func (m *Manager) RotateX509CA() {
 	m.activateX509CA()
 }
 
-func (m *Manager) GetCurrentJWTKeySlot() *JwtKeySlot {
+func (m *Manager) GetCurrentJWTKeySlot() Slot {
 	m.jwtKeyMutex.RLock()
 	defer m.jwtKeyMutex.RUnlock()
 
 	return m.currentJWTKey
 }
 
-func (m *Manager) GetNextJWTKeySlot() *JwtKeySlot {
+func (m *Manager) GetNextJWTKeySlot() Slot {
 	m.jwtKeyMutex.RLock()
 	defer m.jwtKeyMutex.RUnlock()
 
