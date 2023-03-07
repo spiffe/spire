@@ -163,7 +163,9 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 }
 
 func (m *Manager) Close() {
-	_ = m.upstreamClient.Close()
+	if m.upstreamClient != nil {
+		_ = m.upstreamClient.Close()
+	}
 }
 
 func (m *Manager) GetCurrentX509CASlot() Slot {
