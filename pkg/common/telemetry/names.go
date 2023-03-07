@@ -271,7 +271,7 @@ const (
 	// ExpiresAt tags registration entry expiration
 	ExpiresAt = "expires_at"
 
-	// Hint tags entry hint
+	// Hint tags registration entry hint
 	Hint = "hint"
 
 	// ExpiryCheckDuration tags duration for an expiry check; should be used with other tags
