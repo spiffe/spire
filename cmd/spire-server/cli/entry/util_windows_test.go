@@ -17,6 +17,8 @@ const (
     	An expiry, from epoch in seconds, for the resulting registration entry to be pruned
   -federatesWith value
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
+  -hint string
+    	The entry hint, used to disambiguate entries with the same SPIFFE ID
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl flag
   -namedPipeName string
@@ -45,6 +47,8 @@ const (
     	The Entry ID of the records to show
   -federatesWith value
     	SPIFFE ID of a trust domain an entry is federate with. Can be used more than once
+  -hint string
+    	The Hint of the records to show (optional)
   -matchFederatesWithOn string
     	The match mode used when filtering by federates with. Options: exact, any, superset and subset (default "superset")
   -matchSelectorsOn string
@@ -75,6 +79,8 @@ const (
     	The Registration Entry ID of the record to update
   -federatesWith value
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
+  -hint string
+    	The entry hint, used to disambiguate entries with the same SPIFFE ID
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl flag
   -namedPipeName string

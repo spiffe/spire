@@ -38,6 +38,7 @@ func TestAllTrueMasks(t *testing.T) {
 		DnsNames:       true,
 		RevisionNumber: true,
 		StoreSvid:      true,
+		Hint:           true,
 	}, protoutil.AllTrueEntryMask)
 
 	spiretest.AssertProtoEqual(t, &common.BundleMask{

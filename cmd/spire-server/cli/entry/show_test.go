@@ -399,12 +399,14 @@ func getEntries(count int) []*types.Entry {
 			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/son"},
 			Selectors: []*types.Selector{selectors[0]},
 			Id:        "00000000-0000-0000-0000-000000000000",
+			Hint:      "internal",
 		},
 		{
 			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
 			SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
 			Selectors: []*types.Selector{selectors[0], selectors[1]},
 			Id:        "00000000-0000-0000-0000-000000000001",
+			Hint:      "external",
 		},
 		{
 			ParentId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/mother"},
@@ -440,6 +442,7 @@ Revision         : 0
 X509-SVID TTL    : default
 JWT-SVID TTL     : default
 Selector         : foo:bar
+Hint             : internal
 
 `
 	case 1:
@@ -451,6 +454,7 @@ X509-SVID TTL    : default
 JWT-SVID TTL     : default
 Selector         : bar:baz
 Selector         : foo:bar
+Hint             : external
 
 `
 	case 2:
@@ -502,6 +506,7 @@ func getJSONPrintedEntry(idx int) string {
       ],
       "x509_svid_ttl": 0,
       "federates_with": [],
+      "hint": "internal",
       "admin": false,
       "downstream": false,
       "expires_at": "0",
@@ -533,6 +538,7 @@ func getJSONPrintedEntry(idx int) string {
       ],
       "x509_svid_ttl": 0,
       "federates_with": [],
+      "hint": "external",
       "admin": false,
       "downstream": false,
       "expires_at": "0",
@@ -566,6 +572,7 @@ func getJSONPrintedEntry(idx int) string {
       "federates_with": [
         "spiffe://domain.test"
       ],
+      "hint": "",
       "admin": false,
       "downstream": false,
       "expires_at": "0",
@@ -593,6 +600,7 @@ func getJSONPrintedEntry(idx int) string {
       ],
       "x509_svid_ttl": 0,
       "federates_with": [],
+      "hint": "",
       "admin": false,
       "downstream": false,
       "expires_at": "1552410266",

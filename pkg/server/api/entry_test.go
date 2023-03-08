@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +48,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
+				Hint:           "external",
 			},
 			expectEntry: &types.Entry{
 				Id:          "entry1",
@@ -67,6 +69,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
+				Hint:           "external",
 			},
 		},
 		{
@@ -141,6 +144,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
+				Hint:           strings.Repeat("a", 1024),
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -161,6 +165,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
+				Hint:           strings.Repeat("a", 1024),
 			},
 			mask: protoutil.AllTrueEntryMask,
 		},
@@ -183,6 +188,278 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				EntryId: "entry1",
 			},
 			mask: &types.EntryMask{},
+		},
+		{
+			name: "invalid parent id",
+			entry: &types.Entry{
+				Id:          "entry1",
+				ParentId:    &types.SPIFFEID{TrustDomain: "invalid", Path: "/foo"},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*types.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"domain1.com",
+					// types entries use the trust domain name but we should
+					// assert that they are normalized to trust domain ID
+					// either way.
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				ExpiresAt:      expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			expectEntry: &common.RegistrationEntry{
+				EntryId:     "entry1",
+				ParentId:    "spiffe://example.org/foo",
+				SpiffeId:    "spiffe://example.org/bar",
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*common.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"spiffe://domain1.com",
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				EntryExpiry:    expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			mask: protoutil.AllTrueEntryMask,
+			err:  "invalid parent ID: \"spiffe://invalid/foo\" is not a member of trust domain \"example.org\"",
+		},
+		{
+			name: "invalid spiffe id",
+			entry: &types.Entry{
+				Id:          "entry1",
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "invalid", Path: "/bar"},
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*types.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"domain1.com",
+					// types entries use the trust domain name but we should
+					// assert that they are normalized to trust domain ID
+					// either way.
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				ExpiresAt:      expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			expectEntry: &common.RegistrationEntry{
+				EntryId:     "entry1",
+				ParentId:    "spiffe://example.org/foo",
+				SpiffeId:    "spiffe://example.org/bar",
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*common.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"spiffe://domain1.com",
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				EntryExpiry:    expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			mask: protoutil.AllTrueEntryMask,
+			err:  "invalid spiffe ID: \"spiffe://invalid/bar\" is not a member of trust domain \"example.org\"",
+		},
+		{
+			name: "invalid dns names",
+			entry: &types.Entry{
+				Id:          "entry1",
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*types.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"domain1.com",
+					// types entries use the trust domain name but we should
+					// assert that they are normalized to trust domain ID
+					// either way.
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				ExpiresAt:      expiresAt,
+				DnsNames:       []string{""},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			expectEntry: &common.RegistrationEntry{
+				EntryId:     "entry1",
+				ParentId:    "spiffe://example.org/foo",
+				SpiffeId:    "spiffe://example.org/bar",
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*common.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"spiffe://domain1.com",
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				EntryExpiry:    expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			mask: protoutil.AllTrueEntryMask,
+			err:  "invalid DNS name: empty or only whitespace",
+		},
+		{
+			name: "invalid federates with",
+			entry: &types.Entry{
+				Id:          "entry1",
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*types.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"",
+				},
+				Admin:          true,
+				ExpiresAt:      expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			expectEntry: &common.RegistrationEntry{
+				EntryId:     "entry1",
+				ParentId:    "spiffe://example.org/foo",
+				SpiffeId:    "spiffe://example.org/bar",
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*common.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"spiffe://domain1.com",
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				EntryExpiry:    expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			mask: protoutil.AllTrueEntryMask,
+			err:  "invalid federated trust domain: trust domain is missing",
+		},
+		{
+			name: "invalid selectors",
+			entry: &types.Entry{
+				Id:          "entry1",
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors:   []*types.Selector{},
+				FederatesWith: []string{
+					"domain1.com",
+					// types entries use the trust domain name but we should
+					// assert that they are normalized to trust domain ID
+					// either way.
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				ExpiresAt:      expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			expectEntry: &common.RegistrationEntry{
+				EntryId:     "entry1",
+				ParentId:    "spiffe://example.org/foo",
+				SpiffeId:    "spiffe://example.org/bar",
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*common.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"spiffe://domain1.com",
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				EntryExpiry:    expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           "external",
+			},
+			mask: protoutil.AllTrueEntryMask,
+			err:  "selector list is empty",
+		},
+		{
+			name: "invalid hint",
+			entry: &types.Entry{
+				Id:          "entry1",
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+				X509SvidTtl: 70,
+				JwtSvidTtl:  80,
+				Selectors: []*types.Selector{
+					{Type: "unix", Value: "uid:1000"},
+					{Type: "unix", Value: "gid:1000"},
+				},
+				FederatesWith: []string{
+					"domain1.com",
+					// types entries use the trust domain name but we should
+					// assert that they are normalized to trust domain ID
+					// either way.
+					"spiffe://domain2.com",
+				},
+				Admin:          true,
+				ExpiresAt:      expiresAt,
+				DnsNames:       []string{"dns1", "dns2"},
+				Downstream:     true,
+				RevisionNumber: 99,
+				Hint:           strings.Repeat("a", 1025),
+			},
+			mask: protoutil.AllTrueEntryMask,
+			err:  "hint is too long, max length is 1024 characters",
 		},
 	} {
 		tt := tt
@@ -235,6 +512,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
+				Hint:           "external",
 			},
 			expectEntry: &common.RegistrationEntry{
 				EntryId:     "entry1",
@@ -255,6 +533,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 				DnsNames:       []string{"dns1", "dns2"},
 				Downstream:     true,
 				RevisionNumber: 99,
+				Hint:           "external",
 			},
 		},
 		{
