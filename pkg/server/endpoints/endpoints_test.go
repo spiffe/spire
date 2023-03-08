@@ -23,7 +23,7 @@ import (
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
-	"github.com/spiffe/spire/pkg/server/ca/camanage"
+	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
@@ -962,5 +962,5 @@ func (o *svidObserver) State() svid.State {
 }
 
 type fakeJWTKeyPublisher struct {
-	camanage.JwtKeyPublisher
+	manager.JwtKeyPublisher
 }

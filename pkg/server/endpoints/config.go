@@ -23,7 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/ca/camanage"
+	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
@@ -55,7 +55,7 @@ type Config struct {
 	BundleEndpoint bundle.EndpointConfig
 
 	// JWTKey publisher
-	JWTKeyPublisher camanage.JwtKeyPublisher
+	JWTKeyPublisher manager.JwtKeyPublisher
 
 	// Makes policy decisions
 	AuthPolicyEngine *authpolicy.Engine

@@ -1,4 +1,4 @@
-package camanage
+package manager
 
 import (
 	"context"
@@ -250,7 +250,7 @@ func TestUpstreamSigned(t *testing.T) {
 	// The trust bundle should contain the upstream root
 	test.requireBundleRootCAs(ctx, t, fakeUA.X509Root())
 
-	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
+	// We expect this warning because the UpstreamAuthority doesn't implement PublishJWTKey
 	assert.Equal(t,
 		1,
 		test.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+
@@ -409,7 +409,7 @@ func TestX509CARotationMetric(t *testing.T) {
 
 	test.initAndActivateSelfSignedManager(ctx)
 
-	// preparate next
+	// prepare next
 	require.NoError(t, test.m.PrepareX509CA(ctx))
 
 	// reset the metrics rotate CA to activate mark
@@ -457,7 +457,7 @@ func TestJWTKeyRotation(t *testing.T) {
 	// we should now have a bundle update notification due to the preparation
 	test.waitForBundleUpdatedNotification(ctx, notifyCh)
 
-	// rootate, "next" should become "current" and
+	// rotate, "next" should become "current" and
 	// "next" should be reset.
 	test.m.RotateJWTKey()
 	test.requireJWTKeyEqual(t, second, test.currentJWTKey())
@@ -570,7 +570,7 @@ func TestRunNotifiesBundleLoaded(t *testing.T) {
 
 	// The bundle loaded handler above will cancel the
 	// context. This will usually be observed as an error returned from the
-	// notifier, but not always, depending on the timing of the cancelation.
+	// notifier, but not always, depending on the timing of the cancellation.
 	// When the notifier does not return an error, Run will return without an
 	// error when the canceled context is passed internally to run the tasks.
 	err := test.m.NotifyBundleLoaded(ctx)

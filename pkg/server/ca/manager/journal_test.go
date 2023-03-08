@@ -1,4 +1,4 @@
-package camanage
+package manager
 
 import (
 	"crypto/x509"

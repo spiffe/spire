@@ -1,4 +1,4 @@
-package camanage
+package manager
 
 import (
 	"bytes"
@@ -178,7 +178,7 @@ func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.
 	filteredEntriesJwtKeys := []*JWTKeyEntry{}
 
 	for _, entry := range entries.GetJwtKeys() {
-		if containsJwtSigningKeyid(bundle.JwtSigningKeys, entry.Kid) {
+		if containsJwtSigningKeyID(bundle.JwtSigningKeys, entry.Kid) {
 			filteredEntriesJwtKeys = append(filteredEntriesJwtKeys, entry)
 			continue
 		}
@@ -345,7 +345,7 @@ func jwtKeyKmKeyID(id string) string {
 	return fmt.Sprintf("JWT-Signer-%s", id)
 }
 
-func containsJwtSigningKeyid(keys []*common.PublicKey, kid string) bool {
+func containsJwtSigningKeyID(keys []*common.PublicKey, kid string) bool {
 	for _, key := range keys {
 		if key.Kid == kid {
 			return true

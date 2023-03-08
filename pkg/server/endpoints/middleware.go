@@ -14,7 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
-	"github.com/spiffe/spire/pkg/server/ca/camanage"
+	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -53,7 +53,7 @@ func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {
 	})
 }
 
-func UpstreamPublisher(jwtKeyPublisher camanage.JwtKeyPublisher) bundle.UpstreamPublisher {
+func UpstreamPublisher(jwtKeyPublisher manager.JwtKeyPublisher) bundle.UpstreamPublisher {
 	return bundle.UpstreamPublisherFunc(jwtKeyPublisher.PublishJWTKey)
 }
 

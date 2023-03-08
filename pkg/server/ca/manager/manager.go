@@ -1,4 +1,4 @@
-package camanage
+package manager
 
 import (
 	"bytes"
@@ -91,23 +91,23 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		c.Clock = clock.New()
 	}
 
-	s := &Manager{
+	m := &Manager{
 		c:               c,
 		caTTL:           c.CredBuilder.Config().X509CATTL,
 		bundleUpdatedCh: make(chan struct{}, 1),
 	}
 
 	if upstreamAuthority, ok := c.Catalog.GetUpstreamAuthority(); ok {
-		s.upstreamClient = ca.NewUpstreamClient(ca.UpstreamClientConfig{
+		m.upstreamClient = ca.NewUpstreamClient(ca.UpstreamClientConfig{
 			UpstreamAuthority: upstreamAuthority,
 			BundleUpdater: &bundleUpdater{
 				log:           c.Log,
 				trustDomainID: c.TrustDomain.IDString(),
 				ds:            c.Catalog.GetDataStore(),
-				updated:       s.bundleUpdated,
+				updated:       m.bundleUpdated,
 			},
 		})
-		s.upstreamPluginName = upstreamAuthority.Name()
+		m.upstreamPluginName = upstreamAuthority.Name()
 	}
 
 	loader := &SlotLoader{
@@ -115,7 +115,7 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		Log:            c.Log,
 		Dir:            c.Dir,
 		Catalog:        c.Catalog,
-		UpstreamClient: s.upstreamClient,
+		UpstreamClient: m.upstreamClient,
 	}
 
 	journal, slots, err := loader.Load(ctx)
@@ -123,10 +123,10 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		return nil, err
 	}
 
-	now := s.c.Clock.Now()
-	s.journal = journal
+	now := m.c.Clock.Now()
+	m.journal = journal
 	if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
-		s.currentX509CA = currentX509CA.(*X509CASlot)
+		m.currentX509CA = currentX509CA.(*X509CASlot)
 
 		// TODO: Activation on journal depends on dates, it will need to be
 		// refactored to allow set an Status, because when forcing rotations,
@@ -134,16 +134,16 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
 			// activate the X509CA immediately if it is set and not within
 			// activation time of the next X509CA.
-			s.activateX509CA()
+			m.activateX509CA()
 		}
 	}
 
 	if nextX509CA, ok := slots[NextX509CASlot]; ok {
-		s.nextX509CA = nextX509CA.(*X509CASlot)
+		m.nextX509CA = nextX509CA.(*X509CASlot)
 	}
 
 	if currentJWTKey, ok := slots[CurrentJWTKeySlot]; ok {
-		s.currentJWTKey = currentJWTKey.(*JwtKeySlot)
+		m.currentJWTKey = currentJWTKey.(*JwtKeySlot)
 
 		// TODO: Activation on journal depends on dates, it will need to be
 		// refactored to allow set an Status, because when forcing rotations,
@@ -151,15 +151,15 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		if !currentJWTKey.IsEmpty() && !currentJWTKey.ShouldActivateNext(now) {
 			// activate the JWT key immediately if it is set and not within
 			// activation time of the next JWT key.
-			s.activateJWTKey()
+			m.activateJWTKey()
 		}
 	}
 
 	if nextJWTKey, ok := slots[NextJWTKeySlot]; ok {
-		s.nextJWTKey = nextJWTKey.(*JwtKeySlot)
+		m.nextJWTKey = nextJWTKey.(*JwtKeySlot)
 	}
 
-	return s, nil
+	return m, nil
 }
 
 func (m *Manager) Close() {
@@ -189,7 +189,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	m.x509CAMutex.Lock()
 	defer m.x509CAMutex.Unlock()
 
-	// If current is not emply prepare in next
+	// If current is not empty prepare in next
 	slot := m.currentX509CA
 	if !slot.IsEmpty() {
 		slot = m.nextX509CA
@@ -273,7 +273,7 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 	m.jwtKeyMutex.Lock()
 	defer m.jwtKeyMutex.Unlock()
 
-	// If current is not empty use next to prepare
+	// If current slot is not empty, use next to prepare
 	slot := m.currentJWTKey
 	if !slot.IsEmpty() {
 		slot = m.nextJWTKey

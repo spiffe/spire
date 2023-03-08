@@ -1,4 +1,4 @@
-package carotation
+package rotator
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/health"
-	"github.com/spiffe/spire/pkg/server/ca/camanage"
+	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -168,7 +168,7 @@ func TestInitialize(t *testing.T) {
 	}
 }
 
-func TestRunNotifiyBundleFails(t *testing.T) {
+func TestRunNotifyBundleFails(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
@@ -404,11 +404,11 @@ func (f *fakeCAManager) NotifyBundleLoaded(ctx context.Context) error {
 func (f *fakeCAManager) NotifyOnBundleUpdate(ctx context.Context) {
 }
 
-func (f *fakeCAManager) GetCurrentX509CASlot() camanage.Slot {
+func (f *fakeCAManager) GetCurrentX509CASlot() manager.Slot {
 	return f.currentX509CASlot
 }
 
-func (f *fakeCAManager) GetNextX509CASlot() camanage.Slot {
+func (f *fakeCAManager) GetNextX509CASlot() manager.Slot {
 	return f.nextX509CASlot
 }
 
@@ -451,11 +451,11 @@ func (f *fakeCAManager) RotateX509CA() {
 	f.x509CACh <- struct{}{}
 }
 
-func (f *fakeCAManager) GetCurrentJWTKeySlot() camanage.Slot {
+func (f *fakeCAManager) GetCurrentJWTKeySlot() manager.Slot {
 	return f.currentJWTKeySlot
 }
 
-func (f *fakeCAManager) GetNextJWTKeySlot() camanage.Slot {
+func (f *fakeCAManager) GetNextJWTKeySlot() manager.Slot {
 	return f.nextJWTKeySlot
 }
 

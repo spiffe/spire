@@ -24,8 +24,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/ca"
-	"github.com/spiffe/spire/pkg/server/ca/camanage"
-	"github.com/spiffe/spire/pkg/server/ca/carotation"
+	"github.com/spiffe/spire/pkg/server/ca/manager"
+	"github.com/spiffe/spire/pkg/server/ca/rotator"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/credvalidator"
@@ -312,8 +312,8 @@ func (s *Server) newCA(metrics telemetry.Metrics, credBuilder *credtemplate.Buil
 	})
 }
 
-func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator) (*camanage.Manager, error) {
-	caManager, err := camanage.NewManager(ctx, camanage.Config{
+func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator) (*manager.Manager, error) {
+	caManager, err := manager.NewManager(ctx, manager.Config{
 		CA:            serverCA,
 		Catalog:       cat,
 		TrustDomain:   s.config.TrustDomain,
@@ -332,8 +332,8 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 	return caManager, nil
 }
 
-func (s *Server) newCASync(ctx context.Context, healthChecker health.Checker, caManager *camanage.Manager) (*carotation.Rotator, error) {
-	caSync := carotation.NewRotator(carotation.Config{
+func (s *Server) newCASync(ctx context.Context, healthChecker health.Checker, caManager *manager.Manager) (*rotator.Rotator, error) {
+	caSync := rotator.NewRotator(rotator.Config{
 		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
 		Manager:       caManager,
 		HealthChecker: healthChecker,
@@ -367,7 +367,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, jwtKeyPublisher camanage.JwtKeyPublisher, authPolicyEngine *authpolicy.Engine, bundleManager *bundle_client.Manager) (endpoints.Server, error) {
+func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, jwtKeyPublisher manager.JwtKeyPublisher, authPolicyEngine *authpolicy.Engine, bundleManager *bundle_client.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:             s.config.BindAddress,
 		LocalAddr:           s.config.BindLocalAddress,

@@ -1,4 +1,4 @@
-package camanage
+package manager
 
 import (
 	"crypto/x509"
@@ -80,10 +80,10 @@ func TestJWTKeySlotShouldPrepareNext(t *testing.T) {
 		jwtKey:   nil,
 	}
 
-	// No jwt key, should preparate
+	// No jwt key, should prepare
 	require.True(t, slot.ShouldPrepareNext(now.Add(time.Hour)))
 
-	// Key is no ready to prepare
+	// Key is not ready to prepare
 	slot.jwtKey = &ca.JWTKey{
 		NotAfter: now.Add(time.Minute),
 	}
@@ -109,7 +109,7 @@ func TestJWTKeySlotShouldActivateNext(t *testing.T) {
 	// No jwt key, should activate
 	require.True(t, slot.ShouldActivateNext(now.Add(time.Hour)))
 
-	// Key is no ready to prepare
+	// Key is not ready to prepare
 	slot.jwtKey = &ca.JWTKey{
 		NotAfter: now.Add(time.Minute),
 	}

@@ -1,4 +1,4 @@
-package carotation
+package rotator
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/ca/camanage"
+	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/zeebo/errs"
 )
 
@@ -23,15 +23,15 @@ type CAManager interface {
 	NotifyBundleLoaded(ctx context.Context) error
 	NotifyOnBundleUpdate(ctx context.Context)
 
-	GetCurrentX509CASlot() camanage.Slot
-	GetNextX509CASlot() camanage.Slot
+	GetCurrentX509CASlot() manager.Slot
+	GetNextX509CASlot() manager.Slot
 
 	PrepareX509CA(ctx context.Context) error
 	ActivateX509CA()
 	RotateX509CA()
 
-	GetCurrentJWTKeySlot() camanage.Slot
-	GetNextJWTKeySlot() camanage.Slot
+	GetCurrentJWTKeySlot() manager.Slot
+	GetNextJWTKeySlot() manager.Slot
 
 	PrepareJWTKey(ctx context.Context) error
 	ActivateJWTKey()

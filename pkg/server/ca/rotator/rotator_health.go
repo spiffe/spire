@@ -1,4 +1,4 @@
-package carotation
+package rotator
 
 import (
 	"errors"
