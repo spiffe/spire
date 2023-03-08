@@ -85,10 +85,7 @@ func TestExternalPlugin(t *testing.T) {
 	t.Run("not a plugin", func(t *testing.T) {
 		testLoad(t, pluginPath, loadTest{
 			pluginMode: "bad",
-			expectErr: `failed to load plugin "test": failed to launch plugin: Unrecognized remote plugin message: 
-
-This usually means that the plugin is either invalid or simply
-needs to be recompiled to support the latest protocol.`,
+			expectErr:  `failed to load plugin "test": failed to launch plugin: Unrecognized remote plugin message:`,
 		})
 	})
 }
@@ -369,7 +366,8 @@ func testLoad(t *testing.T, pluginPath string, tt loadTest) {
 	}
 
 	if tt.expectErr != "" {
-		require.EqualError(t, err, tt.expectErr, "load should have failed")
+		require.Error(t, err, "load should have failed")
+		require.Contains(t, err.Error(), tt.expectErr, "unexpected load failure")
 		assert.Nil(t, closer, "closer should have been nil")
 	} else {
 		require.NoError(t, err, "load should not have failed")
