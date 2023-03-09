@@ -16,6 +16,7 @@ func TestAllTrueMasks(t *testing.T) {
 		X509SvidExpiresAt:    true,
 		Selectors:            true,
 		Banned:               true,
+		CanReattest:          true,
 	}, protoutil.AllTrueAgentMask)
 
 	spiretest.AssertProtoEqual(t, &types.BundleMask{

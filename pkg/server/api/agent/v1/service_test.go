@@ -265,6 +265,7 @@ func TestListAgents(t *testing.T) {
 		CertNotAfter:        notAfter,
 		NewCertNotAfter:     newNoAfter,
 		NewCertSerialNumber: "new badcafe",
+		CanReattest:         false,
 		Selectors: []*common.Selector{
 			{Type: "a", Value: "1"},
 			{Type: "b", Value: "2"},
@@ -283,6 +284,7 @@ func TestListAgents(t *testing.T) {
 		CertNotAfter:        notAfter,
 		NewCertNotAfter:     newNoAfter,
 		NewCertSerialNumber: "new deadbeef",
+		CanReattest:         false,
 		Selectors: []*common.Selector{
 			{Type: "a", Value: "1"},
 			{Type: "c", Value: "3"},
@@ -301,6 +303,7 @@ func TestListAgents(t *testing.T) {
 		CertNotAfter:        notAfter,
 		NewCertNotAfter:     newNoAfter,
 		NewCertSerialNumber: "",
+		CanReattest:         true,
 	}
 	_, err = test.ds.CreateAttestedNode(ctx, node3)
 	require.NoError(t, err)
@@ -347,6 +350,7 @@ func TestListAgents(t *testing.T) {
 						Id:                   api.ProtoFromID(node1ID),
 						AttestationType:      "t1",
 						Banned:               false,
+						CanReattest:          false,
 						X509SvidExpiresAt:    notAfter,
 						X509SvidSerialNumber: "badcafe",
 						Selectors: []*types.Selector{
@@ -358,6 +362,7 @@ func TestListAgents(t *testing.T) {
 						Id:                   api.ProtoFromID(node2ID),
 						AttestationType:      "t2",
 						Banned:               false,
+						CanReattest:          false,
 						X509SvidExpiresAt:    notAfter,
 						X509SvidSerialNumber: "deadbeef",
 						Selectors: []*types.Selector{
@@ -369,6 +374,7 @@ func TestListAgents(t *testing.T) {
 						Id:                   api.ProtoFromID(node3ID),
 						AttestationType:      "t3",
 						Banned:               true,
+						CanReattest:          true,
 						X509SvidExpiresAt:    notAfter,
 						X509SvidSerialNumber: "",
 					},
@@ -480,6 +486,57 @@ func TestListAgents(t *testing.T) {
 						telemetry.Status:   "success",
 						telemetry.Type:     "audit",
 						telemetry.ByBanned: "false",
+					},
+				},
+			},
+		},
+		{
+			name: "by can re-attest true",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					ByCanReattest: &wrapperspb.BoolValue{Value: true},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{
+					{Id: api.ProtoFromID(node3ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "success",
+						telemetry.Type:          "audit",
+						telemetry.ByCanReattest: "true",
+					},
+				},
+			},
+		},
+		{
+			name: "by can re-attest false",
+			req: &agentv1.ListAgentsRequest{
+				OutputMask: &types.AgentMask{},
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					ByCanReattest: &wrapperspb.BoolValue{Value: false},
+				},
+			},
+			expectResp: &agentv1.ListAgentsResponse{
+				Agents: []*types.Agent{
+					{Id: api.ProtoFromID(node1ID)},
+					{Id: api.ProtoFromID(node2ID)},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "success",
+						telemetry.Type:          "audit",
+						telemetry.ByCanReattest: "false",
 					},
 				},
 			},
