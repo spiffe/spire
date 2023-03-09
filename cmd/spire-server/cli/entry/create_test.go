@@ -105,6 +105,7 @@ func TestCreate(t *testing.T) {
 					Selectors:   []*types.Selector{{Type: "unix", Value: "uid:1111"}},
 					X509SvidTtl: 200,
 					JwtSvidTtl:  30,
+					Hint:        "internal",
 				},
 				Status: &types.Status{
 					Code:    int32(codes.OK),
@@ -240,6 +241,7 @@ func TestCreate(t *testing.T) {
 				"-dns", "ung1000",
 				"-downstream",
 				"-storeSVID",
+				"-hint", "internal",
 			},
 			expReq: &entryv1.BatchCreateEntryRequest{
 				Entries: []*types.Entry{
@@ -258,6 +260,7 @@ func TestCreate(t *testing.T) {
 						DnsNames:      []string{"unu1000", "ung1000"},
 						Downstream:    true,
 						StoreSvid:     true,
+						Hint:          "internal",
 					},
 				},
 			},
@@ -312,6 +315,7 @@ StoreSvid        : true
           "spiffe://domaina.test",
           "spiffe://domainb.test"
         ],
+        "hint": "",
         "admin": true,
         "downstream": true,
         "expires_at": "1552410266",
@@ -415,6 +419,7 @@ StoreSvid        : true
           "spiffe://domaina.test",
           "spiffe://domainb.test"
         ],
+        "hint": "",
         "admin": true,
         "downstream": true,
         "expires_at": "1552410266",
@@ -451,6 +456,7 @@ StoreSvid        : true
 						Selectors:   []*types.Selector{{Type: "unix", Value: "uid:1111"}},
 						X509SvidTtl: 200,
 						JwtSvidTtl:  30,
+						Hint:        "internal",
 					},
 					{
 						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
@@ -482,6 +488,7 @@ Revision         : 0
 X509-SVID TTL    : 200
 JWT-SVID TTL     : 30
 Selector         : unix:uid:1111
+Hint             : internal
 
 Entry ID         : entry-id-3
 SPIFFE ID        : spiffe://example.org/storesvid
@@ -519,6 +526,7 @@ StoreSvid        : true
         ],
         "x509_svid_ttl": 200,
         "federates_with": [],
+        "hint": "",
         "admin": true,
         "downstream": false,
         "expires_at": "0",
@@ -551,6 +559,7 @@ StoreSvid        : true
         ],
         "x509_svid_ttl": 200,
         "federates_with": [],
+        "hint": "internal",
         "admin": false,
         "downstream": false,
         "expires_at": "0",
@@ -587,6 +596,7 @@ StoreSvid        : true
         ],
         "x509_svid_ttl": 200,
         "federates_with": [],
+        "hint": "",
         "admin": false,
         "downstream": false,
         "expires_at": "0",
@@ -646,6 +656,7 @@ Error: failed to create one or more entries
         ],
         "x509_svid_ttl": 0,
         "federates_with": [],
+        "hint": "",
         "admin": false,
         "downstream": false,
         "expires_at": "0",

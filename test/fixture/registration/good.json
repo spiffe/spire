@@ -23,7 +23,8 @@
             "spiffe_id": "spiffe://example.org/Database",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "x509_svid_ttl": 200,
-            "jwt_svid_ttl": 30
+            "jwt_svid_ttl": 30,
+            "hint": "internal"
         },
         {
             "selectors": [
