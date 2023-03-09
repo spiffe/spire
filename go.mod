@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	cloud.google.com/go/iam v0.12.0
-	cloud.google.com/go/kms v1.8.0
+	cloud.google.com/go/kms v1.9.0
 	cloud.google.com/go/secretmanager v1.10.0
 	cloud.google.com/go/security v1.12.0
 	cloud.google.com/go/storage v1.29.0
@@ -64,10 +64,10 @@ require (
 	github.com/stretchr/testify v1.8.2
 	github.com/uber-go/tally/v4 v4.1.6
 	github.com/zeebo/errs v1.3.0
-	golang.org/x/crypto v0.6.0
-	golang.org/x/net v0.7.0
+	golang.org/x/crypto v0.7.0
+	golang.org/x/net v0.8.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.5.0
+	golang.org/x/sys v0.6.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.111.0
 	google.golang.org/genproto v0.0.0-20230223222841-637eb2293923
@@ -78,7 +78,7 @@ require (
 	k8s.io/apimachinery v0.26.2
 	k8s.io/client-go v0.26.2
 	k8s.io/kube-aggregator v0.26.2
-	sigs.k8s.io/controller-runtime v0.14.4
+	sigs.k8s.io/controller-runtime v0.14.5
 )
 
 require (
@@ -331,11 +331,11 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/exp v0.0.0-20220823124025-807a23277127 // indirect
-	golang.org/x/mod v0.7.0 // indirect
+	golang.org/x/mod v0.8.0 // indirect
 	golang.org/x/oauth2 v0.5.0 // indirect
-	golang.org/x/term v0.5.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
-	golang.org/x/tools v0.5.0 // indirect
+	golang.org/x/term v0.6.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
+	golang.org/x/tools v0.6.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect
