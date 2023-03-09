@@ -32,10 +32,10 @@ in an Azure VM when authenticating with an MSI token.
 In Key Vault, the cryptographic key material that is used to sign data is stored
 in a key version. A key can have zero or more key versions.
 
-For each SPIRE Key ID that the server manages, this plugin maintains a Key. 
-When a key is rotated, a new version is added to the Key. 
+For each SPIRE Key ID that the server manages, this plugin maintains a Key.
+When a key is rotated, a new version is added to the Key.
 
-Note that Azure does not support deleting individual key versions, instead, the key itself is deleted by the plugin 
+Note that Azure does not support deleting individual key versions, instead, the key itself is deleted by the plugin
 when it's no longer being used by a server in the trust domain the server belongs to.
 
 ### Management of keys
@@ -56,8 +56,8 @@ lost, the plugin will not be able to identify keys that it has previously
 managed and will recreate new keys on demand.
 
 The plugin attempts to detect and delete stale keys. To facilitate stale
-keys detection, the plugin actively updates the `Updated` field of all keys managed by the server every 6 hours. 
-Within the Key Vault the plugin is configured to use (`key_vaut_uri`), the plugin periodically scans the keys looking 
+keys detection, the plugin actively updates the `Updated` field of all keys managed by the server every 6 hours.
+Within the Key Vault the plugin is configured to use (`key_vaut_uri`), the plugin periodically scans the keys looking
 for active keys within the trust domain that have their `Updated` field value older than two weeks and deletes them.
 
 ### Required permissions
@@ -65,6 +65,7 @@ for active keys within the trust domain that have their `Updated` field value ol
 The identity used need the following permissions on the Key Vault it's configured to use:
 
 Key Management Operations
+
 ```text
 Get
 List
@@ -74,6 +75,7 @@ Delete
 ```
 
 Cryptographic Operations
+
 ```text
 Sign
 Verify
