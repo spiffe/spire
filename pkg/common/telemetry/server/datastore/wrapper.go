@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"crypto"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -201,6 +202,30 @@ func (w metricsWrapper) SetBundle(ctx context.Context, bundle *common.Bundle) (_
 	callCounter := StartSetBundleCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.SetBundle(ctx, bundle)
+}
+
+func (w metricsWrapper) TaintX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) (err error) {
+	callCounter := StartTaintX509CAByKeyCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.TaintX509CA(ctx, trustDomainID, publicKey)
+}
+
+func (w metricsWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) (err error) {
+	callCounter := StartRevokeX509CACall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.RevokeX509CA(ctx, trustDomainID, publicKey)
+}
+
+func (w metricsWrapper) TaintJWTKey(ctx context.Context, trustDomainID string, keyID string) (_ *common.PublicKey, err error) {
+	callCounter := StartTaintJWTKeyCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.TaintJWTKey(ctx, trustDomainID, keyID)
+}
+
+func (w metricsWrapper) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (_ *common.PublicKey, err error) {
+	callCounter := StartRevokeJWTKeyCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.RevokeJWTKey(ctx, trustDomainID, keyID)
 }
 
 func (w metricsWrapper) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) (err error) {
