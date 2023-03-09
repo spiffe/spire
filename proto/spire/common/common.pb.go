@@ -710,8 +710,9 @@ type Certificate struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	DerBytes   []byte `protobuf:"bytes,1,opt,name=der_bytes,json=derBytes,proto3" json:"der_bytes,omitempty"`
-	TaintedKey bool   `protobuf:"varint,2,opt,name=tainted_key,json=taintedKey,proto3" json:"tainted_key,omitempty"`
+	DerBytes []byte `protobuf:"bytes,1,opt,name=der_bytes,json=derBytes,proto3" json:"der_bytes,omitempty"`
+	// * Whether or not the key used to sign the certificate is tainted
+	TaintedKey bool `protobuf:"varint,2,opt,name=tainted_key,json=taintedKey,proto3" json:"tainted_key,omitempty"`
 }
 
 func (x *Certificate) Reset() {
@@ -771,8 +772,9 @@ type PublicKey struct {
 	// * key identifier
 	Kid string `protobuf:"bytes,2,opt,name=kid,proto3" json:"kid,omitempty"`
 	// * not after (seconds since unix epoch, 0 means "never expires")
-	NotAfter   int64 `protobuf:"varint,3,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
-	TaintedKey bool  `protobuf:"varint,4,opt,name=tainted_key,json=taintedKey,proto3" json:"tainted_key,omitempty"`
+	NotAfter int64 `protobuf:"varint,3,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
+	// * Whether or not the key is tainted
+	TaintedKey bool `protobuf:"varint,4,opt,name=tainted_key,json=taintedKey,proto3" json:"tainted_key,omitempty"`
 }
 
 func (x *PublicKey) Reset() {
