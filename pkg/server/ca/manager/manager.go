@@ -129,8 +129,8 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		m.currentX509CA = currentX509CA.(*X509CASlot)
 
 		// TODO: Activation on journal depends on dates, it will need to be
-		// refactored to allow set an Status, because when forcing rotations,
-		// we are not longer able to depends on dates
+		// refactored to allow to set a status, because when forcing a rotation,
+		// we are no longer able to depend on date.
 		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
 			// activate the X509CA immediately if it is set and not within
 			// activation time of the next X509CA.
@@ -146,8 +146,8 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		m.currentJWTKey = currentJWTKey.(*JwtKeySlot)
 
 		// TODO: Activation on journal depends on dates, it will need to be
-		// refactored to allow set an Status, because when forcing rotations,
-		// we are not longer able to depends on dates
+		// refactored to allow to set a status, because when forcing a rotation,
+		// we are no longer able to depend on a date.
 		if !currentJWTKey.IsEmpty() && !currentJWTKey.ShouldActivateNext(now) {
 			// activate the JWT key immediately if it is set and not within
 			// activation time of the next JWT key.
@@ -189,7 +189,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	m.x509CAMutex.Lock()
 	defer m.x509CAMutex.Unlock()
 
-	// If current is not empty prepare in next
+	// If current is not empty, prepare the next
 	slot := m.currentX509CA
 	if !slot.IsEmpty() {
 		slot = m.nextX509CA
