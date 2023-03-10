@@ -123,10 +123,10 @@ const (
 	// Mint functionality related to minting identities
 	Mint = "mint"
 
-	// Taint functionality related to tainting a key.
+	// Taint functionality related with tainting a key from the bundle
 	Taint = "taint"
 
-	// Revoke functionality related to revoke a bundle
+	// Revoke functionality related with revoking a key from the bundle
 	Revoke = "revoke"
 )
 

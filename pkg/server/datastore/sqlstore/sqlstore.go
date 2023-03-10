@@ -199,22 +199,22 @@ func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expires
 	return changed, nil
 }
 
-// TaintX509CAByKey taint a X509 CA signed using the provided publick key
+// TaintX509CAByKey taints an X.509 CA signed using the provided public key
 func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
 	return errors.New("unimplemented")
 }
 
-// RevokeX509CA remove a Root CA from bundle
+// RevokeX509CA removes a Root CA from the bundle
 func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
 	return errors.New("unimplemented")
 }
 
-// TaintJWTKey taint a JWT Authority key
+// TaintJWTKey taints a JWT Authority key
 func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
 	return nil, errors.New("unimplemented")
 }
 
-// RevokeJWTAuthority remove JWT key from bundle
+// RevokeJWTAuthority removes JWT key from the bundle
 func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
 	return nil, errors.New("unimplemented")
 }
