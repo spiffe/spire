@@ -34,6 +34,7 @@ func TestAllTrueMasks(t *testing.T) {
 		JwtSvidTtl:     true,
 		FederatesWith:  true,
 		Admin:          true,
+		CreatedAt:      true,
 		Downstream:     true,
 		ExpiresAt:      true,
 		DnsNames:       true,
