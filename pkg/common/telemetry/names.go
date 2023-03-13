@@ -283,6 +283,9 @@ const (
 	// Hint tags registration entry hint
 	Hint = "hint"
 
+	// CreatedAt tags registration entry cration date
+	CreatedAt = "created_at"
+
 	// ExpiryCheckDuration tags duration for an expiry check; should be used with other tags
 	// to add clarity
 	ExpiryCheckDuration = "expiry_check_duration"

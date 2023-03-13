@@ -49,6 +49,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				Downstream:     true,
 				RevisionNumber: 99,
 				Hint:           "external",
+				CreatedAt:      1678731397,
 			},
 			expectEntry: &types.Entry{
 				Id:          "entry1",
@@ -70,6 +71,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				Downstream:     true,
 				RevisionNumber: 99,
 				Hint:           "external",
+				CreatedAt:      1678731397,
 			},
 		},
 		{
