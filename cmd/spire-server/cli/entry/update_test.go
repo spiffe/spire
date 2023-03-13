@@ -51,6 +51,7 @@ func TestUpdate(t *testing.T) {
         ],
         "hint": "",
         "admin": false,
+        "created_at": "0",
         "downstream": false,
         "expires_at": "1552410266",
         "dns_names": [
@@ -88,6 +89,7 @@ func TestUpdate(t *testing.T) {
         ],
         "hint": "external",
         "admin": true,
+        "created_at": "1678731397",
         "downstream": true,
         "expires_at": "1552410266",
         "dns_names": [
@@ -118,6 +120,7 @@ func TestUpdate(t *testing.T) {
         "federates_with": [],
         "hint": "external",
         "admin": true,
+        "created_at": "0",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -146,6 +149,7 @@ func TestUpdate(t *testing.T) {
         "federates_with": [],
         "hint": "",
         "admin": false,
+        "created_at": "0",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -178,6 +182,7 @@ func TestUpdate(t *testing.T) {
         "federates_with": [],
         "hint": "",
         "admin": false,
+        "created_at": "0",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -205,6 +210,7 @@ func TestUpdate(t *testing.T) {
         "federates_with": [],
         "hint": "",
         "admin": false,
+        "created_at": "0",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -231,6 +237,25 @@ func TestUpdate(t *testing.T) {
 		Hint:          "external",
 	}
 
+	entry0Admin := &types.Entry{
+		Id:       "entry-id",
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+		Selectors: []*types.Selector{
+			{Type: "zebra", Value: "zebra:2000"},
+			{Type: "alpha", Value: "alpha:2000"},
+		},
+		X509SvidTtl:   60,
+		JwtSvidTtl:    30,
+		FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
+		Admin:         true,
+		ExpiresAt:     1552410266,
+		DnsNames:      []string{"unu1000", "ung1000"},
+		Downstream:    true,
+		Hint:          "external",
+		CreatedAt:     1678731397,
+	}
+
 	entryStoreSvid := &types.Entry{
 		Id:       "entry-id",
 		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
@@ -246,10 +271,11 @@ func TestUpdate(t *testing.T) {
 		DnsNames:      []string{"unu1000", "ung1000"},
 		StoreSvid:     true,
 	}
+
 	fakeRespOKFromCmd := &entryv1.BatchUpdateEntryResponse{
 		Results: []*entryv1.BatchUpdateEntryResponse_Result{
 			{
-				Entry: entry1,
+				Entry: entry0Admin,
 				Status: &types.Status{
 					Code:    int32(codes.OK),
 					Message: "OK",
