@@ -2502,8 +2502,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		ExpiresAt:  time.Now().Add(30 * time.Second).Unix(),
 		DnsNames:   []string{"dns1", "dns2"},
 		Downstream: true,
-		Hint: "external",
-		CreatedAt: 1678731397,
+		Hint:       "external",
+		CreatedAt:  1678731397,
 	}
 	entry2 := types.Entry{
 		Id:          "entry-2",
@@ -3350,7 +3350,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 		{
 			name:           "Success Don't Update X509SVIDTTL",
 			initialEntries: []*types.Entry{initialEntry},
-			inputMask:      &types.EntryMask{
+			inputMask: &types.EntryMask{
 				// With this empty, the update operation should be a no-op
 			},
 			outputMask: &types.EntryMask{
@@ -3796,7 +3796,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 		{
 			name:           "Success Empty Input Mask",
 			initialEntries: []*types.Entry{initialEntry},
-			inputMask:      &types.EntryMask{
+			inputMask: &types.EntryMask{
 				// With this empty, the update operation should be a no-op
 			},
 			outputMask: &types.EntryMask{

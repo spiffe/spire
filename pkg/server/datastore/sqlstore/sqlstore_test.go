@@ -2480,6 +2480,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	s.Require().True(updatedRegistrationEntry.Admin)
 	s.Require().True(updatedRegistrationEntry.Downstream)
 	s.Require().Equal("internal", updatedRegistrationEntry.Hint)
+	s.Require().Equal(entry.CreatedAt, updatedRegistrationEntry.CreatedAt)
 
 	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
 	s.Require().NoError(err)
