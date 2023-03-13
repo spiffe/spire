@@ -3350,7 +3350,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 		{
 			name:           "Success Don't Update X509SVIDTTL",
 			initialEntries: []*types.Entry{initialEntry},
-			inputMask: &types.EntryMask{
+			inputMask:      &types.EntryMask{
 				// With this empty, the update operation should be a no-op
 			},
 			outputMask: &types.EntryMask{
@@ -3796,7 +3796,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 		{
 			name:           "Success Empty Input Mask",
 			initialEntries: []*types.Entry{initialEntry},
-			inputMask: &types.EntryMask{
+			inputMask:      &types.EntryMask{
 				// With this empty, the update operation should be a no-op
 			},
 			outputMask: &types.EntryMask{
