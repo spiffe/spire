@@ -139,6 +139,10 @@ func printAgents(env *commoncli.Env, agents ...*types.Agent) error {
 				return err
 			}
 		}
+		if err := env.Printf("Can re-attest     : %t\n", agent.CanReattest); err != nil {
+			return err
+		}
+
 		if err := env.Println(); err != nil {
 			return err
 		}

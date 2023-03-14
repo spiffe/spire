@@ -4,12 +4,12 @@ go 1.19
 
 require (
 	cloud.google.com/go/iam v0.12.0
-	cloud.google.com/go/kms v1.8.0
+	cloud.google.com/go/kms v1.9.0
 	cloud.google.com/go/secretmanager v1.10.0
 	cloud.google.com/go/security v1.12.0
 	cloud.google.com/go/storage v1.29.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.1
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.0.0
@@ -17,15 +17,15 @@ require (
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.4.1
-	github.com/aws/aws-sdk-go-v2 v1.17.5
+	github.com/aws/aws-sdk-go-v2 v1.17.6
 	github.com/aws/aws-sdk-go-v2/config v1.18.14
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.14
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.23
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.86.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.89.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.20.4
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.18.0
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.4
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
@@ -33,12 +33,12 @@ require (
 	github.com/envoyproxy/go-control-plane v0.11.0
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/gofrs/uuid v4.4.0+incompatible
-	github.com/golang/protobuf v1.5.2
+	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.5.9
 	github.com/google/go-containerregistry v0.13.0
 	github.com/google/go-tpm v0.3.3
 	github.com/google/go-tpm-tools v0.3.10
-	github.com/googleapis/gax-go/v2 v2.7.0
+	github.com/googleapis/gax-go/v2 v2.7.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v1.4.0
 	github.com/hashicorp/go-plugin v1.4.6
@@ -59,37 +59,37 @@ require (
 	github.com/sigstore/sigstore v1.5.2
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spiffe/go-spiffe/v2 v2.1.2
-	github.com/spiffe/spire-api-sdk v1.2.5-0.20221020001527-5895a0279944
+	github.com/spiffe/spire-api-sdk v1.2.5-0.20230307202917-213de6c5e08b
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230203133000-75d7213a0ba0
 	github.com/stretchr/testify v1.8.2
 	github.com/uber-go/tally/v4 v4.1.6
 	github.com/zeebo/errs v1.3.0
-	golang.org/x/crypto v0.6.0
-	golang.org/x/net v0.7.0
+	golang.org/x/crypto v0.7.0
+	golang.org/x/net v0.8.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.5.0
+	golang.org/x/sys v0.6.0
 	golang.org/x/time v0.3.0
-	google.golang.org/api v0.111.0
-	google.golang.org/genproto v0.0.0-20230223222841-637eb2293923
+	google.golang.org/api v0.112.0
+	google.golang.org/genproto v0.0.0-20230303212802-e74f57abe488
 	google.golang.org/grpc v1.53.0
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.29.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 	k8s.io/api v0.26.2
 	k8s.io/apimachinery v0.26.2
 	k8s.io/client-go v0.26.2
 	k8s.io/kube-aggregator v0.26.2
-	sigs.k8s.io/controller-runtime v0.14.4
+	sigs.k8s.io/controller-runtime v0.14.5
 )
 
 require (
 	bitbucket.org/creachadair/shell v0.0.7 // indirect
-	cloud.google.com/go v0.107.0 // indirect
+	cloud.google.com/go v0.110.0 // indirect
 	cloud.google.com/go/compute v1.18.0 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	cloud.google.com/go/longrunning v0.3.0 // indirect
+	cloud.google.com/go/longrunning v0.4.1 // indirect
 	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/alibabacloudsdkgo/helper v0.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.1.2 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.2.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.28 // indirect
 	github.com/Azure/go-autorest/autorest/adal v0.9.21 // indirect
@@ -98,7 +98,7 @@ require (
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v0.8.1 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.1.1 // indirect
@@ -119,8 +119,8 @@ require (
 	github.com/aliyun/credentials-go v1.2.3 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.29 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.23 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.30 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.24 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.30 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.15.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.12.0 // indirect
@@ -185,7 +185,7 @@ require (
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
-	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/mock v1.6.0 // indirect
@@ -331,11 +331,11 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/exp v0.0.0-20220823124025-807a23277127 // indirect
-	golang.org/x/mod v0.7.0 // indirect
-	golang.org/x/oauth2 v0.5.0 // indirect
-	golang.org/x/term v0.5.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
-	golang.org/x/tools v0.5.0 // indirect
+	golang.org/x/mod v0.8.0 // indirect
+	golang.org/x/oauth2 v0.6.0 // indirect
+	golang.org/x/term v0.6.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
+	golang.org/x/tools v0.6.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	gopkg.in/cheggaaa/pb.v1 v1.0.28 // indirect

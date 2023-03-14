@@ -12,7 +12,8 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 300,
-            "admin": true
+            "admin": true,
+            "hint": "external"
         },
         {
             "entry_id": "entry-id-2",
