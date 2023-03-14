@@ -1115,7 +1115,7 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 			// no breaking here to be sure that we taint all
 			// bundles associated with given public key,
 			// but we must contain a single bundle signed
-			// by this this key
+			// by this key
 			found = true
 			ca.TaintedKey = true
 		}
