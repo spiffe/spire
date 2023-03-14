@@ -646,6 +646,68 @@ func (s *PluginSuite) TestTaintX509CA() {
 	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "root CA is already tainted")
 }
 
+func (s *PluginSuite) TestRevokeX509CA() {
+	t := s.T()
+
+	// Setup
+	unusedKey := testkey.NewRSA2048(t)
+
+	keyForMalformedCert := testkey.NewEC256(t)
+	malformedX509 := &x509.Certificate{
+		PublicKey: keyForMalformedCert.PublicKey,
+		Raw:       []byte("no a certificate"),
+	}
+
+	// Create new bundle with two cert (one valid and one expired)
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert, malformedX509})
+
+	// Bundle not found
+	err := s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
+
+	_, err = s.ds.CreateBundle(ctx, bundle)
+	require.NoError(t, err)
+
+	// Bundle contains malformed CA
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to parse root CA: x509: malformed certificate")
+
+	// Remove malformed certificate
+	bundle.RootCas = []*common.Certificate{{DerBytes: s.cert.Raw}, {DerBytes: s.cacert.Raw}}
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	// No root CA is using provided key
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided public key")
+
+	// No able to revoke untainted bundles
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "it is not possible to revoke an untainted root CA")
+
+	// Mark cert as tainted
+	bundle.RootCas = []*common.Certificate{
+		{DerBytes: s.cert.Raw, TaintedKey: true},
+		{DerBytes: s.cacert.Raw},
+	}
+
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	// Revoke successfully
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
+	require.NoError(t, err)
+
+	fetchedBunde, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+	require.NoError(t, err)
+
+	expectedRootCAs := []*common.Certificate{
+		{DerBytes: s.cacert.Raw},
+	}
+
+	require.Equal(t, expectedRootCAs, fetchedBunde.RootCas)
+}
+
 func (s *PluginSuite) TestTaintJWTKey() {
 	t := s.T()
 	// Setup
