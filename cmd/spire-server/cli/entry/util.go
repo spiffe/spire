@@ -59,6 +59,10 @@ func printEntry(e *types.Entry, printf func(string, ...interface{}) error) {
 		_ = printf("StoreSvid        : %t\n", e.StoreSvid)
 	}
 
+	if e.Hint != "" {
+		_ = printf("Hint             : %s\n", e.Hint)
+	}
+
 	_ = printf("\n")
 }
 

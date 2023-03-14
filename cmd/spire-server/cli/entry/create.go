@@ -40,6 +40,9 @@ type createCommand struct {
 	// Workload spiffeID
 	spiffeID string
 
+	// Entry hint, used to disambiguate entries with the same SPIFFE ID
+	hint string
+
 	// TTL for x509 and JWT SVIDs issued to this workload, unless type specific TTLs are set.
 	// This field is deprecated in favor of the x509SVIDTTL and jwtSVIDTTL fields and will be
 	// removed in a future release.
@@ -100,6 +103,7 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
+	f.StringVar(&c.hint, "hint", "", "The entry hint, used to disambiguate entries with the same SPIFFE ID")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintCreate)
 }
 
@@ -191,6 +195,7 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		StoreSvid:   c.storeSVID,
 		X509SvidTtl: int32(c.x509SVIDTTL),
 		JwtSvidTtl:  int32(c.jwtSVIDTTL),
+		Hint:        c.hint,
 	}
 
 	// c.ttl is deprecated but usable if the new c.x509Svid field is not used.
