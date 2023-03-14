@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -201,7 +203,12 @@ func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expires
 
 // TaintX509CAByKey taints an X.509 CA signed using the provided public key
 func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
-	return errors.New("unimplemented")
+	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return taintX509CA(tx, trustDoaminID, publicKey)
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // RevokeX509CA removes a Root CA from the bundle
@@ -1076,6 +1083,60 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	}
 
 	return changed, nil
+}
+
+func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.PublicKey) error {
+	model := &Bundle{}
+	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	bundle, err := modelToBundle(model)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to unmarshal bundle: %v", err)
+	}
+
+	var found bool
+	for _, ca := range bundle.RootCas {
+		rootCACert, err := x509.ParseCertificate(ca.DerBytes)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
+		}
+
+		ok, err := cryptoutil.PublicKeyEqual(rootCACert.PublicKey, taintedPublicKey)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
+		}
+		if ok {
+			if ca.TaintedKey {
+				return status.Errorf(codes.Internal, "root CA is already tainted")
+			}
+
+			// no breaking here to be sure that we taint all
+			// bundles associated with given public key,
+			// but we must contain a single bundle signed
+			// by this this key
+			found = true
+			ca.TaintedKey = true
+		}
+	}
+
+	if !found {
+		return status.Error(codes.Internal, "no root CA found with provided public key")
+	}
+
+	newModel, err := bundleToModel(bundle)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to parse bundle to model: %v", err)
+	}
+
+	model.Data = newModel.Data
+
+	if err := tx.Save(model).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
 }
 
 func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
