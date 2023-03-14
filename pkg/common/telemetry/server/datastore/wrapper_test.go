@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"reflect"
 	"strings"
@@ -156,6 +157,22 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.bundle.set",
 			methodName: "SetBundle",
+		},
+		{
+			key:        "datastore.bundle.x509.taint",
+			methodName: "TaintX509CA",
+		},
+		{
+			key:        "datastore.bundle.jwt.revoke",
+			methodName: "RevokeJWTKey",
+		},
+		{
+			key:        "datastore.bundle.x509.revoke",
+			methodName: "RevokeX509CA",
+		},
+		{
+			key:        "datastore.bundle.jwt.taint",
+			methodName: "TaintJWTKey",
 		},
 		{
 			key:        "datastore.node.selectors.set",
@@ -375,6 +392,22 @@ func (ds *fakeDataStore) PruneRegistrationEntries(context.Context, time.Time) er
 
 func (ds *fakeDataStore) SetBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
 	return &common.Bundle{}, ds.err
+}
+
+func (ds *fakeDataStore) TaintX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
+	return ds.err
+}
+
+func (ds *fakeDataStore) RevokeX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
+	return ds.err
+}
+
+func (ds *fakeDataStore) TaintJWTKey(ctx context.Context, trustDomainID string, keyID string) (*common.PublicKey, error) {
+	return &common.PublicKey{}, ds.err
+}
+
+func (ds *fakeDataStore) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (*common.PublicKey, error) {
+	return &common.PublicKey{}, ds.err
 }
 
 func (ds *fakeDataStore) SetNodeSelectors(context.Context, string, []*common.Selector) error {
