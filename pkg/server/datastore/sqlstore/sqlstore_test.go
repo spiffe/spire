@@ -592,6 +592,56 @@ func (s *PluginSuite) TestBundlePrune() {
 	s.AssertProtoEqual(expectedPrunedBundle, fb)
 }
 
+func (s *PluginSuite) TestTaintJWTKey() {
+	t := s.T()
+	// Setup
+	// Create new bundle with two JWT Keys
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", nil)
+	bundle.JwtSigningKeys = []*common.PublicKey{
+		{Kid: "key1"},
+		{Kid: "key2"},
+		{Kid: "key2"},
+	}
+
+	// Bundle not found
+	publicKey, err := s.ds.TaintJWTKey(ctx, "spiffe://foo", "key1")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
+	require.Nil(t, publicKey)
+
+	_, err = s.ds.CreateBundle(ctx, bundle)
+	require.NoError(t, err)
+
+	// Bundle contains repeated key
+	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "key2")
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "another JWT Key found with the same KeyID")
+	require.Nil(t, publicKey)
+
+	// Key not found
+	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "no id")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided public key")
+	require.Nil(t, publicKey)
+
+	// Taint successfully
+	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "key1")
+	require.NoError(t, err)
+	require.NotNil(t, publicKey)
+
+	fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+	require.NoError(t, err)
+
+	expectedKeys := []*common.PublicKey{
+		{Kid: "key1", TaintedKey: true},
+		{Kid: "key2"},
+		{Kid: "key2"},
+	}
+	require.Equal(t, expectedKeys, fetchedBundle.JwtSigningKeys)
+
+	// No able to taint Key again
+	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "key1")
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "key is already tainted")
+	require.Nil(t, publicKey)
+}
+
 func (s *PluginSuite) TestCreateAttestedNode() {
 	node := &common.AttestedNode{
 		SpiffeId:            "foo",
