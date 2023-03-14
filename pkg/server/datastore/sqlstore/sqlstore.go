@@ -1154,7 +1154,12 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
 		}
 
-		if ok, _ := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKey); ok {
+		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKey)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
+		}
+
+		if ok {
 			if !ca.TaintedKey {
 				return status.Error(codes.Internal, "it is not possible to revoke an untainted root CA")
 			}
