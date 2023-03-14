@@ -25,6 +25,10 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
+const (
+	backdate = 10 * time.Second
+)
+
 // ServerCA is an interface for Server CAs
 type ServerCA interface {
 	SignDownstreamX509CA(ctx context.Context, params DownstreamX509CAParams) ([]*x509.Certificate, error)

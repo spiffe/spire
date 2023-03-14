@@ -23,22 +23,22 @@ MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzLY1/SRlsMJExTnuvzBO292RjGjU
 -----END PUBLIC KEY-----`))
 )
 
-type x509CAValidator struct {
+type X509CAValidator struct {
 	TrustDomain   spiffeid.TrustDomain
 	CredValidator *credvalidator.Validator
 	Signer        crypto.Signer
 	Clock         clock.Clock
 }
 
-func (v *x509CAValidator) ValidateUpstreamX509CA(x509CA, upstreamRoots []*x509.Certificate) error {
+func (v *X509CAValidator) ValidateUpstreamX509CA(x509CA, upstreamRoots []*x509.Certificate) error {
 	return v.validateX509CA(x509CA[0], upstreamRoots, x509CA)
 }
 
-func (v *x509CAValidator) ValidateSelfSignedX509CA(x509CA *x509.Certificate) error {
+func (v *X509CAValidator) ValidateSelfSignedX509CA(x509CA *x509.Certificate) error {
 	return v.validateX509CA(x509CA, []*x509.Certificate{x509CA}, nil)
 }
 
-func (v *x509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, upstreamChain []*x509.Certificate) error {
+func (v *X509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, upstreamChain []*x509.Certificate) error {
 	if err := v.CredValidator.ValidateX509CA(x509CA); err != nil {
 		return fmt.Errorf("invalid upstream-signed X509 CA: %w", err)
 	}
