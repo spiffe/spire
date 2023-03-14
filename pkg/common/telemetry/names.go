@@ -122,6 +122,12 @@ const (
 
 	// Mint functionality related to minting identities
 	Mint = "mint"
+
+	// Taint functionality related with tainting a key from the bundle
+	Taint = "taint"
+
+	// Revoke functionality related with revoking a key from the bundle
+	Revoke = "revoke"
 )
 
 // Attribute metric tags or labels that are typically an attribute of a

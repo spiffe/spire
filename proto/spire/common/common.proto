@@ -123,6 +123,9 @@ message RegistrationEntries {
 /** Certificate represents a ASN.1/DER encoded X509 certificate */
 message Certificate {
     bytes der_bytes = 1;
+
+    /** Whether or not the key used to sign the certificate is tainted */
+    bool tainted_key = 2;
 }
 
 /** PublicKey represents a PKIX encoded public key */
@@ -135,6 +138,9 @@ message PublicKey {
 
     /** not after (seconds since unix epoch, 0 means "never expires") */
     int64 not_after = 3;
+
+    /** Whether or not the key is tainted */
+    bool tainted_key = 4;
 }
 
 message Bundle {
