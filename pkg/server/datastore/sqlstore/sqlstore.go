@@ -1122,7 +1122,7 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 	}
 
 	if !found {
-		return status.Error(codes.Internal, "no root CA found with provided public key")
+		return status.Error(codes.NotFound, "no root CA found with provided public key")
 	}
 
 	newModel, err := bundleToModel(bundle)

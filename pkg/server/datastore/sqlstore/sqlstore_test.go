@@ -1,7 +1,6 @@
 package sqlstore
 
 import (
-	"bytes"
 	"context"
 	"crypto/x509"
 	"database/sql"
@@ -627,7 +626,7 @@ func (s *PluginSuite) TestTaintX509CA() {
 
 	// No root CA is using provided key
 	err = s.ds.TaintX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "no root CA found with provided public key")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided public key")
 
 	// Taint successfully
 	err = s.ds.TaintX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
@@ -636,13 +635,11 @@ func (s *PluginSuite) TestTaintX509CA() {
 	fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	require.NoError(t, err)
 
-	for _, eachCA := range fetchedBundle.RootCas {
-		if bytes.Equal(eachCA.DerBytes, s.cert.Raw) {
-			require.True(t, eachCA.TaintedKey)
-		} else {
-			require.False(t, eachCA.TaintedKey)
-		}
+	expectedRootCAs := []*common.Certificate{
+		{DerBytes: s.cert.Raw, TaintedKey: true},
+		{DerBytes: s.cacert.Raw},
 	}
+	require.Equal(t, expectedRootCAs, fetchedBundle.RootCas)
 
 	// No able to taint a tainted CA
 	err = s.ds.TaintX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
