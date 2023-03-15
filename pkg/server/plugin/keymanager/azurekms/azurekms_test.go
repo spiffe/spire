@@ -86,28 +86,6 @@ func TestKeyManagerContract(t *testing.T) {
 	})
 }
 
-func setupTest(t *testing.T) *pluginTest {
-	log, logHook := test.NewNullLogger()
-	log.Level = logrus.DebugLevel
-
-	c := clock.NewMock()
-	kmsClient := newKMSClientFake(t, validKeyVaultURI, trustDomain, validServerID, c)
-	p := newPlugin(
-		func(azcore.TokenCredential, string) (cloudKeyManagementService, error) { return kmsClient, nil },
-	)
-	km := new(keymanager.V1)
-	plugintest.Load(t, builtin(p), km, plugintest.Log(log))
-
-	p.hooks.clk = c
-
-	return &pluginTest{
-		plugin:    p,
-		kmsClient: kmsClient,
-		logHook:   logHook,
-		clockHook: c,
-	}
-}
-
 func TestConfigure(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
@@ -134,38 +112,56 @@ func TestConfigure(t *testing.T) {
 			configureRequest: configureRequestWithDefaults(t),
 		},
 		{
+			name:             "missing key metadata file",
+			configureRequest: configureRequestWithVars("", validKeyVaultURI, "", "", "", validAppSecret, "true"),
+			err:              "configuration is missing server ID file path",
+			code:             codes.InvalidArgument,
+		},
+		{
+			name:             "missing client authentication config",
+			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, "", "", "", "", "false"),
+			err:              "either MSI (use_msi) must be set to true or app authentication (tenant_id, subscription_id, app_id and app_secret) must be set",
+			code:             codes.InvalidArgument,
+		},
+		{
+			name:             "use MSI while app secret is set",
+			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, "", "", "", validAppSecret, "true"),
+			err:              "invalid configuration, cannot use both MSI and app authentication",
+			code:             codes.InvalidArgument,
+		},
+		{
 			name:             "missing key vault URL",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), "", validTenantID, validSubscriptionID, validAppID, validAppSecret),
+			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), "", validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
 			err:              "configuration is missing the key vault URI",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing tenant ID",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, "", validSubscriptionID, validAppID, validAppSecret),
+			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, "", validSubscriptionID, validAppID, validAppSecret, "false"),
 			err:              "invalid configuration, missing tenant id",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing subscription ID ",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, "", validAppID, validAppSecret),
+			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, "", validAppID, validAppSecret, "false"),
 			err:              "invalid configuration, missing subscription id",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing server id file path",
-			configureRequest: configureRequestWithVars("", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret),
+			configureRequest: configureRequestWithVars("", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
 			err:              "configuration is missing server ID file path",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing application ID",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, "", validAppSecret),
+			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, "", validAppSecret, "false"),
 			err:              "invalid configuration, missing application id",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing application secret",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, ""),
+			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, "", "false"),
 			err:              "invalid configuration, missing app secret",
 			code:             codes.InvalidArgument,
 		},
@@ -793,7 +789,8 @@ func TestRefreshKeys(t *testing.T) {
 			require.NoError(t, err)
 
 			// wait for refresh keys task to be initialized
-			_ = waitForSignal(t, refreshKeysSignal)
+			err = waitForSignal(t, refreshKeysSignal)
+			require.NoError(t, err)
 			// move the clock forward so the task is run
 			ts.clockHook.Add(6 * time.Hour)
 			// wait for refresh keys to be run
@@ -894,24 +891,30 @@ func TestDisposeKeys(t *testing.T) {
 			require.NoError(t, err)
 
 			// Wait for dispose disposeCryptoKeysTask to be initialized.
-			_ = waitForSignal(t, disposeKeysSignal)
+			err = waitForSignal(t, disposeKeysSignal)
+			require.NoError(t, err)
 
 			// Move the clock to start the task
 			ts.clockHook.Add(maxStaleDuration)
 			ts.clockHook.Add(1 * time.Second)
-			_ = waitForSignal(t, disposeKeysSignal)
-
+			err = waitForSignal(t, disposeKeysSignal)
+			require.NoError(t, err)
 			// Wait till all the keys we expect to be deleted are deleted
 			// Wait for the 1st key to be deleted
-			_ = waitForSignal(t, scheduleDeleteSignal)
+			err = waitForSignal(t, scheduleDeleteSignal)
+			require.NoError(t, err)
 			// Wait for the 2nd key to be deleted
-			_ = waitForSignal(t, scheduleDeleteSignal)
+			err = waitForSignal(t, scheduleDeleteSignal)
+			require.NoError(t, err)
 			// Wait for the 3rd key to be deleted
-			_ = waitForSignal(t, scheduleDeleteSignal)
+			err = waitForSignal(t, scheduleDeleteSignal)
+			require.NoError(t, err)
 			// Wait for the 4th key to be deleted
-			_ = waitForSignal(t, scheduleDeleteSignal)
+			err = waitForSignal(t, scheduleDeleteSignal)
+			require.NoError(t, err)
 			// Wait for the 5th key to be deleted
-			_ = waitForSignal(t, scheduleDeleteSignal)
+			err = waitForSignal(t, scheduleDeleteSignal)
+			require.NoError(t, err)
 
 			// assert errors
 			if tt.err != "" {
@@ -928,6 +931,28 @@ func TestDisposeKeys(t *testing.T) {
 				require.True(t, ok, "Expected key was not present on end result: %q", expected.KeyBundle.Key.KID.Name())
 			}
 		})
+	}
+}
+
+func setupTest(t *testing.T) *pluginTest {
+	log, logHook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	c := clock.NewMock()
+	kmsClient := newKMSClientFake(t, validKeyVaultURI, trustDomain, validServerID, c)
+	p := newPlugin(
+		func(azcore.TokenCredential, string) (cloudKeyManagementService, error) { return kmsClient, nil },
+	)
+	km := new(keymanager.V1)
+	plugintest.Load(t, builtin(p), km, plugintest.Log(log))
+
+	p.hooks.clk = c
+
+	return &pluginTest{
+		plugin:    p,
+		kmsClient: kmsClient,
+		logHook:   logHook,
+		clockHook: c,
 	}
 }
 
@@ -955,7 +980,7 @@ func serializedConfiguration(keyMetadataFile string, keyVaultURI string, tenantI
 		appSecret)
 }
 
-func configureRequestWithVars(keyMetadataFile string, keyVaultURI string, tenantID string, subscriptionID string, appID string, appSecret string) *configv1.ConfigureRequest {
+func configureRequestWithVars(keyMetadataFile string, keyVaultURI string, tenantID string, subscriptionID string, appID string, appSecret string, useMsi string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		HclConfiguration: fmt.Sprintf(`{
         "key_metadata_file":"%s",
@@ -963,14 +988,16 @@ func configureRequestWithVars(keyMetadataFile string, keyVaultURI string, tenant
 		"tenant_id":"%s",
 		"subscription_id":"%s",
         "app_id":"%s",
-        "app_secret":"%s"
+        "app_secret":"%s",
+        "use_msi":"%s",
 		}`,
 			keyMetadataFile,
 			keyVaultURI,
 			tenantID,
 			subscriptionID,
 			appID,
-			appSecret),
+			appSecret,
+			useMsi),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
 	}
 }

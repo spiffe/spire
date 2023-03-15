@@ -181,7 +181,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 			return nil, status.Errorf(codes.Internal, "failed to create KMS client with MSI credential: %v", err)
 		}
 	default:
-		return nil, status.Errorf(codes.Internal, "Either MSI (use_msi) must be set to true or app authentication (tenant_id, subscription_id, app_id and app_secret) must be set")
+		return nil, status.Errorf(codes.InvalidArgument, "either MSI (use_msi) must be set to true or app authentication (tenant_id, subscription_id, app_id and app_secret) must be set")
 	}
 
 	fetcher := &keyFetcher{
@@ -251,8 +251,8 @@ func (p *Plugin) notifyRefreshKeys(err error) {
 
 func (p *Plugin) refreshKeys(ctx context.Context) error {
 	p.log.Debug("Refreshing keys")
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.entriesMtx.Lock()
+	defer p.entriesMtx.Unlock()
 	var errs []string
 	for _, entry := range p.entries {
 		keyName := entry.KeyName
@@ -311,7 +311,8 @@ func (p *Plugin) notifyDisposeKeys(err error) {
 func (p *Plugin) disposeKeys(ctx context.Context) error {
 	p.log.Debug("Looking for keys in trust domain to dispose")
 	pager := p.kmsClient.NewListKeysPager(nil)
-
+	now := p.hooks.clk.Now()
+	maxStaleTime := now.Add(-maxStaleDuration)
 	for pager.More() {
 		resp, err := pager.NextPage(ctx)
 		if err != nil {
@@ -321,20 +322,22 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 
 		for _, key := range resp.Value {
 			// Skip keys that do not belong the current trust domain
+			// Keys that are administered by other servers in this server's trust domain will be considered
+			// for deletion if they're stale (i.e:have not been updated for maxStaleDuration)
 			trustDomain, hasTD := key.Tags[tagNameServerTrustDomain]
 			if !hasTD || *trustDomain != p.trustDomain {
 				continue
 			}
 
 			// If the key has not been updated for maxStaleDuration, enqueue it for deletion
-			now := p.hooks.clk.Now()
 			updated := key.Attributes.Updated
-			if updated.Before(now.Add(-maxStaleDuration)) {
+			if updated.Before(maxStaleTime) {
+				keyName := key.KID.Name()
 				select {
-				case p.scheduleDelete <- key.KID.Name():
-					p.log.Debug("Key enqueued for deletion")
+				case p.scheduleDelete <- keyName:
+					p.log.Debug("Key enqueued for deletion", keyNameTag, keyName)
 				default:
-					p.log.Error("Failed to enqueue key for deletion")
+					p.log.Error("Failed to enqueue key for deletion", keyNameTag, keyName)
 				}
 			}
 		}
@@ -507,8 +510,8 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKe
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
 
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.entriesMtx.RLock()
+	defer p.entriesMtx.RUnlock()
 
 	entry, ok := p.entries[req.KeyId]
 	if !ok {
@@ -523,8 +526,8 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKe
 // GetPublicKeys return the publicKey for all the keys
 func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysRequest) (*keymanagerv1.GetPublicKeysResponse, error) {
 	var keys []*keymanagerv1.PublicKey
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	p.entriesMtx.RLock()
+	defer p.entriesMtx.RUnlock()
 	for _, key := range p.entries {
 		keys = append(keys, key.PublicKey)
 	}
@@ -641,7 +644,7 @@ func (p *Plugin) generateKeyName(spireKeyID string) (keyName string) {
 	return fmt.Sprintf("%s-%s-%s", keyNamePrefix, p.serverID, spireKeyID)
 }
 
-// not meet acceptable criteria
+// parseAndValidateConfig returns an error if any configuration provided does not meet acceptable criteria
 func parseAndValidateConfig(c string) (*Config, error) {
 	config := new(Config)
 
@@ -678,6 +681,8 @@ func getOrCreateServerID(idPath string) (string, error) {
 
 func (p *Plugin) setCache(keyEntries []*keyEntry) {
 	// clean previous cache
+	p.entriesMtx.Lock()
+	defer p.entriesMtx.Unlock()
 	p.entries = make(map[string]keyEntry)
 
 	// add results to cache
@@ -720,7 +725,7 @@ func signingAlgorithmForKMS(keyType keymanagerv1.KeyType, signerOpts interface{}
 		isPSS = false
 	case *keymanagerv1.SignDataRequest_PssOptions:
 		if opts.PssOptions == nil {
-			return "", errors.New("PSS options are required")
+			return "", errors.New("invalid signerOpts. PSS options are required")
 		}
 		hashAlgo = opts.PssOptions.HashAlgorithm
 		isPSS = true
