@@ -602,10 +602,10 @@ func (s *PluginSuite) TestTaintX509CA() {
 	keyForMalformedCert := testkey.NewEC256(t)
 	malformedX509 := &x509.Certificate{
 		PublicKey: keyForMalformedCert.PublicKey,
-		Raw:       []byte("no a certificate"),
+		Raw:       []byte("not a certificate"),
 	}
 
-	// Create new bundle with two cert (one valid and one expired)
+	// Create new bundle with two certs
 	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert, malformedX509})
 
 	// Bundle not found
@@ -641,9 +641,9 @@ func (s *PluginSuite) TestTaintX509CA() {
 	}
 	require.Equal(t, expectedRootCAs, fetchedBundle.RootCas)
 
-	// No able to taint a tainted CA
+	// Not able to taint a tainted CA
 	err = s.ds.TaintX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "root CA is already tainted")
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "root CA is already tainted")
 }
 
 func (s *PluginSuite) TestTaintJWTKey() {

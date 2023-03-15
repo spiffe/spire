@@ -1109,13 +1109,15 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 		}
 		if ok {
 			if ca.TaintedKey {
-				return status.Errorf(codes.Internal, "root CA is already tainted")
+				return status.Errorf(codes.InvalidArgument, "root CA is already tainted")
 			}
 
-			// no breaking here to be sure that we taint all
-			// bundles associated with given public key,
-			// but we must contain a single bundle signed
-			// by this key
+			// Do not break the loop here so we can be sure
+			// that we taint all bundles associated with the
+			// given public key.
+			// We also check if there is at least one bundle
+			// signed by the provided key. If not, the function
+			// returns codes.NotFound status error.
 			found = true
 			ca.TaintedKey = true
 		}
