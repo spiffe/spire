@@ -549,7 +549,7 @@ func (p *Plugin) setKeyEntry(keyID string, ke keyEntry) {
 	p.entries[keyID] = ke
 }
 
-// scheduleDeleteTask ia a long-running task that deletes keys that are stale
+// scheduleDeleteTask is a long-running task that deletes keys that are stale
 func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 	backoffMin := 1 * time.Second
 	backoffMax := 60 * time.Second
