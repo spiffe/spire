@@ -69,8 +69,8 @@ func TestKeyManagerContract(t *testing.T) {
 
 		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
 			key_metadata_file = %q
-            key_vault_uri = "https://spire-server.vault.azure.net/"
-            use_msi="true"
+			key_vault_uri = "https://spire-server.vault.azure.net/"
+			use_msi="true"
 		`, keyMetadataFile))
 		return km
 	}
@@ -958,12 +958,12 @@ func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 
 func serializedConfiguration(keyMetadataFile string, keyVaultURI string, tenantID string, subscriptionID string, appID string, appSecret string) string {
 	return fmt.Sprintf(`{
-        "key_metadata_file":"%s",
-        "key_vault_uri":"%s",
+		"key_metadata_file":"%s",
+		"key_vault_uri":"%s",
 		"tenant_id":"%s",
 		"subscription_id":"%s",
-        "app_id":"%s",
-        "app_secret":"%s"
+		"app_id":"%s",
+		"app_secret":"%s"
 		}`,
 		keyMetadataFile,
 		keyVaultURI,
@@ -976,13 +976,13 @@ func serializedConfiguration(keyMetadataFile string, keyVaultURI string, tenantI
 func configureRequestWithVars(keyMetadataFile string, keyVaultURI string, tenantID string, subscriptionID string, appID string, appSecret string, useMsi string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		HclConfiguration: fmt.Sprintf(`{
-        "key_metadata_file":"%s",
-        "key_vault_uri":"%s",
+		"key_metadata_file":"%s",
+		"key_vault_uri":"%s",
 		"tenant_id":"%s",
 		"subscription_id":"%s",
-        "app_id":"%s",
-        "app_secret":"%s",
-        "use_msi":"%s",
+		"app_id":"%s",
+		"app_secret":"%s",
+		"use_msi":"%s",
 		}`,
 			keyMetadataFile,
 			keyVaultURI,
