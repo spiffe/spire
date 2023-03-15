@@ -734,7 +734,7 @@ func (s *PluginSuite) TestTaintJWTKey() {
 
 	// Key not found
 	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "no id")
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided public key")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided Key ID")
 	require.Nil(t, publicKey)
 
 	// Taint successfully
@@ -756,6 +756,68 @@ func (s *PluginSuite) TestTaintJWTKey() {
 	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "key1")
 	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "key is already tainted")
 	require.Nil(t, publicKey)
+}
+
+func (s *PluginSuite) TestRevokeJWTKey() {
+	t := s.T()
+	// Setup
+	// Create new bundle with two JWT Keys
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", nil)
+	bundle.JwtSigningKeys = []*common.PublicKey{
+		{Kid: "key1"},
+		{Kid: "key2"},
+	}
+
+	// Bundle not found
+	publicKey, err := s.ds.RevokeJWTKey(ctx, "spiffe://foo", "key1")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
+	require.Nil(t, publicKey)
+
+	_, err = s.ds.CreateBundle(ctx, bundle)
+	require.NoError(t, err)
+
+	// Key not found
+	publicKey, err = s.ds.RevokeJWTKey(ctx, "spiffe://foo", "no id")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided Key ID")
+	require.Nil(t, publicKey)
+
+	// No allow to revoke untainted key
+	publicKey, err = s.ds.RevokeJWTKey(ctx, "spiffe://foo", "key1")
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "it is not possible to revoke an untainted key")
+	require.Nil(t, publicKey)
+
+	// Add a duplicated key and taint it
+	bundle.JwtSigningKeys = []*common.PublicKey{
+		{Kid: "key1"},
+		{Kid: "key2", TaintedKey: true},
+		{Kid: "key2", TaintedKey: true},
+	}
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	// No allow to revoke because a duplicated key is found
+	publicKey, err = s.ds.RevokeJWTKey(ctx, "spiffe://foo", "key2")
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "another key found with the same KeyID")
+	require.Nil(t, publicKey)
+
+	// Remove duplicated key
+	bundle.JwtSigningKeys = []*common.PublicKey{
+		{Kid: "key1"},
+		{Kid: "key2", TaintedKey: true},
+	}
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	// Revoke successfully
+	publicKey, err = s.ds.RevokeJWTKey(ctx, "spiffe://foo", "key2")
+	require.NoError(t, err)
+	require.Equal(t, &common.PublicKey{Kid: "key2", TaintedKey: true}, publicKey)
+
+	fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+	require.NoError(t, err)
+
+	expectedJWTKeys := []*common.PublicKey{{Kid: "key1"}}
+	require.Equal(t, expectedJWTKeys, fetchedBundle.JwtSigningKeys)
 }
 
 func (s *PluginSuite) TestCreateAttestedNode() {
