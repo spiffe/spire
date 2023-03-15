@@ -1165,15 +1165,15 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 	}
 	bundle.RootCas = rootCAs
 
-	if found {
-		if _, err := updateBundle(tx, bundle, nil); err != nil {
-			return status.Errorf(codes.Internal, "failed to update bundle: %v", err)
-		}
-
-		return nil
+	if !found {
+		return status.Error(codes.NotFound, "no root CA found with provided public key")
 	}
 
-	return status.Error(codes.NotFound, "no root CA found with provided public key")
+	if _, err := updateBundle(tx, bundle, nil); err != nil {
+		return status.Errorf(codes.Internal, "failed to update bundle: %v", err)
+	}
+
+	return nil
 }
 
 func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
