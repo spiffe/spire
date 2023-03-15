@@ -683,7 +683,7 @@ func (s *PluginSuite) TestRevokeX509CA() {
 
 	// No able to revoke untainted bundles
 	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "it is not possible to revoke an untainted root CA")
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
 
 	// Mark cert as tainted
 	bundle.RootCas = []*common.Certificate{

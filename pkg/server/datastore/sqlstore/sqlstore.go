@@ -1161,7 +1161,7 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 
 		if ok {
 			if !ca.TaintedKey {
-				return status.Error(codes.Internal, "it is not possible to revoke an untainted root CA")
+				return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
 			}
 			found = true
 			continue
