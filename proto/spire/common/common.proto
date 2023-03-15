@@ -95,7 +95,7 @@ message RegistrationEntry {
     identity should be used by a workload when more than one SVID is returned. */
     string hint = 14;
     /** Time of creation, in seconds from epoch */
-    int64  created_at = 15;
+    int64 created_at = 15;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */

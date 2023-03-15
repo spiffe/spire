@@ -3666,7 +3666,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 			}(),
 		},
 		{
-			name:        "fetching an non-existent federation relationship returns nil",
+			name:        "fetching a non-existent federation relationship returns nil",
 			trustDomain: spiffeid.RequireTrustDomainFromString("non-existent-td.org"),
 		},
 		{

@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestUpdateHelp(t *testing.T) {
@@ -51,7 +52,7 @@ func TestUpdate(t *testing.T) {
         ],
         "hint": "",
         "admin": false,
-        "created_at": "0",
+        "created_at": "1547583197",
         "downstream": false,
         "expires_at": "1552410266",
         "dns_names": [
@@ -89,7 +90,7 @@ func TestUpdate(t *testing.T) {
         ],
         "hint": "external",
         "admin": true,
-        "created_at": "1678731397",
+        "created_at": "1547583197",
         "downstream": true,
         "expires_at": "1552410266",
         "dns_names": [
@@ -120,7 +121,7 @@ func TestUpdate(t *testing.T) {
         "federates_with": [],
         "hint": "external",
         "admin": true,
-        "created_at": "0",
+        "created_at": "1547583197",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -149,7 +150,7 @@ func TestUpdate(t *testing.T) {
         "federates_with": [],
         "hint": "",
         "admin": false,
-        "created_at": "0",
+        "created_at": "1547583197",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -182,7 +183,7 @@ func TestUpdate(t *testing.T) {
         "federates_with": [],
         "hint": "",
         "admin": false,
-        "created_at": "0",
+        "created_at": "1547583197",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -253,10 +254,10 @@ func TestUpdate(t *testing.T) {
 		DnsNames:      []string{"unu1000", "ung1000"},
 		Downstream:    true,
 		Hint:          "external",
-		CreatedAt:     1678731397,
+		CreatedAt:     1547583197,
 	}
 
-	entryStoreSvid := &types.Entry{
+	entryStoreSVID := &types.Entry{
 		Id:       "entry-id",
 		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
 		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
@@ -271,6 +272,9 @@ func TestUpdate(t *testing.T) {
 		DnsNames:      []string{"unu1000", "ung1000"},
 		StoreSvid:     true,
 	}
+
+	entryStoreSVIDResp := proto.Clone(entryStoreSVID).(*types.Entry)
+	entryStoreSVIDResp.CreatedAt = 1547583197
 
 	fakeRespOKFromCmd := &entryv1.BatchUpdateEntryResponse{
 		Results: []*entryv1.BatchUpdateEntryResponse_Result{
@@ -335,18 +339,25 @@ func TestUpdate(t *testing.T) {
 		Hint:          "external",
 	}
 
+	entry2Resp := proto.Clone(entry2).(*types.Entry)
+	entry2Resp.CreatedAt = 1547583197
+	entry3Resp := proto.Clone(entry3).(*types.Entry)
+	entry3Resp.CreatedAt = 1547583197
+	entry4Resp := proto.Clone(entry4).(*types.Entry)
+	entry4Resp.CreatedAt = 1547583197
+
 	fakeRespOKFromFile := &entryv1.BatchUpdateEntryResponse{
 		Results: []*entryv1.BatchUpdateEntryResponse_Result{
 			{
-				Entry:  entry2,
+				Entry:  entry2Resp,
 				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 			},
 			{
-				Entry:  entry3,
+				Entry:  entry3Resp,
 				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 			},
 			{
-				Entry:  entry4,
+				Entry:  entry4Resp,
 				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 			},
 		},
@@ -567,12 +578,12 @@ Hint             : external
 				"-storeSVID",
 			},
 			expReq: &entryv1.BatchUpdateEntryRequest{
-				Entries: []*types.Entry{entryStoreSvid},
+				Entries: []*types.Entry{entryStoreSVID},
 			},
 			fakeResp: &entryv1.BatchUpdateEntryResponse{
 				Results: []*entryv1.BatchUpdateEntryResponse_Result{
 					{
-						Entry: entryStoreSvid,
+						Entry: entryStoreSVIDResp,
 						Status: &types.Status{
 							Code:    int32(codes.OK),
 							Message: "OK",

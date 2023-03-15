@@ -221,6 +221,9 @@ const (
 	// Count tags some basic count; should be used with other tags and clear messaging to add clarity
 	Count = "count"
 
+	// CreatedAt tags registration entry creation date
+	CreatedAt = "created_at"
+
 	// Csr represents a presented Csr in hashed format. It's hashed using the hex-encoded SHA256 checksum.
 	Csr = "csr"
 
@@ -280,12 +283,6 @@ const (
 	// ExpiresAt tags registration entry expiration
 	ExpiresAt = "expires_at"
 
-	// Hint tags registration entry hint
-	Hint = "hint"
-
-	// CreatedAt tags registration entry creation date
-	CreatedAt = "created_at"
-
 	// ExpiryCheckDuration tags duration for an expiry check; should be used with other tags
 	// to add clarity
 	ExpiryCheckDuration = "expiry_check_duration"
@@ -313,6 +310,9 @@ const (
 
 	// Generation represents an objection generation (i.e. version)
 	Generation = "generation"
+
+	// Hint tags registration entry hint
+	Hint = "hint"
 
 	// IDType tags some type of ID (eg. registration ID, SPIFFE ID...)
 	IDType = "id_type"
