@@ -44,7 +44,7 @@ const (
 	maxStaleDuration         = time.Hour * 24 * 14 // Two weeks.
 	keyNamePrefix            = "spire-key"
 	tagNameServerID          = "spire-server-id"
-	tagNameServerTrustDomain = "spire-server-trust-domain"
+	tagNameServerTrustDomain = "spire-server-td"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -284,7 +284,7 @@ func (p *Plugin) refreshKeys(ctx context.Context) error {
 // It will only delete keys belonging to the current trust domain.
 // disposeKeysTask relies on how the key trust domain tag (tagNameServerTrustDomain) is built to identity keys
 // belonging to the current trust domain.
-// Key trust domain tag example: `spire-server-trust-domain={TRUST_DOMAIN}`
+// Key trust domain tag example: `spire-server-td={TRUST_DOMAIN}`
 func (p *Plugin) disposeKeysTask(ctx context.Context) {
 	ticker := p.hooks.clk.Ticker(disposeKeysFrequency)
 	defer ticker.Stop()
