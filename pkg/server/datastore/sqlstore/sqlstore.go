@@ -1136,14 +1136,9 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 }
 
 func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey) error {
-	model := &Bundle{}
-	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
-		return sqlError.Wrap(err)
-	}
-
-	bundle, err := modelToBundle(model)
+	_, bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to unmarshal bundle: %v", err)
+		return err
 	}
 
 	found := false
