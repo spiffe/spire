@@ -213,6 +213,8 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestGenerateKey(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
 	for _, tt := range []struct {
 		name            string
 		err             string
@@ -341,7 +343,7 @@ func TestGenerateKey(t *testing.T) {
 				// on the exact order of the logs, so we just assert that
 				// the expected log lines are present somewhere.
 				spiretest.AssertLogsContainEntries(t, ts.logHook.AllEntries(), tt.logs)
-			case <-time.After(testTimeout):
+			case <-ctx.Done():
 				t.Fail()
 			}
 		})
@@ -843,7 +845,6 @@ func TestDisposeKeys(t *testing.T) {
 		{
 			name:             "dispose keys succeeds",
 			configureRequest: configureRequestWithDefaults(t),
-
 			fakeEntries: []fakeKeyEntry{
 				entry1,
 				entry2,
@@ -855,7 +856,6 @@ func TestDisposeKeys(t *testing.T) {
 				entry8,
 				entry9,
 			},
-
 			expectedEntries: []fakeKeyEntry{
 				{
 					KeyBundle: entry2.KeyBundle,
@@ -915,13 +915,6 @@ func TestDisposeKeys(t *testing.T) {
 			// Wait for the 5th key to be deleted
 			err = waitForSignal(t, scheduleDeleteSignal)
 			require.NoError(t, err)
-
-			// assert errors
-			if tt.err != "" {
-				require.NotNil(t, err)
-				require.Equal(t, tt.err, err.Error())
-				return
-			}
 
 			// assert
 			storedKeys := ts.kmsClient.store.fakeKeys
