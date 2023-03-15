@@ -561,8 +561,8 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 			return
 		case keyName := <-p.scheduleDelete:
 			log := p.log.With(keyNameTag, keyName)
-			_, err := p.kmsClient.DeleteKey(ctx, keyName, nil)
 
+			_, err := p.kmsClient.DeleteKey(ctx, keyName, nil)
 			if err == nil {
 				log.Debug("Key deleted")
 				backoff = backoffMin
