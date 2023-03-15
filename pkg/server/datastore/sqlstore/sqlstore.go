@@ -1086,14 +1086,9 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 }
 
 func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.PublicKey) error {
-	model := &Bundle{}
-	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
-		return sqlError.Wrap(err)
-	}
-
-	bundle, err := modelToBundle(model)
+	_, bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to unmarshal bundle: %v", err)
+		return err
 	}
 
 	var found bool
@@ -1127,15 +1122,9 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 		return status.Error(codes.NotFound, "no root CA found with provided public key")
 	}
 
-	newModel, err := bundleToModel(bundle)
+	_, err = updateBundle(tx, bundle, nil)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to parse bundle to model: %v", err)
-	}
-
-	model.Data = newModel.Data
-
-	if err := tx.Save(model).Error; err != nil {
-		return sqlError.Wrap(err)
+		return err
 	}
 
 	return nil
