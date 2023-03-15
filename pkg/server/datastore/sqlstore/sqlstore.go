@@ -213,7 +213,12 @@ func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicK
 
 // RevokeX509CA removes a Root CA from the bundle
 func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
-	return errors.New("unimplemented")
+	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return revokeX509CA(tx, trustDoaminID, publicKey)
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // TaintJWTKey taints a JWT Authority key
@@ -1125,6 +1130,47 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 	_, err = updateBundle(tx, bundle, nil)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey) error {
+	_, bundle, err := getBundle(tx, trustDomainID)
+	if err != nil {
+		return err
+	}
+
+	found := false
+	var rootCAs []*common.Certificate
+	for _, ca := range bundle.RootCas {
+		cert, err := x509.ParseCertificate(ca.DerBytes)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
+		}
+
+		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKey)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
+		}
+
+		if ok {
+			if !ca.TaintedKey {
+				return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
+			}
+			found = true
+			continue
+		}
+		rootCAs = append(rootCAs, ca)
+	}
+	bundle.RootCas = rootCAs
+
+	if !found {
+		return status.Error(codes.NotFound, "no root CA found with provided public key")
+	}
+
+	if _, err := updateBundle(tx, bundle, nil); err != nil {
+		return status.Errorf(codes.Internal, "failed to update bundle: %v", err)
 	}
 
 	return nil
