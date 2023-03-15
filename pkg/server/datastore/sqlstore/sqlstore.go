@@ -211,7 +211,14 @@ func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, public
 
 // TaintJWTKey taints a JWT Authority key
 func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
-	return nil, errors.New("unimplemented")
+	var taintedKey *common.PublicKey
+	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		taintedKey, err = taintJWTKey(tx, trustDoaminID, keyID)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return taintedKey, nil
 }
 
 // RevokeJWTAuthority removes JWT key from the bundle
@@ -1069,6 +1076,64 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	}
 
 	return changed, nil
+}
+
+func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
+	model, bundle, err := getBundle(tx, trustDomainID)
+	if err != nil {
+		return nil, err
+	}
+
+	var taintedKey *common.PublicKey
+	for _, jwtKey := range bundle.JwtSigningKeys {
+		if jwtKey.Kid != keyID {
+			continue
+		}
+
+		if jwtKey.TaintedKey {
+			return nil, status.Error(codes.InvalidArgument, "key is already tainted")
+		}
+
+		// Check if a JWT Key with the provided keyID was already
+		// tainted in this loop. This is purely defensive since we do not
+		// allow to have repeated key IDs.
+		if taintedKey != nil {
+			return nil, status.Error(codes.Internal, "another JWT Key found with the same KeyID")
+		}
+		taintedKey = jwtKey
+		jwtKey.TaintedKey = true
+	}
+
+	if taintedKey == nil {
+		return nil, status.Error(codes.NotFound, "no JWT Key found with provided public key")
+	}
+
+	newModel, err := bundleToModel(bundle)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to parse bundle to model: %v", err)
+	}
+
+	model.Data = newModel.Data
+
+	if err := tx.Save(model).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	return taintedKey, nil
+}
+
+func getBundle(tx *gorm.DB, trustDomainID string) (*Bundle, *common.Bundle, error) {
+	model := &Bundle{}
+	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
+		return nil, nil, sqlError.Wrap(err)
+	}
+
+	bundle, err := modelToBundle(model)
+	if err != nil {
+		return nil, nil, status.Errorf(codes.Internal, "failed to unmarshal bundle: %v", err)
+	}
+
+	return model, bundle, nil
 }
 
 func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.AttestedNode, error) {
