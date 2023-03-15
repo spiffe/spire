@@ -4,6 +4,16 @@
 package agent_test
 
 var (
+	cleanUsage = `Usage of agent clean:
+  -dryRun
+    	Indicates that the command will not perform any action, but will print the agents that would be purged.
+  -expiredSince duration
+    	Specifies the time range for the expired agents to be deleted; defaults to current time.
+  -output value
+    	Desired output format (pretty, json); default: pretty.
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
+`
 	listUsage = `Usage of agent list:
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
