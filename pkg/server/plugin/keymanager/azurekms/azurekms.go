@@ -258,7 +258,6 @@ func (p *Plugin) refreshKeys(ctx context.Context) error {
 		keyName := entry.KeyName
 		keyVersion := entry.keyVersion
 		_, err := p.kmsClient.GetKey(ctx, keyName, keyVersion, nil)
-
 		if err != nil {
 			p.log.Warn("failed fetching cached key to refresh it", keyNameTag, keyName)
 			continue
