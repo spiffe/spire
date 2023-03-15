@@ -47,7 +47,7 @@ following table is provided for informational purposes only:
 
 | Label                      | Description                                                                                                                            |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| spire-server-trust-domain  | A string represtinging the trust domain name of the server.                                                                            |
+| spire-server-trust-domain  | A string representing the trust domain name of the server.                                                                            |
 | spire-server-id            | Auto-generated ID that is unique to the server and is persisted in the _Key Metadata File_ (see the `key_metadata_file` configurable). |
 
 If the _Key Metadata File_ is not found during server startup, the file is
