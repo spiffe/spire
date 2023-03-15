@@ -18,10 +18,10 @@ import (
 )
 
 type cleanCommand struct {
-	env          *commoncli.Env
-	expiredSince time.Duration
-	dryRun       bool
-	printer      cliprinter.Printer
+	env           *commoncli.Env
+	expiredBefore string
+	dryRun        bool
+	printer       cliprinter.Printer
 }
 
 func NewCleanCommand() cli.Command {
@@ -40,7 +40,12 @@ func (*cleanCommand) Synopsis() string {
 	return "Delete expired agents that attested using a non-TOFU security model based on a given time"
 }
 
-func (c *cleanCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
+func (c *cleanCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) (err error) {
+	expiredBefore, err := c.parseExpiredBefore()
+	if err != nil {
+		return err
+	}
+
 	agentClient := serverClient.NewAgentClient()
 	resp, err := agentClient.ListAgents(ctx, &agentv1.ListAgentsRequest{
 		Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
@@ -53,8 +58,6 @@ func (c *cleanCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 	agents := resp.GetAgents()
 	expiredAgents := &ExpiredAgents{Agents: []*ExpiredAgent{}}
 
-	now := time.Now()
-
 	for _, agent := range agents {
 		id, err := idutil.IDFromProto(agent.Id)
 		if err != nil {
@@ -63,7 +66,7 @@ func (c *cleanCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 
 		expirationTime := time.Unix(agent.X509SvidExpiresAt, 0)
 
-		if now.Sub(expirationTime) > c.expiredSince {
+		if expirationTime.Before(expiredBefore) {
 			result := &ExpiredAgent{AgentID: id}
 
 			if !c.dryRun {
@@ -79,7 +82,7 @@ func (c *cleanCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 }
 
 func (c *cleanCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.DurationVar(&c.expiredSince, "expiredSince", 0, "Specifies the time range for the expired agents to be deleted; defaults to current time.")
+	fs.StringVar(&c.expiredBefore, "expiredBefore", "", "Specifies the date before which all expired agents should be deleted. The value should be a date time string in the format \"YYYY-MM-DD HH:MM:SS\". Any agents that expired before this date will be deleted.")
 	fs.BoolVar(&c.dryRun, "dryRun", false, "Indicates that the command will not perform any action, but will print the agents that would be purged.")
 
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintPurgeResult)
@@ -132,4 +135,20 @@ func (c *cleanCommand) prettyPrintPurgeResult(env *commoncli.Env, results ...int
 		return nil
 	}
 	return cliprinter.ErrInternalCustomPrettyFunc
+}
+
+func (c *cleanCommand) parseExpiredBefore() (expiredBefore time.Time, err error) {
+	now := time.Now()
+	if c.expiredBefore == "" {
+		expiredBefore = now
+		return
+	}
+	expiredBefore, err = time.Parse(time.DateTime, c.expiredBefore)
+	if err != nil {
+		err = fmt.Errorf("failed to parse expiredBefore flag: %w", err)
+	}
+	if expiredBefore.After(now) {
+		err = fmt.Errorf("expiredBefore cannot be in the future")
+	}
+	return
 }

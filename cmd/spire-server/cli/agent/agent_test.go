@@ -475,11 +475,19 @@ func TestClean(t *testing.T) {
 			expectedReturnCode: 1,
 		},
 		{
-			name:               "invalid expiredSince flag",
-			args:               []string{"-expiredSince", "5d"},
+			name:               "malformed expiredBefore flag",
+			args:               []string{"-expiredBefore", "5d"},
 			existentAgents:     append(activeAgents, expiredAgents...),
 			serverErr:          status.Error(codes.Internal, "some error"),
-			expectedStderr:     `invalid value "5d" for flag -expiredSince: parse error`,
+			expectedStderr:     `Error: failed to parse expiredBefore flag: parsing time `,
+			expectedReturnCode: 1,
+		},
+		{
+			name:               "expiredBefore flag with date time in the future",
+			args:               []string{"-expiredBefore", now.Add(5 * time.Hour).Format(time.DateTime)},
+			existentAgents:     append(activeAgents, expiredAgents...),
+			serverErr:          status.Error(codes.Internal, "some error"),
+			expectedStderr:     `Error: expiredBefore cannot be in the future`,
 			expectedReturnCode: 1,
 		},
 		{
@@ -510,8 +518,8 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 			),
 		},
 		{
-			name:           "providing expiration time for purging agents that expired 5 hours ago",
-			args:           []string{"-expiredSince", "5h"},
+			name:           "providing expiration time for purging agents that expired before 5 hours ago",
+			args:           []string{"-expiredBefore", now.Add(-5 * time.Hour).Format(time.DateTime)},
 			existentAgents: append(activeAgents, expiredAgents...),
 			expectListReq: &agentv1.ListAgentsRequest{
 				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
@@ -534,8 +542,8 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 			),
 		},
 		{
-			name:           "providing expiration time for purging agents that expired 2 days ago",
-			args:           []string{"-expiredSince", "48h"},
+			name:           "providing expiration time for purging agents that expired before 2 days ago",
+			args:           []string{"-expiredBefore", now.Add(-48 * time.Hour).Format(time.DateTime)},
 			existentAgents: append(activeAgents, expiredAgents...),
 			expectListReq: &agentv1.ListAgentsRequest{
 				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
@@ -555,8 +563,8 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 			),
 		},
 		{
-			name:           "providing expiration time for purging agents that expired 2 months ago",
-			args:           []string{"-expiredSince", "1440h"},
+			name:           "providing expiration time for purging agents that expired before 2 months ago",
+			args:           []string{"-expiredBefore", now.Add(-1440 * time.Hour).Format(time.DateTime)},
 			existentAgents: append(activeAgents, expiredAgents...),
 			expectListReq: &agentv1.ListAgentsRequest{
 				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},

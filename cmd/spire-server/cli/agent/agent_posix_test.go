@@ -7,8 +7,8 @@ var (
 	cleanUsage = `Usage of agent clean:
   -dryRun
     	Indicates that the command will not perform any action, but will print the agents that would be purged.
-  -expiredSince duration
-    	Specifies the time range for the expired agents to be deleted; defaults to current time.
+  -expiredBefore string
+    	Specifies the date before which all expired agents should be deleted. The value should be a date time string in the format "YYYY-MM-DD HH:MM:SS". Any agents that expired before this date will be deleted.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
