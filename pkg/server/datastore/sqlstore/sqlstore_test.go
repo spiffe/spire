@@ -638,7 +638,7 @@ func (s *PluginSuite) TestTaintJWTKey() {
 
 	// No able to taint Key again
 	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "key1")
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "key is already tainted")
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "key is already tainted")
 	require.Nil(t, publicKey)
 }
 

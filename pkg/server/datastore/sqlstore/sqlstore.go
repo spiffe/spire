@@ -1059,30 +1059,25 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	return changed, nil
 }
 
-func taintJWTKey(tx *gorm.DB, trustDomainID string, taintedKeyID string) (*common.PublicKey, error) {
-	model := &Bundle{}
-	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
-		return nil, sqlError.Wrap(err)
-	}
-
-	bundle, err := modelToBundle(model)
+func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
+	model, bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to unmarshal bundle: %v", err)
+		return nil, err
 	}
 
 	var taintedKey *common.PublicKey
 	for _, jwtKey := range bundle.JwtSigningKeys {
-		if jwtKey.Kid != taintedKeyID {
+		if jwtKey.Kid != keyID {
 			continue
 		}
 
 		if jwtKey.TaintedKey {
-			return nil, status.Error(codes.Internal, "key is already tainted")
+			return nil, status.Error(codes.InvalidArgument, "key is already tainted")
 		}
 
-		// Breaking here to be sure that we have only one
-		// key with the giver KeyID, it must never happens
-		// since we does not allow to have repeated key IDs
+		// Check if a JWT Key with the provided keyID was already
+		// tainted in this loop. This is purely defensive since we do not
+		// allow to have repeated key IDs.
 		if taintedKey != nil {
 			return nil, status.Error(codes.Internal, "another JWT Key found with the same KeyID")
 		}
@@ -1106,6 +1101,20 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, taintedKeyID string) (*commo
 	}
 
 	return taintedKey, nil
+}
+
+func getBundle(tx *gorm.DB, trustDomainID string) (*Bundle, *common.Bundle, error) {
+	model := &Bundle{}
+	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
+		return nil, nil, sqlError.Wrap(err)
+	}
+
+	bundle, err := modelToBundle(model)
+	if err != nil {
+		return nil, nil, status.Errorf(codes.Internal, "failed to unmarshal bundle: %v", err)
+	}
+
+	return model, bundle, nil
 }
 
 func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.AttestedNode, error) {
