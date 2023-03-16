@@ -19,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup dep cache
@@ -42,7 +42,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -78,7 +78,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -101,7 +101,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -124,7 +124,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -157,7 +157,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -235,7 +235,7 @@ jobs:
           # fetch depth of zero.
           fetch-depth: 0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Install regctl
@@ -282,7 +282,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -325,7 +325,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup dep cache
@@ -351,7 +351,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -393,7 +393,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
@@ -426,7 +426,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
       - name: Setup go
-        uses: actions/setup-go@6edd4406fa81c3da01a34fa6f6343087c207a568 # v3.5.0
+        uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
