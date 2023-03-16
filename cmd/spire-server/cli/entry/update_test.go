@@ -61,7 +61,7 @@ func TestUpdate(t *testing.T) {
         ],
         "revision_number": "0",
         "store_svid": true,
-        "jwt_svid_ttl":30
+        "jwt_svid_ttl": 30
       }`
 	entry0AdminJSON := `{
         "id": "entry-id",
@@ -99,7 +99,7 @@ func TestUpdate(t *testing.T) {
         ],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl":30
+        "jwt_svid_ttl": 30
       }`
 	entry1JSON := `{
         "id": "entry-id-1",
@@ -156,7 +156,7 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl":300
+        "jwt_svid_ttl": 300
       }
     }`
 	entry3JSON := `{
@@ -189,7 +189,7 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": true,
-        "jwt_svid_ttl":300
+        "jwt_svid_ttl": 300
       }`
 	nonExistentEntryJSON := `{
         "id": "non-existent-id",
@@ -216,7 +216,7 @@ func TestUpdate(t *testing.T) {
         "expires_at": "0",
         "dns_names": [],
         "revision_number": "0",
-        "store_svid": false,        
+        "store_svid": false,
         "x509_svid_ttl": 0
       }`
 
