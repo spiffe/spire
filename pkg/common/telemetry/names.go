@@ -221,6 +221,9 @@ const (
 	// Count tags some basic count; should be used with other tags and clear messaging to add clarity
 	Count = "count"
 
+	// CreatedAt tags registration entry creation date
+	CreatedAt = "created_at"
+
 	// Csr represents a presented Csr in hashed format. It's hashed using the hex-encoded SHA256 checksum.
 	Csr = "csr"
 
@@ -280,9 +283,6 @@ const (
 	// ExpiresAt tags registration entry expiration
 	ExpiresAt = "expires_at"
 
-	// Hint tags registration entry hint
-	Hint = "hint"
-
 	// ExpiryCheckDuration tags duration for an expiry check; should be used with other tags
 	// to add clarity
 	ExpiryCheckDuration = "expiry_check_duration"
@@ -305,11 +305,14 @@ const (
 	// FederatesWithMatch tags a federates with match filter
 	FederatesWithMatch = "federates_with_match"
 
-	// FederationRelationship tags a federation relatioship
+	// FederationRelationship tags a federation relationship
 	FederationRelationship = "federation_relationship"
 
 	// Generation represents an objection generation (i.e. version)
 	Generation = "generation"
+
+	// Hint tags registration entry hint
+	Hint = "hint"
 
 	// IDType tags some type of ID (eg. registration ID, SPIFFE ID...)
 	IDType = "id_type"
@@ -542,7 +545,7 @@ const (
 	// X509 declared X509 SVID type, clarifying metrics
 	X509 = "x509"
 
-	// X509AuthoritiesASN1256 tags a X509 authority ASN1 encryted using SHA256
+	// X509AuthoritiesASN1256 tags a X509 authority ASN1 encrypted using SHA256
 	X509AuthoritiesASN1SHA256 = "x509_authorities_asn1_sha256"
 
 	// X509CAs tags some count or list of X509 CAs
@@ -721,7 +724,7 @@ const (
 	// DeleteRegistrationEntry functionality related to deleting a registration entry
 	DeleteRegistrationEntry = "delete_registration_entry"
 
-	// EvictAgent funtionality related to evicting an agent
+	// EvictAgent functionality related to evicting an agent
 	EvictAgent = "evict_agent"
 
 	// FetchBundle functionality related to fetching a CA bundle

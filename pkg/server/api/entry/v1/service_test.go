@@ -248,7 +248,8 @@ func TestListEntries(t *testing.T) {
 		FederatesWith: []string{
 			federatedTd.String(),
 		},
-		Hint: "internal",
+		Hint:      "internal",
+		CreatedAt: childEntry.CreatedAt,
 	}
 
 	expectedSecondChild := &types.Entry{
@@ -262,7 +263,8 @@ func TestListEntries(t *testing.T) {
 			federatedTd.String(),
 			secondFederatedTd.String(),
 		},
-		Hint: "external",
+		Hint:      "external",
+		CreatedAt: secondChildEntry.CreatedAt,
 	}
 
 	for _, tt := range []struct {
@@ -925,7 +927,7 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 		{
-			name:            "filter by federates with subset match (no matchs)",
+			name:            "filter by federates with subset match (no match)",
 			expectedEntries: []*types.Entry{},
 			request: &entryv1.ListEntriesRequest{
 				Filter: &entryv1.ListEntriesRequest_Filter{
@@ -1212,6 +1214,7 @@ func TestListEntries(t *testing.T) {
 }
 
 func TestGetEntry(t *testing.T) {
+	now := time.Now().Unix()
 	ds := fakedatastore.New(t)
 	test := setupServiceTest(t, ds)
 	defer test.Cleanup()
@@ -1455,6 +1458,10 @@ func TestGetEntry(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
+			if tt.outputMask == nil || tt.outputMask.CreatedAt {
+				assert.GreaterOrEqual(t, resp.CreatedAt, now)
+				resp.CreatedAt = tt.expectEntry.CreatedAt
+			}
 			spiretest.AssertProtoEqual(t, tt.expectEntry, resp)
 		})
 	}
@@ -1517,6 +1524,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
 		Hint:          "external",
+		CreatedAt:     1678731397,
 	}
 
 	for _, tt := range []struct {
@@ -1556,6 +1564,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 				{
@@ -1584,6 +1593,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 				{
@@ -1604,6 +1614,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 			},
@@ -1698,6 +1709,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "internal",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 			},
@@ -1768,6 +1780,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.JWTSVIDTTL:     "0",
 						telemetry.StoreSvid:      "true",
 						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 			},
@@ -1828,6 +1841,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						JwtSvidTtl:    30,
 						StoreSvid:     false,
 						Hint:          "external",
+						CreatedAt:     1678731397,
 					},
 				},
 			},
@@ -1854,6 +1868,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 			},
@@ -1892,6 +1907,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 			},
@@ -1960,6 +1976,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 			},
@@ -2016,6 +2033,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.StatusMessage:  "similar entry already exists",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 			},
@@ -2055,6 +2073,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.StatusCode:     "InvalidArgument",
 						telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is missing",
 						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
 					},
 				},
 			},
@@ -2094,6 +2113,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.Hint:           "external",
+						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to create entry: creating error",
@@ -2145,6 +2165,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
 						telemetry.Hint:           "external",
+						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to convert entry: invalid SPIFFE ID: scheme is missing or invalid",
@@ -2481,6 +2502,8 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		ExpiresAt:  time.Now().Add(30 * time.Second).Unix(),
 		DnsNames:   []string{"dns1", "dns2"},
 		Downstream: true,
+		Hint:       "external",
+		CreatedAt:  1678731397,
 	}
 	entry2 := types.Entry{
 		Id:          "entry-2",
@@ -2674,6 +2697,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 }
 
 func TestBatchUpdateEntry(t *testing.T) {
+	now := time.Now().Unix()
 	parent := &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"}
 	entry1SpiffeID := &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"}
 	expiresAt := time.Now().Unix()
@@ -2844,7 +2868,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				// Annoying -- the selectors switch order inside api.ProtoToRegistrationEntry, so the
 				// datastore won't return them in order
 				// To avoid this, for this test, we only have one selector
-				// In the next test, we test multiple seletors, and just don't verify against the data
+				// In the next test, we test multiple selectors, and just don't verify against the data
 				// store
 				modifiedEntry.Selectors = []*types.Selector{
 					{Type: "unix", Value: "uid:2000"},
@@ -3714,6 +3738,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.JWTSVIDTTL:     "300000",
 							telemetry.StoreSvid:      "false",
 							telemetry.Hint:           "newHint",
+							telemetry.CreatedAt:      "0",
 						},
 					},
 				}
@@ -3897,6 +3922,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 			for i := range resp.Results {
 				if resp.Results[i].Entry != nil {
 					resp.Results[i].Entry.Id = ""
+					if tt.outputMask == nil || tt.outputMask.CreatedAt {
+						assert.GreaterOrEqual(t, resp.Results[i].Entry.CreatedAt, now)
+						resp.Results[i].Entry.CreatedAt = 0
+					}
 				}
 			}
 
@@ -3914,7 +3943,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 				require.NoError(t, err)
 				firstEntry, err := api.RegistrationEntryToProto(listEntries.Entries[0])
 				require.NoError(t, err)
-				spiretest.AssertProtoEqual(t, firstEntry, tt.expectDsEntries(listEntries.Entries[0].EntryId)[0])
+				expectedEntry := tt.expectDsEntries(listEntries.Entries[0].EntryId)[0]
+				assert.GreaterOrEqual(t, firstEntry.CreatedAt, now)
+				firstEntry.CreatedAt = expectedEntry.CreatedAt
+				spiretest.AssertProtoEqual(t, firstEntry, expectedEntry)
 			}
 		})
 	}
@@ -4043,6 +4075,8 @@ func (f *fakeDS) CreateOrReturnRegistrationEntry(ctx context.Context, entry *com
 	assert.True(f.t, ok, "no expect entry found for entry %q", entryID)
 
 	// Validate we get expected entry
+	assert.Zero(f.t, entry.CreatedAt)
+	entry.CreatedAt = expect.CreatedAt
 	spiretest.AssertProtoEqual(f.t, expect, entry)
 
 	// Return expect when no custom result configured
