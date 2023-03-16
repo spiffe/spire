@@ -393,6 +393,10 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	if !mask.Hint {
 		e.Hint = ""
 	}
+
+	if !mask.CreatedAt {
+		e.CreatedAt = 0
+	}
 }
 
 func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *types.EntryMask, outputMask *types.EntryMask) *entryv1.BatchUpdateEntryResponse_Result {
@@ -518,6 +522,10 @@ func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *ty
 
 	if inputMask == nil || inputMask.Hint {
 		fields[telemetry.Hint] = proto.Hint
+	}
+
+	if inputMask == nil || inputMask.CreatedAt {
+		fields[telemetry.CreatedAt] = proto.CreatedAt
 	}
 
 	return fields

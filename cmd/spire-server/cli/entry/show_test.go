@@ -400,6 +400,7 @@ func getEntries(count int) []*types.Entry {
 			Selectors: []*types.Selector{selectors[0]},
 			Id:        "00000000-0000-0000-0000-000000000000",
 			Hint:      "internal",
+			CreatedAt: 1547583197,
 		},
 		{
 			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
@@ -407,6 +408,7 @@ func getEntries(count int) []*types.Entry {
 			Selectors: []*types.Selector{selectors[0], selectors[1]},
 			Id:        "00000000-0000-0000-0000-000000000001",
 			Hint:      "external",
+			CreatedAt: 1547583197,
 		},
 		{
 			ParentId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/mother"},
@@ -414,6 +416,7 @@ func getEntries(count int) []*types.Entry {
 			Selectors:     []*types.Selector{selectors[1], selectors[2]},
 			Id:            "00000000-0000-0000-0000-000000000002",
 			FederatesWith: []string{"spiffe://domain.test"},
+			CreatedAt:     1547583197,
 		},
 		{
 			ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/mother"},
@@ -421,6 +424,7 @@ func getEntries(count int) []*types.Entry {
 			Selectors: []*types.Selector{selectors[2]},
 			ExpiresAt: 1552410266,
 			Id:        "00000000-0000-0000-0000-000000000003",
+			CreatedAt: 1547583197,
 		},
 	}
 
@@ -508,6 +512,7 @@ func getJSONPrintedEntry(idx int) string {
       "federates_with": [],
       "hint": "internal",
       "admin": false,
+      "created_at": "1547583197",
       "downstream": false,
       "expires_at": "0",
       "dns_names": [],
@@ -540,6 +545,7 @@ func getJSONPrintedEntry(idx int) string {
       "federates_with": [],
       "hint": "external",
       "admin": false,
+      "created_at": "1547583197",
       "downstream": false,
       "expires_at": "0",
       "dns_names": [],
@@ -574,6 +580,7 @@ func getJSONPrintedEntry(idx int) string {
       ],
       "hint": "",
       "admin": false,
+      "created_at": "1547583197",
       "downstream": false,
       "expires_at": "0",
       "dns_names": [],
@@ -602,6 +609,7 @@ func getJSONPrintedEntry(idx int) string {
       "federates_with": [],
       "hint": "",
       "admin": false,
+      "created_at": "1547583197",
       "downstream": false,
       "expires_at": "1552410266",
       "dns_names": [],

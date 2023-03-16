@@ -44,6 +44,7 @@ func TestCreate(t *testing.T) {
 					DnsNames:      []string{"unu1000", "ung1000"},
 					Downstream:    true,
 					StoreSvid:     true,
+					CreatedAt:     1547583197,
 				},
 				Status: &types.Status{
 					Code:    int32(codes.OK),
@@ -71,6 +72,7 @@ func TestCreate(t *testing.T) {
 					DnsNames:      []string{"unu1000", "ung1000"},
 					Downstream:    true,
 					StoreSvid:     true,
+					CreatedAt:     1547583197,
 				},
 				Status: &types.Status{
 					Code:    int32(codes.OK),
@@ -91,6 +93,7 @@ func TestCreate(t *testing.T) {
 					X509SvidTtl: 200,
 					JwtSvidTtl:  30,
 					Admin:       true,
+					CreatedAt:   1547583197,
 				},
 				Status: &types.Status{
 					Code:    int32(codes.OK),
@@ -106,6 +109,7 @@ func TestCreate(t *testing.T) {
 					X509SvidTtl: 200,
 					JwtSvidTtl:  30,
 					Hint:        "internal",
+					CreatedAt:   1547583197,
 				},
 				Status: &types.Status{
 					Code:    int32(codes.OK),
@@ -124,6 +128,7 @@ func TestCreate(t *testing.T) {
 					StoreSvid:   true,
 					X509SvidTtl: 200,
 					JwtSvidTtl:  30,
+					CreatedAt:   1547583197,
 				},
 				Status: &types.Status{
 					Code:    int32(codes.OK),
@@ -317,6 +322,7 @@ StoreSvid        : true
         ],
         "hint": "",
         "admin": true,
+        "created_at": "1547583197",
         "downstream": true,
         "expires_at": "1552410266",
         "dns_names": [
@@ -421,6 +427,7 @@ StoreSvid        : true
         ],
         "hint": "",
         "admin": true,
+        "created_at": "1547583197",
         "downstream": true,
         "expires_at": "1552410266",
         "dns_names": [
@@ -528,6 +535,7 @@ StoreSvid        : true
         "federates_with": [],
         "hint": "",
         "admin": true,
+        "created_at": "1547583197",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -561,6 +569,7 @@ StoreSvid        : true
         "federates_with": [],
         "hint": "internal",
         "admin": false,
+        "created_at": "1547583197",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -598,6 +607,7 @@ StoreSvid        : true
         "federates_with": [],
         "hint": "",
         "admin": false,
+        "created_at": "1547583197",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],
@@ -658,6 +668,7 @@ Error: failed to create one or more entries
         "federates_with": [],
         "hint": "",
         "admin": false,
+        "created_at": "0",
         "downstream": false,
         "expires_at": "0",
         "dns_names": [],

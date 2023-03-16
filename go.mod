@@ -59,7 +59,7 @@ require (
 	github.com/sigstore/sigstore v1.5.2
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spiffe/go-spiffe/v2 v2.1.2
-	github.com/spiffe/spire-api-sdk v1.2.5-0.20230307202917-213de6c5e08b
+	github.com/spiffe/spire-api-sdk v1.2.5-0.20230315170933-494fe186be48
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230203133000-75d7213a0ba0
 	github.com/stretchr/testify v1.8.2
 	github.com/uber-go/tally/v4 v4.1.6

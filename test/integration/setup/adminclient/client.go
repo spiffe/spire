@@ -506,6 +506,9 @@ func batchCreateEntry(ctx context.Context, c *itclient.Client) error {
 	// Validate result
 	r := resp.Results[0]
 	testEntry.Id = r.Entry.Id
+	if r.Entry != nil {
+		testEntry.CreatedAt = r.Entry.CreatedAt
+	}
 	switch {
 	case r.Status.Code != int32(codes.OK):
 		return fmt.Errorf("unexpected status: %v", r.Status)
@@ -587,6 +590,10 @@ func getEntry(ctx context.Context, c *itclient.Client) error {
 	resp, err := c.EntryClient().GetEntry(ctx, &entryv1.GetEntryRequest{
 		Id: entryID,
 	})
+	if resp != nil {
+		testEntry.CreatedAt = resp.CreatedAt
+	}
+
 	switch {
 	case c.ExpectErrors:
 		return validatePermissionError(err)
@@ -637,6 +644,10 @@ func batchUpdateEntry(ctx context.Context, c *itclient.Client) error {
 
 	// Validate result
 	r := resp.Results[0]
+	if r.Entry != nil {
+		testEntry.CreatedAt = r.Entry.CreatedAt
+	}
+
 	switch {
 	case r.Status.Code != int32(codes.OK):
 		return fmt.Errorf("unexpected status: %v", r.Status)
