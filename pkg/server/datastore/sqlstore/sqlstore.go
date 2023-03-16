@@ -1210,7 +1210,7 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publi
 	}
 
 	if taintedKey == nil {
-		return nil, status.Error(codes.NotFound, "no JWT Key found with provided Key ID")
+		return nil, status.Error(codes.NotFound, "no JWT Key found with provided key ID")
 	}
 
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
@@ -1249,7 +1249,7 @@ func revokeJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publ
 	bundle.JwtSigningKeys = publicKeys
 
 	if revokedKey == nil {
-		return nil, status.Error(codes.NotFound, "no JWT Key found with provided Key ID")
+		return nil, status.Error(codes.NotFound, "no JWT Key found with provided key ID")
 	}
 
 	if _, err := updateBundle(tx, bundle, nil); err != nil {

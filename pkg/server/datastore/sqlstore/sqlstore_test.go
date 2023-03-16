@@ -734,7 +734,7 @@ func (s *PluginSuite) TestTaintJWTKey() {
 
 	// Key not found
 	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "no id")
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided Key ID")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided key ID")
 	require.Nil(t, publicKey)
 
 	// Taint successfully
@@ -778,7 +778,7 @@ func (s *PluginSuite) TestRevokeJWTKey() {
 
 	// Key not found
 	publicKey, err = s.ds.RevokeJWTKey(ctx, "spiffe://foo", "no id")
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided Key ID")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided key ID")
 	require.Nil(t, publicKey)
 
 	// No allow to revoke untainted key
