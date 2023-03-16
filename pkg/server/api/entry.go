@@ -75,6 +75,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		StoreSvid:      e.StoreSvid,
 		JwtSvidTtl:     e.JwtSvidTtl,
 		Hint:           e.Hint,
+		CreatedAt:      e.CreatedAt,
 	}, nil
 }
 

@@ -112,6 +112,9 @@ func TestScanForBadEntries(t *testing.T) {
 				entry, err := ds.CreateRegistrationEntry(context.Background(), entry)
 				require.NoError(t, err)
 				tt.entries[i].EntryId = entry.EntryId
+				if i < len(tt.expectEntries) {
+					tt.expectEntries[i].CreatedAt = entry.CreatedAt
+				}
 			}
 
 			require.NoError(t, scanForBadEntries(log, metrics, ds)(context.Background()))
