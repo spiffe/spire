@@ -235,7 +235,14 @@ func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, keyID s
 
 // RevokeJWTAuthority removes JWT key from the bundle
 func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
-	return nil, errors.New("unimplemented")
+	var revokedKey *common.PublicKey
+	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		revokedKey, err = revokeJWTKey(tx, trustDoaminID, keyID)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return revokedKey, nil
 }
 
 // CreateAttestedNode stores the given attested node
@@ -1091,7 +1098,7 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 }
 
 func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.PublicKey) error {
-	_, bundle, err := getBundle(tx, trustDomainID)
+	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
@@ -1136,7 +1143,7 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 }
 
 func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey) error {
-	_, bundle, err := getBundle(tx, trustDomainID)
+	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
@@ -1177,7 +1184,7 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 }
 
 func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
-	model, bundle, err := getBundle(tx, trustDomainID)
+	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return nil, err
 	}
@@ -1203,35 +1210,67 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publi
 	}
 
 	if taintedKey == nil {
-		return nil, status.Error(codes.NotFound, "no JWT Key found with provided public key")
+		return nil, status.Error(codes.NotFound, "no JWT Key found with provided key ID")
 	}
 
-	newModel, err := bundleToModel(bundle)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to parse bundle to model: %v", err)
-	}
-
-	model.Data = newModel.Data
-
-	if err := tx.Save(model).Error; err != nil {
-		return nil, sqlError.Wrap(err)
+	if _, err := updateBundle(tx, bundle, nil); err != nil {
+		return nil, err
 	}
 
 	return taintedKey, nil
 }
 
-func getBundle(tx *gorm.DB, trustDomainID string) (*Bundle, *common.Bundle, error) {
+func revokeJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
+	bundle, err := getBundle(tx, trustDomainID)
+	if err != nil {
+		return nil, err
+	}
+
+	var publicKeys []*common.PublicKey
+	var revokedKey *common.PublicKey
+	for _, key := range bundle.JwtSigningKeys {
+		if key.Kid == keyID {
+			// Check if a JWT Key with the provided keyID was already
+			// found in this loop. This is purely defensive since we do not
+			// allow to have repeated key IDs.
+			if revokedKey != nil {
+				return nil, status.Error(codes.Internal, "another key found with the same KeyID")
+			}
+
+			if !key.TaintedKey {
+				return nil, status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted key")
+			}
+
+			revokedKey = key
+			continue
+		}
+		publicKeys = append(publicKeys, key)
+	}
+	bundle.JwtSigningKeys = publicKeys
+
+	if revokedKey == nil {
+		return nil, status.Error(codes.NotFound, "no JWT Key found with provided key ID")
+	}
+
+	if _, err := updateBundle(tx, bundle, nil); err != nil {
+		return nil, err
+	}
+
+	return revokedKey, nil
+}
+
+func getBundle(tx *gorm.DB, trustDomainID string) (*common.Bundle, error) {
 	model := &Bundle{}
 	if err := tx.Find(model, "trust_domain = ?", trustDomainID).Error; err != nil {
-		return nil, nil, sqlError.Wrap(err)
+		return nil, sqlError.Wrap(err)
 	}
 
 	bundle, err := modelToBundle(model)
 	if err != nil {
-		return nil, nil, status.Errorf(codes.Internal, "failed to unmarshal bundle: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to unmarshal bundle: %v", err)
 	}
 
-	return model, bundle, nil
+	return bundle, nil
 }
 
 func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.AttestedNode, error) {
