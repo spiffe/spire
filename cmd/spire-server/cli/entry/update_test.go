@@ -45,7 +45,7 @@ func TestUpdate(t *testing.T) {
             "value": "key2:value"
           }
         ],
-		"x509_svid_ttl": 60,
+        "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
           "spiffe://domainb.test"
@@ -61,7 +61,7 @@ func TestUpdate(t *testing.T) {
         ],
         "revision_number": "0",
         "store_svid": true,
-		"jwt_svid_ttl":30
+        "jwt_svid_ttl":30
       }`
 	entry0AdminJSON := `{
         "id": "entry-id",
@@ -83,7 +83,7 @@ func TestUpdate(t *testing.T) {
             "value": "alpha:2000"
           }
         ],
-		"x509_svid_ttl": 60,
+        "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
           "spiffe://domainb.test"
@@ -99,7 +99,7 @@ func TestUpdate(t *testing.T) {
         ],
         "revision_number": "0",
         "store_svid": false,
-		"jwt_svid_ttl":30
+        "jwt_svid_ttl":30
       }`
 	entry1JSON := `{
         "id": "entry-id-1",
@@ -117,7 +117,7 @@ func TestUpdate(t *testing.T) {
             "value": "uid:1111"
           }
         ],
-		"x509_svid_ttl": 200,
+        "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "external",
         "admin": true,
@@ -127,7 +127,7 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-		"jwt_svid_ttl": 300
+        "jwt_svid_ttl": 300
       }
     }`
 	entry2JSON := `{
@@ -146,7 +146,7 @@ func TestUpdate(t *testing.T) {
             "value": "uid:1111"
           }
         ],
-		"x509_svid_ttl": 200,
+        "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
         "admin": false,
@@ -156,7 +156,7 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-		"jwt_svid_ttl":300
+        "jwt_svid_ttl":300
       }
     }`
 	entry3JSON := `{
@@ -179,7 +179,7 @@ func TestUpdate(t *testing.T) {
             "value": "key2:value"
           }
         ],
-		"x509_svid_ttl": 200,
+        "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
         "admin": false,
@@ -189,7 +189,7 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": true,
-		"jwt_svid_ttl":300
+        "jwt_svid_ttl":300
       }`
 	nonExistentEntryJSON := `{
         "id": "non-existent-id",
@@ -197,7 +197,7 @@ func TestUpdate(t *testing.T) {
           "trust_domain": "example.org",
           "path": "/workload"
         },
-		"jwt_svid_ttl": 0,
+        "jwt_svid_ttl": 0,
         "parent_id": {
           "trust_domain": "example.org",
           "path": "/parent"
@@ -216,8 +216,8 @@ func TestUpdate(t *testing.T) {
         "expires_at": "0",
         "dns_names": [],
         "revision_number": "0",
-        "store_svid": false,
-		"x509_svid_ttl": 0
+        "store_svid": false,        
+        "x509_svid_ttl": 0
       }`
 
 	entry1 := &types.Entry{
