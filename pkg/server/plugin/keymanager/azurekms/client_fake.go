@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"github.com/spiffe/spire/test/testkey"
 	"math/big"
 	"path"
 	"sync"
@@ -18,7 +19,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
-	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -31,7 +31,6 @@ type kmsClientFake struct {
 	serverID        string
 	fakeKeyIDPrefix string
 	mu              sync.RWMutex
-	testKeys        testkey.Keys
 	createKeyErr    error
 	deleteKeyErr    error
 	updateKeyErr    error
@@ -42,9 +41,13 @@ type kmsClientFake struct {
 }
 
 type fakeStore struct {
-	fakeKeys map[string]*fakeKeyEntry
-	mu       sync.RWMutex
-	clk      *clock.Mock
+	fakeKeys   map[string]*fakeKeyEntry
+	ec256Key   crypto.Signer
+	ec384Key   crypto.Signer
+	rsa2048Key crypto.Signer
+	rsa4096Key crypto.Signer
+	mu         sync.RWMutex
+	clk        *clock.Mock
 }
 
 type fakeKeyEntry struct {
@@ -58,15 +61,20 @@ func newKMSClientFake(t *testing.T, vaultURI string, trustDomain string, serverI
 		vaultURI:        vaultURI,
 		trustDomain:     trustDomain,
 		serverID:        serverID,
-		store:           newFakeStore(c),
+		store:           newFakeStore(c, t),
 		fakeKeyIDPrefix: vaultURI + "keys/spire-key-" + serverID + "-",
 	}
 }
 
-func newFakeStore(c *clock.Mock) fakeStore {
+func newFakeStore(c *clock.Mock, t *testing.T) fakeStore {
+	testKeys := new(testkey.Keys)
 	return fakeStore{
-		fakeKeys: make(map[string]*fakeKeyEntry),
-		clk:      c,
+		fakeKeys:   make(map[string]*fakeKeyEntry),
+		clk:        c,
+		ec256Key:   testKeys.NewEC256(t),
+		ec384Key:   testKeys.NewEC384(t),
+		rsa2048Key: testKeys.NewRSA2048(t),
+		rsa4096Key: testKeys.NewRSA4096(t),
 	}
 }
 
@@ -165,16 +173,16 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, keyName string, parameter
 	kmsKeyID := path.Join(k.vaultURI, keyName)
 	switch {
 	case *parameters.Kty == azkeys.JSONWebKeyTypeEC && *parameters.Curve == azkeys.JSONWebKeyCurveNameP256:
-		privateKey = k.testKeys.NewEC256(k.t)
+		privateKey = k.store.ec256Key
 		publicKey = toECKey(privateKey.Public(), kmsKeyID, *parameters.Curve, keyOperations)
 	case *parameters.Kty == azkeys.JSONWebKeyTypeEC && *parameters.Curve == azkeys.JSONWebKeyCurveNameP384:
-		privateKey = k.testKeys.NewEC384(k.t)
+		privateKey = k.store.ec384Key
 		publicKey = toECKey(privateKey.Public(), kmsKeyID, *parameters.Curve, keyOperations)
 	case *parameters.Kty == azkeys.JSONWebKeyTypeRSA && *parameters.KeySize == 2048:
-		privateKey = k.testKeys.NewRSA2048(k.t)
+		privateKey = k.store.rsa2048Key
 		publicKey = toRSAKey(privateKey.Public(), kmsKeyID, keyOperations)
 	case *parameters.Kty == azkeys.JSONWebKeyTypeRSA && *parameters.KeySize == 4096:
-		privateKey = k.testKeys.NewRSA4096(k.t)
+		privateKey = k.store.rsa4096Key
 		publicKey = toRSAKey(privateKey.Public(), kmsKeyID, keyOperations)
 	default:
 		return azkeys.CreateKeyResponse{}, fmt.Errorf("unknown key type %q", *parameters.Kty)
