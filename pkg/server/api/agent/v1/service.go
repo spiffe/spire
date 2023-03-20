@@ -439,6 +439,11 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	}, nil
 }
 
+// PushStatus push agent status and return some metadata as response
+func (s *Service) PushStatus(ctx context.Context, req *agentv1.PushStatusRequest) (*agentv1.PushStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
+}
+
 // CreateJoinToken returns a new JoinToken for an agent.
 func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTokenRequest) (*types.JoinToken, error) {
 	log := rpccontext.Logger(ctx)

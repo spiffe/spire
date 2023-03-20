@@ -548,6 +548,9 @@ const (
 	// X509AuthoritiesASN1256 tags a X509 authority ASN1 encrypted using SHA256
 	X509AuthoritiesASN1SHA256 = "x509_authorities_asn1_sha256"
 
+	// X509AuthoritiesASN1256 tags a X509 local authority public key encrypted using SHA256
+	X509AuthorityPublicKeySHA256 = "x509_authority_public_key_sha256"
+
 	// X509CAs tags some count or list of X509 CAs
 	X509CAs = "x509_cas"
 )

@@ -39,6 +39,7 @@ type Slot interface {
 	ShouldPrepareNext(now time.Time) bool
 	ShouldActivateNext(now time.Time) bool
 	Status() journal.Status
+	GetPublicKey() crypto.PublicKey
 }
 
 type SlotLoader struct {
@@ -541,6 +542,10 @@ func (s *X509CASlot) Status() journal.Status {
 	return s.status
 }
 
+func (s *X509CASlot) GetPublicKey() crypto.PublicKey {
+	return s.x509CA.Signer.Public()
+}
+
 type JwtKeySlot struct {
 	id       string
 	issuedAt time.Time
@@ -577,4 +582,8 @@ func (s *JwtKeySlot) ShouldPrepareNext(now time.Time) bool {
 
 func (s *JwtKeySlot) ShouldActivateNext(now time.Time) bool {
 	return s.jwtKey == nil || now.After(keyActivationThreshold(s.issuedAt, s.jwtKey.NotAfter))
+}
+
+func (s *JwtKeySlot) GetPublicKey() crypto.PublicKey {
+	return s.jwtKey.Signer.Public()
 }

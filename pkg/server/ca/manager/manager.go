@@ -169,7 +169,6 @@ func (m *Manager) Close() {
 func (m *Manager) GetCurrentX509CASlot() Slot {
 	m.x509CAMutex.RLock()
 	defer m.x509CAMutex.RUnlock()
-
 	return m.currentX509CA
 }
 

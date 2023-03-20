@@ -391,6 +391,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": true,
+			"PushStatus":      false,
 		})
 	})
 
@@ -404,6 +405,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": false,
+			"PushStatus":      false,
 		})
 	})
 
@@ -417,6 +419,8 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      true,
 			"CreateJoinToken": false,
+			// TODO: Must be true for agent (#3908)
+			"PushStatus": false,
 		})
 	})
 
@@ -430,6 +434,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": true,
+			"PushStatus":      false,
 		})
 	})
 
@@ -443,6 +448,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": true,
+			"PushStatus":      false,
 		})
 	})
 
@@ -456,6 +462,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": false,
+			"PushStatus":      false,
 		})
 	})
 }
