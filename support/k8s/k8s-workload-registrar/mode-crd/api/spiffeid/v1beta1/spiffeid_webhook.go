@@ -53,6 +53,11 @@ func (w SpiffeIDWebhook) ValidateCreate(ctx context.Context, obj runtime.Object)
 	}
 
 	if err := w.validateSpiffeID(s); err != nil {
+		w.Log.WithFields(logrus.Fields{
+			"name":      s.Name,
+			"namespace": s.Namespace,
+			"spiffeid":  s.Spec.SpiffeId,
+		}).WithError(err).Error("Error validating registration entry")
 		return err
 	}
 
