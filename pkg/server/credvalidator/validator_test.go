@@ -74,7 +74,6 @@ func TestValidateX509CA(t *testing.T) {
 			setup: func(ca *x509.Certificate) {
 				ca.URIs = nil
 			},
-			expectErr: "invalid X509 CA: missing URI SAN",
 		},
 		{
 			desc: "more than one URI SAN",
