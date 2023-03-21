@@ -9,9 +9,13 @@ import (
 )
 
 func TestParsePluginConfigsFromHCLNode(t *testing.T) {
+	configs, err := PluginConfigsFromHCLNode(nil)
+	require.NoError(t, err, "should fail when no plugins defined")
+	require.Empty(t, configs)
+
 	test := func(t *testing.T, configIn string) {
 		root := struct {
-			Plugins ast.Node
+			Plugins ast.Node `hcl:"plugins"`
 		}{}
 		err := hcl.Decode(&root, configIn)
 		require.NoError(t, err)
@@ -37,6 +41,12 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 			Disabled: false,
 		}
 		pluginD := PluginConfig{
+			Name:     "NAME5",
+			Type:     "TYPE1",
+			Data:     `"foo" = "bar"`,
+			Disabled: false,
+		}
+		pluginE := PluginConfig{
 			Name:     "NAME2",
 			Type:     "TYPE2",
 			Path:     "CMD2",
@@ -45,26 +55,35 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 			Data:     `"DATA2"`,
 			Disabled: false,
 		}
-
+		pluginF := PluginConfig{
+			Name:     "NAME6",
+			Type:     "TYPE3",
+			Data:     `"foo" = "bar"`,
+			Disabled: false,
+		}
 		// The declaration order should be preserved.
 		require.Equal(t, PluginConfigs{
 			pluginA,
 			pluginB,
 			pluginC,
 			pluginD,
+			pluginE,
+			pluginF,
 		}, configs)
 
-		// Only A and C are of type TYPE1
+		// A, C, and D are of type TYPE1
 		matching, remaining := configs.FilterByType("TYPE1")
 
 		require.Equal(t, PluginConfigs{
 			pluginA,
 			pluginC,
+			pluginD,
 		}, matching)
 
 		require.Equal(t, PluginConfigs{
 			pluginB,
-			pluginD,
+			pluginE,
+			pluginF,
 		}, remaining)
 
 		c, ok := configs.Find("TYPE1", "NAME1")
@@ -87,9 +106,14 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 				}
 				TYPE4 "NAME4" {
 				}
-				TYPE1 "NAME1" {
-					plugin_cmd = "CMD1"
-					plugin_data = "DATA1"
+				TYPE1 {
+					NAME1 {
+						plugin_cmd = "CMD1"
+						plugin_data = "DATA1"
+					}
+					NAME5 plugin_data {
+						"foo" = "bar"
+					}
 				}
 				TYPE2 "NAME2" {
 					plugin_cmd = "CMD2"
@@ -97,6 +121,9 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 					plugin_checksum = "CHECKSUM2"
 					plugin_data = "DATA2"
 					enabled = true
+				}
+				TYPE3 "NAME6" "plugin_data" {
+					"foo" = "bar"
 				}
 			}
 		`
@@ -130,21 +157,39 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 						"plugin_data": "DATA1"
 					  }
 					]
+				  },
+				  {
+					"NAME5": [
+					  {
+						"plugin_data": {
+							"foo": "bar",
+						}
+					  }
+					]
 				  }
 				],
 				"TYPE2": [
 				  {
 					"NAME2": [
-					  {
-						"plugin_cmd": "CMD2",
-						"plugin_args": ["foo", "bar", "baz"],
-						"plugin_checksum": "CHECKSUM2",
-						"plugin_data": "DATA2",
-						"enabled": true
-					  }
+						{
+							"plugin_cmd": "CMD2",
+							"plugin_args": ["foo", "bar", "baz"],
+							"plugin_checksum": "CHECKSUM2",
+							"plugin_data": "DATA2",
+							"enabled": true
+						}
 					]
 				  }
-				]
+				],
+				"TYPE3": [
+					{
+						"NAME6": {
+							"plugin_data": {
+								"foo": "bar"
+							}
+						}
+					}
+				],
 			  }
 			}`
 		test(t, config)
@@ -157,35 +202,21 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 					{
 						"NAME": {}
 					},
+				],
+				"TYPE": [
 					{
 						"NAME": {}
-					}	
+					},
 				]
 			  }
 			}`
 		root := struct {
-			Plugins ast.Node
+			Plugins ast.Node `hcl:"plugins"`
 		}{}
 		err := hcl.Decode(&root, config)
 		require.NoError(t, err)
 
 		_, err = PluginConfigsFromHCLNode(root.Plugins)
 		require.EqualError(t, err, `plugin "TYPE"/"NAME" declared more than once`)
-	})
-
-	t.Run("Unexpected key count", func(t *testing.T) {
-		config := `
-			plugins {
-				"TYPE" "NAME" "BOGUS" {
-				}
-			}`
-		root := struct {
-			Plugins ast.Node
-		}{}
-		err := hcl.Decode(&root, config)
-		require.NoError(t, err)
-
-		_, err = PluginConfigsFromHCLNode(root.Plugins)
-		require.EqualError(t, err, `expected one or two keys on the plugin item for type "TYPE" but got 3`)
 	})
 }
