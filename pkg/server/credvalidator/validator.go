@@ -55,7 +55,7 @@ func (v *Validator) ValidateX509CA(ca *x509.Certificate) error {
 	if ca.KeyUsage&^(x509.KeyUsageCertSign|x509.KeyUsageCRLSign) > 0 {
 		return errors.New("invalid X509 CA: only keyCertSign and cRLSign key usage can be set")
 	}
-	if err := checkURISAN(ca, v.x509CAID); err != nil {
+	if err := checkURISAN(ca, true, v.x509CAID); err != nil {
 		return fmt.Errorf("invalid X509 CA: %w", err)
 	}
 	if err := checkX509CertificateExpiration(ca, v.clock.Now()); err != nil {
@@ -95,7 +95,7 @@ func (v *Validator) ValidateX509SVID(svid *x509.Certificate, id spiffeid.ID) err
 		}
 	}
 
-	if err := checkURISAN(svid, id); err != nil {
+	if err := checkURISAN(svid, false, id); err != nil {
 		return fmt.Errorf("invalid X509-SVID: %w", err)
 	}
 	if err := checkX509CertificateExpiration(svid, v.clock.Now()); err != nil {
@@ -133,10 +133,18 @@ func (v *Validator) ValidateWorkloadJWTSVID(rawToken string, id spiffeid.ID) err
 	return nil
 }
 
-func checkURISAN(cert *x509.Certificate, id spiffeid.ID) error {
+func checkURISAN(cert *x509.Certificate, isCA bool, id spiffeid.ID) error {
 	if len(cert.URIs) == 0 {
+		if isCA {
+			// A signing certificate should itself be an SVID, but it's not
+			// mandatory.
+			return nil
+		}
 		return errors.New("missing URI SAN")
 	}
+
+	// There is at least one URI.
+	// These validations apply for both CA and non CA certificates.
 	if len(cert.URIs) > 1 {
 		return fmt.Errorf("expected URI SAN %q but got %q", id, cert.URIs)
 	}
