@@ -355,7 +355,7 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 		uris = append(uris, uri.String())
 	}
 	if len(uris) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "CSR must have least one URIs")
+		return nil, status.Errorf(codes.InvalidArgument, "CSR must have at least one URI")
 	}
 
 	reqData := map[string]interface{}{
