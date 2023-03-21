@@ -100,10 +100,12 @@ func TestFetchJWTCommand(t *testing.T) {
   {
     "svids": [
       {
+        "hint": "",
         "spiffe_id": "spiffe://domain1.test",
         "svid": "%s"
       },
       {
+        "hint": "",
         "spiffe_id": "spiffe://domain2.test",
         "svid": "%s"
       }
@@ -244,6 +246,7 @@ CA #1 Valid Until:	%v
   "svids": [
     {
       "bundle": "%s",
+      "hint": "",
       "spiffe_id": "spiffe://example.org/foo",
       "x509_svid": "%s",
       "x509_svid_key": "%s"
@@ -299,6 +302,7 @@ Writing bundle #0 to file %s
   "federated_bundles": {},
   "svids": [
     {
+      "hint": "",
       "bundle": "%s",
       "spiffe_id": "spiffe://example.org/foo",
       "x509_svid": "%s",
@@ -408,9 +412,10 @@ func TestValidateJWTCommand(t *testing.T) {
 						Claims: &structpb.Struct{
 							Fields: map[string]*structpb.Value{
 								"aud": {
-									Kind: &structpb.Value_ListValue{ListValue: &structpb.ListValue{
-										Values: []*structpb.Value{{Kind: &structpb.Value_StringValue{StringValue: "foo"}}},
-									},
+									Kind: &structpb.Value_ListValue{
+										ListValue: &structpb.ListValue{
+											Values: []*structpb.Value{{Kind: &structpb.Value_StringValue{StringValue: "foo"}}},
+										},
 									},
 								},
 							},
