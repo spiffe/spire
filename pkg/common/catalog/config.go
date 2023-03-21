@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 
 	"github.com/hashicorp/hcl"
@@ -72,37 +71,7 @@ func (c hclPluginConfig) IsExternal() bool {
 
 func PluginConfigsFromHCLNode(pluginsNode ast.Node) (PluginConfigs, error) {
 	if pluginsNode == nil {
-		return nil, errors.New("plugins node is nil")
-	}
-
-	// The seen set is used to detect multiple declarations for the same plugin.
-	type key struct {
-		Type string
-		Name string
-	}
-	seen := make(map[key]struct{})
-
-	var pluginConfigs PluginConfigs
-	appendPlugin := func(pluginType, pluginName string, pluginNode ast.Node) error {
-		// Ensure a plugin for a given type and name is only declared once.
-		k := key{Type: pluginType, Name: pluginName}
-		if _, ok := seen[k]; ok {
-			return fmt.Errorf("plugin %q/%q declared more than once", pluginType, pluginName)
-		}
-		seen[k] = struct{}{}
-
-		var hclPluginConfig hclPluginConfig
-		if err := hcl.DecodeObject(&hclPluginConfig, pluginNode); err != nil {
-			return fmt.Errorf("failed to decode plugin config for %q/%q: %w", pluginType, pluginName, err)
-		}
-
-		pluginConfig, err := pluginConfigFromHCL(pluginType, pluginName, hclPluginConfig)
-		if err != nil {
-			return fmt.Errorf("failed to create plugin config for %q/%q: %w", pluginType, pluginName, err)
-		}
-
-		pluginConfigs = append(pluginConfigs, pluginConfig)
-		return nil
+		return nil, nil
 	}
 
 	pluginsList, ok := pluginsNode.(*ast.ObjectList)
@@ -110,62 +79,142 @@ func PluginConfigsFromHCLNode(pluginsNode ast.Node) (PluginConfigs, error) {
 		return nil, fmt.Errorf("expected plugins node type %T but got %T", pluginsList, pluginsNode)
 	}
 
-	for _, pluginObject := range pluginsList.Items {
-		pluginType, err := stringFromToken(pluginObject.Keys[0].Token)
-		if err != nil {
-			return nil, fmt.Errorf("invalid plugin type key %q: %w", pluginObject.Keys[0].Token.Text, err)
-		}
+	order, err := determinePluginOrder(pluginsList)
+	if err != nil {
+		return nil, err
+	}
 
-		var pluginName string
-		switch len(pluginObject.Keys) {
-		case 1:
-			// One key is expected when using JSON formatted config:
-			// "plugins": [
-			//   "NodeAttestor": [
-			//     {
-			//        "foo": ...
-			//     }
-			//   ]
-			// ]
-			//
-			// Or the slightly more verbose HCL form:
-			// plugins {
-			//   "NodeAttestor" = {
-			//      "foo" = { ... }
-			//   }
-			// }
-			pluginTypeList, ok := pluginObject.Val.(*ast.ObjectType)
-			if !ok {
-				return nil, fmt.Errorf("expected plugin object type %T but got %T", pluginTypeList, pluginObject.Val)
-			}
-			for _, pluginObject := range pluginTypeList.List.Items {
-				pluginName, err = stringFromToken(pluginObject.Keys[0].Token)
-				if err != nil {
-					return nil, fmt.Errorf("invalid plugin type name %q: %w", pluginObject.Keys[0].Token.Text, err)
-				}
-				if err := appendPlugin(pluginType, pluginName, pluginObject.Val); err != nil {
-					return nil, err
-				}
-			}
-		case 2:
-			// Two keys are expected for something like this (our typical config example)
-			// plugins {
-			//     NodeAttestor "foo" {
-			//        ...
-			//     }
-			// }
-			pluginName, err = stringFromToken(pluginObject.Keys[1].Token)
-			if err != nil {
-				return nil, fmt.Errorf("invalid plugin type name %q: %w", pluginObject.Keys[1].Token.Text, err)
-			}
-			if err := appendPlugin(pluginType, pluginName, pluginObject.Val); err != nil {
-				return nil, err
-			}
-		default:
-			return nil, fmt.Errorf("expected one or two keys on the plugin item for type %q but got %d", pluginType, len(pluginObject.Keys))
+	var pluginsMaps pluginsMapList
+	if err := hcl.DecodeObject(&pluginsMaps, pluginsNode); err != nil {
+		return nil, fmt.Errorf("failed to decode plugins config: %w", err)
+	}
+
+	// Santity check the length of the pluginsMapList and those found when
+	// determining order. If this mismatches, it's a bug.
+	if pluginsLen := pluginsMaps.Len(); pluginsLen != len(order) {
+		return nil, fmt.Errorf("bug: expected %d plugins but got %d", len(order), pluginsLen)
+	}
+
+	var pluginConfigs PluginConfigs
+	for _, ident := range order {
+		hclPluginConfig, ok := pluginsMaps.FindPluginConfig(ident.Type, ident.Name)
+		if !ok {
+			// This would be a programmer error. We should always be able to
+			// locate the plugin configuration in one of the maps.
+			return nil, fmt.Errorf("bug: plugin config for %q/%q not located", ident.Type, ident.Name)
 		}
+		pluginConfig, err := pluginConfigFromHCL(ident.Type, ident.Name, hclPluginConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create plugin config for %q/%q: %w", ident.Type, ident.Name, err)
+		}
+		pluginConfigs = append(pluginConfigs, pluginConfig)
 	}
 	return pluginConfigs, nil
+}
+
+type pluginIdent struct {
+	Type string
+	Name string
+}
+
+func determinePluginOrder(pluginsList *ast.ObjectList) ([]pluginIdent, error) {
+	var order []pluginIdent
+	appendOrder := func(pluginType, pluginName string) {
+		order = append(order, pluginIdent{Type: pluginType, Name: pluginName})
+	}
+
+	stackKeys := func(stack []ast.Node) (keys []string) {
+		for _, s := range stack {
+			if objectItem, ok := s.(*ast.ObjectItem); ok {
+				for _, k := range objectItem.Keys {
+					key, err := stringFromToken(k.Token)
+					if err != nil {
+						return nil
+					}
+					keys = append(keys, key)
+				}
+			}
+		}
+		return keys
+	}
+
+	// Walk the AST, pushing and popping nodes from an "object" stack. At
+	// each step, determine if we've accumulated object keys at least 2 deep.
+	// If so, we've found a plugin definition and add the plugin identifier
+	// to the ordering.
+	//
+	// This accommodates nesting of all shapes and sizes, for example:
+	//
+	// "NodeAttestor" {
+	//     "k8s_psat" {
+	//         plugin_data {
+	//         }
+	//     }
+	// }
+	//
+	// "NodeAttestor" "k8s_psat" {
+	//     plugin_data {
+	//     }
+	// }
+	//
+	// "NodeAttestor" "k8s_psat" plugin_data {
+	// }
+	//
+	//
+	var stack []ast.Node
+	ast.Walk(pluginsList, ast.WalkFunc(func(n ast.Node) (ast.Node, bool) {
+		if n == nil {
+			stack = stack[:len(stack)-1]
+			return n, false
+		}
+		stack = append(stack, n)
+		keys := stackKeys(stack)
+		if len(keys) >= 2 {
+			appendOrder(keys[0], keys[1])
+			// Since we've found an object item for the plugin, pop it from
+			// the stack and do not recurse.
+			stack = stack[:len(stack)-1]
+			return n, false
+		}
+		return n, true
+	}))
+
+	// Check for duplicates
+	seen := make(map[pluginIdent]struct{})
+	for _, ident := range order {
+		if _, ok := seen[ident]; ok {
+			return nil, fmt.Errorf("plugin %q/%q declared more than once", ident.Type, ident.Name)
+		}
+		seen[ident] = struct{}{}
+	}
+	return order, nil
+}
+
+type pluginsMapList []map[string]map[string]hclPluginConfig
+
+func (m pluginsMapList) FindPluginConfig(pluginType, pluginName string) (hclPluginConfig, bool) {
+	for _, pluginsMap := range m {
+		pluginsForType, ok := pluginsMap[pluginType]
+		if !ok {
+			continue
+		}
+		pluginConfig, ok := pluginsForType[pluginName]
+		if !ok {
+			continue
+		}
+		return pluginConfig, true
+	}
+	return hclPluginConfig{}, false
+}
+
+func (m pluginsMapList) Len() int {
+	n := 0
+	for _, pluginsMap := range m {
+		for _, pluginsForType := range pluginsMap {
+			n += len(pluginsForType)
+		}
+	}
+	return n
 }
 
 func pluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig hclPluginConfig) (PluginConfig, error) {
@@ -188,16 +237,8 @@ func pluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig hclPlugi
 }
 
 func stringFromToken(keyToken token.Token) (string, error) {
-	switch keyToken.Type {
-	case token.STRING, token.IDENT:
-	default:
-		return "", fmt.Errorf("expected STRING or IDENT but got %s", keyToken.Type)
+	if !keyToken.Type.IsIdentifier() {
+		return "", fmt.Errorf("expected identifier token but got %s at %s", keyToken.Type, keyToken.Pos)
 	}
-	value := keyToken.Value()
-	stringValue, ok := value.(string)
-	if !ok {
-		// purely defensive
-		return "", fmt.Errorf("expected %T but got %T", stringValue, value)
-	}
-	return stringValue, nil
+	return fmt.Sprint(keyToken.Value()), nil
 }
