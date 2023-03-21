@@ -8,7 +8,7 @@ env:
 jobs:
   cache-deps:
     name: cache-deps (linux)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     permissions:
       contents: read
@@ -30,7 +30,7 @@ jobs:
 
   lint:
     name: lint (linux)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: cache-deps
 
     permissions:
@@ -65,7 +65,7 @@ jobs:
   unit-test:
     strategy:
       matrix:
-        OS: [ubuntu-20.04, macos-latest]
+        OS: [ubuntu-22.04, macos-latest]
     runs-on: ${{ matrix.OS }}
     needs: cache-deps
 
@@ -89,7 +89,7 @@ jobs:
 
   unit-test-race-detector:
     name: unit-test (linux with race detection)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: cache-deps
 
     permissions:
@@ -112,7 +112,7 @@ jobs:
 
   artifacts:
     name: artifacts (linux)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: [cache-deps]
 
     permissions:
@@ -145,7 +145,7 @@ jobs:
 
   images:
     name: images (linux)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: [cache-deps]
 
     permissions:
@@ -208,7 +208,7 @@ jobs:
 
   integration:
     name: integration (linux)
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: [cache-deps, images]
 
     permissions:
@@ -465,7 +465,7 @@ jobs:
           path: ./artifacts/
 
   publish-artifacts:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, lint-windows, unit-test-windows, artifact-windows, integration-windows]
     permissions:
       contents: write
@@ -491,7 +491,7 @@ jobs:
         run: gh release create "${GITHUB_REF#refs/tags/}" ./artifacts/*.zip ./artifacts/*.tar.gz ./artifacts/*.txt --title "${GITHUB_REF#refs/tags/}"
 
   publish-images:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, lint-windows, unit-test-windows, artifact-windows, integration-windows]
     permissions:
       contents: read
