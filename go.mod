@@ -4,10 +4,10 @@ go 1.19
 
 require (
 	cloud.google.com/go/iam v0.12.0
-	cloud.google.com/go/kms v1.9.0
+	cloud.google.com/go/kms v1.10.0
 	cloud.google.com/go/secretmanager v1.10.0
 	cloud.google.com/go/security v1.12.0
-	cloud.google.com/go/storage v1.29.0
+	cloud.google.com/go/storage v1.30.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
@@ -51,7 +51,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/mitchellh/cli v1.1.5
-	github.com/open-policy-agent/opa v0.50.0
+	github.com/open-policy-agent/opa v0.50.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/shirou/gopsutil/v3 v3.23.2
 	github.com/sigstore/cosign v1.13.1
@@ -69,13 +69,13 @@ require (
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.6.0
 	golang.org/x/time v0.3.0
-	google.golang.org/api v0.113.0
+	google.golang.org/api v0.114.0
 	google.golang.org/genproto v0.0.0-20230306155012-7f2fa6fef1f4
 	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.29.1
 	gopkg.in/square/go-jose.v2 v2.6.0
-	k8s.io/api v0.26.2
-	k8s.io/apimachinery v0.26.2
+	k8s.io/api v0.26.3
+	k8s.io/apimachinery v0.26.3
 	k8s.io/client-go v0.26.2
 	k8s.io/kube-aggregator v0.26.2
 	sigs.k8s.io/controller-runtime v0.14.5
