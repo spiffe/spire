@@ -1303,7 +1303,7 @@ func TestStorableSVIDsSync(t *testing.T) {
 			require.Len(t, records, len(entries))
 			spiretest.RequireProtoEqual(t, entries[i], record.Entry)
 
-			// Verify record has latests SVIDs
+			// Verify record has latest's SVIDs
 			chain := api.lastestSVIDs[record.Entry.EntryId]
 			require.Equal(t, chain, record.Svid.Chain)
 		}
@@ -1422,7 +1422,7 @@ type mockAPI struct {
 
 	clk clock.Clock
 
-	// Add latests SVIDs per entry, to verify returned SVIDs are valid
+	// Add latest's SVIDs per entry, to verify returned SVIDs are valid
 	lastestSVIDs map[string][]*x509.Certificate
 
 	agentv1.UnimplementedAgentServer
@@ -1516,7 +1516,7 @@ func (h *mockAPI) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 		}
 		svid := h.newSVIDFromCSR(spiffeid.RequireFromString(entry.SpiffeId), param.Csr)
 
-		// Keep latests SVIDs per entry
+		// Keep latest's SVIDs per entry
 		h.lastestSVIDs[entry.EntryId] = svid
 
 		resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{

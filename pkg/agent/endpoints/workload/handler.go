@@ -1,7 +1,6 @@
 package workload
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -18,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -41,7 +41,6 @@ type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
 
-// Handler implements the Workload API interface
 type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
@@ -50,6 +49,7 @@ type Config struct {
 	TrustDomain                   spiffeid.TrustDomain
 }
 
+// Handler implements the Workload API interface
 type Handler struct {
 	workload.UnsafeSpiffeWorkloadAPIServer
 	c Config
@@ -431,7 +431,7 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 	}
 
 	bundles := make(map[string][]byte)
-	jwksBytes, err := marshalIdentBundle(update.Bundle)
+	jwksBytes, err := bundleutil.MarshalIdentBundle(update.Bundle)
 	if err != nil {
 		return nil, err
 	}
@@ -439,7 +439,7 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
-			jwksBytes, err := marshalIdentBundle(federatedBundle)
+			jwksBytes, err := bundleutil.MarshalIdentBundle(federatedBundle)
 			if err != nil {
 				return nil, err
 			}
@@ -450,16 +450,6 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 	return &workload.JWTBundlesResponse{
 		Bundles: bundles,
 	}, nil
-}
-
-func marshalIdentBundle(bundle *spiffebundle.Bundle) ([]byte, error) {
-	jwkBytes, err := bundle.JWTBundle().Marshal()
-	if err != nil {
-		return nil, err
-	}
-	buf := new(bytes.Buffer)
-	err = json.Indent(buf, jwkBytes, "", "    ")
-	return buf.Bytes(), err
 }
 
 // isAgent returns true if the caller PID from the provided context is the

@@ -12,11 +12,12 @@ import (
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
-	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	workloadattestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -39,7 +40,7 @@ type attestor interface {
 type Config struct {
 	Log                 logrus.FieldLogger
 	Manager             manager.Manager
-	Attestor            workload_attestor.Attestor
+	Attestor            workloadattestor.Attestor
 	AuthorizedDelegates []string
 }
 
@@ -95,7 +96,7 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 		}
 	}
 
-	// caller has identity associeted with but none is authorized
+	// caller has identity associated with but none is authorized
 	log.WithFields(logrus.Fields{
 		"num_registered_entries": numRegisteredEntries,
 		"default_id":             entries[0].SpiffeId,
@@ -328,7 +329,7 @@ func (s *Service) SubscribeToJWTBundles(req *delegatedidentityv1.SubscribeToJWTB
 	// send initial update....
 	jwtbundles := make(map[string][]byte)
 	for td, bundle := range subscriber.Value() {
-		jwksBytes, err := bundle.JWTBundle().Marshal()
+		jwksBytes, err := bundleutil.MarshalIdentBundle(bundle)
 		if err != nil {
 			return err
 		}
@@ -349,7 +350,7 @@ func (s *Service) SubscribeToJWTBundles(req *delegatedidentityv1.SubscribeToJWTB
 				return err
 			}
 			for td, bundle := range subscriber.Next() {
-				jwksBytes, err := bundle.JWTBundle().Marshal()
+				jwksBytes, err := bundleutil.MarshalIdentBundle(bundle)
 				if err != nil {
 					return err
 				}

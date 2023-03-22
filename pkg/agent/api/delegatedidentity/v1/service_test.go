@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -45,8 +46,8 @@ var (
 	bundle1 = spiffebundle.FromX509Authorities(trustDomain1, []*x509.Certificate{{Raw: []byte("AAA")}})
 	bundle2 = spiffebundle.FromX509Authorities(trustDomain2, []*x509.Certificate{{Raw: []byte("BBB")}})
 
-	jwksBundle1, _ = bundle1.JWTBundle().Marshal()
-	jwksBundle2, _ = bundle2.JWTBundle().Marshal()
+	jwksBundle1, _ = bundleutil.MarshalIdentBundle(bundle1)
+	jwksBundle2, _ = bundleutil.MarshalIdentBundle(bundle2)
 )
 
 func TestSubscribeToX509SVIDs(t *testing.T) {

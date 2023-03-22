@@ -1,8 +1,10 @@
 package bundleutil
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -401,4 +403,14 @@ pruneRootCA:
 
 func cloneBundle(b *common.Bundle) *common.Bundle {
 	return proto.Clone(b).(*common.Bundle)
+}
+
+func MarshalIdentBundle(bundle *spiffebundle.Bundle) ([]byte, error) {
+	jwkBytes, err := bundle.JWTBundle().Marshal()
+	if err != nil {
+		return nil, err
+	}
+	buf := new(bytes.Buffer)
+	err = json.Indent(buf, jwkBytes, "", "    ")
+	return buf.Bytes(), err
 }
