@@ -51,7 +51,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/mitchellh/cli v1.1.5
-	github.com/open-policy-agent/opa v0.50.1
+	github.com/open-policy-agent/opa v0.50.2
 	github.com/prometheus/client_golang v1.14.0
 	github.com/shirou/gopsutil/v3 v3.23.2
 	github.com/sigstore/cosign v1.13.1
@@ -76,8 +76,8 @@ require (
 	gopkg.in/square/go-jose.v2 v2.6.0
 	k8s.io/api v0.26.3
 	k8s.io/apimachinery v0.26.3
-	k8s.io/client-go v0.26.2
-	k8s.io/kube-aggregator v0.26.2
+	k8s.io/client-go v0.26.3
+	k8s.io/kube-aggregator v0.26.3
 	sigs.k8s.io/controller-runtime v0.14.5
 )
 
