@@ -194,7 +194,7 @@ jobs:
     name: images (windows)
     runs-on: windows-2022
     needs: artifact-windows
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -223,7 +223,7 @@ jobs:
     name: integration (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps, images]
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -279,7 +279,7 @@ jobs:
     name: integration (windows)
     runs-on: windows-2022
     needs: images-windows
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -326,7 +326,7 @@ jobs:
   cache-deps-windows:
     name: cache-deps (windows)
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -350,7 +350,7 @@ jobs:
     name: lint (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -393,7 +393,7 @@ jobs:
     name: unit-test (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -427,7 +427,7 @@ jobs:
     name: artifact (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     permissions:
       contents: read
