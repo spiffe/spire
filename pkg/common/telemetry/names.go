@@ -175,8 +175,14 @@ const (
 	// BySelectors tags selectors used when filtering
 	BySelectors = "by_selectors"
 
-	// CallerAddr labels an API caller address
+	// CallerAddr labels an API caller address in host:port format
 	CallerAddr = "caller_addr"
+
+	// CallerIP labels an API caller IP address
+	CallerIP = "caller_ip"
+
+	// CallerPort labels an API caller source port number
+	CallerPort = "caller_port"
 
 	// CallerID tags an API caller; should be used with other tags
 	// to add clarity

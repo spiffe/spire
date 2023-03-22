@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"net/netip"
 
 	"github.com/gofrs/uuid"
 	"github.com/sirupsen/logrus"
@@ -40,6 +41,10 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	fields := make(logrus.Fields)
 	if !rpccontext.CallerIsLocal(ctx) {
 		fields[telemetry.CallerAddr] = rpccontext.CallerAddr(ctx).String()
+		if addrPort, err := netip.ParseAddrPort(rpccontext.CallerAddr(ctx).String()); err == nil {
+			fields[telemetry.CallerIP] = addrPort.Addr().String()
+			fields[telemetry.CallerPort] = addrPort.Port()
+		}
 	}
 	if id, ok := rpccontext.CallerID(ctx); ok {
 		fields[telemetry.CallerID] = id.String()
