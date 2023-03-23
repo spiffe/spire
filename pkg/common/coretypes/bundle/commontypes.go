@@ -36,3 +36,40 @@ func ToCommonFromPluginProto(pb *plugintypes.Bundle) (*common.Bundle, error) {
 		RootCas:        rootCAs,
 	}, nil
 }
+
+func ToPluginProtoFromCommon(b *common.Bundle) (*plugintypes.Bundle, error) {
+	td, err := spiffeid.TrustDomainFromString(b.TrustDomainId)
+	if err != nil {
+		return nil, err
+	}
+	return &plugintypes.Bundle{
+		TrustDomain:     td.String(),
+		RefreshHint:     b.RefreshHint,
+		SequenceNumber:  0,
+		X509Authorities: certificatesToProto(b.RootCas),
+		JwtAuthorities:  publicKeysToProto(b.JwtSigningKeys),
+	}, nil
+}
+
+func certificatesToProto(rootCas []*common.Certificate) []*plugintypes.X509Certificate {
+	var x509Authorities []*plugintypes.X509Certificate
+	for _, rootCA := range rootCas {
+		x509Authorities = append(x509Authorities, &plugintypes.X509Certificate{
+			Asn1: rootCA.DerBytes,
+		})
+	}
+
+	return x509Authorities
+}
+
+func publicKeysToProto(keys []*common.PublicKey) []*plugintypes.JWTKey {
+	var jwtAuthorities []*plugintypes.JWTKey
+	for _, key := range keys {
+		jwtAuthorities = append(jwtAuthorities, &plugintypes.JWTKey{
+			PublicKey: key.PkixBytes,
+			KeyId:     key.Kid,
+			ExpiresAt: key.NotAfter,
+		})
+	}
+	return jwtAuthorities
+}

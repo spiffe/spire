@@ -24,6 +24,7 @@ import (
 	ds_sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -33,6 +34,7 @@ import (
 )
 
 const (
+	bundlePublisherType    = "BundlePublisher"
 	credentialComposerType = "CredentialComposer" //nolint: gosec // this is not a hardcoded credential...
 	dataStoreType          = "DataStore"
 	keyManagerType         = "KeyManager"
@@ -42,6 +44,7 @@ const (
 )
 
 type Catalog interface {
+	GetBundlePublishers() []bundlepublisher.BundlePublisher
 	GetCredentialComposers() []credentialcomposer.CredentialComposer
 	GetDataStore() datastore.DataStore
 	GetNodeAttestorNamed(name string) (nodeattestor.NodeAttestor, bool)
@@ -66,6 +69,7 @@ type Config struct {
 type datastoreRepository struct{ datastore.Repository }
 
 type Repository struct {
+	bundlePublisherRepository
 	credentialComposerRepository
 	datastoreRepository
 	keyManagerRepository
@@ -80,6 +84,7 @@ type Repository struct {
 
 func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
 	return map[string]catalog.PluginRepo{
+		bundlePublisherType:    &repo.bundlePublisherRepository,
 		credentialComposerType: &repo.credentialComposerRepository,
 		keyManagerType:         &repo.keyManagerRepository,
 		nodeAttestorType:       &repo.nodeAttestorRepository,

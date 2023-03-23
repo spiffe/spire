@@ -1,0 +1,88 @@
+package bundlepublisher_test
+
+import (
+	"context"
+	"testing"
+
+	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
+	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/plugintest"
+	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+func TestV1Publish(t *testing.T) {
+	commonBundle := &common.Bundle{
+		TrustDomainId: "spiffe://example.org",
+		RootCas: []*common.Certificate{
+			{
+				DerBytes: []byte("CERTIFICATE"),
+			},
+		},
+		JwtSigningKeys: []*common.PublicKey{
+			{
+				Kid:       "KEYID",
+				PkixBytes: []byte("PUBLICKEY"),
+				NotAfter:  4321,
+			},
+		},
+		RefreshHint: 1234,
+	}
+
+	for _, tt := range []struct {
+		test          string
+		bundle        *common.Bundle
+		pluginErr     error
+		expectCode    codes.Code
+		expectMessage string
+	}{
+		{
+			test:   "publish bundle success",
+			bundle: commonBundle,
+		},
+		{
+			test:          "plugin error",
+			bundle:        commonBundle,
+			pluginErr:     status.Error(codes.Internal, "oh no"),
+			expectCode:    codes.Internal,
+			expectMessage: "bundlepublisher(test): oh no",
+		},
+		{
+			test:          "publish bundle with invalid bundle",
+			bundle:        &common.Bundle{},
+			expectCode:    codes.InvalidArgument,
+			expectMessage: "bundlepublisher(test): bundle is invalid: trust domain is missing",
+		},
+	} {
+		tt := tt
+		t.Run(tt.test, func(t *testing.T) {
+			bundlepublisher := loadV1Plugin(t, &fakeV1Plugin{err: tt.pluginErr})
+			err := bundlepublisher.PublishBundle(context.Background(), tt.bundle)
+			if tt.expectCode != codes.OK {
+				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMessage)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func loadV1Plugin(t *testing.T, plugin *fakeV1Plugin) bundlepublisher.BundlePublisher {
+	server := bundlepublisherv1.BundlePublisherPluginServer(plugin)
+	cc := new(bundlepublisher.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), cc)
+	return cc
+}
+
+type fakeV1Plugin struct {
+	bundlepublisherv1.UnimplementedBundlePublisherServer
+	err error
+}
+
+func (p *fakeV1Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.PublishBundleRequest) (*bundlepublisherv1.PublishBundleResponse, error) {
+	return &bundlepublisherv1.PublishBundleResponse{}, p.err
+}

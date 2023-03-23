@@ -41,14 +41,17 @@ type CAManager interface {
 }
 
 type Config struct {
-	Manager       CAManager
-	Log           logrus.FieldLogger
-	Clock         clock.Clock
-	HealthChecker health.Checker
+	BundleLoadedCh chan struct{}
+	Manager        CAManager
+	Log            logrus.FieldLogger
+	Clock          clock.Clock
+	HealthChecker  health.Checker
 }
 
 type Rotator struct {
 	c Config
+
+	bundleLoadedCh chan struct{}
 
 	// For keeping track of number of failed rotations.
 	failedRotationNum uint64
@@ -65,6 +68,7 @@ func NewRotator(c Config) *Rotator {
 
 	_ = c.HealthChecker.AddCheck("server.ca.rotator", &caSyncHealth{m: m})
 
+	m.bundleLoadedCh = c.BundleLoadedCh
 	return m
 }
 
@@ -73,6 +77,8 @@ func (r *Rotator) Initialize(ctx context.Context) error {
 }
 
 func (r *Rotator) Run(ctx context.Context) error {
+	r.bundleLoaded()
+
 	if err := r.c.Manager.NotifyBundleLoaded(ctx); err != nil {
 		return err
 	}
@@ -94,6 +100,13 @@ func (r *Rotator) Run(ctx context.Context) error {
 		err = nil
 	}
 	return err
+}
+
+func (r *Rotator) bundleLoaded() {
+	select {
+	case r.bundleLoadedCh <- struct{}{}:
+	default:
+	}
 }
 
 func (r *Rotator) rotateEvery(ctx context.Context, interval time.Duration) error {

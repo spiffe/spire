@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/bundle/pubmanager"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/ca/rotator"
@@ -140,7 +141,9 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 	defer caManager.Close()
 
-	caSync, err := s.newCASync(ctx, healthChecker, caManager)
+	bundleLoadedCh := make(chan struct{}, 1)
+
+	caSync, err := s.newCASync(ctx, healthChecker, caManager, bundleLoadedCh)
 	if err != nil {
 		return err
 	}
@@ -156,6 +159,8 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 
 	bundleManager := s.newBundleManager(cat, metrics)
+
+	bundlePublishingManager := s.newBundlePublishingManager(cat, bundleLoadedCh)
 
 	endpointsServer, err := s.newEndpointsServer(ctx, cat, svidRotator, serverCA, metrics, caManager, authPolicyEngine, bundleManager)
 	if err != nil {
@@ -197,6 +202,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		metrics.ListenAndServe,
 		bundleManager.Run,
 		registrationManager.Run,
+		bundlePublishingManager.Run,
 		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
 		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
 	}
@@ -332,11 +338,12 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 	return caManager, nil
 }
 
-func (s *Server) newCASync(ctx context.Context, healthChecker health.Checker, caManager *manager.Manager) (*rotator.Rotator, error) {
+func (s *Server) newCASync(ctx context.Context, healthChecker health.Checker, caManager *manager.Manager, bundleLoadedCh chan struct{}) (*rotator.Rotator, error) {
 	caSync := rotator.NewRotator(rotator.Config{
-		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
-		Manager:       caManager,
-		HealthChecker: healthChecker,
+		BundleLoadedCh: bundleLoadedCh,
+		Log:            s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Manager:        caManager,
+		HealthChecker:  healthChecker,
 	})
 	if err := caSync.Initialize(ctx); err != nil {
 		return nil, err
@@ -404,6 +411,17 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 			bundle_client.NewTrustDomainConfigSet(s.config.Federation.FederatesWith),
 			bundle_client.DataStoreTrustDomainConfigSource(log, cat.GetDataStore()),
 		),
+	})
+}
+
+func (s *Server) newBundlePublishingManager(cat catalog.Catalog, bundleLoadedCh chan struct{}) *pubmanager.Manager {
+	log := s.config.Log.WithField(telemetry.SubsystemName, "bundle_publishing")
+	return pubmanager.NewManager(pubmanager.ManagerConfig{
+		BundleLoadedCh: bundleLoadedCh,
+		Catalog:        cat,
+		DataStore:      cat.GetDataStore(),
+		TrustDomain:    s.config.TrustDomain,
+		Log:            log,
 	})
 }
 
