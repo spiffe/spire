@@ -633,6 +633,7 @@ func TestSignIntermediate(t *testing.T) {
 	require.NoError(t, err)
 
 	testTTL := "0"
+	spiffeID := "spiffe://intermediate-spire"
 	csr, err := pemutil.LoadCertificateRequest(testReqCSR)
 	require.NoError(t, err)
 
@@ -641,6 +642,19 @@ func TestSignIntermediate(t *testing.T) {
 	require.NotNil(t, resp.UpstreamCACertPEM)
 	require.NotNil(t, resp.UpstreamCACertChainPEM)
 	require.NotNil(t, resp.CACertPEM)
+
+	cert, err := pemutil.ParseCertificate([]byte(resp.CACertPEM))
+	require.NoError(t, err)
+
+	hasURISAN := func(spiffeID string, cert *x509.Certificate) bool {
+		for _, uri := range cert.URIs {
+			if uri.String() == spiffeID {
+				return true
+			}
+		}
+		return false
+	}(spiffeID, cert)
+	require.True(t, hasURISAN)
 }
 
 func TestSignIntermediateErrorFromEndpoint(t *testing.T) {

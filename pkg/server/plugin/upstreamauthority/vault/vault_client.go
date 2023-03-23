@@ -350,10 +350,19 @@ func (c *Client) LookupSelf(token string) (*vapi.Secret, error) {
 func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*SignCSRResponse, error) {
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csr.Raw})
 
+	var uris []string
+	for _, uri := range csr.URIs {
+		uris = append(uris, uri.String())
+	}
+	if len(uris) == 0 {
+		return nil, status.Errorf(codes.InvalidArgument, "CSR must have at least one URI")
+	}
+
 	reqData := map[string]interface{}{
 		"common_name":  csr.Subject.CommonName,
 		"organization": strings.Join(csr.Subject.Organization, ","),
 		"country":      strings.Join(csr.Subject.Country, ","),
+		"uri_sans":     strings.Join(uris, ","),
 		"csr":          string(csrPEM),
 		"ttl":          ttl,
 	}

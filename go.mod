@@ -40,7 +40,7 @@ require (
 	github.com/google/go-tpm-tools v0.3.10
 	github.com/googleapis/gax-go/v2 v2.7.1
 	github.com/gorilla/handlers v1.5.1
-	github.com/hashicorp/go-hclog v1.4.0
+	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-plugin v1.4.6
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
 	github.com/hashicorp/vault/api v1.9.0
