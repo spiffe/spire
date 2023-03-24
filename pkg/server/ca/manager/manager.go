@@ -222,6 +222,9 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	slot.issuedAt = now
 	slot.x509CA = x509CA
 	slot.status = journal.Status_PREPARED
+	// Set key from new CA, to be able to get it after
+	// slot moved to old state
+	slot.publicKey = x509CA.Signer.Public()
 
 	if err := m.journal.AppendX509CA(slot.id, slot.issuedAt, slot.x509CA); err != nil {
 		log.WithError(err).Error("Unable to append X509 CA to journal")

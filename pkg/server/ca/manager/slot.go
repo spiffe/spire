@@ -505,10 +505,11 @@ func keyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 }
 
 type X509CASlot struct {
-	id       string
-	issuedAt time.Time
-	x509CA   *ca.X509CA
-	status   journal.Status
+	id        string
+	issuedAt  time.Time
+	x509CA    *ca.X509CA
+	status    journal.Status
+	publicKey crypto.PublicKey
 }
 
 func newX509CASlot(id string) *X509CASlot {
@@ -543,7 +544,7 @@ func (s *X509CASlot) Status() journal.Status {
 }
 
 func (s *X509CASlot) GetPublicKey() crypto.PublicKey {
-	return s.x509CA.Signer.Public()
+	return s.publicKey
 }
 
 type JwtKeySlot struct {

@@ -165,14 +165,7 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 }
 
 func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.TaintX509AuthorityRequest) (*localauthorityv1.TaintX509AuthorityResponse, error) {
-	parseRequest := func() logrus.Fields {
-		fields := logrus.Fields{}
-		if len(req.PublicKey) > 0 {
-			fields[telemetry.X509AuthorityPublicKeySHA256] = api.HashByte(req.PublicKey)
-		}
-		return fields
-	}
-	rpccontext.AddRPCAuditFields(ctx, parseRequest())
+	rpccontext.AddRPCAuditFields(ctx, getLogFieldFromPublicKey(req.PublicKey))
 	log := rpccontext.Logger(ctx)
 
 	keyToTaint, err := s.getX509AuthorityPublicKey(req.PublicKey)
@@ -197,14 +190,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 }
 
 func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1.RevokeX509AuthorityRequest) (*localauthorityv1.RevokeX509AuthorityResponse, error) {
-	parseRequest := func() logrus.Fields {
-		fields := logrus.Fields{}
-		if len(req.PublicKey) > 0 {
-			fields[telemetry.X509AuthorityPublicKeySHA256] = api.HashByte(req.PublicKey)
-		}
-		return fields
-	}
-	rpccontext.AddRPCAuditFields(ctx, parseRequest())
+	rpccontext.AddRPCAuditFields(ctx, getLogFieldFromPublicKey(req.PublicKey))
 	log := rpccontext.Logger(ctx)
 
 	keyToRevoke, err := s.getX509AuthorityPublicKey(req.PublicKey)
@@ -275,4 +261,12 @@ func publicKeyToProto(publicKey crypto.PublicKey, status localauthorityv1.Author
 		PublicKey: pKey,
 		Status:    status,
 	}, nil
+}
+
+func getLogFieldFromPublicKey(publicKey []byte) logrus.Fields {
+	fields := logrus.Fields{}
+	if len(publicKey) > 0 {
+		fields[telemetry.X509AuthorityPublicKeySHA256] = api.HashByte(publicKey)
+	}
+	return fields
 }

@@ -111,6 +111,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 
 		slot := currentSlot.(*X509CASlot)
 		require.Nil(t, slot.x509CA)
+		require.Nil(t, slot.publicKey)
 		require.Empty(t, slot.issuedAt)
 	})
 
@@ -120,6 +121,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 		currentSlot := test.m.GetCurrentX509CASlot()
 		slot := currentSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
+		require.NotNil(t, slot.publicKey)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
 	})
 }
@@ -135,6 +137,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 		slot := nextSlot.(*X509CASlot)
 
 		require.Nil(t, slot.x509CA)
+		require.Nil(t, slot.publicKey)
 		require.Empty(t, slot.issuedAt)
 	})
 
@@ -144,6 +147,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 		nextSlot := test.m.GetNextX509CASlot()
 		slot := nextSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
+		require.NotNil(t, slot.publicKey)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
 	})
 }

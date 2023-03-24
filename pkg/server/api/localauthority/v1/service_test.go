@@ -15,7 +15,7 @@ import (
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
-	localauthority "github.com/spiffe/spire/pkg/server/api/localauthority/v1"
+	"github.com/spiffe/spire/pkg/server/api/localauthority/v1"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
@@ -122,7 +122,7 @@ func TestGetX509AuthorityState(t *testing.T) {
 			},
 		},
 		{
-			name:        "slot has no public key",
+			name:        "current slot has no public key",
 			currentSlot: createSlot(true, nil),
 			nextSlot:    &fakeSlot{},
 			expectCode:  codes.Internal,
@@ -714,7 +714,7 @@ func TestRevokeX509Authority(t *testing.T) {
 		expectResp       *localauthorityv1.RevokeX509AuthorityResponse
 	}{
 		{
-			name:        "taint old authority",
+			name:        "revoke old authority",
 			currentSlot: createSlot(true, currentKey.Public()),
 			nextSlot:    createSlot(false, nextKey.Public()),
 			expectResp: &localauthorityv1.RevokeX509AuthorityResponse{
