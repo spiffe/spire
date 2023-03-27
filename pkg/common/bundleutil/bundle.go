@@ -412,5 +412,8 @@ func MarshalIdentBundle(bundle *spiffebundle.Bundle) ([]byte, error) {
 	}
 	buf := new(bytes.Buffer)
 	err = json.Indent(buf, jwkBytes, "", "    ")
-	return buf.Bytes(), err
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
