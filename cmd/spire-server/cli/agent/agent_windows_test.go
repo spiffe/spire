@@ -4,7 +4,7 @@
 package agent_test
 
 var (
-	cleanUsage = `Usage of agent clean:
+	purgeUsage = `Usage of agent purge:
   -dryRun
     	Indicates that the command will not perform any action, but will print the agents that would be purged.
   -expiredBefore string

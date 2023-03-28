@@ -168,7 +168,7 @@ func TestEvict(t *testing.T) {
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
 				test := setupTest(t, agent.NewEvictCommandWithEnv)
-				test.server.err = tt.serverErr
+				test.server.deleteErr = tt.serverErr
 				args := tt.args
 				args = append(args, "-output", format)
 
@@ -427,14 +427,14 @@ func TestList(t *testing.T) {
 	}
 }
 
-func TestCleanHelp(t *testing.T) {
-	test := setupTest(t, agent.NewCleanCommandWithEnv)
+func TestPurgeHelp(t *testing.T) {
+	test := setupTest(t, agent.NewPurgeCommandWithEnv)
 
 	test.client.Help()
-	require.Equal(t, cleanUsage, test.stderr.String())
+	require.Equal(t, purgeUsage, test.stderr.String())
 }
 
-func TestClean(t *testing.T) {
+func TestPurge(t *testing.T) {
 	now := time.Now()
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 
@@ -461,6 +461,7 @@ func TestClean(t *testing.T) {
 		existentAgents       []*types.Agent
 		expectedFormat       string
 		serverErr            error
+		deleteErr            error
 	}{
 		{
 			name:           "error listing agents",
@@ -478,7 +479,6 @@ func TestClean(t *testing.T) {
 			name:               "malformed expiredBefore flag",
 			args:               []string{"-expiredBefore", "5d"},
 			existentAgents:     append(activeAgents, expiredAgents...),
-			serverErr:          status.Error(codes.Internal, "some error"),
 			expectedStderr:     `Error: failed to parse expiredBefore flag: parsing time `,
 			expectedReturnCode: 1,
 		},
@@ -486,9 +486,43 @@ func TestClean(t *testing.T) {
 			name:               "expiredBefore flag with date time in the future",
 			args:               []string{"-expiredBefore", now.Add(5 * time.Hour).Format(time.DateTime)},
 			existentAgents:     append(activeAgents, expiredAgents...),
-			serverErr:          status.Error(codes.Internal, "some error"),
 			expectedStderr:     `Error: expiredBefore cannot be in the future`,
 			expectedReturnCode: 1,
+		},
+		{
+			name:           "error deleting expired agents",
+			args:           []string{},
+			existentAgents: append(activeAgents, expiredAgents...),
+			deleteErr:      status.Error(codes.Internal, "some error when deleting agent"),
+			expectListReq: &agentv1.ListAgentsRequest{
+				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
+				OutputMask: &types.AgentMask{X509SvidExpiresAt: true},
+			},
+			expectDeleteReqs: []*agentv1.DeleteAgentRequest{
+				{Id: expiredAgents[0].Id},
+				{Id: expiredAgents[1].Id},
+				{Id: expiredAgents[2].Id},
+			},
+			expectedStdoutPretty: `Found 3 expired agents
+
+Agents not purged:
+SPIFFE ID         : spiffe://example.org/spire/agent/agent1
+Error             : rpc error: code = Internal desc = some error when deleting agent
+SPIFFE ID         : spiffe://example.org/spire/agent/agent2
+Error             : rpc error: code = Internal desc = some error when deleting agent
+SPIFFE ID         : spiffe://example.org/spire/agent/agent3
+Error             : rpc error: code = Internal desc = some error when deleting agent
+`,
+			expectedStdoutJSON: fmt.Sprintf(
+				`[{"expired_agents":[
+{"agent_id":"%s","deleted":false,"error":"rpc error: code = Internal desc = some error when deleting agent"},
+{"agent_id":"%s","deleted":false,"error":"rpc error: code = Internal desc = some error when deleting agent"},
+{"agent_id":"%s","deleted":false,"error":"rpc error: code = Internal desc = some error when deleting agent"}
+]}]`,
+				spiffeid.RequireFromPath(td, expiredAgents[0].Id.Path).String(),
+				spiffeid.RequireFromPath(td, expiredAgents[1].Id.Path).String(),
+				spiffeid.RequireFromPath(td, expiredAgents[2].Id.Path).String(),
+			),
 		},
 		{
 			name:           "no args using default expiration for purging every expired agent from now",
@@ -610,9 +644,10 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 	} {
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
-				test := setupTest(t, agent.NewCleanCommandWithEnv)
+				test := setupTest(t, agent.NewPurgeCommandWithEnv)
 				test.server.agents = tt.existentAgents
 				test.server.err = tt.serverErr
+				test.server.deleteErr = tt.deleteErr
 				args := tt.args
 				args = append(args, "-output", format)
 
@@ -747,6 +782,7 @@ type fakeAgentServer struct {
 	agents                 []*types.Agent
 	gotListAgentRequest    *agentv1.ListAgentsRequest
 	gotDeleteAgentRequests []*agentv1.DeleteAgentRequest
+	deleteErr              error
 	err                    error
 }
 
@@ -756,7 +792,7 @@ func (s *fakeAgentServer) BanAgent(ctx context.Context, req *agentv1.BanAgentReq
 
 func (s *fakeAgentServer) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentRequest) (*emptypb.Empty, error) {
 	s.gotDeleteAgentRequests = append(s.gotDeleteAgentRequests, req)
-	return &emptypb.Empty{}, s.err
+	return &emptypb.Empty{}, s.deleteErr
 }
 
 func (s *fakeAgentServer) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {

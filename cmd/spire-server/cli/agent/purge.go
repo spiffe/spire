@@ -17,30 +17,30 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type cleanCommand struct {
+type purgeCommand struct {
 	env           *commoncli.Env
 	expiredBefore string
 	dryRun        bool
 	printer       cliprinter.Printer
 }
 
-func NewCleanCommand() cli.Command {
-	return NewCleanCommandWithEnv(commoncli.DefaultEnv)
+func NewPurgeCommand() cli.Command {
+	return NewPurgeCommandWithEnv(commoncli.DefaultEnv)
 }
 
-func NewCleanCommandWithEnv(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, &cleanCommand{env: env})
+func NewPurgeCommandWithEnv(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &purgeCommand{env: env})
 }
 
-func (*cleanCommand) Name() string {
-	return "agent clean"
+func (*purgeCommand) Name() string {
+	return "agent purge"
 }
 
-func (*cleanCommand) Synopsis() string {
+func (*purgeCommand) Synopsis() string {
 	return "Delete expired agents that attested using a non-TOFU security model based on a given time"
 }
 
-func (c *cleanCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) (err error) {
+func (c *purgeCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) (err error) {
 	expiredBefore, err := c.parseExpiredBefore()
 	if err != nil {
 		return err
@@ -56,7 +56,7 @@ func (c *cleanCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 	}
 
 	agents := resp.GetAgents()
-	expiredAgents := &ExpiredAgents{Agents: []*ExpiredAgent{}}
+	expiredAgents := &expiredAgents{Agents: []*expiredAgent{}}
 
 	for _, agent := range agents {
 		id, err := idutil.IDFromProto(agent.Id)
@@ -67,10 +67,12 @@ func (c *cleanCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 		expirationTime := time.Unix(agent.X509SvidExpiresAt, 0)
 
 		if expirationTime.Before(expiredBefore) {
-			result := &ExpiredAgent{AgentID: id}
+			result := &expiredAgent{AgentID: id}
 
 			if !c.dryRun {
-				if _, err := agentClient.DeleteAgent(ctx, &agentv1.DeleteAgentRequest{Id: agent.Id}); err == nil {
+				if _, err := agentClient.DeleteAgent(ctx, &agentv1.DeleteAgentRequest{Id: agent.Id}); err != nil {
+					result.Error = err.Error()
+				} else {
 					result.Deleted = true
 				}
 			}
@@ -81,55 +83,59 @@ func (c *cleanCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 	return c.printer.PrintStruct(expiredAgents)
 }
 
-func (c *cleanCommand) AppendFlags(fs *flag.FlagSet) {
+func (c *purgeCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.expiredBefore, "expiredBefore", "", "Specifies the date before which all expired agents should be deleted. The value should be a date time string in the format \"YYYY-MM-DD HH:MM:SS\". Any agents that expired before this date will be deleted.")
 	fs.BoolVar(&c.dryRun, "dryRun", false, "Indicates that the command will not perform any action, but will print the agents that would be purged.")
 
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintPurgeResult)
 }
 
-type ExpiredAgents struct {
-	Agents []*ExpiredAgent `json:"expired_agents"`
+type expiredAgents struct {
+	Agents []*expiredAgent `json:"expired_agents"`
 }
 
-type ExpiredAgent struct {
+type expiredAgent struct {
 	AgentID spiffeid.ID `json:"agent_id"`
 	Deleted bool        `json:"deleted"`
+	Error   string      `json:"error,omitempty"`
 }
 
-func (c *cleanCommand) prettyPrintPurgeResult(env *commoncli.Env, results ...interface{}) error {
-	if expiredAgents, ok := results[0].([]interface{})[0].(*ExpiredAgents); ok {
-		if len(expiredAgents.Agents) == 0 {
+func (c *purgeCommand) prettyPrintPurgeResult(env *commoncli.Env, results ...interface{}) error {
+	if expAgents, ok := results[0].([]interface{})[0].(*expiredAgents); ok {
+		if len(expAgents.Agents) == 0 {
 			env.Println("No agents to purge.")
 			return nil
 		}
 
-		msg := fmt.Sprintf("Found %d expired ", len(expiredAgents.Agents))
-		msg = util.Pluralizer(msg, "agent", "agents", len(expiredAgents.Agents))
+		msg := fmt.Sprintf("Found %d expired ", len(expAgents.Agents))
+		msg = util.Pluralizer(msg, "agent", "agents", len(expAgents.Agents))
 		env.Printf("%s\n\n", msg)
 
-		if !c.dryRun {
-			env.Println("Agents purged:")
-		}
-		agentsNotPurged := []*ExpiredAgent{}
-
-		for _, result := range expiredAgents.Agents {
-			if result.Deleted {
+		if c.dryRun {
+			env.Println("\nAgents that can be purged:")
+			for _, result := range expAgents.Agents {
 				env.Printf("SPIFFE ID         : %s\n", result.AgentID.String())
+			}
+			return nil
+		}
+
+		var agentsNotPurged []*expiredAgent
+		var agentsPurged []*expiredAgent
+
+		for _, result := range expAgents.Agents {
+			if result.Deleted {
+				agentsPurged = append(agentsPurged, result)
 			} else {
 				agentsNotPurged = append(agentsNotPurged, result)
 			}
 		}
 
+		if len(agentsPurged) > 0 {
+			c.printAgentsPurged(agentsPurged)
+		}
+
 		if len(agentsNotPurged) > 0 {
-			if !c.dryRun {
-				env.Println("\nAgents not purged:")
-			} else {
-				env.Println("\nAgents that can be purged:")
-			}
-			for _, result := range agentsNotPurged {
-				env.Printf("SPIFFE ID         : %s\n", result.AgentID.String())
-			}
+			c.printAgentsNotPurged(agentsNotPurged)
 		}
 
 		return nil
@@ -137,7 +143,24 @@ func (c *cleanCommand) prettyPrintPurgeResult(env *commoncli.Env, results ...int
 	return cliprinter.ErrInternalCustomPrettyFunc
 }
 
-func (c *cleanCommand) parseExpiredBefore() (expiredBefore time.Time, err error) {
+func (c *purgeCommand) printAgentsNotPurged(agentsNotPurged []*expiredAgent) {
+	c.env.Println("Agents not purged:")
+	for _, result := range agentsNotPurged {
+		c.env.Printf("SPIFFE ID         : %s\n", result.AgentID.String())
+		if result.Error != "" {
+			c.env.Printf("Error             : %s\n", result.Error)
+		}
+	}
+}
+
+func (c *purgeCommand) printAgentsPurged(agentsPurged []*expiredAgent) {
+	c.env.Println("Agents purged:")
+	for _, result := range agentsPurged {
+		c.env.Printf("SPIFFE ID         : %s\n", result.AgentID.String())
+	}
+}
+
+func (c *purgeCommand) parseExpiredBefore() (expiredBefore time.Time, err error) {
 	now := time.Now()
 	if c.expiredBefore == "" {
 		expiredBefore = now
