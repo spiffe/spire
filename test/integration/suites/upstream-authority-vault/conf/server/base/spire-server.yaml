@@ -16,11 +16,6 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "nodes"]
     verbs: ["get", "list", "watch"]
-    # allow TokenReview requests (to verify service account tokens for PSAT
-    # attestation)
-  - apiGroups: ["authentication.k8s.io"]
-    resources: ["tokenreviews"]
-    verbs: ["get", "create"]
 
 ---
 
