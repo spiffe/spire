@@ -86,7 +86,7 @@ log-info "initializing hashicorp vault..."
 kubectl-exec-vault vault operator init -key-shares=1 -key-threshold=1 -format=json > cluster-keys.json
 VAULT_UNSEAL_KEY=$(cat cluster-keys.json | jq -r ".unseal_keys_b64[]")
 kubectl-exec-vault vault operator unseal $VAULT_UNSEAL_KEY
-./bin/kubectl wait pods -n vault --for=condition=Ready vault-0 --timeout=30s
+./bin/kubectl wait pods -n vault --for=condition=Ready vault-0 --timeout=60s
 VAULT_ROOT_TOKEN=$(cat cluster-keys.json | jq -r ".root_token")
 kubectl-exec-vault vault login $VAULT_ROOT_TOKEN > /dev/null
 
