@@ -61,7 +61,8 @@ func New(c Config) *Handler {
 	}
 }
 
-// FetchJWTSVID processes request for a JWT-SVID
+// FetchJWTSVID processes request for a JWT-SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
+// associated entry will be returned.
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
 	log := rpccontext.Logger(ctx)
 	if len(req.Audience) == 0 {
@@ -196,7 +197,8 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	}, nil
 }
 
-// FetchX509SVID processes request for an x509 SVID
+// FetchX509SVID processes request for a x509 SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
+// associated entry will be returned.
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
