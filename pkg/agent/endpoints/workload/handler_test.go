@@ -201,7 +201,7 @@ func TestFetchX509SVID(t *testing.T) {
 			},
 		},
 		{
-			name: "with identities that has non-unique hints",
+			name: "identities with duplicated hints",
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: identities,
@@ -779,7 +779,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 		},
 		{
-			name:       "identities with duplicate hints",
+			name:       "identities with duplicated hints",
 			identities: identities,
 			audience:   []string{"AUDIENCE"},
 			expectCode: codes.OK,
