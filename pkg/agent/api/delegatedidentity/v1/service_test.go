@@ -17,9 +17,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -31,6 +28,8 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -44,11 +43,11 @@ var (
 	id1 = spiffeid.RequireFromPath(trustDomain1, "/one")
 	id2 = spiffeid.RequireFromPath(trustDomain1, "/two")
 
-	bundle1 = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte("AAA")})
-	bundle2 = bundleutil.BundleFromRootCA(trustDomain2, &x509.Certificate{Raw: []byte("BBB")})
+	bundle1 = spiffebundle.FromX509Authorities(trustDomain1, []*x509.Certificate{{Raw: []byte("AAA")}})
+	bundle2 = spiffebundle.FromX509Authorities(trustDomain2, []*x509.Certificate{{Raw: []byte("BBB")}})
 
-	jwksBundle1, _ = bundleutil.Marshal(bundle1, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
-	jwksBundle2, _ = bundleutil.Marshal(bundle2, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+	jwksBundle1, _ = bundleutil.MarshalIdentBundle(bundle1)
+	jwksBundle2, _ = bundleutil.MarshalIdentBundle(bundle2)
 )
 
 func TestSubscribeToX509SVIDs(t *testing.T) {
@@ -107,7 +106,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				{Identities: []cache.Identity{
 					identityFromX509SVID(x509SVID1),
 				},
-					Bundle: utilBundleFromBundle(t, bundle),
+					Bundle: bundle,
 				},
 			},
 			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
@@ -134,7 +133,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 					identityFromX509SVID(x509SVID1),
 					identityFromX509SVID(x509SVID2),
 				},
-					Bundle: utilBundleFromBundle(t, bundle),
+					Bundle: bundle,
 				},
 			},
 			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
@@ -191,9 +190,9 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				{Identities: []cache.Identity{
 					identityFromX509SVID(x509SVID1),
 				},
-					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle1.TrustDomain(): utilBundleFromBundle(t, federatedBundle1)},
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle1.TrustDomain(): federatedBundle1},
 				},
 			},
 			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
@@ -220,10 +219,10 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				{Identities: []cache.Identity{
 					identityFromX509SVID(x509SVID1),
 				},
-					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle1.TrustDomain(): utilBundleFromBundle(t, federatedBundle1),
-						federatedBundle2.TrustDomain(): utilBundleFromBundle(t, federatedBundle2)},
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle1.TrustDomain(): federatedBundle1,
+						federatedBundle2.TrustDomain(): federatedBundle2},
 				},
 			},
 			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
@@ -309,12 +308,12 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 				identityFromX509SVID(x509SVID1),
 			},
 			cacheUpdates: map[spiffeid.TrustDomain]*cache.Bundle{
-				spiffeid.RequireTrustDomainFromString(bundle1.TrustDomainID()): bundle1,
+				spiffeid.RequireTrustDomainFromString(bundle1.TrustDomain().IDString()): bundle1,
 			},
 			expectResp: []*delegatedidentityv1.SubscribeToX509BundlesResponse{
 				{
 					CaCertificates: map[string][]byte{
-						bundle1.TrustDomainID(): marshalBundle(bundle1.RootCAs()),
+						bundle1.TrustDomain().IDString(): marshalBundle(bundle1.X509Authorities()),
 					},
 				},
 			},
@@ -326,14 +325,14 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 				identityFromX509SVID(x509SVID1),
 			},
 			cacheUpdates: map[spiffeid.TrustDomain]*cache.Bundle{
-				spiffeid.RequireTrustDomainFromString(bundle1.TrustDomainID()): bundle1,
-				spiffeid.RequireTrustDomainFromString(bundle2.TrustDomainID()): bundle2,
+				spiffeid.RequireTrustDomainFromString(bundle1.TrustDomain().IDString()): bundle1,
+				spiffeid.RequireTrustDomainFromString(bundle2.TrustDomain().IDString()): bundle2,
 			},
 			expectResp: []*delegatedidentityv1.SubscribeToX509BundlesResponse{
 				{
 					CaCertificates: map[string][]byte{
-						bundle1.TrustDomainID(): marshalBundle(bundle1.RootCAs()),
-						bundle2.TrustDomainID(): marshalBundle(bundle2.RootCAs()),
+						bundle1.TrustDomain().IDString(): marshalBundle(bundle1.X509Authorities()),
+						bundle2.TrustDomain().IDString(): marshalBundle(bundle2.X509Authorities()),
 					},
 				},
 			},
@@ -544,12 +543,12 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 				identityFromX509SVID(x509SVID1),
 			},
 			cacheUpdates: map[spiffeid.TrustDomain]*cache.Bundle{
-				spiffeid.RequireTrustDomainFromString(bundle1.TrustDomainID()): bundle1,
+				spiffeid.RequireTrustDomainFromString(bundle1.TrustDomain().IDString()): bundle1,
 			},
 			expectResp: []*delegatedidentityv1.SubscribeToJWTBundlesResponse{
 				{
 					Bundles: map[string][]byte{
-						bundle1.TrustDomainID(): jwksBundle1,
+						bundle1.TrustDomain().IDString(): jwksBundle1,
 					},
 				},
 			},
@@ -561,14 +560,14 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 				identityFromX509SVID(x509SVID1),
 			},
 			cacheUpdates: map[spiffeid.TrustDomain]*cache.Bundle{
-				spiffeid.RequireTrustDomainFromString(bundle1.TrustDomainID()): bundle1,
-				spiffeid.RequireTrustDomainFromString(bundle2.TrustDomainID()): bundle2,
+				spiffeid.RequireTrustDomainFromString(bundle1.TrustDomain().IDString()): bundle1,
+				spiffeid.RequireTrustDomainFromString(bundle2.TrustDomain().IDString()): bundle2,
 			},
 			expectResp: []*delegatedidentityv1.SubscribeToJWTBundlesResponse{
 				{
 					Bundles: map[string][]byte{
-						bundle1.TrustDomainID(): jwksBundle1,
-						bundle2.TrustDomainID(): jwksBundle2,
+						bundle1.TrustDomain().IDString(): jwksBundle1,
+						bundle2.TrustDomain().IDString(): jwksBundle2,
 					},
 				},
 			},
@@ -760,38 +759,8 @@ func identityFromX509SVIDWithoutSVID(svid *x509svid.SVID) cache.Identity {
 	}
 }
 
-func utilBundleFromBundle(t *testing.T, bundle *spiffebundle.Bundle) *bundleutil.Bundle {
-	b, err := bundleutil.BundleFromProto(commonBundleFromBundle(t, bundle))
-	require.NoError(t, err)
-	return b
-}
-
-func commonBundleFromBundle(t *testing.T, bundle *spiffebundle.Bundle) *common.Bundle {
-	bundleProto := &common.Bundle{
-		TrustDomainId: bundle.TrustDomain().IDString(),
-	}
-	for _, x509Authority := range bundle.X509Authorities() {
-		bundleProto.RootCas = append(bundleProto.RootCas, &common.Certificate{
-			DerBytes: x509Authority.Raw,
-		})
-	}
-	for keyID, jwtAuthority := range bundle.JWTAuthorities() {
-		bundleProto.JwtSigningKeys = append(bundleProto.JwtSigningKeys, &common.PublicKey{
-			Kid:       keyID,
-			PkixBytes: pkixFromPublicKey(t, jwtAuthority),
-		})
-	}
-	return bundleProto
-}
-
 func pkcs8FromSigner(t *testing.T, key crypto.Signer) []byte {
 	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
-	require.NoError(t, err)
-	return keyBytes
-}
-
-func pkixFromPublicKey(t *testing.T, publicKey crypto.PublicKey) []byte {
-	keyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	require.NoError(t, err)
 	return keyBytes
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid/store"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
@@ -212,14 +211,10 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 }
 
 func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache, na nodeattestor.NodeAttestor) (manager.Manager, error) {
-	bundle, err := bundleutil.SPIFFEBundleToBundleUtil(as.Bundle)
-	if err != nil {
-		return nil, err
-	}
 	config := &manager.Config{
 		SVID:             as.SVID,
 		SVIDKey:          as.Key,
-		Bundle:           bundle,
+		Bundle:           as.Bundle,
 		Catalog:          cat,
 		TrustDomain:      a.c.TrustDomain,
 		ServerAddr:       a.c.ServerAddress,

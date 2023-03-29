@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -940,7 +940,7 @@ func newTestLRUCacheWithConfig(svidCacheMaxSize int, clk clock.Clock) *LRUCache 
 }
 
 // numEntries should not be more than 12 digits
-func createUpdateEntries(numEntries int, bundles map[spiffeid.TrustDomain]*bundleutil.Bundle) *UpdateEntries {
+func createUpdateEntries(numEntries int, bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle) *UpdateEntries {
 	updateEntries := &UpdateEntries{
 		Bundles:             bundles,
 		RegistrationEntries: make(map[string]*common.RegistrationEntry, numEntries),
