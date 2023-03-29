@@ -11,13 +11,14 @@ jobs:
   cache-deps:
     name: cache-deps (linux)
     runs-on: ubuntu-20.04
+    timeout-minutes: 30
 
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -34,13 +35,14 @@ jobs:
     name: lint (linux)
     runs-on: ubuntu-20.04
     needs: cache-deps
+    timeout-minutes: 30
 
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -70,13 +72,14 @@ jobs:
         OS: [ubuntu-20.04, macos-latest]
     runs-on: ${{ matrix.OS }}
     needs: cache-deps
+    timeout-minutes: 30
 
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -93,13 +96,14 @@ jobs:
     name: unit-test (linux with race detection)
     runs-on: ubuntu-20.04
     needs: cache-deps
+    timeout-minutes: 30
 
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -116,13 +120,14 @@ jobs:
     name: artifacts (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps]
+    timeout-minutes: 30
 
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -149,13 +154,14 @@ jobs:
     name: images (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps]
+    timeout-minutes: 30
 
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -188,13 +194,14 @@ jobs:
     name: images (windows)
     runs-on: windows-2022
     needs: artifact-windows
+    timeout-minutes: 45
 
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Download artifacts
         uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
         with:
@@ -216,6 +223,7 @@ jobs:
     name: integration (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps, images]
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -227,7 +235,7 @@ jobs:
         runner_id: [1, 2, 3, 4, 5]
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
         with:
           # The "upgrade" integration test needs the history to ensure
           # that the version number in the source code has been bumped as
@@ -271,6 +279,7 @@ jobs:
     name: integration (windows)
     runs-on: windows-2022
     needs: images-windows
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -280,7 +289,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -317,13 +326,14 @@ jobs:
   cache-deps-windows:
     name: cache-deps (windows)
     runs-on: windows-2022
+    timeout-minutes: 45
 
     permissions:
       contents: read
 
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -340,6 +350,7 @@ jobs:
     name: lint (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -349,7 +360,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -382,6 +393,7 @@ jobs:
     name: unit-test (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -391,7 +403,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -415,6 +427,7 @@ jobs:
     name: artifact (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -424,7 +437,7 @@ jobs:
         shell: msys2 {0}
     steps:
       - name: Checkout
-        uses: actions/checkout@24cb9080177205b6e8c946b17badbe402adc938f # v3.4.0
+        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
       - name: Setup go
         uses: actions/setup-go@4d34df0c2316fe8122ab82dc22947d607c0c91f9 # v4.0.0
         with:
@@ -462,6 +475,7 @@ jobs:
   success:
     runs-on: ubuntu-20.04
     needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, lint-windows, unit-test-windows, artifact-windows, integration-windows]
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
