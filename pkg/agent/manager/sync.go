@@ -258,11 +258,11 @@ func newCSR(spiffeID spiffeid.ID, keyType workloadkey.KeyType) (crypto.Signer, [
 func parseBundles(bundles map[string]*common.Bundle) (map[spiffeid.TrustDomain]*cache.Bundle, error) {
 	out := make(map[spiffeid.TrustDomain]*cache.Bundle, len(bundles))
 	for _, bundle := range bundles {
-		bundle, err := bundleutil.BundleFromProto(bundle)
+		bundle, err := bundleutil.SPIFFEBundleFromProto(bundle)
 		if err != nil {
 			return nil, err
 		}
-		td, err := spiffeid.TrustDomainFromString(bundle.TrustDomainID())
+		td, err := spiffeid.TrustDomainFromString(bundle.TrustDomain().IDString())
 		if err != nil {
 			return nil, err
 		}

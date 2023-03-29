@@ -41,7 +41,6 @@ type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
 
-// Handler implements the Workload API interface
 type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
@@ -50,6 +49,7 @@ type Config struct {
 	TrustDomain                   spiffeid.TrustDomain
 }
 
+// Handler implements the Workload API interface
 type Handler struct {
 	workload.UnsafeSpiffeWorkloadAPIServer
 	c Config
@@ -179,11 +179,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 		return nil, err
 	}
 
-	bundles, err := h.getWorkloadBundles(selectors)
-	if err != nil {
-		log.WithError(err).Error("Failed to get workload bundles")
-		return nil, err
-	}
+	bundles := h.getWorkloadBundles(selectors)
 
 	keyStore, err := keyStoreFromBundles(bundles)
 	if err != nil {
@@ -320,10 +316,10 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509Bun
 	}
 
 	bundles := make(map[string][]byte)
-	bundles[update.Bundle.TrustDomainID()] = marshalBundle(update.Bundle.RootCAs())
+	bundles[update.Bundle.TrustDomain().IDString()] = marshalBundle(update.Bundle.X509Authorities())
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
-			bundles[federatedBundle.TrustDomainID()] = marshalBundle(federatedBundle.RootCAs())
+			bundles[federatedBundle.TrustDomain().IDString()] = marshalBundle(federatedBundle.X509Authorities())
 		}
 	}
 
@@ -376,10 +372,10 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	resp.Svids = []*workload.X509SVID{}
 	resp.FederatedBundles = make(map[string][]byte)
 
-	bundle := marshalBundle(update.Bundle.RootCAs())
+	bundle := marshalBundle(update.Bundle.X509Authorities())
 
 	for td, federatedBundle := range update.FederatedBundles {
-		resp.FederatedBundles[td.IDString()] = marshalBundle(federatedBundle.RootCAs())
+		resp.FederatedBundles[td.IDString()] = marshalBundle(federatedBundle.X509Authorities())
 	}
 
 	for _, identity := range update.Identities {
@@ -435,19 +431,19 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 	}
 
 	bundles := make(map[string][]byte)
-	jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+	jwksBytes, err := bundleutil.MarshalIdentBundle(update.Bundle)
 	if err != nil {
 		return nil, err
 	}
-	bundles[update.Bundle.TrustDomainID()] = jwksBytes
+	bundles[update.Bundle.TrustDomain().IDString()] = jwksBytes
 
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
-			jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+			jwksBytes, err := bundleutil.MarshalIdentBundle(federatedBundle)
 			if err != nil {
 				return nil, err
 			}
-			bundles[federatedBundle.TrustDomainID()] = jwksBytes
+			bundles[federatedBundle.TrustDomain().IDString()] = jwksBytes
 		}
 	}
 
@@ -462,25 +458,16 @@ func isAgent(ctx context.Context) bool {
 	return rpccontext.CallerPID(ctx) == os.Getpid()
 }
 
-func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle, err error) {
+func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle) {
 	update := h.c.Manager.FetchWorkloadUpdate(selectors)
 
 	if update.Bundle != nil {
-		bundle, err := update.Bundle.ToSPIFFEBundle()
-		if err != nil {
-			return nil, err
-		}
-
-		bundles = append(bundles, bundle)
+		bundles = append(bundles, update.Bundle)
 	}
 	for _, federatedBundle := range update.FederatedBundles {
-		bundle, err := federatedBundle.ToSPIFFEBundle()
-		if err != nil {
-			return nil, err
-		}
-		bundles = append(bundles, bundle)
+		bundles = append(bundles, federatedBundle)
 	}
-	return bundles, nil
+	return bundles
 }
 
 func marshalBundle(certs []*x509.Certificate) []byte {

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
@@ -19,11 +19,11 @@ import (
 var (
 	trustDomain1       = spiffeid.RequireTrustDomainFromString("domain.test")
 	trustDomain2       = spiffeid.RequireTrustDomainFromString("otherdomain.test")
-	bundleV1           = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{1}})
-	bundleV2           = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{2}})
-	bundleV3           = bundleutil.BundleFromRootCA(trustDomain1, &x509.Certificate{Raw: []byte{3}})
-	otherBundleV1      = bundleutil.BundleFromRootCA(trustDomain2, &x509.Certificate{Raw: []byte{4}})
-	otherBundleV2      = bundleutil.BundleFromRootCA(trustDomain2, &x509.Certificate{Raw: []byte{5}})
+	bundleV1           = spiffebundle.FromX509Authorities(trustDomain1, []*x509.Certificate{{Raw: []byte{1}}})
+	bundleV2           = spiffebundle.FromX509Authorities(trustDomain1, []*x509.Certificate{{Raw: []byte{2}}})
+	bundleV3           = spiffebundle.FromX509Authorities(trustDomain1, []*x509.Certificate{{Raw: []byte{3}}})
+	otherBundleV1      = spiffebundle.FromX509Authorities(trustDomain2, []*x509.Certificate{{Raw: []byte{4}}})
+	otherBundleV2      = spiffebundle.FromX509Authorities(trustDomain2, []*x509.Certificate{{Raw: []byte{5}}})
 	defaultX509SVIDTTL = int32(700)
 	defaultJwtSVIDTTL  = int32(800)
 )
@@ -780,7 +780,7 @@ func assertWorkloadUpdateEqual(t *testing.T, sub Subscriber, expected *WorkloadU
 	select {
 	case actual := <-sub.Updates():
 		assert.NotNil(t, actual.Bundle, "bundle is not set")
-		assert.True(t, actual.Bundle.EqualTo(expected.Bundle), "bundles don't match")
+		assert.True(t, actual.Bundle.Equal(expected.Bundle), "bundles don't match")
 		assert.Equal(t, expected.Identities, actual.Identities, "identities don't match")
 	case <-time.After(time.Minute):
 		assert.FailNow(t, "timed out waiting for workload update")
@@ -790,7 +790,7 @@ func assertWorkloadUpdateEqual(t *testing.T, sub Subscriber, expected *WorkloadU
 func makeBundles(bundles ...*Bundle) map[spiffeid.TrustDomain]*Bundle {
 	out := make(map[spiffeid.TrustDomain]*Bundle)
 	for _, bundle := range bundles {
-		td := spiffeid.RequireTrustDomainFromString(bundle.TrustDomainID())
+		td := spiffeid.RequireTrustDomainFromString(bundle.TrustDomain().IDString())
 		out[td] = bundle
 	}
 	return out
@@ -845,7 +845,7 @@ func makeSelectors(values ...string) []*common.Selector {
 func makeFederatesWith(bundles ...*Bundle) []string {
 	var out []string
 	for _, bundle := range bundles {
-		out = append(out, bundle.TrustDomainID())
+		out = append(out, bundle.TrustDomain().IDString())
 	}
 	return out
 }
