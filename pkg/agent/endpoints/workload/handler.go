@@ -290,32 +290,6 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 	}, nil
 }
 
-func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLogger) map[string]bool {
-	entriesToRemove := make(map[string]bool)
-	hintsMap := make(map[string]*common.RegistrationEntry)
-
-	for _, entry := range entries {
-		if entry.Hint == "" {
-			continue
-		}
-		if entryWithNonUniqueHint, ok := hintsMap[entry.Hint]; ok {
-			entryToMaintain, entryToRemove := hintTieBreaking(entry, entryWithNonUniqueHint)
-
-			hintsMap[entry.Hint] = entryToMaintain
-			entriesToRemove[entryToRemove.EntryId] = true
-
-			log.WithFields(logrus.Fields{
-				telemetry.Hint:           entryToRemove.Hint,
-				telemetry.RegistrationID: entryToRemove.EntryId,
-			}).Warn("Ignoring entry with duplicate hint")
-		} else {
-			hintsMap[entry.Hint] = entry
-		}
-	}
-
-	return entriesToRemove
-}
-
 func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool) (*workload.X509BundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		if !quietLogging {
@@ -578,6 +552,32 @@ func filterRegistrations(entries []*common.RegistrationEntry, log logrus.FieldLo
 	}
 
 	return filteredEntries
+}
+
+func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLogger) map[string]bool {
+	entriesToRemove := make(map[string]bool)
+	hintsMap := make(map[string]*common.RegistrationEntry)
+
+	for _, entry := range entries {
+		if entry.Hint == "" {
+			continue
+		}
+		if entryWithNonUniqueHint, ok := hintsMap[entry.Hint]; ok {
+			entryToMaintain, entryToRemove := hintTieBreaking(entry, entryWithNonUniqueHint)
+
+			hintsMap[entry.Hint] = entryToMaintain
+			entriesToRemove[entryToRemove.EntryId] = true
+
+			log.WithFields(logrus.Fields{
+				telemetry.Hint:           entryToRemove.Hint,
+				telemetry.RegistrationID: entryToRemove.EntryId,
+			}).Warn("Ignoring entry with duplicate hint")
+		} else {
+			hintsMap[entry.Hint] = entry
+		}
+	}
+
+	return entriesToRemove
 }
 
 func hintTieBreaking(entryA *common.RegistrationEntry, entryB *common.RegistrationEntry) (maintain *common.RegistrationEntry, remove *common.RegistrationEntry) {
