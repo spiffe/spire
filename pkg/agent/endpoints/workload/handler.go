@@ -82,47 +82,29 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		return nil, err
 	}
 
-	var spiffeIDs []spiffeid.ID
-
 	log = log.WithField(telemetry.Registered, true)
 
 	entries := h.c.Manager.MatchingRegistrationEntries(selectors)
+	entries = filterRegistrations(entries, log)
+
+	resp = new(workload.JWTSVIDResponse)
+
 	for _, entry := range entries {
 		if req.SpiffeId != "" && entry.SpiffeId != req.SpiffeId {
 			continue
 		}
-
-		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
+		loopLog := log.WithField(telemetry.SPIFFEID, entry.SpiffeId)
+		svid, err := h.fetchJWTSVID(ctx, loopLog, entry, req.Audience)
 		if err != nil {
-			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
-			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+			return nil, err
 		}
 
-		spiffeIDs = append(spiffeIDs, spiffeID)
+		resp.Svids = append(resp.Svids, svid)
 	}
 
-	if len(spiffeIDs) == 0 {
+	if len(resp.Svids) == 0 {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
-	}
-
-	resp = new(workload.JWTSVIDResponse)
-	for _, id := range spiffeIDs {
-		loopLog := log.WithField(telemetry.SPIFFEID, id.String())
-
-		var svid *client.JWTSVID
-		svid, err = h.c.Manager.FetchJWTSVID(ctx, id, req.Audience)
-		if err != nil {
-			loopLog.WithError(err).Error("Could not fetch JWT-SVID")
-			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
-		}
-		resp.Svids = append(resp.Svids, &workload.JWTSVID{
-			SpiffeId: id.String(),
-			Svid:     svid.Token,
-		})
-
-		ttl := time.Until(svid.ExpiresAt)
-		loopLog.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
 	}
 
 	return resp, nil
@@ -238,6 +220,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscriber.Updates():
+			update.Identities = filterIdentities(update.Identities, log)
 			if err := sendX509SVIDResponse(update, stream, log, quietLogging); err != nil {
 				return err
 			}
@@ -280,6 +263,55 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 			return nil
 		}
 	}
+}
+
+func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry, audience []string) (*workload.JWTSVID, error) {
+	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
+	if err != nil {
+		log.WithError(err).Error("Invalid requested SPIFFE ID")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+	}
+
+	svid, err := h.c.Manager.FetchJWTSVID(ctx, spiffeID, audience)
+	if err != nil {
+		log.WithError(err).Error("Could not fetch JWT-SVID")
+		return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
+	}
+
+	ttl := time.Until(svid.ExpiresAt)
+	log.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
+
+	return &workload.JWTSVID{
+		SpiffeId: spiffeID.String(),
+		Svid:     svid.Token,
+		Hint:     entry.Hint,
+	}, nil
+}
+
+func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLogger) map[string]bool {
+	entriesToRemove := make(map[string]bool)
+	hintsMap := make(map[string]*common.RegistrationEntry)
+
+	for _, entry := range entries {
+		if entry.Hint == "" {
+			continue
+		}
+		if entryWithNonUniqueHint, ok := hintsMap[entry.Hint]; ok {
+			entryToMaintain, entryToRemove := hintTieBreaking(entry, entryWithNonUniqueHint)
+
+			hintsMap[entry.Hint] = entryToMaintain
+			entriesToRemove[entryToRemove.EntryId] = true
+
+			log.WithFields(logrus.Fields{
+				telemetry.Hint:           entryToRemove.Hint,
+				telemetry.RegistrationID: entryToRemove.EntryId,
+			}).Warn("Ignoring entry with duplicate hint")
+		} else {
+			hintsMap[entry.Hint] = entry
+		}
+	}
+
+	return entriesToRemove
 }
 
 func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool) (*workload.X509BundlesResponse, error) {
@@ -391,6 +423,7 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 			X509Svid:    x509util.DERFromCertificates(identity.SVID),
 			X509SvidKey: keyData,
 			Bundle:      bundle,
+			Hint:        identity.Entry.Hint,
 		}
 
 		resp.Svids = append(resp.Svids, svid)
@@ -512,4 +545,55 @@ func isClaimAllowed(claim string, allowedClaims map[string]struct{}) bool {
 		_, ok := allowedClaims[claim]
 		return ok
 	}
+}
+
+func filterIdentities(identities []cache.Identity, log logrus.FieldLogger) []cache.Identity {
+	var filteredIdentities []cache.Identity
+	var entries []*common.RegistrationEntry
+	for _, identity := range identities {
+		entries = append(entries, identity.Entry)
+	}
+
+	entriesToRemove := getEntriesToRemove(entries, log)
+
+	for _, identity := range identities {
+		if _, ok := entriesToRemove[identity.Entry.EntryId]; !ok {
+			filteredIdentities = append(filteredIdentities, identity)
+		}
+	}
+
+	return filteredIdentities
+}
+
+func filterRegistrations(entries []*common.RegistrationEntry, log logrus.FieldLogger) []*common.RegistrationEntry {
+	var filteredEntries []*common.RegistrationEntry
+	entriesToRemove := getEntriesToRemove(entries, log)
+
+	for _, entry := range entries {
+		if _, ok := entriesToRemove[entry.EntryId]; !ok {
+			filteredEntries = append(filteredEntries, entry)
+		}
+	}
+
+	return filteredEntries
+}
+
+func hintTieBreaking(entryA *common.RegistrationEntry, entryB *common.RegistrationEntry) (maintain *common.RegistrationEntry, remove *common.RegistrationEntry) {
+	switch {
+	case entryA.CreatedAt < entryB.CreatedAt:
+		maintain = entryA
+		remove = entryB
+	case entryA.CreatedAt > entryB.CreatedAt:
+		maintain = entryB
+		remove = entryA
+	default:
+		if entryA.EntryId < entryB.EntryId {
+			maintain = entryA
+			remove = entryB
+		} else {
+			maintain = entryB
+			remove = entryA
+		}
+	}
+	return
 }
