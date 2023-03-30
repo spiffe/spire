@@ -84,7 +84,7 @@ func (c *purgeCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 }
 
 func (c *purgeCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.expiredBefore, "expiredBefore", "", "Specifies the date before which all expired agents should be deleted. The value should be a date time string in the format \"YYYY-MM-DD HH:MM:SS\". Any agents that expired before this date will be deleted.")
+	fs.StringVar(&c.expiredBefore, "expiredBefore", "", "Specifies the date before which all expired agents should be deleted. The value should be a date time string in the RFC3339 format. Any agents that expired before this date will be deleted.")
 	fs.BoolVar(&c.dryRun, "dryRun", false, "Indicates that the command will not perform any action, but will print the agents that would be purged.")
 
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintPurgeResult)
@@ -166,7 +166,7 @@ func (c *purgeCommand) parseExpiredBefore() (expiredBefore time.Time, err error)
 		expiredBefore = now
 		return
 	}
-	expiredBefore, err = time.Parse(time.DateTime, c.expiredBefore)
+	expiredBefore, err = time.Parse(time.RFC3339, c.expiredBefore)
 	if err != nil {
 		err = fmt.Errorf("failed to parse expiredBefore flag: %w", err)
 	}
