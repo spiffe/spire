@@ -8,9 +8,9 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -97,7 +97,7 @@ type LRUCache struct {
 	staleEntries map[string]bool
 
 	// bundles holds the trust bundles, keyed by trust domain id (i.e. "spiffe://domain.test")
-	bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
+	bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
 
 	// svids are stored by entry IDs
 	svids map[string]*X509SVID
@@ -123,7 +123,7 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 		records:      make(map[string]*lruCacheRecord),
 		selectors:    make(map[selector]*selectorsMapIndex),
 		staleEntries: make(map[string]bool),
-		bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			trustDomain: bundle,
 		},
 		svids:            make(map[string]*X509SVID),
@@ -236,7 +236,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 	bundleChanged := make(map[spiffeid.TrustDomain]bool)
 	for id, bundle := range update.Bundles {
 		existing, ok := c.bundles[id]
-		if !(ok && existing.EqualTo(bundle)) {
+		if !(ok && existing.Equal(bundle)) {
 			if !ok {
 				c.log.WithField(telemetry.TrustDomainID, id).Debug("Bundle added")
 			} else {
@@ -804,7 +804,7 @@ func (c *LRUCache) matchingEntries(set selectorSet) []*common.RegistrationEntry 
 func (c *LRUCache) buildWorkloadUpdate(set selectorSet) *WorkloadUpdate {
 	w := &WorkloadUpdate{
 		Bundle:           c.bundles[c.trustDomain],
-		FederatedBundles: make(map[spiffeid.TrustDomain]*bundleutil.Bundle),
+		FederatedBundles: make(map[spiffeid.TrustDomain]*spiffebundle.Bundle),
 		Identities:       c.matchingIdentities(set),
 	}
 

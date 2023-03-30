@@ -15,6 +15,7 @@ import (
 	"time"
 
 	testlog "github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -105,7 +106,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		Metrics:     &telemetry.Blackhole{},
 		TrustDomain: trustDomain,
 		Storage:     sto,
-		Bundle:      bundleutil.BundleFromRootCA(trustDomain, ca),
+		Bundle:      spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{ca}),
 		Clk:         clk,
 		Catalog:     cat,
 	}
@@ -117,7 +118,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		bundles := sub.Value()
 		require.NotNil(t, bundles)
 		bundle := bundles[trustDomain]
-		require.Equal(t, bundle.RootCAs(), []*x509.Certificate{ca})
+		require.Equal(t, bundle.X509Authorities(), []*x509.Certificate{ca})
 	})
 
 	require.Error(t, m.Initialize(context.Background()))
@@ -257,11 +258,11 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 			t.Fatal("expected 2 entries")
 		}
 
-		if len(u.Bundle.RootCAs()) != 1 {
+		if len(u.Bundle.X509Authorities()) != 1 {
 			t.Fatal("expected 1 bundle root CA")
 		}
 
-		if !u.Bundle.EqualTo(api.bundle) {
+		if !u.Bundle.Equal(api.bundle) {
 			t.Fatal("received bundle should be equals to the server bundle")
 		}
 
@@ -348,11 +349,11 @@ func TestRotationWithRSAKey(t *testing.T) {
 			t.Fatal("expected 2 entries")
 		}
 
-		if len(u.Bundle.RootCAs()) != 1 {
+		if len(u.Bundle.X509Authorities()) != 1 {
 			t.Fatal("expected 1 bundle root CA")
 		}
 
-		if !u.Bundle.EqualTo(api.bundle) {
+		if !u.Bundle.Equal(api.bundle) {
 			t.Fatal("received bundle should be equals to the server bundle")
 		}
 
@@ -542,11 +543,11 @@ func TestSynchronization(t *testing.T) {
 		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
 	}
 
-	if len(u.Bundle.RootCAs()) != 1 {
+	if len(u.Bundle.X509Authorities()) != 1 {
 		t.Fatal("expected 1 bundle root CA")
 	}
 
-	if !u.Bundle.EqualTo(api.bundle) {
+	if !u.Bundle.Equal(api.bundle) {
 		t.Fatal("received bundle should be equals to the server bundle")
 	}
 
@@ -599,11 +600,11 @@ func TestSynchronization(t *testing.T) {
 		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
 	}
 
-	if len(u.Bundle.RootCAs()) != 1 {
+	if len(u.Bundle.X509Authorities()) != 1 {
 		t.Fatal("expected 1 bundle root CA")
 	}
 
-	if !u.Bundle.EqualTo(api.bundle) {
+	if !u.Bundle.Equal(api.bundle) {
 		t.Fatal("received bundle should be equals to the server bundle")
 	}
 
@@ -811,10 +812,10 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	util.RunWithTimeout(t, 1*time.Second, func() {
 		// Update should contain a new bundle.
 		u := <-sub.Updates()
-		if len(u.Bundle.RootCAs()) != 2 {
-			t.Fatalf("expected 2 bundles, got: %d", len(u.Bundle.RootCAs()))
+		if len(u.Bundle.X509Authorities()) != 2 {
+			t.Fatalf("expected 2 bundles, got: %d", len(u.Bundle.X509Authorities()))
 		}
-		if !u.Bundle.EqualTo(c.Bundle) {
+		if !u.Bundle.Equal(c.Bundle) {
 			t.Fatal("bundles were expected to be equal")
 		}
 	})
@@ -886,11 +887,11 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
 	}
 
-	if len(u.Bundle.RootCAs()) != 1 {
+	if len(u.Bundle.X509Authorities()) != 1 {
 		t.Fatal("expected 1 bundle root CA")
 	}
 
-	if !u.Bundle.EqualTo(api.bundle) {
+	if !u.Bundle.Equal(api.bundle) {
 		t.Fatal("received bundle should be equals to the server bundle")
 	}
 
@@ -943,11 +944,11 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
 	}
 
-	if len(u.Bundle.RootCAs()) != 1 {
+	if len(u.Bundle.X509Authorities()) != 1 {
 		t.Fatal("expected 1 bundle root CA")
 	}
 
-	if !u.Bundle.EqualTo(api.bundle) {
+	if !u.Bundle.Equal(api.bundle) {
 		t.Fatal("received bundle should be equals to the server bundle")
 	}
 
@@ -1113,14 +1114,14 @@ func TestSurvivesCARotation(t *testing.T) {
 	// This should be the update received when Subscribe function was called.
 	updates := sub.Updates()
 	initialUpdate := <-updates
-	initialRoot := initialUpdate.Bundle.RootCAs()[0]
+	initialRoot := initialUpdate.Bundle.X509Authorities()[0]
 
 	defer initializeAndRunManager(t, m)()
 
 	// Second FetchX509 request will create a new CA
 	clk.Add(syncInterval)
 	newCAUpdate := <-updates
-	newRoots := newCAUpdate.Bundle.RootCAs()
+	newRoots := newCAUpdate.Bundle.X509Authorities()
 	require.Contains(t, newRoots, initialRoot)
 	require.Len(t, newRoots, 2)
 }
@@ -1302,7 +1303,7 @@ func TestStorableSVIDsSync(t *testing.T) {
 			require.Len(t, records, len(entries))
 			spiretest.RequireProtoEqual(t, entries[i], record.Entry)
 
-			// Verify record has latests SVIDs
+			// Verify record has latest's SVIDs
 			chain := api.lastestSVIDs[record.Entry.EntryId]
 			require.Equal(t, chain, record.Svid.Chain)
 		}
@@ -1409,7 +1410,7 @@ type mockAPI struct {
 
 	addr string
 
-	bundle *bundleutil.Bundle
+	bundle *spiffebundle.Bundle
 	ca     *x509.Certificate
 	caKey  *ecdsa.PrivateKey
 
@@ -1421,7 +1422,7 @@ type mockAPI struct {
 
 	clk clock.Clock
 
-	// Add latests SVIDs per entry, to verify returned SVIDs are valid
+	// Add latest's SVIDs per entry, to verify returned SVIDs are valid
 	lastestSVIDs map[string][]*x509.Certificate
 
 	agentv1.UnimplementedAgentServer
@@ -1431,10 +1432,12 @@ type mockAPI struct {
 }
 
 func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
+	bundle := spiffebundle.New(trustDomain)
+	bundle.SetRefreshHint(0)
 	h := &mockAPI{
 		t:            t,
 		c:            config,
-		bundle:       bundleutil.New(trustDomain),
+		bundle:       bundle,
 		clk:          config.clk,
 		lastestSVIDs: make(map[string][]*x509.Certificate),
 	}
@@ -1513,7 +1516,7 @@ func (h *mockAPI) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 		}
 		svid := h.newSVIDFromCSR(spiffeid.RequireFromString(entry.SpiffeId), param.Csr)
 
-		// Keep latests SVIDs per entry
+		// Keep latest's SVIDs per entry
 		h.lastestSVIDs[entry.EntryId] = svid
 
 		resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
@@ -1535,7 +1538,7 @@ func (h *mockAPI) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 }
 
 func (h *mockAPI) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
-	return api.BundleToProto(h.bundle.Proto())
+	return api.BundleToProto(bundleutil.BundleProtoFromRootCAs(h.bundle.TrustDomain().IDString(), h.bundle.X509Authorities()))
 }
 
 func (h *mockAPI) GetFederatedBundle(ctx context.Context, req *bundlev1.GetFederatedBundleRequest) (*types.Bundle, error) {
@@ -1551,7 +1554,7 @@ func (h *mockAPI) rotateCA() {
 	ca, caKey := createCA(h.t, h.clk)
 	h.ca = ca
 	h.caKey = caKey
-	h.bundle.AppendRootCA(ca)
+	h.bundle.AddX509Authority(ca)
 }
 
 func (h *mockAPI) newSVID(spiffeID spiffeid.ID, ttl time.Duration) ([]*x509.Certificate, keymanager.Key) {
