@@ -1,0 +1,103 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+source init-kubectl
+
+CHARTVERSION=0.23.0
+
+log-info "installing hashicorp vault..."
+
+kubectl-exec-vault() {
+  ./bin/kubectl exec -n vault vault-0 -- $@
+}
+
+log-info "preparing certificates..."
+# Prepare CSR for Vault instance
+openssl ecparam -name prime256v1 -genkey -noout -out vault_key.pem
+openssl req -new \
+        -key vault_key.pem \
+        -out vault_csr.pem \
+        -subj "/C=US/O=system:nodes/CN=system:node:vault" \
+        -reqexts v3 \
+        -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=@alt_names\n[alt_names]\nDNS.1=vault\nDNS.2=vault.vault.svc\nIP.1=127.0.0.1")
+cat > csr.yaml <<EOF
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+   name: vault.svc
+   namespace: vault
+spec:
+   signerName: kubernetes.io/kubelet-serving
+   expirationSeconds: 8640000
+   request: $(cat vault_csr.pem|base64|tr -d '\n')
+   usages:
+   - digital signature
+   - key encipherment
+   - server auth
+EOF
+
+# Prepare certificates for Vault Cert Auth
+openssl ecparam  -name prime256v1 -genkey -noout -out cert_auth_ca_key.pem
+openssl req -days 30 -x509 -new \
+        -key cert_auth_ca_key.pem \
+        -out cert_auth_ca.pem \
+        -subj "/C=US/O=SPIFFE" \
+        -extensions v3 \
+        -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://cert-auth-ca\nbasicConstraints=CA:true")
+openssl ecparam -name prime256v1 -genkey -noout -out client_key.pem
+openssl req -new \
+        -key client_key.pem \
+        -out client_csr.pem \
+        -subj "/C=US/O=SPIFFE/CN=Cert Auth Client" \
+        -config <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://cert-auth-client")
+openssl x509 -days 10 -req \
+        -CAcreateserial \
+        -CA cert_auth_ca.pem \
+        -CAkey cert_auth_ca_key.pem \
+        -in client_csr.pem \
+        -out client.pem \
+        -sha256 \
+        -extensions v3 \
+        -extfile <(cat /etc/ssl/openssl.cnf ; printf "\n[v3]\nsubjectAltName=URI:spiffe://cert-auth-client")
+
+# Install Vault
+log-info "installing hashicorp vault..."
+./bin/kubectl create namespace vault
+./bin/kubectl create -f csr.yaml
+./bin/kubectl certificate -n vault approve vault.svc
+log-debug "waiting for certificate to be issued by k8s..."
+timeout 30s bash -c 'while [[ -z $(./bin/kubectl get csr -n vault vault.svc -o jsonpath="{.status.certificate}" 2>/dev/null) ]]; do sleep 1; done'
+./bin/kubectl get csr -n vault vault.svc -o jsonpath='{.status.certificate}' | openssl base64 -d -A -out vault.pem
+./bin/kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[].cluster.certificate-authority-data}' \
+              | base64 -d > vault_ca.pem
+./bin/kubectl create secret generic vault-tls -n vault \
+              --from-file=vault_key.pem=vault_key.pem \
+              --from-file=vault.pem=vault.pem \
+              --from-file=vault_ca.pem=vault_ca.pem
+
+./bin/helm repo add hashicorp https://helm.releases.hashicorp.com
+./bin/helm install vault hashicorp/vault --namespace vault --version $CHARTVERSION -f conf/helm-values.yaml
+./bin/kubectl wait -n kube-system --for=condition=available deployment --all --timeout=90s
+./bin/kubectl wait pods -n vault --for=jsonpath='{.status.phase}'=Running vault-0 --timeout=90s
+
+# Initialize and unseal
+log-info "initializing hashicorp vault..."
+kubectl-exec-vault vault operator init -key-shares=1 -key-threshold=1 -format=json > cluster-keys.json
+VAULT_UNSEAL_KEY=$(cat cluster-keys.json | jq -r ".unseal_keys_b64[]")
+kubectl-exec-vault vault operator unseal $VAULT_UNSEAL_KEY
+./bin/kubectl wait pods -n vault --for=condition=Ready vault-0 --timeout=60s
+VAULT_ROOT_TOKEN=$(cat cluster-keys.json | jq -r ".root_token")
+kubectl-exec-vault vault login $VAULT_ROOT_TOKEN > /dev/null
+
+./bin/kubectl cp -n vault cert_auth_ca.pem vault-0:/tmp/.
+./bin/kubectl cp -n vault conf/configure-pki-secret-engine.sh vault-0:/tmp/.
+./bin/kubectl cp -n vault conf/spire.hcl vault-0:tmp/.
+./bin/kubectl cp -n vault conf/configure-auth-method.sh vault-0:/tmp/.
+
+# Configure Vault
+log-info "configuring pki secret engine..."
+kubectl-exec-vault /tmp/configure-pki-secret-engine.sh
+log-info "configuring auth methods..."
+kubectl-exec-vault /tmp/configure-auth-method.sh
+

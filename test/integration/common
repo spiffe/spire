@@ -198,7 +198,7 @@ download-bin() {
 }
 
 download-kind() {
-    KINDVERSION=v0.11.1
+    KINDVERSION=${KINDVERSION:-v0.11.1}
     KINDPATH=$(command -v kind || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
@@ -219,8 +219,34 @@ download-kind() {
     fi
 }
 
+download-helm() {
+    HELMVERSION=${HELMVERSION:-v3.11.1}
+    HELMPATH=$(command -v helm || echo)
+    UNAME=$(uname | awk '{print tolower($0)}')
+    ARCH=$(uname -m)
+    if [ "${ARCH}" = "x86_64" ]; then
+        ARCH=amd64
+    elif [ "${ARCH}" = "aarch64" ]; then
+        ARCH=arm64
+    fi
+
+    HELMURL="https://get.helm.sh/helm-${HELMVERSION}-${UNAME}-${ARCH}.tar.gz"
+
+    local helm_path=$1
+    # Ensure helm exists at the expected version
+    if [ -x "${HELMPATH}" ] && "${HELMPATH}" version | grep -q "${HELMSION}"; then
+        ln -s "${HELMPATH}" "${helm_path}"
+    else
+        curl -# -f -LO ${HELMURL}
+        tar zxvf "helm-${HELMVERSION}-${UNAME}-${ARCH}.tar.gz"
+        cp ${UNAME}-${ARCH}/helm ${helm_path}
+        chmod +x ${helm_path}
+        ls -l ${helm_path}
+    fi
+}
+
 download-kubectl() {
-    KUBECTLVERSION=v1.21.1
+    KUBECTLVERSION=${KUBECTLVERSION:-v1.21.1}
     KUBECTLPATH=$(command -v kubectl || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
@@ -242,7 +268,7 @@ download-kubectl() {
 }
 
 start-kind-cluster() {
-    K8SIMAGE=kindest/node:v1.21.1
+    K8SIMAGE=${K8SIMAGE:-kindest/node:v1.21.1}
 
     local kind_path=$1
     local kind_name=$2
