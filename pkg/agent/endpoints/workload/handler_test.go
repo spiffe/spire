@@ -856,7 +856,7 @@ func TestFetchJWTSVID(t *testing.T) {
 					assert.Len(t, resp.Svids, len(tt.expectedResp))
 					for i, svid := range resp.Svids {
 						parsedSVID, err := jwtsvid.ParseInsecure(svid.Svid, tt.audience)
-						parsedSVID.SetHint(svid.Hint)
+						parsedSVID.Hint = svid.Hint
 						require.NoError(t, err, "JWT-SVID token is malformed")
 						assert.Equal(t, tt.expectedResp[i].spiffeID, parsedSVID.ID.String())
 						assert.Equal(t, tt.expectedResp[i].hint, parsedSVID.Hint)
