@@ -9,14 +9,14 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
 type Selectors []*common.Selector
-type Bundle = bundleutil.Bundle
+type Bundle = spiffebundle.Bundle
 
 // Identity holds the data for a single workload identity
 type Identity struct {
@@ -28,8 +28,8 @@ type Identity struct {
 // WorkloadUpdate is used to convey workload information to cache subscribers
 type WorkloadUpdate struct {
 	Identities       []Identity
-	Bundle           *bundleutil.Bundle
-	FederatedBundles map[spiffeid.TrustDomain]*bundleutil.Bundle
+	Bundle           *spiffebundle.Bundle
+	FederatedBundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
 }
 
 func (u *WorkloadUpdate) HasIdentity() bool {
@@ -39,7 +39,7 @@ func (u *WorkloadUpdate) HasIdentity() bool {
 // Update holds information for an entries update to the cache.
 type UpdateEntries struct {
 	// Bundles is a set of ALL trust bundles available to the agent, keyed by trust domain
-	Bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
+	Bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
 
 	// RegistrationEntries is a set of ALL registration entries available to the
 	// agent, keyed by registration entry id.
@@ -119,7 +119,7 @@ type Cache struct {
 	staleEntries map[string]bool
 
 	// bundles holds the trust bundles, keyed by trust domain id (i.e. "spiffe://domain.test")
-	bundles map[spiffeid.TrustDomain]*bundleutil.Bundle
+	bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
 }
 
 // StaleEntry holds stale entries with SVIDs expiration time
@@ -141,7 +141,7 @@ func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundl
 		records:      make(map[string]*cacheRecord),
 		selectors:    make(map[selector]*selectorIndex),
 		staleEntries: make(map[string]bool),
-		bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			trustDomain: bundle,
 		},
 	}
@@ -234,7 +234,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 	bundleChanged := make(map[spiffeid.TrustDomain]bool)
 	for id, bundle := range update.Bundles {
 		existing, ok := c.bundles[id]
-		if !(ok && existing.EqualTo(bundle)) {
+		if !(ok && existing.Equal(bundle)) {
 			if !ok {
 				c.log.WithField(telemetry.TrustDomainID, id).Debug("Bundle added")
 			} else {
@@ -666,7 +666,7 @@ func (c *Cache) matchingIdentities(set selectorSet) []Identity {
 func (c *Cache) buildWorkloadUpdate(set selectorSet) *WorkloadUpdate {
 	w := &WorkloadUpdate{
 		Bundle:           c.bundles[c.trustDomain],
-		FederatedBundles: make(map[spiffeid.TrustDomain]*bundleutil.Bundle),
+		FederatedBundles: make(map[spiffeid.TrustDomain]*spiffebundle.Bundle),
 		Identities:       c.matchingIdentities(set),
 	}
 

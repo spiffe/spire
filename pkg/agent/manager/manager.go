@@ -10,6 +10,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
@@ -17,7 +18,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -82,7 +82,7 @@ type Cache interface {
 	SVIDCache
 
 	// Bundle gets latest cached bundle
-	Bundle() *bundleutil.Bundle
+	Bundle() *spiffebundle.Bundle
 
 	// SyncSVIDsWithSubscribers syncs SVID cache
 	SyncSVIDsWithSubscribers()
@@ -363,10 +363,10 @@ func (m *manager) storeSVID(svidChain []*x509.Certificate, reattestable bool) {
 	}
 }
 
-func (m *manager) storeBundle(bundle *bundleutil.Bundle) {
+func (m *manager) storeBundle(bundle *spiffebundle.Bundle) {
 	var rootCAs []*x509.Certificate
 	if bundle != nil {
-		rootCAs = bundle.RootCAs()
+		rootCAs = bundle.X509Authorities()
 	}
 	if err := m.storage.StoreBundle(rootCAs); err != nil {
 		m.c.Log.WithError(err).Error("Could not store bundle")

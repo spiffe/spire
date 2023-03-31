@@ -8,10 +8,10 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
@@ -22,8 +22,8 @@ import (
 var (
 	td              = spiffeid.RequireTrustDomainFromString("example.org")
 	federatedTD     = spiffeid.RequireTrustDomainFromString("federated.td1")
-	tdBundle        = bundleutil.BundleFromRootCA(td, &x509.Certificate{Raw: []byte{1}})
-	federatedBundle = bundleutil.BundleFromRootCA(federatedTD, &x509.Certificate{Raw: []byte{2}})
+	tdBundle        = spiffebundle.FromX509Authorities(td, []*x509.Certificate{{Raw: []byte{1}}})
+	federatedBundle = spiffebundle.FromX509Authorities(federatedTD, []*x509.Certificate{{Raw: []byte{2}}})
 	fohID           = spiffeid.RequireFromPath(td, "/foh")
 	barID           = spiffeid.RequireFromPath(td, "/bar")
 	bazID           = spiffeid.RequireFromPath(td, "/baz")
@@ -38,7 +38,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 	})
 
 	update := &cache.UpdateEntries{
-		Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			td:          tdBundle,
 			federatedTD: federatedBundle,
 		},
@@ -82,7 +82,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -100,7 +100,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -111,7 +111,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 
 	// Update entry foh and keep bar
 	update = &cache.UpdateEntries{
-		Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			td:          tdBundle,
 			federatedTD: federatedBundle,
 		},
@@ -156,7 +156,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -174,7 +174,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 			},
 			// Record revision changed
 			Revision: 2,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -185,8 +185,8 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 
 func TestUpdateEntries(t *testing.T) {
 	// Create new versions for trust domain and federated bundles
-	tdBundleUpdated := bundleutil.BundleFromRootCA(td, &x509.Certificate{Raw: []byte{8}})
-	federatedBundleUpdated := bundleutil.BundleFromRootCA(federatedTD, &x509.Certificate{Raw: []byte{9}})
+	tdBundleUpdated := spiffebundle.FromX509Authorities(td, []*x509.Certificate{{Raw: []byte{8}}})
+	federatedBundleUpdated := spiffebundle.FromX509Authorities(federatedTD, []*x509.Certificate{{Raw: []byte{9}}})
 
 	for _, tt := range []struct {
 		name string
@@ -204,7 +204,7 @@ func TestUpdateEntries(t *testing.T) {
 		{
 			name: "federated bundle Removed",
 			initialUpdate: &cache.UpdateEntries{
-				Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 					td:          tdBundle,
 					federatedTD: federatedBundle,
 				},
@@ -219,7 +219,7 @@ func TestUpdateEntries(t *testing.T) {
 			expectedRecords: []*storecache.Record{
 				{
 					ID: "foh",
-					Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						td: tdBundle,
 					},
 					Entry: &common.RegistrationEntry{
@@ -249,7 +249,7 @@ func TestUpdateEntries(t *testing.T) {
 		{
 			name: "federated bundle updated",
 			initialUpdate: &cache.UpdateEntries{
-				Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 					td:          tdBundle,
 					federatedTD: federatedBundle,
 				},
@@ -264,7 +264,7 @@ func TestUpdateEntries(t *testing.T) {
 			expectedRecords: []*storecache.Record{
 				{
 					ID: "foh",
-					Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						td:          tdBundle,
 						federatedTD: federatedBundleUpdated,
 					},
@@ -295,7 +295,7 @@ func TestUpdateEntries(t *testing.T) {
 		{
 			name: "trust domain bundle updated",
 			initialUpdate: &cache.UpdateEntries{
-				Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 					td:          tdBundle,
 					federatedTD: federatedBundle,
 				},
@@ -310,7 +310,7 @@ func TestUpdateEntries(t *testing.T) {
 			expectedRecords: []*storecache.Record{
 				{
 					ID: "foh",
-					Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						td:          tdBundleUpdated,
 						federatedTD: federatedBundle,
 					},
@@ -341,7 +341,7 @@ func TestUpdateEntries(t *testing.T) {
 		{
 			name: "entry updated",
 			initialUpdate: &cache.UpdateEntries{
-				Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 					td:          tdBundle,
 					federatedTD: federatedBundle,
 				},
@@ -362,7 +362,7 @@ func TestUpdateEntries(t *testing.T) {
 			expectedRecords: []*storecache.Record{
 				{
 					ID: "foh",
-					Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						td:          tdBundle,
 						federatedTD: federatedBundle,
 					},
@@ -396,7 +396,7 @@ func TestUpdateEntries(t *testing.T) {
 		{
 			name: "update svid",
 			initialUpdate: &cache.UpdateEntries{
-				Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 					td:          tdBundle,
 					federatedTD: federatedBundle,
 				},
@@ -413,7 +413,7 @@ func TestUpdateEntries(t *testing.T) {
 			expectedRecords: []*storecache.Record{
 				{
 					ID: "foh",
-					Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						td:          tdBundle,
 						federatedTD: federatedBundle,
 					},
@@ -442,7 +442,7 @@ func TestUpdateEntries(t *testing.T) {
 		{
 			name: "entry created",
 			initialUpdate: &cache.UpdateEntries{
-				Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+				Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 					td:          tdBundle,
 					federatedTD: federatedBundle,
 				},
@@ -469,7 +469,7 @@ func TestUpdateEntries(t *testing.T) {
 			expectedRecords: []*storecache.Record{
 				{
 					ID: "bar",
-					Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						td:          tdBundle,
 						federatedTD: federatedBundle,
 					},
@@ -487,7 +487,7 @@ func TestUpdateEntries(t *testing.T) {
 				},
 				{
 					ID: "foh",
-					Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+					Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						td:          tdBundle,
 						federatedTD: federatedBundle,
 					},
@@ -553,7 +553,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 	})
 
 	update := &cache.UpdateEntries{
-		Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			td:          tdBundle,
 			federatedTD: federatedBundle,
 		},
@@ -596,7 +596,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -614,7 +614,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -625,7 +625,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 
 	// Remove 'bar'
 	update = &cache.UpdateEntries{
-		Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			td:          tdBundle,
 			federatedTD: federatedBundle,
 		},
@@ -664,7 +664,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 2,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -682,7 +682,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -720,7 +720,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 2,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -738,7 +738,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 2,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -778,7 +778,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 2,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -802,7 +802,7 @@ func TestUpdateEntriesCreatesNewEntriesOnCache(t *testing.T) {
 	})
 
 	update := &cache.UpdateEntries{
-		Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			td:          tdBundle,
 			federatedTD: federatedBundle,
 		},
@@ -845,7 +845,7 @@ func TestUpdateEntriesCreatesNewEntriesOnCache(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -863,7 +863,7 @@ func TestUpdateEntriesCreatesNewEntriesOnCache(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -951,7 +951,7 @@ func TestUpdateSVIDs(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -969,7 +969,7 @@ func TestUpdateSVIDs(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 2,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -1067,7 +1067,7 @@ func TestCheckSVID(t *testing.T) {
 
 	entry := createTestEntry()
 	update := &cache.UpdateEntries{
-		Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			td:          tdBundle,
 			federatedTD: federatedBundle,
 		},
@@ -1097,7 +1097,7 @@ func TestCheckSVID(t *testing.T) {
 	updatedEntry := createTestEntry()
 	updatedEntry.RevisionNumber = 10
 	update = &cache.UpdateEntries{
-		Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			td:          tdBundle,
 			federatedTD: federatedBundle,
 		},
@@ -1143,7 +1143,7 @@ func TestReadyToStore(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -1161,7 +1161,7 @@ func TestReadyToStore(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -1188,7 +1188,7 @@ func TestReadyToStore(t *testing.T) {
 				RevisionNumber: 1,
 			},
 			Revision: 1,
-			Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				td:          tdBundle,
 				federatedTD: federatedBundle,
 			},
@@ -1199,7 +1199,7 @@ func TestReadyToStore(t *testing.T) {
 
 func createUpdateEntries() *cache.UpdateEntries {
 	return &cache.UpdateEntries{
-		Bundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			td:          tdBundle,
 			federatedTD: federatedBundle,
 		},
