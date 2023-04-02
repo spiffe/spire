@@ -191,7 +191,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		trustDomain: req.CoreConfiguration.TrustDomain,
 	}
 
-	p.log.Debug("Fetching keys from Azure key vault", "key_vault_uri", config.KeyVaultURI)
+	p.log.Debug("Fetching keys from Azure Key Vault", "key_vault_uri", config.KeyVaultURI)
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
 	if err != nil {
 		return nil, err
