@@ -263,7 +263,7 @@ func (p *Plugin) refreshKeys(ctx context.Context) error {
 			continue
 		}
 
-		// Update the key with the same key operations to only change the Updated timestamp
+		// Update the key with the same key to only change the Updated timestamp
 		_, err = p.kmsClient.UpdateKey(ctx, keyName, keyVersion, azkeys.UpdateKeyParameters{
 			KeyOps: []*azkeys.JSONWebKeyOperation{to.Ptr(azkeys.JSONWebKeyOperationSign), to.Ptr(azkeys.JSONWebKeyOperationVerify)},
 		}, nil)
