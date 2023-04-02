@@ -383,7 +383,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, status.Errorf(codes.Internal, "failed to create key: %v", err)
 	}
 	log := p.log.With(keyIDTag, *createResp.Key.KID)
-	log.Debug("Key created", algorithmTag, createResp.Key.Kty)
+	log.Debug("Key created", algorithmTag, *createResp.Key.Kty)
 
 	rawKey, err := kmsKeyToRawKey(createResp.Key)
 	if err != nil {
