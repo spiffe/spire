@@ -653,7 +653,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	}
 
 	if config.KeyVaultURI == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the key vault URI")
+		return nil, status.Error(codes.InvalidArgument, "configuration is missing the Key Vault URI")
 	}
 
 	if config.KeyMetadataFile == "" {
