@@ -23,6 +23,8 @@ type Data struct {
 	// FederatedBundles is the CA certificate bundles belonging to foreign trust domains that the workload should trust,
 	// keyed by trust domain. Bundles are in encoded in PEM format.
 	FederatedBundles map[string]string `json:"federatedBundles,omitempty"`
+	// Hint is a hint indicating how the SVID should be consumed.
+	Hint string `json:"hint,omitempty"`
 }
 
 func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Data, error) {
@@ -50,12 +52,18 @@ func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Data, error) {
 		return nil, fmt.Errorf("failed to parse key: %w", err)
 	}
 
+	hint, err := getHintFromMetadata(req.Metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hint from metadata: %w", err)
+	}
+
 	return &Data{
 		SPIFFEID:         req.Svid.SpiffeID,
 		X509SVID:         x509SVID,
 		X509SVIDKey:      x509SVIDKey,
 		Bundle:           x509Bundles,
 		FederatedBundles: federatedBundles,
+		Hint:             hint,
 	}, nil
 }
 
@@ -95,4 +103,15 @@ func rawCertToPem(rawCerts [][]byte) (string, error) {
 	}
 
 	return string(pemutil.EncodeCertificates(certs)), nil
+}
+
+func getHintFromMetadata(metadataList []string) (string, error) {
+	metadata, err := ParseMetadata(metadataList)
+	if err != nil {
+		return "", err
+	}
+	if hint, ok := metadata["hint"]; ok {
+		return hint, nil
+	}
+	return "", nil
 }

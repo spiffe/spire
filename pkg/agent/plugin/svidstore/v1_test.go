@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestV1DeleteX509SVID(t *testing.T) {
+func TestDeleteX509SVID(t *testing.T) {
 	svidValues := []string{"a:1", "b:2"}
 
 	expectRequest := &svidstorev1.DeleteX509SVIDRequest{
@@ -41,7 +41,7 @@ func TestV1DeleteX509SVID(t *testing.T) {
 	})
 }
 
-func TestV1PutX509SVID(t *testing.T) {
+func TestPutX509SVID(t *testing.T) {
 	expiresAt := time.Now().Add(time.Minute)
 	key := testkey.MustEC256()
 	keyData, err := x509.MarshalPKCS8PrivateKey(key)
@@ -56,7 +56,7 @@ func TestV1PutX509SVID(t *testing.T) {
 		},
 	}
 
-	svid := &svidstore.SVID{
+	svid := svidstore.SVID{
 		SPIFFEID: spiffeid.RequireFromString("spiffe://example.org/workload"),
 		CertChain: []*x509.Certificate{
 			{Raw: []byte{1}},
@@ -68,6 +68,9 @@ func TestV1PutX509SVID(t *testing.T) {
 		ExpiresAt:  expiresAt,
 		PrivateKey: key,
 	}
+
+	svidWithHint := svid
+	svidWithHint.Hint = "internal"
 
 	for _, tt := range []struct {
 		name             string
@@ -94,7 +97,7 @@ func TestV1PutX509SVID(t *testing.T) {
 			},
 			x509SVID: &svidstore.X509SVID{
 				FederatedBundles: federatedBundles,
-				SVID:             svid,
+				SVID:             &svid,
 				Metadata:         []string{"a:1", "b:2"},
 			},
 		},
@@ -111,8 +114,30 @@ func TestV1PutX509SVID(t *testing.T) {
 				Metadata: []string{"a:1", "b:2"},
 			},
 			x509SVID: &svidstore.X509SVID{
-				SVID:     svid,
+				SVID:     &svid,
 				Metadata: []string{"a:1", "b:2"},
+			},
+		},
+		{
+			name: "with hint",
+			expectPutRequest: &svidstorev1.PutX509SVIDRequest{
+				Svid: &svidstorev1.X509SVID{
+					SpiffeID:   "spiffe://example.org/workload",
+					PrivateKey: keyData,
+					CertChain:  [][]byte{{1}, {3}},
+					Bundle:     [][]byte{{4}},
+					ExpiresAt:  expiresAt.Unix(),
+				},
+				Metadata: []string{"a:1", "b:2", "hint:internal"},
+				FederatedBundles: map[string][]byte{
+					"td1": {1},
+					"td2": {2},
+				},
+			},
+			x509SVID: &svidstore.X509SVID{
+				FederatedBundles: federatedBundles,
+				SVID:             &svidWithHint,
+				Metadata:         []string{"a:1", "b:2"},
 			},
 		},
 		{
@@ -152,7 +177,7 @@ func TestV1PutX509SVID(t *testing.T) {
 			},
 			x509SVID: &svidstore.X509SVID{
 				FederatedBundles: federatedBundles,
-				SVID:             svid,
+				SVID:             &svid,
 			},
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "svidstore(test): oh no!",

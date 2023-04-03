@@ -3,6 +3,7 @@ package svidstore
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 
 	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	"github.com/spiffe/spire/pkg/common/plugin"
@@ -53,9 +54,14 @@ func (v1 *V1) PutX509SVID(ctx context.Context, x509SVID *X509SVID) error {
 		}
 	}
 
+	metadata := x509SVID.Metadata
+	if x509SVID.SVID.Hint != "" {
+		metadata = append(metadata, fmt.Sprintf("hint:%s", x509SVID.SVID.Hint))
+	}
+
 	req := &svidstorev1.PutX509SVIDRequest{
 		Svid:             svid,
-		Metadata:         x509SVID.Metadata,
+		Metadata:         metadata,
 		FederatedBundles: federatedBundles,
 	}
 

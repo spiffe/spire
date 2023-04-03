@@ -159,6 +159,37 @@ func TestSecretFromProto(t *testing.T) {
 			},
 		},
 		{
+			name: "success with hint",
+			req: &svidstorev1.PutX509SVIDRequest{
+				Svid: &svidstorev1.X509SVID{
+					SpiffeID:   "spiffe://example.org/foo",
+					CertChain:  [][]byte{x509Cert.Raw},
+					PrivateKey: keyByte,
+					Bundle:     [][]byte{x509Bundle.Raw},
+				},
+				Metadata: []string{
+					"a:1",
+					"b:2",
+					"hint:internal",
+				},
+				FederatedBundles: map[string][]byte{
+					"federated1": federatedBundle.Raw,
+					"federated2": federatedBundle.Raw,
+				},
+			},
+			expect: &svidstore.Data{
+				SPIFFEID:    "spiffe://example.org/foo",
+				X509SVID:    x509CertPem,
+				X509SVIDKey: x509KeyPem,
+				Bundle:      x509BundlePem,
+				FederatedBundles: map[string]string{
+					"federated1": x509FederatedBundlePem,
+					"federated2": x509FederatedBundlePem,
+				},
+				Hint: "internal",
+			},
+		},
+		{
 			name: "failed to parse cert chain",
 			req: &svidstorev1.PutX509SVIDRequest{
 				Svid: &svidstorev1.X509SVID{
@@ -236,6 +267,27 @@ func TestSecretFromProto(t *testing.T) {
 				},
 			},
 			err: "failed to parse FederatedBundle \"federated1\": x509: malformed certificate",
+		},
+		{
+			name: "failed with invalid metadata",
+			req: &svidstorev1.PutX509SVIDRequest{
+				Svid: &svidstorev1.X509SVID{
+					SpiffeID:   "spiffe://example.org/foo",
+					CertChain:  [][]byte{x509Cert.Raw},
+					PrivateKey: keyByte,
+					Bundle:     [][]byte{x509Bundle.Raw},
+				},
+				Metadata: []string{
+					"a1",
+					"b2",
+					"hintinternal",
+				},
+				FederatedBundles: map[string][]byte{
+					"federated1": federatedBundle.Raw,
+					"federated2": federatedBundle.Raw,
+				},
+			},
+			err: "failed to get hint from metadata: metadata does not contain a colon: \"a1\"",
 		},
 	} {
 		tt := tt
