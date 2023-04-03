@@ -62,12 +62,12 @@ func TestFetchX509SVID(t *testing.T) {
 	federatedBundle := testca.New(t, td2).Bundle()
 
 	identities := []cache.Identity{
-		identityFromX509SVID(x509SVID0),
-		identityFromX509SVID(x509SVID1),
-		identityFromX509SVID(x509SVID2),
-		identityFromX509SVID(x509SVID3),
-		identityFromX509SVID(x509SVID4),
-		identityFromX509SVID(x509SVID5),
+		identityFromX509SVID(x509SVID0, "id0"),
+		identityFromX509SVID(x509SVID1, "id1"),
+		identityFromX509SVID(x509SVID2, "id2"),
+		identityFromX509SVID(x509SVID3, "id3"),
+		identityFromX509SVID(x509SVID4, "id4"),
+		identityFromX509SVID(x509SVID5, "id5"),
 	}
 	identities[0].Entry.CreatedAt = now
 	identities[1].Entry.CreatedAt = now
@@ -237,7 +237,7 @@ func TestFetchX509SVID(t *testing.T) {
 					Level:   logrus.WarnLevel,
 					Message: "Ignoring entry with duplicate hint",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "spiffe://domain.test/one",
+						telemetry.RegistrationID: "id1",
 						telemetry.Hint:           "internal",
 						telemetry.Method:         "FetchX509SVID",
 						telemetry.Service:        "WorkloadAPI",
@@ -247,7 +247,7 @@ func TestFetchX509SVID(t *testing.T) {
 					Level:   logrus.WarnLevel,
 					Message: "Ignoring entry with duplicate hint",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "spiffe://domain.test/three",
+						telemetry.RegistrationID: "id3",
 						telemetry.Hint:           "internal",
 						telemetry.Method:         "FetchX509SVID",
 						telemetry.Service:        "WorkloadAPI",
@@ -257,7 +257,7 @@ func TestFetchX509SVID(t *testing.T) {
 					Level:   logrus.WarnLevel,
 					Message: "Ignoring entry with duplicate hint",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "spiffe://domain.test/four",
+						telemetry.RegistrationID: "id4",
 						telemetry.Hint:           "internal",
 						telemetry.Method:         "FetchX509SVID",
 						telemetry.Service:        "WorkloadAPI",
@@ -366,7 +366,7 @@ func TestFetchX509Bundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
-						identityFromX509SVID(x509SVID),
+						identityFromX509SVID(x509SVID, "id1"),
 					},
 				},
 			},
@@ -389,7 +389,7 @@ func TestFetchX509Bundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
-						identityFromX509SVID(x509SVID),
+						identityFromX509SVID(x509SVID, "id1"),
 					},
 					Bundle: bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
@@ -461,13 +461,13 @@ func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: otherBundle,
 		},
@@ -522,19 +522,19 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: otherBundle,
 		},
@@ -597,12 +597,13 @@ func TestFetchJWTSVID(t *testing.T) {
 	x509SVID5 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/five"))
 
 	identities := []cache.Identity{
-		identityFromX509SVID(x509SVID0),
-		identityFromX509SVID(x509SVID1),
-		identityFromX509SVID(x509SVID2),
-		identityFromX509SVID(x509SVID3),
-		identityFromX509SVID(x509SVID4),
-		identityFromX509SVID(x509SVID5),
+		identityFromX509SVID(x509SVID0, "id0"),
+		identityFromX509SVID(x509SVID1, "id1"),
+		identityFromX509SVID(x509SVID2, "id2"),
+		identityFromX509SVID(x509SVID3, "id3"),
+		identityFromX509SVID(x509SVID4, "id4"),
+		identityFromX509SVID(x509SVID5, "id5"),
+		identityFromX509SVID(x509SVID1Dup, "id6"),
 	}
 	identities[0].Entry.CreatedAt = now
 	identities[1].Entry.CreatedAt = now
@@ -680,8 +681,8 @@ func TestFetchJWTSVID(t *testing.T) {
 		{
 			name: "identity found but unexpected SPIFFE ID",
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
-				identityFromX509SVID(x509SVID2),
+				identities[1],
+				identities[2],
 			},
 			spiffeID:   spiffeid.RequireFromPath(td, "/unexpected").String(),
 			audience:   []string{"AUDIENCE"},
@@ -721,7 +722,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			name:     "fetch error",
 			audience: []string{"AUDIENCE"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[1],
 			},
 			managerErr: errors.New("ohno"),
 			expectCode: codes.Unavailable,
@@ -743,9 +744,9 @@ func TestFetchJWTSVID(t *testing.T) {
 		{
 			name: "success all",
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1Dup),
-				identityFromX509SVID(x509SVID1),
-				identityFromX509SVID(x509SVID2),
+				identities[6],
+				identities[1],
+				identities[2],
 			},
 			audience:   []string{"AUDIENCE"},
 			expectCode: codes.OK,
@@ -766,8 +767,8 @@ func TestFetchJWTSVID(t *testing.T) {
 		{
 			name: "success specific",
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
-				identityFromX509SVID(x509SVID2),
+				identities[1],
+				identities[2],
 			},
 			spiffeID:   x509SVID2.ID.String(),
 			audience:   []string{"AUDIENCE"},
@@ -794,13 +795,17 @@ func TestFetchJWTSVID(t *testing.T) {
 				{
 					spiffeID: x509SVID5.ID.String(),
 				},
+				{
+					spiffeID: x509SVID1Dup.ID.String(),
+					hint:     "external",
+				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
 					Message: "Ignoring entry with duplicate hint",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "spiffe://domain.test/one",
+						telemetry.RegistrationID: "id1",
 						telemetry.Hint:           "internal",
 						telemetry.Method:         "FetchJWTSVID",
 						telemetry.Service:        "WorkloadAPI",
@@ -811,7 +816,7 @@ func TestFetchJWTSVID(t *testing.T) {
 					Level:   logrus.WarnLevel,
 					Message: "Ignoring entry with duplicate hint",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "spiffe://domain.test/three",
+						telemetry.RegistrationID: "id3",
 						telemetry.Hint:           "internal",
 						telemetry.Method:         "FetchJWTSVID",
 						telemetry.Service:        "WorkloadAPI",
@@ -822,7 +827,7 @@ func TestFetchJWTSVID(t *testing.T) {
 					Level:   logrus.WarnLevel,
 					Message: "Ignoring entry with duplicate hint",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "spiffe://domain.test/four",
+						telemetry.RegistrationID: "id4",
 						telemetry.Hint:           "internal",
 						telemetry.Method:         "FetchJWTSVID",
 						telemetry.Service:        "WorkloadAPI",
@@ -955,7 +960,7 @@ func TestFetchJWTBundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
-						identityFromX509SVID(x509SVID),
+						identityFromX509SVID(x509SVID, "id1"),
 					},
 				},
 			},
@@ -978,7 +983,7 @@ func TestFetchJWTBundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
-						identityFromX509SVID(x509SVID),
+						identityFromX509SVID(x509SVID, "id1"),
 					},
 					Bundle: bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
@@ -1062,13 +1067,13 @@ func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: otherBundle,
 		},
@@ -1135,19 +1140,19 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: otherBundle,
 		},
@@ -1631,9 +1636,9 @@ func (a *FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
 	return a.selectors, a.err
 }
 
-func identityFromX509SVID(svid *x509svid.SVID) cache.Identity {
+func identityFromX509SVID(svid *x509svid.SVID, entryID string) cache.Identity {
 	return cache.Identity{
-		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String(), Hint: svid.Hint, EntryId: svid.ID.String()},
+		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String(), Hint: svid.Hint, EntryId: entryID},
 		PrivateKey: svid.PrivateKey,
 		SVID:       svid.Certificates,
 	}

@@ -554,8 +554,8 @@ func filterRegistrations(entries []*common.RegistrationEntry, log logrus.FieldLo
 	return filteredEntries
 }
 
-func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLogger) map[string]bool {
-	entriesToRemove := make(map[string]bool)
+func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLogger) map[string]struct{} {
+	entriesToRemove := make(map[string]struct{})
 	hintsMap := make(map[string]*common.RegistrationEntry)
 
 	for _, entry := range entries {
@@ -566,7 +566,7 @@ func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLog
 			entryToMaintain, entryToRemove := hintTieBreaking(entry, entryWithNonUniqueHint)
 
 			hintsMap[entry.Hint] = entryToMaintain
-			entriesToRemove[entryToRemove.EntryId] = true
+			entriesToRemove[entryToRemove.EntryId] = struct{}{}
 
 			log.WithFields(logrus.Fields{
 				telemetry.Hint:           entryToRemove.Hint,
