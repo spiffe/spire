@@ -14,7 +14,8 @@ The format that is used to store in a secret the issued identity is the followin
     "bundle": "X509_BUNDLE_PEM",
     "federatedBundles": {
         "spiffe://federated.org": "X509_FEDERATED_BUNDLE_PEM"
-    }
+    },
+    "hint": "optional hint"
 }
 ```
 

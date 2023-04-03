@@ -14,7 +14,8 @@ The format that is used to store in a secret the issued identity is the followin
     "bundle": "X509_BUNDLE_PEM",
     "federatedBundles": {
         "spiffe://federated.org": "X509_FEDERATED_BUNDLE_PEM"
-    }
+    },
+    "hint": "optional hint"
 }
 ```
 
@@ -67,7 +68,7 @@ Selectors are used on `storable` entries to describe metadata that is needed by 
 
 | Selector                           | Example                                                                          | Required | Description                                                                |
 |------------------------------------|----------------------------------------------------------------------------------|----------|----------------------------------------------------------------------------|
-| `gcp_secretmanager:name`           | `gcp_secretmanager:secretname:some-name`                                         | x        | The secret name where SVID will be stored                                  |
+| `gcp_secretmanager:name`           | `gcp_secretmanager:name:some-name`                                               | x        | The secret name where SVID will be stored                                  |
 | `gcp_secretmanager:projectid`      | `gcp_secretmanager:projectid:some-project`                                       | x        | The Google Cloud project ID which the plugin will use Secret Manager       |
 | `gcp_secretmanager:role`           | `gcp_secretmanager:role:roles/secretmanager.viewer`                              | -        | The Google Cloud role id for IAM policy (serviceaccount required when set) |
 | `gcp_secretmanager:serviceaccount` | `gcp_secretmanager:serviceaccount:test-secret@test-proj.iam.gserviceaccount.com` | -        | The Google Cloud Service account for IAM policy (role required when set)   |
