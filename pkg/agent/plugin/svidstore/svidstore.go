@@ -43,4 +43,7 @@ type SVID struct {
 
 	// Expiration timestamp
 	ExpiresAt time.Time
+
+	// Hint is used for indicating the svid usage
+	Hint string
 }

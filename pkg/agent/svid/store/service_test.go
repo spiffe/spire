@@ -66,6 +66,7 @@ func TestRun(t *testing.T) {
 								CertChain:  []*x509.Certificate{cert},
 								PrivateKey: key,
 								ExpiresAt:  now,
+								Hint:       "external",
 							},
 							Metadata:         []string{"a:1", "b:2"},
 							FederatedBundles: make(map[string][]*x509.Certificate),
@@ -83,6 +84,7 @@ func TestRun(t *testing.T) {
 							{Type: "store1", Value: "a:1"},
 							{Type: "store1", Value: "b:2"},
 						},
+						Hint: "external",
 					},
 					Svid: &cache.X509SVID{
 						Chain:      []*x509.Certificate{cert},

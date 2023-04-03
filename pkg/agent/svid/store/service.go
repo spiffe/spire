@@ -247,6 +247,7 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record, metadata
 			CertChain:  record.Svid.Chain,
 			PrivateKey: record.Svid.PrivateKey,
 			ExpiresAt:  record.ExpiresAt,
+			Hint:       record.Entry.Hint,
 		},
 		FederatedBundles: federatedBundles,
 	}, nil
