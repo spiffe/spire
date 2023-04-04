@@ -361,7 +361,7 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse SPIFFE trust bundle: %w", err)
 		}
-		return bundle.RootCAs(), nil
+		return bundle.X509Authorities(), nil
 	}
 
 	return nil, fmt.Errorf("unknown trust bundle format: %s", trustBundleContentType)

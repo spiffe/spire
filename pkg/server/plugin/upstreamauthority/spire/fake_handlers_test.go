@@ -120,11 +120,12 @@ func (h *handler) loadInitialBundle(t *testing.T) {
 
 	// Append X509 authorities
 	for _, rootCA := range h.ca.Bundle().X509Authorities() {
-		b.AppendRootCA(rootCA)
+		b.AddX509Authority(rootCA)
 	}
 
 	// Parse common bundle into types
-	p := b.Proto()
+	p, err := bundleutil.SPIFFEBundleToProto(b)
+	require.NoError(t, err)
 	var jwtAuthorities []*types.JWTKey
 	for _, k := range p.JwtSigningKeys {
 		jwtAuthorities = append(jwtAuthorities, &types.JWTKey{

@@ -7,6 +7,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -323,8 +324,8 @@ func (m *Manager) notifyBundleRefreshed(ctx context.Context, nextRefresh time.Du
 	}
 }
 
-func calculateNextUpdate(b *bundleutil.Bundle) time.Duration {
-	return bundleutil.CalculateRefreshHint(b) / attemptsPerRefreshHint
+func calculateNextUpdate(b *spiffebundle.Bundle) time.Duration {
+	return bundleutil.CalculateRefreshHintFromSPIFFEBundle(b) / attemptsPerRefreshHint
 }
 
 func cloneTrustDomainConfigs(configs map[spiffeid.TrustDomain]TrustDomainConfig) map[spiffeid.TrustDomain]TrustDomainConfig {

@@ -3,6 +3,8 @@ package bundleutil
 import (
 	"math"
 	"time"
+
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 )
 
 const (
@@ -28,6 +30,38 @@ func CalculateRefreshHint(bundle *Bundle) time.Duration {
 
 	smallestLifetime := maxDuration
 	for _, rootCA := range bundle.RootCAs() {
+		lifetime := rootCA.NotAfter.Sub(rootCA.NotBefore)
+		if lifetime < smallestLifetime {
+			smallestLifetime = lifetime
+		}
+	}
+
+	// TODO: look at JWT key lifetimes... requires us to track issued_at dates
+	// which we currently do not do.
+
+	// Set the refresh hint to a fraction of the smallest lifetime, if found.
+	var refreshHint time.Duration
+	if smallestLifetime != maxDuration {
+		refreshHint = smallestLifetime / refreshHintLeewayFactor
+	}
+	return safeRefreshHint(refreshHint)
+}
+
+// CalculateRefreshHintFromSPIFFEBundle is used to calculate the refresh hint for a given
+// bundle. If the bundle already contains a refresh hint, then that is used,
+// Otherwise, it looks at the lifetimes of the bundle contents and returns a
+// fraction of the smallest. It is fairly aggressive but ensures clients don't
+// miss a rotation period and lose their ability to fetch.
+// TODO: reevaluate our strategy here when we rework the TTL story inside SPIRE.
+func CalculateRefreshHintFromSPIFFEBundle(bundle *spiffebundle.Bundle) time.Duration {
+	if r, ok := bundle.RefreshHint(); ok && r > 0 {
+		return safeRefreshHint(r)
+	}
+
+	const maxDuration time.Duration = math.MaxInt64
+
+	smallestLifetime := maxDuration
+	for _, rootCA := range bundle.X509Authorities() {
 		lifetime := rootCA.NotAfter.Sub(rootCA.NotBefore)
 		if lifetime < smallestLifetime {
 			smallestLifetime = lifetime
