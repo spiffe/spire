@@ -183,6 +183,8 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	}
 
 	rpccontext.AuditRPC(ctx)
+	// TODO: Add identifier
+	log.Info("Key tainted successfully")
 
 	return &localauthorityv1.TaintX509AuthorityResponse{
 		TaintedAuthority: status,
@@ -208,6 +210,8 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 	}
 
 	rpccontext.AuditRPC(ctx)
+	// TODO: Add identifier
+	log.Info("Key revoked successfully")
 
 	return &localauthorityv1.RevokeX509AuthorityResponse{
 		RevokedAuthority: state,

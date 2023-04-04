@@ -501,6 +501,10 @@ func TestTaintX509Authority(t *testing.T) {
 						telemetry.Type:   "audit",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Key tainted successfully",
+				},
 			},
 		},
 		{
@@ -523,6 +527,10 @@ func TestTaintX509Authority(t *testing.T) {
 						telemetry.Type:                         "audit",
 						telemetry.X509AuthorityPublicKeySHA256: oldKeySHA256,
 					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Key tainted successfully",
 				},
 			},
 		},
@@ -732,6 +740,10 @@ func TestRevokeX509Authority(t *testing.T) {
 						telemetry.Type:   "audit",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Key revoked successfully",
+				},
 			},
 		},
 		{
@@ -754,6 +766,10 @@ func TestRevokeX509Authority(t *testing.T) {
 						telemetry.Type:                         "audit",
 						telemetry.X509AuthorityPublicKeySHA256: oldKeySHA256,
 					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Key revoked successfully",
 				},
 			},
 		},
