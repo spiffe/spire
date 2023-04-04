@@ -367,7 +367,8 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAE
 			Certificate:   cert,
 			UpstreamChain: upstreamChain,
 		},
-		status: entry.Status,
+		publicKey: signer.Public(),
+		status:    entry.Status,
 	}, "", nil
 }
 
