@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.2] - 2023-04-04
+
+### Security
+
+- Updated to Go 1.20.3 to address CVE-2023-24534
+
 ## [1.6.1] - 2023-03-1
 
 ### Fixed
@@ -38,6 +44,16 @@
 - The deprecated `enabled` flag from InMem telemetry config (#3796)
 - The deprecated `default_svid_ttl` configurable (#3795)
 - The deprecated `omit_x509svid_uid` configurable (#3794)
+
+## [1.5.6] - 2023-04-04
+
+### Added
+
+- A log message in the k8s-workload-registrar webhook when validation fails (#4011)
+
+### Security
+
+- Updated to Go 1.19.8 to address CVE-2023-24534
 
 ## [1.5.5] - 2023-02-14
 
