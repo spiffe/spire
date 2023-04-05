@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.2] - 2023-04-04
+
+### Security
+
+- Updated to Go 1.20.3 to address CVE-2023-24534
+
 ## [1.6.1] - 2023-03-1
 
 ### Fixed
