@@ -390,7 +390,7 @@ func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
 }
 
 func setupTrustBundle(ac *agent.Config, c *Config) error {
-	// Either download the turst bundle if TrustBundleURL is set, or read it
+	// Either download the trust bundle if TrustBundleURL is set, or read it
 	// from disk if TrustBundlePath is set
 	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
 

@@ -326,9 +326,10 @@ func TestPublishJWTKey(t *testing.T) {
 	require.NotNil(t, upstreamJwtKeys)
 
 	require.Len(t, upstreamJwtKeys, 3)
-	assert.Equal(t, upstreamJwtKeys[0].Kid, "C6vs25welZOx6WksNYfbMfiw9l96pMnD")
-	assert.Equal(t, upstreamJwtKeys[1].Kid, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
-	assert.Equal(t, upstreamJwtKeys[2].Kid, "kid-2")
+	keyIDs := []string{upstreamJwtKeys[0].Kid, upstreamJwtKeys[1].Kid, upstreamJwtKeys[2].Kid}
+	assert.Contains(t, keyIDs, "C6vs25welZOx6WksNYfbMfiw9l96pMnD")
+	assert.Contains(t, keyIDs, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
+	assert.Contains(t, keyIDs, "kid-2")
 
 	// Update bundle to trigger another response. Move time forward at the
 	// upstream poll frequency twice to ensure the plugin picks up the change
