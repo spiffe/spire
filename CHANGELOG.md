@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.5.6] - 2023-04-04
+
+### Added
+
+- A log message in the k8s-workload-registrar webhook when validation fails (#4011)
+
+### Security
+
+- Updated to Go 1.19.8 to address CVE-2023-24534
+
 ## [1.5.5] - 2023-02-14
 
 ### Security
