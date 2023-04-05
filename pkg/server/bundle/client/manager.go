@@ -325,7 +325,7 @@ func (m *Manager) notifyBundleRefreshed(ctx context.Context, nextRefresh time.Du
 }
 
 func calculateNextUpdate(b *spiffebundle.Bundle) time.Duration {
-	return bundleutil.CalculateRefreshHintFromSPIFFEBundle(b) / attemptsPerRefreshHint
+	return bundleutil.CalculateRefreshHint(b) / attemptsPerRefreshHint
 }
 
 func cloneTrustDomainConfigs(configs map[spiffeid.TrustDomain]TrustDomainConfig) map[spiffeid.TrustDomain]TrustDomainConfig {

@@ -15,13 +15,13 @@ const (
 	MinimumRefreshHint = time.Minute
 )
 
-// CalculateRefreshHintFromSPIFFEBundle is used to calculate the refresh hint for a given
+// CalculateRefreshHint is used to calculate the refresh hint for a given
 // bundle. If the bundle already contains a refresh hint, then that is used,
 // Otherwise, it looks at the lifetimes of the bundle contents and returns a
 // fraction of the smallest. It is fairly aggressive but ensures clients don't
 // miss a rotation period and lose their ability to fetch.
 // TODO: reevaluate our strategy here when we rework the TTL story inside SPIRE.
-func CalculateRefreshHintFromSPIFFEBundle(bundle *spiffebundle.Bundle) time.Duration {
+func CalculateRefreshHint(bundle *spiffebundle.Bundle) time.Duration {
 	if r, ok := bundle.RefreshHint(); ok && r > 0 {
 		return safeRefreshHint(r)
 	}

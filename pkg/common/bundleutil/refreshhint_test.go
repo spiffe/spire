@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCalculateRefreshHintFromSPIFFEBundle(t *testing.T) {
+func TestCalculateRefreshHint(t *testing.T) {
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 	emptyBundle := spiffebundle.New(trustDomain)
 	emptyBundleWithRefreshHint := spiffebundle.New(trustDomain)
@@ -60,7 +60,7 @@ func TestCalculateRefreshHintFromSPIFFEBundle(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			require.Equal(t, testCase.refreshHint, CalculateRefreshHintFromSPIFFEBundle(testCase.bundle), "refresh hint is wrong")
+			require.Equal(t, testCase.refreshHint, CalculateRefreshHint(testCase.bundle), "refresh hint is wrong")
 		})
 	}
 }

@@ -100,7 +100,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	refreshHint := bundleutil.CalculateRefreshHintFromSPIFFEBundle(b)
+	refreshHint := bundleutil.CalculateRefreshHint(b)
 
 	// TODO: bundle sequence number?
 	opts := []bundleutil.MarshalOption{
