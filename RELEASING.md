@@ -1,8 +1,8 @@
-## Release and Branch Management
+# Release and Branch Management
 
 The SPIRE project maintains active support for both the current and the previous major versions. All active development occurs in the `main` branch. Version branches are used for minor releases of the previous major version when necessary.
 
-### Version Branches
+## Version Branches
 
 Each release must have its own release branch following the naming convention `release/vX.Y.Z` where `X` is the major version, `Y` is the minor version, and `Z` is patch version.
 
@@ -18,7 +18,7 @@ Once the version branch is created, the patch is either cherry picked or backpor
 
 Ensure that the CHANGELOG is updated in both `main` and the version branch to reflect the new release.
 
-### Releasing
+## Releasing
 
 The SPIRE release machinery is tag-driven. When the maintainers are ready to release, a tag is pushed referencing the release commit. While the CI/CD pipeline takes care of the rest, it is important to keep an eye on its progress. If an error is encountered during this process, the release is aborted.
 
@@ -26,9 +26,9 @@ The first two releases that a new maintainer performs must be performed under th
 
 SPIRE releases are authorized by its maintainers. When doing so, they should carefully consider the proposed release commit. Is there confidence that the changes included do not represent a compatibility concern? Have the affected codepaths been sufficiently exercised, be it by automated test suite or manual testing? Is the maintainer free of general hesitation in releasing this commit, particularly with regards to safety and security? If the answer to any of these questions is "no", then do not release.
 
-A simple majority vote is required to authorize a SPIRE release at a specific commit hash. If any maintainer feels that the result of this vote critically endangers the project or its users, they have the right to raise the matter to the SPIFFE TSC. If this occurs, the release in question MUST be frozen until the SPIFFE TSC has made a decision. Do not take this route lightly (see [General Governance](#general-governance)).
+A simple majority vote is required to authorize a SPIRE release at a specific commit hash. If any maintainer feels that the result of this vote critically endangers the project or its users, they have the right to raise the matter to the SPIFFE TSC. If this occurs, the release in question MUST be frozen until the SPIFFE TSC has made a decision. Do not take this route lightly (see [General Governance](MAINTAINERS.md#general-governance)).
 
-#### Checklist
+### Checklist
 
 This section summarizes the steps necessary to execute a SPIRE release. Unless explicitly stated, the below steps must be executed in order.
 
