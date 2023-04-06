@@ -370,19 +370,29 @@ func TestFetchJWTSVIDs(t *testing.T) {
 	ca := testca.New(t, trustDomain1)
 
 	x509SVID1 := ca.CreateX509SVID(id1)
+	jwtSVID1 := ca.CreateJWTSVID(id1, []string{"AUDIENCE"})
 	x509SVID2 := ca.CreateX509SVID(id2)
+	jwtSVID2 := ca.CreateJWTSVID(id2, []string{"AUDIENCE"})
+
+	identities := []cache.Identity{
+		identityFromX509SVID(x509SVID1),
+		identityFromX509SVID(x509SVID2),
+	}
+
+	identities[0].Entry.Hint = "internal"
 
 	for _, tt := range []struct {
-		testName       string
-		identities     []cache.Identity
-		authSpiffeID   []string
-		audience       []string
-		selectors      []*types.Selector
-		expectCode     codes.Code
-		expectMsg      string
-		attestErr      error
-		managerErr     error
-		expectTokenIDs []spiffeid.ID
+		testName     string
+		identities   []cache.Identity
+		jwtSVIDsResp map[spiffeid.ID]*client.JWTSVID
+		authSpiffeID []string
+		audience     []string
+		selectors    []*types.Selector
+		expectCode   codes.Code
+		expectMsg    string
+		attestErr    error
+		managerErr   error
+		expectResp   *delegatedidentityv1.FetchJWTSVIDsResponse
 	}{
 		{
 			testName:   "missing required audience",
@@ -401,7 +411,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one/wrong"},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "caller not configured as an authorized delegate",
@@ -412,7 +422,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			managerErr: errors.New("ohno"),
 			expectCode: codes.Unavailable,
@@ -424,7 +434,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			selectors:    []*types.Selector{{Type: "", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse provided selectors",
@@ -435,7 +445,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			selectors:    []*types.Selector{{Type: "sa", Value: ""}},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse provided selectors",
@@ -446,7 +456,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			selectors:    []*types.Selector{{Type: "sa:bar", Value: "boo"}},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse provided selectors",
@@ -457,20 +467,63 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
-			expectTokenIDs: []spiffeid.ID{x509SVID1.ID},
+			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
+				id1: {
+					Token:     jwtSVID1.Marshal(),
+					ExpiresAt: time.Unix(1680786600, 0),
+					IssuedAt:  time.Unix(1680783000, 0),
+				},
+			},
+			expectResp: &delegatedidentityv1.FetchJWTSVIDsResponse{
+				Svids: []*types.JWTSVID{
+					{
+						Token:     jwtSVID1.Marshal(),
+						Id:        &types.SPIFFEID{TrustDomain: id1.TrustDomain().String(), Path: id1.Path()},
+						Hint:      "internal",
+						ExpiresAt: 1680786600,
+						IssuedAt:  1680783000,
+					},
+				},
+			},
 		},
 		{
 			testName:     "success with two identities",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
-				identityFromX509SVID(x509SVID2),
+			identities:   identities,
+			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
+				id1: {
+					Token:     jwtSVID1.Marshal(),
+					ExpiresAt: time.Unix(1680786600, 0),
+					IssuedAt:  time.Unix(1680783000, 0),
+				},
+				id2: {
+					Token:     jwtSVID2.Marshal(),
+					ExpiresAt: time.Unix(1680786600, 0),
+					IssuedAt:  time.Unix(1680783000, 0),
+				},
 			},
-			expectTokenIDs: []spiffeid.ID{x509SVID1.ID, x509SVID2.ID},
+			expectResp: &delegatedidentityv1.FetchJWTSVIDsResponse{
+				Svids: []*types.JWTSVID{
+					{
+						Token:     jwtSVID1.Marshal(),
+						Id:        &types.SPIFFEID{TrustDomain: id1.TrustDomain().String(), Path: id1.Path()},
+						Hint:      "internal",
+						ExpiresAt: 1680786600,
+						IssuedAt:  1680783000,
+					},
+					{
+						Token:     jwtSVID2.Marshal(),
+						Id:        &types.SPIFFEID{TrustDomain: id2.TrustDomain().String(), Path: id2.Path()},
+						Hint:      "",
+						ExpiresAt: 1680786600,
+						IssuedAt:  1680783000,
+					},
+				},
+			},
 		},
 	} {
 		tt := tt
@@ -481,6 +534,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 				AuthSpiffeID: tt.authSpiffeID,
 				AttestErr:    tt.attestErr,
 				ManagerErr:   tt.managerErr,
+				JwtSVIDS:     tt.jwtSVIDsResp,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
@@ -494,13 +548,11 @@ func TestFetchJWTSVIDs(t *testing.T) {
 						assert.Nil(t, resp)
 						return
 					}
-					var tokenIDs []spiffeid.ID
 					for _, svid := range resp.Svids {
-						parsedSVID, err := jwtsvid.ParseInsecure(svid.Token, tt.audience)
+						_, err := jwtsvid.ParseInsecure(svid.Token, tt.audience)
 						require.NoError(t, err, "JWT-SVID token is malformed")
-						tokenIDs = append(tokenIDs, parsedSVID.ID)
 					}
-					assert.Equal(t, tt.expectTokenIDs, tokenIDs)
+					spiretest.AssertProtoEqual(t, tt.expectResp, resp)
 				})
 		})
 	}
@@ -606,6 +658,7 @@ type testParams struct {
 	Identities   []cache.Identity
 	Updates      []*cache.WorkloadUpdate
 	CacheUpdates map[spiffeid.TrustDomain]*cache.Bundle
+	JwtSVIDS     map[spiffeid.ID]*client.JWTSVID
 	AuthSpiffeID []string
 	AttestErr    error
 	ManagerErr   error
@@ -620,7 +673,8 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		ca:          params.CA,
 		identities:  params.Identities,
 		updates:     params.Updates,
-		cacheupdate: params.CacheUpdates,
+		cacheUpdate: params.CacheUpdates,
+		jwtSVIDs:    params.JwtSVIDS,
 		err:         params.ManagerErr,
 	}
 
@@ -667,8 +721,9 @@ type FakeManager struct {
 
 	ca          *testca.CA
 	identities  []cache.Identity
+	jwtSVIDs    map[spiffeid.ID]*client.JWTSVID
 	updates     []*cache.WorkloadUpdate
-	cacheupdate map[spiffeid.TrustDomain]*cache.Bundle
+	cacheUpdate map[spiffeid.TrustDomain]*cache.Bundle
 
 	subscribers int32
 	err         error
@@ -694,10 +749,11 @@ func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, au
 	if m.err != nil {
 		return nil, m.err
 	}
-	svid := m.ca.CreateJWTSVID(spiffeID, audience)
-	return &client.JWTSVID{
-		Token: svid.Marshal(),
-	}, nil
+	svid, ok := m.jwtSVIDs[spiffeID]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	return svid, nil
 }
 
 func (m *FakeManager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
@@ -773,7 +829,7 @@ func utilIDProtoFromString(t *testing.T, id string) *types.SPIFFEID {
 
 func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
 	mycache := newTestCache()
-	mycache.BundleCache.Update(m.cacheupdate)
+	mycache.BundleCache.Update(m.cacheUpdate)
 
 	return mycache.BundleCache.SubscribeToBundleChanges()
 }
