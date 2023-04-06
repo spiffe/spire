@@ -60,6 +60,12 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 	federatedBundle1 := testca.New(t, trustDomain2).Bundle()
 	federatedBundle2 := testca.New(t, trustDomain3).Bundle()
 
+	identities := []cache.Identity{
+		identityFromX509SVID(x509SVID1),
+		identityFromX509SVID(x509SVID2),
+	}
+	identities[1].Entry.Hint = "external"
+
 	for _, tt := range []struct {
 		testName     string
 		identities   []cache.Identity
@@ -72,16 +78,16 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		expectResp   *delegatedidentityv1.SubscribeToX509SVIDsResponse
 	}{
 		{
-			testName:   "Attest error",
+			testName:   "attest error",
 			attestErr:  errors.New("ohno"),
 			expectCode: codes.Internal,
 			expectMsg:  "workload attestation failed",
 		},
 		{
-			testName:     "Access to \"privileged\" admin API denied",
+			testName:     "access to \"privileged\" admin API denied",
 			authSpiffeID: []string{"spiffe://example.org/one/wrong"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "caller not configured as an authorized delegate",
@@ -90,7 +96,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			testName:     "subscribe to cache changes error",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			managerErr: errors.New("err"),
 			expectCode: codes.Unknown,
@@ -100,11 +106,11 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			testName:     "workload update with one identity",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			updates: []*cache.WorkloadUpdate{
 				{Identities: []cache.Identity{
-					identityFromX509SVID(x509SVID1),
+					identities[0],
 				},
 					Bundle: bundle,
 				},
@@ -126,12 +132,12 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			testName:     "workload update with two identities",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			updates: []*cache.WorkloadUpdate{
 				{Identities: []cache.Identity{
-					identityFromX509SVID(x509SVID1),
-					identityFromX509SVID(x509SVID2),
+					identities[0],
+					identities[1],
 				},
 					Bundle: bundle,
 				},
@@ -151,6 +157,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 							Id:        utilIDProtoFromString(t, x509SVID2.ID.String()),
 							CertChain: x509util.RawCertsFromCertificates(x509SVID2.Certificates),
 							ExpiresAt: x509SVID2.Certificates[0].NotAfter.Unix(),
+							Hint:      "external",
 						},
 						X509SvidKey: pkcs8FromSigner(t, x509SVID2.PrivateKey),
 					},
@@ -161,7 +168,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			testName:     "no workload update",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			updates:    []*cache.WorkloadUpdate{{}},
 			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{},
@@ -170,7 +177,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			testName:     "workload update without identity.SVID",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			updates: []*cache.WorkloadUpdate{
 				{Identities: []cache.Identity{
@@ -184,12 +191,13 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			testName:     "workload update with identity and federated bundles",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			updates: []*cache.WorkloadUpdate{
-				{Identities: []cache.Identity{
-					identityFromX509SVID(x509SVID1),
-				},
+				{
+					Identities: []cache.Identity{
+						identities[0],
+					},
 					Bundle: bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle1.TrustDomain(): federatedBundle1},
@@ -213,12 +221,13 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			testName:     "workload update with identity and two federated bundles",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[0],
 			},
 			updates: []*cache.WorkloadUpdate{
-				{Identities: []cache.Identity{
-					identityFromX509SVID(x509SVID1),
-				},
+				{
+					Identities: []cache.Identity{
+						identities[0],
+					},
 					Bundle: bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle1.TrustDomain(): federatedBundle1,
@@ -828,10 +837,10 @@ func utilIDProtoFromString(t *testing.T, id string) *types.SPIFFEID {
 }
 
 func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
-	mycache := newTestCache()
-	mycache.BundleCache.Update(m.cacheUpdate)
+	myCache := newTestCache()
+	myCache.BundleCache.Update(m.cacheUpdate)
 
-	return mycache.BundleCache.SubscribeToBundleChanges()
+	return myCache.BundleCache.SubscribeToBundleChanges()
 }
 
 func newTestCache() *cache.Cache {

@@ -196,7 +196,7 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentit
 				Id:        id,
 				CertChain: x509util.RawCertsFromCertificates(identity.SVID),
 				ExpiresAt: identity.SVID[0].NotAfter.Unix(),
-				//Hint:      identity.Entry.Hint,
+				Hint:      identity.Entry.Hint,
 			},
 			X509SvidKey: keyData,
 		}
