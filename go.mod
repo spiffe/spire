@@ -53,7 +53,7 @@ require (
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.51.0
 	github.com/prometheus/client_golang v1.14.0
-	github.com/shirou/gopsutil/v3 v3.23.2
+	github.com/shirou/gopsutil/v3 v3.23.3
 	github.com/sigstore/cosign v1.13.1
 	github.com/sigstore/rekor v1.0.1
 	github.com/sigstore/sigstore v1.5.2
@@ -274,6 +274,7 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0 // indirect
 	github.com/segmentio/ksuid v1.0.4 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
+	github.com/shoenig/go-m1cpu v0.1.4 // indirect
 	github.com/shopspring/decimal v1.2.0 // indirect
 	github.com/sigstore/fulcio v0.6.0 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
