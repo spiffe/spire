@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
 	"sync"
 	"testing"
 
@@ -134,6 +135,9 @@ func (h *handler) loadInitialBundle(t *testing.T) {
 			KeyId:     k.Kid,
 		})
 	}
+	sort.Slice(jwtAuthorities, func(i, j int) bool {
+		return jwtAuthorities[i].KeyId < jwtAuthorities[j].KeyId
+	})
 
 	var x509Authorities []*types.X509Certificate
 	for _, cert := range p.RootCas {
