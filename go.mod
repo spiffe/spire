@@ -17,12 +17,12 @@ require (
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.4.1
-	github.com/aws/aws-sdk-go-v2 v1.17.7
+	github.com/aws/aws-sdk-go-v2 v1.17.8
 	github.com/aws/aws-sdk-go-v2/config v1.18.14
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.14
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.0
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.91.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.93.1
 	github.com/aws/aws-sdk-go-v2/service/iam v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.20.4
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.19.0
@@ -119,12 +119,12 @@ require (
 	github.com/aliyun/credentials-go v1.2.3 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.31 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.25 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.32 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.26 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.30 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.15.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.12.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.25 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.26 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.3 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
