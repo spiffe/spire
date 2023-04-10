@@ -366,7 +366,7 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, tx, entry)
+		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, ds.log, entry)
 		if err != nil {
 			return err
 		}
@@ -4107,8 +4107,8 @@ func nullableUnixTimeToDBTime(unixTime int64) *time.Time {
 	return &dbTime
 }
 
-func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	resp, err := listRegistrationEntriesOnce(ctx, tx.CommonDB().(queryContext), db.databaseType, db.supportsCTE, &datastore.ListRegistrationEntriesRequest{
+func lookupSimilarEntry(ctx context.Context, db *sqlDB, log logrus.FieldLogger, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
+	resp, err := listRegistrationEntries(ctx, db, log, &datastore.ListRegistrationEntriesRequest{
 		BySpiffeID: entry.SpiffeId,
 		ByParentID: entry.ParentId,
 		BySelectors: &datastore.BySelectors{
