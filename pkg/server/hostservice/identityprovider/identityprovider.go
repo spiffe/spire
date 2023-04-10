@@ -137,6 +137,7 @@ func (v1 *identityProviderV1) FetchX509Identity(ctx context.Context, req *identi
 			X509Authorities: x509Authorities,
 			JwtAuthorities:  jwtAuthorities,
 			RefreshHint:     bundle.RefreshHint,
+			SequenceNumber:  bundle.SequenceNumber,
 		},
 	}, nil
 }

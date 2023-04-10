@@ -35,7 +35,8 @@ func TestV1(t *testing.T) {
 				NotAfter:  4321,
 			},
 		},
-		RefreshHint: 1234,
+		RefreshHint:    1234,
+		SequenceNumber: 42,
 	}
 
 	pluginBundle := &types.Bundle{
@@ -52,7 +53,8 @@ func TestV1(t *testing.T) {
 				ExpiresAt: 4321,
 			},
 		},
-		RefreshHint: 1234,
+		RefreshHint:    1234,
+		SequenceNumber: 42,
 	}
 
 	bundleLoaded := &notifierv1.NotifyAndAdviseRequest{

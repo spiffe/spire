@@ -42,7 +42,7 @@ func TestShow(t *testing.T) {
   ],
   "jwt_authorities": [],
   "refresh_hint": "60",
-  "sequence_number": "0"
+  "sequence_number": "42"
 }`
 	for _, tt := range []struct {
 		name                 string
@@ -84,7 +84,8 @@ func TestShow(t *testing.T) {
 					X509Authorities: []*types.X509Certificate{
 						{Asn1: test.cert1.Raw},
 					},
-					RefreshHint: 60,
+					RefreshHint:    60,
+					SequenceNumber: 42,
 				},
 				}
 				args := tt.args
