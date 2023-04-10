@@ -67,7 +67,7 @@ require (
 	golang.org/x/crypto v0.7.0
 	golang.org/x/net v0.8.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.6.0
+	golang.org/x/sys v0.7.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.114.0
 	google.golang.org/genproto v0.0.0-20230320184635-7606e756e683
