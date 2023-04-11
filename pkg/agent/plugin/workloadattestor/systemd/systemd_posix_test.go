@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -48,26 +49,22 @@ func (s *Suite) TestAttest() {
 		expectLogs     []spiretest.LogEntry
 	}{
 		{
-			name:       "get unit id",
+			name:       "get unit info",
 			pid:        1,
 			expectCode: codes.OK,
-		},
-		{
-			name:       "fail to get fragment path",
-			pid:        1,
-			expectCode: codes.OK,
+                        selectorValues: []string{"Id:fake.service", "FragmentPath:/org/freedesktop/systemd1/unit/fake_2eservice"},
 		},
 		{
 			name:       "fail to get unit id",
 			pid:        2,
 			expectCode: codes.Internal,
-			expectMsg:  "workloadattestor(systemd): unable to get unit Id for process",
+			expectMsg:  "workloadattestor(systemd): unable to get unit Id for process 2",
 		},
 		{
 			name:       "fail to get fragment path",
-			pid:        2,
+			pid:        3,
 			expectCode: codes.Internal,
-			expectMsg:  "workloadattestor(systemd): unable to get unit FragmentPath for process",
+			expectMsg:  "workloadattestor(systemd): unable to get unit FragmentPath for process 3",
 		},
 	}
 
@@ -116,31 +113,31 @@ func (s *Suite) newPlugin() *Plugin {
 }
 
 type fakeUnit struct {
-	pid int32
+	pid uint
 }
 
 func (u fakeUnit) Id() (string, error) {
-	switch p.pid {
-	case 1:
+	switch u.pid {
+	case 1, 3:
 		return "fake.service", nil
 	case 2:
-		return nil, fmt.Errorf("unable to get unit Id for process %d", u.pid)
+		return "", status.Errorf(codes.Internal, "unable to get unit Id for process %d", u.pid)
 	default:
-		return nil, fmt.Errorf("unhandled unit Id test case %d", u.pid)
+		return "", status.Errorf(codes.Internal, "unhandled unit Id test case %d", u.pid)
 	}
 }
 
 func (u fakeUnit) FragmentPath() (string, error) {
-	switch p.pid {
-	case 1:
+	switch u.pid {
+	case 1, 2:
 		return "/org/freedesktop/systemd1/unit/fake_2eservice", nil
-	case 2:
-		return nil, fmt.Errorf("unable to get unit FragmentPath for process %d", u.pid)
+	case 3:
+		return "", status.Errorf(codes.Internal, "unable to get unit FragmentPath for process %d", u.pid)
 	default:
-		return nil, fmt.Errorf("unhandled unit FragmentPath test case %d", u.pid)
+		return "", fmt.Errorf("unhandled unit FragmentPath test case %d", u.pid)
 	}
 }
 
-func newFakeUnit(pid int32) unitInfo {
+func newFakeUnit(pid uint) unitInfo {
 	return fakeUnit{pid}
 }
