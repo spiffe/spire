@@ -49,10 +49,10 @@ func (s *Suite) TestAttest() {
 		expectLogs     []spiretest.LogEntry
 	}{
 		{
-			name:       "get unit info",
-			pid:        1,
-			expectCode: codes.OK,
-                        selectorValues: []string{"Id:fake.service", "FragmentPath:/org/freedesktop/systemd1/unit/fake_2eservice"},
+			name:           "get unit info",
+			pid:            1,
+			expectCode:     codes.OK,
+			selectorValues: []string{"Id:fake.service", "FragmentPath:/org/freedesktop/systemd1/unit/fake_2eservice"},
 		},
 		{
 			name:       "fail to get unit id",

@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/godbus/dbus/v5"
+	"github.com/hashicorp/go-hclog"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 )
@@ -51,7 +51,7 @@ func (obj DBusUnitObject) FragmentPath() (string, error) {
 type Plugin struct {
 	workloadattestorv1.UnsafeWorkloadAttestorServer
 
-	log    hclog.Logger
+	log hclog.Logger
 
 	// hook for tests
 	getUnitInfo func(ctx context.Context, pid uint) (unitInfo, error)
