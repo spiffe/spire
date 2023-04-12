@@ -110,11 +110,15 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, healthChecker)
+	bundlePublishingManager := s.newBundlePublishingManager()
+
+	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, healthChecker, bundlePublishingManager)
 	if err != nil {
 		return err
 	}
 	defer cat.Close()
+
+	bundlePublishingManager.Init(cat.BundlePublishers, cat.DataStore)
 
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {
@@ -141,9 +145,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 	defer caManager.Close()
 
-	bundleLoadedCh := make(chan struct{}, 1)
-
-	caSync, err := s.newCASync(ctx, healthChecker, caManager, bundleLoadedCh)
+	caSync, err := s.newCASync(ctx, healthChecker, caManager)
 	if err != nil {
 		return err
 	}
@@ -159,8 +161,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 
 	bundleManager := s.newBundleManager(cat, metrics)
-
-	bundlePublishingManager := s.newBundlePublishingManager(cat, bundleLoadedCh)
 
 	endpointsServer, err := s.newEndpointsServer(ctx, cat, svidRotator, serverCA, metrics, caManager, authPolicyEngine, bundleManager)
 	if err != nil {
@@ -276,10 +276,11 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 }
 
 func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore,
-	healthChecker health.Checker) (*catalog.Repository, error) {
+	healthChecker health.Checker, pubManager *pubmanager.Manager) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
+		PubManager:       pubManager,
 		TrustDomain:      s.config.TrustDomain,
 		PluginConfigs:    s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
@@ -338,12 +339,11 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 	return caManager, nil
 }
 
-func (s *Server) newCASync(ctx context.Context, healthChecker health.Checker, caManager *manager.Manager, bundleLoadedCh chan struct{}) (*rotator.Rotator, error) {
+func (s *Server) newCASync(ctx context.Context, healthChecker health.Checker, caManager *manager.Manager) (*rotator.Rotator, error) {
 	caSync := rotator.NewRotator(rotator.Config{
-		BundleLoadedCh: bundleLoadedCh,
-		Log:            s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
-		Manager:        caManager,
-		HealthChecker:  healthChecker,
+		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Manager:       caManager,
+		HealthChecker: healthChecker,
 	})
 	if err := caSync.Initialize(ctx); err != nil {
 		return nil, err
@@ -414,14 +414,11 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 	})
 }
 
-func (s *Server) newBundlePublishingManager(cat catalog.Catalog, bundleLoadedCh chan struct{}) *pubmanager.Manager {
+func (s *Server) newBundlePublishingManager() *pubmanager.Manager {
 	log := s.config.Log.WithField(telemetry.SubsystemName, "bundle_publishing")
 	return pubmanager.NewManager(pubmanager.ManagerConfig{
-		BundleLoadedCh: bundleLoadedCh,
-		Catalog:        cat,
-		DataStore:      cat.GetDataStore(),
-		TrustDomain:    s.config.TrustDomain,
-		Log:            log,
+		TrustDomain: s.config.TrustDomain,
+		Log:         log,
 	})
 }
 

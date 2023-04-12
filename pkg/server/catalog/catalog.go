@@ -19,6 +19,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	km_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
+	ds_pubmanager "github.com/spiffe/spire/pkg/server/bundle/datastore"
+	"github.com/spiffe/spire/pkg/server/bundle/pubmanager"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
@@ -61,6 +63,7 @@ type Config struct {
 	PluginConfigs PluginConfigs
 
 	Metrics          telemetry.Metrics
+	PubManager       *pubmanager.Manager
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
 	HealthChecker    health.Checker
@@ -165,6 +168,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 
 	dataStore = ds_telemetry.WithMetrics(dataStore, config.Metrics)
 	dataStore = dscache.New(dataStore, clock.New())
+	dataStore = ds_pubmanager.WithBundlePublisher(dataStore, config.PubManager)
 
 	repo.SetDataStore(dataStore)
 	repo.SetKeyManager(km_telemetry.WithMetrics(repo.GetKeyManager(), config.Metrics))
