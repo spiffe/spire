@@ -43,6 +43,7 @@ var (
 				"spiffe://domain1.com",
 			},
 			RevisionNumber: 1234,
+			Hint:           "external",
 		},
 		// This entry should be ignored since it is missing an entry ID
 		{
@@ -106,6 +107,7 @@ func TestFetchUpdates(t *testing.T) {
 			},
 			FederatesWith:  []string{"domain1.com"},
 			RevisionNumber: 1234,
+			Hint:           "external",
 		},
 		// This entry should be ignored since it is missing an entry ID
 		{
@@ -364,6 +366,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 			},
 			FederatesWith:  []string{"domain1.com"},
 			RevisionNumber: 1234,
+			Hint:           "external",
 		},
 		// This entry should be ignored since it is missing an entry ID
 		{
@@ -781,6 +784,7 @@ func (c *fakeEntryClient) GetAuthorizedEntries(ctx context.Context, in *entryv1.
 		Downstream:     true,
 		RevisionNumber: true,
 		StoreSvid:      true,
+		Hint:           true,
 	}, protocmp.Transform()); diff != "" {
 		return nil, status.Error(codes.InvalidArgument, "invalid output mask requested")
 	}

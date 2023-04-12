@@ -653,6 +653,9 @@ const (
 	// to add clarity
 	ServerCA = "server_ca"
 
+	// Service is the name of the service invoked
+	Service = "service"
+
 	// SpireAgent typically the entire spire agent service
 	SpireAgent = "spire_agent"
 

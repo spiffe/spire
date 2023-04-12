@@ -93,6 +93,9 @@ func printPrettyResult(env *commoncli.Env, results ...interface{}) error {
 
 	for _, svid := range svidResp.Svids {
 		env.Printf("token(%s):\n\t%s\n", svid.SpiffeId, svid.Svid)
+		if svid.Hint != "" {
+			env.Printf("hint(%s):\n\t%s\n", svid.SpiffeId, svid.Hint)
+		}
 	}
 
 	for trustDomainID, jwksJSON := range bundlesResp.Bundles {
