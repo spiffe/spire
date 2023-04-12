@@ -2,12 +2,14 @@ package client
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -21,9 +23,9 @@ import (
 func TestManagerPeriodicBundleRefresh(t *testing.T) {
 	// create a pair of bundles with distinct refresh hints so we can assert
 	// that the manager selected the correct refresh hint.
-	localBundle := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "local"))
+	localBundle := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "local")})
 	localBundle.SetRefreshHint(time.Hour)
-	endpointBundle := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "endpoint"))
+	endpointBundle := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "endpoint")})
 	endpointBundle.SetRefreshHint(time.Hour * 2)
 
 	source := NewTrustDomainConfigSet(TrustDomainConfigMap{
@@ -35,8 +37,8 @@ func TestManagerPeriodicBundleRefresh(t *testing.T) {
 
 	testCases := []struct {
 		name           string
-		localBundle    *bundleutil.Bundle
-		endpointBundle *bundleutil.Bundle
+		localBundle    *spiffebundle.Bundle
+		endpointBundle *spiffebundle.Bundle
 		nextRefresh    time.Duration
 	}{
 		{
@@ -60,10 +62,10 @@ func TestManagerPeriodicBundleRefresh(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			test := newManagerTest(t, source,
-				func(spiffeid.TrustDomain) *bundleutil.Bundle {
+				func(spiffeid.TrustDomain) *spiffebundle.Bundle {
 					return testCase.localBundle
 				},
-				func(spiffeid.TrustDomain) *bundleutil.Bundle {
+				func(spiffeid.TrustDomain) *spiffebundle.Bundle {
 					return testCase.endpointBundle
 				},
 			)
@@ -224,8 +226,8 @@ func TestManagerConfigManualRefresh(t *testing.T) {
 type managerTest struct {
 	t                 *testing.T
 	clock             *clock.Mock
-	localBundles      func(spiffeid.TrustDomain) *bundleutil.Bundle
-	endpointBundles   func(spiffeid.TrustDomain) *bundleutil.Bundle
+	localBundles      func(spiffeid.TrustDomain) *spiffebundle.Bundle
+	endpointBundles   func(spiffeid.TrustDomain) *spiffebundle.Bundle
 	bundleUpdatersMtx sync.Mutex
 	bundleUpdaters    map[spiffeid.TrustDomain]*fakeBundleUpdater
 	configRefreshedCh chan time.Duration
@@ -233,14 +235,14 @@ type managerTest struct {
 	manager           *Manager
 }
 
-func newManagerTest(t *testing.T, source TrustDomainConfigSource, localBundles, endpointBundles func(spiffeid.TrustDomain) *bundleutil.Bundle) *managerTest {
+func newManagerTest(t *testing.T, source TrustDomainConfigSource, localBundles, endpointBundles func(spiffeid.TrustDomain) *spiffebundle.Bundle) *managerTest {
 	log, _ := test.NewNullLogger()
 
 	if localBundles == nil {
-		localBundles = func(spiffeid.TrustDomain) *bundleutil.Bundle { return nil }
+		localBundles = func(spiffeid.TrustDomain) *spiffebundle.Bundle { return nil }
 	}
 	if endpointBundles == nil {
-		endpointBundles = func(spiffeid.TrustDomain) *bundleutil.Bundle { return nil }
+		endpointBundles = func(spiffeid.TrustDomain) *spiffebundle.Bundle { return nil }
 	}
 
 	test := &managerTest{
@@ -355,8 +357,8 @@ func (test *managerTest) bundleUpdaterFor(td spiffeid.TrustDomain) (*fakeBundleU
 
 type fakeBundleUpdater struct {
 	mtx            sync.Mutex
-	localBundle    *bundleutil.Bundle
-	endpointBundle *bundleutil.Bundle
+	localBundle    *spiffebundle.Bundle
+	endpointBundle *spiffebundle.Bundle
 	updateCount    int
 	config         BundleUpdaterConfig
 }
@@ -367,7 +369,7 @@ func newFakeBundleUpdater(config BundleUpdaterConfig) *fakeBundleUpdater {
 	}
 }
 
-func (u *fakeBundleUpdater) SetBundles(localBundle, endpointBundle *bundleutil.Bundle) {
+func (u *fakeBundleUpdater) SetBundles(localBundle, endpointBundle *spiffebundle.Bundle) {
 	u.mtx.Lock()
 	defer u.mtx.Unlock()
 	u.localBundle = localBundle
@@ -380,7 +382,7 @@ func (u *fakeBundleUpdater) UpdateCount() int {
 	return u.updateCount
 }
 
-func (u *fakeBundleUpdater) UpdateBundle(context.Context) (*bundleutil.Bundle, *bundleutil.Bundle, error) {
+func (u *fakeBundleUpdater) UpdateBundle(context.Context) (*spiffebundle.Bundle, *spiffebundle.Bundle, error) {
 	u.mtx.Lock()
 	defer u.mtx.Unlock()
 	u.updateCount++
