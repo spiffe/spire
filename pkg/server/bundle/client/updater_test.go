@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -18,8 +19,9 @@ import (
 )
 
 func TestBundleUpdaterUpdateBundle(t *testing.T) {
-	bundle1 := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "bundle1"))
-	bundle2 := bundleutil.BundleFromRootCA(trustDomain, createCACertificate(t, "bundle2"))
+	bundle1 := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "bundle1")})
+	bundle1.SetRefreshHint(0)
+	bundle2 := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "bundle2")})
 	bundle2.SetRefreshHint(time.Minute)
 
 	testCases := []struct {
@@ -28,11 +30,11 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 		// trust domain
 		trustDomain spiffeid.TrustDomain
 		// the bundle prepopulated in the datastore and returned from Update()
-		localBundle *bundleutil.Bundle
+		localBundle *spiffebundle.Bundle
 		// the expected endpoint bundle returned from Update()
-		endpointBundle *bundleutil.Bundle
+		endpointBundle *spiffebundle.Bundle
 		// the bundle in the datastore after Update()
-		storedBundle *bundleutil.Bundle
+		storedBundle *spiffebundle.Bundle
 		// the fake endpoint client
 		client fakeClient
 		// the expected error returned from Update()
@@ -82,7 +84,9 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 			ds := fakedatastore.New(t)
 
 			if testCase.localBundle != nil {
-				_, err := ds.CreateBundle(context.Background(), testCase.localBundle.Proto())
+				localBundleProto, err := bundleutil.SPIFFEBundleToProto(testCase.localBundle)
+				require.NoError(t, err)
+				_, err = ds.CreateBundle(context.Background(), localBundleProto)
 				require.NoError(t, err)
 			}
 
@@ -108,14 +112,22 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 			require.NoError(t, err)
 			if testCase.localBundle != nil {
 				require.NotNil(t, localBundle)
-				spiretest.RequireProtoEqual(t, testCase.localBundle.Proto(), localBundle.Proto())
+				localBundleProto, err := bundleutil.SPIFFEBundleToProto(testCase.localBundle)
+				require.NoError(t, err)
+				localBundleResultProto, err := bundleutil.SPIFFEBundleToProto(localBundle)
+				require.NoError(t, err)
+				spiretest.RequireProtoEqual(t, localBundleProto, localBundleResultProto)
 			} else {
 				require.Nil(t, localBundle)
 			}
 
 			if testCase.endpointBundle != nil {
 				require.NotNil(t, endpointBundle)
-				spiretest.RequireProtoEqual(t, testCase.endpointBundle.Proto(), endpointBundle.Proto())
+				endpointBundleProto, err := bundleutil.SPIFFEBundleToProto(testCase.endpointBundle)
+				require.NoError(t, err)
+				endpointBundleResultProto, err := bundleutil.SPIFFEBundleToProto(endpointBundle)
+				require.NoError(t, err)
+				spiretest.RequireProtoEqual(t, endpointBundleProto, endpointBundleResultProto)
 			} else {
 				require.Nil(t, endpointBundle)
 			}
@@ -124,7 +136,9 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 			require.NoError(t, err)
 			if testCase.storedBundle != nil {
 				require.NotNil(t, bundle)
-				spiretest.RequireProtoEqual(t, testCase.storedBundle.Proto(), bundle)
+				storedBundleProto, err := bundleutil.SPIFFEBundleToProto(testCase.storedBundle)
+				require.NoError(t, err)
+				spiretest.RequireProtoEqual(t, storedBundleProto, bundle)
 			} else {
 				require.Nil(t, bundle)
 			}
@@ -165,11 +179,11 @@ func TestBundleUpdaterConfiguration(t *testing.T) {
 }
 
 type fakeClient struct {
-	bundle *bundleutil.Bundle
+	bundle *spiffebundle.Bundle
 	err    error
 }
 
-func (c fakeClient) FetchBundle(context.Context) (*bundleutil.Bundle, error) {
+func (c fakeClient) FetchBundle(context.Context) (*spiffebundle.Bundle, error) {
 	return c.bundle, c.err
 }
 

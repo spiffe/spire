@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"sort"
 	"sync"
 	"testing"
 
@@ -120,11 +121,12 @@ func (h *handler) loadInitialBundle(t *testing.T) {
 
 	// Append X509 authorities
 	for _, rootCA := range h.ca.Bundle().X509Authorities() {
-		b.AppendRootCA(rootCA)
+		b.AddX509Authority(rootCA)
 	}
 
 	// Parse common bundle into types
-	p := b.Proto()
+	p, err := bundleutil.SPIFFEBundleToProto(b)
+	require.NoError(t, err)
 	var jwtAuthorities []*types.JWTKey
 	for _, k := range p.JwtSigningKeys {
 		jwtAuthorities = append(jwtAuthorities, &types.JWTKey{
@@ -133,6 +135,9 @@ func (h *handler) loadInitialBundle(t *testing.T) {
 			KeyId:     k.Kid,
 		})
 	}
+	sort.Slice(jwtAuthorities, func(i, j int) bool {
+		return jwtAuthorities[i].KeyId < jwtAuthorities[j].KeyId
+	})
 
 	var x509Authorities []*types.X509Certificate
 	for _, cert := range p.RootCas {

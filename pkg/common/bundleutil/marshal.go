@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"gopkg.in/square/go-jose.v2"
 )
 
@@ -57,9 +58,13 @@ func StandardJWKS() MarshalOption {
 	})
 }
 
-func Marshal(bundle *Bundle, opts ...MarshalOption) ([]byte, error) {
+func Marshal(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error) {
+	refreshHint, ok := bundle.RefreshHint()
+	if !ok {
+		refreshHint = 0
+	}
 	c := &marshalConfig{
-		refreshHint: bundle.RefreshHint(),
+		refreshHint: refreshHint,
 	}
 	for _, opt := range opts {
 		if err := opt.configure(c); err != nil {
@@ -76,7 +81,7 @@ func Marshal(bundle *Bundle, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	if !c.noX509SVIDKeys {
-		for _, rootCA := range bundle.RootCAs() {
+		for _, rootCA := range bundle.X509Authorities() {
 			jwks.Keys = append(jwks.Keys, jose.JSONWebKey{
 				Key:          rootCA.PublicKey,
 				Certificates: []*x509.Certificate{rootCA},
@@ -86,7 +91,7 @@ func Marshal(bundle *Bundle, opts ...MarshalOption) ([]byte, error) {
 	}
 
 	if !c.noJWTSVIDKeys {
-		for keyID, jwtSigningKey := range bundle.JWTSigningKeys() {
+		for keyID, jwtSigningKey := range bundle.JWTAuthorities() {
 			jwks.Keys = append(jwks.Keys, jose.JSONWebKey{
 				Key:   jwtSigningKey,
 				KeyID: keyID,

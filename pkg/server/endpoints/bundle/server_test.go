@@ -18,8 +18,8 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/acmetest"
 	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/spiretest"
@@ -38,8 +38,8 @@ func TestServer(t *testing.T) {
 	// the root lifetimes are used to heuristically determine the refresh hint.
 	// since the content doesn't really matter, we'll just add the server cert.
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
-	bundle := bundleutil.New(trustDomain)
-	bundle.AppendRootCA(serverCert)
+	bundle := spiffebundle.New(trustDomain)
+	bundle.AddX509Authority(serverCert)
 
 	// even though this will be SPIFFE authentication in production, there is
 	// no functional change in the code based on the server certificate
@@ -62,7 +62,7 @@ func TestServer(t *testing.T) {
 		path       string
 		status     int
 		body       string
-		bundle     *bundleutil.Bundle
+		bundle     *spiffebundle.Bundle
 		serverCert *x509.Certificate
 		reqErr     string
 	}{
@@ -156,7 +156,7 @@ func TestACMEAuth(t *testing.T) {
 	dir := spiretest.TempDir(t)
 
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
-	bundle := bundleutil.New(trustDomain)
+	bundle := spiffebundle.New(trustDomain)
 	km := fakeserverkeymanager.New(t)
 
 	ca := acmetest.NewCAServer([]string{"tls-alpn-01"}, []string{"domain.test"})
@@ -317,8 +317,8 @@ func newTestServer(t *testing.T, getter Getter, serverAuth ServerAuth) (net.Addr
 	return addr, cancel
 }
 
-func testGetter(bundle *bundleutil.Bundle) Getter {
-	return GetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
+func testGetter(bundle *spiffebundle.Bundle) Getter {
+	return GetterFunc(func(ctx context.Context) (*spiffebundle.Bundle, error) {
 		if bundle == nil {
 			return nil, errors.New("no bundle configured")
 		}
