@@ -1,10 +1,8 @@
 package bundleutil
 
 import (
-	"bytes"
 	"crypto"
 	"crypto/x509"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -15,56 +13,8 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/zeebo/errs"
 	"google.golang.org/protobuf/proto"
 )
-
-type Bundle struct {
-	b              *common.Bundle
-	rootCAs        []*x509.Certificate
-	jwtSigningKeys map[string]crypto.PublicKey
-}
-
-func New(trustDomain spiffeid.TrustDomain) *Bundle {
-	return &Bundle{
-		b: &common.Bundle{
-			TrustDomainId: trustDomain.IDString(),
-		},
-		jwtSigningKeys: make(map[string]crypto.PublicKey),
-	}
-}
-
-func ParseBundle(bundleBytes []byte) (*Bundle, error) {
-	b := new(common.Bundle)
-	if err := proto.Unmarshal(bundleBytes, b); err != nil {
-		return nil, errs.New("unable to unmarshal bundle: %v", err)
-	}
-	return BundleFromProto(b)
-}
-
-func BundleFromProto(b *common.Bundle) (*Bundle, error) {
-	rootCAs, err := RootCAsFromBundleProto(b)
-	if err != nil {
-		return nil, err
-	}
-	jwtSigningKeys, err := JWTSigningKeysFromBundleProto(b)
-	if err != nil {
-		return nil, err
-	}
-	return &Bundle{
-		b:              b,
-		rootCAs:        rootCAs,
-		jwtSigningKeys: jwtSigningKeys,
-	}, nil
-}
-
-func BundleFromRootCA(trustDomain spiffeid.TrustDomain, rootCA *x509.Certificate) *Bundle {
-	return bundleFromRootCAs(trustDomain, rootCA)
-}
-
-func BundleFromRootCAs(trustDomain spiffeid.TrustDomain, rootCAs []*x509.Certificate) *Bundle {
-	return bundleFromRootCAs(trustDomain, rootCAs...)
-}
 
 func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 	if b == nil {
@@ -101,22 +51,6 @@ func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 		RefreshHint:    b.RefreshHint,
 		RootCas:        rootCAs,
 		JwtSigningKeys: jwtKeys,
-	}, nil
-}
-
-// SPIFFEBundleToBundleUtil is a temporary function that converts a spiffebundle.Bundle to bundleutil.Bundle. This
-// function should be used only for restricting the scope of the changes in places that still use bundleutil.Bundle.
-// It should be removed as soon as we don't have any other reference to bundleutil.Bundle.
-// TODO: (remove this function when bundleutil.Bundle cease to be used)
-func SPIFFEBundleToBundleUtil(b *spiffebundle.Bundle) (*Bundle, error) {
-	bundleProto, err := SPIFFEBundleToProto(b)
-	if err != nil {
-		return nil, err
-	}
-	return &Bundle{
-		b:              bundleProto,
-		rootCAs:        b.X509Authorities(),
-		jwtSigningKeys: b.JWTAuthorities(),
 	}, nil
 }
 
@@ -169,101 +103,6 @@ func SPIFFEBundleFromProto(b *common.Bundle) (*spiffebundle.Bundle, error) {
 	return bundle, nil
 }
 
-func bundleFromRootCAs(trustDomain spiffeid.TrustDomain, rootCAs ...*x509.Certificate) *Bundle {
-	b := New(trustDomain)
-	for _, rootCA := range rootCAs {
-		b.AppendRootCA(rootCA)
-	}
-	return b
-}
-
-// ToSPIFFEBundle is a temporary function that converts a bundleutil.Bundle to spiffebundle.Bundle. This
-// function should be used only for restricting the scope of the changes in places that use bundleutil.Bundle. It should
-// be removed as soon as we don't have any other reference to bundleutil.Bundle.
-// TODO: (remove this function when bundleutil.Bundle cease to be used)
-func (b *Bundle) ToSPIFFEBundle() (*spiffebundle.Bundle, error) {
-	td, err := spiffeid.TrustDomainFromString(b.b.TrustDomainId)
-	if err != nil {
-		return nil, err
-	}
-	bundle := spiffebundle.New(td)
-
-	bundle.SetX509Authorities(b.rootCAs)
-	bundle.SetJWTAuthorities(b.jwtSigningKeys)
-	bundle.SetRefreshHint(b.RefreshHint())
-
-	return bundle, nil
-}
-
-func (b *Bundle) Proto() *common.Bundle {
-	return cloneBundle(b.b)
-}
-
-func (b *Bundle) TrustDomainID() string {
-	return b.b.TrustDomainId
-}
-
-func (b *Bundle) EqualTo(other *Bundle) bool {
-	return proto.Equal(b.b, other.b)
-}
-
-func (b *Bundle) RootCAs() []*x509.Certificate {
-	return b.rootCAs
-}
-
-func (b *Bundle) JWTSigningKeys() map[string]crypto.PublicKey {
-	return b.jwtSigningKeys
-}
-
-// RefreshHint returns the bundle refresh hint.
-func (b *Bundle) RefreshHint() time.Duration {
-	return time.Second * time.Duration(b.b.RefreshHint)
-}
-
-// SetRefreshHint sets the bundle refresh hint to the given duration. It is
-// rounded up to the nearest second.
-func (b *Bundle) SetRefreshHint(d time.Duration) {
-	b.b.RefreshHint = int64((d + (time.Second - 1)) / time.Second)
-}
-
-func (b *Bundle) AppendRootCA(rootCA *x509.Certificate) {
-	b.b.RootCas = append(b.b.RootCas, &common.Certificate{
-		DerBytes: rootCA.Raw,
-	})
-	b.rootCAs = append(b.rootCAs, rootCA)
-}
-
-func (b *Bundle) AppendJWTSigningKey(kid string, key crypto.PublicKey) error {
-	if _, ok := b.jwtSigningKeys[kid]; ok {
-		return errs.New("JWT Signing Key %q already exists", kid)
-	}
-	pkixBytes, err := x509.MarshalPKIXPublicKey(key)
-	if err != nil {
-		return errs.Wrap(err)
-	}
-	b.b.JwtSigningKeys = append(b.b.JwtSigningKeys, &common.PublicKey{
-		Kid:       kid,
-		PkixBytes: pkixBytes,
-	})
-	b.jwtSigningKeys[kid] = key
-	return nil
-}
-
-func BundleProtoFromRootCADER(trustDomainID string, derBytes []byte) *common.Bundle {
-	return &common.Bundle{
-		TrustDomainId: trustDomainID,
-		RootCas:       []*common.Certificate{{DerBytes: derBytes}},
-	}
-}
-
-func BundleProtoFromRootCAsDER(trustDomainID string, derBytes []byte) (*common.Bundle, error) {
-	rootCAs, err := x509.ParseCertificates(derBytes)
-	if err != nil {
-		return nil, errs.Wrap(err)
-	}
-	return BundleProtoFromRootCAs(trustDomainID, rootCAs), nil
-}
-
 func BundleProtoFromRootCA(trustDomainID string, rootCA *x509.Certificate) *common.Bundle {
 	return BundleProtoFromRootCAs(trustDomainID, []*x509.Certificate{rootCA})
 }
@@ -278,13 +117,6 @@ func BundleProtoFromRootCAs(trustDomainID string, rootCAs []*x509.Certificate) *
 		})
 	}
 	return b
-}
-
-func RootCAsDERFromBundleProto(b *common.Bundle) (derBytes []byte) {
-	for _, rootCA := range b.RootCas {
-		derBytes = append(derBytes, rootCA.DerBytes...)
-	}
-	return derBytes
 }
 
 func RootCAsFromBundleProto(b *common.Bundle) (out []*x509.Certificate, err error) {
@@ -403,17 +235,4 @@ pruneRootCA:
 
 func cloneBundle(b *common.Bundle) *common.Bundle {
 	return proto.Clone(b).(*common.Bundle)
-}
-
-func MarshalIdentBundle(bundle *spiffebundle.Bundle) ([]byte, error) {
-	jwkBytes, err := bundle.JWTBundle().Marshal()
-	if err != nil {
-		return nil, err
-	}
-	buf := new(bytes.Buffer)
-	err = json.Indent(buf, jwkBytes, "", "    ")
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
 }
