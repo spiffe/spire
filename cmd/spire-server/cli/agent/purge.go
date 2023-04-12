@@ -18,10 +18,10 @@ import (
 )
 
 type purgeCommand struct {
-	env           *commoncli.Env
-	expiredBefore string
-	dryRun        bool
-	printer       cliprinter.Printer
+	env        *commoncli.Env
+	expiredFor time.Duration
+	dryRun     bool
+	printer    cliprinter.Printer
 }
 
 func NewPurgeCommand() cli.Command {
@@ -41,11 +41,6 @@ func (*purgeCommand) Synopsis() string {
 }
 
 func (c *purgeCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) (err error) {
-	expiredBefore, err := c.parseExpiredBefore()
-	if err != nil {
-		return err
-	}
-
 	agentClient := serverClient.NewAgentClient()
 	resp, err := agentClient.ListAgents(ctx, &agentv1.ListAgentsRequest{
 		Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
@@ -66,7 +61,7 @@ func (c *purgeCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 
 		expirationTime := time.Unix(agent.X509SvidExpiresAt, 0)
 
-		if expirationTime.Before(expiredBefore) {
+		if time.Since(expirationTime) > c.expiredFor {
 			result := &expiredAgent{AgentID: id}
 
 			if !c.dryRun {
@@ -84,7 +79,7 @@ func (c *purgeCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 }
 
 func (c *purgeCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.expiredBefore, "expiredBefore", "", "Specifies the date before which all expired agents should be deleted. The value should be a date time string in the RFC3339 format. Any agents that expired before this date will be deleted.")
+	fs.DurationVar(&c.expiredFor, "expiredFor", 24*time.Hour, "Specifies the time since the agent's SVID has expired, used for filtering agents to purge.")
 	fs.BoolVar(&c.dryRun, "dryRun", false, "Indicates that the command will not perform any action, but will print the agents that would be purged.")
 
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintPurgeResult)
@@ -158,20 +153,4 @@ func (c *purgeCommand) printAgentsPurged(agentsPurged []*expiredAgent) {
 	for _, result := range agentsPurged {
 		c.env.Printf("SPIFFE ID         : %s\n", result.AgentID.String())
 	}
-}
-
-func (c *purgeCommand) parseExpiredBefore() (expiredBefore time.Time, err error) {
-	now := time.Now()
-	if c.expiredBefore == "" {
-		expiredBefore = now
-		return
-	}
-	expiredBefore, err = time.Parse(time.RFC3339, c.expiredBefore)
-	if err != nil {
-		err = fmt.Errorf("failed to parse expiredBefore flag: %w", err)
-	}
-	if expiredBefore.After(now) {
-		err = fmt.Errorf("expiredBefore cannot be in the future")
-	}
-	return
 }

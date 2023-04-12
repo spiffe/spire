@@ -7,8 +7,8 @@ var (
 	purgeUsage = `Usage of agent purge:
   -dryRun
     	Indicates that the command will not perform any action, but will print the agents that would be purged.
-  -expiredBefore string
-    	Specifies the date before which all expired agents should be deleted. The value should be a date time string in the RFC3339 format. Any agents that expired before this date will be deleted.
+  -expiredFor duration
+    	Specifies the time since the agent's SVID has expired, used for filtering agents to purge. (default 24h0m0s)
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value

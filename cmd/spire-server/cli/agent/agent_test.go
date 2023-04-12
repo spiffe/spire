@@ -476,17 +476,10 @@ func TestPurge(t *testing.T) {
 			expectedReturnCode: 1,
 		},
 		{
-			name:               "malformed expiredBefore flag",
-			args:               []string{"-expiredBefore", "5d"},
+			name:               "malformed expiredFor flag",
+			args:               []string{"-expiredFor", "5d"},
 			existentAgents:     append(activeAgents, expiredAgents...),
-			expectedStderr:     `Error: failed to parse expiredBefore flag: parsing time `,
-			expectedReturnCode: 1,
-		},
-		{
-			name:               "expiredBefore flag with date time in the future",
-			args:               []string{"-expiredBefore", now.Add(5 * time.Hour).Format(time.RFC3339)},
-			existentAgents:     append(activeAgents, expiredAgents...),
-			expectedStderr:     `Error: expiredBefore cannot be in the future`,
+			expectedStderr:     `invalid value "5d" for flag -expiredFor: parse error`,
 			expectedReturnCode: 1,
 		},
 		{
@@ -499,15 +492,12 @@ func TestPurge(t *testing.T) {
 				OutputMask: &types.AgentMask{X509SvidExpiresAt: true},
 			},
 			expectDeleteReqs: []*agentv1.DeleteAgentRequest{
-				{Id: expiredAgents[0].Id},
 				{Id: expiredAgents[1].Id},
 				{Id: expiredAgents[2].Id},
 			},
-			expectedStdoutPretty: `Found 3 expired agents
+			expectedStdoutPretty: `Found 2 expired agents
 
 Agents not purged:
-SPIFFE ID         : spiffe://example.org/spire/agent/agent1
-Error             : rpc error: code = Internal desc = some error when deleting agent
 SPIFFE ID         : spiffe://example.org/spire/agent/agent2
 Error             : rpc error: code = Internal desc = some error when deleting agent
 SPIFFE ID         : spiffe://example.org/spire/agent/agent3
@@ -516,17 +506,39 @@ Error             : rpc error: code = Internal desc = some error when deleting a
 			expectedStdoutJSON: fmt.Sprintf(
 				`[{"expired_agents":[
 {"agent_id":"%s","deleted":false,"error":"rpc error: code = Internal desc = some error when deleting agent"},
-{"agent_id":"%s","deleted":false,"error":"rpc error: code = Internal desc = some error when deleting agent"},
 {"agent_id":"%s","deleted":false,"error":"rpc error: code = Internal desc = some error when deleting agent"}
 ]}]`,
-				spiffeid.RequireFromPath(td, expiredAgents[0].Id.Path).String(),
 				spiffeid.RequireFromPath(td, expiredAgents[1].Id.Path).String(),
 				spiffeid.RequireFromPath(td, expiredAgents[2].Id.Path).String(),
 			),
 		},
 		{
-			name:           "no args using default expiration for purging every expired agent from now",
+			name:           "no args using default expiration for purging agents that expired for 24 hours",
 			args:           []string{},
+			existentAgents: append(activeAgents, expiredAgents...),
+			expectListReq: &agentv1.ListAgentsRequest{
+				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
+				OutputMask: &types.AgentMask{X509SvidExpiresAt: true},
+			},
+			expectDeleteReqs: []*agentv1.DeleteAgentRequest{
+				{Id: expiredAgents[1].Id},
+				{Id: expiredAgents[2].Id},
+			},
+			expectedStdoutPretty: `Found 2 expired agents
+
+Agents purged:
+SPIFFE ID         : spiffe://example.org/spire/agent/agent2
+SPIFFE ID         : spiffe://example.org/spire/agent/agent3
+`,
+			expectedStdoutJSON: fmt.Sprintf(
+				`[{"expired_agents":[{"agent_id":"%s","deleted":true},{"agent_id":"%s","deleted":true}]}]`,
+				spiffeid.RequireFromPath(td, expiredAgents[1].Id.Path).String(),
+				spiffeid.RequireFromPath(td, expiredAgents[2].Id.Path).String(),
+			),
+		},
+		{
+			name:           "providing expiration time for purging agents that has expired for 1 hour",
+			args:           []string{"-expiredFor", "1h"},
 			existentAgents: append(activeAgents, expiredAgents...),
 			expectListReq: &agentv1.ListAgentsRequest{
 				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
@@ -552,8 +564,8 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 			),
 		},
 		{
-			name:           "providing expiration time for purging agents that expired before 5 hours ago",
-			args:           []string{"-expiredBefore", now.Add(-5 * time.Hour).Format(time.RFC3339)},
+			name:           "providing expiration time for purging agents that has expired for 2 hours",
+			args:           []string{"-expiredFor", "2h30m30s"},
 			existentAgents: append(activeAgents, expiredAgents...),
 			expectListReq: &agentv1.ListAgentsRequest{
 				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
@@ -576,8 +588,8 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 			),
 		},
 		{
-			name:           "providing expiration time for purging agents that expired before 2 days ago",
-			args:           []string{"-expiredBefore", now.Add(-48 * time.Hour).Format(time.RFC3339)},
+			name:           "providing expiration time for purging agents that has expired for 1 month",
+			args:           []string{"-expiredFor", "720h"},
 			existentAgents: append(activeAgents, expiredAgents...),
 			expectListReq: &agentv1.ListAgentsRequest{
 				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
@@ -597,8 +609,8 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 			),
 		},
 		{
-			name:           "providing expiration time for purging agents that expired before 2 months ago",
-			args:           []string{"-expiredBefore", now.Add(-1440 * time.Hour).Format(time.RFC3339)},
+			name:           "providing expiration time for purging agents that has expired for 2 months",
+			args:           []string{"-expiredFor", "1440h"},
 			existentAgents: append(activeAgents, expiredAgents...),
 			expectListReq: &agentv1.ListAgentsRequest{
 				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
@@ -615,17 +627,15 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 				Filter:     &agentv1.ListAgentsRequest_Filter{ByCanReattest: wrapperspb.Bool(true)},
 				OutputMask: &types.AgentMask{X509SvidExpiresAt: true},
 			},
-			expectedStdoutPretty: `Found 3 expired agents
+			expectedStdoutPretty: `Found 2 expired agents
 
 
 Agents that can be purged:
-SPIFFE ID         : spiffe://example.org/spire/agent/agent1
 SPIFFE ID         : spiffe://example.org/spire/agent/agent2
 SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 `,
 			expectedStdoutJSON: fmt.Sprintf(
-				`[{"expired_agents":[{"agent_id":"%s","deleted":false},{"agent_id":"%s","deleted":false},{"agent_id":"%s","deleted":false}]}]`,
-				spiffeid.RequireFromPath(td, expiredAgents[0].Id.Path).String(),
+				`[{"expired_agents":[{"agent_id":"%s","deleted":false},{"agent_id":"%s","deleted":false}]}]`,
 				spiffeid.RequireFromPath(td, expiredAgents[1].Id.Path).String(),
 				spiffeid.RequireFromPath(td, expiredAgents[2].Id.Path).String(),
 			),
