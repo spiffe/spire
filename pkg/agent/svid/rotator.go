@@ -9,13 +9,13 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
-	observer "github.com/imkira/go-observer"
+	"github.com/imkira/go-observer"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
@@ -260,7 +260,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	return nil
 }
 
-func (r *rotator) getBundle() (*bundleutil.Bundle, error) {
+func (r *rotator) getBundle() (*spiffebundle.Bundle, error) {
 	r.bsm.RLock()
 	bundles := r.c.BundleStream.Value()
 	r.bsm.RUnlock()
@@ -270,7 +270,7 @@ func (r *rotator) getBundle() (*bundleutil.Bundle, error) {
 		return nil, errors.New("bundle not found")
 	}
 
-	return bundleutil.SPIFFEBundleToBundleUtil(bundle)
+	return bundle, nil
 }
 
 func (r *rotator) generateKey(ctx context.Context) (keymanager.Key, error) {
@@ -290,11 +290,11 @@ func (r *rotator) generateKey(ctx context.Context) (keymanager.Key, error) {
 	return r.c.SVIDKeyManager.GenerateKey(ctx, existingKey)
 }
 
-func (r *rotator) serverConn(ctx context.Context, bundle *bundleutil.Bundle) (*grpc.ClientConn, error) {
+func (r *rotator) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) (*grpc.ClientConn, error) {
 	return client.DialServer(ctx, client.DialServerConfig{
 		Address:     r.c.ServerAddr,
 		TrustDomain: r.c.TrustDomain,
-		GetBundle:   bundle.RootCAs,
+		GetBundle:   bundle.X509Authorities,
 	})
 }
 
