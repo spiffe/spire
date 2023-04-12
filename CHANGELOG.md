@@ -6,19 +6,17 @@
 
 - Entry API responses now include the `created_at` field (#3975)
 - `spire-server agent list` CLI command now shows if agents can be re-attested and supports `by_can_reattest` filtering (#3880)
-- `spire-server entry create`, `spire-server entry show` and `spire-server entry update` CLI commands now support hint information, to disambiguate entries with the same SPIFFE ID (#3926, #3787)
-
-### Changed
-
-- X509 CAs minted by an UpstreamAuthority plugin no longer require to have a URI SAN (#3997)
+- Entry API along with `spire-server entry create`, `spire-server entry show` and `spire-server entry update` CLI commands now support hint information, allowing hinting to workloads the intended use of the SVID (#3926, #3787)
 
 ### Fixed
 
 - The `vault` UpstreamAuthority plugin to properly set the URI SAN (#3971)
-- Node resolver data related to deleted nodes is now cleaned (#3873, #3919)
-- Failure to parse JSON formatted and verbose HCL configuration for plugins (#3939, #3999)
+- Node selector data related to nodes is now cleaned when deleting a node (#3873)
+- Clean stale node selector data from previously deleted nodes (#3941)
+- Regression causing a failure to parse JSON formatted and verbose HCL configuration for plugins (#3939, #3999)
 - Regression notifying workloads when an entry is removed (#3923)
 - The federated bundle updater now properly logs the trust domain name (#3927)
+- Regression causing X509 CAs minted by an UpstreamAuthority plugin to be rejected if they did not have a URI SAN (#3997)
 
 ## [1.6.2] - 2023-04-04
 
