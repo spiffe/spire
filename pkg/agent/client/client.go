@@ -320,6 +320,7 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 			Downstream:     true,
 			RevisionNumber: true,
 			StoreSvid:      true,
+			Hint:           true,
 		},
 	})
 	if err != nil {
