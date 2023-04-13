@@ -366,7 +366,7 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, ds.log, entry)
+		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, tx, entry)
 		if err != nil {
 			return err
 		}
@@ -2423,6 +2423,10 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 }
 
 func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors []*common.Selector) []*common.RegistrationEntry {
+	// Nothing to filter
+	if len(entries) == 0 {
+		return entries
+	}
 	type selectorKey struct {
 		Type  string
 		Value string
@@ -4107,8 +4111,8 @@ func nullableUnixTimeToDBTime(unixTime int64) *time.Time {
 	return &dbTime
 }
 
-func lookupSimilarEntry(ctx context.Context, db *sqlDB, log logrus.FieldLogger, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	resp, err := listRegistrationEntries(ctx, db, log, &datastore.ListRegistrationEntriesRequest{
+func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
+	resp, err := listRegistrationEntriesOnce(ctx, tx.CommonDB().(queryContext), db.databaseType, db.supportsCTE, &datastore.ListRegistrationEntriesRequest{
 		BySpiffeID: entry.SpiffeId,
 		ByParentID: entry.ParentId,
 		BySelectors: &datastore.BySelectors{
@@ -4116,14 +4120,18 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, log logrus.FieldLogger, 
 			Selectors: entry.Selectors,
 		},
 	})
-	switch {
-	case err != nil:
+	if err != nil {
 		return nil, err
-	case len(resp.Entries) > 0:
-		return resp.Entries[0], nil
-	default:
-		return nil, nil
 	}
+
+	// listRegistrationEntriesOnce returns both exact and superset matches.
+	// Filter out the superset matches to get an exact match
+	entries := filterEntriesBySelectorSet(resp.Entries, entry.Selectors)
+	if len(entries) > 0 {
+		return entries[0], nil
+	}
+
+	return nil, nil
 }
 
 // roundCreatedAtInSeconds rounds the createdAt time to the nearest second, and return the time in seconds since the
