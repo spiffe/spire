@@ -19,7 +19,6 @@ fi
 # handle the case that we're building for alpine
 if [ "$OS" = "linux" ]; then
     case $(ldd --version 2>&1) in
-	*GNU\ libc*) LIBC="-glibc" ;;
         *GLIB*) LIBC="-glibc" ;;
         *muslr*) LIBC="-musl" ;;
         *) LIBC="-unknown" ;;
@@ -34,8 +33,10 @@ if [ ${OS} == "windows" ]; then
 fi
 
 ARTIFACT="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}${ARTIFACT_EXTENSION}"
-EXTRAS_ARTIFACT="${OUTDIR}/spire-extras-${TAG}-${OS}-${ARCH}${LIBC}${ARTIFACT_EXTENSION}"
+CHECKSUM="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}_sha256sum.txt"
 
+EXTRAS_ARTIFACT="${OUTDIR}/spire-extras-${TAG}-${OS}-${ARCH}${LIBC}${ARTIFACT_EXTENSION}"
+EXTRAS_CHECKSUM="${OUTDIR}/spire-extras-${TAG}-${OS}-${ARCH}${LIBC}_sha256sum.txt"
 
 TMPDIR=$(mktemp -d)
 cleanup() {
@@ -71,40 +72,17 @@ cp "${BINDIR}"/oidc-discovery-provider${BINARY_EXTENSION} "${EXTRAS_STAGING}"/bi
 
 mkdir -p "${OUTDIR}"
 
-function makeChecksum() {
-	ALGORITHM=$1
-	shift;
-	ITEMS=( "$@" )
-
-	CHECKSUM_FILE="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}_${ALGORITHM}.txt"
-
-	rm -f "${CHECKSUM_FILE}"
-	touch "${CHECKSUM_FILE}"
-	for ITEM in "${ITEMS[@]}"; do
-		case ${ALGORITHM} in
-			md5sum)    md5sum "${ITEM}" >> "${CHECKSUM_FILE}" ;;
-			sha1sum)   shasum -a 1 "${ITEM}" >> "${CHECKSUM_FILE}" ;;
-			sha224sum) shasum -a 224 "${ITEM}" >> "${CHECKSUM_FILE}" ;;
-			sha256sum) shasum -a 256 "${ITEM}" >> "${CHECKSUM_FILE}" ;;
-			sha512sum) shasum -a 512 "${ITEM}" >> "${CHECKSUM_FILE}" ;;
-			*)         echo "Unsupported checksum ${ALGORITHM}"; exit 1 ;;
-		esac
-	done
-}
-
 if [ $OS == "windows" ]; then 
     (cd "${TMPDIR}/spire"; zip -rv "${ARTIFACT}" -- *)
     (cd "${TMPDIR}/spire-extras"; zip -rv "${EXTRAS_ARTIFACT}" -- *)
 
-    makeChecksum sha256sum "${ARTIFACT}" "${EXTRAS_ARTIFACT}"
+    echo "$(CertUtil -hashfile "${ARTIFACT}" SHA256 | sed -n '2p') $(basename "${ARTIFACT}")" > "${CHECKSUM}"
+    echo "$(CertUtil -hashfile "${EXTRAS_ARTIFACT}" SHA256 | sed -n '2p') $(basename "${EXTRAS_ARTIFACT}")" > "${EXTRAS_CHECKSUM}"
 else 
     # Create the tarballs and checksums
     (cd "${TMPDIR}/spire"; tar -cvzf "${ARTIFACT}" "${TAROPTS[@]}" -- *)
     (cd "${TMPDIR}/spire-extras"; tar -cvzf "${EXTRAS_ARTIFACT}" "${TAROPTS[@]}" -- *)
 
-    makeChecksum md5sum "${ARTIFACT}" "${EXTRAS_ARTIFACT}"
-    makeChecksum sha1sum "${ARTIFACT}" "${EXTRAS_ARTIFACT}"
-    makeChecksum sha224sum "${ARTIFACT}" "${EXTRAS_ARTIFACT}"
-    makeChecksum sha256sum "${ARTIFACT}" "${EXTRAS_ARTIFACT}"
-    makeChecksum sha512sum "${ARTIFACT}" "${EXTRAS_ARTIFACT}"
+    echo "$(shasum -a 256 "${ARTIFACT}" | cut -d' ' -f1) $(basename "${ARTIFACT}")" > "${CHECKSUM}"
+    echo "$(shasum -a 256 "${EXTRAS_ARTIFACT}" | cut -d' ' -f1) $(basename "${EXTRAS_ARTIFACT}")" > "${EXTRAS_CHECKSUM}"
 fi
