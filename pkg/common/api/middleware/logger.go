@@ -5,6 +5,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/api/rpccontext"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 // WithLogger returns logging middleware that provides a per-rpc logger with
@@ -14,8 +15,8 @@ func WithLogger(log logrus.FieldLogger) Middleware {
 	return Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
 		ctx, names := withNames(ctx, fullMethod)
 		log := log.WithFields(logrus.Fields{
-			"service": names.Service,
-			"method":  names.Method,
+			telemetry.Service: names.Service,
+			telemetry.Method:  names.Method,
 		})
 		return rpccontext.WithLogger(ctx, log), nil
 	})

@@ -9,17 +9,18 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/zeebo/errs"
 )
 
 type Getter interface {
-	GetBundle(ctx context.Context) (*bundleutil.Bundle, error)
+	GetBundle(ctx context.Context) (*spiffebundle.Bundle, error)
 }
 
-type GetterFunc func(ctx context.Context) (*bundleutil.Bundle, error)
+type GetterFunc func(ctx context.Context) (*spiffebundle.Bundle, error)
 
-func (fn GetterFunc) GetBundle(ctx context.Context) (*bundleutil.Bundle, error) {
+func (fn GetterFunc) GetBundle(ctx context.Context) (*spiffebundle.Bundle, error) {
 	return fn(ctx)
 }
 

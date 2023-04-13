@@ -151,8 +151,10 @@ func TestClient(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.NotNil(t, bundle)
-			require.Equal(t, trustDomain.IDString(), bundle.TrustDomainID())
-			require.Equal(t, 10*time.Second, bundle.RefreshHint())
+			require.Equal(t, trustDomain.IDString(), bundle.TrustDomain().IDString())
+			refreshHint, ok := bundle.RefreshHint()
+			require.True(t, ok)
+			require.Equal(t, 10*time.Second, refreshHint)
 		})
 	}
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -102,7 +103,7 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 	return bundle.NewServer(bundle.ServerConfig{
 		Log:     c.Log.WithField(telemetry.SubsystemName, "bundle_endpoint"),
 		Address: c.BundleEndpoint.Address.String(),
-		Getter: bundle.GetterFunc(func(ctx context.Context) (*bundleutil.Bundle, error) {
+		Getter: bundle.GetterFunc(func(ctx context.Context) (*spiffebundle.Bundle, error) {
 			commonBundle, err := ds.FetchBundle(dscache.WithCache(ctx), c.TrustDomain.IDString())
 			if err != nil {
 				return nil, err
@@ -110,7 +111,7 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 			if commonBundle == nil {
 				return nil, errors.New("trust domain bundle not found")
 			}
-			return bundleutil.BundleFromProto(commonBundle)
+			return bundleutil.SPIFFEBundleFromProto(commonBundle)
 		}),
 		ServerAuth: serverAuth,
 	})

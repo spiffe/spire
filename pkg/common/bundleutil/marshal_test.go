@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 )
@@ -131,11 +132,11 @@ func TestMarshal(t *testing.T) {
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
-			bundle := New(trustDomain)
+			bundle := spiffebundle.New(trustDomain)
 			bundle.SetRefreshHint(time.Minute)
 			if !testCase.empty {
-				bundle.AppendRootCA(rootCA)
-				require.NoError(t, bundle.AppendJWTSigningKey("FOO", testKey.Public()))
+				bundle.AddX509Authority(rootCA)
+				require.NoError(t, bundle.AddJWTAuthority("FOO", testKey.Public()))
 			}
 			bundleBytes, err := Marshal(bundle, testCase.opts...)
 			require.NoError(t, err)
