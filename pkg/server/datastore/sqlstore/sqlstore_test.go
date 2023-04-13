@@ -1594,20 +1594,20 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 
 	for _, tt := range []struct {
 		name          string
-		updateEntry   func(*common.RegistrationEntry) *common.RegistrationEntry
+		modifyEntry   func(*common.RegistrationEntry) *common.RegistrationEntry
 		expectError   string
 		expectSimilar bool
 	}{
 		{
 			name: "no entry provided",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				return nil
 			},
 			expectError: "datastore-sql: invalid request: missing registered entry",
 		},
 		{
 			name: "no selectors",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				e.Selectors = nil
 				return e
 			},
@@ -1615,7 +1615,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 		},
 		{
 			name: "no SPIFFE ID",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				e.SpiffeId = ""
 				return e
 			},
@@ -1623,7 +1623,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 		},
 		{
 			name: "negative X509 ttl",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				e.X509SvidTtl = -1
 				return e
 			},
@@ -1631,7 +1631,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 		},
 		{
 			name: "negative JWT ttl",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				e.JwtSvidTtl = -1
 				return e
 			},
@@ -1639,13 +1639,13 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 		},
 		{
 			name: "create entry successfully",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				return e
 			},
 		},
 		{
 			name: "subset selectors",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				e.Selectors = []*common.Selector{
 					{Type: "a", Value: "1"},
 				}
@@ -1653,8 +1653,8 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			},
 		},
 		{
-			name: "with partial selectors",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			name: "with superset selectors",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				e.Selectors = []*common.Selector{
 					{Type: "a", Value: "1"},
 					{Type: "b", Value: "2"},
@@ -1665,14 +1665,14 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 		},
 		{
 			name: "same selectors but different SPIFFE IDs",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				e.SpiffeId = "spiffe://example.org/baz"
 				return e
 			},
 		},
 		{
 			name: "failed to create similar entry",
-			updateEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				return e
 			},
 			expectSimilar: true,
@@ -1693,7 +1693,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 					"somehost",
 				},
 			}
-			entry = tt.updateEntry(entry)
+			entry = tt.modifyEntry(entry)
 
 			createdEntry, alreadyExists, err := s.ds.CreateOrReturnRegistrationEntry(ctx, entry)
 
