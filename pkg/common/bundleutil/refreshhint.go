@@ -3,6 +3,8 @@ package bundleutil
 import (
 	"math"
 	"time"
+
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 )
 
 const (
@@ -19,15 +21,15 @@ const (
 // fraction of the smallest. It is fairly aggressive but ensures clients don't
 // miss a rotation period and lose their ability to fetch.
 // TODO: reevaluate our strategy here when we rework the TTL story inside SPIRE.
-func CalculateRefreshHint(bundle *Bundle) time.Duration {
-	if r := bundle.RefreshHint(); r > 0 {
+func CalculateRefreshHint(bundle *spiffebundle.Bundle) time.Duration {
+	if r, ok := bundle.RefreshHint(); ok && r > 0 {
 		return safeRefreshHint(r)
 	}
 
 	const maxDuration time.Duration = math.MaxInt64
 
 	smallestLifetime := maxDuration
-	for _, rootCA := range bundle.RootCAs() {
+	for _, rootCA := range bundle.X509Authorities() {
 		lifetime := rootCA.NotAfter.Sub(rootCA.NotBefore)
 		if lifetime < smallestLifetime {
 			smallestLifetime = lifetime

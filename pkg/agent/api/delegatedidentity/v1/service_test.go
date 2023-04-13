@@ -46,8 +46,8 @@ var (
 	bundle1 = spiffebundle.FromX509Authorities(trustDomain1, []*x509.Certificate{{Raw: []byte("AAA")}})
 	bundle2 = spiffebundle.FromX509Authorities(trustDomain2, []*x509.Certificate{{Raw: []byte("BBB")}})
 
-	jwksBundle1, _ = bundleutil.MarshalIdentBundle(bundle1)
-	jwksBundle2, _ = bundleutil.MarshalIdentBundle(bundle2)
+	jwksBundle1, _ = bundleutil.Marshal(bundle1, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+	jwksBundle2, _ = bundleutil.Marshal(bundle2, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
 )
 
 func TestSubscribeToX509SVIDs(t *testing.T) {

@@ -31,6 +31,9 @@ func printX509SVID(env *commoncli.Env, svid *X509SVID) {
 	// Print SPIFFE ID first so if we run into a problem, we
 	// get to know which record it was
 	env.Printf("SPIFFE ID:\t\t%s\n", svid.SPIFFEID)
+	if svid.Hint != "" {
+		env.Printf("Hint:\t\t\t%s\n", svid.Hint)
+	}
 
 	env.Printf("SVID Valid After:\t%v\n", svid.Certificates[0].NotBefore)
 	env.Printf("SVID Valid Until:\t%v\n", svid.Certificates[0].NotAfter)

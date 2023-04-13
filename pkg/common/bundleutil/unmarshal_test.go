@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 )
@@ -11,16 +12,18 @@ import (
 func TestUnmarshal(t *testing.T) {
 	rootCA := createCACertificate(t)
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	emptyBundle := spiffebundle.New(trustDomain)
+	emptyBundle.SetRefreshHint(0)
 	testCases := []struct {
 		name   string
 		doc    string
 		err    string
-		bundle *Bundle
+		bundle *spiffebundle.Bundle
 	}{
 		{
 			name:   "empty bundle",
 			doc:    "{}",
-			bundle: New(trustDomain),
+			bundle: emptyBundle,
 		},
 		{
 			name: "entry missing use",
