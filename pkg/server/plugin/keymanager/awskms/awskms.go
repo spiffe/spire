@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
