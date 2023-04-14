@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
@@ -379,9 +380,9 @@ func TestFetchJWTSVIDs(t *testing.T) {
 	ca := testca.New(t, trustDomain1)
 
 	x509SVID1 := ca.CreateX509SVID(id1)
-	jwtSVID1 := ca.CreateJWTSVID(id1, []string{"AUDIENCE"})
+	jwtSVID1Token := ca.CreateJWTSVID(id1, []string{"AUDIENCE"}).Marshal()
 	x509SVID2 := ca.CreateX509SVID(id2)
-	jwtSVID2 := ca.CreateJWTSVID(id2, []string{"AUDIENCE"})
+	jwtSVID2Token := ca.CreateJWTSVID(id2, []string{"AUDIENCE"}).Marshal()
 
 	identities := []cache.Identity{
 		identityFromX509SVID(x509SVID1),
@@ -480,7 +481,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			},
 			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
 				id1: {
-					Token:     jwtSVID1.Marshal(),
+					Token:     jwtSVID1Token,
 					ExpiresAt: time.Unix(1680786600, 0),
 					IssuedAt:  time.Unix(1680783000, 0),
 				},
@@ -488,8 +489,8 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			expectResp: &delegatedidentityv1.FetchJWTSVIDsResponse{
 				Svids: []*types.JWTSVID{
 					{
-						Token:     jwtSVID1.Marshal(),
-						Id:        &types.SPIFFEID{TrustDomain: id1.TrustDomain().String(), Path: id1.Path()},
+						Token:     jwtSVID1Token,
+						Id:        api.ProtoFromID(id1),
 						Hint:      "internal",
 						ExpiresAt: 1680786600,
 						IssuedAt:  1680783000,
@@ -505,12 +506,12 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			identities:   identities,
 			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
 				id1: {
-					Token:     jwtSVID1.Marshal(),
+					Token:     jwtSVID1Token,
 					ExpiresAt: time.Unix(1680786600, 0),
 					IssuedAt:  time.Unix(1680783000, 0),
 				},
 				id2: {
-					Token:     jwtSVID2.Marshal(),
+					Token:     jwtSVID2Token,
 					ExpiresAt: time.Unix(1680786600, 0),
 					IssuedAt:  time.Unix(1680783000, 0),
 				},
@@ -518,15 +519,15 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			expectResp: &delegatedidentityv1.FetchJWTSVIDsResponse{
 				Svids: []*types.JWTSVID{
 					{
-						Token:     jwtSVID1.Marshal(),
-						Id:        &types.SPIFFEID{TrustDomain: id1.TrustDomain().String(), Path: id1.Path()},
+						Token:     jwtSVID1Token,
+						Id:        api.ProtoFromID(id1),
 						Hint:      "internal",
 						ExpiresAt: 1680786600,
 						IssuedAt:  1680783000,
 					},
 					{
-						Token:     jwtSVID2.Marshal(),
-						Id:        &types.SPIFFEID{TrustDomain: id2.TrustDomain().String(), Path: id2.Path()},
+						Token:     jwtSVID2Token,
+						Id:        api.ProtoFromID(id2),
 						Hint:      "",
 						ExpiresAt: 1680786600,
 						IssuedAt:  1680783000,
