@@ -12,7 +12,7 @@ import (
 
 // WithBundlePublisher wraps a datastore interface and provides updates to
 // bundle publishers in operations that modify the local bundle.
-func WithBundlePublisher(ds datastore.DataStore, pubManager *pubmanager.Manager) datastore.DataStore {
+func WithBundlePublisher(ds datastore.DataStore, pubManager pubmanager.PubManager) datastore.DataStore {
 	return datastoreWrapper{
 		DataStore:  ds,
 		pubmanager: pubManager,
@@ -21,7 +21,7 @@ func WithBundlePublisher(ds datastore.DataStore, pubManager *pubmanager.Manager)
 
 type datastoreWrapper struct {
 	datastore.DataStore
-	pubmanager *pubmanager.Manager
+	pubmanager pubmanager.PubManager
 }
 
 func (w datastoreWrapper) AppendBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {
@@ -42,9 +42,4 @@ func (w datastoreWrapper) RevokeX509CA(ctx context.Context, trustDomainID string
 func (w datastoreWrapper) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (_ *common.PublicKey, err error) {
 	defer w.pubmanager.BundleUpdated()
 	return w.DataStore.RevokeJWTKey(ctx, trustDomainID, keyID)
-}
-
-func (w datastoreWrapper) UpdateBundle(ctx context.Context, bundle *common.Bundle, mask *common.BundleMask) (_ *common.Bundle, err error) {
-	defer w.pubmanager.BundleUpdated()
-	return w.DataStore.UpdateBundle(ctx, bundle, mask)
 }

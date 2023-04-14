@@ -92,7 +92,6 @@ func TestRun(t *testing.T) {
 					err:        bp3Error.err,
 				},
 			},
-			expectedErr: "one or more bundle publishers returned an error: error publishing bundle",
 		},
 		{
 			name:             "success and error",
@@ -112,7 +111,6 @@ func TestRun(t *testing.T) {
 					err:        bp3Error.err,
 				},
 			},
-			expectedErr: "one or more bundle publishers returned an error: error publishing bundle",
 		},
 		{
 			name:             "no bundle publishers",
@@ -153,6 +151,11 @@ func TestRun(t *testing.T) {
 
 			// Trigger the bundle updated event.
 			test.m.BundleUpdated()
+			test.waitForPublishResult(ctx, t, tt.expectedResults)
+			test.waitForPublishFinished(ctx, t, tt.expectedErr)
+
+			// Advance time enough that a refresh should happen.
+			test.clockHook.Add(refreshInterval + time.Millisecond)
 			test.waitForPublishResult(ctx, t, tt.expectedResults)
 			test.waitForPublishFinished(ctx, t, tt.expectedErr)
 
@@ -254,7 +257,7 @@ func setupTest(t *testing.T, bundlePublishers []bundlepublisher.BundlePublisher)
 	ds := fakedatastore.New(t)
 
 	clock := clock.NewMock(t)
-	m := NewManager(ManagerConfig{
+	m := newManager(ManagerConfig{
 		BundlePublishers: bundlePublishers,
 		Clock:            clock,
 		DataStore:        ds,

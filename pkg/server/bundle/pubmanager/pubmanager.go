@@ -5,6 +5,7 @@ package pubmanager
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -12,23 +13,22 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/zeebo/errs"
 )
 
-// NewManager creates a new bundle publishing manager.
-func NewManager(c ManagerConfig) *Manager {
-	if c.Clock == nil {
-		c.Clock = clock.New()
-	}
+const (
+	// refreshInterval is the interval to check for an updated trust bundle.
+	refreshInterval = 30 * time.Second
+)
 
-	return &Manager{
-		bundleUpdatedCh:  make(chan struct{}, 1),
-		bundlePublishers: c.BundlePublishers,
-		clock:            c.Clock,
-		dataStore:        c.DataStore,
-		log:              c.Log,
-		trustDomain:      c.TrustDomain,
-	}
+type PubManager interface {
+	BundleUpdated()
+	Init(bundlePublishers []bundlepublisher.BundlePublisher, dataStore datastore.DataStore)
+	Run(ctx context.Context) error
+}
+
+// NewManager creates a new bundle publishing manager.
+func NewManager(c ManagerConfig) PubManager {
+	return newManager(c)
 }
 
 // ManagerConfig is the config for the bundle publishing manager.
@@ -62,12 +62,15 @@ type Manager struct {
 
 // Run runs the bundle publishing manager.
 func (m *Manager) Run(ctx context.Context) error {
+	ticker := m.clock.Ticker(refreshInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
+		case <-ticker.C:
+			m.callPublishBundle(ctx)
 		case <-m.bundleUpdatedCh:
-			if err := m.publishBundle(ctx); err != nil && ctx.Err() == nil {
-				m.log.WithError(err).Error("Failed to publish bundle")
-			}
+			m.callPublishBundle(ctx)
 		case <-ctx.Done():
 			return nil
 		}
@@ -88,8 +91,18 @@ func (m *Manager) BundleUpdated() {
 	}
 }
 
+// callPublishBundle calls the publishBundle function and logs if there was an
+// error.
+func (m *Manager) callPublishBundle(ctx context.Context) {
+	if err := m.publishBundle(ctx); err != nil && ctx.Err() == nil {
+		m.log.WithError(err).Error("Failed to publish bundle")
+	}
+}
+
 // publishBundle iterates through the configured bundle publishers and calls
-// PublishBundle with the fetched bundle.
+// PublishBundle with the fetched bundle. This function only returns an error
+// if bundle publishers can't be called due to a failure fetching the bundle
+// from the datastore.
 func (m *Manager) publishBundle(ctx context.Context) (err error) {
 	defer func() {
 		m.publishDone(err)
@@ -104,15 +117,12 @@ func (m *Manager) publishBundle(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to fetch bundle from datastore: %w", err)
 	}
 
-	errsCh := make(chan error, len(m.bundlePublishers))
 	for _, bp := range m.bundlePublishers {
 		bp := bp
 		go func() {
 			log := m.log.WithField(bp.Type(), bp.Name())
 			err := bp.PublishBundle(ctx, bundle)
-			if err == nil {
-				log.Debug("Bundle published")
-			} else {
+			if err != nil {
 				log.WithError(err).Error("Failed to publish bundle")
 			}
 
@@ -121,22 +131,14 @@ func (m *Manager) publishBundle(ctx context.Context) (err error) {
 				bundle:     bundle,
 				err:        err,
 			})
-
-			errsCh <- err
 		}()
 	}
 
-	var allErrs errs.Group
-	for i := 0; i < len(m.bundlePublishers); i++ {
-		// Don't select on the ctx here as we can rely on the plugins to
-		// respond to context cancelation and return an error.
-		if err := <-errsCh; err != nil {
-			allErrs.Add(err)
-		}
-	}
-	if err := allErrs.Err(); err != nil {
-		return fmt.Errorf("one or more bundle publishers returned an error: %w", err)
-	}
+	// Rather than holding waiting for a result of each PublishBundle action,
+	// this function returns without error here because all bundle publishers
+	// could be called. Is resposibility of each plugin to handle failure
+	// conditions when publishing a bundle and implement a retry logic if
+	// needed.
 	return nil
 }
 
@@ -171,5 +173,20 @@ func (m *Manager) drainBundleUpdated() {
 	select {
 	case <-m.bundleUpdatedCh:
 	default:
+	}
+}
+
+func newManager(c ManagerConfig) *Manager {
+	if c.Clock == nil {
+		c.Clock = clock.New()
+	}
+
+	return &Manager{
+		bundleUpdatedCh:  make(chan struct{}, 1),
+		bundlePublishers: c.BundlePublishers,
+		clock:            c.Clock,
+		dataStore:        c.DataStore,
+		log:              c.Log,
+		trustDomain:      c.TrustDomain,
 	}
 }

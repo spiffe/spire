@@ -88,6 +88,12 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		JwtSigningKeys: []*common.PublicKey{{}},
 		RefreshHint:    1,
 	}
+	commonGood = &common.Bundle{
+		TrustDomainId:  "spiffe://example.org",
+		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
+		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
+		RefreshHint:    1,
+	}
 	pluginJWTAuthoritiesGood = []*plugintypes.JWTKey{
 		{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
 	}
@@ -133,12 +139,6 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		JwtAuthorities:  pluginJWTAuthoritiesBad,
 		RefreshHint:     1,
 		SequenceNumber:  2,
-	}
-	commonGood = &common.Bundle{
-		TrustDomainId:  "spiffe://example.org",
-		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
-		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
-		RefreshHint:    1,
 	}
 )
 

@@ -276,7 +276,7 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 }
 
 func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore,
-	healthChecker health.Checker, pubManager *pubmanager.Manager) (*catalog.Repository, error) {
+	healthChecker health.Checker, pubManager pubmanager.PubManager) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
@@ -414,7 +414,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 	})
 }
 
-func (s *Server) newBundlePublishingManager() *pubmanager.Manager {
+func (s *Server) newBundlePublishingManager() pubmanager.PubManager {
 	log := s.config.Log.WithField(telemetry.SubsystemName, "bundle_publishing")
 	return pubmanager.NewManager(pubmanager.ManagerConfig{
 		TrustDomain: s.config.TrustDomain,

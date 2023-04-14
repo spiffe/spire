@@ -4,33 +4,24 @@ import (
 	"context"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func TestV1Publish(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
 	commonBundle := &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas: []*common.Certificate{
-			{
-				DerBytes: []byte("CERTIFICATE"),
-			},
-		},
-		JwtSigningKeys: []*common.PublicKey{
-			{
-				Kid:       "KEYID",
-				PkixBytes: []byte("PUBLICKEY"),
-				NotAfter:  4321,
-			},
-		},
-		RefreshHint: 1234,
+		TrustDomainId: td.IDString(),
+		RootCas:       []*common.Certificate{{DerBytes: testca.New(t, td).X509Authorities()[0].Raw}},
 	}
 
 	for _, tt := range []struct {

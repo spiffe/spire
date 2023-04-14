@@ -63,7 +63,7 @@ type Config struct {
 	PluginConfigs PluginConfigs
 
 	Metrics          telemetry.Metrics
-	PubManager       *pubmanager.Manager
+	PubManager       pubmanager.PubManager
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
 	HealthChecker    health.Checker
