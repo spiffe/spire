@@ -83,6 +83,6 @@ else
     (cd "${TMPDIR}/spire"; tar -cvzf "${ARTIFACT}" "${TAROPTS[@]}" -- *)
     (cd "${TMPDIR}/spire-extras"; tar -cvzf "${EXTRAS_ARTIFACT}" "${TAROPTS[@]}" -- *)
 
-    echo "$(shasum -a 256 "${ARTIFACT}" | cut -d' ' -f1) $(basename "${ARTIFACT}")" > "${CHECKSUM}"
-    echo "$(shasum -a 256 "${EXTRAS_ARTIFACT}" | cut -d' ' -f1) $(basename "${EXTRAS_ARTIFACT}")" > "${EXTRAS_CHECKSUM}"
+    echo "$(shasum -a 256 "${ARTIFACT}" | cut -d' ' -f1)  $(basename "${ARTIFACT}")" > "${CHECKSUM}"
+    echo "$(shasum -a 256 "${EXTRAS_ARTIFACT}" | cut -d' ' -f1)  $(basename "${EXTRAS_ARTIFACT}")" > "${EXTRAS_CHECKSUM}"
 fi
