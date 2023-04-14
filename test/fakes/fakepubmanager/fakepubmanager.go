@@ -6,21 +6,21 @@ import (
 	"golang.org/x/net/context"
 )
 
-func New() *fakePubManager {
-	return &fakePubManager{
+func New() *FakePubManager {
+	return &FakePubManager{
 		bundleUpdatedCh: make(chan struct{}, 1),
 	}
 }
 
-type fakePubManager struct {
+type FakePubManager struct {
 	bundleUpdatedCh chan struct{}
 }
 
-func (m *fakePubManager) BundleUpdated() {
+func (m *FakePubManager) BundleUpdated() {
 	m.bundleUpdatedCh <- struct{}{}
 }
 
-func (m *fakePubManager) WaitForUpdate(ctx context.Context) error {
+func (m *FakePubManager) WaitForUpdate(ctx context.Context) error {
 	select {
 	case <-m.bundleUpdatedCh:
 		return nil
@@ -29,10 +29,10 @@ func (m *fakePubManager) WaitForUpdate(ctx context.Context) error {
 	}
 }
 
-func (m *fakePubManager) Init(bundlePublishers []bundlepublisher.BundlePublisher, dataStore datastore.DataStore) {
+func (m *FakePubManager) Init(bundlePublishers []bundlepublisher.BundlePublisher, dataStore datastore.DataStore) {
 
 }
 
-func (m *fakePubManager) Run(ctx context.Context) error {
+func (m *FakePubManager) Run(ctx context.Context) error {
 	return nil
 }

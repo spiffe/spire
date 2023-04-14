@@ -17,15 +17,15 @@ func TestWithBundlePublisher(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	ds.AppendBundle(ctx, nil)
+	_, _ = ds.AppendBundle(ctx, nil)
 	require.NoError(t, pubManager.WaitForUpdate(ctx))
 
-	ds.PruneBundle(ctx, "spiffe://example.org", time.Now())
+	_, _ = ds.PruneBundle(ctx, "spiffe://example.org", time.Now())
 	require.NoError(t, pubManager.WaitForUpdate(ctx))
 
-	ds.RevokeX509CA(ctx, "spiffe://example.org", nil)
+	_ = ds.RevokeX509CA(ctx, "spiffe://example.org", nil)
 	require.NoError(t, pubManager.WaitForUpdate(ctx))
 
-	ds.RevokeJWTKey(ctx, "spiffe://example.org", "keyID")
+	_, _ = ds.RevokeJWTKey(ctx, "spiffe://example.org", "keyID")
 	require.NoError(t, pubManager.WaitForUpdate(ctx))
 }
