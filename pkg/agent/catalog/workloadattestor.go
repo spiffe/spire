@@ -30,7 +30,7 @@ func (repo *workloadAttestorRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
 		docker.BuiltIn(),
 		k8s.BuiltIn(),
-                systemd.BuiltIn(),
+		systemd.BuiltIn(),
 		unix.BuiltIn(),
 		windows.BuiltIn(),
 	}
