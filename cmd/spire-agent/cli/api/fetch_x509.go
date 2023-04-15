@@ -177,6 +177,7 @@ func (c *fetchX509Command) prettyPrintFetchX509(env *commoncli.Env, results ...i
 
 type X509SVID struct {
 	SPIFFEID         string
+	Hint             string
 	Certificates     []*x509.Certificate
 	PrivateKey       crypto.Signer
 	Bundle           []*x509.Certificate
@@ -253,6 +254,7 @@ func parseX509SVID(svid *workload.X509SVID, federatedBundles map[string][]*x509.
 		Certificates:     certificates,
 		Bundle:           bundle,
 		FederatedBundles: federatedBundles,
+		Hint:             svid.Hint,
 	}, nil
 }
 

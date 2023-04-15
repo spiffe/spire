@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
@@ -44,7 +45,7 @@ type ClientConfig struct { //revive:disable-line:exported name stutter is intent
 
 // Client is used to fetch a bundle and metadata from a bundle endpoint
 type Client interface {
-	FetchBundle(context.Context) (*bundleutil.Bundle, error)
+	FetchBundle(context.Context) (*spiffebundle.Bundle, error)
 }
 
 type client struct {
@@ -75,7 +76,7 @@ func NewClient(config ClientConfig) (Client, error) {
 	}, nil
 }
 
-func (c *client) FetchBundle(ctx context.Context) (*bundleutil.Bundle, error) {
+func (c *client) FetchBundle(context.Context) (*spiffebundle.Bundle, error) {
 	resp, err := c.client.Get(c.c.EndpointURL)
 	if err != nil {
 		var hostnameError x509.HostnameError
