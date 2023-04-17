@@ -202,6 +202,7 @@ func TestMintRun(t *testing.T) {
 	  "path": "/workload"
 	},
     "expires_at": "1628600000",
+    "hint": "",
     "issued_at": "1628500000"
   }
 }`, token)},
@@ -244,6 +245,7 @@ func TestMintRun(t *testing.T) {
   "svid": {
     "token": "malformed token",
     "expires_at": "0",
+    "hint": "",
     "issued_at": "0"
   }
 }`,
@@ -278,6 +280,7 @@ func TestMintRun(t *testing.T) {
 	  "path": "/workload"
 	},
     "expires_at": "1628500000",
+    "hint": "",
     "issued_at": "1628600000"
   }
 }`, expiredToken),
