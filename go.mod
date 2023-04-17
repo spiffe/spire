@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/secretmanager v1.10.0
 	cloud.google.com/go/security v1.13.0
 	cloud.google.com/go/storage v1.30.1
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
@@ -44,7 +44,7 @@ require (
 	github.com/hashicorp/go-plugin v1.4.6
 	github.com/hashicorp/hcl v1.0.1-0.20190430135223-99e2f22d1c94
 	github.com/hashicorp/vault/api v1.9.0
-	github.com/hashicorp/vault/sdk v0.8.1
+	github.com/hashicorp/vault/sdk v0.9.0
 	github.com/imdario/mergo v0.3.15
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
@@ -89,7 +89,7 @@ require (
 	cloud.google.com/go/longrunning v0.4.1 // indirect
 	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/alibabacloudsdkgo/helper v0.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.2.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.3.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
 	github.com/Azure/go-autorest/autorest v0.11.28 // indirect
 	github.com/Azure/go-autorest/autorest/adal v0.9.21 // indirect
