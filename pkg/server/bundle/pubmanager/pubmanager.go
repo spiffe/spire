@@ -96,7 +96,7 @@ func (m *Manager) Init(bundlePublishers []bundlepublisher.BundlePublisher, dataS
 }
 
 // BundleUpdated tells the bundle publishing manager that the bundle has been
-// updates and forces a PublishBundle operation on all the plugins.
+// updated and forces a PublishBundle operation on all the plugins.
 func (m *Manager) BundleUpdated() {
 	m.drainBundleUpdated()
 
