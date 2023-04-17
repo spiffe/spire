@@ -4,6 +4,7 @@ package pubmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,6 +21,9 @@ const (
 	refreshInterval = 30 * time.Second
 )
 
+// PubManager provides an abstraction for a bundle publishing manager that can
+// run in the background (publishing the bundle periodically) and react to
+// updates in the bundle.
 type PubManager interface {
 	BundleUpdated()
 	Init(bundlePublishers []bundlepublisher.BundlePublisher, dataStore datastore.DataStore)
@@ -27,7 +31,7 @@ type PubManager interface {
 }
 
 // NewManager creates a new bundle publishing manager.
-func NewManager(c ManagerConfig) PubManager {
+func NewManager(c *ManagerConfig) PubManager {
 	return newManager(c)
 }
 
@@ -35,12 +39,12 @@ func NewManager(c ManagerConfig) PubManager {
 type ManagerConfig struct {
 	BundlePublishers []bundlepublisher.BundlePublisher
 	Clock            clock.Clock
-	DataStore        datastore.DataStore
 	Log              logrus.FieldLogger
 	TrustDomain      spiffeid.TrustDomain
 }
 
-// Manager is the manager for bundle publishing.
+// Manager is the manager for bundle publishing. It implements the PubManager
+// interface.
 type Manager struct {
 	bundleUpdatedCh  chan struct{}
 	bundlePublishers []bundlepublisher.BundlePublisher
@@ -62,6 +66,14 @@ type Manager struct {
 
 // Run runs the bundle publishing manager.
 func (m *Manager) Run(ctx context.Context) error {
+	if m.dataStore == nil {
+		return errors.New("missing datastore")
+	}
+
+	if m.trustDomain.IsZero() {
+		return errors.New("missing trust domain")
+	}
+
 	ticker := m.clock.Ticker(refreshInterval)
 	defer ticker.Stop()
 
@@ -83,6 +95,8 @@ func (m *Manager) Init(bundlePublishers []bundlepublisher.BundlePublisher, dataS
 	m.dataStore = dataStore
 }
 
+// BundleUpdated tells the bundle publishing manager that the bundle has been
+// updates and forces a PublishBundle operation on all the plugins.
 func (m *Manager) BundleUpdated() {
 	m.drainBundleUpdated()
 
@@ -136,7 +150,7 @@ func (m *Manager) publishBundle(ctx context.Context) (err error) {
 
 	// Rather than holding waiting for a result of each PublishBundle action,
 	// this function returns without error here because all bundle publishers
-	// could be called. Is resposibility of each plugin to handle failure
+	// could be called. Is the responsibility of each plugin to handle failure
 	// conditions when publishing a bundle and implement a retry logic if
 	// needed.
 	return nil
@@ -153,8 +167,8 @@ func (m *Manager) triggerPublishResultHook(result *publishResult) {
 
 // publishDone is called to know when a publish action has finished and informs
 // if there was an error in the overall action (not specific to a bundle
-// publisher). A publish action happens when there is an updated bundle in the
-// datastore.
+// publisher). A publish action happens periodically (every refreshInterval) and
+// also when BundleUpdated() is called.
 func (m *Manager) publishDone(err error) {
 	if m.hooks.publishedCh != nil {
 		m.hooks.publishedCh <- err
@@ -176,7 +190,7 @@ func (m *Manager) drainBundleUpdated() {
 	}
 }
 
-func newManager(c ManagerConfig) *Manager {
+func newManager(c *ManagerConfig) *Manager {
 	if c.Clock == nil {
 		c.Clock = clock.New()
 	}
@@ -185,7 +199,6 @@ func newManager(c ManagerConfig) *Manager {
 		bundleUpdatedCh:  make(chan struct{}, 1),
 		bundlePublishers: c.BundlePublishers,
 		clock:            c.Clock,
-		dataStore:        c.DataStore,
 		log:              c.Log,
 		trustDomain:      c.TrustDomain,
 	}
