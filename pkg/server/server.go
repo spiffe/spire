@@ -416,7 +416,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 
 func (s *Server) newBundlePublishingManager() pubmanager.PubManager {
 	log := s.config.Log.WithField(telemetry.SubsystemName, "bundle_publishing")
-	return pubmanager.NewManager(pubmanager.ManagerConfig{
+	return pubmanager.NewManager(&pubmanager.ManagerConfig{
 		TrustDomain: s.config.TrustDomain,
 		Log:         log,
 	})
