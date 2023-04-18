@@ -17,13 +17,13 @@ import (
 	"github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -113,8 +113,8 @@ func TestRotator(t *testing.T) {
 			}
 
 			// Create the bundle
-			bundle := make(map[spiffeid.TrustDomain]*bundleutil.Bundle)
-			bundle[trustDomain] = bundleutil.BundleFromRootCA(trustDomain, caCert)
+			bundle := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
+			bundle[trustDomain] = spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{caCert})
 
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
@@ -328,8 +328,8 @@ func TestRotationFails(t *testing.T) {
 			}
 
 			// Create the bundle
-			bundle := make(map[spiffeid.TrustDomain]*bundleutil.Bundle)
-			bundle[tt.bundleTrustDomain] = bundleutil.BundleFromRootCA(trustDomain, caCert)
+			bundle := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
+			bundle[tt.bundleTrustDomain] = spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{caCert})
 
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)

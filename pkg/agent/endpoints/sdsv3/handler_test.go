@@ -16,10 +16,10 @@ import (
 	envoy_type_v3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"github.com/imdario/mergo"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -36,9 +36,9 @@ import (
 )
 
 var (
-	tdBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("domain.test"), &x509.Certificate{
+	tdBundle = spiffebundle.FromX509Authorities(spiffeid.RequireTrustDomainFromString("domain.test"), []*x509.Certificate{{
 		Raw: []byte("BUNDLE"),
-	})
+	}})
 	tdCustomValidationConfig, _ = anypb.New(&tls_v3.SPIFFECertValidatorConfig{
 		TrustDomains: []*tls_v3.SPIFFECertValidatorConfig_TrustDomain{
 			{
@@ -112,9 +112,9 @@ var (
 		},
 	}
 
-	fedBundle = bundleutil.BundleFromRootCA(spiffeid.RequireTrustDomainFromString("otherdomain.test"), &x509.Certificate{
+	fedBundle = spiffebundle.FromX509Authorities(spiffeid.RequireTrustDomainFromString("otherdomain.test"), []*x509.Certificate{{
 		Raw: []byte("FEDBUNDLE"),
-	})
+	}})
 	fedCustomValidationConfig, _ = anypb.New(&tls_v3.SPIFFECertValidatorConfig{
 		TrustDomains: []*tls_v3.SPIFFECertValidatorConfig_TrustDomain{
 			{
@@ -1272,7 +1272,7 @@ func (h *handlerTest) setWorkloadUpdate(workloadCert *x509.Certificate) {
 				},
 			},
 			Bundle: tdBundle,
-			FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
+			FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 				spiffeid.RequireTrustDomainFromString("otherdomain.test"): fedBundle,
 			},
 		}

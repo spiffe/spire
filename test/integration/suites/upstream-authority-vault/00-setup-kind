@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Create a temporary path that will be added to the PATH to avoid picking up
+# binaries from the environment that aren't a version match.
+mkdir -p ./bin
+
+KINDVERSION=v0.17.0
+KUBECTLVERSION=v1.25.3
+K8SIMAGE=kindest/node:v1.25.3
+HELMVERSION=v3.11.1
+
+KIND_PATH=./bin/kind
+KUBECTL_PATH=./bin/kubectl
+HELM_PATH=./bin/helm
+
+# Download kind at the expected version at the given path.
+download-kind "${KIND_PATH}"
+
+# Download kubectl at the expected version.
+download-kubectl "${KUBECTL_PATH}"
+
+# Download helm at the expected version.
+download-helm "${HELM_PATH}"
+
+# Start the kind cluster.
+start-kind-cluster "${KIND_PATH}" vault-test
+
+# Load the given images in the cluster.
+container_images=("spire-server:latest-local")
+load-images "${KIND_PATH}" vault-test "${container_images[@]}"
+
+# Set the kubectl context.
+set-kubectl-context "${KUBECTL_PATH}" kind-vault-test

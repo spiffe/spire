@@ -41,7 +41,6 @@ type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
 
-// Handler implements the Workload API interface
 type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
@@ -50,6 +49,7 @@ type Config struct {
 	TrustDomain                   spiffeid.TrustDomain
 }
 
+// Handler implements the Workload API interface
 type Handler struct {
 	workload.UnsafeSpiffeWorkloadAPIServer
 	c Config
@@ -61,7 +61,8 @@ func New(c Config) *Handler {
 	}
 }
 
-// FetchJWTSVID processes request for a JWT-SVID
+// FetchJWTSVID processes request for a JWT-SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
+// associated entry will be returned.
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
 	log := rpccontext.Logger(ctx)
 	if len(req.Audience) == 0 {
@@ -82,47 +83,29 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		return nil, err
 	}
 
-	var spiffeIDs []spiffeid.ID
-
 	log = log.WithField(telemetry.Registered, true)
 
 	entries := h.c.Manager.MatchingRegistrationEntries(selectors)
+	entries = filterRegistrations(entries, log)
+
+	resp = new(workload.JWTSVIDResponse)
+
 	for _, entry := range entries {
 		if req.SpiffeId != "" && entry.SpiffeId != req.SpiffeId {
 			continue
 		}
-
-		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
+		loopLog := log.WithField(telemetry.SPIFFEID, entry.SpiffeId)
+		svid, err := h.fetchJWTSVID(ctx, loopLog, entry, req.Audience)
 		if err != nil {
-			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
-			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+			return nil, err
 		}
 
-		spiffeIDs = append(spiffeIDs, spiffeID)
+		resp.Svids = append(resp.Svids, svid)
 	}
 
-	if len(spiffeIDs) == 0 {
+	if len(resp.Svids) == 0 {
 		log.WithField(telemetry.Registered, false).Error("No identity issued")
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
-	}
-
-	resp = new(workload.JWTSVIDResponse)
-	for _, id := range spiffeIDs {
-		loopLog := log.WithField(telemetry.SPIFFEID, id.String())
-
-		var svid *client.JWTSVID
-		svid, err = h.c.Manager.FetchJWTSVID(ctx, id, req.Audience)
-		if err != nil {
-			loopLog.WithError(err).Error("Could not fetch JWT-SVID")
-			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
-		}
-		resp.Svids = append(resp.Svids, &workload.JWTSVID{
-			SpiffeId: id.String(),
-			Svid:     svid.Token,
-		})
-
-		ttl := time.Until(svid.ExpiresAt)
-		loopLog.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
 	}
 
 	return resp, nil
@@ -179,11 +162,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 		return nil, err
 	}
 
-	bundles, err := h.getWorkloadBundles(selectors)
-	if err != nil {
-		log.WithError(err).Error("Failed to get workload bundles")
-		return nil, err
-	}
+	bundles := h.getWorkloadBundles(selectors)
 
 	keyStore, err := keyStoreFromBundles(bundles)
 	if err != nil {
@@ -218,7 +197,8 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	}, nil
 }
 
-// FetchX509SVID processes request for an x509 SVID
+// FetchX509SVID processes request for a x509 SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
+// associated entry will be returned.
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
@@ -242,6 +222,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscriber.Updates():
+			update.Identities = filterIdentities(update.Identities, log)
 			if err := sendX509SVIDResponse(update, stream, log, quietLogging); err != nil {
 				return err
 			}
@@ -286,6 +267,29 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 }
 
+func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry, audience []string) (*workload.JWTSVID, error) {
+	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
+	if err != nil {
+		log.WithError(err).Error("Invalid requested SPIFFE ID")
+		return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+	}
+
+	svid, err := h.c.Manager.FetchJWTSVID(ctx, spiffeID, audience)
+	if err != nil {
+		log.WithError(err).Error("Could not fetch JWT-SVID")
+		return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
+	}
+
+	ttl := time.Until(svid.ExpiresAt)
+	log.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
+
+	return &workload.JWTSVID{
+		SpiffeId: spiffeID.String(),
+		Svid:     svid.Token,
+		Hint:     entry.Hint,
+	}, nil
+}
+
 func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool) (*workload.X509BundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		if !quietLogging {
@@ -320,10 +324,10 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509Bun
 	}
 
 	bundles := make(map[string][]byte)
-	bundles[update.Bundle.TrustDomainID()] = marshalBundle(update.Bundle.RootCAs())
+	bundles[update.Bundle.TrustDomain().IDString()] = marshalBundle(update.Bundle.X509Authorities())
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
-			bundles[federatedBundle.TrustDomainID()] = marshalBundle(federatedBundle.RootCAs())
+			bundles[federatedBundle.TrustDomain().IDString()] = marshalBundle(federatedBundle.X509Authorities())
 		}
 	}
 
@@ -376,10 +380,10 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	resp.Svids = []*workload.X509SVID{}
 	resp.FederatedBundles = make(map[string][]byte)
 
-	bundle := marshalBundle(update.Bundle.RootCAs())
+	bundle := marshalBundle(update.Bundle.X509Authorities())
 
 	for td, federatedBundle := range update.FederatedBundles {
-		resp.FederatedBundles[td.IDString()] = marshalBundle(federatedBundle.RootCAs())
+		resp.FederatedBundles[td.IDString()] = marshalBundle(federatedBundle.X509Authorities())
 	}
 
 	for _, identity := range update.Identities {
@@ -395,6 +399,7 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 			X509Svid:    x509util.DERFromCertificates(identity.SVID),
 			X509SvidKey: keyData,
 			Bundle:      bundle,
+			Hint:        identity.Entry.Hint,
 		}
 
 		resp.Svids = append(resp.Svids, svid)
@@ -439,7 +444,7 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 	if err != nil {
 		return nil, err
 	}
-	bundles[update.Bundle.TrustDomainID()] = jwksBytes
+	bundles[update.Bundle.TrustDomain().IDString()] = jwksBytes
 
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
@@ -447,7 +452,7 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 			if err != nil {
 				return nil, err
 			}
-			bundles[federatedBundle.TrustDomainID()] = jwksBytes
+			bundles[federatedBundle.TrustDomain().IDString()] = jwksBytes
 		}
 	}
 
@@ -462,25 +467,16 @@ func isAgent(ctx context.Context) bool {
 	return rpccontext.CallerPID(ctx) == os.Getpid()
 }
 
-func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle, err error) {
+func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle) {
 	update := h.c.Manager.FetchWorkloadUpdate(selectors)
 
 	if update.Bundle != nil {
-		bundle, err := update.Bundle.ToSPIFFEBundle()
-		if err != nil {
-			return nil, err
-		}
-
-		bundles = append(bundles, bundle)
+		bundles = append(bundles, update.Bundle)
 	}
 	for _, federatedBundle := range update.FederatedBundles {
-		bundle, err := federatedBundle.ToSPIFFEBundle()
-		if err != nil {
-			return nil, err
-		}
-		bundles = append(bundles, bundle)
+		bundles = append(bundles, federatedBundle)
 	}
-	return bundles, nil
+	return bundles
 }
 
 func marshalBundle(certs []*x509.Certificate) []byte {
@@ -525,4 +521,81 @@ func isClaimAllowed(claim string, allowedClaims map[string]struct{}) bool {
 		_, ok := allowedClaims[claim]
 		return ok
 	}
+}
+
+func filterIdentities(identities []cache.Identity, log logrus.FieldLogger) []cache.Identity {
+	var filteredIdentities []cache.Identity
+	var entries []*common.RegistrationEntry
+	for _, identity := range identities {
+		entries = append(entries, identity.Entry)
+	}
+
+	entriesToRemove := getEntriesToRemove(entries, log)
+
+	for _, identity := range identities {
+		if _, ok := entriesToRemove[identity.Entry.EntryId]; !ok {
+			filteredIdentities = append(filteredIdentities, identity)
+		}
+	}
+
+	return filteredIdentities
+}
+
+func filterRegistrations(entries []*common.RegistrationEntry, log logrus.FieldLogger) []*common.RegistrationEntry {
+	var filteredEntries []*common.RegistrationEntry
+	entriesToRemove := getEntriesToRemove(entries, log)
+
+	for _, entry := range entries {
+		if _, ok := entriesToRemove[entry.EntryId]; !ok {
+			filteredEntries = append(filteredEntries, entry)
+		}
+	}
+
+	return filteredEntries
+}
+
+func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLogger) map[string]struct{} {
+	entriesToRemove := make(map[string]struct{})
+	hintsMap := make(map[string]*common.RegistrationEntry)
+
+	for _, entry := range entries {
+		if entry.Hint == "" {
+			continue
+		}
+		if entryWithNonUniqueHint, ok := hintsMap[entry.Hint]; ok {
+			entryToMaintain, entryToRemove := hintTieBreaking(entry, entryWithNonUniqueHint)
+
+			hintsMap[entry.Hint] = entryToMaintain
+			entriesToRemove[entryToRemove.EntryId] = struct{}{}
+
+			log.WithFields(logrus.Fields{
+				telemetry.Hint:           entryToRemove.Hint,
+				telemetry.RegistrationID: entryToRemove.EntryId,
+			}).Warn("Ignoring entry with duplicate hint")
+		} else {
+			hintsMap[entry.Hint] = entry
+		}
+	}
+
+	return entriesToRemove
+}
+
+func hintTieBreaking(entryA *common.RegistrationEntry, entryB *common.RegistrationEntry) (maintain *common.RegistrationEntry, remove *common.RegistrationEntry) {
+	switch {
+	case entryA.CreatedAt < entryB.CreatedAt:
+		maintain = entryA
+		remove = entryB
+	case entryA.CreatedAt > entryB.CreatedAt:
+		maintain = entryB
+		remove = entryA
+	default:
+		if entryA.EntryId < entryB.EntryId {
+			maintain = entryA
+			remove = entryB
+		} else {
+			maintain = entryB
+			remove = entryA
+		}
+	}
+	return
 }

@@ -267,17 +267,17 @@ func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryR
 	// TODO: verify the type url
 	if upd.Bundle != nil {
 		switch {
-		case returnAllEntries || names[upd.Bundle.TrustDomainID()]:
-			validationContext, err := builder.buildOne(upd.Bundle.TrustDomainID(), upd.Bundle.TrustDomainID())
+		case returnAllEntries || names[upd.Bundle.TrustDomain().IDString()]:
+			validationContext, err := builder.buildOne(upd.Bundle.TrustDomain().IDString(), upd.Bundle.TrustDomain().IDString())
 			if err != nil {
 				return nil, err
 			}
 
-			delete(names, upd.Bundle.TrustDomainID())
+			delete(names, upd.Bundle.TrustDomain().IDString())
 			resp.Resources = append(resp.Resources, validationContext)
 
 		case names[h.c.DefaultBundleName]:
-			validationContext, err := builder.buildOne(h.c.DefaultBundleName, upd.Bundle.TrustDomainID())
+			validationContext, err := builder.buildOne(h.c.DefaultBundleName, upd.Bundle.TrustDomain().IDString())
 			if err != nil {
 				return nil, err
 			}
@@ -297,12 +297,12 @@ func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryR
 	}
 
 	for td, federatedBundle := range upd.FederatedBundles {
-		if returnAllEntries || names[federatedBundle.TrustDomainID()] {
+		if returnAllEntries || names[federatedBundle.TrustDomain().IDString()] {
 			validationContext, err := builder.buildOne(td.IDString(), td.IDString())
 			if err != nil {
 				return nil, err
 			}
-			delete(names, federatedBundle.TrustDomainID())
+			delete(names, federatedBundle.TrustDomain().IDString())
 			resp.Resources = append(resp.Resources, validationContext)
 		}
 	}
@@ -345,23 +345,15 @@ type validationContextBuilder interface {
 }
 
 func (h *Handler) getValidationContextBuilder(req *discovery_v3.DiscoveryRequest, upd *cache.WorkloadUpdate) (validationContextBuilder, error) {
-	bundle, err := upd.Bundle.ToSPIFFEBundle()
-	if err != nil {
-		return nil, err
-	}
 	federatedBundles := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
 	for td, federatedBundle := range upd.FederatedBundles {
-		spiffeFederatedBundle, err := federatedBundle.ToSPIFFEBundle()
-		if err != nil {
-			return nil, err
-		}
-		federatedBundles[td] = spiffeFederatedBundle
+		federatedBundles[td] = federatedBundle
 	}
 	if !h.isSPIFFECertValidationDisabled(req) && supportsSPIFFEAuthExtension(req) {
-		return newSpiffeBuilder(bundle, federatedBundles)
+		return newSpiffeBuilder(upd.Bundle, federatedBundles)
 	}
 
-	return newRootCABuilder(bundle, federatedBundles), nil
+	return newRootCABuilder(upd.Bundle, federatedBundles), nil
 }
 
 type rootCABuilder struct {

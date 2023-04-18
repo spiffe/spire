@@ -24,7 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
@@ -47,10 +47,32 @@ var (
 func TestFetchX509SVID(t *testing.T) {
 	ca := testca.New(t, td)
 
+	now := time.Now().Unix()
+	x509SVID0 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/aaa"))
+	x509SVID0.Hint = "internal"
 	x509SVID1 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/one"))
+	x509SVID1.Hint = "internal"
 	x509SVID2 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/two"))
+	x509SVID3 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/three"))
+	x509SVID3.Hint = "internal"
+	x509SVID4 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/four"))
+	x509SVID4.Hint = "internal"
+	x509SVID5 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/five"))
 	bundle := ca.Bundle()
 	federatedBundle := testca.New(t, td2).Bundle()
+
+	identities := []cache.Identity{
+		identityFromX509SVID(x509SVID0, "id0"),
+		identityFromX509SVID(x509SVID1, "id1"),
+		identityFromX509SVID(x509SVID2, "id2"),
+		identityFromX509SVID(x509SVID3, "id3"),
+		identityFromX509SVID(x509SVID4, "id4"),
+		identityFromX509SVID(x509SVID5, "id5"),
+	}
+	identities[0].Entry.CreatedAt = now
+	identities[1].Entry.CreatedAt = now
+	identities[3].Entry.CreatedAt = now + 3600
+	identities[4].Entry.CreatedAt = now + 7200
 
 	for _, tt := range []struct {
 		name       string
@@ -125,11 +147,11 @@ func TestFetchX509SVID(t *testing.T) {
 			name: "with identity and federated bundles",
 			updates: []*cache.WorkloadUpdate{{
 				Identities: []cache.Identity{
-					identityFromX509SVID(x509SVID1),
+					identities[1],
 				},
-				Bundle: utilBundleFromBundle(t, bundle),
-				FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-					federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+				Bundle: bundle,
+				FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+					federatedBundle.TrustDomain(): federatedBundle,
 				},
 			}},
 			expectCode: codes.OK,
@@ -140,6 +162,7 @@ func TestFetchX509SVID(t *testing.T) {
 						X509Svid:    x509util.DERFromCertificates(x509SVID1.Certificates),
 						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
 						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+						Hint:        "internal",
 					},
 				},
 				FederatedBundles: map[string][]byte{
@@ -152,10 +175,10 @@ func TestFetchX509SVID(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
-						identityFromX509SVID(x509SVID1),
-						identityFromX509SVID(x509SVID2),
+						identities[1],
+						identities[2],
 					},
-					Bundle: utilBundleFromBundle(t, bundle),
+					Bundle: bundle,
 				},
 			},
 			expectCode: codes.OK,
@@ -166,12 +189,78 @@ func TestFetchX509SVID(t *testing.T) {
 						X509Svid:    x509util.DERFromCertificates(x509SVID1.Certificates),
 						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
 						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+						Hint:        "internal",
 					},
 					{
 						SpiffeId:    x509SVID2.ID.String(),
 						X509Svid:    x509util.DERFromCertificates(x509SVID2.Certificates),
 						X509SvidKey: pkcs8FromSigner(t, x509SVID2.PrivateKey),
 						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+					},
+				},
+			},
+		},
+		{
+			name: "identities with duplicated hints",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: identities,
+					Bundle:     bundle,
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.X509SVIDResponse{
+				Svids: []*workloadPB.X509SVID{
+					{
+						SpiffeId:    x509SVID0.ID.String(),
+						X509Svid:    x509util.DERFromCertificates(x509SVID0.Certificates),
+						X509SvidKey: pkcs8FromSigner(t, x509SVID0.PrivateKey),
+						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+						Hint:        "internal",
+					},
+					{
+						SpiffeId:    x509SVID2.ID.String(),
+						X509Svid:    x509util.DERFromCertificates(x509SVID2.Certificates),
+						X509SvidKey: pkcs8FromSigner(t, x509SVID2.PrivateKey),
+						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+					},
+					{
+						SpiffeId:    x509SVID5.ID.String(),
+						X509Svid:    x509util.DERFromCertificates(x509SVID5.Certificates),
+						X509SvidKey: pkcs8FromSigner(t, x509SVID5.PrivateKey),
+						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "id1",
+						telemetry.Hint:           "internal",
+						telemetry.Method:         "FetchX509SVID",
+						telemetry.Service:        "WorkloadAPI",
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "id3",
+						telemetry.Hint:           "internal",
+						telemetry.Method:         "FetchX509SVID",
+						telemetry.Service:        "WorkloadAPI",
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "id4",
+						telemetry.Hint:           "internal",
+						telemetry.Method:         "FetchX509SVID",
+						telemetry.Service:        "WorkloadAPI",
 					},
 				},
 			},
@@ -277,7 +366,7 @@ func TestFetchX509Bundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
-						identityFromX509SVID(x509SVID),
+						identityFromX509SVID(x509SVID, "id1"),
 					},
 				},
 			},
@@ -300,11 +389,11 @@ func TestFetchX509Bundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
-						identityFromX509SVID(x509SVID),
+						identityFromX509SVID(x509SVID, "id1"),
 					},
-					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
 					},
 				},
 			},
@@ -322,9 +411,9 @@ func TestFetchX509Bundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{},
-					Bundle:     utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					Bundle:     bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
 					},
 				},
 			},
@@ -372,15 +461,15 @@ func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, otherBundle),
+			Bundle: otherBundle,
 		},
 	}
 
@@ -433,21 +522,21 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, otherBundle),
+			Bundle: otherBundle,
 		},
 	}
 
@@ -493,20 +582,50 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 func TestFetchJWTSVID(t *testing.T) {
 	ca := testca.New(t, td)
 
+	now := time.Now().Unix()
+	x509SVID0 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/aaa"))
+	x509SVID0.Hint = "internal"
 	x509SVID1 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/one"))
+	x509SVID1.Hint = "internal"
+	x509SVID1Dup := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/one"))
+	x509SVID1Dup.Hint = "external"
 	x509SVID2 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/two"))
+	x509SVID3 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/three"))
+	x509SVID3.Hint = "internal"
+	x509SVID4 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/four"))
+	x509SVID4.Hint = "internal"
+	x509SVID5 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/five"))
+
+	identities := []cache.Identity{
+		identityFromX509SVID(x509SVID0, "id0"),
+		identityFromX509SVID(x509SVID1, "id1"),
+		identityFromX509SVID(x509SVID2, "id2"),
+		identityFromX509SVID(x509SVID3, "id3"),
+		identityFromX509SVID(x509SVID4, "id4"),
+		identityFromX509SVID(x509SVID5, "id5"),
+		identityFromX509SVID(x509SVID1Dup, "id6"),
+	}
+	identities[0].Entry.CreatedAt = now
+	identities[1].Entry.CreatedAt = now
+	identities[3].Entry.CreatedAt = now + 3600
+	identities[4].Entry.CreatedAt = now + 7200
+
+	type expectedSVID struct {
+		spiffeID string
+		hint     string
+	}
 
 	for _, tt := range []struct {
-		name           string
-		identities     []cache.Identity
-		spiffeID       string
-		audience       []string
-		attestErr      error
-		managerErr     error
-		expectCode     codes.Code
-		expectMsg      string
-		expectTokenIDs []spiffeid.ID
-		expectLogs     []spiretest.LogEntry
+		name         string
+		identities   []cache.Identity
+		spiffeID     string
+		audience     []string
+		attestErr    error
+		managerErr   error
+		expectCode   codes.Code
+		expectMsg    string
+		expectedResp []expectedSVID
+		expectLogs   []spiretest.LogEntry
 	}{
 		{
 			name:       "missing required audience",
@@ -562,8 +681,8 @@ func TestFetchJWTSVID(t *testing.T) {
 		{
 			name: "identity found but unexpected SPIFFE ID",
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
-				identityFromX509SVID(x509SVID2),
+				identities[1],
+				identities[2],
 			},
 			spiffeID:   spiffeid.RequireFromPath(td, "/unexpected").String(),
 			audience:   []string{"AUDIENCE"},
@@ -603,7 +722,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			name:     "fetch error",
 			audience: []string{"AUDIENCE"},
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
+				identities[1],
 			},
 			managerErr: errors.New("ohno"),
 			expectCode: codes.Unavailable,
@@ -625,23 +744,97 @@ func TestFetchJWTSVID(t *testing.T) {
 		{
 			name: "success all",
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
-				identityFromX509SVID(x509SVID2),
+				identities[6],
+				identities[1],
+				identities[2],
 			},
-			audience:       []string{"AUDIENCE"},
-			expectCode:     codes.OK,
-			expectTokenIDs: []spiffeid.ID{x509SVID1.ID, x509SVID2.ID},
+			audience:   []string{"AUDIENCE"},
+			expectCode: codes.OK,
+			expectedResp: []expectedSVID{
+				{
+					spiffeID: x509SVID1Dup.ID.String(),
+					hint:     "external",
+				},
+				{
+					spiffeID: x509SVID1.ID.String(),
+					hint:     "internal",
+				},
+				{
+					spiffeID: x509SVID2.ID.String(),
+				},
+			},
 		},
 		{
 			name: "success specific",
 			identities: []cache.Identity{
-				identityFromX509SVID(x509SVID1),
-				identityFromX509SVID(x509SVID2),
+				identities[1],
+				identities[2],
 			},
-			spiffeID:       x509SVID2.ID.String(),
-			audience:       []string{"AUDIENCE"},
-			expectCode:     codes.OK,
-			expectTokenIDs: []spiffeid.ID{x509SVID2.ID},
+			spiffeID:   x509SVID2.ID.String(),
+			audience:   []string{"AUDIENCE"},
+			expectCode: codes.OK,
+			expectedResp: []expectedSVID{
+				{
+					spiffeID: x509SVID2.ID.String(),
+				},
+			},
+		},
+		{
+			name:       "identities with duplicated hints",
+			identities: identities,
+			audience:   []string{"AUDIENCE"},
+			expectCode: codes.OK,
+			expectedResp: []expectedSVID{
+				{
+					spiffeID: x509SVID0.ID.String(),
+					hint:     "internal",
+				},
+				{
+					spiffeID: x509SVID2.ID.String(),
+				},
+				{
+					spiffeID: x509SVID5.ID.String(),
+				},
+				{
+					spiffeID: x509SVID1Dup.ID.String(),
+					hint:     "external",
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "id1",
+						telemetry.Hint:           "internal",
+						telemetry.Method:         "FetchJWTSVID",
+						telemetry.Service:        "WorkloadAPI",
+						telemetry.Registered:     "true",
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "id3",
+						telemetry.Hint:           "internal",
+						telemetry.Method:         "FetchJWTSVID",
+						telemetry.Service:        "WorkloadAPI",
+						telemetry.Registered:     "true",
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "id4",
+						telemetry.Hint:           "internal",
+						telemetry.Method:         "FetchJWTSVID",
+						telemetry.Service:        "WorkloadAPI",
+						telemetry.Registered:     "true",
+					},
+				},
+			},
 		},
 	} {
 		tt := tt
@@ -665,13 +858,14 @@ func TestFetchJWTSVID(t *testing.T) {
 						assert.Nil(t, resp)
 						return
 					}
-					var tokenIDs []spiffeid.ID
-					for _, svid := range resp.Svids {
+					assert.Len(t, resp.Svids, len(tt.expectedResp))
+					for i, svid := range resp.Svids {
 						parsedSVID, err := jwtsvid.ParseInsecure(svid.Svid, tt.audience)
+						parsedSVID.Hint = svid.Hint
 						require.NoError(t, err, "JWT-SVID token is malformed")
-						tokenIDs = append(tokenIDs, parsedSVID.ID)
+						assert.Equal(t, tt.expectedResp[i].spiffeID, parsedSVID.ID.String())
+						assert.Equal(t, tt.expectedResp[i].hint, parsedSVID.Hint)
 					}
-					assert.Equal(t, tt.expectTokenIDs, tokenIDs)
 				})
 		})
 	}
@@ -766,7 +960,7 @@ func TestFetchJWTBundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
-						identityFromX509SVID(x509SVID),
+						identityFromX509SVID(x509SVID, "id1"),
 					},
 				},
 			},
@@ -789,11 +983,11 @@ func TestFetchJWTBundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
-						identityFromX509SVID(x509SVID),
+						identityFromX509SVID(x509SVID, "id1"),
 					},
-					Bundle: utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
 					},
 				},
 			},
@@ -811,9 +1005,9 @@ func TestFetchJWTBundles(t *testing.T) {
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{},
-					Bundle:     utilBundleFromBundle(t, bundle),
-					FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-						federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+					Bundle:     bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
 					},
 				},
 			},
@@ -873,15 +1067,15 @@ func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, otherBundle),
+			Bundle: otherBundle,
 		},
 	}
 
@@ -946,21 +1140,21 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 	updates := []*cache.WorkloadUpdate{
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, bundle),
+			Bundle: bundle,
 		},
 		{
 			Identities: []cache.Identity{
-				identityFromX509SVID(x509SVID),
+				identityFromX509SVID(x509SVID, "id1"),
 			},
-			Bundle: utilBundleFromBundle(t, otherBundle),
+			Bundle: otherBundle,
 		},
 	}
 
@@ -1014,13 +1208,13 @@ func TestValidateJWTSVID(t *testing.T) {
 	federatedSVID := ca2.CreateJWTSVID(spiffeid.RequireFromPath(td2, "/federated-workload"), []string{"AUDIENCE"})
 
 	updatesWithBundleOnly := []*cache.WorkloadUpdate{{
-		Bundle: utilBundleFromBundle(t, bundle),
+		Bundle: bundle,
 	}}
 
 	updatesWithFederatedBundle := []*cache.WorkloadUpdate{{
-		Bundle: utilBundleFromBundle(t, bundle),
-		FederatedBundles: map[spiffeid.TrustDomain]*bundleutil.Bundle{
-			federatedBundle.TrustDomain(): utilBundleFromBundle(t, federatedBundle),
+		Bundle: bundle,
+		FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+			federatedBundle.TrustDomain(): federatedBundle,
 		},
 	}}
 
@@ -1442,46 +1636,16 @@ func (a *FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
 	return a.selectors, a.err
 }
 
-func identityFromX509SVID(svid *x509svid.SVID) cache.Identity {
+func identityFromX509SVID(svid *x509svid.SVID, entryID string) cache.Identity {
 	return cache.Identity{
-		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String()},
+		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String(), Hint: svid.Hint, EntryId: entryID},
 		PrivateKey: svid.PrivateKey,
 		SVID:       svid.Certificates,
 	}
 }
 
-func utilBundleFromBundle(t *testing.T, bundle *spiffebundle.Bundle) *bundleutil.Bundle {
-	b, err := bundleutil.BundleFromProto(commonBundleFromBundle(t, bundle))
-	require.NoError(t, err)
-	return b
-}
-
-func commonBundleFromBundle(t *testing.T, bundle *spiffebundle.Bundle) *common.Bundle {
-	bundleProto := &common.Bundle{
-		TrustDomainId: bundle.TrustDomain().IDString(),
-	}
-	for _, x509Authority := range bundle.X509Authorities() {
-		bundleProto.RootCas = append(bundleProto.RootCas, &common.Certificate{
-			DerBytes: x509Authority.Raw,
-		})
-	}
-	for keyID, jwtAuthority := range bundle.JWTAuthorities() {
-		bundleProto.JwtSigningKeys = append(bundleProto.JwtSigningKeys, &common.PublicKey{
-			Kid:       keyID,
-			PkixBytes: pkixFromPublicKey(t, jwtAuthority),
-		})
-	}
-	return bundleProto
-}
-
 func pkcs8FromSigner(t *testing.T, key crypto.Signer) []byte {
 	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
-	require.NoError(t, err)
-	return keyBytes
-}
-
-func pkixFromPublicKey(t *testing.T, publicKey crypto.PublicKey) []byte {
-	keyBytes, err := x509.MarshalPKIXPublicKey(publicKey)
 	require.NoError(t, err)
 	return keyBytes
 }

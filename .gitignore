@@ -1,4 +1,4 @@
-.build*
+.build
 .cache
 .data
 .glide

@@ -5,39 +5,38 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCalculateRefreshHint(t *testing.T) {
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
-	emptyBundle := New(trustDomain)
-
-	emptyBundleWithRefreshHint, err := BundleFromProto(&common.Bundle{
-		TrustDomainId: "domain.test",
-		RefreshHint:   3600,
-	})
-	require.NoError(t, err)
+	emptyBundle := spiffebundle.New(trustDomain)
+	emptyBundleWithRefreshHint := spiffebundle.New(trustDomain)
+	emptyBundleWithRefreshHint.SetRefreshHint(time.Hour * 1)
 
 	now := time.Now()
-	bundleWithCerts := New(trustDomain)
-	bundleWithCerts.AppendRootCA(&x509.Certificate{
+	bundleWithCerts := spiffebundle.New(trustDomain)
+	bundleWithCerts.AddX509Authority(&x509.Certificate{
+		Raw:       []byte{1},
 		NotBefore: now,
 		NotAfter:  now.Add(time.Hour * 2),
 	})
-	bundleWithCerts.AppendRootCA(&x509.Certificate{
+	bundleWithCerts.AddX509Authority(&x509.Certificate{
+		Raw:       []byte{2},
 		NotBefore: now,
 		NotAfter:  now.Add(time.Hour),
 	})
-	bundleWithCerts.AppendRootCA(&x509.Certificate{
+	bundleWithCerts.AddX509Authority(&x509.Certificate{
+		Raw:       []byte{3},
 		NotBefore: now,
 		NotAfter:  now.Add(time.Hour * 3),
 	})
 
 	testCases := []struct {
 		name        string
-		bundle      *Bundle
+		bundle      *spiffebundle.Bundle
 		refreshHint time.Duration
 	}{
 		{
@@ -60,7 +59,6 @@ func TestCalculateRefreshHint(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			require.Equal(t, testCase.refreshHint, CalculateRefreshHint(testCase.bundle), "refresh hint is wrong")
 		})

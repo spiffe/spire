@@ -231,7 +231,7 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record, metadata
 			continue
 		}
 
-		federatedBundles[federatedID] = bundle.RootCAs()
+		federatedBundles[federatedID] = bundle.X509Authorities()
 	}
 
 	spiffeID, err := spiffeid.FromString(record.Entry.SpiffeId)
@@ -243,7 +243,7 @@ func (s *SVIDStoreService) requestFromRecord(record *storecache.Record, metadata
 		Metadata: metadata,
 		SVID: &svidstore.SVID{
 			SPIFFEID:   spiffeID,
-			Bundle:     rootCA.RootCAs(),
+			Bundle:     rootCA.X509Authorities(),
 			CertChain:  record.Svid.Chain,
 			PrivateKey: record.Svid.PrivateKey,
 			ExpiresAt:  record.ExpiresAt,

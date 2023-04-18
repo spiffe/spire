@@ -12,7 +12,7 @@ import (
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
-	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	workloadattestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -40,7 +40,7 @@ type attestor interface {
 type Config struct {
 	Log                 logrus.FieldLogger
 	Manager             manager.Manager
-	Attestor            workload_attestor.Attestor
+	Attestor            workloadattestor.Attestor
 	AuthorizedDelegates []string
 }
 
@@ -96,7 +96,7 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 		}
 	}
 
-	// caller has identity associeted with but none is authorized
+	// caller has identity associated with but none is authorized
 	log.WithFields(logrus.Fields{
 		"num_registered_entries": numRegisteredEntries,
 		"default_id":             entries[0].SpiffeId,
@@ -196,6 +196,7 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentit
 				Id:        id,
 				CertChain: x509util.RawCertsFromCertificates(identity.SVID),
 				ExpiresAt: identity.SVID[0].NotAfter.Unix(),
+				Hint:      identity.Entry.Hint,
 			},
 			X509SvidKey: keyData,
 		}
@@ -218,7 +219,7 @@ func (s *Service) SubscribeToX509Bundles(req *delegatedidentityv1.SubscribeToX50
 	// send initial update....
 	caCerts := make(map[string][]byte)
 	for td, bundle := range subscriber.Value() {
-		caCerts[td.IDString()] = marshalBundle(bundle.RootCAs())
+		caCerts[td.IDString()] = marshalBundle(bundle.X509Authorities())
 	}
 
 	resp := &delegatedidentityv1.SubscribeToX509BundlesResponse{
@@ -237,7 +238,7 @@ func (s *Service) SubscribeToX509Bundles(req *delegatedidentityv1.SubscribeToX50
 			}
 
 			for td, bundle := range subscriber.Next() {
-				caCerts[td.IDString()] = marshalBundle(bundle.RootCAs())
+				caCerts[td.IDString()] = marshalBundle(bundle.X509Authorities())
 			}
 
 			resp := &delegatedidentityv1.SubscribeToX509BundlesResponse{
@@ -270,7 +271,8 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 		log.WithError(err).Error("Invalid argument; could not parse provided selectors")
 		return nil, status.Error(codes.InvalidArgument, "could not parse provided selectors")
 	}
-	var spiffeIDs []spiffeid.ID
+
+	resp = new(delegatedidentityv1.FetchJWTSVIDsResponse)
 
 	entries := s.manager.MatchingRegistrationEntries(selectors)
 	for _, entry := range entries {
@@ -280,20 +282,10 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
 		}
 
-		spiffeIDs = append(spiffeIDs, spiffeID)
-	}
-
-	if len(spiffeIDs) == 0 {
-		log.Error("No identity issued")
-		return nil, status.Error(codes.PermissionDenied, "no identity issued")
-	}
-
-	resp = new(delegatedidentityv1.FetchJWTSVIDsResponse)
-	for _, id := range spiffeIDs {
-		loopLog := log.WithField(telemetry.SPIFFEID, id.String())
+		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID.String())
 
 		var svid *client.JWTSVID
-		svid, err = s.manager.FetchJWTSVID(ctx, id, req.Audience)
+		svid, err = s.manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
 		if err != nil {
 			loopLog.WithError(err).Error("Could not fetch JWT-SVID")
 			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
@@ -301,15 +293,21 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 		resp.Svids = append(resp.Svids, &types.JWTSVID{
 			Token: svid.Token,
 			Id: &types.SPIFFEID{
-				TrustDomain: id.TrustDomain().String(),
-				Path:        id.Path(),
+				TrustDomain: spiffeID.TrustDomain().String(),
+				Path:        spiffeID.Path(),
 			},
 			ExpiresAt: svid.ExpiresAt.Unix(),
 			IssuedAt:  svid.IssuedAt.Unix(),
+			Hint:      entry.Hint,
 		})
 
 		ttl := time.Until(svid.ExpiresAt)
 		loopLog.WithField(telemetry.TTL, ttl.Seconds()).Debug("Fetched JWT SVID")
+	}
+
+	if len(resp.Svids) == 0 {
+		log.Error("No identity issued")
+		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
 	return resp, nil
