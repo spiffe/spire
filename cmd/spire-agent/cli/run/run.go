@@ -361,7 +361,7 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 		if err != nil {
 			return nil, fmt.Errorf("unable to parse SPIFFE trust bundle: %w", err)
 		}
-		return bundle.RootCAs(), nil
+		return bundle.X509Authorities(), nil
 	}
 
 	return nil, fmt.Errorf("unknown trust bundle format: %s", trustBundleContentType)
@@ -390,7 +390,7 @@ func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
 }
 
 func setupTrustBundle(ac *agent.Config, c *Config) error {
-	// Either download the turst bundle if TrustBundleURL is set, or read it
+	// Either download the trust bundle if TrustBundleURL is set, or read it
 	// from disk if TrustBundlePath is set
 	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
 
