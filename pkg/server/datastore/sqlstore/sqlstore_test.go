@@ -558,6 +558,7 @@ func (s *PluginSuite) TestBundlePrune() {
 	// Setup
 	// Create new bundle with two cert (one valid and one expired)
 	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert})
+	bundle.SequenceNumber = 42
 
 	// Add two JWT signing keys (one valid and one expired)
 	expiredKeyTime, err := time.Parse(time.RFC3339, _expiredNotAfterString)
@@ -600,7 +601,7 @@ func (s *PluginSuite) TestBundlePrune() {
 	// Fetch and verify pruned bundle is the expected
 	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert})
 	expectedPrunedBundle.JwtSigningKeys = []*common.PublicKey{{NotAfter: nonExpiredKeyTime.Unix()}}
-	expectedPrunedBundle.SequenceNumber++
+	expectedPrunedBundle.SequenceNumber = 43
 	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
 	s.AssertProtoEqual(expectedPrunedBundle, fb)
