@@ -21,23 +21,15 @@ const (
 	refreshInterval = 30 * time.Second
 )
 
-// PubManager provides an abstraction for a bundle publishing manager that can
-// run in the background (publishing the bundle periodically) and react to
-// updates in the bundle.
-type PubManager interface {
-	BundleUpdated()
-	Init(bundlePublishers []bundlepublisher.BundlePublisher, dataStore datastore.DataStore)
-	Run(ctx context.Context) error
-}
-
 // NewManager creates a new bundle publishing manager.
-func NewManager(c *ManagerConfig) PubManager {
+func NewManager(c *ManagerConfig) *Manager {
 	return newManager(c)
 }
 
 // ManagerConfig is the config for the bundle publishing manager.
 type ManagerConfig struct {
 	BundlePublishers []bundlepublisher.BundlePublisher
+	DataStore        datastore.DataStore
 	Clock            clock.Clock
 	Log              logrus.FieldLogger
 	TrustDomain      spiffeid.TrustDomain
@@ -87,12 +79,6 @@ func (m *Manager) Run(ctx context.Context) error {
 			return nil
 		}
 	}
-}
-
-// Init initializes the bundle publishing manager.
-func (m *Manager) Init(bundlePublishers []bundlepublisher.BundlePublisher, dataStore datastore.DataStore) {
-	m.bundlePublishers = bundlePublishers
-	m.dataStore = dataStore
 }
 
 // BundleUpdated tells the bundle publishing manager that the bundle has been
@@ -199,6 +185,7 @@ func newManager(c *ManagerConfig) *Manager {
 		bundleUpdatedCh:  make(chan struct{}, 1),
 		bundlePublishers: c.BundlePublishers,
 		clock:            c.Clock,
+		dataStore:        c.DataStore,
 		log:              c.Log,
 		trustDomain:      c.TrustDomain,
 	}

@@ -258,14 +258,17 @@ func setupTest(t *testing.T, bundlePublishers []bundlepublisher.BundlePublisher)
 
 	clock := clock.NewMock(t)
 	m := newManager(&ManagerConfig{
-		Clock:       clock,
-		Log:         log,
-		TrustDomain: td,
+		BundlePublishers: bundlePublishers,
+		DataStore:        ds,
+		Clock:            clock,
+		Log:              log,
+		TrustDomain:      td,
 	})
-	m.Init(bundlePublishers, ds)
+
 	m.hooks.publishResultCh = make(chan *publishResult, 10)
 	m.hooks.publishedCh = make(chan error)
 	bundlePublishersMap := make(map[string]bundlepublisher.BundlePublisher)
+
 	for _, bp := range bundlePublishers {
 		bundlePublishersMap[bp.Name()] = bp
 	}

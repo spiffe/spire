@@ -13,7 +13,7 @@ import (
 func TestWithBundlePublisher(t *testing.T) {
 	pubManager := fakepubmanager.New()
 
-	ds := WithBundlePublisher(fakedatastore.New(t), pubManager)
+	ds := WithBundleUpdateCallback(fakedatastore.New(t), pubManager.BundleUpdated)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 

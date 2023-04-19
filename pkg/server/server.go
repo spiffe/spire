@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
+	ds_pubmanager "github.com/spiffe/spire/pkg/server/bundle/datastore"
 	"github.com/spiffe/spire/pkg/server/bundle/pubmanager"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
@@ -34,6 +35,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"google.golang.org/grpc"
@@ -110,15 +112,14 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	bundlePublishingManager := s.newBundlePublishingManager()
-
-	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, healthChecker, bundlePublishingManager)
+	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, healthChecker)
 	if err != nil {
 		return err
 	}
 	defer cat.Close()
 
-	bundlePublishingManager.Init(cat.BundlePublishers, cat.DataStore)
+	bundlePublishingManager := s.newBundlePublishingManager(cat.BundlePublishers, cat.DataStore)
+	cat.DataStore = ds_pubmanager.WithBundleUpdateCallback(cat.DataStore, bundlePublishingManager.BundleUpdated)
 
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {
@@ -276,11 +277,10 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 }
 
 func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore,
-	healthChecker health.Checker, pubManager pubmanager.PubManager) (*catalog.Repository, error) {
+	healthChecker health.Checker) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
-		PubManager:       pubManager,
 		TrustDomain:      s.config.TrustDomain,
 		PluginConfigs:    s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
@@ -414,11 +414,13 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 	})
 }
 
-func (s *Server) newBundlePublishingManager() pubmanager.PubManager {
+func (s *Server) newBundlePublishingManager(bundlePublishers []bundlepublisher.BundlePublisher, ds datastore.DataStore) *pubmanager.Manager {
 	log := s.config.Log.WithField(telemetry.SubsystemName, "bundle_publishing")
 	return pubmanager.NewManager(&pubmanager.ManagerConfig{
-		TrustDomain: s.config.TrustDomain,
-		Log:         log,
+		BundlePublishers: bundlePublishers,
+		DataStore:        ds,
+		TrustDomain:      s.config.TrustDomain,
+		Log:              log,
 	})
 }
 
