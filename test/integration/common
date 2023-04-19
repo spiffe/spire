@@ -163,7 +163,6 @@ envoy-releases() {
         | sort -u -t. -k 1,1nr -k 2,2nr \
         | head -n"${MAX_ENVOY_RELEASES_TO_TEST}"
         )"
-
     # Now scan the releases and ensure the ones we test are available on Docker
     # Hub.  Normally they should all be available, but there has been latency from
     # the Envoy team publishing the docker image, so this prevents us from trying
@@ -171,7 +170,7 @@ envoy-releases() {
     # earlier than v1.13, which is the first release to adopt the v3 API (v2 is
     # deprecated).
     for release in ${ALL_ENVOY_RELEASES}; do
-        if ! curl --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy-alpine/tags/${release}-latest" > /dev/null 2>/dev/null; then
+        if ! curl --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy/tags/${release}-latest" > /dev/null 2>/dev/null; then
             continue
         fi
 
