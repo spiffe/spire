@@ -1585,11 +1585,128 @@ func (s *PluginSuite) TestCreateRegistrationEntry() {
 		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, validRegistrationEntry)
 		s.Require().NoError(err)
 		s.Require().NotNil(registrationEntry)
-		s.NotEmpty(registrationEntry.EntryId)
-		registrationEntry.EntryId = ""
-		s.assertCreatedAtField(registrationEntry, now)
-		registrationEntry.CreatedAt = validRegistrationEntry.CreatedAt
-		s.RequireProtoEqual(registrationEntry, validRegistrationEntry)
+		s.assertEntryEqual(s.T(), validRegistrationEntry, registrationEntry, now)
+	}
+}
+
+func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
+	now := time.Now().Unix()
+
+	for _, tt := range []struct {
+		name          string
+		modifyEntry   func(*common.RegistrationEntry) *common.RegistrationEntry
+		expectError   string
+		expectSimilar bool
+	}{
+		{
+			name: "no entry provided",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				return nil
+			},
+			expectError: "datastore-sql: invalid request: missing registered entry",
+		},
+		{
+			name: "no selectors",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.Selectors = nil
+				return e
+			},
+			expectError: "datastore-sql: invalid registration entry: missing selector list",
+		},
+		{
+			name: "no SPIFFE ID",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.SpiffeId = ""
+				return e
+			},
+			expectError: "datastore-sql: invalid registration entry: missing SPIFFE ID",
+		},
+		{
+			name: "negative X509 ttl",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.X509SvidTtl = -1
+				return e
+			},
+			expectError: "datastore-sql: invalid registration entry: X509SvidTtl is not set",
+		},
+		{
+			name: "negative JWT ttl",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.JwtSvidTtl = -1
+				return e
+			},
+			expectError: "datastore-sql: invalid registration entry: JwtSvidTtl is not set",
+		},
+		{
+			name: "create entry successfully",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				return e
+			},
+		},
+		{
+			name: "subset selectors",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.Selectors = []*common.Selector{
+					{Type: "a", Value: "1"},
+				}
+				return e
+			},
+		},
+		{
+			name: "with superset selectors",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.Selectors = []*common.Selector{
+					{Type: "a", Value: "1"},
+					{Type: "b", Value: "2"},
+					{Type: "c", Value: "3"},
+				}
+				return e
+			},
+		},
+		{
+			name: "same selectors but different SPIFFE IDs",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.SpiffeId = "spiffe://example.org/baz"
+				return e
+			},
+		},
+		{
+			name: "failed to create similar entry",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				return e
+			},
+			expectSimilar: true,
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			entry := &common.RegistrationEntry{
+				SpiffeId: "spiffe://example.org/foo",
+				ParentId: "spiffe://example.org/bar",
+				Selectors: []*common.Selector{
+					{Type: "a", Value: "1"},
+					{Type: "b", Value: "2"},
+				},
+				X509SvidTtl: 1,
+				JwtSvidTtl:  1,
+				DnsNames: []string{
+					"abcd.efg",
+					"somehost",
+				},
+			}
+			entry = tt.modifyEntry(entry)
+
+			createdEntry, alreadyExists, err := s.ds.CreateOrReturnRegistrationEntry(ctx, entry)
+
+			require.Equal(t, tt.expectSimilar, alreadyExists)
+			if tt.expectError != "" {
+				require.EqualError(t, err, tt.expectError)
+				require.Nil(t, createdEntry)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, createdEntry)
+			s.assertEntryEqual(t, entry, createdEntry, now)
+		})
 	}
 }
 
@@ -4566,6 +4683,14 @@ func (s *PluginSuite) TestConfigure() {
 			require.Equal(t, tt.expectIdle, db.Stats().Idle)
 		})
 	}
+}
+
+func (s *PluginSuite) assertEntryEqual(t *testing.T, expectEntry, createdEntry *common.RegistrationEntry, now int64) {
+	require.NotEmpty(t, createdEntry.EntryId)
+	createdEntry.EntryId = ""
+	s.assertCreatedAtField(createdEntry, now)
+	createdEntry.CreatedAt = expectEntry.CreatedAt
+	spiretest.RequireProtoEqual(t, createdEntry, expectEntry)
 }
 
 func (s *PluginSuite) assertCreatedAtFields(result *datastore.ListRegistrationEntriesResponse, now int64) {
