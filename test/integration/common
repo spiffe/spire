@@ -163,6 +163,7 @@ envoy-releases() {
         | sort -u -t. -k 1,1nr -k 2,2nr \
         | head -n"${MAX_ENVOY_RELEASES_TO_TEST}"
         )"
+
     # Now scan the releases and ensure the ones we test are available on Docker
     # Hub.  Normally they should all be available, but there has been latency from
     # the Envoy team publishing the docker image, so this prevents us from trying
