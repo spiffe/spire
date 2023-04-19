@@ -37,7 +37,7 @@ func (*purgeCommand) Name() string {
 }
 
 func (*purgeCommand) Synopsis() string {
-	return "Delete expired agents that attested using a non-TOFU security model based on a given time"
+	return "Purge expired agents that were attested using a non-TOFU security model based on a given time"
 }
 
 func (c *purgeCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) (err error) {
@@ -79,7 +79,7 @@ func (c *purgeCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 }
 
 func (c *purgeCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.DurationVar(&c.expiredFor, "expiredFor", 24*time.Hour, "Specifies the time since the agent's SVID has expired, used for filtering agents to purge.")
+	fs.DurationVar(&c.expiredFor, "expiredFor", 24*time.Hour, "Amount of time that has passed since the agent's SVID has expired. It is used to determine which agents to purge.")
 	fs.BoolVar(&c.dryRun, "dryRun", false, "Indicates that the command will not perform any action, but will print the agents that would be purged.")
 
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintPurgeResult)
