@@ -57,14 +57,14 @@ func (s *Suite) TestAttest() {
 		{
 			name:       "fail to get unit id",
 			pid:        2,
-			expectCode: codes.Internal,
-			expectMsg:  "workloadattestor(systemd): unable to get unit Id for process 2",
+			expectCode: codes.Unknown,
+			expectMsg:  "workloadattestor(systemd): failed to get unit id for pid 2: rpc error: code = Internal desc = unknown process",
 		},
 		{
 			name:       "fail to get fragment path",
 			pid:        3,
-			expectCode: codes.Internal,
-			expectMsg:  "workloadattestor(systemd): unable to get unit FragmentPath for process 3",
+			expectCode: codes.Unknown,
+			expectMsg:  "workloadattestor(systemd): failed to get unit fragment path for pid 3: rpc error: code = Internal desc = unknown process",
 		},
 	}
 
@@ -121,7 +121,7 @@ func (u fakeUnit) Id() (string, error) {
 	case 1, 3:
 		return "fake.service", nil
 	case 2:
-		return "", status.Errorf(codes.Internal, "unable to get unit Id for process %d", u.pid)
+		return "", status.Errorf(codes.Internal, "unknown process")
 	default:
 		return "", status.Errorf(codes.Internal, "unhandled unit Id test case %d", u.pid)
 	}
@@ -132,7 +132,7 @@ func (u fakeUnit) FragmentPath() (string, error) {
 	case 1, 2:
 		return "/org/freedesktop/systemd1/unit/fake_2eservice", nil
 	case 3:
-		return "", status.Errorf(codes.Internal, "unable to get unit FragmentPath for process %d", u.pid)
+		return "", status.Errorf(codes.Internal, "unknown process")
 	default:
 		return "", fmt.Errorf("unhandled unit FragmentPath test case %d", u.pid)
 	}

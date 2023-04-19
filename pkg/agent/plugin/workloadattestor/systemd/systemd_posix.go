@@ -13,6 +13,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 )
 
+const (
+	systemdDBusInterface      = "org.freedesktop.systemd1"
+	systemdDBusPath           = "/org/freedesktop/systemd1"
+	systemdGetUnitByPIDMethod = "org.freedesktop.systemd1.Manager.GetUnitByPID"
+)
+
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
 		workloadattestorv1.WorkloadAttestorPluginServer(p),
@@ -26,18 +32,6 @@ type unitInfo interface {
 
 type DBusUnitObject struct {
 	dbus.BusObject
-}
-
-func getStringProperty(obj DBusUnitObject, prop string) (string, error) {
-	propVariant, err := obj.GetProperty("org.freedesktop.systemd1.Unit." + prop)
-	if err != nil {
-		return "", err
-	}
-	propVal, ok := propVariant.Value().(string)
-	if !ok {
-		return "", fmt.Errorf("Returned value for %v was not a string: %v", prop, propVariant.String())
-	}
-	return propVal, nil
 }
 
 func (obj DBusUnitObject) Id() (string, error) {
@@ -55,25 +49,6 @@ type Plugin struct {
 
 	// hook for tests
 	getUnitInfo func(ctx context.Context, pid uint) (unitInfo, error)
-}
-
-func getSystemdUnitInfo(ctx context.Context, pid uint) (unitInfo, error) {
-	conn, err := dbus.SystemBus()
-	if err != nil {
-		return nil, err
-	}
-
-	// Get the unit for the given PID from the systemd service.
-	call := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1").CallWithContext(ctx, "org.freedesktop.systemd1.Manager.GetUnitByPID", 0, pid)
-
-	var unitPath dbus.ObjectPath
-	err = call.Store(&unitPath)
-	if err != nil {
-		return nil, err
-	}
-
-	obj := conn.Object("org.freedesktop.systemd1", unitPath)
-	return DBusUnitObject{obj}, nil
 }
 
 func New() *Plugin {
@@ -96,19 +71,51 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	unitId, err := uInfo.Id()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get unit id for pid %d: %v", req.Pid, err)
 	}
 	selectorValues = append(selectorValues, makeSelectorValue("id", unitId))
 
 	fragmentPath, err := uInfo.FragmentPath()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get unit fragment path for pid %d: %v", req.Pid, err)
 	}
 	selectorValues = append(selectorValues, makeSelectorValue("fragment_path", fragmentPath))
 
 	return &workloadattestorv1.AttestResponse{
 		SelectorValues: selectorValues,
 	}, nil
+}
+
+func getSystemdUnitInfo(ctx context.Context, pid uint) (unitInfo, error) {
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open dbus connection: %v", err)
+	}
+	defer conn.Close()
+
+	// Get the unit for the given PID from the systemd service.
+	call := conn.Object(systemdDBusInterface, systemdDBusPath).CallWithContext(ctx, systemdGetUnitByPIDMethod, 0, pid)
+
+	var unitPath dbus.ObjectPath
+	err = call.Store(&unitPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get unit by pid %d: %v", pid, err)
+	}
+
+	obj := conn.Object(systemdDBusInterface, unitPath)
+	return DBusUnitObject{obj}, nil
+}
+
+func getStringProperty(obj DBusUnitObject, prop string) (string, error) {
+	propVariant, err := obj.GetProperty(systemdDBusInterface + ".Unit." + prop)
+	if err != nil {
+		return "", err
+	}
+	propVal, ok := propVariant.Value().(string)
+	if !ok {
+		return "", fmt.Errorf("Returned value for %v was not a string: %v", prop, propVariant.String())
+	}
+	return propVal, nil
 }
 
 func makeSelectorValue(kind, value string) string {
