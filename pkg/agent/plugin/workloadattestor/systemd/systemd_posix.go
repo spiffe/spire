@@ -98,13 +98,13 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	if err != nil {
 		return nil, err
 	}
-	selectorValues = append(selectorValues, makeSelectorValue("Id", unitId))
+	selectorValues = append(selectorValues, makeSelectorValue("id", unitId))
 
 	fragmentPath, err := uInfo.FragmentPath()
 	if err != nil {
 		return nil, err
 	}
-	selectorValues = append(selectorValues, makeSelectorValue("FragmentPath", fragmentPath))
+	selectorValues = append(selectorValues, makeSelectorValue("fragment_path", fragmentPath))
 
 	return &workloadattestorv1.AttestResponse{
 		SelectorValues: selectorValues,

@@ -6,10 +6,10 @@ This plugin does not accept any configuration options.
 
 General selectors:
 
-| Selector               | Value                                                                                                               |
-|------------------------|---------------------------------------------------------------------------------------------------------------------|
-| `systemd:Id`           | The unit Id of the workload (e.g. `systemd:Id:nginx.service`)                                                       |
-| `systemd:FragmentPath` | The unit file path this workload unit was read from (e.g. `systemd:FragmentPath:/lib/systemd/system/nginx.service`) |
+| Selector                | Value                                                                                                                |
+|-------------------------|----------------------------------------------------------------------------------------------------------------------|
+| `systemd:id`            | The unit Id of the workload (e.g. `systemd:id:nginx.service`)                                                        |
+| `systemd:fragment_path` | The unit file path this workload unit was read from (e.g. `systemd:fragment_path:/lib/systemd/system/nginx.service`) |
 
 A sample configuration:
 
