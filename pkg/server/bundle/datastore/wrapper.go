@@ -23,22 +23,34 @@ type datastoreWrapper struct {
 	bundleUpdated func()
 }
 
-func (w datastoreWrapper) AppendBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {
-	defer w.bundleUpdated()
-	return w.DataStore.AppendBundle(ctx, bundle)
+func (w datastoreWrapper) AppendBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {
+	b, err := w.DataStore.AppendBundle(ctx, bundle)
+	if err == nil {
+		w.bundleUpdated()
+	}
+	return b, err
 }
 
-func (w datastoreWrapper) PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (_ bool, err error) {
-	defer w.bundleUpdated()
-	return w.DataStore.PruneBundle(ctx, trustDomainID, expiresBefore)
+func (w datastoreWrapper) PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (bool, error) {
+	changed, err := w.DataStore.PruneBundle(ctx, trustDomainID, expiresBefore)
+	if err == nil && changed {
+		w.bundleUpdated()
+	}
+	return changed, err
 }
 
-func (w datastoreWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) (err error) {
-	defer w.bundleUpdated()
-	return w.DataStore.RevokeX509CA(ctx, trustDomainID, publicKey)
+func (w datastoreWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
+	err := w.DataStore.RevokeX509CA(ctx, trustDomainID, publicKey)
+	if err == nil {
+		w.bundleUpdated()
+	}
+	return err
 }
 
-func (w datastoreWrapper) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (_ *common.PublicKey, err error) {
-	defer w.bundleUpdated()
-	return w.DataStore.RevokeJWTKey(ctx, trustDomainID, keyID)
+func (w datastoreWrapper) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (*common.PublicKey, error) {
+	pubKey, err := w.DataStore.RevokeJWTKey(ctx, trustDomainID, keyID)
+	if err == nil {
+		w.bundleUpdated()
+	}
+	return pubKey, err
 }

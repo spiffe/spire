@@ -140,7 +140,6 @@ func TestRun(t *testing.T) {
 			test.waitForPublishFinished(ctx, t, tt.expectedErr)
 
 			// Update the local bundle in the datastore.
-			require.NoError(t, err)
 			newBundle, err := test.m.dataStore.AppendBundle(ctx, bundle2)
 			require.NoError(t, err)
 
@@ -190,10 +189,10 @@ func (test *managerTest) waitForPublishResult(ctx context.Context, t *testing.T,
 			require.True(t, ok)
 			require.Equal(t, expectedBPEvent.pluginName, bpe.pluginName)
 			spiretest.AssertProtoEqual(t, expectedBPEvent.bundle, bpe.bundle)
-			if bpe.err == nil {
-				require.NoError(t, expectedBPEvent.err)
+			if expectedBPEvent.err == nil {
+				require.NoError(t, bpe.err)
 			} else {
-				require.EqualError(t, expectedBPEvent.err, bpe.err.Error())
+				require.EqualError(t, bpe.err, expectedBPEvent.err.Error())
 			}
 		case <-ctx.Done():
 			assert.Fail(t, "context is finished")
@@ -257,13 +256,15 @@ func setupTest(t *testing.T, bundlePublishers []bundlepublisher.BundlePublisher)
 	ds := fakedatastore.New(t)
 
 	clock := clock.NewMock(t)
-	m := newManager(&ManagerConfig{
+	m, err := newManager(&ManagerConfig{
 		BundlePublishers: bundlePublishers,
 		DataStore:        ds,
 		Clock:            clock,
 		Log:              log,
 		TrustDomain:      td,
 	})
+
+	require.NoError(t, err)
 
 	m.hooks.publishResultCh = make(chan *publishResult, 10)
 	m.hooks.publishedCh = make(chan error)

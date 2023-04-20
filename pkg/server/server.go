@@ -118,7 +118,10 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}
 	defer cat.Close()
 
-	bundlePublishingManager := s.newBundlePublishingManager(cat.BundlePublishers, cat.DataStore)
+	bundlePublishingManager, err := s.newBundlePublishingManager(cat.BundlePublishers, cat.DataStore)
+	if err != nil {
+		return err
+	}
 	cat.DataStore = ds_pubmanager.WithBundleUpdateCallback(cat.DataStore, bundlePublishingManager.BundleUpdated)
 
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
@@ -414,7 +417,7 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 	})
 }
 
-func (s *Server) newBundlePublishingManager(bundlePublishers []bundlepublisher.BundlePublisher, ds datastore.DataStore) *pubmanager.Manager {
+func (s *Server) newBundlePublishingManager(bundlePublishers []bundlepublisher.BundlePublisher, ds datastore.DataStore) (*pubmanager.Manager, error) {
 	log := s.config.Log.WithField(telemetry.SubsystemName, "bundle_publishing")
 	return pubmanager.NewManager(&pubmanager.ManagerConfig{
 		BundlePublishers: bundlePublishers,

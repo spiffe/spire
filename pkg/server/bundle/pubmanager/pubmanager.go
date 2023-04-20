@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -22,7 +23,7 @@ const (
 )
 
 // NewManager creates a new bundle publishing manager.
-func NewManager(c *ManagerConfig) *Manager {
+func NewManager(c *ManagerConfig) (*Manager, error) {
 	return newManager(c)
 }
 
@@ -58,14 +59,6 @@ type Manager struct {
 
 // Run runs the bundle publishing manager.
 func (m *Manager) Run(ctx context.Context) error {
-	if m.dataStore == nil {
-		return errors.New("missing datastore")
-	}
-
-	if m.trustDomain.IsZero() {
-		return errors.New("missing trust domain")
-	}
-
 	ticker := m.clock.Ticker(refreshInterval)
 	defer ticker.Stop()
 
@@ -85,10 +78,7 @@ func (m *Manager) Run(ctx context.Context) error {
 // updated and forces a PublishBundle operation on all the plugins.
 func (m *Manager) BundleUpdated() {
 	m.drainBundleUpdated()
-
-	if m.bundleUpdatedCh != nil {
-		m.bundleUpdatedCh <- struct{}{}
-	}
+	m.bundleUpdatedCh <- struct{}{}
 }
 
 // callPublishBundle calls the publishBundle function and logs if there was an
@@ -117,9 +107,13 @@ func (m *Manager) publishBundle(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to fetch bundle from datastore: %w", err)
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(len(m.bundlePublishers))
 	for _, bp := range m.bundlePublishers {
 		bp := bp
 		go func() {
+			defer wg.Done()
+
 			log := m.log.WithField(bp.Type(), bp.Name())
 			err := bp.PublishBundle(ctx, bundle)
 			if err != nil {
@@ -134,10 +128,10 @@ func (m *Manager) publishBundle(ctx context.Context) (err error) {
 		}()
 	}
 
-	// Rather than holding waiting for a result of each PublishBundle action,
-	// this function returns without error here because all bundle publishers
-	// could be called. Is the responsibility of each plugin to handle failure
-	// conditions when publishing a bundle and implement a retry logic if
+	wg.Wait()
+
+	// PublishBundle was called on all the plugins. Is the responsibility of
+	// each plugin to handle failure conditions and implement a retry logic if
 	// needed.
 	return nil
 }
@@ -176,7 +170,15 @@ func (m *Manager) drainBundleUpdated() {
 	}
 }
 
-func newManager(c *ManagerConfig) *Manager {
+func newManager(c *ManagerConfig) (*Manager, error) {
+	if c.DataStore == nil {
+		return nil, errors.New("missing datastore")
+	}
+
+	if c.TrustDomain.IsZero() {
+		return nil, errors.New("missing trust domain")
+	}
+
 	if c.Clock == nil {
 		c.Clock = clock.New()
 	}
@@ -188,5 +190,5 @@ func newManager(c *ManagerConfig) *Manager {
 		dataStore:        c.DataStore,
 		log:              c.Log,
 		trustDomain:      c.TrustDomain,
-	}
+	}, nil
 }
