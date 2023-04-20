@@ -19,6 +19,7 @@ fi
 # handle the case that we're building for alpine
 if [ "$OS" = "linux" ]; then
     case $(ldd --version 2>&1) in
+        *GNU\ libc*) LIBC="-glibc" ;;
         *GLIB*) LIBC="-glibc" ;;
         *muslr*) LIBC="-musl" ;;
         *) LIBC="-unknown" ;;
@@ -33,10 +34,10 @@ if [ ${OS} == "windows" ]; then
 fi
 
 ARTIFACT="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}${ARTIFACT_EXTENSION}"
-CHECKSUM="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}_checksums.txt"
+CHECKSUM="${OUTDIR}/spire-${TAG}-${OS}-${ARCH}${LIBC}_sha256sum.txt"
 
 EXTRAS_ARTIFACT="${OUTDIR}/spire-extras-${TAG}-${OS}-${ARCH}${LIBC}${ARTIFACT_EXTENSION}"
-EXTRAS_CHECKSUM="${OUTDIR}/spire-extras-${TAG}-${OS}-${ARCH}${LIBC}_checksums.txt"
+EXTRAS_CHECKSUM="${OUTDIR}/spire-extras-${TAG}-${OS}-${ARCH}${LIBC}_sha256sum.txt"
 
 TMPDIR=$(mktemp -d)
 cleanup() {
