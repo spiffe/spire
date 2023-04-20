@@ -19,6 +19,7 @@ fi
 # handle the case that we're building for alpine
 if [ "$OS" = "linux" ]; then
     case $(ldd --version 2>&1) in
+        *GNU\ libc*) LIBC="-glibc" ;;
         *GLIB*) LIBC="-glibc" ;;
         *muslr*) LIBC="-musl" ;;
         *) LIBC="-unknown" ;;

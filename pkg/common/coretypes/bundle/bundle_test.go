@@ -75,24 +75,21 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
 		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
 		RefreshHint:    1,
+		SequenceNumber: 2,
 	}
 	commonInvalidRootCas = &common.Bundle{
 		TrustDomainId:  "spiffe://example.org",
 		RootCas:        []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
 		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
 		RefreshHint:    1,
+		SequenceNumber: 2,
 	}
 	commonInvalidJwtSigningKeys = &common.Bundle{
 		TrustDomainId:  "spiffe://example.org",
 		RootCas:        []*common.Certificate{},
 		JwtSigningKeys: []*common.PublicKey{{}},
 		RefreshHint:    1,
-	}
-	commonGood = &common.Bundle{
-		TrustDomainId:  "spiffe://example.org",
-		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
-		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
-		RefreshHint:    1,
+		SequenceNumber: 2,
 	}
 	pluginJWTAuthoritiesGood = []*plugintypes.JWTKey{
 		{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
@@ -112,12 +109,6 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		JwtAuthorities:  pluginJWTAuthoritiesGood,
 		RefreshHint:     1,
 		SequenceNumber:  2,
-	}
-	pluginGoodNoSequenceNumber = &plugintypes.Bundle{
-		TrustDomain:     "example.org",
-		X509Authorities: pluginX509AuthoritiesGood,
-		JwtAuthorities:  pluginJWTAuthoritiesGood,
-		RefreshHint:     1,
 	}
 	pluginInvalidTD = &plugintypes.Bundle{
 		TrustDomain:     "no a trustdomain",
@@ -139,6 +130,13 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		JwtAuthorities:  pluginJWTAuthoritiesBad,
 		RefreshHint:     1,
 		SequenceNumber:  2,
+	}
+	commonGood = &common.Bundle{
+		TrustDomainId:  "spiffe://example.org",
+		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
+		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
+		RefreshHint:    1,
+		SequenceNumber: 2,
 	}
 )
 
@@ -197,7 +195,7 @@ func TestToPluginProtoFromCommon(t *testing.T) {
 		assert.Empty(t, actualOut)
 	}
 
-	assertOK(t, commonGood, pluginGoodNoSequenceNumber)
+	assertOK(t, commonGood, pluginGood)
 	assertFail(t, commonInvalidTD, "trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
 	assertFail(t, commonInvalidRootCas, "invalid X.509 authority: failed to parse X.509 certificate data: ")
 	assertFail(t, commonInvalidJwtSigningKeys, "invalid JWT authority: missing key ID for JWT key")

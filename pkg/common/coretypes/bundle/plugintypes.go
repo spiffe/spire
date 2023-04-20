@@ -62,7 +62,7 @@ func ToPluginProtoFromCommon(b *common.Bundle) (*plugintypes.Bundle, error) {
 	return &plugintypes.Bundle{
 		TrustDomain:     td.String(),
 		RefreshHint:     b.RefreshHint,
-		SequenceNumber:  0,
+		SequenceNumber:  b.SequenceNumber,
 		X509Authorities: x509Authorities,
 		JwtAuthorities:  jwtAuthorities,
 	}, nil

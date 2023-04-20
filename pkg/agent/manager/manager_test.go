@@ -1434,6 +1434,7 @@ type mockAPI struct {
 func newMockAPI(t *testing.T, config *mockAPIConfig) *mockAPI {
 	bundle := spiffebundle.New(trustDomain)
 	bundle.SetRefreshHint(0)
+	bundle.SetSequenceNumber(0)
 	h := &mockAPI{
 		t:            t,
 		c:            config,
