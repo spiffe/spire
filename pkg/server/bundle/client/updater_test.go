@@ -21,8 +21,10 @@ import (
 func TestBundleUpdaterUpdateBundle(t *testing.T) {
 	bundle1 := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "bundle1")})
 	bundle1.SetRefreshHint(0)
+	bundle1.SetSequenceNumber(42)
 	bundle2 := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "bundle2")})
 	bundle2.SetRefreshHint(time.Minute)
+	bundle2.SetSequenceNumber(77)
 
 	testCases := []struct {
 		// name of the test

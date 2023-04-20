@@ -27,7 +27,7 @@ func BundleToProto(b *common.Bundle) (*types.Bundle, error) {
 	return &types.Bundle{
 		TrustDomain:     td.String(),
 		RefreshHint:     b.RefreshHint,
-		SequenceNumber:  0,
+		SequenceNumber:  b.SequenceNumber,
 		X509Authorities: CertificatesToProto(b.RootCas),
 		JwtAuthorities:  PublicKeysToProto(b.JwtSigningKeys),
 	}, nil
@@ -78,6 +78,7 @@ func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {
 	commonBundle := &common.Bundle{
 		TrustDomainId:  td.IDString(),
 		RefreshHint:    b.RefreshHint,
+		SequenceNumber: b.SequenceNumber,
 		RootCas:        rootCas,
 		JwtSigningKeys: jwtSigningKeys,
 	}
@@ -94,6 +95,7 @@ func ProtoToBundleMask(mask *types.BundleMask) *common.BundleMask {
 		JwtSigningKeys: mask.JwtAuthorities,
 		RootCas:        mask.X509Authorities,
 		RefreshHint:    mask.RefreshHint,
+		SequenceNumber: mask.SequenceNumber,
 	}
 }
 

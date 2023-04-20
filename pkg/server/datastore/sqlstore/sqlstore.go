@@ -876,6 +876,10 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 		bundle.JwtSigningKeys = newBundle.JwtSigningKeys
 	}
 
+	if inputMask.SequenceNumber {
+		bundle.SequenceNumber = newBundle.SequenceNumber
+	}
+
 	newModel, err := bundleToModel(bundle)
 	if err != nil {
 		return nil, nil, err
@@ -937,6 +941,7 @@ func appendBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
 
 	bundle, changed := bundleutil.MergeBundles(bundle, b)
 	if changed {
+		bundle.SequenceNumber++
 		newModel, err := bundleToModel(bundle)
 		if err != nil {
 			return nil, err
@@ -1088,6 +1093,7 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 
 	// Update only if bundle was modified
 	if changed {
+		newBundle.SequenceNumber = currentBundle.SequenceNumber + 1
 		_, err := updateBundle(tx, newBundle, nil)
 		if err != nil {
 			return false, fmt.Errorf("unable to write new bundle: %w", err)
