@@ -54,7 +54,7 @@ func bundleFromCommonProto(b *common.Bundle) (*types.Bundle, error) {
 	return &types.Bundle{
 		TrustDomain:     td.String(),
 		RefreshHint:     b.RefreshHint,
-		SequenceNumber:  0,
+		SequenceNumber:  b.SequenceNumber,
 		X509Authorities: certificatesToProto(b.RootCas),
 		JwtAuthorities:  publicKeysToProto(b.JwtSigningKeys),
 	}, nil

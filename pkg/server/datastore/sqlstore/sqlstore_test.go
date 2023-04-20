@@ -251,12 +251,15 @@ func (s *PluginSuite) TestBundleCRUD() {
 	bundle2 := bundleutil.BundleProtoFromRootCA(bundle.TrustDomainId, s.cacert)
 	appendedBundle := bundleutil.BundleProtoFromRootCAs(bundle.TrustDomainId,
 		[]*x509.Certificate{s.cert, s.cacert})
+	appendedBundle.SequenceNumber++
 
 	// append
 	ab, err := s.ds.AppendBundle(ctx, bundle2)
 	s.Require().NoError(err)
 	s.Require().NotNil(ab)
 	s.AssertProtoEqual(appendedBundle, ab)
+	// stored bundle was updated
+	bundle.SequenceNumber = appendedBundle.SequenceNumber
 
 	// append identical
 	ab, err = s.ds.AppendBundle(ctx, bundle2)
@@ -288,6 +291,15 @@ func (s *PluginSuite) TestBundleCRUD() {
 	})
 	s.Require().NoError(err)
 	s.AssertProtoEqual(bundle, updatedBundle)
+
+	// update with mask: SequenceNumber
+	bundle.SequenceNumber = 100
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+		SequenceNumber: true,
+	})
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, updatedBundle)
+	assert.Equal(s.T(), bundle.SequenceNumber, updatedBundle.SequenceNumber)
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
@@ -546,6 +558,7 @@ func (s *PluginSuite) TestBundlePrune() {
 	// Setup
 	// Create new bundle with two cert (one valid and one expired)
 	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert})
+	bundle.SequenceNumber = 42
 
 	// Add two JWT signing keys (one valid and one expired)
 	expiredKeyTime, err := time.Parse(time.RFC3339, _expiredNotAfterString)
@@ -588,6 +601,7 @@ func (s *PluginSuite) TestBundlePrune() {
 	// Fetch and verify pruned bundle is the expected
 	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert})
 	expectedPrunedBundle.JwtSigningKeys = []*common.PublicKey{{NotAfter: nonExpiredKeyTime.Unix()}}
+	expectedPrunedBundle.SequenceNumber = 43
 	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	s.Require().NoError(err)
 	s.AssertProtoEqual(expectedPrunedBundle, fb)
