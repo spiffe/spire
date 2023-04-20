@@ -171,7 +171,7 @@ envoy-releases() {
     # earlier than v1.13, which is the first release to adopt the v3 API (v2 is
     # deprecated).
     for release in ${ALL_ENVOY_RELEASES}; do
-        if ! curl --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy-alpine/tags/${release}-latest" > /dev/null 2>/dev/null; then
+        if ! curl --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy/tags/${release}-latest" > /dev/null 2>/dev/null; then
             continue
         fi
 

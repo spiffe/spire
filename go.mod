@@ -12,9 +12,9 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.2
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
-	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.1.1
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.5
-	github.com/Microsoft/go-winio v0.6.0
+	github.com/Microsoft/go-winio v0.6.1
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.4.1
 	github.com/aws/aws-sdk-go-v2 v1.17.8
@@ -29,7 +29,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.4
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
-	github.com/docker/docker v23.0.3+incompatible
+	github.com/docker/docker v23.0.4+incompatible
 	github.com/envoyproxy/go-control-plane v0.11.0
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/gofrs/uuid/v5 v5.0.0
@@ -74,10 +74,10 @@ require (
 	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/square/go-jose.v2 v2.6.0
-	k8s.io/api v0.26.3
+	k8s.io/api v0.27.1
 	k8s.io/apimachinery v0.27.1
-	k8s.io/client-go v0.26.3
-	k8s.io/kube-aggregator v0.26.3
+	k8s.io/client-go v0.27.1
+	k8s.io/kube-aggregator v0.27.1
 	sigs.k8s.io/controller-runtime v0.14.6
 )
 
@@ -245,7 +245,7 @@ require (
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
-	github.com/moby/term v0.0.0-20220808134915-39b0c02b01ae // indirect
+	github.com/moby/term v0.0.0-20221205130635-1aeaba878587 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mozillazg/docker-credential-acr-helper v0.3.0 // indirect
@@ -296,7 +296,7 @@ require (
 	github.com/tjfoc/gmsm v1.3.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
-	github.com/tmc/grpc-websocket-proxy v0.0.0-20201229170055-e5319fda7802 // indirect
+	github.com/tmc/grpc-websocket-proxy v0.0.0-20220101234140-673ab2c3ae75 // indirect
 	github.com/transparency-dev/merkle v0.0.1 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
 	github.com/urfave/cli v1.22.7 // indirect
