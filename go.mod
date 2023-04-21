@@ -48,7 +48,7 @@ require (
 	github.com/imdario/mergo v0.3.15
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
-	github.com/lib/pq v1.10.7
+	github.com/lib/pq v1.10.8
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.51.0
