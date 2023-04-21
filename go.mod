@@ -13,7 +13,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.1.1
-	github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.5
+	github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.6
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.4.1
@@ -48,7 +48,7 @@ require (
 	github.com/imdario/mergo v0.3.15
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
-	github.com/lib/pq v1.10.7
+	github.com/lib/pq v1.10.8
 	github.com/mattn/go-sqlite3 v1.14.16
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.51.0
