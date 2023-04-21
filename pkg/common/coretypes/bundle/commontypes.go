@@ -32,6 +32,7 @@ func ToCommonFromPluginProto(pb *plugintypes.Bundle) (*common.Bundle, error) {
 	return &common.Bundle{
 		TrustDomainId:  td.IDString(),
 		RefreshHint:    pb.RefreshHint,
+		SequenceNumber: pb.SequenceNumber,
 		JwtSigningKeys: jwtSigningKeys,
 		RootCas:        rootCAs,
 	}, nil

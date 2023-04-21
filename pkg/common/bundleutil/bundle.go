@@ -49,6 +49,7 @@ func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 	return &common.Bundle{
 		TrustDomainId:  td.IDString(),
 		RefreshHint:    b.RefreshHint,
+		SequenceNumber: b.SequenceNumber,
 		RootCas:        rootCAs,
 		JwtSigningKeys: jwtKeys,
 	}, nil
@@ -56,10 +57,12 @@ func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 
 func SPIFFEBundleToProto(b *spiffebundle.Bundle) (*common.Bundle, error) {
 	refreshHint, _ := b.RefreshHint()
+	s, _ := b.SequenceNumber()
 
 	bundle := &common.Bundle{
-		TrustDomainId: b.TrustDomain().IDString(),
-		RefreshHint:   int64(refreshHint.Seconds()),
+		TrustDomainId:  b.TrustDomain().IDString(),
+		RefreshHint:    int64(refreshHint.Seconds()),
+		SequenceNumber: s,
 	}
 	for _, rootCA := range b.X509Authorities() {
 		bundle.RootCas = append(bundle.RootCas, &common.Certificate{
@@ -99,6 +102,7 @@ func SPIFFEBundleFromProto(b *common.Bundle) (*spiffebundle.Bundle, error) {
 	bundle.SetX509Authorities(rootCAs)
 	bundle.SetJWTAuthorities(jwtSigningKeys)
 	bundle.SetRefreshHint(time.Second * time.Duration(b.RefreshHint))
+	bundle.SetSequenceNumber(b.SequenceNumber)
 
 	return bundle, nil
 }
