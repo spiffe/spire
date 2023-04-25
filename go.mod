@@ -17,7 +17,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.4.1
-	github.com/aws/aws-sdk-go-v2 v1.17.8
+	github.com/aws/aws-sdk-go-v2 v1.18.0
 	github.com/aws/aws-sdk-go-v2/config v1.18.14
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.14
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.0
