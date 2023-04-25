@@ -8,7 +8,7 @@ var (
   -dryRun
     	Indicates that the command will not perform any action, but will print the agents that would be purged.
   -expiredFor duration
-    	Amount of time that has passed since the agent's SVID has expired. It is used to determine which agents to purge. (default 24h0m0s)
+    	Amount of time that has passed since the agent's SVID has expired. It is used to determine which agents to purge. (default 720h0m0s)
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
