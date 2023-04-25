@@ -31,7 +31,7 @@ require (
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/docker/docker v23.0.4+incompatible
 	github.com/envoyproxy/go-control-plane v0.11.0
-	github.com/go-sql-driver/mysql v1.7.0
+	github.com/go-sql-driver/mysql v1.7.1
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.5.9
