@@ -149,6 +149,7 @@ func (h *handler) loadInitialBundle(t *testing.T) {
 	h.setBundle(&types.Bundle{
 		TrustDomain:     p.TrustDomainId,
 		RefreshHint:     p.RefreshHint,
+		SequenceNumber:  p.SequenceNumber,
 		JwtAuthorities:  jwtAuthorities,
 		X509Authorities: x509Authorities,
 	})

@@ -11,6 +11,7 @@ import (
 
 type marshalConfig struct {
 	refreshHint    time.Duration
+	sequenceNumber uint64
 	noX509SVIDKeys bool
 	noJWTSVIDKeys  bool
 	standardJWKS   bool
@@ -30,6 +31,14 @@ func (o marshalOption) configure(c *marshalConfig) error {
 func OverrideRefreshHint(value time.Duration) MarshalOption {
 	return marshalOption(func(c *marshalConfig) error {
 		c.refreshHint = value
+		return nil
+	})
+}
+
+// OverrideSequenceNumber overrides the sequence number in the bundle
+func OverrideSequenceNumber(value uint64) MarshalOption {
+	return marshalOption(func(c *marshalConfig) error {
+		c.sequenceNumber = value
 		return nil
 	})
 }
@@ -105,6 +114,7 @@ func Marshal(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error)
 		out = bundleDoc{
 			JSONWebKeySet: jwks,
 			RefreshHint:   int(c.refreshHint / time.Second),
+			Sequence:      c.sequenceNumber,
 		}
 	}
 

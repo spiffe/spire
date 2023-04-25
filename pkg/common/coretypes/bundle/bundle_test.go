@@ -115,6 +115,7 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
 		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
 		RefreshHint:    1,
+		SequenceNumber: 2,
 	}
 )
 

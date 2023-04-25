@@ -79,6 +79,7 @@ diIqWtxAqBLFrx8zNS4=
             ]
         }
     ],
+    "spiffe_sequence": 42,
     "spiffe_refresh_hint": 60
 }
 `

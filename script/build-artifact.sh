@@ -77,13 +77,13 @@ if [ $OS == "windows" ]; then
     (cd "${TMPDIR}/spire"; zip -rv "${ARTIFACT}" -- *)
     (cd "${TMPDIR}/spire-extras"; zip -rv "${EXTRAS_ARTIFACT}" -- *)
 
-    echo "$(CertUtil -hashfile "${ARTIFACT}" SHA256 | sed -n '2p') $(basename "${ARTIFACT}")" > "${CHECKSUM}"
-    echo "$(CertUtil -hashfile "${EXTRAS_ARTIFACT}" SHA256 | sed -n '2p') $(basename "${EXTRAS_ARTIFACT}")" > "${EXTRAS_CHECKSUM}"
+    (cd "$(dirname "${ARTIFACT}")"; CertUtil -hashfile "$(basename "${ARTIFACT}")" SHA256 > "${CHECKSUM}")
+    (cd "$(dirname "${EXTRAS_ARTIFACT}")"; CertUtil -hashfile "$(basename "${EXTRAS_ARTIFACT}")" SHA256 > "${EXTRAS_CHECKSUM}")
 else 
     # Create the tarballs and checksums
     (cd "${TMPDIR}/spire"; tar -cvzf "${ARTIFACT}" "${TAROPTS[@]}" -- *)
     (cd "${TMPDIR}/spire-extras"; tar -cvzf "${EXTRAS_ARTIFACT}" "${TAROPTS[@]}" -- *)
 
-    echo "$(shasum -a 256 "${ARTIFACT}" | cut -d' ' -f1) $(basename "${ARTIFACT}")" > "${CHECKSUM}"
-    echo "$(shasum -a 256 "${EXTRAS_ARTIFACT}" | cut -d' ' -f1) $(basename "${EXTRAS_ARTIFACT}")" > "${EXTRAS_CHECKSUM}"
+    (cd "$(dirname "${ARTIFACT}")"; shasum -a 256 "$(basename "${ARTIFACT}")" > "${CHECKSUM}" )
+    (cd "$(dirname "${EXTRAS_ARTIFACT}")"; shasum -a 256 "$(basename "${EXTRAS_ARTIFACT}")" > "${EXTRAS_CHECKSUM}" )
 fi
