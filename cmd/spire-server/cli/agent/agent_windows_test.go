@@ -4,6 +4,16 @@
 package agent_test
 
 var (
+	purgeUsage = `Usage of agent purge:
+  -dryRun
+    	Indicates that the command will not perform any action, but will print the agents that would be purged.
+  -expiredFor duration
+    	Amount of time that has passed since the agent's SVID has expired. It is used to determine which agents to purge. (default 720h0m0s)
+  -namedPipeName string
+    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
+  -output value
+    	Desired output format (pretty, json); default: pretty.
+`
 	listUsage = `Usage of agent list:
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
