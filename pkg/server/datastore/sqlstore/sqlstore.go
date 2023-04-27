@@ -2677,7 +2677,7 @@ FROM
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
-UNION
+UNION ALL
 
 SELECT
 	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
@@ -2692,7 +2692,7 @@ ON
 		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
-UNION
+UNION ALL
 
 SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
@@ -2703,7 +2703,7 @@ FROM
 		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
-UNION
+UNION ALL
 
 SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
