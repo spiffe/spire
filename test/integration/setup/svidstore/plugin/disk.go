@@ -17,7 +17,7 @@ import (
 )
 
 type Config struct {
-	SvidsPath string `hcl:"svids_path"`
+	SVIDsPath string `hcl:"svids_path"`
 }
 
 type Plugin struct {
@@ -65,7 +65,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	var file *os.File
 
-	file, err := os.OpenFile(config.SvidsPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	file, err := os.OpenFile(config.SVIDsPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprint("failed to open file: ", err))
 	}
