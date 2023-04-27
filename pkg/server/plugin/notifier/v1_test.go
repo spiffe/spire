@@ -2,10 +2,12 @@ package notifier_test
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	notifierv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/notifier/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -13,6 +15,8 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -21,20 +25,14 @@ import (
 )
 
 func TestV1(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	publicKey := testkey.MustEC256().Public()
+	pkixBytes, _ := x509.MarshalPKIXPublicKey(publicKey)
+	derBytes := testca.New(t, td).X509Authorities()[0].Raw
 	commonBundle := &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas: []*common.Certificate{
-			{
-				DerBytes: []byte("CERTIFICATE"),
-			},
-		},
-		JwtSigningKeys: []*common.PublicKey{
-			{
-				Kid:       "KEYID",
-				PkixBytes: []byte("PUBLICKEY"),
-				NotAfter:  4321,
-			},
-		},
+		TrustDomainId:  td.IDString(),
+		RootCas:        []*common.Certificate{{DerBytes: derBytes}},
+		JwtSigningKeys: []*common.PublicKey{{Kid: "KEYID", PkixBytes: pkixBytes, NotAfter: 4321}},
 		RefreshHint:    1234,
 		SequenceNumber: 42,
 	}
@@ -43,13 +41,13 @@ func TestV1(t *testing.T) {
 		TrustDomain: "example.org",
 		X509Authorities: []*types.X509Certificate{
 			{
-				Asn1: []byte("CERTIFICATE"),
+				Asn1: derBytes,
 			},
 		},
 		JwtAuthorities: []*types.JWTKey{
 			{
 				KeyId:     "KEYID",
-				PublicKey: []byte("PUBLICKEY"),
+				PublicKey: pkixBytes,
 				ExpiresAt: 4321,
 			},
 		},

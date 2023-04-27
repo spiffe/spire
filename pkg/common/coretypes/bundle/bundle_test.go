@@ -70,6 +70,27 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		RefreshHint:     1,
 		SequenceNumber:  2,
 	}
+	commonInvalidTD = &common.Bundle{
+		TrustDomainId:  "not a trustdomain id",
+		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
+		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
+		RefreshHint:    1,
+		SequenceNumber: 2,
+	}
+	commonInvalidRootCas = &common.Bundle{
+		TrustDomainId:  "spiffe://example.org",
+		RootCas:        []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
+		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
+		RefreshHint:    1,
+		SequenceNumber: 2,
+	}
+	commonInvalidJwtSigningKeys = &common.Bundle{
+		TrustDomainId:  "spiffe://example.org",
+		RootCas:        []*common.Certificate{},
+		JwtSigningKeys: []*common.PublicKey{{}},
+		RefreshHint:    1,
+		SequenceNumber: 2,
+	}
 	pluginJWTAuthoritiesGood = []*plugintypes.JWTKey{
 		{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
 	}
@@ -158,5 +179,25 @@ func TestToCommonFromPluginProto(t *testing.T) {
 	assertFail(t, pluginInvalidTD, "malformed trust domain:")
 	assertFail(t, pluginInvalidX509Authorities, "invalid X.509 authority: failed to parse X.509 certificate data: ")
 	assertFail(t, pluginInvalidJWTAutorities, "invalid JWT authority: missing key ID for JWT key")
+	assertOK(t, nil, nil)
+}
+
+func TestToPluginProtoFromCommon(t *testing.T) {
+	assertOK := func(t *testing.T, in *common.Bundle, expectOut *plugintypes.Bundle) {
+		actualOut, err := bundle.ToPluginProtoFromCommon(in)
+		require.NoError(t, err)
+		spiretest.AssertProtoEqual(t, expectOut, actualOut)
+	}
+
+	assertFail := func(t *testing.T, in *common.Bundle, expectErr string) {
+		actualOut, err := bundle.ToPluginProtoFromCommon(in)
+		spiretest.RequireErrorContains(t, err, expectErr)
+		assert.Empty(t, actualOut)
+	}
+
+	assertOK(t, commonGood, pluginGood)
+	assertFail(t, commonInvalidTD, "trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores")
+	assertFail(t, commonInvalidRootCas, "invalid X.509 authority: failed to parse X.509 certificate data: ")
+	assertFail(t, commonInvalidJwtSigningKeys, "invalid JWT authority: missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
