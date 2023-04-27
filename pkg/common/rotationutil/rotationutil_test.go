@@ -1,6 +1,7 @@
 package rotationutil
 
 import (
+	"crypto/x509"
 	"testing"
 	"time"
 
@@ -19,16 +20,52 @@ func TestShouldRotateX509(t *testing.T) {
 	goodCert, _, err := util.SelfSign(temp)
 	require.NoError(t, err)
 
-	// Cert is brand new
-	assert.False(t, ShouldRotateX509(mockClk.Now(), goodCert))
-
 	// Cert that's almost expired
 	temp.NotBefore = mockClk.Now().Add(-1 * time.Hour)
 	temp.NotAfter = mockClk.Now().Add(1 * time.Minute)
-	badCert, _, err := util.SelfSign(temp)
+	almostExpiredCert, _, err := util.SelfSign(temp)
 	require.NoError(t, err)
 
-	assert.True(t, ShouldRotateX509(mockClk.Now(), badCert))
+	for _, tc := range []struct {
+		desc         string
+		cert         *x509.Certificate
+		rotateBefore time.Duration
+		expectResult bool
+	}{
+		{
+			desc:         "cert lifetime=1h and rotate through 1/2 of lifetime",
+			cert:         goodCert,
+			expectResult: false,
+		},
+		{
+			desc:         "cert lifetime=1m and rotate through 1/2 of lifetime",
+			cert:         almostExpiredCert,
+			expectResult: true,
+		},
+		{
+			desc:         "cert lifetime=1h and rotate before 1h",
+			cert:         goodCert,
+			rotateBefore: 1 * time.Hour,
+			expectResult: true,
+		},
+		{
+			desc:         "cert lifetime=1h and rotate before 30m",
+			cert:         goodCert,
+			rotateBefore: 30 * time.Minute,
+			expectResult: false,
+		},
+		{
+			desc:         "cert lifetime=1m and rotate before 1m",
+			cert:         almostExpiredCert,
+			rotateBefore: 1 * time.Minute,
+			expectResult: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			actual := ShouldRotateX509(mockClk.Now(), tc.cert, tc.rotateBefore)
+			assert.Equal(t, tc.expectResult, actual)
+		})
+	}
 }
 
 func TestX509Expired(t *testing.T) {

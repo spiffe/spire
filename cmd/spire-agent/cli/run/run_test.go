@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus"
@@ -871,6 +872,35 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				assert.NotNil(t, c)
+			},
+		},
+		{
+			msg: "x509_rotate_before parses a duration",
+			input: func(c *Config) {
+				c.Agent.Experimental.RotationConfig.X509RotateBefore = "30m"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 30*time.Minute, c.X509RotateBefore)
+			},
+		},
+		{
+			msg:         "invalid x509_rotate_before returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.RotationConfig.X509RotateBefore = "10"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "too small x509_rotate_before returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.RotationConfig.X509RotateBefore = "30s"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
 			},
 		},
 	}

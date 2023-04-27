@@ -90,6 +90,9 @@ type Config struct {
 	AllowedForeignJWTClaims []string
 
 	AuthorizedDelegates []string
+
+	// X509RotateBefore is the duration which the Agent begins to rotate before the SVID expires.
+	X509RotateBefore time.Duration
 }
 
 func New(c *Config) *Agent {

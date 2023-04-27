@@ -37,6 +37,7 @@ type Config struct {
 	RotationInterval time.Duration
 	SVIDStoreCache   *storecache.Cache
 	SVIDCacheMaxSize int
+	X509RotateBefore time.Duration
 	NodeAttestor     nodeattestor.NodeAttestor
 
 	// Clk is the clock the manager will use to get time
@@ -72,18 +73,19 @@ func newManager(c *Config) *manager {
 	}
 
 	rotCfg := &svid.RotatorConfig{
-		SVIDKeyManager: keymanager.ForSVID(c.Catalog.GetKeyManager()),
-		Log:            c.Log,
-		Metrics:        c.Metrics,
-		SVID:           c.SVID,
-		SVIDKey:        c.SVIDKey,
-		BundleStream:   cache.SubscribeToBundleChanges(),
-		ServerAddr:     c.ServerAddr,
-		TrustDomain:    c.TrustDomain,
-		Interval:       c.RotationInterval,
-		Clk:            c.Clk,
-		NodeAttestor:   c.NodeAttestor,
-		Reattestable:   c.Reattestable,
+		SVIDKeyManager:   keymanager.ForSVID(c.Catalog.GetKeyManager()),
+		Log:              c.Log,
+		Metrics:          c.Metrics,
+		SVID:             c.SVID,
+		SVIDKey:          c.SVIDKey,
+		BundleStream:     cache.SubscribeToBundleChanges(),
+		ServerAddr:       c.ServerAddr,
+		TrustDomain:      c.TrustDomain,
+		Interval:         c.RotationInterval,
+		Clk:              c.Clk,
+		NodeAttestor:     c.NodeAttestor,
+		Reattestable:     c.Reattestable,
+		X509RotateBefore: c.X509RotateBefore,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

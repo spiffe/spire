@@ -225,6 +225,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		SyncInterval:     a.c.SyncInterval,
 		SVIDCacheMaxSize: a.c.X509SVIDCacheMaxSize,
 		SVIDStoreCache:   cache,
+		X509RotateBefore: a.c.X509RotateBefore,
 		NodeAttestor:     na,
 	}
 

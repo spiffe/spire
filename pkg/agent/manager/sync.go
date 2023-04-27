@@ -83,7 +83,14 @@ func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, 
 				telemetry.RegistrationID: newEntry.EntryId,
 				telemetry.SPIFFEID:       newEntry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
-		case rotationutil.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
+		case rotationutil.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0], m.c.X509RotateBefore):
+			lifetime := svid.Chain[0].NotAfter.Sub(svid.Chain[0].NotBefore)
+			if m.c.X509RotateBefore != 0 && lifetime < m.c.X509RotateBefore {
+				log.WithFields(logrus.Fields{
+					telemetry.RegistrationID: newEntry.EntryId,
+					telemetry.SPIFFEID:       newEntry.SpiffeId,
+				}).Warn("the x509_rotate_before is ignored, due to the value is grater than the validity period of the X.509 SVID")
+			}
 			expiring++
 		case existingEntry != nil && existingEntry.RevisionNumber != newEntry.RevisionNumber:
 			// Registration entry has been updated

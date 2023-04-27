@@ -53,6 +53,8 @@ const (
 
 	bundleFormatPEM    = "pem"
 	bundleFormatSPIFFE = "spiffe"
+
+	minX509RotateBefore = 1 * time.Minute
 )
 
 // Config contains all available configurables, arranged by section
@@ -107,14 +109,19 @@ type sdsConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval       string `hcl:"sync_interval"`
-	NamedPipeName      string `hcl:"named_pipe_name"`
-	AdminNamedPipeName string `hcl:"admin_named_pipe_name"`
+	SyncInterval       string         `hcl:"sync_interval"`
+	NamedPipeName      string         `hcl:"named_pipe_name"`
+	AdminNamedPipeName string         `hcl:"admin_named_pipe_name"`
+	RotationConfig     rotationConfig `hcl:"rotation_config"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
 	UnusedKeys           []string `hcl:",unusedKeys"`
 	X509SVIDCacheMaxSize int      `hcl:"x509_svid_cache_max_size"`
+}
+
+type rotationConfig struct {
+	X509RotateBefore string `hcl:"x509_rotate_before"`
 }
 
 type Command struct {
@@ -448,6 +455,17 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		return nil, errors.New("x509_svid_cache_max_size should not be negative")
 	}
 	ac.X509SVIDCacheMaxSize = c.Agent.Experimental.X509SVIDCacheMaxSize
+
+	if c.Agent.Experimental.RotationConfig.X509RotateBefore != "" {
+		var err error
+		ac.X509RotateBefore, err = time.ParseDuration(c.Agent.Experimental.RotationConfig.X509RotateBefore)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse the x509_rotate_before: %w", err)
+		}
+		if ac.X509RotateBefore < minX509RotateBefore {
+			return nil, fmt.Errorf("the x509_rotate_before is must be greater than %v", minX509RotateBefore)
+		}
+	}
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
