@@ -2,15 +2,11 @@ package localauthority
 
 import (
 	"context"
-	"crypto"
-	"crypto/x509"
 	"errors"
-	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
-	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -80,32 +76,28 @@ func (s *Service) RevokeJWTAuthority(ctx context.Context, req *localauthorityv1.
 }
 
 func (s *Service) GetX509AuthorityState(ctx context.Context, _ *localauthorityv1.GetX509AuthorityStateRequest) (*localauthorityv1.GetX509AuthorityStateResponse, error) {
-	log := rpccontext.Logger(ctx)
-
 	var states []*localauthorityv1.AuthorityState
 	current := s.ca.GetCurrentX509CASlot()
 	if !current.IsEmpty() {
-		state, err := slotToProto(current, localauthorityv1.AuthorityState_ACTIVE)
-		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to get current slot", err)
-		}
-		states = append(states, state)
+		states = append(states, &localauthorityv1.AuthorityState{
+			AuthorityId: current.AuthorityID(),
+			Status:      localauthorityv1.AuthorityState_ACTIVE,
+		})
 	}
 
 	next := s.ca.GetNextX509CASlot()
 	// when next has a key indicates that it was initialized
-	if next.GetPublicKey() != nil {
+	if next.AuthorityID() != "" {
 		status := localauthorityv1.AuthorityState_PREPARED
 		// CA is removed from slot on rotation
 		if next.IsEmpty() {
 			status = localauthorityv1.AuthorityState_OLD
 		}
 
-		state, err := slotToProto(next, status)
-		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to get next slot", err)
-		}
-		states = append(states, state)
+		states = append(states, &localauthorityv1.AuthorityState{
+			AuthorityId: next.AuthorityID(),
+			Status:      status,
+		})
 	}
 
 	rpccontext.AuditRPC(ctx)
@@ -128,20 +120,24 @@ func (s *Service) PrepareX509Authority(ctx context.Context, req *localauthorityv
 		slot = s.ca.GetCurrentX509CASlot()
 	}
 
-	authorityState, err := slotToProto(slot, localauthorityv1.AuthorityState_PREPARED)
-	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to create response", err)
-	}
-
 	rpccontext.AuditRPC(ctx)
 
 	return &localauthorityv1.PrepareX509AuthorityResponse{
-		PreparedAuthority: authorityState,
+		PreparedAuthority: &localauthorityv1.AuthorityState{
+			AuthorityId: slot.AuthorityID(),
+			Status:      localauthorityv1.AuthorityState_PREPARED,
+		},
 	}, nil
 }
 
 func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthorityv1.ActivateX509AuthorityRequest) (*localauthorityv1.ActivateX509AuthorityResponse, error) {
+	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
+
+	// TODO: implement a way to activate an OLD authority
+	if req.AuthorityId != "" {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "activating an old authority is not supported yet", nil)
+	}
 
 	if s.ca.GetNextX509CASlot().IsEmpty() {
 		return nil, api.MakeErr(log, codes.Internal, "no prepared authority found", nil)
@@ -151,12 +147,10 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 	s.ca.RotateX509CA()
 
 	current := s.ca.GetCurrentX509CASlot()
-
-	state, err := slotToProto(current, localauthorityv1.AuthorityState_ACTIVE)
-	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to parse current slot", err)
+	state := &localauthorityv1.AuthorityState{
+		AuthorityId: current.AuthorityID(),
+		Status:      localauthorityv1.AuthorityState_ACTIVE,
 	}
-
 	rpccontext.AuditRPC(ctx)
 
 	return &localauthorityv1.ActivateX509AuthorityResponse{
@@ -165,25 +159,25 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 }
 
 func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.TaintX509AuthorityRequest) (*localauthorityv1.TaintX509AuthorityResponse, error) {
-	rpccontext.AddRPCAuditFields(ctx, getLogFieldFromPublicKey(req.PublicKey))
+	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
 
-	keyToTaint, err := s.getX509AuthorityPublicKey(req.PublicKey)
+	authorityID, err := s.getX509AuthorityID(req.AuthorityId)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid public key", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid authority ID", err)
 	}
 
-	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), keyToTaint); err != nil {
+	log.WithField(telemetry.LocalAuthorityID, authorityID)
+	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), authorityID); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint X.509 authority", err)
 	}
 
-	status, err := publicKeyToProto(keyToTaint, localauthorityv1.AuthorityState_OLD)
-	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to create response", err)
+	status := &localauthorityv1.AuthorityState{
+		AuthorityId: authorityID,
+		Status:      localauthorityv1.AuthorityState_OLD,
 	}
 
 	rpccontext.AuditRPC(ctx)
-	// TODO: Add identifier
 	log.Info("Key tainted successfully")
 
 	return &localauthorityv1.TaintX509AuthorityResponse{
@@ -192,25 +186,25 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 }
 
 func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1.RevokeX509AuthorityRequest) (*localauthorityv1.RevokeX509AuthorityResponse, error) {
-	rpccontext.AddRPCAuditFields(ctx, getLogFieldFromPublicKey(req.PublicKey))
+	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
 
-	keyToRevoke, err := s.getX509AuthorityPublicKey(req.PublicKey)
+	authorityToRevoke, err := s.getX509AuthorityID(req.AuthorityId)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid public key", err)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid authority ID", err)
 	}
 
-	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), keyToRevoke); err != nil {
+	log.WithField(telemetry.LocalAuthorityID, authorityToRevoke)
+	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), authorityToRevoke); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to revoke X.509 authority", err)
 	}
 
-	state, err := publicKeyToProto(keyToRevoke, localauthorityv1.AuthorityState_OLD)
-	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to create response", err)
+	state := &localauthorityv1.AuthorityState{
+		AuthorityId: authorityToRevoke,
+		Status:      localauthorityv1.AuthorityState_OLD,
 	}
 
 	rpccontext.AuditRPC(ctx)
-	// TODO: Add identifier
 	log.Info("Key revoked successfully")
 
 	return &localauthorityv1.RevokeX509AuthorityResponse{
@@ -219,58 +213,29 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 }
 
 // getX509AuthorityPublicKey gets authority key based on rawKey or next X.509 authority if it is in OLD status
-func (s *Service) getX509AuthorityPublicKey(rawKey []byte) (crypto.PublicKey, error) {
-	if len(rawKey) == 0 {
+func (s *Service) getX509AuthorityID(authorityID string) (string, error) {
+	if authorityID == "" {
 		// No key provided, taint OLD key
 		nextSlot := s.ca.GetNextX509CASlot()
 		if !nextSlot.IsEmpty() {
-			return nil, errors.New("unable to use a prepared key")
+			return "", errors.New("unable to use a prepared key")
 		}
 
-		return nextSlot.GetPublicKey(), nil
+		return nextSlot.AuthorityID(), nil
 	}
 
-	keyToTaint, err := x509.ParsePKIXPublicKey(rawKey)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse public key: %w", err)
-	}
 	currentSlot := s.ca.GetCurrentX509CASlot()
-	ok, err := cryptoutil.PublicKeyEqual(currentSlot.GetPublicKey(), keyToTaint)
-	if err != nil {
-		return nil, fmt.Errorf("unable to compare provided public key: %w", err)
-	}
-	if ok {
-		return nil, errors.New("unable to use current authority")
+	if currentSlot.AuthorityID() == authorityID {
+		return "", errors.New("unable to use current authority")
 	}
 
-	return keyToTaint, nil
+	return authorityID, nil
 }
 
-func slotToProto(slot manager.Slot, status localauthorityv1.AuthorityState_Status) (*localauthorityv1.AuthorityState, error) {
-	publicKey := slot.GetPublicKey()
-	if publicKey == nil {
-		return nil, errors.New("slot does not have a public key")
-	}
-
-	return publicKeyToProto(publicKey, status)
-}
-
-func publicKeyToProto(publicKey crypto.PublicKey, status localauthorityv1.AuthorityState_Status) (*localauthorityv1.AuthorityState, error) {
-	pKey, err := x509.MarshalPKIXPublicKey(publicKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return &localauthorityv1.AuthorityState{
-		PublicKey: pKey,
-		Status:    status,
-	}, nil
-}
-
-func getLogFieldFromPublicKey(publicKey []byte) logrus.Fields {
+func buildAuditLogFields(authorityID string) logrus.Fields {
 	fields := logrus.Fields{}
-	if len(publicKey) > 0 {
-		fields[telemetry.X509AuthorityPublicKeySHA256] = api.HashByte(publicKey)
+	if authorityID != "" {
+		fields[telemetry.LocalAuthorityID] = authorityID
 	}
 	return fields
 }

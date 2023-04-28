@@ -2,7 +2,7 @@ module github.com/spiffe/spire
 
 go 1.20
 
-replace github.com/spiffe/spire-api-sdk => github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20230321150416-5642a0450459
+replace github.com/spiffe/spire-api-sdk => github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20230426161500-1220029f2dbf
 
 require (
 	cloud.google.com/go/iam v1.1.0

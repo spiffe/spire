@@ -439,8 +439,8 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	}, nil
 }
 
-// PushStatus push agent status and return some metadata as response
-func (s *Service) PushStatus(ctx context.Context, req *agentv1.PushStatusRequest) (*agentv1.PushStatusResponse, error) {
+// PostStatus post agent status
+func (s *Service) PostStatus(ctx context.Context, req *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
 

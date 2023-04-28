@@ -40,6 +40,7 @@ type Slot interface {
 	ShouldActivateNext(now time.Time) bool
 	Status() journal.Status
 	GetPublicKey() crypto.PublicKey
+	AuthorityID() string
 }
 
 type SlotLoader struct {
@@ -367,8 +368,9 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAE
 			Certificate:   cert,
 			UpstreamChain: upstreamChain,
 		},
-		publicKey: signer.Public(),
-		status:    entry.Status,
+		publicKey:   signer.Public(),
+		status:      entry.Status,
+		authorityID: entry.AuthorityId,
 	}, "", nil
 }
 
@@ -423,7 +425,8 @@ func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyE
 			NotAfter: time.Unix(entry.NotAfter, 0),
 			Kid:      entry.Kid,
 		},
-		status: entry.Status,
+		status:      entry.Status,
+		authorityID: entry.AuthorityId,
 	}, "", nil
 }
 
@@ -506,11 +509,12 @@ func keyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 }
 
 type X509CASlot struct {
-	id        string
-	issuedAt  time.Time
-	x509CA    *ca.X509CA
-	status    journal.Status
-	publicKey crypto.PublicKey
+	id          string
+	issuedAt    time.Time
+	x509CA      *ca.X509CA
+	status      journal.Status
+	authorityID string
+	publicKey   crypto.PublicKey
 }
 
 func newX509CASlot(id string) *X509CASlot {
@@ -548,11 +552,16 @@ func (s *X509CASlot) GetPublicKey() crypto.PublicKey {
 	return s.publicKey
 }
 
+func (s *X509CASlot) AuthorityID() string {
+	return s.authorityID
+}
+
 type JwtKeySlot struct {
-	id       string
-	issuedAt time.Time
-	jwtKey   *ca.JWTKey
-	status   journal.Status
+	id          string
+	issuedAt    time.Time
+	jwtKey      *ca.JWTKey
+	status      journal.Status
+	authorityID string
 }
 
 func newJWTKeySlot(id string) *JwtKeySlot {
@@ -567,6 +576,10 @@ func (s *JwtKeySlot) KmKeyID() string {
 
 func (s *JwtKeySlot) Status() journal.Status {
 	return s.status
+}
+
+func (s *JwtKeySlot) AuthorityID() string {
+	return jwtKeyKmKeyID(s.id)
 }
 
 func (s *JwtKeySlot) IsEmpty() bool {
@@ -584,8 +597,4 @@ func (s *JwtKeySlot) ShouldPrepareNext(now time.Time) bool {
 
 func (s *JwtKeySlot) ShouldActivateNext(now time.Time) bool {
 	return s.jwtKey == nil || now.After(keyActivationThreshold(s.issuedAt, s.jwtKey.NotAfter))
-}
-
-func (s *JwtKeySlot) GetPublicKey() crypto.PublicKey {
-	return s.jwtKey.Signer.Public()
 }

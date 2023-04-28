@@ -675,8 +675,8 @@ github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3
 github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.8 h1:PKOekn3HT5IdC0i/6xj/QGGXdCm/T57yP0RAbmtPa3k=
 github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.8/go.mod h1:4cMRW7kWQ1a3r65oxcb6TQhBKWE9OxyvEwsgifRAFp4=
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c/go.mod h1:X0CRv0ky0k6m906ixxpzmDRLvX58TFUKS2eePweuyxk=
-github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20230321150416-5642a0450459 h1:ZDJ1PLERi451sKIRWb+qRAzGOjcyFjbflr1EM6zhc30=
-github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20230321150416-5642a0450459/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
+github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20230426161500-1220029f2dbf h1:9p8UMyBHh4cuX9/MbCPLOZGRdahuzeOQ2pK1qAcI+FU=
+github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20230426161500-1220029f2dbf/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=

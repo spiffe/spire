@@ -2,7 +2,6 @@ package datastore
 
 import (
 	"context"
-	"crypto"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -204,28 +203,28 @@ func (w metricsWrapper) SetBundle(ctx context.Context, bundle *common.Bundle) (_
 	return w.ds.SetBundle(ctx, bundle)
 }
 
-func (w metricsWrapper) TaintX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) (err error) {
+func (w metricsWrapper) TaintX509CA(ctx context.Context, trustDomainID string, authorityID string) (err error) {
 	callCounter := StartTaintX509CAByKeyCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.TaintX509CA(ctx, trustDomainID, publicKey)
+	return w.ds.TaintX509CA(ctx, trustDomainID, authorityID)
 }
 
-func (w metricsWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) (err error) {
+func (w metricsWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, authorityID string) (err error) {
 	callCounter := StartRevokeX509CACall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.RevokeX509CA(ctx, trustDomainID, publicKey)
+	return w.ds.RevokeX509CA(ctx, trustDomainID, authorityID)
 }
 
-func (w metricsWrapper) TaintJWTKey(ctx context.Context, trustDomainID string, keyID string) (_ *common.PublicKey, err error) {
+func (w metricsWrapper) TaintJWTKey(ctx context.Context, trustDomainID string, authorityID string) (_ *common.PublicKey, err error) {
 	callCounter := StartTaintJWTKeyCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.TaintJWTKey(ctx, trustDomainID, keyID)
+	return w.ds.TaintJWTKey(ctx, trustDomainID, authorityID)
 }
 
-func (w metricsWrapper) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (_ *common.PublicKey, err error) {
+func (w metricsWrapper) RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (_ *common.PublicKey, err error) {
 	callCounter := StartRevokeJWTKeyCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.RevokeJWTKey(ctx, trustDomainID, keyID)
+	return w.ds.RevokeJWTKey(ctx, trustDomainID, authorityID)
 }
 
 func (w metricsWrapper) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) (err error) {

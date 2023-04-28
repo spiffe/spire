@@ -22,9 +22,9 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
@@ -215,10 +215,10 @@ func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, public
 }
 
 // TaintJWTKey taints a JWT Authority key
-func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
+func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, authorityID string) (*common.PublicKey, error) {
 	var taintedKey *common.PublicKey
 	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		taintedKey, err = taintJWTKey(tx, trustDoaminID, keyID)
+		taintedKey, err = taintJWTKey(tx, trustDoaminID, authorityID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -227,10 +227,10 @@ func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, keyID s
 }
 
 // RevokeJWTAuthority removes JWT key from the bundle
-func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
+func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDoaminID string, authorityID string) (*common.PublicKey, error) {
 	var revokedKey *common.PublicKey
 	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		revokedKey, err = revokeJWTKey(tx, trustDoaminID, keyID)
+		revokedKey, err = revokeJWTKey(tx, trustDoaminID, authorityID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -1114,7 +1114,7 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	return changed, nil
 }
 
-func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.PublicKey) error {
+func taintX509CA(tx *gorm.DB, trustDomainID string, authorityID string) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
@@ -1127,11 +1127,8 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
 		}
 
-		ok, err := cryptoutil.PublicKeyEqual(rootCACert.PublicKey, taintedPublicKey)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
-		}
-		if ok {
+		subjectKeyID := x509util.SubjectKeyIDToString(rootCACert.SubjectKeyId)
+		if subjectKeyID == authorityID {
 			if ca.TaintedKey {
 				return status.Errorf(codes.InvalidArgument, "root CA is already tainted")
 			}
@@ -1159,7 +1156,7 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 	return nil
 }
 
-func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey) error {
+func revokeX509CA(tx *gorm.DB, trustDomainID string, authorityID string) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
@@ -1173,12 +1170,8 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
 		}
 
-		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKey)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
-		}
-
-		if ok {
+		subjectKeyID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+		if subjectKeyID == authorityID {
 			if !ca.TaintedKey {
 				return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
 			}
@@ -1200,7 +1193,7 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 	return nil
 }
 
-func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func taintJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return nil, err
@@ -1208,7 +1201,7 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publi
 
 	var taintedKey *common.PublicKey
 	for _, jwtKey := range bundle.JwtSigningKeys {
-		if jwtKey.Kid != keyID {
+		if jwtKey.Kid != authorityID {
 			continue
 		}
 
@@ -1237,7 +1230,7 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publi
 	return taintedKey, nil
 }
 
-func revokeJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func revokeJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return nil, err
@@ -1246,7 +1239,7 @@ func revokeJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publ
 	var publicKeys []*common.PublicKey
 	var revokedKey *common.PublicKey
 	for _, key := range bundle.JwtSigningKeys {
-		if key.Kid == keyID {
+		if key.Kid == authorityID {
 			// Check if a JWT Key with the provided keyID was already
 			// found in this loop. This is purely defensive since we do not
 			// allow to have repeated key IDs.
