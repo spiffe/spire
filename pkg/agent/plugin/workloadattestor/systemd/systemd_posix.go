@@ -28,7 +28,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type unitInfo interface {
-	Id() (string, error)
+	ID() (string, error)
 	FragmentPath() (string, error)
 }
 
@@ -36,7 +36,7 @@ type DBusUnitObject struct {
 	dbus.BusObject
 }
 
-func (obj DBusUnitObject) Id() (string, error) {
+func (obj DBusUnitObject) ID() (string, error) {
 	return getStringProperty(obj, "Id")
 }
 
@@ -71,11 +71,11 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	var selectorValues []string
 
-	unitId, err := uInfo.Id()
+	unitID, err := uInfo.ID()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get unit id for pid %d: %v", req.Pid, err)
 	}
-	selectorValues = append(selectorValues, makeSelectorValue("id", unitId))
+	selectorValues = append(selectorValues, makeSelectorValue("id", unitID))
 
 	fragmentPath, err := uInfo.FragmentPath()
 	if err != nil {

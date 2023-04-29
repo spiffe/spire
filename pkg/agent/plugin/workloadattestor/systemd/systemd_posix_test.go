@@ -116,7 +116,7 @@ type fakeUnit struct {
 	pid uint
 }
 
-func (u fakeUnit) Id() (string, error) {
+func (u fakeUnit) ID() (string, error) {
 	switch u.pid {
 	case 1, 3:
 		return "fake.service", nil
