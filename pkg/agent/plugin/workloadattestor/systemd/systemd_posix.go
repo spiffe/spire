@@ -11,6 +11,8 @@ import (
 	"github.com/hashicorp/go-hclog"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -71,13 +73,13 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	unitId, err := uInfo.Id()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get unit id for pid %d: %v", req.Pid, err)
+		return nil, status.Errorf(codes.Internal, "failed to get unit id for pid %d: %v", req.Pid, err)
 	}
 	selectorValues = append(selectorValues, makeSelectorValue("id", unitId))
 
 	fragmentPath, err := uInfo.FragmentPath()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get unit fragment path for pid %d: %v", req.Pid, err)
+		return nil, status.Errorf(codes.Internal, "failed to get unit fragment path for pid %d: %v", req.Pid, err)
 	}
 	selectorValues = append(selectorValues, makeSelectorValue("fragment_path", fragmentPath))
 
@@ -89,7 +91,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 func getSystemdUnitInfo(ctx context.Context, pid uint) (unitInfo, error) {
 	conn, err := dbus.SystemBus()
 	if err != nil {
-		return nil, fmt.Errorf("failed to open dbus connection: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to open dbus connection: %v", err)
 	}
 	defer conn.Close()
 
@@ -99,7 +101,7 @@ func getSystemdUnitInfo(ctx context.Context, pid uint) (unitInfo, error) {
 	var unitPath dbus.ObjectPath
 	err = call.Store(&unitPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get unit by pid %d: %v", pid, err)
+		return nil, status.Errorf(codes.Internal, "failed to get unit by pid %d: %v", pid, err)
 	}
 
 	obj := conn.Object(systemdDBusInterface, unitPath)
@@ -113,7 +115,7 @@ func getStringProperty(obj DBusUnitObject, prop string) (string, error) {
 	}
 	propVal, ok := propVariant.Value().(string)
 	if !ok {
-		return "", fmt.Errorf("Returned value for %v was not a string: %v", prop, propVariant.String())
+		return "", status.Errorf(codes.Internal, "Returned value for %v was not a string: %v", prop, propVariant.String())
 	}
 	return propVal, nil
 }

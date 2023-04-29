@@ -57,13 +57,13 @@ func (s *Suite) TestAttest() {
 		{
 			name:       "fail to get unit id",
 			pid:        2,
-			expectCode: codes.Unknown,
+			expectCode: codes.Internal,
 			expectMsg:  "workloadattestor(systemd): failed to get unit id for pid 2: rpc error: code = Internal desc = unknown process",
 		},
 		{
 			name:       "fail to get fragment path",
 			pid:        3,
-			expectCode: codes.Unknown,
+			expectCode: codes.Internal,
 			expectMsg:  "workloadattestor(systemd): failed to get unit fragment path for pid 3: rpc error: code = Internal desc = unknown process",
 		},
 	}
