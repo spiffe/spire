@@ -23,23 +23,6 @@ var (
 )
 
 func TestPlugin(t *testing.T) {
-	spiretest.Run(t, new(Suite))
-}
-
-type Suite struct {
-	spiretest.Suite
-
-	log     logrus.FieldLogger
-	logHook *test.Hook
-}
-
-func (s *Suite) SetupTest() {
-	log, logHook := test.NewNullLogger()
-	s.log = log
-	s.logHook = logHook
-}
-
-func (s *Suite) TestAttest() {
 	testCases := []struct {
 		name           string
 		pid            int
@@ -70,10 +53,9 @@ func (s *Suite) TestAttest() {
 
 	for _, testCase := range testCases {
 		testCase := testCase
-		s.T().Run(testCase.name, func(t *testing.T) {
-			defer s.logHook.Reset()
-
-			p := s.loadPlugin(t)
+		log, logHook := test.NewNullLogger()
+		t.Run(testCase.name, func(t *testing.T) {
+			p := loadPlugin(t, log)
 			selectors, err := p.Attest(ctx, testCase.pid)
 			spiretest.RequireGRPCStatus(t, err, testCase.expectCode, testCase.expectMsg)
 			if testCase.expectCode != codes.OK {
@@ -90,21 +72,20 @@ func (s *Suite) TestAttest() {
 			}
 
 			require.Equal(t, testCase.selectorValues, selectorValues)
-			spiretest.AssertLogs(t, s.logHook.AllEntries(), testCase.expectLogs)
+			spiretest.AssertLogs(t, logHook.AllEntries(), testCase.expectLogs)
 		})
 	}
 }
 
-func (s *Suite) loadPlugin(t *testing.T) workloadattestor.WorkloadAttestor {
-	p := s.newPlugin()
+func loadPlugin(t *testing.T, log logrus.FieldLogger) workloadattestor.WorkloadAttestor {
+	p := newPlugin()
 
 	v1 := new(workloadattestor.V1)
-	plugintest.Load(t, builtin(p), v1,
-		plugintest.Log(s.log))
+	plugintest.Load(t, builtin(p), v1, plugintest.Log(log))
 	return v1
 }
 
-func (s *Suite) newPlugin() *Plugin {
+func newPlugin() *Plugin {
 	p := New()
 	p.getUnitInfo = func(ctx context.Context, pid uint) (unitInfo, error) {
 		return newFakeUnit(pid), nil
