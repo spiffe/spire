@@ -45,6 +45,9 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		"agent show": func() (cli.Command, error) {
 			return agent.NewShowCommand(), nil
 		},
+		"agent purge": func() (cli.Command, error) {
+			return agent.NewPurgeCommand(), nil
+		},
 		"bundle count": func() (cli.Command, error) {
 			return bundle.NewCountCommand(), nil
 		},
