@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/fullsailor/pkcs7"
+	"math/big"
 	"testing"
 	"time"
 
@@ -56,7 +58,12 @@ var (
 	ebsType              = ec2types.DeviceTypeEbs
 )
 
+var testAWSCACert *x509.Certificate
+var otherAWSCACert *x509.Certificate
+
 func TestAttest(t *testing.T) {
+	testAWSCACert = generateCertificate(t, testAWSCAKey)
+	otherAWSCACert = generateCertificate(t, testkey.MustRSA2048())
 	defaultAttestationData := buildAttestationData(t)
 
 	for _, tt := range []struct {
@@ -75,6 +82,7 @@ func TestAttest(t *testing.T) {
 		expectMsgPrefix                string
 		expectID                       string
 		expectSelectors                []*common.Selector
+		overrideCACert                 *x509.Certificate
 	}{
 		{
 			name:            "plugin not configured",
@@ -101,7 +109,7 @@ func TestAttest(t *testing.T) {
 				return data
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "nodeattestor(aws_iid): failed to verify the cryptographic signature",
+			expectMsgPrefix: "nodeattestor(aws_iid): instance identity cryptographic signature is required",
 		},
 		{
 			name: "bad signature",
@@ -110,7 +118,7 @@ func TestAttest(t *testing.T) {
 				return data
 			},
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "nodeattestor(aws_iid): failed to decode the IID signature",
+			expectMsgPrefix: "nodeattestor(aws_iid): failed to parse the instance identity cryptographic signature",
 		},
 		{
 			name:            "already attested",
@@ -139,6 +147,12 @@ func TestAttest(t *testing.T) {
 			},
 			expectCode:      codes.Internal,
 			expectMsgPrefix: "nodeattestor(aws_iid): failed to query AWS via describe-instances: returned no instances",
+		},
+		{
+			name:            "signature verification fails using AWS CA cert from other region",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "nodeattestor(aws_iid): failed verification of instance identity cryptographic signature",
+			overrideCACert:  otherAWSCACert,
 		},
 		{
 			name:     "success with zero device index",
@@ -395,9 +409,14 @@ func TestAttest(t *testing.T) {
 			attestor.hooks.getenv = func(key string) string {
 				return tt.env[key]
 			}
-			attestor.hooks.getAWSCAPublicKey = func() (*rsa.PublicKey, error) {
-				return &testAWSCAKey.PublicKey, nil
+
+			attestor.hooks.getAWSCACertificate = func(string) (*x509.Certificate, error) {
+				if tt.overrideCACert != nil {
+					return otherAWSCACert, nil
+				}
+				return testAWSCACert, nil
 			}
+
 			attestor.clients = newClientsCache(func(ctx context.Context, config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
 				return client, nil
 			})
@@ -580,15 +599,39 @@ func buildAttestationData(t *testing.T) caws.IIDAttestationData {
 	docBytes, err := json.Marshal(doc)
 	require.NoError(t, err)
 
-	// doc signature
-	docHash := sha256.Sum256(docBytes)
-	sig, err := rsa.SignPKCS1v15(rand.Reader, testAWSCAKey, crypto.SHA256, docHash[:])
+	signedData, err := pkcs7.NewSignedData(docBytes)
 	require.NoError(t, err)
+
+	privateKey := crypto.PrivateKey(testAWSCAKey)
+	err = signedData.AddSigner(testAWSCACert, privateKey, pkcs7.SignerInfoConfig{})
+	require.NoError(t, err)
+
+	signature, err := signedData.Finish()
+	require.NoError(t, err)
+
+	// base64 encode the signature
+	signatureEncoded := base64.StdEncoding.EncodeToString(signature)
 
 	return caws.IIDAttestationData{
 		Document:  string(docBytes),
-		Signature: base64.StdEncoding.EncodeToString(sig),
+		Signature: signatureEncoded,
 	}
+}
+
+func generateCertificate(t *testing.T, key crypto.Signer) *x509.Certificate {
+	tmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "test",
+		},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(time.Hour),
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, key.Public(), key)
+	require.NoError(t, err)
+	cert, err := x509.ParseCertificate(certDER)
+	require.NoError(t, err)
+	return cert
 }
 
 func toJSON(t *testing.T, obj interface{}) []byte {

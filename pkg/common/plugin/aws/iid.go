@@ -17,7 +17,7 @@ var (
 // IIDAttestationData AWS IID attestation data
 type IIDAttestationData struct {
 	Document  string `json:"document"`
-	Signature string `json:"signature"`
+	Signature string `json:"rsa2048"`
 }
 
 // AttestationStepError error with attestation

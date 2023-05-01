@@ -21,7 +21,7 @@ import (
 
 const (
 	docPath = "instance-identity/document"
-	sigPath = "instance-identity/signature"
+	sigPath = "instance-identity/rsa2048"
 )
 
 func BuiltIn() catalog.BuiltIn {
