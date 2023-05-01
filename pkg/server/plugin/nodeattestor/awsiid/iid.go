@@ -2,7 +2,11 @@ package awsiid
 
 import (
 	"context"
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -89,7 +93,7 @@ type IIDAttestorPlugin struct {
 
 	// test hooks
 	hooks struct {
-		getAWSCACertificate func(string) (*x509.Certificate, error)
+		getAWSCACertificate func(string, SignatureType) (*x509.Certificate, error)
 		getenv              func(string) string
 	}
 
@@ -106,7 +110,7 @@ type IIDAttestorConfig struct {
 	AssumeRole                      string   `hcl:"assume_role"`
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
-	getAWSCACertificate             func(string) (*x509.Certificate, error)
+	getAWSCACertificate             func(string, SignatureType) (*x509.Certificate, error)
 }
 
 // New creates a new IIDAttestorPlugin.
@@ -333,7 +337,7 @@ func tagsFromInstance(instance ec2types.Instance) instanceTags {
 	return tags
 }
 
-func unmarshalAndValidateIdentityDocument(data []byte, getAWSCACertificate func(string) (*x509.Certificate, error)) (imds.InstanceIdentityDocument, error) {
+func unmarshalAndValidateIdentityDocument(data []byte, getAWSCACertificate func(string, SignatureType) (*x509.Certificate, error)) (imds.InstanceIdentityDocument, error) {
 	var attestationData caws.IIDAttestationData
 	var doc imds.InstanceIdentityDocument
 
@@ -345,25 +349,60 @@ func unmarshalAndValidateIdentityDocument(data []byte, getAWSCACertificate func(
 		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to unmarshal the IID: %v", err)
 	}
 
-	if attestationData.Signature == "" {
+	var signature string
+	var signatureType SignatureType
+
+	// if the RSA2048 signature is present, use it, otherwise use the RSA-1024 signature
+	// This enables the support of new and old SPIRE agents, maintaining backwards compatibility.
+	if attestationData.SignatureRSA2048 != "" {
+		signature = attestationData.SignatureRSA2048
+		signatureType = RSA2048
+	} else {
+		signature = attestationData.Signature
+		signatureType = RSA1024
+	}
+
+	if signature == "" {
 		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "instance identity cryptographic signature is required")
 	}
 
-	caCert, err := getAWSCACertificate(doc.Region)
+	caCert, err := getAWSCACertificate(doc.Region, signatureType)
 	if err != nil {
 		return imds.InstanceIdentityDocument{}, status.Errorf(codes.Internal, "failed to load the AWS CA certificate for region %q: %v", doc.Region, err)
 	}
 
-	pkcs7Sig, err := decodeAndParsePKCS7Signature(attestationData.Signature, caCert)
-	if err != nil {
-		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, err.Error())
-	}
+	switch signatureType {
+	case RSA1024:
+		if err := verifyRSASignature(caCert.PublicKey.(*rsa.PublicKey), attestationData.Document, signature); err != nil {
+			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, err.Error())
+		}
+	case RSA2048:
+		pkcs7Sig, err := decodeAndParsePKCS7Signature(signature, caCert)
+		if err != nil {
+			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, err.Error())
+		}
 
-	if err := pkcs7Sig.Verify(); err != nil {
-		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed verification of instance identity cryptographic signature: %v", err)
+		if err := pkcs7Sig.Verify(); err != nil {
+			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed verification of instance identity cryptographic signature: %v", err)
+		}
 	}
 
 	return doc, nil
+}
+
+func verifyRSASignature(pubKey *rsa.PublicKey, doc string, signature string) error {
+	docHash := sha256.Sum256([]byte(doc))
+
+	sigBytes, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to decode the IID signature: %v", err)
+	}
+
+	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, docHash[:], sigBytes); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to verify the cryptographic signature: %v", err)
+	}
+
+	return nil
 }
 
 func decodeAndParsePKCS7Signature(signature string, caCert *x509.Certificate) (*pkcs7.PKCS7, error) {

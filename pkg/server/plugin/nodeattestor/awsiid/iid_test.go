@@ -4,13 +4,14 @@ import (
 	"context"
 	"crypto"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/fullsailor/pkcs7"
 	"math/big"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/fullsailor/pkcs7"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -64,7 +66,8 @@ var otherAWSCACert *x509.Certificate
 func TestAttest(t *testing.T) {
 	testAWSCACert = generateCertificate(t, testAWSCAKey)
 	otherAWSCACert = generateCertificate(t, testkey.MustRSA2048())
-	defaultAttestationData := buildAttestationData(t)
+	defaultAttestationData := buildAttestationDataRSA2048Signature(t)
+	attentionDataWithRSA1024Signature := buildAttestationDataRSA1024Signature(t)
 
 	for _, tt := range []struct {
 		name                           string
@@ -105,6 +108,7 @@ func TestAttest(t *testing.T) {
 		{
 			name: "missing signature",
 			overrideAttestationData: func(data caws.IIDAttestationData) caws.IIDAttestationData {
+				data.SignatureRSA2048 = ""
 				data.Signature = ""
 				return data
 			},
@@ -114,7 +118,7 @@ func TestAttest(t *testing.T) {
 		{
 			name: "bad signature",
 			overrideAttestationData: func(data caws.IIDAttestationData) caws.IIDAttestationData {
-				data.Signature = "bad signature"
+				data.SignatureRSA2048 = "bad signature"
 				return data
 			},
 			expectCode:      codes.InvalidArgument,
@@ -156,6 +160,21 @@ func TestAttest(t *testing.T) {
 		},
 		{
 			name:     "success with zero device index",
+			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
+		},
+		{
+			name: "success with RSA-1024 signature",
+			overrideAttestationData: func(data caws.IIDAttestationData) caws.IIDAttestationData {
+				data.SignatureRSA2048 = ""
+				data.Signature = attentionDataWithRSA1024Signature.Signature
+				return data
+			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
 				{Type: caws.PluginName, Value: "az:test-az"},
@@ -410,7 +429,7 @@ func TestAttest(t *testing.T) {
 				return tt.env[key]
 			}
 
-			attestor.hooks.getAWSCACertificate = func(string) (*x509.Certificate, error) {
+			attestor.hooks.getAWSCACertificate = func(string, SignatureType) (*x509.Certificate, error) {
 				if tt.overrideCACert != nil {
 					return otherAWSCACert, nil
 				}
@@ -587,7 +606,7 @@ func (c *fakeClient) GetInstanceProfile(ctx context.Context, input *iam.GetInsta
 	return c.GetInstanceProfileOutput, c.GetInstanceProfileError
 }
 
-func buildAttestationData(t *testing.T) caws.IIDAttestationData {
+func buildAttestationDataRSA2048Signature(t *testing.T) caws.IIDAttestationData {
 	// doc body
 	doc := imds.InstanceIdentityDocument{
 		AccountID:        testAccount,
@@ -606,16 +625,55 @@ func buildAttestationData(t *testing.T) caws.IIDAttestationData {
 	err = signedData.AddSigner(testAWSCACert, privateKey, pkcs7.SignerInfoConfig{})
 	require.NoError(t, err)
 
-	signature, err := signedData.Finish()
-	require.NoError(t, err)
+	signature := generatePKCS7Signature(t, docBytes, testAWSCAKey)
 
 	// base64 encode the signature
 	signatureEncoded := base64.StdEncoding.EncodeToString(signature)
 
 	return caws.IIDAttestationData{
+		Document:         string(docBytes),
+		SignatureRSA2048: signatureEncoded,
+	}
+}
+
+func buildAttestationDataRSA1024Signature(t *testing.T) caws.IIDAttestationData {
+	// doc body
+	doc := imds.InstanceIdentityDocument{
+		AccountID:        testAccount,
+		InstanceID:       testInstance,
+		Region:           testRegion,
+		AvailabilityZone: testAvailabilityZone,
+		ImageID:          testImageID,
+	}
+	docBytes, err := json.Marshal(doc)
+	require.NoError(t, err)
+
+	rng := rand.Reader
+	docHash := sha256.Sum256(docBytes)
+	sig, err := rsa.SignPKCS1v15(rng, testAWSCAKey, crypto.SHA256, docHash[:])
+	require.NoError(t, err)
+
+	signatureEncoded := base64.StdEncoding.EncodeToString(sig)
+
+	return caws.IIDAttestationData{
 		Document:  string(docBytes),
 		Signature: signatureEncoded,
 	}
+}
+
+func generatePKCS7Signature(t *testing.T, docBytes []byte, key *rsa.PrivateKey) []byte {
+	signedData, err := pkcs7.NewSignedData(docBytes)
+	require.NoError(t, err)
+
+	cert := generateCertificate(t, key)
+	privateKey := crypto.PrivateKey(key)
+	err = signedData.AddSigner(cert, privateKey, pkcs7.SignerInfoConfig{})
+	require.NoError(t, err)
+
+	signature, err := signedData.Finish()
+	require.NoError(t, err)
+
+	return signature
 }
 
 func generateCertificate(t *testing.T, key crypto.Signer) *x509.Certificate {
