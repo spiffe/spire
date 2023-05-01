@@ -414,7 +414,7 @@ func decodeAndParsePKCS7Signature(signature string, caCert *x509.Certificate) (*
 
 	pkcs7Sig, err := pkcs7.Parse(signatureBlock.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse the instance identity cryptographic signature: %v", err)
+		return nil, fmt.Errorf("failed to parse the instance identity cryptographic signature: %w", err)
 	}
 
 	// add the CA certificate to the PKCS7 signature to verify it
