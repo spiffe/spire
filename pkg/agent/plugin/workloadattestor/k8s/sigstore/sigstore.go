@@ -186,8 +186,8 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature) (*Se
 		return nil, fmt.Errorf("error getting signature provider: %w", errors.New("empty issuer"))
 	}
 
-	// This filter is already done on get signature call (since cosign 2.0),
-	// So it response must no longer contains signatures from unallowed subjects
+	// This filter is already done when getting the signature (since cosign 2.0),
+	// so its response must not contain signatures from disallowed subjects.
 	if issuerSubjects, ok := s.subjectAllowList[issuer]; !ok {
 		return nil, fmt.Errorf("signature issuer %q not in allow-list", issuer)
 	} else if _, ok := issuerSubjects[subject]; !ok {
@@ -358,17 +358,17 @@ func defaultCheckOptsFunction(ctx context.Context, rekorURL url.URL, enforceSCT 
 
 	rekorPubKeys, err := cosign.GetRekorPubs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get Rekor public key: %w", err)
+		return nil, fmt.Errorf("failed to get Rekor public keys: %w", err)
 	}
 
 	ctLogPubKeys, err := cosign.GetCTLogPubs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ctlog public keys: %w", err)
+		return nil, fmt.Errorf("failed to get CTLog public keys: %w", err)
 	}
 
 	intermediateCerts, err := fulcio.GetIntermediates()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get fulcio intermediate certificates: %w", err)
+		return nil, fmt.Errorf("failed to get Fulcio intermediate certificates: %w", err)
 	}
 
 	var allowedIdentities []cosign.Identity
