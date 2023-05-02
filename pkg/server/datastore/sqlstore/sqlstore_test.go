@@ -26,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -611,7 +612,8 @@ func (s *PluginSuite) TestTaintX509CA() {
 	t := s.T()
 
 	// Setup
-	unusedKey := testkey.NewRSA2048(t)
+	fooCA := s.createCA("foo")
+	fooCASKI := x509util.SubjectKeyIDToString(fooCA.SubjectKeyId)
 
 	keyForMalformedCert := testkey.NewEC256(t)
 	malformedX509 := &x509.Certificate{
@@ -620,43 +622,46 @@ func (s *PluginSuite) TestTaintX509CA() {
 	}
 
 	// Create new bundle with two certs
-	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert, malformedX509})
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{fooCA, s.cacert, malformedX509})
+	caCertSKI := x509util.SubjectKeyIDToString(s.cacert.SubjectKeyId)
+	require.NotEmpty(t, caCertSKI)
 
 	// Bundle not found
-	err := s.ds.TaintX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
+	err := s.ds.TaintX509CA(ctx, "spiffe://foo", "foh")
 	spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
 
 	_, err = s.ds.CreateBundle(ctx, bundle)
 	require.NoError(t, err)
 
 	// Bundle contains malformed CA
-	err = s.ds.TaintX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
+	err = s.ds.TaintX509CA(ctx, "spiffe://foo", fooCASKI)
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to parse root CA: x509: malformed certificate")
 
 	// Remove malformed certificate
-	bundle.RootCas = []*common.Certificate{{DerBytes: s.cert.Raw}, {DerBytes: s.cacert.Raw}}
+	bundle.RootCas = []*common.Certificate{{DerBytes: fooCA.Raw}, {DerBytes: s.cacert.Raw}}
 	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
 	require.NoError(t, err)
 
 	// No root CA is using provided key
-	err = s.ds.TaintX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided public key")
+	err = s.ds.TaintX509CA(ctx, "spiffe://foo", "foh")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided Subject Key ID")
 
 	// Taint successfully
-	err = s.ds.TaintX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
+	err = s.ds.TaintX509CA(ctx, "spiffe://foo", fooCASKI)
 	require.NoError(t, err)
 
 	fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	require.NoError(t, err)
 
 	expectedRootCAs := []*common.Certificate{
-		{DerBytes: s.cert.Raw, TaintedKey: true},
+		{DerBytes: fooCA.Raw, TaintedKey: true},
 		{DerBytes: s.cacert.Raw},
 	}
+
 	require.Equal(t, expectedRootCAs, fetchedBundle.RootCas)
 
 	// Not able to taint a tainted CA
-	err = s.ds.TaintX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
+	err = s.ds.TaintX509CA(ctx, "spiffe://foo", fooCASKI)
 	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "root CA is already tainted")
 }
 
@@ -664,7 +669,8 @@ func (s *PluginSuite) TestRevokeX509CA() {
 	t := s.T()
 
 	// Setup
-	unusedKey := testkey.NewRSA2048(t)
+	fooCA := s.createCA("foo")
+	fooCASKI := x509util.SubjectKeyIDToString(fooCA.SubjectKeyId)
 
 	keyForMalformedCert := testkey.NewEC256(t)
 	malformedX509 := &x509.Certificate{
@@ -673,35 +679,35 @@ func (s *PluginSuite) TestRevokeX509CA() {
 	}
 
 	// Create new bundle with two cert (one valid and one expired)
-	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert, malformedX509})
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{fooCA, s.cacert, malformedX509})
 
 	// Bundle not found
-	err := s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
+	err := s.ds.RevokeX509CA(ctx, "spiffe://foo", "foo")
 	spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
 
 	_, err = s.ds.CreateBundle(ctx, bundle)
 	require.NoError(t, err)
 
 	// Bundle contains malformed CA
-	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", "foo")
 	spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to parse root CA: x509: malformed certificate")
 
 	// Remove malformed certificate
-	bundle.RootCas = []*common.Certificate{{DerBytes: s.cert.Raw}, {DerBytes: s.cacert.Raw}}
+	bundle.RootCas = []*common.Certificate{{DerBytes: fooCA.Raw}, {DerBytes: s.cacert.Raw}}
 	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
 	require.NoError(t, err)
 
 	// No root CA is using provided key
-	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided public key")
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", "foo")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided Subject Key ID")
 
 	// No able to revoke untainted bundles
-	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", fooCASKI)
 	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
 
 	// Mark cert as tainted
 	bundle.RootCas = []*common.Certificate{
-		{DerBytes: s.cert.Raw, TaintedKey: true},
+		{DerBytes: fooCA.Raw, TaintedKey: true},
 		{DerBytes: s.cacert.Raw},
 	}
 
@@ -709,7 +715,7 @@ func (s *PluginSuite) TestRevokeX509CA() {
 	require.NoError(t, err)
 
 	// Revoke successfully
-	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", fooCASKI)
 	require.NoError(t, err)
 
 	fetchedBunde, err := s.ds.FetchBundle(ctx, "spiffe://foo")
@@ -4710,6 +4716,22 @@ func (s *PluginSuite) assertCreatedAtField(entry *common.RegistrationEntry, now 
 	// We can't compare the exact time because we don't have control over the clock used by the database.
 	s.Assert().GreaterOrEqual(entry.CreatedAt, now)
 	entry.CreatedAt = 0
+}
+
+func (s *PluginSuite) createCA(td string) *x509.Certificate {
+	clk := clock.NewMock(s.T())
+	expiredNotAfterTime, err := time.Parse(time.RFC3339, _expiredNotAfterString)
+	s.Require().NoError(err)
+
+	caTemplate, err := testutil.NewCATemplate(clk, spiffeid.RequireTrustDomainFromString(td))
+	s.Require().NoError(err)
+
+	caTemplate.NotAfter = expiredNotAfterTime
+	caTemplate.NotBefore = expiredNotAfterTime.Add(-_ttl)
+
+	ca, _, err := testutil.SelfSign(caTemplate)
+	s.Require().NoError(err)
+	return ca
 }
 
 // assertBundlesEqual asserts that the two bundle lists are equal independent

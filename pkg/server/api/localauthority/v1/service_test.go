@@ -3,9 +3,7 @@ package localauthority_test
 import (
 	"context"
 	"crypto"
-	"crypto/x509"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/andres-erbsen/clock"
@@ -14,7 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api/localauthority/v1"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -34,8 +32,10 @@ var (
 	serverTrustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 	keyA              = testkey.MustEC256()
 	keyB              = testkey.MustEC256()
-	keyARaw, _        = x509.MarshalPKIXPublicKey(keyA.Public())
-	keyBRaw, _        = x509.MarshalPKIXPublicKey(keyB.Public())
+	keyABytes, _      = x509util.GetSubjectKeyID(keyA.Public())
+	keyBBytes, _      = x509util.GetSubjectKeyID(keyB.Public())
+	authorityIDKeyA   = x509util.SubjectKeyIDToString(keyABytes)
+	authorityIDKeyB   = x509util.SubjectKeyIDToString(keyBBytes)
 )
 
 func TestGetX509AuthorityState(t *testing.T) {
@@ -50,13 +50,13 @@ func TestGetX509AuthorityState(t *testing.T) {
 	}{
 		{
 			name:        "current is set",
-			currentSlot: createSlot(true, keyA.Public()),
+			currentSlot: createSlot(true, authorityIDKeyA),
 			nextSlot:    &fakeSlot{},
 			expectResp: &localauthorityv1.GetX509AuthorityStateResponse{
 				States: []*localauthorityv1.AuthorityState{
 					{
-						PublicKey: keyARaw,
-						Status:    localauthorityv1.AuthorityState_ACTIVE,
+						AuthorityId: authorityIDKeyA,
+						Status:      localauthorityv1.AuthorityState_ACTIVE,
 					},
 				},
 			},
@@ -74,12 +74,12 @@ func TestGetX509AuthorityState(t *testing.T) {
 		{
 			name:        "next is set",
 			currentSlot: &fakeSlot{},
-			nextSlot:    createSlot(true, keyB.Public()),
+			nextSlot:    createSlot(true, authorityIDKeyB),
 			expectResp: &localauthorityv1.GetX509AuthorityStateResponse{
 				States: []*localauthorityv1.AuthorityState{
 					{
-						PublicKey: keyBRaw,
-						Status:    localauthorityv1.AuthorityState_PREPARED,
+						AuthorityId: authorityIDKeyB,
+						Status:      localauthorityv1.AuthorityState_PREPARED,
 					},
 				},
 			},
@@ -96,17 +96,17 @@ func TestGetX509AuthorityState(t *testing.T) {
 		},
 		{
 			name:        "next contains an old authority",
-			currentSlot: createSlot(true, keyA.Public()),
-			nextSlot:    createSlot(false, keyB.Public()),
+			currentSlot: createSlot(true, authorityIDKeyA),
+			nextSlot:    createSlot(false, authorityIDKeyB),
 			expectResp: &localauthorityv1.GetX509AuthorityStateResponse{
 				States: []*localauthorityv1.AuthorityState{
 					{
-						PublicKey: keyARaw,
-						Status:    localauthorityv1.AuthorityState_ACTIVE,
+						AuthorityId: authorityIDKeyA,
+						Status:      localauthorityv1.AuthorityState_ACTIVE,
 					},
 					{
-						PublicKey: keyBRaw,
-						Status:    localauthorityv1.AuthorityState_OLD,
+						AuthorityId: authorityIDKeyB,
+						Status:      localauthorityv1.AuthorityState_OLD,
 					},
 				},
 			},
@@ -123,17 +123,14 @@ func TestGetX509AuthorityState(t *testing.T) {
 		},
 		{
 			name:        "current slot has no public key",
-			currentSlot: createSlot(true, nil),
+			currentSlot: createSlot(true, ""),
 			nextSlot:    &fakeSlot{},
 			expectCode:  codes.Internal,
-			expectMsg:   "failed to get current slot: slot does not have a public key",
+			expectMsg:   "current slot does not contains authority ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to get current slot",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "slot does not have a public key",
-					},
+					Message: "Current slot does not contains authority ID",
 				},
 				{
 					Level:   logrus.InfoLevel,
@@ -141,59 +138,7 @@ func TestGetX509AuthorityState(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "Internal",
-						telemetry.StatusMessage: "failed to get current slot: slot does not have a public key",
-						telemetry.Type:          "audit",
-					},
-				},
-			},
-		},
-		{
-			name:        "current slot has invalid key",
-			currentSlot: createSlot(true, keyA),
-			nextSlot:    &fakeSlot{},
-			expectCode:  codes.Internal,
-			expectMsg:   "failed to get current slot: x509: unsupported public key type: *ecdsa.PrivateKey",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Failed to get current slot",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "x509: unsupported public key type: *ecdsa.PrivateKey",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.Status:        "error",
-						telemetry.StatusCode:    "Internal",
-						telemetry.StatusMessage: "failed to get current slot: x509: unsupported public key type: *ecdsa.PrivateKey",
-						telemetry.Type:          "audit",
-					},
-				},
-			},
-		},
-		{
-			name:        "next slot has invalid key",
-			currentSlot: createSlot(true, keyA.Public()),
-			nextSlot:    createSlot(true, keyB),
-			expectCode:  codes.Internal,
-			expectMsg:   "failed to get next slot: x509: unsupported public key type: *ecdsa.PrivateKey",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Failed to get next slot",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "x509: unsupported public key type: *ecdsa.PrivateKey",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.Status:        "error",
-						telemetry.StatusCode:    "Internal",
-						telemetry.StatusMessage: "failed to get next slot: x509: unsupported public key type: *ecdsa.PrivateKey",
+						telemetry.StatusMessage: "current slot does not contains authority ID",
 						telemetry.Type:          "audit",
 					},
 				},
@@ -228,12 +173,13 @@ func TestPrepareX509Authority(t *testing.T) {
 		expectResp  *localauthorityv1.PrepareX509AuthorityResponse
 	}{
 		{
-			name:     "using next to prepare",
-			nextSlot: createSlot(true, keyB.Public()),
+			name:        "using next to prepare",
+			currentSlot: createSlot(true, authorityIDKeyA),
+			nextSlot:    createSlot(true, authorityIDKeyB),
 			expectResp: &localauthorityv1.PrepareX509AuthorityResponse{
 				PreparedAuthority: &localauthorityv1.AuthorityState{
-					Status:    localauthorityv1.AuthorityState_PREPARED,
-					PublicKey: keyBRaw,
+					Status:      localauthorityv1.AuthorityState_PREPARED,
+					AuthorityId: authorityIDKeyB,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -249,12 +195,12 @@ func TestPrepareX509Authority(t *testing.T) {
 		},
 		{
 			name:        "using current to prepare",
-			currentSlot: createSlot(true, keyA.Public()),
-			nextSlot:    createSlot(false, keyB.Public()),
+			currentSlot: createSlot(false, authorityIDKeyA),
+			nextSlot:    createSlot(true, authorityIDKeyB),
 			expectResp: &localauthorityv1.PrepareX509AuthorityResponse{
 				PreparedAuthority: &localauthorityv1.AuthorityState{
-					Status:    localauthorityv1.AuthorityState_PREPARED,
-					PublicKey: keyARaw,
+					Status:      localauthorityv1.AuthorityState_PREPARED,
+					AuthorityId: authorityIDKeyA,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -270,7 +216,7 @@ func TestPrepareX509Authority(t *testing.T) {
 		},
 		{
 			name:       "failed to prepare",
-			nextSlot:   createSlot(true, keyB.Public()),
+			nextSlot:   createSlot(true, authorityIDKeyB),
 			prepareErr: errors.New("oh no"),
 			expectCode: codes.Internal,
 			expectMsg:  "failed to prepare X.509 authority: oh no",
@@ -289,31 +235,6 @@ func TestPrepareX509Authority(t *testing.T) {
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "Internal",
 						telemetry.StatusMessage: "failed to prepare X.509 authority: oh no",
-						telemetry.Type:          "audit",
-					},
-				},
-			},
-		},
-		{
-			name:       "slot contains invalid key",
-			nextSlot:   createSlot(true, keyB),
-			expectCode: codes.Internal,
-			expectMsg:  "failed to create response: x509: unsupported public key type: *ecdsa.PrivateKey",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Failed to create response",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "x509: unsupported public key type: *ecdsa.PrivateKey",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.Status:        "error",
-						telemetry.StatusCode:    "Internal",
-						telemetry.StatusMessage: "failed to create response: x509: unsupported public key type: *ecdsa.PrivateKey",
 						telemetry.Type:          "audit",
 					},
 				},
@@ -343,21 +264,22 @@ func TestActivateX509Authority(t *testing.T) {
 		currentSlot *fakeSlot
 		nextSlot    *fakeSlot
 
-		rotateCalled bool
-		expectLogs   []spiretest.LogEntry
-		expectCode   codes.Code
-		expectMsg    string
-		expectResp   *localauthorityv1.ActivateX509AuthorityResponse
+		rotateCalled  bool
+		keyToActivate string
+		expectLogs    []spiretest.LogEntry
+		expectCode    codes.Code
+		expectMsg     string
+		expectResp    *localauthorityv1.ActivateX509AuthorityResponse
 	}{
 		{
 			name:         "activate successfully",
-			currentSlot:  createSlot(true, keyA.Public()),
-			nextSlot:     createSlot(true, keyB.Public()),
+			currentSlot:  createSlot(true, authorityIDKeyA),
+			nextSlot:     createSlot(true, authorityIDKeyB),
 			rotateCalled: true,
 			expectResp: &localauthorityv1.ActivateX509AuthorityResponse{
 				ActivatedAuthority: &localauthorityv1.AuthorityState{
-					Status:    localauthorityv1.AuthorityState_ACTIVE,
-					PublicKey: keyARaw,
+					Status:      localauthorityv1.AuthorityState_ACTIVE,
+					AuthorityId: authorityIDKeyA,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -372,8 +294,36 @@ func TestActivateX509Authority(t *testing.T) {
 			},
 		},
 		{
+			name:          "activate an old authority",
+			currentSlot:   createSlot(true, authorityIDKeyA),
+			nextSlot:      createSlot(true, authorityIDKeyB),
+			keyToActivate: authorityIDKeyA,
+			expectCode:    codes.InvalidArgument,
+			expectMsg:     "activating an old authority is not supported yet",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: activating an old authority is not supported yet",
+					Data: logrus.Fields{
+						telemetry.LocalAuthorityID: authorityIDKeyA,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: authorityIDKeyA,
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    "activating an old authority is not supported yet",
+					},
+				},
+			},
+		},
+		{
 			name:        "next slot is not set",
-			currentSlot: createSlot(true, keyA.Public()),
+			currentSlot: createSlot(true, authorityIDKeyA),
 			nextSlot:    &fakeSlot{},
 			expectCode:  codes.Internal,
 			expectMsg:   "no prepared authority found",
@@ -394,33 +344,6 @@ func TestActivateX509Authority(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:         "current slot return invalid key",
-			currentSlot:  createSlot(true, keyA),
-			nextSlot:     createSlot(true, keyB.Public()),
-			rotateCalled: true,
-			expectCode:   codes.Internal,
-			expectMsg:    "failed to parse current slot: x509: unsupported public key type: *ecdsa.PrivateKey",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Failed to parse current slot",
-					Data: logrus.Fields{
-						logrus.ErrorKey: "x509: unsupported public key type: *ecdsa.PrivateKey",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.Status:        "error",
-						telemetry.StatusCode:    "Internal",
-						telemetry.StatusMessage: "failed to parse current slot: x509: unsupported public key type: *ecdsa.PrivateKey",
-						telemetry.Type:          "audit",
-					},
-				},
-			},
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
@@ -429,7 +352,9 @@ func TestActivateX509Authority(t *testing.T) {
 			test.ca.currentX509CASlot = tt.currentSlot
 			test.ca.nextX509CASlot = tt.nextSlot
 
-			resp, err := test.client.ActivateX509Authority(ctx, &localauthorityv1.ActivateX509AuthorityRequest{})
+			resp, err := test.client.ActivateX509Authority(ctx, &localauthorityv1.ActivateX509AuthorityRequest{
+				AuthorityId: tt.keyToActivate,
+			})
 
 			require.Equal(t, tt.rotateCalled, test.ca.rotateX509CACalled)
 			spiretest.AssertGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
@@ -446,35 +371,27 @@ func TestTaintX509Authority(t *testing.T) {
 
 	currentCA, currentKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	currentKeyRaw, err := x509.MarshalPKIXPublicKey(currentKey.Public())
+	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public())
 	require.NoError(t, err)
-	currentKeySHA256 := api.HashByte(currentKeyRaw)
+	currentAuthorityID := x509util.SubjectKeyIDToString(currentKeySKI)
 
 	nextCA, nextKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	nextKeyRaw, err := x509.MarshalPKIXPublicKey(nextKey.Public())
+	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public())
 	require.NoError(t, err)
+	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
 
 	oldCA, oldKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	oldKeyRaw, err := x509.MarshalPKIXPublicKey(oldKey.Public())
+	oldKeySKI, err := x509util.GetSubjectKeyID(oldKey.Public())
 	require.NoError(t, err)
-	oldKeySHA256 := api.HashByte(oldKeyRaw)
-
-	invalidKeyByte := []byte("foo")
-	invalidKeySHA256 := api.HashByte(invalidKeyByte)
-	_, invalidKeyErr := x509.ParsePKIXPublicKey(invalidKeyByte)
-	require.Error(t, invalidKeyErr)
-
-	noPersistedKeyRaw, err := x509.MarshalPKIXPublicKey(keyA.Public())
-	require.NoError(t, err)
-	noPersistedKeySHA256 := api.HashByte(noPersistedKeyRaw)
+	oldAuthorityID := x509util.SubjectKeyIDToString(oldKeySKI)
 
 	for _, tt := range []struct {
 		name        string
 		currentSlot *fakeSlot
 		nextSlot    *fakeSlot
-		keyToTaint  []byte
+		keyToTaint  string
 
 		expectKeyToTaint crypto.PublicKey
 		expectLogs       []spiretest.LogEntry
@@ -484,12 +401,12 @@ func TestTaintX509Authority(t *testing.T) {
 	}{
 		{
 			name:        "taint old authority",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(false, nextAuthorityID),
 			expectResp: &localauthorityv1.TaintX509AuthorityResponse{
 				TaintedAuthority: &localauthorityv1.AuthorityState{
-					Status:    localauthorityv1.AuthorityState_OLD,
-					PublicKey: nextKeyRaw,
+					Status:      localauthorityv1.AuthorityState_OLD,
+					AuthorityId: nextAuthorityID,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -509,13 +426,13 @@ func TestTaintX509Authority(t *testing.T) {
 		},
 		{
 			name:        "taint authority from parameter",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
-			keyToTaint:  oldKeyRaw,
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(false, nextAuthorityID),
+			keyToTaint:  oldAuthorityID,
 			expectResp: &localauthorityv1.TaintX509AuthorityResponse{
 				TaintedAuthority: &localauthorityv1.AuthorityState{
-					Status:    localauthorityv1.AuthorityState_OLD,
-					PublicKey: oldKeyRaw,
+					Status:      localauthorityv1.AuthorityState_OLD,
+					AuthorityId: oldAuthorityID,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -523,9 +440,9 @@ func TestTaintX509Authority(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status:                       "success",
-						telemetry.Type:                         "audit",
-						telemetry.X509AuthorityPublicKeySHA256: oldKeySHA256,
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: oldAuthorityID,
 					},
 				},
 				{
@@ -536,14 +453,14 @@ func TestTaintX509Authority(t *testing.T) {
 		},
 		{
 			name:        "no allow to taint a prepared key",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(true, nextKey.Public()),
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(true, nextAuthorityID),
 			expectCode:  codes.InvalidArgument,
-			expectMsg:   "invalid public key: unable to use a prepared key",
+			expectMsg:   "invalid authority ID: unable to use a prepared key",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: invalid public key",
+					Message: "Invalid argument: invalid authority ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "unable to use a prepared key",
 					},
@@ -554,51 +471,23 @@ func TestTaintX509Authority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "invalid public key: unable to use a prepared key",
+						telemetry.StatusMessage: "invalid authority ID: unable to use a prepared key",
 						telemetry.Type:          "audit",
 					},
 				},
 			},
 		},
 		{
-			name:        "invalid key",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
-			keyToTaint:  invalidKeyByte,
-			expectCode:  codes.InvalidArgument,
-			expectMsg:   "invalid public key: unable to parse public key: asn1: structure error:",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: invalid public key",
-					Data: logrus.Fields{
-						logrus.ErrorKey: fmt.Sprintf("unable to parse public key: %v", invalidKeyErr),
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.Status:                       "error",
-						telemetry.StatusCode:                   "InvalidArgument",
-						telemetry.StatusMessage:                fmt.Sprintf("invalid public key: unable to parse public key: %v", invalidKeyErr),
-						telemetry.Type:                         "audit",
-						telemetry.X509AuthorityPublicKeySHA256: invalidKeySHA256,
-					},
-				},
-			},
-		},
-		{
 			name:        "unable to taint current key",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
-			keyToTaint:  currentKeyRaw,
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(false, nextAuthorityID),
+			keyToTaint:  currentAuthorityID,
 			expectCode:  codes.InvalidArgument,
-			expectMsg:   "invalid public key: unable to use current authority",
+			expectMsg:   "invalid authority ID: unable to use current authority",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: invalid public key",
+					Message: "Invalid argument: invalid authority ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "unable to use current authority",
 					},
@@ -607,39 +496,40 @@ func TestTaintX509Authority(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status:                       "error",
-						telemetry.StatusCode:                   "InvalidArgument",
-						telemetry.StatusMessage:                "invalid public key: unable to use current authority",
-						telemetry.Type:                         "audit",
-						telemetry.X509AuthorityPublicKeySHA256: currentKeySHA256,
+						telemetry.Status:           "error",
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    "invalid authority ID: unable to use current authority",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: currentAuthorityID,
 					},
 				},
 			},
 		},
 		{
 			name:        "ds fails to taint",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
-			keyToTaint:  noPersistedKeyRaw,
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(false, nextAuthorityID),
+			keyToTaint:  authorityIDKeyA,
 			expectCode:  codes.Internal,
-			expectMsg:   "failed to taint X.509 authority: no root CA found with provided public key",
+			expectMsg:   "failed to taint X.509 authority: no root CA found with provided Subject Key ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to taint X.509 authority",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "rpc error: code = NotFound desc = no root CA found with provided public key",
+						// TODO: this error is wrogn!!!!!!!
+						logrus.ErrorKey: "rpc error: code = NotFound desc = no root CA found with provided Subject Key ID",
 					},
 				},
 				{
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status:                       "error",
-						telemetry.StatusCode:                   "Internal",
-						telemetry.StatusMessage:                "failed to taint X.509 authority: no root CA found with provided public key",
-						telemetry.Type:                         "audit",
-						telemetry.X509AuthorityPublicKeySHA256: noPersistedKeySHA256,
+						telemetry.Status:           "error",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to taint X.509 authority: no root CA found with provided Subject Key ID",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: authorityIDKeyA,
 					},
 				},
 			},
@@ -668,7 +558,7 @@ func TestTaintX509Authority(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := test.client.TaintX509Authority(ctx, &localauthorityv1.TaintX509AuthorityRequest{
-				PublicKey: tt.keyToTaint,
+				AuthorityId: tt.keyToTaint,
 			})
 
 			spiretest.AssertGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
@@ -685,35 +575,27 @@ func TestRevokeX509Authority(t *testing.T) {
 
 	currentCA, currentKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	currentKeyRaw, err := x509.MarshalPKIXPublicKey(currentKey.Public())
+	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public())
 	require.NoError(t, err)
-	currentKeySHA256 := api.HashByte(currentKeyRaw)
+	currentAuthorityID := x509util.SubjectKeyIDToString(currentKeySKI)
 
 	nextCA, nextKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	nextKeyRaw, err := x509.MarshalPKIXPublicKey(nextKey.Public())
+	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public())
 	require.NoError(t, err)
+	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
 
 	oldCA, oldKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	oldKeyRaw, err := x509.MarshalPKIXPublicKey(oldKey.Public())
+	oldKeySKI, err := x509util.GetSubjectKeyID(oldKey.Public())
 	require.NoError(t, err)
-	oldKeySHA256 := api.HashByte(oldKeyRaw)
-
-	invalidKeyByte := []byte("foo")
-	invalidKeySHA256 := api.HashByte(invalidKeyByte)
-	_, invalidKeyErr := x509.ParsePKIXPublicKey(invalidKeyByte)
-	require.Error(t, invalidKeyErr)
-
-	noPersistedKeyRaw, err := x509.MarshalPKIXPublicKey(keyA.Public())
-	require.NoError(t, err)
-	noPersistedKeySHA256 := api.HashByte(noPersistedKeyRaw)
+	oldAuthorityID := x509util.SubjectKeyIDToString(oldKeySKI)
 
 	for _, tt := range []struct {
 		name        string
 		currentSlot *fakeSlot
 		nextSlot    *fakeSlot
-		keyToRevoke []byte
+		keyToRevoke string
 
 		expectKeyToTaint crypto.PublicKey
 		expectLogs       []spiretest.LogEntry
@@ -723,12 +605,12 @@ func TestRevokeX509Authority(t *testing.T) {
 	}{
 		{
 			name:        "revoke old authority",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(false, nextAuthorityID),
 			expectResp: &localauthorityv1.RevokeX509AuthorityResponse{
 				RevokedAuthority: &localauthorityv1.AuthorityState{
-					Status:    localauthorityv1.AuthorityState_OLD,
-					PublicKey: nextKeyRaw,
+					Status:      localauthorityv1.AuthorityState_OLD,
+					AuthorityId: nextAuthorityID,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -748,13 +630,13 @@ func TestRevokeX509Authority(t *testing.T) {
 		},
 		{
 			name:        "revoke authority from parameter",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
-			keyToRevoke: oldKeyRaw,
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(false, nextAuthorityID),
+			keyToRevoke: oldAuthorityID,
 			expectResp: &localauthorityv1.RevokeX509AuthorityResponse{
 				RevokedAuthority: &localauthorityv1.AuthorityState{
-					Status:    localauthorityv1.AuthorityState_OLD,
-					PublicKey: oldKeyRaw,
+					Status:      localauthorityv1.AuthorityState_OLD,
+					AuthorityId: oldAuthorityID,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -762,9 +644,9 @@ func TestRevokeX509Authority(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status:                       "success",
-						telemetry.Type:                         "audit",
-						telemetry.X509AuthorityPublicKeySHA256: oldKeySHA256,
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: oldAuthorityID,
 					},
 				},
 				{
@@ -775,14 +657,14 @@ func TestRevokeX509Authority(t *testing.T) {
 		},
 		{
 			name:        "no allow to revoke a prepared key",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(true, nextKey.Public()),
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(true, nextAuthorityID),
 			expectCode:  codes.InvalidArgument,
-			expectMsg:   "invalid public key: unable to use a prepared key",
+			expectMsg:   "invalid authority ID: unable to use a prepared key",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: invalid public key",
+					Message: "Invalid argument: invalid authority ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "unable to use a prepared key",
 					},
@@ -793,51 +675,23 @@ func TestRevokeX509Authority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "invalid public key: unable to use a prepared key",
+						telemetry.StatusMessage: "invalid authority ID: unable to use a prepared key",
 						telemetry.Type:          "audit",
 					},
 				},
 			},
 		},
 		{
-			name:        "invalid key",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
-			keyToRevoke: invalidKeyByte,
-			expectCode:  codes.InvalidArgument,
-			expectMsg:   "invalid public key: unable to parse public key: asn1:",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: invalid public key",
-					Data: logrus.Fields{
-						logrus.ErrorKey: fmt.Sprintf("unable to parse public key: %v", invalidKeyErr),
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.Status:                       "error",
-						telemetry.StatusCode:                   "InvalidArgument",
-						telemetry.StatusMessage:                fmt.Sprintf("invalid public key: unable to parse public key: %v", invalidKeyErr),
-						telemetry.Type:                         "audit",
-						telemetry.X509AuthorityPublicKeySHA256: invalidKeySHA256,
-					},
-				},
-			},
-		},
-		{
 			name:        "unable to revoke current key",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
-			keyToRevoke: currentKeyRaw,
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(false, nextAuthorityID),
+			keyToRevoke: currentAuthorityID,
 			expectCode:  codes.InvalidArgument,
-			expectMsg:   "invalid public key: unable to use current authority",
+			expectMsg:   "invalid authority ID: unable to use current authority",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: invalid public key",
+					Message: "Invalid argument: invalid authority ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey: "unable to use current authority",
 					},
@@ -846,39 +700,39 @@ func TestRevokeX509Authority(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status:                       "error",
-						telemetry.StatusCode:                   "InvalidArgument",
-						telemetry.StatusMessage:                "invalid public key: unable to use current authority",
-						telemetry.Type:                         "audit",
-						telemetry.X509AuthorityPublicKeySHA256: currentKeySHA256,
+						telemetry.Status:           "error",
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    "invalid authority ID: unable to use current authority",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: currentAuthorityID,
 					},
 				},
 			},
 		},
 		{
 			name:        "ds fails to revoke",
-			currentSlot: createSlot(true, currentKey.Public()),
-			nextSlot:    createSlot(false, nextKey.Public()),
-			keyToRevoke: noPersistedKeyRaw,
+			currentSlot: createSlot(true, currentAuthorityID),
+			nextSlot:    createSlot(false, nextAuthorityID),
+			keyToRevoke: authorityIDKeyA,
 			expectCode:  codes.Internal,
-			expectMsg:   "failed to revoke X.509 authority: no root CA found with provided public key",
+			expectMsg:   "failed to revoke X.509 authority: no root CA found with provided Subject Key ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to revoke X.509 authority",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "rpc error: code = NotFound desc = no root CA found with provided public key",
+						logrus.ErrorKey: "rpc error: code = NotFound desc = no root CA found with provided Subject Key ID",
 					},
 				},
 				{
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status:                       "error",
-						telemetry.StatusCode:                   "Internal",
-						telemetry.StatusMessage:                "failed to revoke X.509 authority: no root CA found with provided public key",
-						telemetry.Type:                         "audit",
-						telemetry.X509AuthorityPublicKeySHA256: noPersistedKeySHA256,
+						telemetry.Status:           "error",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to revoke X.509 authority: no root CA found with provided Subject Key ID",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: authorityIDKeyA,
 					},
 				},
 			},
@@ -909,7 +763,7 @@ func TestRevokeX509Authority(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := test.client.RevokeX509Authority(ctx, &localauthorityv1.RevokeX509AuthorityRequest{
-				PublicKey: tt.keyToRevoke,
+				AuthorityId: tt.keyToRevoke,
 			})
 
 			spiretest.AssertGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
@@ -1020,21 +874,21 @@ func (m *fakeCAManager) RotateX509CA() {
 type fakeSlot struct {
 	manager.Slot
 
-	hasValue  bool
-	publicKey crypto.PublicKey
+	hasValue    bool
+	authorityID string
 }
 
 func (s *fakeSlot) IsEmpty() bool {
 	return !s.hasValue
 }
 
-func (s *fakeSlot) GetPublicKey() crypto.PublicKey {
-	return s.publicKey
+func (s *fakeSlot) AuthorityID() string {
+	return s.authorityID
 }
 
-func createSlot(hasValue bool, publicKey crypto.PublicKey) *fakeSlot {
+func createSlot(hasValue bool, authorityID string) *fakeSlot {
 	return &fakeSlot{
-		hasValue:  hasValue,
-		publicKey: publicKey,
+		hasValue:    hasValue,
+		authorityID: authorityID,
 	}
 }

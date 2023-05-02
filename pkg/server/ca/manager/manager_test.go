@@ -64,6 +64,7 @@ func TestGetCurrentJWTKeySlot(t *testing.T) {
 
 		require.True(t, slot.IsEmpty())
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
 	})
 
 	t.Run("slot returned", func(t *testing.T) {
@@ -73,6 +74,7 @@ func TestGetCurrentJWTKeySlot(t *testing.T) {
 		slot := currentSlot.(*JwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
 	})
 }
 
@@ -88,6 +90,7 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 
 		require.Nil(t, slot.jwtKey)
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
 	})
 
 	t.Run("next returned", func(t *testing.T) {
@@ -97,6 +100,7 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 		slot := nextSlot.(*JwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
 	})
 }
 
@@ -111,7 +115,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 
 		slot := currentSlot.(*X509CASlot)
 		require.Nil(t, slot.x509CA)
-		require.Nil(t, slot.publicKey)
+		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
 	})
 
@@ -121,7 +125,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 		currentSlot := test.m.GetCurrentX509CASlot()
 		slot := currentSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
-		require.NotNil(t, slot.publicKey)
+		require.NotEmpty(t, slot.authorityID)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
 	})
 }
@@ -137,7 +141,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 		slot := nextSlot.(*X509CASlot)
 
 		require.Nil(t, slot.x509CA)
-		require.Nil(t, slot.publicKey)
+		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
 	})
 
@@ -147,7 +151,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 		nextSlot := test.m.GetNextX509CASlot()
 		slot := nextSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
-		require.NotNil(t, slot.publicKey)
+		require.NotEmpty(t, slot.authorityID)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
 	})
 }

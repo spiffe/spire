@@ -76,9 +76,15 @@ func (s *Service) RevokeJWTAuthority(ctx context.Context, req *localauthorityv1.
 }
 
 func (s *Service) GetX509AuthorityState(ctx context.Context, _ *localauthorityv1.GetX509AuthorityStateRequest) (*localauthorityv1.GetX509AuthorityStateResponse, error) {
+	log := rpccontext.Logger(ctx)
+
 	var states []*localauthorityv1.AuthorityState
 	current := s.ca.GetCurrentX509CASlot()
 	if !current.IsEmpty() {
+		if current.AuthorityID() == "" {
+			return nil, api.MakeErr(log, codes.Internal, "current slot does not contains authority ID", nil)
+		}
+
 		states = append(states, &localauthorityv1.AuthorityState{
 			AuthorityId: current.AuthorityID(),
 			Status:      localauthorityv1.AuthorityState_ACTIVE,
@@ -114,10 +120,10 @@ func (s *Service) PrepareX509Authority(ctx context.Context, req *localauthorityv
 		return nil, api.MakeErr(log, codes.Internal, "failed to prepare X.509 authority", err)
 	}
 
-	slot := s.ca.GetNextX509CASlot()
+	slot := s.ca.GetCurrentX509CASlot()
 	// Prepare is going to use current slot when it is empty
-	if slot.IsEmpty() {
-		slot = s.ca.GetCurrentX509CASlot()
+	if !slot.IsEmpty() {
+		slot = s.ca.GetNextX509CASlot()
 	}
 
 	rpccontext.AuditRPC(ctx)
@@ -136,6 +142,7 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 
 	// TODO: implement a way to activate an OLD authority
 	if req.AuthorityId != "" {
+		log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
 		return nil, api.MakeErr(log, codes.InvalidArgument, "activating an old authority is not supported yet", nil)
 	}
 

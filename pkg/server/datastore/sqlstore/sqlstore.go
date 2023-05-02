@@ -1145,7 +1145,7 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, authorityID string) error {
 	}
 
 	if !found {
-		return status.Error(codes.NotFound, "no root CA found with provided public key")
+		return status.Error(codes.NotFound, "no root CA found with provided Subject Key ID")
 	}
 
 	_, err = updateBundle(tx, bundle, nil)
@@ -1183,7 +1183,7 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, authorityID string) error {
 	bundle.RootCas = rootCAs
 
 	if !found {
-		return status.Error(codes.NotFound, "no root CA found with provided public key")
+		return status.Error(codes.NotFound, "no root CA found with provided Subject Key ID")
 	}
 
 	if _, err := updateBundle(tx, bundle, nil); err != nil {

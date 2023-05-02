@@ -2,7 +2,6 @@ package rotator
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"testing"
 	"time"
@@ -544,6 +543,8 @@ func (f *fakeCAManager) waitPruneCalled(ctx context.Context, t *testing.T) {
 }
 
 type fakeSlot struct {
+	manager.Slot
+
 	keyID           string
 	preparationTime time.Time
 	activationTime  time.Time
@@ -576,10 +577,6 @@ func (s *fakeSlot) ShouldActivateNext(now time.Time) bool {
 
 func (s *fakeSlot) Status() journal.Status {
 	return s.status
-}
-
-func (s *fakeSlot) GetPublicKey() crypto.PublicKey {
-	return nil
 }
 
 func createSlot(id string, now time.Time, hasValue bool) *fakeSlot {
