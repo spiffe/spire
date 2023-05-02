@@ -26,7 +26,6 @@ check-synced-entry "spire-agent" "spiffe://domain.test/stored-1"
 check-synced-entry "spire-agent" "spiffe://domain.test/stored-2"
 check-synced-entry "spire-agent" "spiffe://domain.test/stored-3"
 
-
 log-debug "creating registration entries that should not have the SVID stored..."
 docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \

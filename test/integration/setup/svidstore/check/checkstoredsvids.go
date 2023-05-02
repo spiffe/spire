@@ -41,8 +41,7 @@ func getEntries(ctx context.Context, client *itclient.LocalServerClient) *entryv
 	entryClient := client.EntryClient()
 	entriesResp, err := entryClient.ListEntries(ctx, &entryv1.ListEntriesRequest{})
 	if err != nil {
-		log.Fatal(fmt.Errorf("failed to list entries: %w"+
-			"", err))
+		log.Fatal(fmt.Errorf("failed to list entries: %w", err))
 	}
 	return entriesResp
 }
@@ -51,38 +50,37 @@ func assertStoredSVIDs(entries *entryv1.ListEntriesResponse, svids map[string]*s
 	numStoredSVIDS := 0
 	for _, entry := range entries.Entries {
 		secretName, ok := getSecretName(entry.Selectors)
-		if !ok {
+		if !ok || !entry.StoreSvid {
 			continue
 		}
-		if entry.StoreSvid {
-			storedSVID, stored := svids[secretName]
-			if !stored {
-				log.Fatal(fmt.Errorf("svid not found for entry %s, which should be stored", entry.Id))
-			}
 
-			// decode ASN.1 DER bundle
-			for _, bundle := range storedSVID.Bundle {
-				_, err := x509.ParseCertificates(bundle)
-				assertNoError(err, fmt.Sprintf("invalid bundle for entry %s", entry.Id))
-			}
-
-			// decode certChain
-			for _, cert := range storedSVID.CertChain {
-				_, err := x509.ParseCertificate(cert)
-				assertNoError(err, fmt.Sprintf("invalid certificate for entry %s", entry.Id))
-			}
-
-			// decode private key
-			_, err := x509.ParsePKCS8PrivateKey(storedSVID.PrivateKey)
-			assertNoError(err, fmt.Sprintf("invalid private key for entry %s", entry.Id))
-
-			// check spiffe id
-			_, err = spiffeid.FromString(storedSVID.SpiffeID)
-			assertNoError(err, fmt.Sprintf("invalid spiffe id for entry %s", entry.Id))
-
-			log.Printf("SVID is correctly stored for entry %s", entry.Id)
-			numStoredSVIDS++
+		storedSVID, stored := svids[secretName]
+		if !stored {
+			log.Fatalf("svid not found for entry %q, which should be stored", entry.Id)
 		}
+
+		// decode ASN.1 DER bundle
+		for _, bundle := range storedSVID.Bundle {
+			_, err := x509.ParseCertificates(bundle)
+			assertNoError(err, "invalid bundle for entry %s", entry.Id)
+		}
+
+		// decode certChain
+		for _, cert := range storedSVID.CertChain {
+			_, err := x509.ParseCertificate(cert)
+			assertNoError(err, "invalid certificate for entry %s", entry.Id)
+		}
+
+		// decode private key
+		_, err := x509.ParsePKCS8PrivateKey(storedSVID.PrivateKey)
+		assertNoError(err, "invalid private key for entry %s", entry.Id)
+
+		// check spiffe id
+		_, err = spiffeid.FromString(storedSVID.SpiffeID)
+		assertNoError(err, "invalid spiffe id for entry %s", entry.Id)
+
+		log.Printf("SVID is correctly stored for entry %s", entry.Id)
+		numStoredSVIDS++
 	}
 	if len(svids) != numStoredSVIDS {
 		log.Fatal(fmt.Errorf("number of stored SVIDs does not match the number of svids that should be stored"))
@@ -94,12 +92,12 @@ func getSVIDsFromFile(storageFile string) map[string]*svidstorev1.X509SVID {
 
 	fileContent, err := os.ReadFile(storageFile)
 	if err != nil {
-		log.Fatal(fmt.Errorf("failed to read file: %w", err))
+		log.Fatalf("failed to read file: %s", err.Error())
 	}
 
 	err = json.Unmarshal(fileContent, &storedSVIDS)
 	if err != nil {
-		log.Fatal(fmt.Errorf("failed to unmarshal file data: %w", err))
+		log.Fatalf("failed to unmarshal file data: %s", err.Error())
 	}
 	return storedSVIDS
 }
@@ -117,8 +115,8 @@ func getSecretName(selectors []*types.Selector) (string, bool) {
 	return "", false
 }
 
-func assertNoError(err error, msg string) {
+func assertNoError(err error, format string, v ...any) {
 	if err != nil {
-		log.Fatal(msg)
+		log.Fatalf(format, v...)
 	}
 }

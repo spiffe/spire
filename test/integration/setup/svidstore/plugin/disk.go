@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginmain"
 	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -67,12 +67,12 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	file, err := os.OpenFile(config.SVIDsPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprint("failed to open file: ", err))
+		return nil, status.Errorf(codes.Internal, "failed to open file: %v", err)
 	}
 
 	_, err = file.Write([]byte("{}"))
 	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprint("failed to write to file: ", err))
+		return nil, status.Errorf(codes.Internal, "failed to write to file: %v", err)
 	}
 
 	p.file = file
@@ -112,7 +112,7 @@ func (p *Plugin) updateFile(op func(map[string]*svidstorev1.X509SVID)) error {
 	}
 	err = p.file.Truncate(0)
 	if err != nil {
-		return status.Error(codes.Internal, fmt.Sprint("failed to truncate file: ", err))
+		return status.Error(codes.Internal, fmt.Sprint("failed to	 truncate file: ", err))
 	}
 	_, err = p.file.Seek(0, 0)
 	if err != nil {
@@ -129,16 +129,13 @@ func (p *Plugin) updateFile(op func(map[string]*svidstorev1.X509SVID)) error {
 }
 
 func getSecretName(metadata []string) (string, error) {
-	parsedMetadata, err := svidstore.ParseMetadata(metadata)
-	if err != nil {
-		return "", status.Error(codes.InvalidArgument, fmt.Sprintf("failed to parse metadata: %v", err))
+	for _, data := range metadata {
+		list := strings.Split(data, "name:")
+		if len(list) > 1 {
+			return list[1], nil
+		}
 	}
-	secretName, ok := parsedMetadata["name"]
-	if !ok {
-		return "", status.Error(codes.InvalidArgument, "missing name in metadata")
-	}
-
-	return secretName, nil
+	return "", status.Error(codes.InvalidArgument, "missing name in metadata")
 }
 
 func main() {
