@@ -429,7 +429,7 @@ func TestAttest(t *testing.T) {
 				return tt.env[key]
 			}
 
-			attestor.hooks.getAWSCACertificate = func(string, SignatureType) (*x509.Certificate, error) {
+			attestor.hooks.getAWSCACertificate = func(string, PublicKeyType) (*x509.Certificate, error) {
 				if tt.overrideCACert != nil {
 					return otherAWSCACert, nil
 				}

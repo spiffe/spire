@@ -6,24 +6,25 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/awsiid/awsrsa1024"
-	awsrsa2048 "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/awsiid/awsrsa2048"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/awsiid/awsrsa2048"
 )
 
-type SignatureType int
+// PublicKeyType is the type of public key used to verify the AWS signature.
+type PublicKeyType int
 
 const (
-	KeyTypeUnset SignatureType = iota
+	KeyTypeUnset PublicKeyType = iota
 	RSA1024
 	RSA2048
 )
 
-func getAWSCACertificate(region string, signatureType SignatureType) (*x509.Certificate, error) {
+func getAWSCACertificate(region string, keyType PublicKeyType) (*x509.Certificate, error) {
 	var cert string
-	if signatureType == KeyTypeUnset {
+	if keyType == KeyTypeUnset {
 		return nil, fmt.Errorf("signature type is unset")
 	}
 
-	switch signatureType {
+	switch keyType {
 	case RSA1024:
 		cert = awsrsa1024.CACerts[region]
 		if cert == "" {
