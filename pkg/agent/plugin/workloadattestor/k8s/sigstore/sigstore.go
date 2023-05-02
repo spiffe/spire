@@ -19,11 +19,11 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/hashicorp/go-hclog"
-	"github.com/sigstore/cosign/cmd/cosign/cli/fulcio"
-	"github.com/sigstore/cosign/pkg/cosign"
-	"github.com/sigstore/cosign/pkg/cosign/bundle"
-	"github.com/sigstore/cosign/pkg/oci"
-	sig "github.com/sigstore/cosign/pkg/signature"
+	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio"
+	"github.com/sigstore/cosign/v2/pkg/cosign"
+	"github.com/sigstore/cosign/v2/pkg/cosign/bundle"
+	"github.com/sigstore/cosign/v2/pkg/oci"
+	sig "github.com/sigstore/cosign/v2/pkg/signature"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -131,7 +131,7 @@ func (s *sigstoreImpl) FetchImageSignatures(ctx context.Context, imageName strin
 		return nil, fmt.Errorf("could not validate image reference digest: %w", err)
 	}
 
-	co, err := s.functionHooks.checkOptsFunction(s.rekorURL, s.enforceSCT)
+	co, err := s.functionHooks.checkOptsFunction(ctx, s.rekorURL, s.enforceSCT, s.subjectAllowList)
 	if err != nil {
 		return nil, fmt.Errorf("could not create cosign check options: %w", err)
 	}
@@ -186,6 +186,8 @@ func (s *sigstoreImpl) SelectorValuesFromSignature(signature oci.Signature) (*Se
 		return nil, fmt.Errorf("error getting signature provider: %w", errors.New("empty issuer"))
 	}
 
+	// This filter is already done when getting the signature (since cosign 2.0),
+	// so its response must not contain signatures from disallowed subjects.
 	if issuerSubjects, ok := s.subjectAllowList[issuer]; !ok {
 		return nil, fmt.Errorf("signature issuer %q not in allow-list", issuer)
 	} else if _, ok := issuerSubjects[subject]; !ok {
@@ -339,7 +341,7 @@ func (s *sigstoreImpl) SetRekorURL(rekorURL string) error {
 	return nil
 }
 
-func defaultCheckOptsFunction(rekorURL url.URL, enforceSCT bool) (*cosign.CheckOpts, error) {
+func defaultCheckOptsFunction(ctx context.Context, rekorURL url.URL, enforceSCT bool, allowedSubjects map[string]map[string]struct{}) (*cosign.CheckOpts, error) {
 	switch {
 	case rekorURL.Host == "":
 		return nil, errors.New("rekor URL host is empty")
@@ -354,16 +356,44 @@ func defaultCheckOptsFunction(rekorURL url.URL, enforceSCT bool) (*cosign.CheckO
 		return nil, fmt.Errorf("failed to get fulcio root certificates: %w", err)
 	}
 
+	rekorPubKeys, err := cosign.GetRekorPubs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Rekor public keys: %w", err)
+	}
+
+	ctLogPubKeys, err := cosign.GetCTLogPubs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get CTLog public keys: %w", err)
+	}
+
+	intermediateCerts, err := fulcio.GetIntermediates()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Fulcio intermediate certificates: %w", err)
+	}
+
+	var allowedIdentities []cosign.Identity
+	for issuer, subjects := range allowedSubjects {
+		for subject := range subjects {
+			allowedIdentities = append(allowedIdentities, cosign.Identity{
+				Issuer:  issuer,
+				Subject: subject,
+			})
+		}
+	}
+
 	cfg := rekor.DefaultTransportConfig().WithBasePath(rekorURL.Path).WithHost(rekorURL.Host)
 	co := &cosign.CheckOpts{
 		// Set the rekor client
-		RekorClient: rekor.NewHTTPClientWithConfig(nil, cfg),
-		RootCerts:   rootCerts,
-		EnforceSCT:  enforceSCT,
+		RekorClient:       rekor.NewHTTPClientWithConfig(nil, cfg),
+		RootCerts:         rootCerts,
+		RekorPubKeys:      rekorPubKeys,
+		CTLogPubKeys:      ctLogPubKeys,
+		Identities:        allowedIdentities,
+		IntermediateCerts: intermediateCerts,
+		IgnoreSCT:         !enforceSCT,
 	}
-	co.IntermediateCerts, err = fulcio.GetIntermediates()
 
-	return co, err
+	return co, nil
 }
 
 func getSignatureSubject(signature oci.Signature) (string, error) {
@@ -480,4 +510,4 @@ type verifyFunctionType func(context.Context, name.Reference, *cosign.CheckOpts)
 
 type fetchImageManifestFunctionType func(name.Reference, ...remote.Option) (*remote.Descriptor, error)
 
-type checkOptsFunctionType func(url.URL, bool) (*cosign.CheckOpts, error)
+type checkOptsFunctionType func(context.Context, url.URL, bool, map[string]map[string]struct{}) (*cosign.CheckOpts, error)

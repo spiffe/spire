@@ -16,10 +16,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/hashicorp/go-hclog"
-	"github.com/sigstore/cosign/cmd/cosign/cli/fulcio"
-	"github.com/sigstore/cosign/pkg/cosign"
-	"github.com/sigstore/cosign/pkg/cosign/bundle"
-	"github.com/sigstore/cosign/pkg/oci"
+	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio"
+	"github.com/sigstore/cosign/v2/pkg/cosign"
+	"github.com/sigstore/cosign/v2/pkg/cosign/bundle"
+	"github.com/sigstore/cosign/v2/pkg/oci"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -66,16 +66,128 @@ func TestNew(t *testing.T) {
 	require.Nil(t, sigImpObj.logger, "new logger is not nil")
 }
 
+func TestSigstoreimpl_TestDefaultCheckOptsFunction(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tt := range []struct {
+		name            string
+		rekorURL        url.URL
+		enforceSCT      bool
+		allowedSubjects map[string]map[string]struct{}
+
+		expectErr        string
+		expectIdentities []cosign.Identity
+	}{
+		{
+			name:       "opts with multiple identities",
+			rekorURL:   rekorDefaultURL(),
+			enforceSCT: true,
+			allowedSubjects: map[string]map[string]struct{}{
+				"foo": {
+					"s1": {},
+					"s2": {},
+				},
+				"bar": {
+					"x1": {},
+				},
+			},
+			expectIdentities: []cosign.Identity{
+				{
+					Issuer:  "bar",
+					Subject: "x1",
+				},
+				{
+					Issuer:  "foo",
+					Subject: "s1",
+				},
+				{
+					Issuer:  "foo",
+					Subject: "s2",
+				},
+			},
+		},
+		{
+			name:       "ignore SCT",
+			rekorURL:   rekorDefaultURL(),
+			enforceSCT: false,
+			allowedSubjects: map[string]map[string]struct{}{
+				"foo": {
+					"s1": {},
+				},
+			},
+			expectIdentities: []cosign.Identity{
+				{
+					Issuer:  "foo",
+					Subject: "s1",
+				},
+			},
+		},
+		{
+			name:       "empty url",
+			rekorURL:   url.URL{},
+			enforceSCT: false,
+			expectErr:  "rekor URL host is empty",
+		},
+		{
+			name: "empty scheme",
+			rekorURL: url.URL{
+				Scheme: "",
+				Host:   "foo",
+				Path:   "bar",
+			},
+			enforceSCT: false,
+			expectErr:  "rekor URL scheme is empty",
+		},
+		{
+			name: "empty path",
+			rekorURL: url.URL{
+				Scheme: "http",
+				Host:   "foo",
+				Path:   "",
+			},
+			enforceSCT: false,
+			expectErr:  "rekor URL path is empty",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			co, err := defaultCheckOptsFunction(ctx, tt.rekorURL, tt.enforceSCT, tt.allowedSubjects)
+			if tt.expectErr != "" {
+				require.EqualError(t, err, tt.expectErr)
+				require.Nil(t, co)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, co)
+
+			assert.NotNil(t, co.RekorClient)
+			assert.NotEmpty(t, co.RootCerts)
+			assert.NotEmpty(t, co.RekorPubKeys)
+			assert.NotEmpty(t, co.CTLogPubKeys)
+			assert.NotEmpty(t, co.IntermediateCerts)
+
+			require.ElementsMatch(t, co.Identities, tt.expectIdentities)
+			require.Equal(t, co.IgnoreSCT, !tt.enforceSCT)
+		})
+	}
+}
+
 func TestSigstoreimpl_FetchImageSignatures(t *testing.T) {
+	ctx := context.Background()
 	type fields struct {
 		functionBindings sigstoreFunctionBindings
 		rekorURL         url.URL
 	}
 	enforceSCT := true
 
-	defaultCheckOpts, err := defaultCheckOptsFunction(rekorDefaultURL(), enforceSCT)
+	allowedSubjects := make(map[string]map[string]struct{})
+	allowedSubjects["issuer"] = map[string]struct{}{
+		"subject": {},
+	}
+
+	defaultCheckOpts, err := defaultCheckOptsFunction(ctx, rekorDefaultURL(), enforceSCT, allowedSubjects)
 	require.NoError(t, err)
-	emptyURLCheckOpts, emptyError := defaultCheckOptsFunction(url.URL{}, enforceSCT)
+	emptyURLCheckOpts, emptyError := defaultCheckOptsFunction(ctx, url.URL{}, enforceSCT, map[string]map[string]struct{}{})
 	require.Nil(t, emptyURLCheckOpts)
 	require.EqualError(t, emptyError, "rekor URL host is empty")
 
@@ -1843,8 +1955,10 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 	}
 }
 
+type ociSignature = oci.Signature //nolint: unused // used only to create an alias
+
 type signature struct {
-	oci.Signature
+	ociSignature
 
 	payload []byte
 	cert    *x509.Certificate
@@ -1942,7 +2056,7 @@ func createNilFetchFunction() fetchFunctionBinding {
 
 func createCheckOptsFunction(returnCheckOpts *cosign.CheckOpts, returnErr error) checkOptsFunctionBinding {
 	bindCheckOptsArgumentsFunction := func(t require.TestingT, checkOptsArguments *checkOptsFunctionArguments) checkOptsFunctionType {
-		newCheckOptsFunction := func(url url.URL, enforceSCT bool) (*cosign.CheckOpts, error) {
+		newCheckOptsFunction := func(ctx context.Context, url url.URL, enforceSCT bool, allowedSubjects map[string]map[string]struct{}) (*cosign.CheckOpts, error) {
 			checkOptsArguments.url = url
 			return returnCheckOpts, returnErr
 		}
@@ -1953,7 +2067,7 @@ func createCheckOptsFunction(returnCheckOpts *cosign.CheckOpts, returnErr error)
 
 func createNilCheckOptsFunction() checkOptsFunctionBinding {
 	bindCheckOptsArgumentsFunction := func(t require.TestingT, checkOptsArguments *checkOptsFunctionArguments) checkOptsFunctionType {
-		failFunction := func(url url.URL, enforceSCT bool) (*cosign.CheckOpts, error) {
+		failFunction := func(ctx context.Context, url url.URL, enforceSCT bool, allowedSubjects map[string]map[string]struct{}) (*cosign.CheckOpts, error) {
 			require.FailNow(t, "nil check opts function should not be called")
 			return nil, fmt.Errorf("nil check opts function should not be called")
 		}
