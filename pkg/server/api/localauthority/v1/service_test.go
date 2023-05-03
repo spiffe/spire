@@ -624,7 +624,7 @@ func TestRevokeX509Authority(t *testing.T) {
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Key revoked successfully",
+					Message: "X.509 authority revoked successfully",
 				},
 			},
 		},
@@ -651,7 +651,7 @@ func TestRevokeX509Authority(t *testing.T) {
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Key revoked successfully",
+					Message: "X.509 authority revoked successfully",
 				},
 			},
 		},

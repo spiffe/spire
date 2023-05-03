@@ -179,7 +179,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint X.509 authority", err)
 	}
 
-	status := &localauthorityv1.AuthorityState{
+	state := &localauthorityv1.AuthorityState{
 		AuthorityId: authorityID,
 		Status:      localauthorityv1.AuthorityState_OLD,
 	}
@@ -188,7 +188,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	log.Info("Key tainted successfully")
 
 	return &localauthorityv1.TaintX509AuthorityResponse{
-		TaintedAuthority: status,
+		TaintedAuthority: state,
 	}, nil
 }
 
@@ -196,30 +196,30 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
 
-	authorityToRevoke, err := s.getX509AuthorityID(req.AuthorityId)
+	authorityID, err := s.getX509AuthorityID(req.AuthorityId)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid authority ID", err)
 	}
 
-	log.WithField(telemetry.LocalAuthorityID, authorityToRevoke)
-	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), authorityToRevoke); err != nil {
+	log.WithField(telemetry.LocalAuthorityID, authorityID)
+	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), authorityID); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to revoke X.509 authority", err)
 	}
 
 	state := &localauthorityv1.AuthorityState{
-		AuthorityId: authorityToRevoke,
+		AuthorityId: authorityID,
 		Status:      localauthorityv1.AuthorityState_OLD,
 	}
 
 	rpccontext.AuditRPC(ctx)
-	log.Info("Key revoked successfully")
+	log.Info("X.509 authority revoked successfully")
 
 	return &localauthorityv1.RevokeX509AuthorityResponse{
 		RevokedAuthority: state,
 	}, nil
 }
 
-// getX509AuthorityPublicKey gets authority key based on rawKey or next X.509 authority if it is in OLD status
+// getX509AuthorityID validates provided authority ID, and return OLD authority ID if no provided
 func (s *Service) getX509AuthorityID(authorityID string) (string, error) {
 	if authorityID == "" {
 		// No key provided, taint OLD key
