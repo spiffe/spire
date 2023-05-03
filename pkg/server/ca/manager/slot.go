@@ -579,7 +579,7 @@ func (s *JwtKeySlot) Status() journal.Status {
 }
 
 func (s *JwtKeySlot) AuthorityID() string {
-	return jwtKeyKmKeyID(s.id)
+	return s.authorityID
 }
 
 func (s *JwtKeySlot) IsEmpty() bool {
