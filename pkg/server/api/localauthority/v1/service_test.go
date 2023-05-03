@@ -419,7 +419,10 @@ func TestTaintX509Authority(t *testing.T) {
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Key tainted successfully",
+					Message: "X.509 authority tainted successfully",
+					Data: logrus.Fields{
+						telemetry.LocalAuthorityID: nextAuthorityID,
+					},
 				},
 			},
 		},
@@ -446,7 +449,10 @@ func TestTaintX509Authority(t *testing.T) {
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Key tainted successfully",
+					Message: "X.509 authority tainted successfully",
+					Data: logrus.Fields{
+						telemetry.LocalAuthorityID: oldAuthorityID,
+					},
 				},
 			},
 		},
@@ -516,8 +522,8 @@ func TestTaintX509Authority(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to taint X.509 authority",
 					Data: logrus.Fields{
-						// TODO: this error is wrogn!!!!!!!
-						logrus.ErrorKey: "rpc error: code = NotFound desc = no root CA found with provided Subject Key ID",
+						logrus.ErrorKey:            "rpc error: code = NotFound desc = no root CA found with provided Subject Key ID",
+						telemetry.LocalAuthorityID: authorityIDKeyA,
 					},
 				},
 				{
@@ -624,6 +630,9 @@ func TestRevokeX509Authority(t *testing.T) {
 				{
 					Level:   logrus.InfoLevel,
 					Message: "X.509 authority revoked successfully",
+					Data: logrus.Fields{
+						telemetry.LocalAuthorityID: nextAuthorityID,
+					},
 				},
 			},
 		},
@@ -651,6 +660,9 @@ func TestRevokeX509Authority(t *testing.T) {
 				{
 					Level:   logrus.InfoLevel,
 					Message: "X.509 authority revoked successfully",
+					Data: logrus.Fields{
+						telemetry.LocalAuthorityID: oldAuthorityID,
+					},
 				},
 			},
 		},
@@ -720,7 +732,8 @@ func TestRevokeX509Authority(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to revoke X.509 authority",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "rpc error: code = NotFound desc = no root CA found with provided Subject Key ID",
+						logrus.ErrorKey:            "rpc error: code = NotFound desc = no root CA found with provided Subject Key ID",
+						telemetry.LocalAuthorityID: authorityIDKeyA,
 					},
 				},
 				{

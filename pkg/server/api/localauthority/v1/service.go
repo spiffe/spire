@@ -174,7 +174,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid authority ID", err)
 	}
 
-	log.WithField(telemetry.LocalAuthorityID, authorityID)
+	log = log.WithField(telemetry.LocalAuthorityID, authorityID)
 	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), authorityID); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint X.509 authority", err)
 	}
@@ -185,7 +185,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	}
 
 	rpccontext.AuditRPC(ctx)
-	log.Info("Key tainted successfully")
+	log.Info("X.509 authority tainted successfully")
 
 	return &localauthorityv1.TaintX509AuthorityResponse{
 		TaintedAuthority: state,
@@ -201,7 +201,7 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid authority ID", err)
 	}
 
-	log.WithField(telemetry.LocalAuthorityID, authorityID)
+	log = log.WithField(telemetry.LocalAuthorityID, authorityID)
 	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), authorityID); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to revoke X.509 authority", err)
 	}
