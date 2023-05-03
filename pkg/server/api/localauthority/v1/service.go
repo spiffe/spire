@@ -122,7 +122,7 @@ func (s *Service) PrepareX509Authority(ctx context.Context, req *localauthorityv
 
 	slot := s.ca.GetNextX509CASlot()
 	// Prepare is going to use current slot when it is empty
-	if !slot.IsEmpty() {
+	if slot.IsEmpty() {
 		slot = s.ca.GetCurrentX509CASlot()
 	}
 

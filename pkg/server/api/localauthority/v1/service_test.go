@@ -173,9 +173,8 @@ func TestPrepareX509Authority(t *testing.T) {
 		expectResp  *localauthorityv1.PrepareX509AuthorityResponse
 	}{
 		{
-			name:        "using next to prepare",
-			currentSlot: createSlot(true, authorityIDKeyA),
-			nextSlot:    createSlot(false, authorityIDKeyB),
+			name:     "using next to prepare",
+			nextSlot: createSlot(true, authorityIDKeyB),
 			expectResp: &localauthorityv1.PrepareX509AuthorityResponse{
 				PreparedAuthority: &localauthorityv1.AuthorityState{
 					Status:      localauthorityv1.AuthorityState_PREPARED,
@@ -195,8 +194,8 @@ func TestPrepareX509Authority(t *testing.T) {
 		},
 		{
 			name:        "using current to prepare",
-			currentSlot: createSlot(false, authorityIDKeyA),
-			nextSlot:    createSlot(true, authorityIDKeyB),
+			currentSlot: createSlot(true, authorityIDKeyA),
+			nextSlot:    createSlot(false, authorityIDKeyB),
 			expectResp: &localauthorityv1.PrepareX509AuthorityResponse{
 				PreparedAuthority: &localauthorityv1.AuthorityState{
 					Status:      localauthorityv1.AuthorityState_PREPARED,
