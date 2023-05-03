@@ -175,7 +175,7 @@ func TestPrepareX509Authority(t *testing.T) {
 		{
 			name:        "using next to prepare",
 			currentSlot: createSlot(true, authorityIDKeyA),
-			nextSlot:    createSlot(true, authorityIDKeyB),
+			nextSlot:    createSlot(false, authorityIDKeyB),
 			expectResp: &localauthorityv1.PrepareX509AuthorityResponse{
 				PreparedAuthority: &localauthorityv1.AuthorityState{
 					Status:      localauthorityv1.AuthorityState_PREPARED,

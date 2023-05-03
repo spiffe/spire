@@ -120,10 +120,10 @@ func (s *Service) PrepareX509Authority(ctx context.Context, req *localauthorityv
 		return nil, api.MakeErr(log, codes.Internal, "failed to prepare X.509 authority", err)
 	}
 
-	slot := s.ca.GetCurrentX509CASlot()
+	slot := s.ca.GetNextX509CASlot()
 	// Prepare is going to use current slot when it is empty
 	if !slot.IsEmpty() {
-		slot = s.ca.GetNextX509CASlot()
+		slot = s.ca.GetCurrentX509CASlot()
 	}
 
 	rpccontext.AuditRPC(ctx)
