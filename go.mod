@@ -32,6 +32,7 @@ require (
 	github.com/docker/docker v23.0.5+incompatible
 	github.com/envoyproxy/go-control-plane v0.11.0
 	github.com/go-sql-driver/mysql v1.7.1
+	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.5.9
