@@ -67,7 +67,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	telemetry.EmitVersion(metrics)
+	telemetry.EmitStarted(metrics, a.c.TrustDomain)
 	uptime.ReportMetrics(ctx, metrics)
 
 	cat, err := catalog.Load(ctx, catalog.Config{
