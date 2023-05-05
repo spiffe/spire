@@ -31,6 +31,6 @@ if [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9.]+$ ]]; then
 fi
 
 # Make references the $TAG environment variable set above
-for arch in ${supported_archs[@]}; do
+for arch in "${supported_archs[@]}"; do
     GOARCH=$arch make artifact
 done
