@@ -57,28 +57,28 @@ The following metrics are emitted:
 
 ## SPIRE Agent
 
-| Type         | Keys                                       | Labels                     | Description                                                                           |
-|--------------|--------------------------------------------|----------------------------|---------------------------------------------------------------------------------------|
-| Call Counter | `rpc`, `<service>`, `<method>`             |                            | Call counters over the [SPIRE Agent RPCs](<https://github.com/spiffe/spire-api-sdk>). |
-| Call Counter | `agent_key_manager`, `generate_key_pair`   |                            | The KeyManager is generating a key pair.                                              |
-| Call Counter | `agent_key_manager`, `fetch_private_key`   |                            | The KeyManager is fetching a private key.                                             |
-| Call Counter | `agent_key_manager`, `store_private_key`   |                            | The KeyManager is storing a private key.                                              |
-| Call Counter | `agent_svid`, `rotate`                     |                            | The Agent's SVID is being rotated.                                                    |
-| Sample       | `cache_manager`, `expiring_svids`          |                            | The number of expiring SVIDs that the Cache Manager has.                              |
-| Sample       | `cache_manager`, `outdated_svids`          |                            | The number of outdated SVIDs that the Cache Manager has.                              |
-| Call Counter | `manager`, `sync`, `fetch_entries_updates` |                            | The Sync Manager is fetching entries updates.                                         |
-| Call Counter | `manager`, `sync`, `fetch_svids_updates`   |                            | The Sync Manager is fetching SVIDs updates.                                           |
-| Call Counter | `node`, `attestor`, `new_svid`             |                            | The Node Attestor is calling to get an SVID.                                          |
-| Counter      | `sds_api`, `connections`                   |                            | The SDS API has successfully established a connection.                                |
-| Gauge        | `sds_api`, `connections`                   |                            | The number of active connection that the SDS API has.                                 |
-| Counter      | `workload_api`, `bundles_update`, `jwt`    |                            | The Workload API has successfully updated a JWT bundle.                               |
-| Counter      | `workload_api`, `connection`               |                            | The Workload API has successfully established a new connection.                       |
-| Gauge        | `workload_api`, `connections`              |                            | The number of active connections that the Workload API has.                           |
-| Sample       | `workload_api`, `discovered_selectors`     |                            | The number of selectors discovered during a workload attestation process.             |
-| Call Counter | `workload_api`, `workload_attestation`     |                            | The Workload API is performing a workload attestation.                                |
-| Call Counter | `workload_api`, `workload_attestor`        | `attestor`                 | The Workload API is invoking a given attestor.                                        |
-| Gauge        | `started`                                  | `version``trust_domain_id` | Information about the Agent.                                                          |
-| Gauge        | `uptime_in_ms`                             |                            | The uptime of the Agent in milliseconds.                                              |
+| Type         | Keys                                       | Labels                       | Description                                                                           |
+|--------------|--------------------------------------------|------------------------------|---------------------------------------------------------------------------------------|
+| Call Counter | `rpc`, `<service>`, `<method>`             |                              | Call counters over the [SPIRE Agent RPCs](<https://github.com/spiffe/spire-api-sdk>). |
+| Call Counter | `agent_key_manager`, `generate_key_pair`   |                              | The KeyManager is generating a key pair.                                              |
+| Call Counter | `agent_key_manager`, `fetch_private_key`   |                              | The KeyManager is fetching a private key.                                             |
+| Call Counter | `agent_key_manager`, `store_private_key`   |                              | The KeyManager is storing a private key.                                              |
+| Call Counter | `agent_svid`, `rotate`                     |                              | The Agent's SVID is being rotated.                                                    |
+| Sample       | `cache_manager`, `expiring_svids`          |                              | The number of expiring SVIDs that the Cache Manager has.                              |
+| Sample       | `cache_manager`, `outdated_svids`          |                              | The number of outdated SVIDs that the Cache Manager has.                              |
+| Call Counter | `manager`, `sync`, `fetch_entries_updates` |                              | The Sync Manager is fetching entries updates.                                         |
+| Call Counter | `manager`, `sync`, `fetch_svids_updates`   |                              | The Sync Manager is fetching SVIDs updates.                                           |
+| Call Counter | `node`, `attestor`, `new_svid`             |                              | The Node Attestor is calling to get an SVID.                                          |
+| Counter      | `sds_api`, `connections`                   |                              | The SDS API has successfully established a connection.                                |
+| Gauge        | `sds_api`, `connections`                   |                              | The number of active connection that the SDS API has.                                 |
+| Counter      | `workload_api`, `bundles_update`, `jwt`    |                              | The Workload API has successfully updated a JWT bundle.                               |
+| Counter      | `workload_api`, `connection`               |                              | The Workload API has successfully established a new connection.                       |
+| Gauge        | `workload_api`, `connections`              |                              | The number of active connections that the Workload API has.                           |
+| Sample       | `workload_api`, `discovered_selectors`     |                              | The number of selectors discovered during a workload attestation process.             |
+| Call Counter | `workload_api`, `workload_attestation`     |                              | The Workload API is performing a workload attestation.                                |
+| Call Counter | `workload_api`, `workload_attestor`        | `attestor`                   | The Workload API is invoking a given attestor.                                        |
+| Gauge        | `started`                                  | `version`, `trust_domain_id` | Information about the Agent.                                                          |
+| Gauge        | `uptime_in_ms`                             |                              | The uptime of the Agent in milliseconds.                                              |
 
 Note: These are the keys and labels that SPIRE emits, but the format of the
 metric once ingested could vary depending on the metric collector. For example,
