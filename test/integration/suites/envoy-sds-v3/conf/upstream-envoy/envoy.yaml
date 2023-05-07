@@ -32,8 +32,10 @@ static_resources:
                       cluster_name: spire_agent
             combined_validation_context:
               default_validation_context:
-                match_subject_alt_names:
-                  exact: "spiffe://domain.test/downstream-workload"
+                match_typed_subject_alt_names:
+                - san_type: URI
+                  matcher:
+                    exact: "spiffe://domain.test/downstream-workload"
               validation_context_sds_secret_config:
                 name: "spiffe://domain.test"
                 sds_config:

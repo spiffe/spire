@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
@@ -45,6 +47,18 @@ import (
 )
 
 var (
+	td      = spiffeid.RequireTrustDomainFromString("example.org")
+	rootPEM = []byte(`-----BEGIN CERTIFICATE-----
+MIIBRzCB76ADAgECAgEBMAoGCCqGSM49BAMCMBMxETAPBgNVBAMTCEFnZW50IENB
+MCAYDzAwMDEwMTAxMDAwMDAwWhcNMjEwNTI2MjE1MDA5WjATMREwDwYDVQQDEwhB
+Z2VudCBDQTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABNRTee0Z/+omKGAVU3Ns
+NkOrpvcU4gZ3C6ilHSfYUiF2o+YCdsuLZb8UFbEVB4VR1H7Ez629IPEASK1k0KW+
+KHajMjAwMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFAXjxsTxL8UIBZl5lheq
+qaDOcBhNMAoGCCqGSM49BAMCA0cAMEQCIGTDiqcBaFomiRIfRNtLNTl5wFIQMlcB
+MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
+-----END CERTIFICATE-----`)
+	root, _ = pemutil.ParseCertificate(rootPEM)
+
 	testBundle = &plugintypes.Bundle{
 		X509Authorities: []*plugintypes.X509Certificate{
 			{Asn1: []byte("FOO")},
@@ -60,8 +74,8 @@ var (
 	}
 
 	commonBundle = &common.Bundle{
-		TrustDomainId: "spiffe://example.org",
-		RootCas:       []*common.Certificate{{DerBytes: []byte("1")}},
+		TrustDomainId: td.IDString(),
+		RootCas:       []*common.Certificate{{DerBytes: root.Raw}},
 	}
 
 	coreConfig = &configv1.CoreConfiguration{TrustDomain: "test.example.org"}

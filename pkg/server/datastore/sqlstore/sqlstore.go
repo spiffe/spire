@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/hcl"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
@@ -876,6 +876,10 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 		bundle.JwtSigningKeys = newBundle.JwtSigningKeys
 	}
 
+	if inputMask.SequenceNumber {
+		bundle.SequenceNumber = newBundle.SequenceNumber
+	}
+
 	newModel, err := bundleToModel(bundle)
 	if err != nil {
 		return nil, nil, err
@@ -937,6 +941,7 @@ func appendBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
 
 	bundle, changed := bundleutil.MergeBundles(bundle, b)
 	if changed {
+		bundle.SequenceNumber++
 		newModel, err := bundleToModel(bundle)
 		if err != nil {
 			return nil, err
@@ -1088,6 +1093,7 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 
 	// Update only if bundle was modified
 	if changed {
+		newBundle.SequenceNumber = currentBundle.SequenceNumber + 1
 		_, err := updateBundle(tx, newBundle, nil)
 		if err != nil {
 			return false, fmt.Errorf("unable to write new bundle: %w", err)
@@ -2423,6 +2429,10 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 }
 
 func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors []*common.Selector) []*common.RegistrationEntry {
+	// Nothing to filter
+	if len(entries) == 0 {
+		return entries
+	}
 	type selectorKey struct {
 		Type  string
 		Value string
@@ -2667,7 +2677,7 @@ FROM
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
-UNION
+UNION ALL
 
 SELECT
 	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
@@ -2682,7 +2692,7 @@ ON
 		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
-UNION
+UNION ALL
 
 SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
@@ -2693,7 +2703,7 @@ FROM
 		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
-UNION
+UNION ALL
 
 SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
@@ -4116,14 +4126,18 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *comm
 			Selectors: entry.Selectors,
 		},
 	})
-	switch {
-	case err != nil:
+	if err != nil {
 		return nil, err
-	case len(resp.Entries) > 0:
-		return resp.Entries[0], nil
-	default:
-		return nil, nil
 	}
+
+	// listRegistrationEntriesOnce returns both exact and superset matches.
+	// Filter out the superset matches to get an exact match
+	entries := filterEntriesBySelectorSet(resp.Entries, entry.Selectors)
+	if len(entries) > 0 {
+		return entries[0], nil
+	}
+
+	return nil, nil
 }
 
 // roundCreatedAtInSeconds rounds the createdAt time to the nearest second, and return the time in seconds since the

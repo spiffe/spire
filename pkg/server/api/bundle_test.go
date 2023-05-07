@@ -28,9 +28,10 @@ func TestBundleToProto(t *testing.T) {
 		{
 			name: "success",
 			bundle: &common.Bundle{
-				TrustDomainId: td.IDString(),
-				RefreshHint:   10,
-				RootCas:       []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
+				TrustDomainId:  td.IDString(),
+				RefreshHint:    10,
+				SequenceNumber: 42,
+				RootCas:        []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
 				JwtSigningKeys: []*common.PublicKey{
 					{
 						Kid:       "key-id-1",
@@ -40,8 +41,9 @@ func TestBundleToProto(t *testing.T) {
 				},
 			},
 			expectBundle: &types.Bundle{
-				TrustDomain: td.String(),
-				RefreshHint: 10,
+				TrustDomain:    td.String(),
+				RefreshHint:    10,
+				SequenceNumber: 42,
 				X509Authorities: []*types.X509Certificate{
 					{
 						Asn1: []byte("cert-bytes"),
@@ -106,8 +108,9 @@ func TestProtoToBundle(t *testing.T) {
 		{
 			name: "success",
 			bundle: &types.Bundle{
-				TrustDomain: td.String(),
-				RefreshHint: 10,
+				TrustDomain:    td.String(),
+				RefreshHint:    10,
+				SequenceNumber: 42,
 				X509Authorities: []*types.X509Certificate{
 					{
 						Asn1: rootCA.Raw,
@@ -122,9 +125,10 @@ func TestProtoToBundle(t *testing.T) {
 				},
 			},
 			expectBundle: &common.Bundle{
-				TrustDomainId: td.IDString(),
-				RefreshHint:   10,
-				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+				TrustDomainId:  td.IDString(),
+				RefreshHint:    10,
+				SequenceNumber: 42,
+				RootCas:        []*common.Certificate{{DerBytes: rootCA.Raw}},
 				JwtSigningKeys: []*common.PublicKey{
 					{
 						PkixBytes: pkixBytes,
@@ -137,8 +141,9 @@ func TestProtoToBundle(t *testing.T) {
 		{
 			name: "Invalid X.509 certificate bytes",
 			bundle: &types.Bundle{
-				TrustDomain: td.String(),
-				RefreshHint: 10,
+				TrustDomain:    td.String(),
+				RefreshHint:    10,
+				SequenceNumber: 42,
 				X509Authorities: []*types.X509Certificate{
 					{
 						Asn1: []byte("malformed"),
@@ -150,8 +155,9 @@ func TestProtoToBundle(t *testing.T) {
 		{
 			name: "Invalid JWT key bytes",
 			bundle: &types.Bundle{
-				TrustDomain: td.String(),
-				RefreshHint: 10,
+				TrustDomain:    td.String(),
+				RefreshHint:    10,
+				SequenceNumber: 42,
 				JwtAuthorities: []*types.JWTKey{
 					{
 						PublicKey: []byte("malformed"),
@@ -165,8 +171,9 @@ func TestProtoToBundle(t *testing.T) {
 		{
 			name: "Empty key ID",
 			bundle: &types.Bundle{
-				TrustDomain: td.String(),
-				RefreshHint: 10,
+				TrustDomain:    td.String(),
+				RefreshHint:    10,
+				SequenceNumber: 42,
 				JwtAuthorities: []*types.JWTKey{
 					{
 						PublicKey: pkixBytes,
@@ -223,8 +230,9 @@ func TestFieldsFromBundleProto(t *testing.T) {
 	pkixHashed := api.HashByte(pkixBytes)
 
 	bundle := &types.Bundle{
-		TrustDomain: td.String(),
-		RefreshHint: 10,
+		TrustDomain:    td.String(),
+		RefreshHint:    10,
+		SequenceNumber: 42,
 		X509Authorities: []*types.X509Certificate{
 			{
 				Asn1: rootCA.Raw,
@@ -254,7 +262,7 @@ func TestFieldsFromBundleProto(t *testing.T) {
 				"jwt_authority_key_id.0":            "key-id-1",
 				"jwt_authority_public_key_sha256.0": pkixHashed,
 				telemetry.RefreshHint:               int64(10),
-				telemetry.SequenceNumber:            uint64(0),
+				telemetry.SequenceNumber:            uint64(42),
 				telemetry.TrustDomainID:             "example.org",
 				"x509_authorities_asn1_sha256.0":    rootCAHashed,
 			},

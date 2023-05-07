@@ -23,6 +23,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
+	ds_pubmanager "github.com/spiffe/spire/pkg/server/bundle/datastore"
+	"github.com/spiffe/spire/pkg/server/bundle/pubmanager"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/ca/rotator"
@@ -33,6 +35,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
 	"google.golang.org/grpc"
@@ -114,6 +117,12 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 	defer cat.Close()
+
+	bundlePublishingManager, err := s.newBundlePublishingManager(cat.BundlePublishers, cat.DataStore)
+	if err != nil {
+		return err
+	}
+	cat.DataStore = ds_pubmanager.WithBundleUpdateCallback(cat.DataStore, bundlePublishingManager.BundleUpdated)
 
 	err = s.validateTrustDomain(ctx, cat.GetDataStore())
 	if err != nil {
@@ -197,6 +206,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		metrics.ListenAndServe,
 		bundleManager.Run,
 		registrationManager.Run,
+		bundlePublishingManager.Run,
 		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
 		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
 	}
@@ -404,6 +414,16 @@ func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics
 			bundle_client.NewTrustDomainConfigSet(s.config.Federation.FederatesWith),
 			bundle_client.DataStoreTrustDomainConfigSource(log, cat.GetDataStore()),
 		),
+	})
+}
+
+func (s *Server) newBundlePublishingManager(bundlePublishers []bundlepublisher.BundlePublisher, ds datastore.DataStore) (*pubmanager.Manager, error) {
+	log := s.config.Log.WithField(telemetry.SubsystemName, "bundle_publishing")
+	return pubmanager.NewManager(&pubmanager.ManagerConfig{
+		BundlePublishers: bundlePublishers,
+		DataStore:        ds,
+		TrustDomain:      s.config.TrustDomain,
+		Log:              log,
 	})
 }
 
