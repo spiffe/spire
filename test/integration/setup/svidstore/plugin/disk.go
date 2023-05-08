@@ -58,6 +58,8 @@ func (p *Plugin) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRe
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	p.svids = make(map[string]*svidstorev1.X509SVID)
+
 	config := new(Config)
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
@@ -76,7 +78,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	p.file = file
-	p.svids = make(map[string]*svidstorev1.X509SVID)
 
 	return &configv1.ConfigureResponse{}, nil
 }
