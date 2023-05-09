@@ -1,4 +1,4 @@
-# Akeyless KSM plugin for Spire
+# Akeyless KMS plugin for Spire
 
 [Akeyless](https://www.akeyless.io/) plugin for the [Spire server](https://github.com/spiffe/spire) allows you to manage encryption keys and perform sign operations. Plugin based on [template](https://github.com/spiffe/spire-plugin-sdk/blob/main/templates/server/keymanager) as required by [SpiffeSpire SDK](https://github.com/spiffe/spire-plugin-sdk#spire-plugin-sdk) and similar to [AWS KMS Plugin](https://github.com/spiffe/spire/tree/main/pkg/server/plugin/keymanager/awskms)
 
