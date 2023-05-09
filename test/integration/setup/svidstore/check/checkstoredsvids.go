@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
@@ -34,7 +36,26 @@ func main() {
 
 	storedSVIDS := getSVIDsFromFile(storageFile)
 
-	assertStoredSVIDs(entriesResp, storedSVIDS)
+	currentBundle := getCurrentBundle(ctx, client)
+
+	assertStoredSVIDs(entriesResp, storedSVIDS, currentBundle)
+}
+
+func getCurrentBundle(ctx context.Context, client *itclient.LocalServerClient) []*x509.Certificate {
+	bundleClient := client.BundleClient()
+	bundlesResp, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
+	if err != nil {
+		log.Fatalf("failed to get bundle: %v", err)
+	}
+	var x509Authorities []*x509.Certificate
+	for _, x509Authority := range bundlesResp.GetX509Authorities() {
+		certs, err := x509.ParseCertificates(x509Authority.Asn1)
+		if err != nil {
+			log.Fatalf("failed to parse certificate: %v", err)
+		}
+		x509Authorities = append(x509Authorities, certs...)
+	}
+	return x509Authorities
 }
 
 func getEntries(ctx context.Context, client *itclient.LocalServerClient) *entryv1.ListEntriesResponse {
@@ -46,9 +67,10 @@ func getEntries(ctx context.Context, client *itclient.LocalServerClient) *entryv
 	return entriesResp
 }
 
-func assertStoredSVIDs(entries *entryv1.ListEntriesResponse, svids map[string]*svidstorev1.X509SVID) {
+func assertStoredSVIDs(entries *entryv1.ListEntriesResponse, svids map[string]*svidstorev1.X509SVID, currentBundle []*x509.Certificate) {
 	numStoredSVIDS := 0
 	for _, entry := range entries.Entries {
+		entrySPIFFEID := fmt.Sprintf("spiffe://%s%s", entry.SpiffeId.TrustDomain, entry.SpiffeId.Path)
 		secretName, ok := getSecretName(entry.Selectors)
 		if !ok || !entry.StoreSvid {
 			continue
@@ -60,10 +82,13 @@ func assertStoredSVIDs(entries *entryv1.ListEntriesResponse, svids map[string]*s
 		}
 
 		// decode ASN.1 DER bundle
+		var storedBundle []*x509.Certificate
 		for _, bundle := range storedSVID.Bundle {
-			_, err := x509.ParseCertificates(bundle)
+			ca, err := x509.ParseCertificates(bundle)
 			assertNoError(err, "invalid bundle for entry %s", entry.Id)
+			storedBundle = append(storedBundle, ca...)
 		}
+		assertEqualCerts(storedBundle, currentBundle, "bundle certificates do not match for entry %q", entry.Id)
 
 		// decode certChain
 		for _, cert := range storedSVID.CertChain {
@@ -76,10 +101,11 @@ func assertStoredSVIDs(entries *entryv1.ListEntriesResponse, svids map[string]*s
 		assertNoError(err, "invalid private key for entry %s", entry.Id)
 
 		// check spiffe id
-		_, err = spiffeid.FromString(storedSVID.SpiffeID)
+		spiffeID, err := spiffeid.FromString(storedSVID.SpiffeID)
 		assertNoError(err, "invalid spiffe id for entry %s", entry.Id)
+		assertEqual(spiffeID.String(), entrySPIFFEID, "SPIFFE ID does not match for entry %q", entry.Id)
 
-		log.Printf("SVID is correctly stored for entry %s", entry.Id)
+		log.Printf("SVID is correctly stored for entry %q", entry.Id)
 		numStoredSVIDS++
 	}
 	if len(svids) != numStoredSVIDS {
@@ -118,5 +144,23 @@ func getSecretName(selectors []*types.Selector) (string, bool) {
 func assertNoError(err error, format string, v ...any) {
 	if err != nil {
 		log.Fatalf(format, v...)
+	}
+}
+
+func assertEqual(expected, actual interface{}, format string, v ...any) {
+	if !reflect.DeepEqual(expected, actual) {
+		log.Fatalf(format, v...)
+	}
+}
+
+func assertEqualCerts(expected, actual []*x509.Certificate, format string, v ...any) {
+	if len(expected) != len(actual) {
+		log.Fatalf(format, v...)
+	}
+
+	for i, cert := range expected {
+		if !reflect.DeepEqual(cert, actual[i]) {
+			log.Fatalf(format, v...)
+		}
 	}
 }
