@@ -10,6 +10,7 @@ The following metrics are emitted:
 |--------------|------------------------------------------------|------------------------------|---------------------------------------------------------------------------------------|
 | Call Counter | `rpc`, `<service>`, `<method>`                 |                              | Call counters over the [SPIRE Server RPCs](https://github.com/spiffe/spire-api-sdk).  |
 | Counter      | `bundle_manager`, `update`, `federated_bundle` | `trust_domain_id`            | The bundle endpoint manager updated a federated bundle                                |
+| Call Counter | `bundle_manager`, `fetch`, `federated_bundle`  | `trust_domain_id`            | The bundle endpoint manager is fetching federated bundle.                             |
 | Call Counter | `ca`, `manager`, `bundle`, `prune`             |                              | The CA manager is pruning a bundle.                                                   |
 | Counter      | `ca`, `manager`, `bundle`, `pruned`            |                              | The CA manager has successfully pruned a bundle.                                      |
 | Call Counter | `ca`, `manager`, `jwt_key`, `prepare`          |                              | The CA manager is preparing a JWT Key.                                                |
