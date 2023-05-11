@@ -62,7 +62,7 @@ func getEntries(ctx context.Context, client *itclient.LocalServerClient) *entryv
 	entryClient := client.EntryClient()
 	entriesResp, err := entryClient.ListEntries(ctx, &entryv1.ListEntriesRequest{})
 	if err != nil {
-		log.Fatal(fmt.Errorf("failed to list entries: %w", err))
+		log.Fatalf("failed to list entries: %s", err.Error())
 	}
 	return entriesResp
 }
@@ -70,7 +70,11 @@ func getEntries(ctx context.Context, client *itclient.LocalServerClient) *entryv
 func assertStoredSVIDs(entries *entryv1.ListEntriesResponse, svids map[string]*svidstorev1.X509SVID, currentBundle []*x509.Certificate) {
 	numStoredSVIDS := 0
 	for _, entry := range entries.Entries {
-		entrySPIFFEID := fmt.Sprintf("spiffe://%s%s", entry.SpiffeId.TrustDomain, entry.SpiffeId.Path)
+		td, err := spiffeid.TrustDomainFromString(entry.SpiffeId.TrustDomain)
+		assertNoError(err, "invalid trust domain for entry %q", entry.Id)
+		entrySPIFFEID, err := spiffeid.FromPath(td, entry.SpiffeId.Path)
+		assertNoError(err, "invalid spiffe id for entry %q", entry.Id)
+
 		secretName, ok := getSecretName(entry.Selectors)
 		if !ok || !entry.StoreSvid {
 			continue
@@ -85,7 +89,7 @@ func assertStoredSVIDs(entries *entryv1.ListEntriesResponse, svids map[string]*s
 		var storedBundle []*x509.Certificate
 		for _, bundle := range storedSVID.Bundle {
 			ca, err := x509.ParseCertificates(bundle)
-			assertNoError(err, "invalid bundle for entry %s", entry.Id)
+			assertNoError(err, "invalid bundle for entry %q", entry.Id)
 			storedBundle = append(storedBundle, ca...)
 		}
 		assertEqualCerts(storedBundle, currentBundle, "bundle certificates do not match for entry %q", entry.Id)
@@ -93,23 +97,23 @@ func assertStoredSVIDs(entries *entryv1.ListEntriesResponse, svids map[string]*s
 		// decode certChain
 		for _, cert := range storedSVID.CertChain {
 			_, err := x509.ParseCertificate(cert)
-			assertNoError(err, "invalid certificate for entry %s", entry.Id)
+			assertNoError(err, "invalid certificate for entry %q", entry.Id)
 		}
 
 		// decode private key
-		_, err := x509.ParsePKCS8PrivateKey(storedSVID.PrivateKey)
-		assertNoError(err, "invalid private key for entry %s", entry.Id)
+		_, err = x509.ParsePKCS8PrivateKey(storedSVID.PrivateKey)
+		assertNoError(err, "invalid private key for entry %q", entry.Id)
 
 		// check spiffe id
 		spiffeID, err := spiffeid.FromString(storedSVID.SpiffeID)
 		assertNoError(err, "invalid spiffe id for entry %s", entry.Id)
-		assertEqual(spiffeID.String(), entrySPIFFEID, "SPIFFE ID does not match for entry %q", entry.Id)
+		assertEqual(spiffeID, entrySPIFFEID, "SPIFFE ID does not match for entry %q", entry.Id)
 
 		log.Printf("SVID is correctly stored for entry %q", entry.Id)
 		numStoredSVIDS++
 	}
 	if len(svids) != numStoredSVIDS {
-		log.Fatal(fmt.Errorf("number of stored SVIDs does not match the number of svids that should be stored"))
+		log.Fatalf("number of stored SVIDs does not match the number of svids that should be stored")
 	}
 }
 

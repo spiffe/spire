@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -68,8 +67,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
 	}
 
-	var file *os.File
-
 	file, err := os.OpenFile(config.SVIDsPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to open file: %v", err)
@@ -112,19 +109,19 @@ func (p *Plugin) updateFile(op func(map[string]*svidstorev1.X509SVID)) error {
 
 	data, err := json.Marshal(p.svids)
 	if err != nil {
-		return status.Error(codes.Internal, fmt.Sprint("failed to marshal json: ", err))
+		return status.Errorf(codes.Internal, "failed to marshal json: %s", err.Error())
 	}
 	err = p.file.Truncate(0)
 	if err != nil {
-		return status.Error(codes.Internal, fmt.Sprint("failed to	 truncate file: ", err))
+		return status.Errorf(codes.Internal, "failed to truncate file: %s", err.Error())
 	}
 	_, err = p.file.Seek(0, 0)
 	if err != nil {
-		return status.Error(codes.Internal, fmt.Sprint("failed to reset file offset: ", err))
+		return status.Errorf(codes.Internal, "failed to reset file offset: %s", err.Error())
 	}
 	n, err := p.file.Write(data)
 	if err != nil {
-		return status.Error(codes.Internal, fmt.Sprint("failed to write to file: ", err))
+		return status.Errorf(codes.Internal, "failed to write to file: %s", err.Error())
 	}
 	if n != len(data) {
 		return status.Error(codes.Internal, "failed to write all required data to to file")

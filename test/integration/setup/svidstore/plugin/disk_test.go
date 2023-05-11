@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test(t *testing.T) {
+func TestPutDeleteX509SVID(t *testing.T) {
 	plugin := new(Plugin)
 	ssClient := new(svidstorev1.SVIDStorePluginClient)
 	configClient := new(configv1.ConfigServiceClient)
@@ -45,9 +45,7 @@ func Test(t *testing.T) {
 	assert.NoError(t, err)
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	keyData, err := x509.MarshalPKCS8PrivateKey(key)
 	require.NoError(t, err)
