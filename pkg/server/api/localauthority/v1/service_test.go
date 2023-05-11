@@ -3,6 +3,7 @@ package localauthority_test
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
 	"errors"
 	"testing"
 
@@ -50,7 +51,7 @@ func TestGetX509AuthorityState(t *testing.T) {
 	}{
 		{
 			name:        "current is set",
-			currentSlot: createSlot(true, authorityIDKeyA),
+			currentSlot: createSlot(true, authorityIDKeyA, keyA.Public()),
 			nextSlot:    &fakeSlot{},
 			expectResp: &localauthorityv1.GetX509AuthorityStateResponse{
 				States: []*localauthorityv1.AuthorityState{
@@ -74,7 +75,7 @@ func TestGetX509AuthorityState(t *testing.T) {
 		{
 			name:        "next is set",
 			currentSlot: &fakeSlot{},
-			nextSlot:    createSlot(true, authorityIDKeyB),
+			nextSlot:    createSlot(true, authorityIDKeyB, keyB.Public()),
 			expectResp: &localauthorityv1.GetX509AuthorityStateResponse{
 				States: []*localauthorityv1.AuthorityState{
 					{
@@ -96,8 +97,8 @@ func TestGetX509AuthorityState(t *testing.T) {
 		},
 		{
 			name:        "next contains an old authority",
-			currentSlot: createSlot(true, authorityIDKeyA),
-			nextSlot:    createSlot(false, authorityIDKeyB),
+			currentSlot: createSlot(true, authorityIDKeyA, keyA.Public()),
+			nextSlot:    createSlot(false, authorityIDKeyB, keyB.Public()),
 			expectResp: &localauthorityv1.GetX509AuthorityStateResponse{
 				States: []*localauthorityv1.AuthorityState{
 					{
@@ -123,7 +124,7 @@ func TestGetX509AuthorityState(t *testing.T) {
 		},
 		{
 			name:        "current slot has no public key",
-			currentSlot: createSlot(true, ""),
+			currentSlot: createSlot(true, "", nil),
 			nextSlot:    &fakeSlot{},
 			expectCode:  codes.Internal,
 			expectMsg:   "current slot does not contains authority ID",
@@ -174,7 +175,7 @@ func TestPrepareX509Authority(t *testing.T) {
 	}{
 		{
 			name:     "using next to prepare",
-			nextSlot: createSlot(true, authorityIDKeyB),
+			nextSlot: createSlot(true, authorityIDKeyB, keyB.Public()),
 			expectResp: &localauthorityv1.PrepareX509AuthorityResponse{
 				PreparedAuthority: &localauthorityv1.AuthorityState{
 					Status:      localauthorityv1.AuthorityState_PREPARED,
@@ -194,8 +195,8 @@ func TestPrepareX509Authority(t *testing.T) {
 		},
 		{
 			name:        "using current to prepare",
-			currentSlot: createSlot(true, authorityIDKeyA),
-			nextSlot:    createSlot(false, authorityIDKeyB),
+			currentSlot: createSlot(true, authorityIDKeyA, keyA.Public()),
+			nextSlot:    createSlot(false, authorityIDKeyB, keyB.Public()),
 			expectResp: &localauthorityv1.PrepareX509AuthorityResponse{
 				PreparedAuthority: &localauthorityv1.AuthorityState{
 					Status:      localauthorityv1.AuthorityState_PREPARED,
@@ -215,7 +216,7 @@ func TestPrepareX509Authority(t *testing.T) {
 		},
 		{
 			name:       "failed to prepare",
-			nextSlot:   createSlot(true, authorityIDKeyB),
+			nextSlot:   createSlot(true, authorityIDKeyB, keyB.Public()),
 			prepareErr: errors.New("oh no"),
 			expectCode: codes.Internal,
 			expectMsg:  "failed to prepare X.509 authority: oh no",
@@ -272,8 +273,8 @@ func TestActivateX509Authority(t *testing.T) {
 	}{
 		{
 			name:         "activate successfully",
-			currentSlot:  createSlot(true, authorityIDKeyA),
-			nextSlot:     createSlot(true, authorityIDKeyB),
+			currentSlot:  createSlot(true, authorityIDKeyA, keyA.Public()),
+			nextSlot:     createSlot(true, authorityIDKeyB, keyB.Public()),
 			rotateCalled: true,
 			expectResp: &localauthorityv1.ActivateX509AuthorityResponse{
 				ActivatedAuthority: &localauthorityv1.AuthorityState{
@@ -294,8 +295,8 @@ func TestActivateX509Authority(t *testing.T) {
 		},
 		{
 			name:          "activate an old authority",
-			currentSlot:   createSlot(true, authorityIDKeyA),
-			nextSlot:      createSlot(true, authorityIDKeyB),
+			currentSlot:   createSlot(true, authorityIDKeyA, keyA.Public()),
+			nextSlot:      createSlot(true, authorityIDKeyB, keyB.Public()),
 			keyToActivate: authorityIDKeyA,
 			expectCode:    codes.InvalidArgument,
 			expectMsg:     "activating an old authority is not supported yet",
@@ -322,7 +323,7 @@ func TestActivateX509Authority(t *testing.T) {
 		},
 		{
 			name:        "next slot is not set",
-			currentSlot: createSlot(true, authorityIDKeyA),
+			currentSlot: createSlot(true, authorityIDKeyA, keyA.Public()),
 			nextSlot:    &fakeSlot{},
 			expectCode:  codes.Internal,
 			expectMsg:   "no prepared authority found",
@@ -376,6 +377,8 @@ func TestTaintX509Authority(t *testing.T) {
 
 	nextCA, nextKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
+	nextPublicKeyRaw, err := x509.MarshalPKIXPublicKey(nextKey.Public())
+	require.NoError(t, err)
 	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public())
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
@@ -397,11 +400,12 @@ func TestTaintX509Authority(t *testing.T) {
 		expectCode       codes.Code
 		expectMsg        string
 		expectResp       *localauthorityv1.TaintX509AuthorityResponse
+		taintedKey       []byte
 	}{
 		{
 			name:        "taint old authority",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(false, nextAuthorityID),
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(false, nextAuthorityID, nextKey.Public()),
 			expectResp: &localauthorityv1.TaintX509AuthorityResponse{
 				TaintedAuthority: &localauthorityv1.AuthorityState{
 					Status:      localauthorityv1.AuthorityState_OLD,
@@ -428,8 +432,8 @@ func TestTaintX509Authority(t *testing.T) {
 		},
 		{
 			name:        "taint authority from parameter",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(false, nextAuthorityID),
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(false, nextAuthorityID, nextKey.Public()),
 			keyToTaint:  oldAuthorityID,
 			expectResp: &localauthorityv1.TaintX509AuthorityResponse{
 				TaintedAuthority: &localauthorityv1.AuthorityState{
@@ -458,8 +462,8 @@ func TestTaintX509Authority(t *testing.T) {
 		},
 		{
 			name:        "no allow to taint a prepared key",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(true, nextAuthorityID),
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(true, nextAuthorityID, nextKey.Public()),
 			expectCode:  codes.InvalidArgument,
 			expectMsg:   "invalid authority ID: unable to use a prepared key",
 			expectLogs: []spiretest.LogEntry{
@@ -484,8 +488,8 @@ func TestTaintX509Authority(t *testing.T) {
 		},
 		{
 			name:        "unable to taint current key",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(false, nextAuthorityID),
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(false, nextAuthorityID, nextKey.Public()),
 			keyToTaint:  currentAuthorityID,
 			expectCode:  codes.InvalidArgument,
 			expectMsg:   "invalid authority ID: unable to use current authority",
@@ -494,7 +498,8 @@ func TestTaintX509Authority(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid authority ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "unable to use current authority",
+						logrus.ErrorKey:            "unable to use current authority",
+						telemetry.LocalAuthorityID: currentAuthorityID,
 					},
 				},
 				{
@@ -511,18 +516,18 @@ func TestTaintX509Authority(t *testing.T) {
 			},
 		},
 		{
-			name:        "ds fails to taint",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(false, nextAuthorityID),
+			name:        "authority ID not found",
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(false, nextAuthorityID, nextKey.Public()),
 			keyToTaint:  authorityIDKeyA,
-			expectCode:  codes.Internal,
-			expectMsg:   "failed to taint X.509 authority: no root CA found with provided Subject Key ID",
+			expectCode:  codes.InvalidArgument,
+			expectMsg:   "invalid authority ID: no ca found with provided authority ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to taint X.509 authority",
+					Message: "Invalid argument: invalid authority ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey:            "rpc error: code = NotFound desc = no root CA found with provided Subject Key ID",
+						logrus.ErrorKey:            "no ca found with provided authority ID",
 						telemetry.LocalAuthorityID: authorityIDKeyA,
 					},
 				},
@@ -531,10 +536,38 @@ func TestTaintX509Authority(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
-						telemetry.StatusCode:       "Internal",
-						telemetry.StatusMessage:    "failed to taint X.509 authority: no root CA found with provided Subject Key ID",
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    "invalid authority ID: no ca found with provided authority ID",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: authorityIDKeyA,
+					},
+				},
+			},
+		},
+		{
+			name:        "failed to taint already tainted key",
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(false, nextAuthorityID, nextKey.Public()),
+			taintedKey:  nextPublicKeyRaw,
+			expectCode:  codes.Internal,
+			expectMsg:   "failed to taint X.509 authority: root CA is already tainted",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to taint X.509 authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey:            "rpc error: code = InvalidArgument desc = root CA is already tainted",
+						telemetry.LocalAuthorityID: nextAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to taint X.509 authority: root CA is already tainted",
+						telemetry.Type:          "audit",
 					},
 				},
 			},
@@ -543,6 +576,11 @@ func TestTaintX509Authority(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
+
+			var taintedKeys []*common.X509TaintedKey
+			if tt.taintedKey != nil {
+				taintedKeys = append(taintedKeys, &common.X509TaintedKey{PublicKey: tt.taintedKey})
+			}
 
 			test.ca.currentX509CASlot = tt.currentSlot
 			test.ca.nextX509CASlot = tt.nextSlot
@@ -559,6 +597,7 @@ func TestTaintX509Authority(t *testing.T) {
 						DerBytes: oldCA.Raw,
 					},
 				},
+				X509TaintedKeys: taintedKeys,
 			})
 			require.NoError(t, err)
 
@@ -580,11 +619,14 @@ func TestRevokeX509Authority(t *testing.T) {
 
 	currentCA, currentKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
+
 	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public())
 	require.NoError(t, err)
 	currentAuthorityID := x509util.SubjectKeyIDToString(currentKeySKI)
 
 	nextCA, nextKey, err := testutil.SelfSign(template)
+	require.NoError(t, err)
+	nextPublicKeyRaw, err := x509.MarshalPKIXPublicKey(nextKey.Public())
 	require.NoError(t, err)
 	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public())
 	require.NoError(t, err)
@@ -592,15 +634,18 @@ func TestRevokeX509Authority(t *testing.T) {
 
 	oldCA, oldKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
+	oldPublicKeyRaw, err := x509.MarshalPKIXPublicKey(oldKey.Public())
+	require.NoError(t, err)
 	oldKeySKI, err := x509util.GetSubjectKeyID(oldKey.Public())
 	require.NoError(t, err)
 	oldAuthorityID := x509util.SubjectKeyIDToString(oldKeySKI)
 
 	for _, tt := range []struct {
-		name        string
-		currentSlot *fakeSlot
-		nextSlot    *fakeSlot
-		keyToRevoke string
+		name          string
+		currentSlot   *fakeSlot
+		nextSlot      *fakeSlot
+		keyToRevoke   string
+		noTaintedKeys bool
 
 		expectKeyToTaint crypto.PublicKey
 		expectLogs       []spiretest.LogEntry
@@ -610,8 +655,8 @@ func TestRevokeX509Authority(t *testing.T) {
 	}{
 		{
 			name:        "revoke old authority",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(false, nextAuthorityID),
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(false, nextAuthorityID, nextKey.Public()),
 			expectResp: &localauthorityv1.RevokeX509AuthorityResponse{
 				RevokedAuthority: &localauthorityv1.AuthorityState{
 					Status:      localauthorityv1.AuthorityState_OLD,
@@ -638,8 +683,8 @@ func TestRevokeX509Authority(t *testing.T) {
 		},
 		{
 			name:        "revoke authority from parameter",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(false, nextAuthorityID),
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(false, nextAuthorityID, nextKey.Public()),
 			keyToRevoke: oldAuthorityID,
 			expectResp: &localauthorityv1.RevokeX509AuthorityResponse{
 				RevokedAuthority: &localauthorityv1.AuthorityState{
@@ -668,8 +713,8 @@ func TestRevokeX509Authority(t *testing.T) {
 		},
 		{
 			name:        "no allow to revoke a prepared key",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(true, nextAuthorityID),
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(true, nextAuthorityID, nextKey.Public()),
 			expectCode:  codes.InvalidArgument,
 			expectMsg:   "invalid authority ID: unable to use a prepared key",
 			expectLogs: []spiretest.LogEntry{
@@ -694,8 +739,8 @@ func TestRevokeX509Authority(t *testing.T) {
 		},
 		{
 			name:        "unable to revoke current key",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(false, nextAuthorityID),
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(false, nextAuthorityID, nextKey.Public()),
 			keyToRevoke: currentAuthorityID,
 			expectCode:  codes.InvalidArgument,
 			expectMsg:   "invalid authority ID: unable to use current authority",
@@ -704,7 +749,8 @@ func TestRevokeX509Authority(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid authority ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey: "unable to use current authority",
+						logrus.ErrorKey:            "unable to use current authority",
+						telemetry.LocalAuthorityID: currentAuthorityID,
 					},
 				},
 				{
@@ -722,17 +768,17 @@ func TestRevokeX509Authority(t *testing.T) {
 		},
 		{
 			name:        "ds fails to revoke",
-			currentSlot: createSlot(true, currentAuthorityID),
-			nextSlot:    createSlot(false, nextAuthorityID),
+			currentSlot: createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:    createSlot(false, nextAuthorityID, nextKey.Public()),
 			keyToRevoke: authorityIDKeyA,
-			expectCode:  codes.Internal,
-			expectMsg:   "failed to revoke X.509 authority: no root CA found with provided Subject Key ID",
+			expectCode:  codes.InvalidArgument,
+			expectMsg:   "invalid authority ID: no ca found with provided authority ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to revoke X.509 authority",
+					Message: "Invalid argument: invalid authority ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey:            "rpc error: code = NotFound desc = no root CA found with provided Subject Key ID",
+						logrus.ErrorKey:            "no ca found with provided authority ID",
 						telemetry.LocalAuthorityID: authorityIDKeyA,
 					},
 				},
@@ -741,10 +787,40 @@ func TestRevokeX509Authority(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
-						telemetry.StatusCode:       "Internal",
-						telemetry.StatusMessage:    "failed to revoke X.509 authority: no root CA found with provided Subject Key ID",
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    "invalid authority ID: no ca found with provided authority ID",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: authorityIDKeyA,
+					},
+				},
+			},
+		},
+		{
+			name:          "failed to revoke untainted key",
+			currentSlot:   createSlot(true, currentAuthorityID, currentKey.Public()),
+			nextSlot:      createSlot(false, nextAuthorityID, nextKey.Public()),
+			keyToRevoke:   nextAuthorityID,
+			noTaintedKeys: true,
+			expectCode:    codes.Internal,
+			expectMsg:     "failed to revoke X.509 authority: it is not possible to revoke an untainted root CA",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to revoke X.509 authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey:            "rpc error: code = InvalidArgument desc = it is not possible to revoke an untainted root CA",
+						telemetry.LocalAuthorityID: nextAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to revoke X.509 authority: it is not possible to revoke an untainted root CA",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
 				},
 			},
@@ -756,6 +832,15 @@ func TestRevokeX509Authority(t *testing.T) {
 
 			test.ca.currentX509CASlot = tt.currentSlot
 			test.ca.nextX509CASlot = tt.nextSlot
+
+			var taintedKeys []*common.X509TaintedKey
+			if !tt.noTaintedKeys {
+				taintedKeys = []*common.X509TaintedKey{
+					{PublicKey: nextPublicKeyRaw},
+					{PublicKey: oldPublicKeyRaw},
+				}
+			}
+
 			_, err := test.ds.CreateBundle(ctx, &common.Bundle{
 				TrustDomainId: serverTrustDomain.IDString(),
 				RootCas: []*common.Certificate{
@@ -763,14 +848,13 @@ func TestRevokeX509Authority(t *testing.T) {
 						DerBytes: currentCA.Raw,
 					},
 					{
-						DerBytes:   nextCA.Raw,
-						TaintedKey: true,
+						DerBytes: nextCA.Raw,
 					},
 					{
-						DerBytes:   oldCA.Raw,
-						TaintedKey: true,
+						DerBytes: oldCA.Raw,
 					},
 				},
+				X509TaintedKeys: taintedKeys,
 			})
 			require.NoError(t, err)
 
@@ -888,6 +972,7 @@ type fakeSlot struct {
 
 	hasValue    bool
 	authorityID string
+	publicKey   crypto.PublicKey
 }
 
 func (s *fakeSlot) IsEmpty() bool {
@@ -898,9 +983,14 @@ func (s *fakeSlot) AuthorityID() string {
 	return s.authorityID
 }
 
-func createSlot(hasValue bool, authorityID string) *fakeSlot {
+func (s *fakeSlot) PublicKey() crypto.PublicKey {
+	return s.publicKey
+}
+
+func createSlot(hasValue bool, authorityID string, publicKey crypto.PublicKey) *fakeSlot {
 	return &fakeSlot{
 		hasValue:    hasValue,
 		authorityID: authorityID,
+		publicKey:   publicKey,
 	}
 }

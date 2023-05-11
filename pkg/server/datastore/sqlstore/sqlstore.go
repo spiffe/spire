@@ -22,9 +22,9 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
@@ -201,16 +201,16 @@ func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expires
 }
 
 // TaintX509CAByKey taints an X.509 CA signed using the provided public key
-func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
+func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKeyToTaint crypto.PublicKey) error {
 	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return taintX509CA(tx, trustDoaminID, publicKey)
+		return taintX509CA(tx, trustDoaminID, publicKeyToTaint)
 	})
 }
 
 // RevokeX509CA removes a Root CA from the bundle
-func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
+func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKeyToRevoke crypto.PublicKey) error {
 	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return revokeX509CA(tx, trustDoaminID, publicKey)
+		return revokeX509CA(tx, trustDoaminID, publicKeyToRevoke)
 	})
 }
 
@@ -891,6 +891,10 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 		bundle.SequenceNumber = newBundle.SequenceNumber
 	}
 
+	if inputMask.X509TaintedKeys {
+		bundle.X509TaintedKeys = newBundle.X509TaintedKeys
+	}
+
 	newModel, err := bundleToModel(bundle)
 	if err != nil {
 		return nil, nil, err
@@ -1114,39 +1118,33 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	return changed, nil
 }
 
-func taintX509CA(tx *gorm.DB, trustDomainID string, authorityID string) error {
+func taintX509CA(tx *gorm.DB, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
 
-	var found bool
-	for _, ca := range bundle.RootCas {
-		rootCACert, err := x509.ParseCertificate(ca.DerBytes)
+	for _, eachTaintedKey := range bundle.X509TaintedKeys {
+		taintedKey, err := x509.ParsePKIXPublicKey(eachTaintedKey.PublicKey)
 		if err != nil {
-			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
+			return status.Errorf(codes.Internal, "failed to parse tainted Key: %v", err)
 		}
 
-		subjectKeyID := x509util.SubjectKeyIDToString(rootCACert.SubjectKeyId)
-		if subjectKeyID == authorityID {
-			if ca.TaintedKey {
-				return status.Errorf(codes.InvalidArgument, "root CA is already tainted")
-			}
-
-			// Do not break the loop here so we can be sure
-			// that we taint all bundles associated with the
-			// given public key.
-			// We also check if there is at least one bundle
-			// signed by the provided key. If not, the function
-			// returns codes.NotFound status error.
-			found = true
-			ca.TaintedKey = true
+		ok, err := cryptoutil.PublicKeyEqual(taintedKey, publicKeyToTaint)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
+		}
+		if ok {
+			return status.Errorf(codes.InvalidArgument, "root CA is already tainted")
 		}
 	}
 
-	if !found {
-		return status.Error(codes.NotFound, "no root CA found with provided Subject Key ID")
+	pKey, err := x509.MarshalPKIXPublicKey(publicKeyToTaint)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to marshal public key to taint: %v", err)
 	}
+
+	bundle.X509TaintedKeys = append(bundle.X509TaintedKeys, &common.X509TaintedKey{PublicKey: pKey})
 
 	_, err = updateBundle(tx, bundle, nil)
 	if err != nil {
@@ -1156,13 +1154,41 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, authorityID string) error {
 	return nil
 }
 
-func revokeX509CA(tx *gorm.DB, trustDomainID string, authorityID string) error {
+func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
 
-	found := false
+	var taintedKeyFound bool
+	var taintedKeys []*common.X509TaintedKey
+
+	for _, eachTaintedKey := range bundle.X509TaintedKeys {
+		taintedKey, err := x509.ParsePKIXPublicKey(eachTaintedKey.PublicKey)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to parse tainted Key: %v", err)
+		}
+
+		ok, err := cryptoutil.PublicKeyEqual(taintedKey, publicKeyToRevoke)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
+		}
+		if ok {
+			taintedKeyFound = true
+			continue
+		}
+
+		taintedKeys = append(taintedKeys, eachTaintedKey)
+	}
+
+	if !taintedKeyFound {
+		return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
+	}
+	bundle.X509TaintedKeys = taintedKeys
+
+	// It is possible to keep bundles on journal, when there is no upstream authority,
+	// this code will be used to remove a CA bundle that is persisted on datastore,
+	// only in case it is found
 	var rootCAs []*common.Certificate
 	for _, ca := range bundle.RootCas {
 		cert, err := x509.ParseCertificate(ca.DerBytes)
@@ -1170,21 +1196,17 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, authorityID string) error {
 			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
 		}
 
-		subjectKeyID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
-		if subjectKeyID == authorityID {
-			if !ca.TaintedKey {
-				return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
-			}
-			found = true
+		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKeyToRevoke)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
+		}
+
+		if ok {
 			continue
 		}
 		rootCAs = append(rootCAs, ca)
 	}
 	bundle.RootCas = rootCAs
-
-	if !found {
-		return status.Error(codes.NotFound, "no root CA found with provided Subject Key ID")
-	}
 
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
 		return status.Errorf(codes.Internal, "failed to update bundle: %v", err)

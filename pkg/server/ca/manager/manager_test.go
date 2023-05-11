@@ -117,6 +117,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 		require.Nil(t, slot.x509CA)
 		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.publicKey)
 	})
 
 	t.Run("slot returned", func(t *testing.T) {
@@ -127,6 +128,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 		require.NotNil(t, slot.x509CA)
 		require.NotEmpty(t, slot.authorityID)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotNil(t, slot.publicKey)
 	})
 }
 
@@ -143,6 +145,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 		require.Nil(t, slot.x509CA)
 		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.publicKey)
 	})
 
 	t.Run("next returned", func(t *testing.T) {
@@ -153,6 +156,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 		require.NotNil(t, slot.x509CA)
 		require.NotEmpty(t, slot.authorityID)
 		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotNil(t, slot.publicKey)
 	})
 }
 

@@ -41,6 +41,7 @@ type Slot interface {
 	Status() journal.Status
 	GetPublicKey() crypto.PublicKey
 	AuthorityID() string
+	PublicKey() crypto.PublicKey
 }
 
 type SlotLoader struct {
@@ -59,12 +60,12 @@ func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	// Load the journal and see if we can figure out the next and current
 	// X509CA and JWTKey entries, if any.
 	log.WithField(telemetry.Path, journalPath).Debug("Loading journal")
-	journal, err := LoadJournal(journalPath)
+	loadedJournal, err := LoadJournal(journalPath)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	entries := journal.Entries()
+	entries := loadedJournal.Entries()
 
 	log.WithFields(logrus.Fields{
 		telemetry.X509CAs: len(entries.X509CAs),
@@ -104,7 +105,7 @@ func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		slots[NextJWTKeySlot] = nextJWTKey
 	}
 
-	return journal, slots, nil
+	return loadedJournal, slots, nil
 }
 
 // getX509CASlots returns X509CA slots based on the status of the slots.
@@ -371,6 +372,7 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAE
 		publicKey:   signer.Public(),
 		status:      entry.Status,
 		authorityID: entry.AuthorityId,
+		publicKey:   signer.Public(),
 	}, "", nil
 }
 
@@ -556,6 +558,10 @@ func (s *X509CASlot) AuthorityID() string {
 	return s.authorityID
 }
 
+func (s *X509CASlot) PublicKey() crypto.PublicKey {
+	return s.publicKey
+}
+
 type JwtKeySlot struct {
 	id          string
 	issuedAt    time.Time
@@ -580,6 +586,13 @@ func (s *JwtKeySlot) Status() journal.Status {
 
 func (s *JwtKeySlot) AuthorityID() string {
 	return s.authorityID
+}
+
+func (s *JwtKeySlot) PublicKey() crypto.PublicKey {
+	if s.jwtKey == nil {
+		return nil
+	}
+	return s.jwtKey.Signer.Public()
 }
 
 func (s *JwtKeySlot) IsEmpty() bool {

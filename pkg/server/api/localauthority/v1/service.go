@@ -2,12 +2,15 @@ package localauthority
 
 import (
 	"context"
+	"crypto"
+	"crypto/x509"
 	"errors"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
@@ -55,11 +58,11 @@ type Service struct {
 	ca CAManager
 }
 
-func (s *Service) GetJWTAuthorityState(ctx context.Context, _ *localauthorityv1.GetJWTAuthorityStateRequest) (*localauthorityv1.GetJWTAuthorityStateResponse, error) {
+func (s *Service) GetJWTAuthorityState(context.Context, *localauthorityv1.GetJWTAuthorityStateRequest) (*localauthorityv1.GetJWTAuthorityStateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
 
-func (s *Service) PrepareJWTAuthority(ctx context.Context, req *localauthorityv1.PrepareJWTAuthorityRequest) (*localauthorityv1.PrepareJWTAuthorityResponse, error) {
+func (s *Service) PrepareJWTAuthority(context.Context, *localauthorityv1.PrepareJWTAuthorityRequest) (*localauthorityv1.PrepareJWTAuthorityResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
 
@@ -67,11 +70,11 @@ func (s *Service) ActivateJWTAuthority(context.Context, *localauthorityv1.Activa
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
 
-func (s *Service) TaintJWTAuthority(ctx context.Context, req *localauthorityv1.TaintJWTAuthorityRequest) (*localauthorityv1.TaintJWTAuthorityResponse, error) {
+func (s *Service) TaintJWTAuthority(context.Context, *localauthorityv1.TaintJWTAuthorityRequest) (*localauthorityv1.TaintJWTAuthorityResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
 
-func (s *Service) RevokeJWTAuthority(ctx context.Context, req *localauthorityv1.RevokeJWTAuthorityRequest) (*localauthorityv1.RevokeJWTAuthorityResponse, error) {
+func (s *Service) RevokeJWTAuthority(context.Context, *localauthorityv1.RevokeJWTAuthorityRequest) (*localauthorityv1.RevokeJWTAuthorityResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
 
@@ -169,13 +172,16 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
 
-	authorityID, err := s.getX509AuthorityID(req.AuthorityId)
+	authorityID, publicKey, err := s.getX509PublicKey(ctx, req.AuthorityId)
 	if err != nil {
+		if req.AuthorityId != "" {
+			log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
+		}
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid authority ID", err)
 	}
-
 	log = log.WithField(telemetry.LocalAuthorityID, authorityID)
-	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), authorityID); err != nil {
+
+	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), publicKey); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint X.509 authority", err)
 	}
 
@@ -196,13 +202,16 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
 
-	authorityID, err := s.getX509AuthorityID(req.AuthorityId)
+	authorityID, publicKey, err := s.getX509PublicKey(ctx, req.AuthorityId)
 	if err != nil {
+		if req.AuthorityId != "" {
+			log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
+		}
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid authority ID", err)
 	}
 
 	log = log.WithField(telemetry.LocalAuthorityID, authorityID)
-	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), authorityID); err != nil {
+	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), publicKey); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to revoke X.509 authority", err)
 	}
 
@@ -219,24 +228,46 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 	}, nil
 }
 
-// getX509AuthorityID validates provided authority ID, and return OLD authority ID if no provided
-func (s *Service) getX509AuthorityID(authorityID string) (string, error) {
+// getX509PublicKey validates provided authority ID, and return OLD associated publick key, in case of authority ID is not provided, use the current OLD authority
+func (s *Service) getX509PublicKey(ctx context.Context, authorityID string) (string, crypto.PublicKey, error) {
 	if authorityID == "" {
 		// No key provided, taint OLD key
 		nextSlot := s.ca.GetNextX509CASlot()
 		if !nextSlot.IsEmpty() {
-			return "", errors.New("unable to use a prepared key")
+			return "", nil, errors.New("unable to use a prepared key")
 		}
 
-		return nextSlot.AuthorityID(), nil
+		return nextSlot.AuthorityID(), nextSlot.PublicKey(), nil
+	}
+
+	nextSlot := s.ca.GetNextX509CASlot()
+	if nextSlot.AuthorityID() == authorityID {
+		return nextSlot.AuthorityID(), nextSlot.PublicKey(), nil
 	}
 
 	currentSlot := s.ca.GetCurrentX509CASlot()
 	if currentSlot.AuthorityID() == authorityID {
-		return "", errors.New("unable to use current authority")
+		return "", nil, errors.New("unable to use current authority")
 	}
 
-	return authorityID, nil
+	bundle, err := s.ds.FetchBundle(ctx, s.td.IDString())
+	if err != nil {
+		return "", nil, err
+	}
+
+	for _, ca := range bundle.RootCas {
+		cert, err := x509.ParseCertificate(ca.DerBytes)
+		if err != nil {
+			return "", nil, err
+		}
+
+		subjectKeyID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+		if authorityID == subjectKeyID {
+			return subjectKeyID, cert.PublicKey, nil
+		}
+	}
+
+	return "", nil, errors.New("no ca found with provided authority ID")
 }
 
 func buildAuditLogFields(authorityID string) logrus.Fields {

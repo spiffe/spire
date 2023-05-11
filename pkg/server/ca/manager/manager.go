@@ -225,6 +225,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	// Set key from new CA, to be able to get it after
 	// slot moved to old state
 	slot.authorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId)
+	slot.publicKey = slot.x509CA.Certificate.PublicKey
 
 	if err := m.journal.AppendX509CA(slot.id, slot.issuedAt, slot.x509CA); err != nil {
 		log.WithError(err).Error("Unable to append X509 CA to journal")

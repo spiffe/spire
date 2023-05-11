@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"context"
+	"crypto"
 	"net/url"
 	"time"
 
@@ -24,8 +25,8 @@ type DataStore interface {
 	UpdateBundle(context.Context, *common.Bundle, *common.BundleMask) (*common.Bundle, error)
 
 	// Keys
-	TaintX509CA(ctx context.Context, trustDomainID string, authorityID string) error
-	RevokeX509CA(ctx context.Context, trustDomainID string, authorityID string) error
+	TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) error
+	RevokeX509CA(ctx context.Context, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error
 	TaintJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error)
 	RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error)
 
