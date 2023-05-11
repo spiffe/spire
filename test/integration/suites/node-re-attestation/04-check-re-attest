@@ -1,0 +1,7 @@
+#!/bin/bash
+source ./common
+
+docker-compose restart "spire-agent-a" "spire-agent-b" || fail-now "failed to stop services."
+
+# spire-agent-b can't re-attest because join_token implements trust on first use model.
+check-attested-agents 1

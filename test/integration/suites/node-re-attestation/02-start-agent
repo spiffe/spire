@@ -1,0 +1,22 @@
+#!/bin/bash
+source ./common
+
+log-debug "bootstrapping agent..."
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
+
+log-info "generating join token..."
+TOKEN=$(docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server token generate -spiffeID spiffe://domain.test/node | awk '{print $2}' | tr -d '\r')
+
+# Inserts the join token into the agent configuration
+log-debug "using join token ${TOKEN}..."
+sed -i.bak "s#TOKEN#${TOKEN}#g" conf/agent/agent_jointoken.conf
+
+log-debug "starting agent a..."
+docker-compose up -d "spire-agent-a" || fail-now "failed to bring up services."
+
+log-debug "starting agent b..."
+docker-compose up -d "spire-agent-b" || fail-now "failed to bring up services."
+
+check-attested-agents 2

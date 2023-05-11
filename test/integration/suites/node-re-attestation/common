@@ -1,0 +1,35 @@
+#!/bin/bash
+
+check-attested-agents () {
+  EXPECTED_COUNT=$1
+  AGENT_PATH_X509="/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
+  AGENT_PATH_JOIN_TOKEN="/spire/agent/join_token/$(grep -oP '(?<=join_token = ")[^"]*' conf/agent/agent_jointoken.conf)"
+  MAXCHECKS=10
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+    log-debug "checking attested agents ($i of $MAXCHECKS max)......"
+    MATCHING_COUNT=$(docker-compose exec -T spire-server \
+      /opt/spire/bin/spire-server agent list -output json | jq --arg x509Path "$AGENT_PATH_X509" --arg joinTokenPath "$AGENT_PATH_JOIN_TOKEN" '[.agents[] | select(.id.path == $x509Path or .id.path == $joinTokenPath)] | length')
+
+    if [[ $MATCHING_COUNT = $EXPECTED_COUNT ]]; then
+      return 0
+    fi
+    sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "Expected $EXPECTED_COUNT agents to be attested, found $MATCHING_COUNT."
+}
+
+check-evict-agents() {
+  MAXCHECKS=10
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+      log-info "checking for evicted agent ($i of $MAXCHECKS max)..."
+      if docker-compose logs "spire-server" | grep "Agent is not attested"; then
+          return 0
+      fi
+      sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "timed out waiting for agent to be evicted"
+}
