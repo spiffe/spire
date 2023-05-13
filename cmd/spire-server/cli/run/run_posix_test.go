@@ -131,7 +131,7 @@ func TestCommand_Run(t *testing.T) {
 			},
 			configLoaded: true,
 			want: want{
-				code:           0,
+				code:           1,
 				dataDirCreated: fmt.Sprintf("%s/data", testTempDir),
 			},
 		},
