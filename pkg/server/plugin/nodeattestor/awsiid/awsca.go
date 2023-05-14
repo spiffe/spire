@@ -3,6 +3,7 @@ package awsiid
 import (
 	"crypto/x509"
 	"fmt"
+	"sync"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/awsiid/awsrsa1024"
@@ -18,10 +19,17 @@ const (
 	RSA2048
 )
 
+var certCache sync.Map
+
 func getAWSCACertificate(region string, keyType PublicKeyType) (*x509.Certificate, error) {
 	var cert string
 	if keyType == KeyTypeUnset {
-		return nil, fmt.Errorf("signature type is unset")
+		return nil, fmt.Errorf("signature key type is unset")
+	}
+
+	cacheKey := fmt.Sprintf("%s:%d", region, keyType)
+	if cachedCert, ok := certCache.Load(cacheKey); ok {
+		return cachedCert.(*x509.Certificate), nil
 	}
 
 	switch keyType {
@@ -43,6 +51,8 @@ func getAWSCACertificate(region string, keyType PublicKeyType) (*x509.Certificat
 	if err != nil {
 		return nil, err
 	}
+
+	certCache.Store(cacheKey, ca)
 
 	return ca, nil
 }

@@ -339,17 +339,17 @@ func tagsFromInstance(instance ec2types.Instance) instanceTags {
 
 func unmarshalAndValidateIdentityDocument(data []byte, getAWSCACertificate func(string, PublicKeyType) (*x509.Certificate, error)) (imds.InstanceIdentityDocument, error) {
 	var attestationData caws.IIDAttestationData
-	var doc imds.InstanceIdentityDocument
-	var signature string
-	var publicKeyType PublicKeyType
-
 	if err := json.Unmarshal(data, &attestationData); err != nil {
 		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to unmarshal the attestation data: %v", err)
 	}
 
+	var doc imds.InstanceIdentityDocument
 	if err := json.Unmarshal([]byte(attestationData.Document), &doc); err != nil {
 		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to unmarshal the IID: %v", err)
 	}
+
+	var signature string
+	var publicKeyType PublicKeyType
 
 	// Use the RSA-2048 signature if present, otherwise use the RSA-1024 signature
 	// This enables the support of new and old SPIRE agents, maintaining backwards compatibility.

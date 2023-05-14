@@ -58,10 +58,9 @@ var (
 	nonzeroDeviceIndex   = int32(1)
 	instanceStoreType    = ec2types.DeviceTypeInstanceStore
 	ebsType              = ec2types.DeviceTypeEbs
+	testAWSCACert        *x509.Certificate
+	otherAWSCACert       *x509.Certificate
 )
-
-var testAWSCACert *x509.Certificate
-var otherAWSCACert *x509.Certificate
 
 func TestAttest(t *testing.T) {
 	testAWSCACert = generateCertificate(t, testAWSCAKey)
