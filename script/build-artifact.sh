@@ -9,7 +9,9 @@ TAG=${TAG:-$(git log -n1 --pretty=%h)}
 OUTDIR=${OUTDIR:-"${REPODIR}/artifacts"}
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
+
+# If GOARCH is already set in the environment, use it, otherwise default to local architecture.
+[ -z "${GOARCH}" ] && ARCH=$(uname -m) || ARCH="${GOARCH}"
 
 # change OS name to windows
 if [[ "$OS" == msys_nt-10.0-* ]] || [[ "$OS" == mingw64_nt-10.0-* ]]; then
