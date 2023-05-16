@@ -98,6 +98,22 @@ func (c *Config) authWithGCP(ctx context.Context, aklClient *akeyless.V2ApiServi
 	return c.authenticate(ctx, aklClient, authBody)
 }
 
+func (c *Config) authWithK8S(ctx context.Context, aklClient *akeyless.V2ApiService) error {
+	authBody := akeyless.NewAuthWithDefaults()
+	authBody.SetAccessType(string(K8S))
+	authBody.SetAccessKey(c.AkeylessAccessKey)
+	authBody.SetGatewayUrl(c.AkeylessGatewayURL)
+	authBody.SetK8sServiceAccountToken(c.AkeylessK8SServiceAccountToken)
+	authBody.SetK8sAuthConfigName(c.AkeylessK8SAuthConfigName)
+
+	err := c.authenticate(ctx, aklClient, authBody)
+
+	if err != nil {
+		log.L().Error("authWithK8S ERR: %v", err.Error())
+	}
+	return err
+}
+
 func (c *Config) StartAuthentication(ctx context.Context, closed chan bool) error {
 	accType := c.AkeylessAccessType
 
@@ -113,6 +129,9 @@ func (c *Config) StartAuthentication(ctx context.Context, closed chan bool) erro
 
 	case GCP:
 		authenticator = c.authWithGCP
+
+	case K8S:
+		authenticator = c.authWithK8S
 	}
 
 	// Get new token every authenticationInterval seconds

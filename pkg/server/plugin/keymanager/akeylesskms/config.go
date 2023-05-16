@@ -16,14 +16,16 @@ import (
 )
 
 const (
-	AkeylessURL               = "AKEYLESS_GATEWAY_URL"
-	AkeylessAccessType        = "AKEYLESS_ACCESS_TYPE"
-	AkeylessAccessID          = "AKEYLESS_ACCESS_ID"
-	AkeylessAccessKey         = "AKEYLESS_ACCESS_KEY"
-	Credentials               = "CREDENTIALS"
-	AkeylessAzureObjectID     = "AKEYLESS_AZURE_OBJECT_ID"
-	AkeylessGCPAudience       = "AKEYLESS_GCP_AUDIENCE"
-	defaultAkeylessGatewayURL = "http://localhost:8080/v2"
+	AkeylessURL                    = "AKEYLESS_GATEWAY_URL"
+	AkeylessAccessType             = "AKEYLESS_ACCESS_TYPE"
+	AkeylessAccessID               = "AKEYLESS_ACCESS_ID"
+	AkeylessAccessKey              = "AKEYLESS_ACCESS_KEY"
+	Credentials                    = "CREDENTIALS"
+	AkeylessAzureObjectID          = "AKEYLESS_AZURE_OBJECT_ID"
+	AkeylessGCPAudience            = "AKEYLESS_GCP_AUDIENCE"
+	AkeylessK8SServiceAccountToken = "AKEYLESS_K8S_SERVICE_ACCOUNT_TOKEN"
+	AkeylessK8SAuthConfigName      = "AKEYLESS_K8S_AUTH_CONFIG_NAME"
+	defaultAkeylessGatewayURL      = "http://localhost:8080/v2"
 )
 
 type accessType string
@@ -33,6 +35,7 @@ const (
 	AWSIAM    accessType = "aws_iam"
 	AzureAD   accessType = "azure_ad"
 	GCP       accessType = "gcp"
+	K8S       accessType = "k8s"
 )
 
 var (
@@ -41,13 +44,15 @@ var (
 
 // Config defines the configuration for the plugin.
 type Config struct {
-	log                   hclog.Logger
-	AkeylessGatewayURL    string `hcl:"akeyless_gateway_url" json:"akeyless_gateway_url"`
-	AkeylessAccessType    string `hcl:"akeyless_access_type" json:"akeyless_access_type"`
-	AkeylessAccessID      string `hcl:"akeyless_access_key_id" json:"akeyless_access_key_id"`
-	AkeylessAccessKey     string `hcl:"akeyless_access_key" json:"akeyless_access_key"`
-	AkeylessAzureObjectID string `hcl:"akeyless_azure_object_id" json:"akeyless_azure_object_id"`
-	AkeylessGCPAudience   string `hcl:"akeyless_gcp_audience" json:"akeyless_gcp_audience"`
+	log                            hclog.Logger
+	AkeylessGatewayURL             string `hcl:"akeyless_gateway_url" json:"akeyless_gateway_url"`
+	AkeylessAccessType             string `hcl:"akeyless_access_type" json:"akeyless_access_type"`
+	AkeylessAccessID               string `hcl:"akeyless_access_key_id" json:"akeyless_access_key_id"`
+	AkeylessAccessKey              string `hcl:"akeyless_access_key" json:"akeyless_access_key"`
+	AkeylessAzureObjectID          string `hcl:"akeyless_azure_object_id" json:"akeyless_azure_object_id"`
+	AkeylessGCPAudience            string `hcl:"akeyless_gcp_audience" json:"akeyless_gcp_audience"`
+	AkeylessK8SServiceAccountToken string `hcl:"akeyless_k8s_service_account_token" json:"akeyless_k8s_service_account_token"`
+	AkeylessK8SAuthConfigName      string `hcl:"akeyless_k8s_auth_config_name" json:"akeyless_k8s_auth_config_name"`
 }
 
 func ParseAndValidateConfig(c string, log hclog.Logger) (*Config, error) {
@@ -91,6 +96,10 @@ func (c *Config) UsingGCP() bool {
 	return accessType(c.AkeylessAccessType) == GCP
 }
 
+func (c *Config) UsingK8S() bool {
+	return accessType(c.AkeylessAccessType) == K8S
+}
+
 func (c *Config) Validate() error {
 	// Some basic validation checks.
 
@@ -120,6 +129,14 @@ func (c *Config) Validate() error {
 
 	if c.AkeylessGCPAudience == "" {
 		c.AkeylessGCPAudience = os.Getenv(AkeylessGCPAudience)
+	}
+
+	if c.AkeylessK8SServiceAccountToken == "" {
+		c.AkeylessK8SServiceAccountToken = os.Getenv(AkeylessK8SServiceAccountToken)
+	}
+
+	if c.AkeylessK8SAuthConfigName == "" {
+		c.AkeylessK8SAuthConfigName = os.Getenv(AkeylessK8SAuthConfigName)
 	}
 
 	if c.AkeylessGatewayURL == "" {
@@ -175,6 +192,10 @@ func (c *Config) ClientAuth(aklClient *akeyless.V2ApiService) accessType {
 
 	if err := c.authWithGCP(context.Background(), aklClient); err == nil {
 		return GCP
+	}
+
+	if err := c.authWithK8S(context.Background(), aklClient); err == nil {
+		return K8S
 	}
 
 	return ""
