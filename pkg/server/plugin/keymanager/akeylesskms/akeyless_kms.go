@@ -32,7 +32,7 @@ var (
 
 const (
 	pluginName    = "akeyless_kms"
-	pluginKeyTag  = "SPIRE"
+	pluginKeyTag  = "spire-kms"
 	pluginKeyType = "classic-key"
 )
 
