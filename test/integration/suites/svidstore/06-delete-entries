@@ -1,0 +1,11 @@
+#!/bin/bash
+
+source ./common
+
+log-debug "deleting all registration entries..."
+ids=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server entry show -output json | jq -r '.entries[] | .id')
+for id in $ids; do
+    docker-compose exec -T spire-server /opt/spire/bin/spire-server entry delete -entryID $id
+done
+
+check-deleted-svids
