@@ -22,14 +22,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.22
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.3
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.96.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.97.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.21.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.11
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v3 v3.2.2
-	github.com/docker/docker v23.0.5+incompatible
+	github.com/docker/docker v23.0.6+incompatible
 	github.com/envoyproxy/go-control-plane v0.11.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/godbus/dbus/v5 v5.1.0

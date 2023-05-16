@@ -783,8 +783,8 @@ github.com/aws/aws-sdk-go-v2/internal/ini v1.3.34 h1:gGLG7yKaXG02/jBlg210R7VgQIo
 github.com/aws/aws-sdk-go-v2/internal/ini v1.3.34/go.mod h1:Etz2dj6UHYuw+Xw830KfzCfWGMzqvUTCjUj5b76GVDc=
 github.com/aws/aws-sdk-go-v2/service/acmpca v1.21.0 h1:ncnjIBg+VXgmlIOPCRvISRrN21vTHh6+HcN9Qr5Ime8=
 github.com/aws/aws-sdk-go-v2/service/acmpca v1.21.0/go.mod h1:sxpWZy6NkYq3/l3zeHLoEN5iObspenPOqdlvmwUkJfU=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.96.1 h1:gHIAqsVrMyzv6Hpxj9JP8QMlC1ltyTWGoRhjqBNM8S0=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.96.1/go.mod h1:L3ZT0N/vBsw77mOAawXmRnREpEjcHd2v5Hzf7AkIH8M=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.97.0 h1:glGFVlA0MVrOpDF+KsVZZA/QCwykYPanYMW0DoIJN34=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.97.0/go.mod h1:L3ZT0N/vBsw77mOAawXmRnREpEjcHd2v5Hzf7AkIH8M=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.4.1/go.mod h1:FglZcyeiBqcbvyinl+n14aT/EWC7S1MIH+Gan2iizt0=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.15.0 h1:lY2Z2sBP+zSbJ6CvvmnFgPcgknoQ0OJV88AwVetRRFk=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.15.0/go.mod h1:4zYI85WiYDhFaU1jPFVfkD7HlBcdnITDE3QxDwy4Kus=
@@ -922,8 +922,8 @@ github.com/docker/cli v23.0.1+incompatible h1:LRyWITpGzl2C9e9uGxzisptnxAn1zfZKXy
 github.com/docker/cli v23.0.1+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
 github.com/docker/distribution v2.8.1+incompatible h1:Q50tZOPR6T/hjNsyc9g8/syEs6bk8XXApsHjKukMl68=
 github.com/docker/distribution v2.8.1+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
-github.com/docker/docker v23.0.5+incompatible h1:DaxtlTJjFSnLOXVNUBU1+6kXGz2lpDoEAH6QoxaSg8k=
-github.com/docker/docker v23.0.5+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
+github.com/docker/docker v23.0.6+incompatible h1:aBD4np894vatVX99UTx/GyOUOK4uEcROwA3+bQhEcoU=
+github.com/docker/docker v23.0.6+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
 github.com/docker/docker-credential-helpers v0.6.3/go.mod h1:WRaJzqw3CTB9bk10avuGsjVBZsD05qeibJ1/TYlvc0Y=
 github.com/docker/docker-credential-helpers v0.7.0 h1:xtCHsjxogADNZcdv1pKUHXryefjlVRqWqIhk/uXJp0A=
 github.com/docker/docker-credential-helpers v0.7.0/go.mod h1:rETQfLdHNT3foU5kuNkFR1R1V12OJRRO5lzt2D1b5X0=
