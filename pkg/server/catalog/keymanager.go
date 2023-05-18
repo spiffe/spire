@@ -4,6 +4,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager/akeylesskms"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/awskms"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/gcpkms"
@@ -29,6 +30,7 @@ func (repo *keyManagerRepository) Versions() []catalog.Version {
 func (repo *keyManagerRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
 		awskms.BuiltIn(),
+		akeylesskms.BuiltIn(),
 		disk.BuiltIn(),
 		gcpkms.BuiltIn(),
 		memory.BuiltIn(),
