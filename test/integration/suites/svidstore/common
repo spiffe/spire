@@ -1,0 +1,53 @@
+#!/bin/bash
+
+check-stored-svids() {
+    stored_ids=$(docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show -output json | jq -r '.entries[] | select(.store_svid == true) | .id')
+
+    for id in $stored_ids; do
+      found=0
+      MAXCHECKS=10
+      CHECKINTERVAL=1
+      for ((i=1;i<=MAXCHECKS;i++)); do
+          log-info "checking for stored entry ($i of $MAXCHECKS max)..."
+          docker-compose logs "spire-agent"
+          if docker-compose logs "spire-agent" | grep '"SVID stored successfully" entry='"$id"''; then
+              found=1
+              break
+          fi
+          sleep "${CHECKINTERVAL}"
+      done
+
+      if [ "$found" -eq 0 ]; then
+          fail-now "timed out waiting for agent to store svid"
+      fi
+    done
+
+    docker-compose exec -u 1001 -T spire-server \
+      /opt/spire/conf/server/checkstoredsvids /opt/spire/conf/agent/svids.json  || fail-now "failed to check stored svids"
+}
+
+
+check-deleted-svids() {
+    stored_ids=$(docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show -output json | jq -r '.entries[] | select(.store_svid == true) | .id')
+
+    no_entries=0
+    MAXCHECKS=10
+    CHECKINTERVAL=1
+    for ((i=1;i<=MAXCHECKS;i++)); do
+      stored_ids=$(docker-compose exec -T spire-server \
+      /opt/spire/bin/spire-server entry show -output json | jq -r '.entries[] | select(.store_svid == true) | .id')
+      if [ -z "$stored_ids" ]; then
+        no_entries=1
+      fi
+      sleep "${CHECKINTERVAL}"
+    done
+
+    if [ "$no_entries" -eq 0 ]; then
+      fail-now "timed out waiting for agent to delete all svids"
+    fi
+
+    docker-compose exec -u 1001 -T spire-server \
+      /opt/spire/conf/server/checkstoredsvids /opt/spire/conf/agent/svids.json  || fail-now "failed to check stored svids"
+}
