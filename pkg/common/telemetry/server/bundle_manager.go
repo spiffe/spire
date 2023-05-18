@@ -19,3 +19,18 @@ func IncrBundleManagerUpdateFederatedBundleCounter(m telemetry.Metrics, trustDom
 }
 
 // End Counters
+
+// Call Counters (timing and success metrics)
+// Allows adding labels in-code
+
+// StartBundleManagerFetchFederatedBundleCall return metric for Server's federated bundle fetch.
+func StartBundleManagerFetchFederatedBundleCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(
+		m,
+		telemetry.BundleManager,
+		telemetry.Fetch,
+		telemetry.FederatedBundle,
+	)
+}
+
+// End Call Counters

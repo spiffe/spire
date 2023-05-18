@@ -94,7 +94,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	telemetry.EmitVersion(metrics)
+	telemetry.EmitStarted(metrics, s.config.TrustDomain)
 	uptime.ReportMetrics(ctx, metrics)
 
 	// Create the identity provider host service. It will not be functional
