@@ -5,7 +5,6 @@ package systemd
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -38,16 +37,10 @@ func TestPlugin(t *testing.T) {
 			selectorValues: []string{"id:fake.service", "fragment_path:/org/freedesktop/systemd1/unit/fake_2eservice"},
 		},
 		{
-			name:       "fail to get unit id",
+			name:       "fail to get unit info",
 			pid:        2,
 			expectCode: codes.Internal,
-			expectMsg:  "workloadattestor(systemd): failed to get unit id for pid 2: rpc error: code = Internal desc = unknown process",
-		},
-		{
-			name:       "fail to get fragment path",
-			pid:        3,
-			expectCode: codes.Internal,
-			expectMsg:  "workloadattestor(systemd): failed to get unit fragment path for pid 3: rpc error: code = Internal desc = unknown process",
+			expectMsg:  "workloadattestor(systemd): unknown process",
 		},
 	}
 
@@ -87,38 +80,15 @@ func loadPlugin(t *testing.T, log logrus.FieldLogger) workloadattestor.WorkloadA
 
 func newPlugin() *Plugin {
 	p := New()
-	p.getUnitInfo = func(ctx context.Context, pid uint) (unitInfo, error) {
-		return newFakeUnit(pid), nil
+	p.getUnitInfo = func(ctx context.Context, pid uint) (*DBusUnitInfo, error) {
+		switch pid {
+		case 1:
+			return &DBusUnitInfo{"fake.service", "/org/freedesktop/systemd1/unit/fake_2eservice"}, nil
+		case 2:
+			return nil, status.Errorf(codes.Internal, "unknown process")
+		default:
+			return nil, status.Errorf(codes.Internal, "unhandled unit Id test case %d", pid)
+		}
 	}
 	return p
-}
-
-type fakeUnit struct {
-	pid uint
-}
-
-func (u fakeUnit) ID() (string, error) {
-	switch u.pid {
-	case 1, 3:
-		return "fake.service", nil
-	case 2:
-		return "", status.Errorf(codes.Internal, "unknown process")
-	default:
-		return "", status.Errorf(codes.Internal, "unhandled unit Id test case %d", u.pid)
-	}
-}
-
-func (u fakeUnit) FragmentPath() (string, error) {
-	switch u.pid {
-	case 1, 2:
-		return "/org/freedesktop/systemd1/unit/fake_2eservice", nil
-	case 3:
-		return "", status.Errorf(codes.Internal, "unknown process")
-	default:
-		return "", fmt.Errorf("unhandled unit FragmentPath test case %d", u.pid)
-	}
-}
-
-func newFakeUnit(pid uint) unitInfo {
-	return fakeUnit{pid}
 }
