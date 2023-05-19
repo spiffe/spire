@@ -1,7 +1,5 @@
 # Changelog
 
-# Changelog
-
 ## [1.6.4] - 2023-05-17
 
 ### Added
