@@ -28,7 +28,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type DBusUnitInfo struct {
-	UnitId           string
+	UnitID           string
 	UnitFragmentPath string
 }
 
@@ -59,7 +59,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	var selectorValues []string
 
-	selectorValues = append(selectorValues, makeSelectorValue("id", uInfo.UnitId))
+	selectorValues = append(selectorValues, makeSelectorValue("id", uInfo.UnitID))
 	selectorValues = append(selectorValues, makeSelectorValue("fragment_path", uInfo.UnitFragmentPath))
 
 	return &workloadattestorv1.AttestResponse{
