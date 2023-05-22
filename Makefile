@@ -96,6 +96,8 @@ else ifeq ($(arch1),aarch64)
 arch2=arm64
 else ifeq ($(arch1),arm64)
 arch2=arm64
+else ifeq ($(arch1),s390x)
+arch2=s390x
 else
 $(error unsupported ARCH: $(arch1))
 endif
@@ -139,6 +141,8 @@ ifeq ($(os1),windows)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-win64.zip
 else ifeq ($(arch2),arm64)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-aarch_64.zip
+else ifeq ($(arch2),s390x)
+protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-s390_64.zip
 else
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-$(arch1).zip
 endif

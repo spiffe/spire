@@ -136,7 +136,7 @@ jobs:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Build artifacts
-        run: ./.github/workflows/scripts/build_artifacts.sh
+        run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive artifacts
         uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3
         with:
@@ -452,7 +452,7 @@ jobs:
           install: >-
             git base-devel mingw-w64-x86_64-toolchain zip unzip
       - name: Build artifacts
-        run: ./.github/workflows/scripts/build_artifacts.sh
+        run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive binaries
         uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3
         with:

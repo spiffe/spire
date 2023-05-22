@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.6.4] - 2023-05-17
+
+### Added
+
+- ARM64 binaries are now included in the release artifacts (#4143)
+- Various build script improvements (#4062, #4081, #4096, #4127)
+- Various doc improvements (#4076)
+- Workload API hint support (#3993, #4074)
+- Improved performance when listing queries for PostgreSQL (#4111)
+- Support for SPIFFE bundle sequence numbers (#4061)
+- New Systemd Workload Attestor plugin (#4058)
+- New [BundlePublisher](https://github.com/spiffe/spire-plugin-sdk/blob/v1.6.4/proto/spire/plugin/server/bundlepublisher/v1/bundlepublisher.proto) plugin type (#4022)
+- New `agent purge` command for removing stale agent records (#3982)
+
+### Fixed
+
+- Bug determining if an entry was unique (#4063)
+
 ## [1.6.3] - 2023-04-12
 
 ### Added

@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	docPath = "instance-identity/document"
-	sigPath = "instance-identity/signature"
+	docPath        = "instance-identity/document"
+	sigPath        = "instance-identity/signature"
+	sigRSA2048Path = "instance-identity/rsa2048"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -101,14 +102,22 @@ func fetchMetadata(ctx context.Context, endpoint string) (*caws.IIDAttestationDa
 		return nil, err
 	}
 
-	sig, err := getMetadataSig(ctx, client)
+	sig, err := getMetadataSig(ctx, client, sigPath)
 	if err != nil {
 		return nil, err
 	}
 
+	sigRSA2048, err := getMetadataSig(ctx, client, sigRSA2048Path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Agent sends both RSA-1024 and RSA-2048 signatures. This is for maintaining backwards compatibility, to support
+	// new SPIRE agents to attest to older SPIRE servers.
 	return &caws.IIDAttestationData{
-		Document:  doc,
-		Signature: sig,
+		Document:         doc,
+		Signature:        sig,
+		SignatureRSA2048: sigRSA2048,
 	}, nil
 }
 
@@ -123,9 +132,9 @@ func getMetadataDoc(ctx context.Context, client *imds.Client) (string, error) {
 	return readStringAndClose(res.Content)
 }
 
-func getMetadataSig(ctx context.Context, client *imds.Client) (string, error) {
+func getMetadataSig(ctx context.Context, client *imds.Client, signaturePath string) (string, error) {
 	res, err := client.GetDynamicData(ctx, &imds.GetDynamicDataInput{
-		Path: sigPath,
+		Path: signaturePath,
 	})
 	if err != nil {
 		return "", err

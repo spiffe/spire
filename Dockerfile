@@ -58,7 +58,7 @@ RUN set -e ; xx-apk --no-cache --update add build-base musl-dev libseccomp-dev
 ENV CGO_ENABLED=1
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
-    if [ "$TARGETARCH" = "arm64" ]; then CC=aarch64-alpine-linux-musl; fi && \
+    if [ "$TARGETARCH" = "arm64" ]; then CC=aarch64-alpine-linux-musl; elif [ "$TARGETARCH" = "s390x" ]; then CC=s390x-alpine-linux-musl; fi && \
     make build-static && \
     for f in $(find bin -executable -type f); do xx-verify $f; done
 

@@ -1,0 +1,30 @@
+#!/bin/bash
+
+source ./common
+
+log-debug "updating registration entries that has stored SVIDs..."
+ids=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server entry show -output json | jq -r '.entries[] | select(.store_svid == true) | .id')
+for id in $ids; do
+    docker-compose exec -T spire-server \
+        /opt/spire/bin/spire-server entry update \
+        -entryID $id \
+        -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+        -spiffeID "spiffe://domain.test/updated-$id" \
+        -selector "disk:name:$id"
+done
+
+log-debug "updating registration entries that don't have stored SVIDs..."
+ids=$(docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry show -output json | jq -r '.entries[] | select(.spiffe_id.path | contains("not-stored")) | .id')
+for id in $ids; do
+    docker-compose exec -T spire-server \
+        /opt/spire/bin/spire-server entry update \
+        -entryID "$id" \
+        -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+        -spiffeID "spiffe://domain.test/now-stored-$id" \
+        -selector "disk:name:stored-$id" \
+        -storeSVID true
+    echo "$id"
+done
+
+check-stored-svids
