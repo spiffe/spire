@@ -477,8 +477,8 @@ cloud.google.com/go/security v1.9.0/go.mod h1:6Ta1bO8LXI89nZnmnsZGp9lVoVWXqsVbIq
 cloud.google.com/go/security v1.10.0/go.mod h1:QtOMZByJVlibUT2h9afNDWRZ1G96gVywH8T5GUSb9IA=
 cloud.google.com/go/security v1.12.0/go.mod h1:rV6EhrpbNHrrxqlvW0BWAIawFWq3X90SduMJdFwtLB8=
 cloud.google.com/go/security v1.13.0/go.mod h1:Q1Nvxl1PAgmeW0y3HTt54JYIvUdtcpYKVfIB8AOMZ+0=
-cloud.google.com/go/security v1.14.0 h1:ujoEatlM890TPMVv3EBcoVfVh0DibTTTwy+lkUDE+kE=
-cloud.google.com/go/security v1.14.0/go.mod h1:Q1Nvxl1PAgmeW0y3HTt54JYIvUdtcpYKVfIB8AOMZ+0=
+cloud.google.com/go/security v1.14.1 h1:ZN+MFf1djt4VhuVd+JYoBjRftics3qKParPAXT5l4Uo=
+cloud.google.com/go/security v1.14.1/go.mod h1:ItQAI0zVZd1OkHh+raoef892dsr7VY2QzMDJ4nOPtOs=
 cloud.google.com/go/securitycenter v1.13.0/go.mod h1:cv5qNAqjY84FCN6Y9z28WlkKXyWsgLO832YiWwkCWcU=
 cloud.google.com/go/securitycenter v1.14.0/go.mod h1:gZLAhtyKv85n52XYWt6RmeBdydyxfPeTrpToDPw4Auc=
 cloud.google.com/go/securitycenter v1.15.0/go.mod h1:PeKJ0t8MoFmmXLXWm41JidyzI3PJjd8sXWaVqg43WWk=
