@@ -1,15 +1,15 @@
 #!/bin/bash
 source ./common
 
-JOIN_TOKEN=$(grep -oP '(?<=join_token = ")[^"]*' conf/agent/agent_jointoken.conf)
-X509_FINGERPRINT=$(fingerprint conf/agent/agent.crt.pem)
+AGENT_A_SPIFFE_ID="spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
+AGENT_B_SPIFFE_ID="spiffe://domain.test/spire/agent/join_token/$(grep -oP '(?<=join_token = ")[^"]*' conf/agent/agent_jointoken.conf)"
 
 log-debug "evicting agents..."
 docker-compose exec -T spire-server \
-    /opt/spire/bin/spire-server agent evict -spiffeID spiffe://domain.test/spire/agent/x509pop/$X509_FINGERPRINT || fail-now "failed to evict agents a."
+    /opt/spire/bin/spire-server agent evict -spiffeID $AGENT_A_SPIFFE_ID || fail-now "failed to evict agent a."
 
 docker-compose exec -T spire-server \
-    /opt/spire/bin/spire-server agent evict -spiffeID spiffe://domain.test/spire/agent/join_token/$JOIN_TOKEN || fail-now "failed to evict agents b."
+    /opt/spire/bin/spire-server agent evict -spiffeID $AGENT_B_SPIFFE_ID || fail-now "failed to evict agent b."
 
-check-evict-agents
-check-attested-agents 0
+check-evict-agents $AGENT_A_SPIFFE_ID $AGENT_B_SPIFFE_ID
+check-attested-agents
