@@ -5,8 +5,11 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -23,6 +26,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/fullsailor/pkcs7"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -89,8 +93,8 @@ type IIDAttestorPlugin struct {
 
 	// test hooks
 	hooks struct {
-		getAWSCAPublicKey func() (*rsa.PublicKey, error)
-		getenv            func(string) string
+		getAWSCACertificate func(string, PublicKeyType) (*x509.Certificate, error)
+		getenv              func(string) string
 	}
 
 	log hclog.Logger
@@ -106,14 +110,14 @@ type IIDAttestorConfig struct {
 	AssumeRole                      string   `hcl:"assume_role"`
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
-	awsCAPublicKey                  *rsa.PublicKey
+	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
 }
 
 // New creates a new IIDAttestorPlugin.
 func New() *IIDAttestorPlugin {
 	p := &IIDAttestorPlugin{}
 	p.clients = newClientsCache(defaultNewClientCallback)
-	p.hooks.getAWSCAPublicKey = getAWSCAPublicKey
+	p.hooks.getAWSCACertificate = getAWSCACertificate
 	p.hooks.getenv = os.Getenv
 	return p
 }
@@ -135,7 +139,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return err
 	}
 
-	attestationData, err := unmarshalAndValidateIdentityDocument(payload, c.awsCAPublicKey)
+	attestationData, err := unmarshalAndValidateIdentityDocument(payload, c.getAWSCACertificate)
 	if err != nil {
 		return err
 	}
@@ -223,14 +227,10 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	// Get the AWS CA public key. We do this lazily on configure so deployments
+	// Function to get the AWS CA certificate. We do this lazily on configure so deployments
 	// not using this plugin don't pay for parsing it on startup. This
 	// operation should not fail, but we check the return value just in case.
-	awsCAPublicKey, err := p.hooks.getAWSCAPublicKey()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to load the AWS CA public key: %v", err)
-	}
-	config.awsCAPublicKey = awsCAPublicKey
+	config.getAWSCACertificate = p.hooks.getAWSCACertificate
 
 	if err := config.Validate(p.hooks.getenv(accessKeyIDVarName), p.hooks.getenv(secretAccessKeyVarName)); err != nil {
 		return nil, err
@@ -239,6 +239,8 @@ func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 	if req.CoreConfiguration == nil {
 		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}
+
+	var err error
 	config.trustDomain, err = spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "core configuration has invalid trust domain: %v", err)
@@ -335,7 +337,7 @@ func tagsFromInstance(instance ec2types.Instance) instanceTags {
 	return tags
 }
 
-func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (imds.InstanceIdentityDocument, error) {
+func unmarshalAndValidateIdentityDocument(data []byte, getAWSCACertificate func(string, PublicKeyType) (*x509.Certificate, error)) (imds.InstanceIdentityDocument, error) {
 	var attestationData caws.IIDAttestationData
 	if err := json.Unmarshal(data, &attestationData); err != nil {
 		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to unmarshal the attestation data: %v", err)
@@ -346,18 +348,87 @@ func unmarshalAndValidateIdentityDocument(data []byte, pubKey *rsa.PublicKey) (i
 		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to unmarshal the IID: %v", err)
 	}
 
-	docHash := sha256.Sum256([]byte(attestationData.Document))
+	var signature string
+	var publicKeyType PublicKeyType
 
-	sigBytes, err := base64.StdEncoding.DecodeString(attestationData.Signature)
-	if err != nil {
-		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to decode the IID signature: %v", err)
+	// Use the RSA-2048 signature if present, otherwise use the RSA-1024 signature
+	// This enables the support of new and old SPIRE agents, maintaining backwards compatibility.
+	if attestationData.SignatureRSA2048 != "" {
+		signature = attestationData.SignatureRSA2048
+		publicKeyType = RSA2048
+	} else {
+		signature = attestationData.Signature
+		publicKeyType = RSA1024
 	}
 
-	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, docHash[:], sigBytes); err != nil {
-		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed to verify the cryptographic signature: %v", err)
+	if signature == "" {
+		return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "instance identity cryptographic signature is required")
+	}
+
+	caCert, err := getAWSCACertificate(doc.Region, publicKeyType)
+	if err != nil {
+		return imds.InstanceIdentityDocument{}, status.Errorf(codes.Internal, "failed to load the AWS CA certificate for region %q: %v", doc.Region, err)
+	}
+
+	switch publicKeyType {
+	case RSA1024:
+		if err := verifyRSASignature(caCert.PublicKey.(*rsa.PublicKey), attestationData.Document, signature); err != nil {
+			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, err.Error())
+		}
+	case RSA2048:
+		pkcs7Sig, err := decodeAndParsePKCS7Signature(signature, caCert)
+		if err != nil {
+			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, err.Error())
+		}
+
+		if err := pkcs7Sig.Verify(); err != nil {
+			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed verification of instance identity cryptographic signature: %v", err)
+		}
 	}
 
 	return doc, nil
+}
+
+func verifyRSASignature(pubKey *rsa.PublicKey, doc string, signature string) error {
+	docHash := sha256.Sum256([]byte(doc))
+
+	sigBytes, err := base64.StdEncoding.DecodeString(signature)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to decode the IID signature: %v", err)
+	}
+
+	if err := rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, docHash[:], sigBytes); err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to verify the cryptographic signature: %v", err)
+	}
+
+	return nil
+}
+
+func decodeAndParsePKCS7Signature(signature string, caCert *x509.Certificate) (*pkcs7.PKCS7, error) {
+	signaturePEM := addPKCS7HeaderAndFooter(signature)
+	signatureBlock, _ := pem.Decode([]byte(signaturePEM))
+	if signatureBlock == nil {
+		return nil, errors.New("failed to decode the instance identity cryptographic signature")
+	}
+
+	pkcs7Sig, err := pkcs7.Parse(signatureBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the instance identity cryptographic signature: %w", err)
+	}
+
+	// add the CA certificate to the PKCS7 signature to verify it
+	pkcs7Sig.Certificates = []*x509.Certificate{caCert}
+	return pkcs7Sig, nil
+}
+
+// AWS returns the PKCS7 signature without the header and footer. This function adds them to be able to parse
+// the signature as a PEM block.
+func addPKCS7HeaderAndFooter(signature string) string {
+	var sb strings.Builder
+	sb.WriteString("-----BEGIN PKCS7-----\n")
+	sb.WriteString(signature)
+	sb.WriteString("\n-----END PKCS7-----\n")
+	return sb.String()
 }
 
 func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDesc *ec2.DescribeInstancesOutput, iiDoc imds.InstanceIdentityDocument, client Client) ([]string, error) {

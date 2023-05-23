@@ -147,6 +147,14 @@ func (c *LocalServerClient) AgentClient() agent.AgentClient {
 	return agent.NewAgentClient(c.connection)
 }
 
+func (c *LocalServerClient) BundleClient() bundle.BundleClient {
+	return bundle.NewBundleClient(c.connection)
+}
+
+func (c *LocalServerClient) EntryClient() entry.EntryClient {
+	return entry.NewEntryClient(c.connection)
+}
+
 func (c *LocalServerClient) Release() {
 	c.connection.Close()
 }
