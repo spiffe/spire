@@ -1,0 +1,50 @@
+#!/bin/bash
+
+check-attested-agents () {
+  EXPECTED_COUNT=$#
+  MAXCHECKS=10
+  CHECKINTERVAL=1
+
+  for ((i=1;i<=MAXCHECKS;i++)); do
+    log-debug "checking attested agents ($i of $MAXCHECKS max)......"
+    MATCHING_COUNT=0
+    AGENTS=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server agent list -output json)
+    AGENTS_COUNT=$(jq -r '.agents | length' <<< "$AGENTS")
+
+    for spiffe_id_path in "$@"; do
+      if jq -e --arg spiffe_id_path "$spiffe_id_path"  '.agents[] | select(.id.path == $spiffe_id_path)' <<< "$AGENTS" > /dev/null; then
+        MATCHING_COUNT=$((MATCHING_COUNT+1))
+      fi
+    done
+
+    if [[ $MATCHING_COUNT = $EXPECTED_COUNT && $MATCHING_COUNT = $AGENTS_COUNT  ]]; then
+      return 0
+    fi
+    sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "Expected $EXPECTED_COUNT agents to be attested, found $MATCHING_COUNT matches out of $AGENTS_COUNT agents"
+}
+
+check-evict-agents() {
+  MAXCHECKS=10
+  CHECKINTERVAL=1
+  EXPECTED_COUNT=$#
+  for ((i=1;i<=MAXCHECKS;i++)); do
+    MATCHING_COUNT=0
+    log-info "checking for evicted agent ($i of $MAXCHECKS max)..."
+    for spiffe_id in "$@"; do
+      if docker-compose logs "spire-server" | grep "Agent is not attested" | grep "caller_id=\"$spiffe_id\""; then
+        MATCHING_COUNT=$((MATCHING_COUNT+1))
+      fi
+    done
+
+    if [[ $MATCHING_COUNT = $EXPECTED_COUNT ]]; then
+      return 0
+    fi
+
+    sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "timed out waiting for agent to be evicted"
+}
