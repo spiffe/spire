@@ -94,13 +94,13 @@ func getSystemdUnitInfo(ctx context.Context, pid uint) (*DBusUnitInfo, error) {
 		return nil, err
 	}
 
-	return &DBusUnitInfo{id, fragmentPath}, nil
+	return &DBusUnitInfo{UnitID: id, UnitFragmentPath: fragmentPath}, nil
 }
 
 func getStringProperty(obj dbus.BusObject, prop string) (string, error) {
 	propVariant, err := obj.GetProperty(systemdDBusInterface + ".Unit." + prop)
 	if err != nil {
-		return "", status.Errorf(codes.Internal, "Error getting value for %v: %v", prop, err)
+		return "", status.Errorf(codes.Internal, "error getting value for %s: %v", prop, err)
 	}
 	propVal, ok := propVariant.Value().(string)
 	if !ok {
