@@ -27,21 +27,9 @@ func builtin(p *Plugin) catalog.BuiltIn {
 	)
 }
 
-type unitInfo interface {
-	ID() (string, error)
-	FragmentPath() (string, error)
-}
-
-type DBusUnitObject struct {
-	dbus.BusObject
-}
-
-func (obj DBusUnitObject) ID() (string, error) {
-	return getStringProperty(obj, "Id")
-}
-
-func (obj DBusUnitObject) FragmentPath() (string, error) {
-	return getStringProperty(obj, "FragmentPath")
+type DBusUnitInfo struct {
+	UnitID           string
+	UnitFragmentPath string
 }
 
 type Plugin struct {
@@ -50,7 +38,7 @@ type Plugin struct {
 	log hclog.Logger
 
 	// hook for tests
-	getUnitInfo func(ctx context.Context, pid uint) (unitInfo, error)
+	getUnitInfo func(ctx context.Context, pid uint) (*DBusUnitInfo, error)
 }
 
 func New() *Plugin {
@@ -71,24 +59,15 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	var selectorValues []string
 
-	unitID, err := uInfo.ID()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get unit id for pid %d: %v", req.Pid, err)
-	}
-	selectorValues = append(selectorValues, makeSelectorValue("id", unitID))
-
-	fragmentPath, err := uInfo.FragmentPath()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get unit fragment path for pid %d: %v", req.Pid, err)
-	}
-	selectorValues = append(selectorValues, makeSelectorValue("fragment_path", fragmentPath))
+	selectorValues = append(selectorValues, makeSelectorValue("id", uInfo.UnitID))
+	selectorValues = append(selectorValues, makeSelectorValue("fragment_path", uInfo.UnitFragmentPath))
 
 	return &workloadattestorv1.AttestResponse{
 		SelectorValues: selectorValues,
 	}, nil
 }
 
-func getSystemdUnitInfo(ctx context.Context, pid uint) (unitInfo, error) {
+func getSystemdUnitInfo(ctx context.Context, pid uint) (*DBusUnitInfo, error) {
 	conn, err := dbus.SystemBus()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to open dbus connection: %v", err)
@@ -105,13 +84,23 @@ func getSystemdUnitInfo(ctx context.Context, pid uint) (unitInfo, error) {
 	}
 
 	obj := conn.Object(systemdDBusInterface, unitPath)
-	return DBusUnitObject{obj}, nil
+
+	id, err := getStringProperty(obj, "Id")
+	if err != nil {
+		return nil, err
+	}
+	fragmentPath, err := getStringProperty(obj, "FragmentPath")
+	if err != nil {
+		return nil, err
+	}
+
+	return &DBusUnitInfo{UnitID: id, UnitFragmentPath: fragmentPath}, nil
 }
 
-func getStringProperty(obj DBusUnitObject, prop string) (string, error) {
+func getStringProperty(obj dbus.BusObject, prop string) (string, error) {
 	propVariant, err := obj.GetProperty(systemdDBusInterface + ".Unit." + prop)
 	if err != nil {
-		return "", err
+		return "", status.Errorf(codes.Internal, "error getting value for %s: %v", prop, err)
 	}
 	propVal, ok := propVariant.Value().(string)
 	if !ok {
