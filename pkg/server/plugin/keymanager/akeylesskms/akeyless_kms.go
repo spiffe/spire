@@ -2,6 +2,7 @@ package akeylesskms
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"sync"
@@ -82,7 +83,7 @@ func fetchPublicKey(ctx context.Context, keyName string) ([]byte, error) {
 	body.SetToken(GetAuthToken())
 	out, _, err := AklClient.ExportClassicKey(ctx).Body(body).Execute()
 	if err != nil {
-		return nil, fmt.Errorf("failed to export classic key: %v", err)
+		return nil, fmt.Errorf("failed to export classic key: %v", err.Error())
 	}
 
 	if out.Key == nil || len(out.GetKey()) == 0 {
@@ -132,27 +133,29 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 
 	keySpec := keySpecFromKeyType(req.KeyType)
 	if keySpec == "" {
-		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", req.KeyType)
+		return nil, status.Errorf(codes.Internal, fmt.Sprintf("unsupported key type: %v", req.KeyType))
 	}
+
+	keyName := buildKeyName(req.KeyId, p.config)
 
 	body := akeyless.CreateClassicKey{}
 	body.SetAlg(keySpec)
-	body.SetName(req.KeyId)
+	body.SetName(keyName)
 	body.SetTags([]string{pluginKeyTag})
 	body.SetToken(GetAuthToken())
 
 	out, _, err := AklClient.CreateClassicKey(ctx).Body(body).Execute()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create classic key: %v", err)
+		return nil, status.Errorf(codes.Internal, fmt.Sprintf("failed to create classic key %v: %v", keyName, err.Error()))
 	}
 
 	if out.PublicKey == nil {
-		return nil, status.Errorf(codes.Internal, "public key has not been returned after creation: %v", req.KeyId)
+		return nil, status.Errorf(codes.Internal, "public key has not been returned after creation: %v", keyName)
 	}
 
 	publicKey, err := extractDerKey(out.GetPublicKey())
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to extract public key: %v", err)
+		return nil, status.Errorf(codes.Internal, fmt.Sprintf("failed to extract public key: %v", err.Error()))
 	}
 
 	pk := &keymanagerv1.PublicKey{
@@ -162,7 +165,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 		Fingerprint: makeFingerprint(publicKey),
 	}
 
-	p.setKeyEntry(req.KeyId, keyEntry{DisplayId: out.GetClassicKeyId(), PublicKey: pk})
+	p.setKeyEntry(keyName, keyEntry{DisplayId: out.GetClassicKeyId(), PublicKey: pk})
 
 	return &keymanagerv1.GenerateKeyResponse{
 		PublicKey: pk,
@@ -176,9 +179,10 @@ func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKe
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
 
-	entry, ok := p.getKeyEntry(req.KeyId)
+	keyName := buildKeyName(req.KeyId, p.config)
+	entry, ok := p.getKeyEntry(keyName)
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "key %q not found", req.KeyId)
+		return nil, status.Errorf(codes.NotFound, fmt.Sprintf("key %v not found", keyName))
 	}
 
 	return &keymanagerv1.GetPublicKeyResponse{
@@ -205,13 +209,17 @@ func (p *Plugin) GetPublicKeys(ctx context.Context, req *keymanagerv1.GetPublicK
 // with the given ID does not exist, NOT_FOUND is returned. The response contains the signed data and the fingerprint of
 // the key used to sign the data. See the PublicKey message for more details on the role of the fingerprint.
 func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
+
+	return nil, status.Error(codes.Unimplemented, "SignData still not supported")
+
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
 
-	entry, ok := p.getKeyEntry(req.KeyId)
+	keyName := buildKeyName(req.KeyId, p.config)
+	entry, ok := p.getKeyEntry(keyName)
 	if !ok {
-		return nil, status.Errorf(codes.NotFound, "key %q not found", req.KeyId)
+		return nil, status.Errorf(codes.NotFound, fmt.Sprintf("key %v not found", keyName))
 	}
 
 	signingAlgo, err := defineSigningAlgorithm(entry.PublicKey.Type, req.SignerOpts)
@@ -219,15 +227,22 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
+	input := string(req.Data)
+	_, err = base64.StdEncoding.DecodeString(input)
+	if err != nil {
+		//it means that input is not in base64. Let's encode it
+		input = base64.StdEncoding.EncodeToString(req.Data)
+	}
+
 	body := akeyless.SignJWTWithClassicKey{}
 	body.SetDisplayId(entry.DisplayId)
 	body.SetToken(GetAuthToken())
 	body.SetSigningMethod(signingAlgo)
-	body.SetJwtClaims(string(req.Data))
+	body.SetJwtClaims(input)
 
 	out, _, err := AklClient.SignJWTWithClassicKey(ctx).Body(body).Execute()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to sign: %v", err)
+		return nil, status.Errorf(codes.Internal, fmt.Sprintf("failed to sign: %v", err.Error()))
 	}
 
 	return &keymanagerv1.SignDataResponse{
@@ -240,7 +255,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 // first loaded. In the future, it may be invoked to reconfigure the plugin.
 // As such, it should replace the previous configuration atomically.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := ParseAndValidateConfig(req.HclConfiguration, p.logger)
+	config, err := ParseAndValidateConfig(req, p.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -249,12 +264,12 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	defer p.mu.Unlock()
 
 	if !p.authenticationRoutineRunning {
-		p.logger.Info("starting authentication routine to %v", config.AkeylessGatewayURL)
+		p.logger.Info(fmt.Sprintf("starting authentication routine to %v", config.AkeylessGatewayURL))
 		closed := make(chan bool, 1)
 		err = config.StartAuthentication(ctx, closed)
 
 		if err != nil {
-			p.logger.Error("failed to start authentication routine, error: %v", err)
+			p.logger.Error(fmt.Sprintf("failed to start authentication routine, error: %v", err.Error()))
 			return nil, err
 		}
 

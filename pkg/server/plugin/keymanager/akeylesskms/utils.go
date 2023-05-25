@@ -9,6 +9,12 @@ import (
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 )
 
+func buildKeyName(keyId string, config *Config) string {
+	//AkeylessTargetFolder ends with '/'
+	domain := config.TrustDomain
+	return fmt.Sprintf("%v%v/%v/%v", config.AkeylessTargetFolder, domain, config.ServerID, keyId)
+}
+
 func keySpecFromKeyType(keyType keymanagerv1.KeyType) string {
 	switch keyType {
 	case keymanagerv1.KeyType_RSA_2048:

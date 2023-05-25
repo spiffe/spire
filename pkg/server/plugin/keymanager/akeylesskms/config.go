@@ -2,15 +2,20 @@ package akeylesskms
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/akeylesslabs/akeyless-go/v3"
+	"github.com/gofrs/uuid/v5"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -21,6 +26,7 @@ const (
 	AkeylessAccessID               = "AKEYLESS_ACCESS_ID"
 	AkeylessAccessKey              = "AKEYLESS_ACCESS_KEY"
 	Credentials                    = "CREDENTIALS"
+	AkeylessTargetFolder           = "AKEYLESS_TARGET_FOLDER"
 	AkeylessAzureObjectID          = "AKEYLESS_AZURE_OBJECT_ID"
 	AkeylessGCPAudience            = "AKEYLESS_GCP_AUDIENCE"
 	AkeylessK8SServiceAccountToken = "AKEYLESS_K8S_SERVICE_ACCOUNT_TOKEN"
@@ -45,6 +51,10 @@ var (
 // Config defines the configuration for the plugin.
 type Config struct {
 	log                            hclog.Logger
+	TrustDomain                    string
+	ServerID                       string
+	KeyMetadataFile                string `hcl:"key_metadata_file" json:"key_metadata_file"`
+	AkeylessTargetFolder           string `hcl:"akeyless_target_folder" json:"akeyless_target_folder"`
 	AkeylessGatewayURL             string `hcl:"akeyless_gateway_url" json:"akeyless_gateway_url"`
 	AkeylessAccessType             string `hcl:"akeyless_access_type" json:"akeyless_access_type"`
 	AkeylessAccessID               string `hcl:"akeyless_access_key_id" json:"akeyless_access_key_id"`
@@ -55,14 +65,55 @@ type Config struct {
 	AkeylessK8SAuthConfigName      string `hcl:"akeyless_k8s_auth_config_name" json:"akeyless_k8s_auth_config_name"`
 }
 
-func ParseAndValidateConfig(c string, log hclog.Logger) (*Config, error) {
-	config := &Config{log: log}
-	if err := hcl.Decode(config, c); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
+func loadServerID(idPath string) (string, error) {
+	// get id from path
+	data, err := os.ReadFile(idPath)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return createServerID(idPath)
+	case err != nil:
+		return "", status.Errorf(codes.Internal, "failed to read server id from path: %v", err)
 	}
 
+	// validate what we got is a uuid
+	serverID, err := uuid.FromString(string(data))
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to parse server id from path: %v", err)
+	}
+	return serverID.String(), nil
+}
+
+func createServerID(idPath string) (string, error) {
+	// generate id
+	u, err := uuid.NewV4()
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to generate id for server: %v", err)
+	}
+	id := u.String()
+
+	// persist id
+	err = diskutil.WritePrivateFile(idPath, []byte(id))
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to persist server id on path: %v", err)
+	}
+	return id, nil
+}
+
+func ParseAndValidateConfig(req *configv1.ConfigureRequest, log hclog.Logger) (*Config, error) {
+	config := &Config{log: log, TrustDomain: req.CoreConfiguration.TrustDomain}
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("failed to decode configuration: %v", err.Error()))
+	}
+
+	serverID, err := loadServerID(config.KeyMetadataFile)
+	if err != nil {
+		return nil, err
+	}
+	log.Debug("Loaded server id", "server_id", serverID)
+	config.ServerID = serverID
+
 	if err := config.Validate(); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to validate configuration: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, fmt.Sprintf("failed to validate configuration: %v", err.Error()))
 	}
 
 	AklClient = createClient(config.AkeylessGatewayURL)
@@ -71,11 +122,9 @@ func ParseAndValidateConfig(c string, log hclog.Logger) (*Config, error) {
 	if aklsAccessType == "" {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to connect client and detect access type")
 	}
-	if config.AkeylessAccessType == "" {
-		config.AkeylessAccessType = aklsAccessType
-	}
+	config.AkeylessAccessType = aklsAccessType
 
-	log.Info("successfully connected using %s access type", config.AkeylessAccessType)
+	log.Info(fmt.Sprintf("successfully connected using %v access type", config.AkeylessAccessType))
 
 	return config, nil
 }
@@ -102,6 +151,10 @@ func (c *Config) UsingK8S() bool {
 
 func (c *Config) Validate() error {
 	// Some basic validation checks.
+
+	if c.AkeylessTargetFolder == "" {
+		c.AkeylessTargetFolder = os.Getenv(AkeylessTargetFolder)
+	}
 
 	if c.AkeylessGatewayURL == "" {
 		c.AkeylessGatewayURL = os.Getenv(AkeylessURL)
@@ -143,6 +196,14 @@ func (c *Config) Validate() error {
 		c.AkeylessGatewayURL = defaultAkeylessGatewayURL
 	}
 
+	if c.AkeylessTargetFolder == "" {
+		c.AkeylessTargetFolder = "/"
+	}
+
+	if !strings.HasSuffix(c.AkeylessTargetFolder, "/") {
+		c.AkeylessTargetFolder += "/"
+	}
+
 	if c.AkeylessAccessID == "" {
 		return fmt.Errorf("AkeylessAccessId not specified")
 	}
@@ -176,7 +237,7 @@ func createClient(akeylessGatewayURL string) *akeyless.V2ApiService {
 }
 
 func (c *Config) ClientAuth(aklClient *akeyless.V2ApiService) accessType {
-	c.log.Info("trying to detect privileged credentials for %v-%v", c.AkeylessAccessID, c.AkeylessAccessKey)
+	c.log.Info(fmt.Sprintf("trying to detect privileged credentials for %v", c.AkeylessAccessID))
 
 	if err := c.authWithAccessKey(context.Background(), aklClient); err == nil {
 		return AccessKey
