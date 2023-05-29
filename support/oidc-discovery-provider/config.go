@@ -207,6 +207,15 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		}
 	}
 
+	if c.ServingCertFile != nil {
+		if c.ServingCertFile.CertFilePath == "" {
+			return nil, errs.New("cert_file_path must be configured in the serving_cert_file configuration section")
+		}
+		if c.ServingCertFile.KeyFilePath == "" {
+			return nil, errs.New("key_file_path must be configured in the serving_cert_file configuration section")
+		}
+	}
+
 	var methodCount int
 
 	if c.ServerAPI != nil {

@@ -24,11 +24,6 @@ var (
 	parentDirNotFoundLogInterval = 1 * time.Minute
 )
 
-// CertManager is an interface that provides a TLS configuration.
-type CertManager interface {
-	TLSConfig() *tls.Config
-}
-
 // DiskCertManager is a certificate manager that loads certificates from disk, and watches for changes.
 type DiskCertManager struct {
 	certFilePath                   string
