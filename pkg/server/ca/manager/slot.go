@@ -38,6 +38,7 @@ type Slot interface {
 	Reset()
 	ShouldPrepareNext(now time.Time) bool
 	ShouldActivateNext(now time.Time) bool
+	Status() journal.Status
 }
 
 type SlotLoader struct {
@@ -52,11 +53,6 @@ type SlotLoader struct {
 func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot, error) {
 	log := s.Log
 	journalPath := s.journalPath()
-
-	var currentX509CA *X509CASlot
-	var nextX509CA *X509CASlot
-	var currentJWTKey *JwtKeySlot
-	var nextJWTKey *JwtKeySlot
 
 	// Load the journal and see if we can figure out the next and current
 	// X509CA and JWTKey entries, if any.
@@ -79,54 +75,14 @@ func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		return nil, nil, err
 	}
 
-	if len(entries.X509CAs) > 0 {
-		nextX509CA, err = s.tryLoadX509CASlotFromEntry(ctx, entries.X509CAs[len(entries.X509CAs)-1])
-		if err != nil {
-			return nil, nil, err
-		}
-		// if the last entry is ok, then consider the next entry
-		if nextX509CA != nil && len(entries.X509CAs) > 1 {
-			currentX509CA, err = s.tryLoadX509CASlotFromEntry(ctx, entries.X509CAs[len(entries.X509CAs)-2])
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-	}
-	switch {
-	case currentX509CA != nil:
-		// both current and next are set
-	case nextX509CA != nil:
-		// next is set but not current. swap them and initialize next with an empty slot.
-		currentX509CA, nextX509CA = nextX509CA, newX509CASlot(otherSlotID(nextX509CA.id))
-	default:
-		// neither are set. initialize them with empty slots.
-		currentX509CA = newX509CASlot("A")
-		nextX509CA = newX509CASlot("B")
+	currentX509CA, nextX509CA, err := s.x509CurrentAndNextSlot(ctx, entries.X509CAs)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	if len(entries.JwtKeys) > 0 {
-		nextJWTKey, err = s.tryLoadJWTKeySlotFromEntry(ctx, entries.JwtKeys[len(entries.JwtKeys)-1])
-		if err != nil {
-			return nil, nil, err
-		}
-		// if the last entry is ok, then consider the next entry
-		if nextJWTKey != nil && len(entries.JwtKeys) > 1 {
-			currentJWTKey, err = s.tryLoadJWTKeySlotFromEntry(ctx, entries.JwtKeys[len(entries.JwtKeys)-2])
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-	}
-	switch {
-	case currentJWTKey != nil:
-		// both current and next are set
-	case nextJWTKey != nil:
-		// next is set but not current. swap them and initialize next with an empty slot.
-		currentJWTKey, nextJWTKey = nextJWTKey, newJWTKeySlot(otherSlotID(nextJWTKey.id))
-	default:
-		// neither are set. initialize them with empty slots.
-		currentJWTKey = newJWTKeySlot("A")
-		nextJWTKey = newJWTKeySlot("B")
+	currentJWTKey, nextJWTKey, err := s.jwtKeysCurrentAndNextSlot(ctx, entries.JwtKeys)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	slots := make(map[SlotPosition]Slot)
@@ -147,6 +103,146 @@ func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	}
 
 	return journal, slots, nil
+}
+
+// x509CurrentAndNextSlot returns slots based on status
+// - If all status are unknown, choose the two newest on the list
+// - Active slot is returned on current if set
+// - Newest Prepared or Old slot is returned on next
+func (s *SlotLoader) x509CurrentAndNextSlot(ctx context.Context, entries []*X509CAEntry) (*X509CASlot, *X509CASlot, error) {
+	var current *X509CASlot
+	var next *X509CASlot
+
+	// Search from oldest
+	for i := len(entries) - 1; i >= 0; i-- {
+		slot, err := s.tryLoadX509CASlotFromEntry(ctx, entries[i])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Unable to load slot
+		// TODO: before this changes, we analize only latest two entries,
+		// and if this happens to both of them, we created new slots, but now
+		// we will iterate in all the file, to try to get a useful one,
+		// may we prevent this to happens? maybe just verifying if bundle
+		// is not expired?
+		if slot == nil {
+			continue
+		}
+
+		switch slot.Status() {
+		// ACTIVE entry must go into current slot
+		case journal.Status_ACTIVE:
+			current = slot
+
+		// Status can be UNKNOWN only after an upgrade when this happens,
+		// we must first set next position, and then current is the next one
+		// DEPRECATED: this validation must be removed from v1.9
+		case journal.Status_UNKNOWN:
+			if next == nil {
+				next = slot
+			} else if current == nil {
+				current = slot
+			}
+
+		// Set OLD or PREPARED as next slot
+		// Get the newest, since Prepared entry must always be located before an Old entry
+		default:
+			if next == nil {
+				next = slot
+			}
+		}
+
+		// If both are set finish iteration
+		if next != nil && current != nil {
+			break
+		}
+	}
+
+	switch {
+	case current != nil:
+		// current is set, complete next if required
+		if next == nil {
+			next = newX509CASlot(otherSlotID(current.id))
+		}
+	case next != nil:
+		// next is set but not current. swap them and initialize next with an empty slot.
+		current, next = next, newX509CASlot(otherSlotID(next.id))
+	default:
+		// neither are set. initialize them with empty slots.
+		current = newX509CASlot("A")
+		next = newX509CASlot("B")
+	}
+
+	return current, next, nil
+}
+
+func (s *SlotLoader) jwtKeysCurrentAndNextSlot(ctx context.Context, entries []*journal.JWTKeyEntry) (*JwtKeySlot, *JwtKeySlot, error) {
+	var current *JwtKeySlot
+	var next *JwtKeySlot
+
+	// Search from oldest
+	for i := len(entries) - 1; i >= 0; i-- {
+		slot, err := s.tryLoadJWTKeySlotFromEntry(ctx, entries[i])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Unable to load slot
+		// TODO: before this changes, we analize only latest two entries,
+		// and if this happens to both of them, we created new slots, but now
+		// we will iterate in all the file, to try to get a useful one,
+		// may we prevent this to happens? maybe just verifying if bundle
+		// is not expired?
+		if slot == nil {
+			continue
+		}
+
+		switch slot.Status() {
+		// ACTIVE entry must go into current slot
+		case journal.Status_ACTIVE:
+			current = slot
+
+		// Status can be UNKNOWN only after an upgrade when this happens,
+		// we must first set next position, and then current is the next one
+		// DEPRECATED: this validation must be removed from v1.9
+		case journal.Status_UNKNOWN:
+			if next == nil {
+				next = slot
+			} else if current == nil {
+				current = slot
+			}
+
+		// Set OLD or PREPARED as next slot
+		// Get the newest, since Prepared entry must always be located before an Old entry
+		default:
+			if next == nil {
+				next = slot
+			}
+		}
+
+		// If both are set finish iteration
+		if next != nil && current != nil {
+			break
+		}
+	}
+
+	switch {
+	case current != nil:
+		// current is set, complete next if required
+		if next == nil {
+			next = newJWTKeySlot(otherSlotID(current.id))
+		}
+	case next != nil:
+		// next is set but not current. swap them and initialize next with an empty slot.
+		current, next = next, newJWTKeySlot(otherSlotID(next.id))
+	default:
+		// neither are set. initialize them with empty slots.
+		current = newJWTKeySlot("A")
+		next = newJWTKeySlot("B")
+	}
+
+	return current, next, nil
 }
 
 // filterInvalidEntries takes in a set of journal entries, and removes entries that represent signing keys
@@ -260,6 +356,7 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAE
 			Certificate:   cert,
 			UpstreamChain: upstreamChain,
 		},
+		status: entry.Status,
 	}, "", nil
 }
 func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntry) (*JwtKeySlot, error) {
@@ -309,6 +406,7 @@ func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyE
 			NotAfter: time.Unix(entry.NotAfter, 0),
 			Kid:      entry.Kid,
 		},
+		status: entry.Status,
 	}, "", nil
 }
 
@@ -394,6 +492,7 @@ type X509CASlot struct {
 	id       string
 	issuedAt time.Time
 	x509CA   *ca.X509CA
+	status   journal.Status
 }
 
 func newX509CASlot(id string) *X509CASlot {
@@ -407,11 +506,12 @@ func (s *X509CASlot) KmKeyID() string {
 }
 
 func (s *X509CASlot) IsEmpty() bool {
-	return s.x509CA == nil
+	return s.x509CA == nil || s.status == journal.Status_OLD
 }
 
 func (s *X509CASlot) Reset() {
 	s.x509CA = nil
+	s.status = journal.Status_OLD
 }
 
 func (s *X509CASlot) ShouldPrepareNext(now time.Time) bool {
@@ -422,10 +522,15 @@ func (s *X509CASlot) ShouldActivateNext(now time.Time) bool {
 	return s.x509CA != nil && now.After(keyActivationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
 }
 
+func (s *X509CASlot) Status() journal.Status {
+	return s.status
+}
+
 type JwtKeySlot struct {
 	id       string
 	issuedAt time.Time
 	jwtKey   *ca.JWTKey
+	status   journal.Status
 }
 
 func newJWTKeySlot(id string) *JwtKeySlot {
@@ -438,12 +543,17 @@ func (s *JwtKeySlot) KmKeyID() string {
 	return jwtKeyKmKeyID(s.id)
 }
 
+func (s *JwtKeySlot) Status() journal.Status {
+	return s.status
+}
+
 func (s *JwtKeySlot) IsEmpty() bool {
-	return s.jwtKey == nil
+	return s.jwtKey == nil || s.status == journal.Status_OLD
 }
 
 func (s *JwtKeySlot) Reset() {
 	s.jwtKey = nil
+	s.status = journal.Status_OLD
 }
 
 func (s *JwtKeySlot) ShouldPrepareNext(now time.Time) bool {
