@@ -75,12 +75,12 @@ func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		return nil, nil, err
 	}
 
-	currentX509CA, nextX509CA, err := s.x509CurrentAndNextSlot(ctx, entries.X509CAs)
+	currentX509CA, nextX509CA, err := s.getX509CASlots(ctx, entries.X509CAs)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	currentJWTKey, nextJWTKey, err := s.jwtKeysCurrentAndNextSlot(ctx, entries.JwtKeys)
+	currentJWTKey, nextJWTKey, err := s.getJWTKeysSlots(ctx, entries.JwtKeys)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,11 +105,11 @@ func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	return journal, slots, nil
 }
 
-// x509CurrentAndNextSlot returns slots based on status
+// getX509CASlots returns slots based on status
 // - If all status are unknown, choose the two newest on the list
-// - Active slot is returned on current if set
-// - Newest Prepared or Old slot is returned on next
-func (s *SlotLoader) x509CurrentAndNextSlot(ctx context.Context, entries []*X509CAEntry) (*X509CASlot, *X509CASlot, error) {
+// - Active entry is returned on current if set
+// - Newest Prepared or Old entry is returned on next
+func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*X509CAEntry) (*X509CASlot, *X509CASlot, error) {
 	var current *X509CASlot
 	var next *X509CASlot
 
@@ -177,7 +177,11 @@ func (s *SlotLoader) x509CurrentAndNextSlot(ctx context.Context, entries []*X509
 	return current, next, nil
 }
 
-func (s *SlotLoader) jwtKeysCurrentAndNextSlot(ctx context.Context, entries []*journal.JWTKeyEntry) (*JwtKeySlot, *JwtKeySlot, error) {
+// getJWTKeysSlots returns slots based on status
+// - If all status are unknown, choose the two newest on the list
+// - Active entry is returned on current if set
+// - Newest Prepared or Old entry is returned on next
+func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWTKeyEntry) (*JwtKeySlot, *JwtKeySlot, error) {
 	var current *JwtKeySlot
 	var next *JwtKeySlot
 

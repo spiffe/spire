@@ -130,7 +130,7 @@ func (s *JournalSuite) TestX509CAOverflow() {
 func (s *JournalSuite) TestUpdateX509CAStatus() {
 	t := s.T()
 	firstIssuedAt := s.now()
-	secondIssuedAt := s.now().Add(time.Minute)
+	secondIssuedAt := firstIssuedAt.Add(time.Minute)
 	thirdIssuedAt := secondIssuedAt.Add(time.Minute)
 
 	testJournal := s.loadJournal()
@@ -171,15 +171,15 @@ func (s *JournalSuite) TestUpdateX509CAStatus() {
 		require.Equal(t, expectedStatus, ca.Status)
 	}
 
-	unussedTime := s.now().Add(time.Hour)
-	err = testJournal.UpdateX509CAStatus(unussedTime, journal.Status_OLD)
+	unusedTime := s.now().Add(time.Hour)
+	err = testJournal.UpdateX509CAStatus(unusedTime, journal.Status_OLD)
 	require.ErrorContains(t, err, "no journal entry found issued at:")
 }
 
 func (s *JournalSuite) TestUpdateJWTKeyStatus() {
 	t := s.T()
 	firstIssuedAt := s.now()
-	secondIssuedAt := s.now().Add(time.Minute)
+	secondIssuedAt := firstIssuedAt.Add(time.Minute)
 	thirdIssuedAt := secondIssuedAt.Add(time.Minute)
 
 	testJournal := s.loadJournal()
@@ -220,8 +220,8 @@ func (s *JournalSuite) TestUpdateJWTKeyStatus() {
 		require.Equal(t, expectedStatus, key.Status)
 	}
 
-	unussedTime := s.now().Add(time.Hour)
-	err = testJournal.UpdateJWTKeyStatus(unussedTime, journal.Status_OLD)
+	unusedTime := s.now().Add(time.Hour)
+	err = testJournal.UpdateJWTKeyStatus(unusedTime, journal.Status_OLD)
 	require.ErrorContains(t, err, "no journal entry found issued at:")
 }
 

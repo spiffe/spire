@@ -100,6 +100,7 @@ func (j *Journal) AppendX509CA(slotID string, issuedAt time.Time, x509CA *ca.X50
 	return nil
 }
 
+// UpdateX509CAStatus updates a stored X509CA entry to have given status and update journal file.
 func (j *Journal) UpdateX509CAStatus(issuedAt time.Time, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -167,6 +168,7 @@ func (j *Journal) AppendJWTKey(slotID string, issuedAt time.Time, jwtKey *ca.JWT
 	return nil
 }
 
+// UpdateJWTKeyStatus updates a stored JWTKey entry to have given status and update journal file.
 func (j *Journal) UpdateJWTKeyStatus(issuedAt time.Time, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
