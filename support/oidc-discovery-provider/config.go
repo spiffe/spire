@@ -52,8 +52,12 @@ type Config struct {
 	ListenSocketPath string `hcl:"listen_socket_path"`
 
 	// ACME is the ACME configuration. It is required unless InsecureAddr or
-	// ListenSocketPath is set.
+	// ListenSocketPath is set, or if ServingCertFile is used.
 	ACME *ACMEConfig `hcl:"acme"`
+
+	// ServingCertFile is the configuration for using a serving certificate to serve HTTPS.
+	// It is required unless InsecureAddr or ListenSocketPath is set, or if ACME configuration is used.
+	ServingCertFile *ServingCertFileConfig `hcl:"serving_cert_file"`
 
 	// ServerAPI is the configuration for using the SPIRE Server API as the
 	// source for the public keys. Only one source can be configured.
@@ -68,6 +72,15 @@ type Config struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
+}
+
+type ServingCertFileConfig struct {
+	// CertFilePath is the path to the certificate file. The provider will watch
+	// this file for changes and reload the certificate when it changes.
+	CertFilePath string `hcl:"cert_file_path"`
+	// KeyFilePath is the path to the private key file. The provider will watch
+	// this file for changes and reload the key when it changes.
+	KeyFilePath string `hcl:"key_file_path"`
 }
 
 type ACMEConfig struct {

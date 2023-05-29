@@ -31,6 +31,7 @@ require (
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/docker/docker v24.0.2+incompatible
 	github.com/envoyproxy/go-control-plane v0.11.1
+	github.com/fsnotify/fsnotify v1.6.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/godbus/dbus/v5 v5.1.0
