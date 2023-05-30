@@ -30,6 +30,7 @@ type DiskCertManager struct {
 	keyFilePath                    string
 	invalidCertLogConfiguredTicker *time.Ticker
 	invalidCertConfiguredErr       error
+	invalidCertConfiguredErrMtx    sync.RWMutex
 	cert                           *tls.Certificate
 	certMtx                        sync.RWMutex
 	log                            logrus.FieldLogger
@@ -139,6 +140,8 @@ func (m *DiskCertManager) watcherLoop(watcher *fsnotify.Watcher) {
 	waitFor := 100 * time.Millisecond
 	timer := new(time.Timer)
 
+	m.log.Infof("Watching for changes to cert file %q and key file %q", m.certFilePath, m.keyFilePath)
+
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -189,41 +192,17 @@ func (m *DiskCertManager) watcherLoop(watcher *fsnotify.Watcher) {
 // processFileChangeEvent is called when a file change event is detected.
 func (m *DiskCertManager) processFileChangeEvent(_ fsnotify.Event) {
 	m.log.Info("File change detected, reloading certificate and key...")
-	if err := m.loadCert(); err != nil {
-		m.invalidCertConfiguredErr = err
-		m.invalidCertLogConfiguredTicker.Reset(invalidCertLogInterval)
-	} else {
-		m.invalidCertConfiguredErr = nil
-		m.invalidCertLogConfiguredTicker.Stop()
-	}
-}
-
-// loadCert read the certificate and key files, and load the x509 certificate to memory.
-func (m *DiskCertManager) loadCert() error {
-	cert, err := tls.LoadX509KeyPair(m.certFilePath, m.keyFilePath)
-	if err != nil {
-		return err
-	}
-
-	cert.Leaf, err = x509.ParseCertificate(cert.Certificate[0])
-	if err != nil {
-		return err
-	}
-
-	m.certMtx.Lock()
-	defer m.certMtx.Unlock()
-
-	m.cert = &cert
-
-	m.log.Info("Loaded provided certificate with success")
-	return nil
+	m.tryLoadCertificate()
 }
 
 // startInvalidCertLog starts a goroutine to log invalid certificate errors.
 func (m *DiskCertManager) startInvalidCertLog() {
 	go func() {
 		for range m.invalidCertLogConfiguredTicker.C {
+			m.invalidCertConfiguredErrMtx.RLock()
 			err, errFs := m.invalidCertConfiguredErr, new(fs.PathError)
+			m.invalidCertConfiguredErrMtx.RUnlock()
+
 			switch {
 			case errors.Is(err, fs.ErrNotExist) && errors.As(err, &errFs):
 				m.log.Errorf("Failed to load certificate, file path %q does not exist anymore, please check if the path is correct", errFs.Path)
@@ -262,17 +241,45 @@ func (m *DiskCertManager) syncWatcher(dirPath string, watcher *fsnotify.Watcher)
 				continue
 			}
 
-			if err := m.loadCert(); err != nil {
-				m.invalidCertConfiguredErr = err
-				m.invalidCertLogConfiguredTicker.Reset(invalidCertLogInterval)
-			} else {
-				m.invalidCertConfiguredErr = nil
-				m.invalidCertLogConfiguredTicker.Stop()
-			}
+			m.tryLoadCertificate()
 
 			ticker.Stop()
 			return
 		}
 		m.log.Errorf("Parent directory %q was not found, waiting for it to be created", dirPath)
 	}
+}
+
+// tryLoadCertificate tries to load the certificate and key to memory, it starts an error log ticker if it fails to.
+func (m *DiskCertManager) tryLoadCertificate() {
+	m.invalidCertConfiguredErrMtx.Lock()
+	defer m.invalidCertConfiguredErrMtx.Unlock()
+	if err := m.loadCert(); err != nil {
+		m.invalidCertConfiguredErr = err
+		m.invalidCertLogConfiguredTicker.Reset(invalidCertLogInterval)
+	} else {
+		m.invalidCertConfiguredErr = nil
+		m.invalidCertLogConfiguredTicker.Stop()
+	}
+}
+
+// loadCert read the certificate and key files, and load the x509 certificate to memory.
+func (m *DiskCertManager) loadCert() error {
+	cert, err := tls.LoadX509KeyPair(m.certFilePath, m.keyFilePath)
+	if err != nil {
+		return err
+	}
+
+	cert.Leaf, err = x509.ParseCertificate(cert.Certificate[0])
+	if err != nil {
+		return err
+	}
+
+	m.certMtx.Lock()
+	defer m.certMtx.Unlock()
+
+	m.cert = &cert
+
+	m.log.Info("Loaded provided certificate with success")
+	return nil
 }
