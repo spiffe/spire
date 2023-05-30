@@ -4,6 +4,8 @@
 package main
 
 import (
+	"os"
+
 	"golang.org/x/sys/windows"
 )
 
@@ -15,14 +17,8 @@ var (
 )
 
 func writeFile(name string, data []byte) error {
-	handle, err := windows.CreateFile(windows.StringToUTF16Ptr(name),
-		windows.GENERIC_ALL,
-		0,
-		nil,
-		windows.CREATE_ALWAYS,
-		windows.FILE_ATTRIBUTE_NORMAL,
-		0,
-	)
+	handle, err := windows.Open(name, os.O_RDWR|os.O_CREATE, 0666)
+	defer windows.Close(handle)
 	if err != nil {
 		return err
 	}
@@ -30,7 +26,7 @@ func writeFile(name string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	return windows.Close(handle)
+	return nil
 }
 
 func removeFile(name string) error {
@@ -38,21 +34,24 @@ func removeFile(name string) error {
 }
 
 func makeFileUnreadable(name string) error {
-	handle, err := windows.CreateFile(windows.StringToUTF16Ptr(name),
-		windows.GENERIC_ALL,
-		0,
+	ptr := windows.StringToUTF16Ptr(name)
+	handle, err := windows.CreateFile(
+		ptr,
+		windows.READ_CONTROL|windows.WRITE_DAC,
+		windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE,
 		nil,
 		windows.OPEN_EXISTING,
 		windows.FILE_ATTRIBUTE_NORMAL,
-		0,
-	)
+		0)
+
+	defer windows.Close(handle)
 
 	if err != nil {
 		return err
 	}
 
-	// this SDDL code denies the owner of the object from reading it
-	sd, err := windows.SecurityDescriptorFromString("D:(D;OICI;GR;;;OW)(A;OICI;FA;;;WD)")
+	// this SDDL code denies generic read access to the owner of the file
+	sd, err := windows.SecurityDescriptorFromString("D:(D;OICI;GR;;;OW)")
 	if err != nil {
 		return err
 	}
@@ -66,7 +65,7 @@ func makeFileUnreadable(name string) error {
 		return err
 	}
 
-	return windows.Close(handle)
+	return nil
 }
 
 func makeFileReadable(name string, data []byte) error {
