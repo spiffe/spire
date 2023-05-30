@@ -4,8 +4,6 @@
 package main
 
 import (
-	"fmt"
-
 	"golang.org/x/sys/windows"
 )
 
@@ -54,7 +52,7 @@ func makeFileUnreadable(name string) error {
 	}
 
 	// this SDDL code denies the owner of the object from reading it
-	sd, err := windows.SecurityDescriptorFromString(fmt.Sprintf("D:(D;OICI;GR;;;OW)(A;OICI;FA;;;WD)"))
+	sd, err := windows.SecurityDescriptorFromString("D:(D;OICI;GR;;;OW)(A;OICI;FA;;;WD)")
 	if err != nil {
 		return err
 	}
