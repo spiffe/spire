@@ -39,7 +39,7 @@ func parseConfigCasesOS() []parseConfigCase {
 			err: "at least one domain must be configured",
 		},
 		{
-			name: "no ACME and serving certificate configuration",
+			name: "no ACME and serving_cert_file configuration",
 			in: `
 				domains = ["domain.test"]
 				server_api {

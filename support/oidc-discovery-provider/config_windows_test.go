@@ -45,7 +45,7 @@ func parseConfigCasesOS() []parseConfigCase {
 			err: "at least one domain must be configured",
 		},
 		{
-			name: "no ACME configuration",
+			name: "no ACME and serving_cert_file configuration",
 			in: `
 				domains = ["domain.test"]
 				server_api {
@@ -54,7 +54,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					}					
 				}
 			`,
-			err: "either acme or listen_named_pipe_name must be configured",
+			err: "either acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured",
 		},
 		{
 			name: "ACME ToS not accepted",
@@ -121,6 +121,61 @@ func parseConfigCasesOS() []parseConfigCase {
 			},
 		},
 		{
+			name: "serving_cert_file configuration",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				server_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domains:  []string{"domain.test"},
+				ServingCertFile: &ServingCertFileConfig{
+					CertFilePath: "test",
+					KeyFilePath:  "test",
+				},
+				ServerAPI: &ServerAPIConfig{
+					Experimental: experimentalServerAPIConfig{
+						NamedPipeName: "\\name\\for\\server\\api",
+					},
+					PollInterval: defaultPollInterval,
+				},
+			},
+		},
+		{
+			name: "serving_cert_file configuration without cert_file_path",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					key_file_path = "test"
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			err: "cert_file_path must be configured in the serving_cert_file configuration section",
+		},
+		{
+			name: "serving_cert_file configuration without key_file_path",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			err: "key_file_path must be configured in the serving_cert_file configuration section",
+		},
+		{
 			name: "both acme and insecure_addr configured",
 			in: `
 				domains = ["domain.test"]
@@ -153,6 +208,24 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 			`,
 			err: "listen_named_pipe_name and the acme section are mutually exclusive",
+		},
+		{
+			name: "both acme and serving_cert_file configured",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					socket_path = "/other/socket/path"
+				}
+			`,
+			err: "acme and serving_cert_file are mutually exclusive",
 		},
 		{
 			name: "both insecure_addr and listen_named_pipe_name configured",
