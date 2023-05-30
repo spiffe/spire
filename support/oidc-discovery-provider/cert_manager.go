@@ -110,13 +110,13 @@ func (m *DiskCertManager) watchFileChanges() error {
 		return fmt.Errorf("failed to create file watcher: %w", err)
 	}
 
-	err = watcher.Add(path.Dir(m.certFilePath))
+	err = watcher.Add(filepath.Dir(m.certFilePath))
 	if err != nil {
 		watcher.Close()
 		return fmt.Errorf("failed to add cert file path to file watcher: %w", err)
 	}
 
-	err = watcher.Add(path.Dir(m.keyFilePath))
+	err = watcher.Add(filepath.Dir(m.keyFilePath))
 	if err != nil {
 		watcher.Close()
 		return fmt.Errorf("failed to add key file path to file watcher: %w", err)
