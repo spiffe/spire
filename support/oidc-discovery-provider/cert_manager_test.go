@@ -317,28 +317,48 @@ func TestTLSConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Eventuallyf(t, func() bool {
-			return logHook.LastEntry().Message == fmt.Sprintf("File %q was removed from the file system, please add it again so the discovery provider can detect future changes", tmpDir+keyFilePath)
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.WarnLevel && strings.Contains(entry.Message, fmt.Sprintf("File %q was removed from the file system, please add it again so the discovery provider can detect future changes", tmpDir+keyFilePath)) {
+					return true
+				}
+			}
+			return false
 		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert removed file warning message")
 
 		err = removeFile(tmpDir + certFilePath)
 		require.NoError(t, err)
 
 		require.Eventuallyf(t, func() bool {
-			return logHook.LastEntry().Message == fmt.Sprintf("File %q was removed from the file system, please add it again so the discovery provider can detect future changes", tmpDir+certFilePath)
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.WarnLevel && strings.Contains(entry.Message, fmt.Sprintf("File %q was removed from the file system, please add it again so the discovery provider can detect future changes", tmpDir+certFilePath)) {
+					return true
+				}
+			}
+			return false
 		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert removed file warning message")
 
 		err = writeFile(tmpDir+keyFilePath, oidcServerKeyPem)
 		require.NoError(t, err)
 
 		require.Eventuallyf(t, func() bool {
-			return logHook.LastEntry().Message == fmt.Sprintf("File %q created, the discovery provider started to watch for changes again", tmpDir+keyFilePath)
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.InfoLevel && strings.Contains(entry.Message, fmt.Sprintf("File %q created, the discovery provider started to watch for changes again", tmpDir+keyFilePath)) {
+					return true
+				}
+			}
+			return false
 		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert removed file warning message")
 
 		err = writeFile(tmpDir+certFilePath, oidcServerCertPem)
 		require.NoError(t, err)
 
 		require.Eventuallyf(t, func() bool {
-			return logHook.LastEntry().Message == fmt.Sprintf("File %q created, the discovery provider started to watch for changes again", tmpDir+certFilePath)
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.InfoLevel && strings.Contains(entry.Message, fmt.Sprintf("File %q created, the discovery provider started to watch for changes again", tmpDir+certFilePath)) {
+					return true
+				}
+			}
+			return false
 		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert removed file warning message")
 
 		cert, err := tlsConfig.GetCertificate(chInfo)
