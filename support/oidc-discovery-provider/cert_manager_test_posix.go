@@ -15,7 +15,12 @@ var (
 )
 
 func writeFile(name string, data []byte) error {
-	return os.WriteFile(name, data, 0600)
+	err := os.WriteFile(name, data, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = os.Stat(name)
+	return err
 }
 
 func removeFile(name string) error {

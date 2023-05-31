@@ -97,8 +97,11 @@ func (m *DiskCertManager) getCertificate(chInfo *tls.ClientHelloInfo) (*tls.Cert
 	defer m.certMtx.RUnlock()
 	cert := m.cert
 
-	if cert.Leaf.Subject.CommonName != name {
-		return nil, errors.New("server name mismatch")
+	// Verify that the certificate is valid for the requested server name.
+	if name != cert.Leaf.Subject.CommonName {
+		if err := cert.Leaf.VerifyHostname(name); err != nil {
+			return nil, fmt.Errorf("server name mismatch: %w", err)
+		}
 	}
 
 	return cert, nil
@@ -146,7 +149,7 @@ func (m *DiskCertManager) watcherLoop(watcher *fsnotify.Watcher) {
 		select {
 		case event, ok := <-watcher.Events:
 			if !ok {
-				m.log.Warn("File watcher stopped watching for changes")
+				m.log.Errorf("File watcher stopped watching for changes")
 				return
 			}
 
@@ -181,7 +184,7 @@ func (m *DiskCertManager) watcherLoop(watcher *fsnotify.Watcher) {
 
 		case err, ok := <-watcher.Errors:
 			if !ok {
-				m.log.Warn("File watcher stopped watching for changes")
+				m.log.Errorf("File watcher stopped watching for changes")
 				return
 			}
 			m.log.Errorf("File watcher error: %v", err)

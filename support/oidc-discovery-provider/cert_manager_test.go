@@ -20,8 +20,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var logger, logHook = test.NewNullLogger()
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+
+	if code != 0 {
+		for _, entry := range logHook.AllEntries() {
+			fmt.Println(entry.Message)
+		}
+	}
+
+	os.Exit(code)
+}
+
 func TestTLSConfig(t *testing.T) {
-	logger, logHook := test.NewNullLogger()
 	invalidCertLogInterval = 10 * time.Millisecond
 	parentDirNotFoundLogInterval = 10 * time.Millisecond
 
@@ -175,7 +188,7 @@ func TestTLSConfig(t *testing.T) {
 		_, err := tlsConfig.GetCertificate(&tls.ClientHelloInfo{
 			ServerName: "example.com",
 		})
-		require.EqualError(t, err, "server name mismatch")
+		require.EqualError(t, err, `server name mismatch: x509: certificate is not valid for any names, but wanted to match example.com`)
 	})
 
 	t.Run("success loading initial certificate from disk", func(t *testing.T) {
@@ -347,7 +360,7 @@ func TestTLSConfig(t *testing.T) {
 				}
 			}
 			return false
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert removed file warning message")
+		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert created file message")
 
 		err = writeFile(tmpDir+certFilePath, oidcServerCertPem)
 		require.NoError(t, err)
@@ -359,7 +372,7 @@ func TestTLSConfig(t *testing.T) {
 				}
 			}
 			return false
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert removed file warning message")
+		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert created file warning message")
 
 		cert, err := tlsConfig.GetCertificate(chInfo)
 		require.NoError(t, err)
