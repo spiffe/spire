@@ -2,9 +2,13 @@ package akeylesskms
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"crypto/x509"
+	"encoding/asn1"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"testing"
 	"time"
 
@@ -67,6 +71,42 @@ func _Test(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, spireKeyId, out.PublicKey.Id)
 	require.Equal(t, keymanagerv1.KeyType_EC_P256, out.PublicKey.Type)
-	_, err = x509.ParsePKIXPublicKey(out.PublicKey.PkixData)
+	ecPub, err := x509.ParsePKIXPublicKey(out.PublicKey.PkixData)
 	require.NoError(t, err)
+
+	//test sign data
+	xxx := "rmUtp+Wm1KmLi/IORPRFzzsAUNHEeOYu3f5voRb3xx0="
+	signData, err := base64.StdEncoding.DecodeString(xxx)
+	require.NoError(t, err)
+
+	request := &keymanagerv1.SignDataRequest{
+		KeyId: spireKeyId,
+		Data:  signData,
+		SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+			HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+		},
+	}
+
+	outSig, err := kmClient.SignData(ctx, request)
+	require.NoError(t, err)
+
+	ecdsaPub, ok := ecPub.(*ecdsa.PublicKey)
+	require.True(t, ok)
+
+	r, s, err := unwrapECDSASig(outSig.Signature)
+	require.NoError(t, err)
+
+	ok = ecdsa.Verify(ecdsaPub, signData, r, s)
+	require.True(t, ok)
+}
+
+func unwrapECDSASig(b []byte) (r, s *big.Int, err error) {
+	var ecsdaSig struct {
+		R, S *big.Int
+	}
+	_, err = asn1.Unmarshal(b, &ecsdaSig)
+	if err != nil {
+		return
+	}
+	return ecsdaSig.R, ecsdaSig.S, nil
 }

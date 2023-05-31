@@ -50,7 +50,7 @@ func makeFingerprint(pkixData []byte) string {
 	return hex.EncodeToString(s[:])
 }
 
-func defineSigningAlgorithm(keyType keymanagerv1.KeyType, signerOpts interface{}) (string, error) {
+func defineHashingAlgorithm(keyType keymanagerv1.KeyType, signerOpts interface{}) (string, error) {
 	var hashAlgo keymanagerv1.HashAlgorithm
 	switch opts := signerOpts.(type) {
 	case *keymanagerv1.SignDataRequest_HashAlgorithm:

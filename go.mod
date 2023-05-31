@@ -16,7 +16,7 @@ require (
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.6
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/akeylesslabs/akeyless-go-cloud-id v0.3.4
-	github.com/akeylesslabs/akeyless-go/v3 v3.3.2
+	github.com/akeylesslabs/akeyless-go/v3 v3.3.6
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/armon/go-metrics v0.4.1
 	github.com/aws/aws-sdk-go-v2 v1.18.0

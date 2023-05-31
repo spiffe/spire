@@ -54,15 +54,15 @@ type Config struct {
 	TrustDomain                    string
 	ServerID                       string
 	KeyMetadataFile                string `hcl:"key_metadata_file" json:"key_metadata_file"`
-	AkeylessTargetFolder           string `hcl:"akeyless_target_folder" json:"akeyless_target_folder"`
+	AkeylessTargetFolder           string `hcl:"target_folder" json:"target_folder"`
 	AkeylessGatewayURL             string `hcl:"akeyless_gateway_url" json:"akeyless_gateway_url"`
-	AkeylessAccessType             string `hcl:"akeyless_access_type" json:"akeyless_access_type"`
-	AkeylessAccessID               string `hcl:"akeyless_access_key_id" json:"akeyless_access_key_id"`
-	AkeylessAccessKey              string `hcl:"akeyless_access_key" json:"akeyless_access_key"`
-	AkeylessAzureObjectID          string `hcl:"akeyless_azure_object_id" json:"akeyless_azure_object_id"`
-	AkeylessGCPAudience            string `hcl:"akeyless_gcp_audience" json:"akeyless_gcp_audience"`
-	AkeylessK8SServiceAccountToken string `hcl:"akeyless_k8s_service_account_token" json:"akeyless_k8s_service_account_token"`
-	AkeylessK8SAuthConfigName      string `hcl:"akeyless_k8s_auth_config_name" json:"akeyless_k8s_auth_config_name"`
+	AkeylessAccessType             string `hcl:"access_type" json:"access_type"`
+	AkeylessAccessID               string `hcl:"access_id" json:"access_id"`
+	AkeylessAccessKey              string `hcl:"access_key" json:"access_key"`
+	AkeylessAzureObjectID          string `hcl:"azure_object_id" json:"azure_object_id"`
+	AkeylessGCPAudience            string `hcl:"gcp_audience" json:"gcp_audience"`
+	AkeylessK8SServiceAccountToken string `hcl:"k8s_service_account_token" json:"k8s_service_account_token"`
+	AkeylessK8SAuthConfigName      string `hcl:"k8s_auth_config_name" json:"k8s_auth_config_name"`
 }
 
 func loadServerID(idPath string) (string, error) {

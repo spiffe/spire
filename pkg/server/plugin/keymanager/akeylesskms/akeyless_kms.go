@@ -210,8 +210,6 @@ func (p *Plugin) GetPublicKeys(ctx context.Context, req *keymanagerv1.GetPublicK
 // the key used to sign the data. See the PublicKey message for more details on the role of the fingerprint.
 func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
 
-	return nil, status.Error(codes.Unimplemented, "SignData still not supported")
-
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
@@ -222,31 +220,29 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		return nil, status.Errorf(codes.NotFound, fmt.Sprintf("key %v not found", keyName))
 	}
 
-	signingAlgo, err := defineSigningAlgorithm(entry.PublicKey.Type, req.SignerOpts)
+	hashAlg, err := defineHashingAlgorithm(entry.PublicKey.Type, req.SignerOpts)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	input := string(req.Data)
-	_, err = base64.StdEncoding.DecodeString(input)
-	if err != nil {
-		//it means that input is not in base64. Let's encode it
-		input = base64.StdEncoding.EncodeToString(req.Data)
-	}
-
-	body := akeyless.SignJWTWithClassicKey{}
-	body.SetDisplayId(entry.DisplayId)
+	body := akeyless.SignDataWithClassicKey{}
 	body.SetToken(GetAuthToken())
-	body.SetSigningMethod(signingAlgo)
-	body.SetJwtClaims(input)
+	body.SetHashed(true)
+	body.SetName(keyName)
+	body.SetHashingMethod(hashAlg)
+	body.SetData(base64.StdEncoding.EncodeToString(req.Data))
 
-	out, _, err := AklClient.SignJWTWithClassicKey(ctx).Body(body).Execute()
+	signOut, _, err := AklClient.SignDataWithClassicKey(ctx).Body(body).Execute()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, fmt.Sprintf("failed to sign: %v", err.Error()))
 	}
+	signed, err := base64.StdEncoding.DecodeString(signOut.GetResult())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, fmt.Sprintf("failed to decode signture: %v", err.Error()))
+	}
 
 	return &keymanagerv1.SignDataResponse{
-		Signature:      []byte(out.GetResult()),
+		Signature:      signed,
 		KeyFingerprint: entry.PublicKey.Fingerprint,
 	}, nil
 }

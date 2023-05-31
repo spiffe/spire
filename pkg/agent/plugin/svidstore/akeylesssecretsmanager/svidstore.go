@@ -169,7 +169,7 @@ func (p *Plugin) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRe
 // first loaded. In the future, it may be invoked to reconfigure the plugin.
 // As such, it should replace the previous configuration atomically.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := ParseAndValidateConfig(req.HclConfiguration, p.logger)
+	config, err := ParseAndValidateConfig(req, p.logger)
 	if err != nil {
 		return nil, err
 	}
