@@ -187,7 +187,7 @@ type ListRegistrationEntriesResponse struct {
 }
 
 type ListRegistrationEntriesEventsRequest struct {
-	MinID uint
+	MinID uint64
 }
 
 type ListRegistrationEntriesEventsResponse struct {

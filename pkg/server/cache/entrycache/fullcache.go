@@ -207,6 +207,7 @@ func Update(ctx context.Context, ds datastore.DataStore, cache *FullEntryCache) 
 			}
 		}
 		if i == len(cache.entries[parentID]) && entry.CreatedAt != 0 {
+			fmt.Println("Created entry")
 			cache.entries[parentID] = append(cache.entries[parentID], entry)
 		}
 	}

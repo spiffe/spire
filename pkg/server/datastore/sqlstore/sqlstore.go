@@ -96,6 +96,7 @@ type Plugin struct {
 	roDb          *sqlDB
 	log           logrus.FieldLogger
 	eidToSpiffeID map[uint64]*common.RegistrationEntry
+	lastEventID   uint64
 }
 
 // New creates a new sql plugin struct. Configure must be called
@@ -447,7 +448,7 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore ti
 // ListRegistrationEntries lists all registrations (pagination available)
 func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context,
 	req *datastore.ListRegistrationEntriesEventsRequest) (resp *datastore.ListRegistrationEntriesEventsResponse, err error) {
-	return listRegistrationEntriesEvents(ctx, ds.db, ds.log, ds.eidToSpiffeID, req)
+	return ds.listRegistrationEntriesEvents(ctx, ds.db, ds.log, ds.eidToSpiffeID, req)
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -578,6 +579,10 @@ func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error 
 		return err
 	}
 
+	if err := ds.createTriggers(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -655,6 +660,102 @@ func (ds *Plugin) Close() error {
 		errs.Add(ds.roDb.Close())
 	}
 	return errs.Err()
+}
+
+func (ds *Plugin) createTriggers() error {
+	triggers := []string{
+		`
+CREATE TRIGGER registered_entries_create AFTER INSERT on registered_entries
+FOR EACH ROW
+BEGIN
+  INSERT INTO registered_entries_events ( event_type, e_id, entry_id, spiffe_id, parent_id, reg_ttl, admin, downstream, expiry, store_svid, hint, created_at, selector_id, selector_type, selector_value, trust_domain, dns_name_id, dns_name, revision_number, reg_jwt_svid_ttl )
+    SELECT 'create', NEW.id, NEW.entry_id, NEW.spiffe_id, NEW.parent_id, NEW.ttl, NEW.admin, NEW.downstream, NEW.expiry, NEW.store_svid, NEW.hint, NEW.created_at, NULL, NULL, NULL, NULL, NULL, NULL, NEW.revision_number, NEW.jwt_svid_ttl
+    FROM DUAL;
+END;
+`,
+		`
+CREATE TRIGGER registered_entries_update AFTER UPDATE on registered_entries
+FOR EACH ROW
+BEGIN
+  INSERT INTO registered_entries_events ( event_type, e_id, entry_id, spiffe_id, parent_id, reg_ttl, admin, downstream, expiry, store_svid, hint, created_at, selector_id, selector_type, selector_value, trust_domain, dns_name_id, dns_name, revision_number, reg_jwt_svid_ttl )
+    SELECT 'update', NEW.id, NEW.entry_id, NEW.spiffe_id, NEW.parent_id, NEW.ttl, NEW.admin, NEW.downstream, NEW.expiry, NEW.store_svid, NEW.hint, NEW.created_at, NULL, NULL, NULL, NULL, NULL, NULL, NEW.revision_number, NEW.jwt_svid_ttl
+    FROM DUAL;
+END;
+`,
+		`
+CREATE TRIGGER registered_entries_delete AFTER DELETE on registered_entries
+FOR EACH ROW
+BEGIN
+  INSERT INTO registered_entries_events ( event_type, e_id, entry_id, spiffe_id, parent_id, reg_ttl, admin, downstream, expiry, store_svid, hint, created_at, selector_id, selector_type, selector_value, trust_domain, dns_name_id, dns_name, revision_number, reg_jwt_svid_ttl )
+    SELECT 'delete', OLD.id, OLD.entry_id, OLD.spiffe_id, OLD.parent_id, OLD.ttl, OLD.admin, OLD.downstream, OLD.expiry, OLD.store_svid, OLD.hint, OLD.created_at, NULL, NULL, NULL, NULL, NULL, NULL, OLD.revision_number, OLD.jwt_svid_ttl
+    FROM DUAL;
+END;
+`,
+		`
+CREATE TRIGGER selectors_create AFTER INSERT on selectors
+FOR EACH ROW
+BEGIN
+  INSERT INTO registered_entries_events ( event_type, e_id, entry_id, spiffe_id, parent_id, reg_ttl, admin, downstream, expiry, store_svid, hint, created_at, selector_id, selector_type, selector_value, trust_domain, dns_name_id, dns_name, revision_number, reg_jwt_svid_ttl )
+    SELECT 'create', NEW.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NEW.id, NEW.type, NEW.value, NULL, NULL, NULL, NULL, NULL
+    FROM DUAL;
+END;
+`,
+		`
+CREATE TRIGGER selectors_update AFTER UPDATE on selectors
+FOR EACH ROW
+BEGIN
+  INSERT INTO registered_entries_events ( event_type, e_id, entry_id, spiffe_id, parent_id, reg_ttl, admin, downstream, expiry, store_svid, hint, created_at, selector_id, selector_type, selector_value, trust_domain, dns_name_id, dns_name, revision_number, reg_jwt_svid_ttl )
+    SELECT 'update', NEW.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NEW.id, NEW.type, NEW.value, NULL, NULL, NULL, NULL, NULL
+    FROM DUAL;
+END;
+`,
+		`
+CREATE TRIGGER selectors_delete AFTER DELETE on selectors
+FOR EACH ROW
+BEGIN
+  INSERT INTO registered_entries_events ( event_type, e_id, entry_id, spiffe_id, parent_id, reg_ttl, admin, downstream, expiry, store_svid, hint, created_at, selector_id, selector_type, selector_value, trust_domain, dns_name_id, dns_name, revision_number, reg_jwt_svid_ttl )
+    SELECT 'delete', OLD.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, OLD.id, OLD.type, OLD.value, NULL, NULL, NULL, NULL, NULL
+    FROM DUAL;
+END;
+`,
+		`
+CREATE TRIGGER dns_names_create AFTER INSERT on dns_names
+FOR EACH ROW
+BEGIN
+  INSERT INTO registered_entries_events ( event_type, e_id, entry_id, spiffe_id, parent_id, reg_ttl, admin, downstream, expiry, store_svid, hint, created_at, selector_id, selector_type, selector_value, trust_domain, dns_name_id, dns_name, revision_number, reg_jwt_svid_ttl )
+    SELECT 'create', NEW.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NEW.id, NEW.value, NULL, NULL
+    FROM DUAL;
+END;
+`,
+		`
+CREATE TRIGGER dns_names_update AFTER UPDATE on dns_names
+FOR EACH ROW
+BEGIN
+  INSERT INTO registered_entries_events ( event_type, e_id, entry_id, spiffe_id, parent_id, reg_ttl, admin, downstream, expiry, store_svid, hint, created_at, selector_id, selector_type, selector_value, trust_domain, dns_name_id, dns_name, revision_number, reg_jwt_svid_ttl )
+    SELECT 'update', NEW.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NEW.id, NEW.value, NULL, NULL
+    FROM DUAL;
+END;
+`,
+		`
+CREATE TRIGGER dns_names_delete AFTER DELETE on dns_names
+FOR EACH ROW
+BEGIN
+  INSERT INTO registered_entries_events ( event_type, e_id, entry_id, spiffe_id, parent_id, reg_ttl, admin, downstream, expiry, store_svid, hint, created_at, selector_id, selector_type, selector_value, trust_domain, dns_name_id, dns_name, revision_number, reg_jwt_svid_ttl )
+    SELECT 'delete', OLD.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, OLD.id, OLD.value, NULL, NULL
+    FROM DUAL;
+END;
+`,
+	}
+
+	for _, trigger := range triggers {
+		tx := ds.db.Exec(trigger)
+		if tx.Error != nil && !strings.Contains(tx.Error.Error(), "Trigger already exists") {
+			return tx.Error
+		}
+	}
+
+	return nil
+
 }
 
 // withReadModifyWriteTx wraps the operation in a transaction appropriate for
@@ -2437,8 +2538,9 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 	}
 }
 
-func listRegistrationEntriesEvents(ctx context.Context, db *sqlDB, log logrus.FieldLogger, eidToSpiffeID map[uint64]*common.RegistrationEntry, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+func (ds *Plugin) listRegistrationEntriesEvents(ctx context.Context, db *sqlDB, log logrus.FieldLogger, eidToSpiffeID map[uint64]*common.RegistrationEntry, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
 	var entries []*common.RegistrationEntry
+	req.MinID = ds.lastEventID
 	query, args, err := buildListRegistrationEntriesEventsQuery(db.databaseType, db.supportsCTE, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -2462,6 +2564,7 @@ func listRegistrationEntriesEvents(ctx context.Context, db *sqlDB, log logrus.Fi
 		}
 
 		entries = append(entries, entry)
+		ds.lastEventID = r.EventID
 	}
 
 	resp := &datastore.ListRegistrationEntriesEventsResponse{
@@ -3457,6 +3560,7 @@ func fillEntryFromEventRow(eidToSpiffeID map[uint64]*common.RegistrationEntry, r
 	entry, ok := eidToSpiffeID[r.EId]
 	if !ok {
 		entry = new(common.RegistrationEntry)
+		eidToSpiffeID[r.EId] = entry
 	}
 	if r.EntryID.Valid {
 		entry.EntryId = r.EntryID.String
