@@ -194,7 +194,6 @@ func Update(ctx context.Context, ds datastore.DataStore, cache *FullEntryCache) 
 	for _, entry := range entries {
 		parentID := spiffeIDFromProto(entry.ParentId)
 		var i int
-		fmt.Println(len(cache.entries[parentID]))
 		for i = 0; i < len(cache.entries[parentID]); i++ {
 			if cache.entries[parentID][i].Id == entry.Id {
 				if entry.CreatedAt == 0 {
@@ -207,12 +206,10 @@ func Update(ctx context.Context, ds datastore.DataStore, cache *FullEntryCache) 
 				break
 			}
 		}
-		if i == len(cache.entries[parentID]) {
+		if i == len(cache.entries[parentID]) && entry.CreatedAt != 0 {
 			cache.entries[parentID] = append(cache.entries[parentID], entry)
 		}
 	}
-
-	fmt.Println(len(entries))
 
 	return nil
 }
@@ -231,7 +228,6 @@ func (c *FullEntryCache) GetAllEntries() []*types.Entry {
 
 	fmt.Println("Getting all entries")
 	for _, entry := range c.entries {
-		fmt.Println(len(entry))
 		entries = append(entries, entry...)
 	}
 
