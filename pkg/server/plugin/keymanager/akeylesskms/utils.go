@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/akeylesslabs/akeyless-go/v3"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func buildKeyName(keyId string, config *Config) string {
@@ -48,6 +51,19 @@ func keyTypeFromKeySpec(keySpec string) keymanagerv1.KeyType {
 func makeFingerprint(pkixData []byte) string {
 	s := sha256.Sum256(pkixData)
 	return hex.EncodeToString(s[:])
+}
+
+func extractAkeylessError(err error, action string) error {
+	if err == nil {
+		return nil
+	}
+
+	if aklsErr, ok := err.(akeyless.GenericOpenAPIError); ok {
+		if jsonErr, ok := aklsErr.Model().(akeyless.JSONError); ok {
+			return status.Errorf(codes.Internal, fmt.Sprintf("%v: %v", action, jsonErr.GetError()))
+		}
+	}
+	return status.Errorf(codes.Internal, fmt.Sprintf("failed to %v: %v", action, err.Error()))
 }
 
 func defineHashingAlgorithm(keyType keymanagerv1.KeyType, signerOpts interface{}) (string, error) {

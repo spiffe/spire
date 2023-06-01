@@ -83,7 +83,7 @@ func fetchPublicKey(ctx context.Context, keyName string) ([]byte, error) {
 	body.SetToken(GetAuthToken())
 	out, _, err := AklClient.ExportClassicKey(ctx).Body(body).Execute()
 	if err != nil {
-		return nil, fmt.Errorf("failed to export classic key: %v", err.Error())
+		return nil, extractAkeylessError(err, "export classic key")
 	}
 
 	if out.Key == nil || len(out.GetKey()) == 0 {
@@ -146,7 +146,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 
 	out, _, err := AklClient.CreateClassicKey(ctx).Body(body).Execute()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, fmt.Sprintf("failed to create classic key %v: %v", keyName, err.Error()))
+		return nil, extractAkeylessError(err, "create classic key")
 	}
 
 	if out.PublicKey == nil {
@@ -230,11 +230,12 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	body.SetHashed(true)
 	body.SetName(keyName)
 	body.SetHashingMethod(hashAlg)
+	body.SetVersion(1)
 	body.SetData(base64.StdEncoding.EncodeToString(req.Data))
 
 	signOut, _, err := AklClient.SignDataWithClassicKey(ctx).Body(body).Execute()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, fmt.Sprintf("failed to sign: %v", err.Error()))
+		return nil, extractAkeylessError(err, "sign data")
 	}
 	signed, err := base64.StdEncoding.DecodeString(signOut.GetResult())
 	if err != nil {
