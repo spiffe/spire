@@ -208,7 +208,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 		return sqlError.New("current migration code not compatible with current release version")
 	}
 
-	isNew := !db.HasTable(&Migration{})
+	isNew := !db.HasTable(&Migration{}) || !db.HasTable(&RegisteredEntryEvent{})
 	if err := db.Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -343,6 +343,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		&AttestedNode{},
 		&NodeSelector{},
 		&RegisteredEntry{},
+		&RegisteredEntryEvent{},
 		&JoinToken{},
 		&Selector{},
 		&Migration{},

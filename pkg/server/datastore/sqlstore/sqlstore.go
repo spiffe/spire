@@ -2507,7 +2507,7 @@ type queryContext interface {
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 }
 
-func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseType string, supportsCTE bool, eidToSpiffeID map[uint64]*common.RegistrationEntry,req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseType string, supportsCTE bool, eidToSpiffeID map[uint64]*common.RegistrationEntry, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	query, args, err := buildListRegistrationEntriesQuery(databaseType, supportsCTE, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -3515,7 +3515,7 @@ func fillEntryFromEventRow(eidToSpiffeID map[uint64]*common.RegistrationEntry, r
 	return entry, nil
 }
 
-func fillEntryFromRow(entry *common.RegistrationEntry,r *entryRow) error {
+func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 	if r.EntryID.Valid {
 		entry.EntryId = r.EntryID.String
 	}

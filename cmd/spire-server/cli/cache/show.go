@@ -9,7 +9,6 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
-	"github.com/spiffe/spire/pkg/server/endpoints"
 
 	"golang.org/x/net/context"
 )
@@ -45,11 +44,7 @@ func (c *showCommand) AppendFlags(f *flag.FlagSet) {
 // Run executes all logic associated with a single invocation of the
 // `spire-server entry show` CLI command
 func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
-	entries, err := endpoints.GetFetcher().FetchAllCachedEntries()
-	if err != nil {
-		return err
-	}
-
+	var entries []*types.Entry
 	for _, entry := range entries {
 		printEntry(entry)
 	}

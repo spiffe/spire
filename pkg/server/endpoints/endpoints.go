@@ -48,8 +48,6 @@ const (
 	defaultCacheReloadInterval = 5 * time.Second
 )
 
-var entryFetcher *AuthorizedEntryFetcherWithFullCache
-
 // Server manages gRPC and HTTP endpoint lifecycle
 type Server interface {
 	// ListenAndServe starts all endpoint servers and blocks until the context
@@ -126,9 +124,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	if err != nil {
 		return nil, err
 	}
-	entryFetcher = ef
-	ef.log.Info("TEST")
-	entryFetcher.log.Info("Test")
 
 	ds := c.Catalog.GetDataStore()
 
@@ -149,10 +144,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
 	}, nil
-}
-
-func GetFetcher() *AuthorizedEntryFetcherWithFullCache {
-	return entryFetcher
 }
 
 // ListenAndServe starts all endpoint servers and blocks until the context

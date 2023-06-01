@@ -102,6 +102,55 @@ type RegisteredEntry struct {
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
 }
 
+// RegisteredEntry holds a registered entity entry
+type RegisteredEntryEvent struct {
+	EventID   uint `gorm:"primary_key"`
+	EventType string
+	EID       uint `gorm:"column:e_id"`
+
+	EntryID  string
+	SpiffeID string
+	ParentID string
+
+	// TTL of identities derived from this entry. This field represents the X509-SVID TTL of the Entry
+	RegTTL int32 `gorm:"column:reg_ttl"`
+
+	Admin      bool
+	Downstream bool
+	Expiry     int64
+
+	// StoreSvid determines if the issued SVID is exportable to a store
+	StoreSvid bool
+
+	// Hint is a "hint string" passed to the workload to distinguish between
+	Hint string
+
+	CreatedAt time.Time
+
+	SelectorId    uint
+	SelectorType  string
+	SelectorValue string
+
+	TrustDomain string
+
+	DNSNameId uint   `gorm:"column:dns_name_id"`
+	DNSName   string `gorm:"column:dns_name"`
+
+	// RevisionNumber is a counter that is incremented when the entry is
+	// updated.
+	RevisionNumber int64
+
+	// multiple SVIDs
+
+	// TTL of JWT identities derived from this entry
+	RegJWTSvidTTL int32 `gorm:"column:reg_jwt_svid_ttl"`
+}
+
+// TableName gets table name for DNS entries
+func (RegisteredEntryEvent) TableName() string {
+	return "registered_entries_events"
+}
+
 // JoinToken holds a join token
 type JoinToken struct {
 	Model
