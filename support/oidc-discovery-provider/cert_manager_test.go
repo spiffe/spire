@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -20,6 +21,15 @@ import (
 )
 
 var logger, logHook = test.NewNullLogger()
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+
+	for _, entry := range logHook.AllEntries() {
+		println(entry.Message)
+	}
+	os.Exit(code)
+}
 
 func TestTLSConfig(t *testing.T) {
 	fileSyncInterval = 10 * time.Millisecond
@@ -367,7 +377,7 @@ func TestTLSConfig(t *testing.T) {
 		errLogs := map[time.Time]struct{}{}
 		require.Eventuallyf(t, func() bool {
 			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q is unreadable; please ensure it has correct permissions", tmpDir+certFilePath)) {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate: open %s: %s", tmpDir+certFilePath, filePermissionDeniedMessage)) {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}
@@ -389,7 +399,7 @@ func TestTLSConfig(t *testing.T) {
 		errLogs = map[time.Time]struct{}{}
 		require.Eventuallyf(t, func() bool {
 			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q is unreadable; please ensure it has correct permissions", tmpDir+keyFilePath)) {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate: open %s: %s", tmpDir+keyFilePath, filePermissionDeniedMessage)) {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}

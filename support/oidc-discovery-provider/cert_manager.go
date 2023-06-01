@@ -159,10 +159,5 @@ func (m *DiskCertManager) getFileInfo(path string) (os.FileInfo, error) {
 		return nil, err
 	}
 
-	if fileInfo.Mode().Perm()&0400 == 0 {
-		m.log.Errorf("Failed to get file info, file path %q is unreadable; please ensure it has correct permissions", path)
-		return nil, errors.New("file is unreadable")
-	}
-
 	return fileInfo, nil
 }
