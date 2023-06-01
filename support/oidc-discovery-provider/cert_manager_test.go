@@ -7,7 +7,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -21,15 +20,6 @@ import (
 )
 
 var logger, logHook = test.NewNullLogger()
-
-func TestMain(m *testing.M) {
-	code := m.Run()
-
-	for _, entry := range logHook.AllEntries() {
-		println(entry.Message)
-	}
-	os.Exit(code)
-}
 
 func TestTLSConfig(t *testing.T) {
 	oidcServerKey := testkey.MustEC256()
@@ -110,7 +100,7 @@ func TestTLSConfig(t *testing.T) {
 		_, err := NewDiskCertManager(&Config{}, logger)
 		require.EqualError(t, err, "missing serving cert file configuration")
 	})
-	
+
 	t.Run("error when provided cert path do not exist", func(t *testing.T) {
 		_, err := NewDiskCertManager(&Config{ServingCertFile: &ServingCertFileConfig{
 			CertFilePath: tmpDir + "/nonexistent_cert.pem",
@@ -373,11 +363,10 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("change cert and key file permissions will start error log loop", func(t *testing.T) {
-		//	make cert file not readable
-		err = makeFileUnreadable(tmpDir + certFilePath)
-		require.NoError(t, err)
-
+		// Make cert file not readable
 		err = writeFile(tmpDir+certFilePath, oidcServerCertPem)
+		require.NoError(t, err)
+		err = makeFileUnreadable(tmpDir + certFilePath)
 		require.NoError(t, err)
 
 		// Assert error logs that will keep triggering until the cert permission is valid again.
@@ -396,7 +385,7 @@ func TestTLSConfig(t *testing.T) {
 			Bytes: oidcServerCertUpdated3.Raw,
 		})
 
-		//	make cert file readable again
+		// Make cert file readable again
 		err = makeFileReadable(tmpDir+certFilePath, oidcServerCertUpdated3Pem)
 		require.NoError(t, err)
 
@@ -413,7 +402,7 @@ func TestTLSConfig(t *testing.T) {
 			return len(errLogs) >= 5
 		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert file permission error logs")
 
-		//	make cert file readable again
+		// Make cert file readable again
 		err = makeFileReadable(tmpDir+keyFilePath, oidcServerKeyPem)
 		require.NoError(t, err)
 

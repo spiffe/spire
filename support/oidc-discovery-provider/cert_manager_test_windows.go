@@ -50,7 +50,7 @@ func makeFileUnreadable(name string) error {
 		return err
 	}
 
-	// this SDDL code denies generic read access to the owner of the file
+	// This SDDL code denies generic read access to the owner of the file
 	sd, err := windows.SecurityDescriptorFromString("D:(D;OICI;GR;;;OW)")
 	if err != nil {
 		return err
