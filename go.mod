@@ -3,7 +3,7 @@ module github.com/spiffe/spire
 go 1.20
 
 require (
-	cloud.google.com/go/iam v1.0.1
+	cloud.google.com/go/iam v1.1.0
 	cloud.google.com/go/kms v1.11.0
 	cloud.google.com/go/secretmanager v1.10.1
 	cloud.google.com/go/security v1.15.0
@@ -84,7 +84,7 @@ require (
 )
 
 require (
-	cloud.google.com/go v0.110.0 // indirect
+	cloud.google.com/go v0.110.2 // indirect
 	cloud.google.com/go/compute v1.19.3 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/longrunning v0.4.2 // indirect
