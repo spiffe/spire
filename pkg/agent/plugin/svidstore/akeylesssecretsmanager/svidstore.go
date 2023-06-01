@@ -3,6 +3,7 @@ package akeylesssecretsmanager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -72,7 +73,7 @@ func checkIfSecretExist(ctx context.Context, name string) (bool, error) {
 		if strings.Contains(strings.ToLower(err.Error()), "found") {
 			return false, nil
 		}
-		return false, status.Errorf(codes.Internal, "failed to describe item %v: %v", name, err.Error())
+		return false, extractAkeylessError(err, "describe item")
 	}
 
 	//validate tag
@@ -107,7 +108,7 @@ func (p *Plugin) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509
 	body.SetToken(GetAuthToken())
 	_, _, err = AklClient.DeleteItem(ctx).Body(body).Execute()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to delete item %v: %v", opt.Name, err.Error())
+		return nil, extractAkeylessError(err, "delete item")
 	}
 
 	return &svidstorev1.DeleteX509SVIDResponse{}, nil
@@ -145,7 +146,7 @@ func (p *Plugin) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRe
 		body.SetToken(GetAuthToken())
 		_, _, err = AklClient.UpdateSecretVal(ctx).Body(body).Execute()
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to update item %v: %v", opt.Name, err.Error())
+			return nil, extractAkeylessError(err, "update item")
 		}
 
 	} else {
@@ -158,7 +159,7 @@ func (p *Plugin) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRe
 		body.SetToken(GetAuthToken())
 		_, _, err = AklClient.CreateSecret(ctx).Body(body).Execute()
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create item %v: %v", opt.Name, err.Error())
+			return nil, extractAkeylessError(err, "create item")
 		}
 	}
 
@@ -236,6 +237,19 @@ func secretEntryFromSecretData(metadata []string) (*secretEntry, error) {
 	}
 
 	return opt, nil
+}
+
+func extractAkeylessError(err error, action string) error {
+	if err == nil {
+		return nil
+	}
+
+	if aklsErr, ok := err.(akeyless.GenericOpenAPIError); ok {
+		if jsonErr, ok := aklsErr.Model().(akeyless.JSONError); ok {
+			return status.Errorf(codes.Internal, fmt.Sprintf("%v: %v", action, jsonErr.GetError()))
+		}
+	}
+	return status.Errorf(codes.Internal, fmt.Sprintf("failed to %v: %v", action, err.Error()))
 }
 
 func New() *Plugin {
