@@ -64,6 +64,9 @@ type configuration struct {
 
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
+
+	// Used by tests to provide consistent behavior for CreatedAt timestamps.
+	UseServerTimestamps bool `hcl:"use_server_timestamps" json:"use_server_timestamps"`
 }
 
 type sqlDB struct {
@@ -779,6 +782,11 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 			return nil, "", false, nil, fmt.Errorf("failed to parse conn_max_lifetime %q: %w", *cfg.ConnMaxLifetime, err)
 		}
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
+	}
+	if cfg.UseServerTimestamps {
+		db.SetNowFuncOverride(func() time.Time {
+			return time.Now()
+		})
 	}
 
 	if !isReadOnly {
@@ -2065,7 +2073,8 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		newSelector := Selector{
 			RegisteredEntryID: newRegisteredEntry.ID,
 			Type:              registeredSelector.Type,
-			Value:             registeredSelector.Value}
+			Value:             registeredSelector.Value,
+		}
 
 		if err := tx.Create(&newSelector).Error; err != nil {
 			return nil, sqlError.Wrap(err)
@@ -3392,7 +3401,7 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		entry.Hint = r.Hint.String
 	}
 	if r.CreatedAt.Valid {
-		entry.CreatedAt = roundedCreatedAtInSeconds(r.CreatedAt.Time)
+		entry.CreatedAt = r.CreatedAt.Time.Unix()
 	}
 
 	return nil
@@ -3982,7 +3991,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		StoreSvid:      model.StoreSvid,
 		JwtSvidTtl:     model.JWTSvidTTL,
 		Hint:           model.Hint,
-		CreatedAt:      roundedCreatedAtInSeconds(model.CreatedAt),
+		CreatedAt:      model.CreatedAt.Unix(),
 	}, nil
 }
 
@@ -4138,10 +4147,4 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *comm
 	}
 
 	return nil, nil
-}
-
-// roundCreatedAtInSeconds rounds the createdAt time to the nearest second, and return the time in seconds since the
-// unix epoch. This function is used to avoid issues with databases versions that do not support sub-second precision.
-func roundedCreatedAtInSeconds(createdAt time.Time) int64 {
-	return createdAt.Round(time.Second).Unix()
 }
