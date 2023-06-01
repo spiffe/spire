@@ -257,3 +257,9 @@ func (w metricsWrapper) UpdateFederationRelationship(ctx context.Context, fr *da
 	defer callCounter.Done(&err)
 	return w.ds.UpdateFederationRelationship(ctx, fr, mask)
 }
+
+func (w metricsWrapper) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (_ *datastore.ListRegistrationEntriesEventsResponse, err error) {
+	callCounter := StartListRegistrationCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.ListRegistrationEntriesEvents(ctx, req)
+}

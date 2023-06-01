@@ -91,16 +91,20 @@ func (db *sqlDB) QueryContext(ctx context.Context, query string, args ...interfa
 
 // Plugin is a DataStore plugin implemented via a SQL database
 type Plugin struct {
-	mu   sync.Mutex
-	db   *sqlDB
-	roDb *sqlDB
-	log  logrus.FieldLogger
+	mu            sync.Mutex
+	db            *sqlDB
+	roDb          *sqlDB
+	log           logrus.FieldLogger
+	eidToSpiffeID map[uint64]*common.RegistrationEntry
 }
 
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
 func New(log logrus.FieldLogger) *Plugin {
-	return &Plugin{log: log}
+	return &Plugin{
+		log:           log,
+		eidToSpiffeID: make(map[uint64]*common.RegistrationEntry),
+	}
 }
 
 // CreateBundle stores the given bundle
@@ -366,7 +370,7 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, tx, entry)
+		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, tx, ds.eidToSpiffeID, entry)
 		if err != nil {
 			return err
 		}
@@ -401,12 +405,11 @@ func (ds *Plugin) CountRegistrationEntries(ctx context.Context) (count int32, er
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
-func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
-	req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
+func (ds *Plugin) ListRegistrationEntries(ctx context.Context, req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
 	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
-		return listRegistrationEntries(ctx, ds.roDb, ds.log, req)
+		return listRegistrationEntries(ctx, ds.roDb, ds.log, ds.eidToSpiffeID, req)
 	}
-	return listRegistrationEntries(ctx, ds.db, ds.log, req)
+	return listRegistrationEntries(ctx, ds.db, ds.log, ds.eidToSpiffeID, req)
 }
 
 // UpdateRegistrationEntry updates an existing registration entry
@@ -439,6 +442,12 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore ti
 		err = pruneRegistrationEntries(tx, expiresBefore, ds.log)
 		return err
 	})
+}
+
+// ListRegistrationEntries lists all registrations (pagination available)
+func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context,
+	req *datastore.ListRegistrationEntriesEventsRequest) (resp *datastore.ListRegistrationEntriesEventsResponse, err error) {
+	return listRegistrationEntriesEvents(ctx, ds.db, ds.log, ds.eidToSpiffeID, req)
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -2381,7 +2390,7 @@ func countRegistrationEntries(tx *gorm.DB) (int32, error) {
 	return int32(count), nil
 }
 
-func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, eidToSpiffeID map[uint64]*common.RegistrationEntry, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -2395,7 +2404,7 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 	// query returns rows that are completely filtered out. If that happens,
 	// keep querying until a page gets at least one result.
 	for {
-		resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, req)
+		resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, eidToSpiffeID, req)
 		if err != nil {
 			return nil, err
 		}
@@ -2426,6 +2435,40 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 
 		req.Pagination = resp.Pagination
 	}
+}
+
+func listRegistrationEntriesEvents(ctx context.Context, db *sqlDB, log logrus.FieldLogger, eidToSpiffeID map[uint64]*common.RegistrationEntry, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+	var entries []*common.RegistrationEntry
+	query, args, err := buildListRegistrationEntriesEventsQuery(db.databaseType, db.supportsCTE, req)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var r entryEventRow
+		if err := scanEntryEventRow(rows, &r); err != nil {
+			return nil, err
+		}
+
+		entry, err := fillEntryFromEventRow(eidToSpiffeID, &r)
+		if err != nil {
+			return nil, err
+		}
+
+		entries = append(entries, entry)
+	}
+
+	resp := &datastore.ListRegistrationEntriesEventsResponse{
+		Entries: entries,
+	}
+
+	return resp, nil
 }
 
 func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors []*common.Selector) []*common.RegistrationEntry {
@@ -2464,7 +2507,7 @@ type queryContext interface {
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 }
 
-func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseType string, supportsCTE bool, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
+func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseType string, supportsCTE bool, eidToSpiffeID map[uint64]*common.RegistrationEntry,req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	query, args, err := buildListRegistrationEntriesQuery(databaseType, supportsCTE, req)
 	if err != nil {
 		return nil, sqlError.Wrap(err)
@@ -2485,7 +2528,7 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		entries = make([]*common.RegistrationEntry, 0, 64)
 	}
 
-	pushEntry := func(entry *common.RegistrationEntry) {
+	pushEntry := func(entry *common.RegistrationEntry, eid uint64) {
 		// Due to previous bugs (i.e. #1191), there can be cruft rows related
 		// to a deleted registration entries that are fetched with the list
 		// query. To avoid hydrating partial entries, append only entries that
@@ -2493,6 +2536,7 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		// entry id).
 		if entry != nil && entry.EntryId != "" {
 			entries = append(entries, entry)
+			eidToSpiffeID[eid] = entry
 		}
 	}
 
@@ -2505,8 +2549,8 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		}
 
 		if entry == nil || lastEID != r.EId {
+			pushEntry(entry, lastEID)
 			lastEID = r.EId
-			pushEntry(entry)
 			entry = new(common.RegistrationEntry)
 		}
 
@@ -2514,7 +2558,7 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 			return nil, err
 		}
 	}
-	pushEntry(entry)
+	pushEntry(entry, lastEID)
 
 	if err := rows.Err(); err != nil {
 		return nil, sqlError.Wrap(err)
@@ -2554,6 +2598,23 @@ func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *dat
 	default:
 		return "", nil, sqlError.New("unsupported db type: %q", dbType)
 	}
+}
+
+func buildListRegistrationEntriesEventsQuery(dbType string, supportsCTE bool, req *datastore.ListRegistrationEntriesEventsRequest) (string, []interface{}, error) {
+	builder := new(strings.Builder)
+	var args []interface{}
+
+	builder.WriteString(`
+SELECT
+	*
+FROM
+	registered_entries_events
+`)
+
+	builder.WriteString("WHERE event_id > ?")
+	args = append(args, req.MinID)
+
+	return builder.String(), args, nil
 }
 
 func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEntriesRequest) (string, []interface{}, error) {
@@ -3342,7 +3403,119 @@ func scanEntryRow(rs *sql.Rows, r *entryRow) error {
 	))
 }
 
-func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
+type entryEventRow struct {
+	EventID        uint64
+	EventType      sql.NullString
+	EId            uint64
+	EntryID        sql.NullString
+	SpiffeID       sql.NullString
+	ParentID       sql.NullString
+	RegTTL         sql.NullInt64
+	Admin          sql.NullBool
+	Downstream     sql.NullBool
+	Expiry         sql.NullInt64
+	SelectorID     sql.NullInt64
+	SelectorType   sql.NullString
+	SelectorValue  sql.NullString
+	StoreSvid      sql.NullBool
+	Hint           sql.NullString
+	CreatedAt      sql.NullTime
+	TrustDomain    sql.NullString
+	DNSNameID      sql.NullInt64
+	DNSName        sql.NullString
+	RevisionNumber sql.NullInt64
+	RegJwtSvidTTL  sql.NullInt64
+}
+
+func scanEntryEventRow(rs *sql.Rows, r *entryEventRow) error {
+	return sqlError.Wrap(rs.Scan(
+		&r.EventID,
+		&r.EventType,
+		&r.EId,
+		&r.EntryID,
+		&r.SpiffeID,
+		&r.ParentID,
+		&r.RegTTL,
+		&r.Admin,
+		&r.Downstream,
+		&r.Expiry,
+		&r.StoreSvid,
+		&r.Hint,
+		&r.CreatedAt,
+		&r.SelectorID,
+		&r.SelectorType,
+		&r.SelectorValue,
+		&r.TrustDomain,
+		&r.DNSNameID,
+		&r.DNSName,
+		&r.RevisionNumber,
+		&r.RegJwtSvidTTL,
+	))
+}
+
+func fillEntryFromEventRow(eidToSpiffeID map[uint64]*common.RegistrationEntry, r *entryEventRow) (*common.RegistrationEntry, error) {
+	entry, ok := eidToSpiffeID[r.EId]
+	if !ok {
+		entry = new(common.RegistrationEntry)
+	}
+	if r.EntryID.Valid {
+		entry.EntryId = r.EntryID.String
+	}
+	if r.SpiffeID.Valid {
+		entry.SpiffeId = r.SpiffeID.String
+	}
+	if r.ParentID.Valid {
+		entry.ParentId = r.ParentID.String
+	}
+	if r.Admin.Valid {
+		entry.Admin = r.Admin.Bool
+	}
+	if r.Downstream.Valid {
+		entry.Downstream = r.Downstream.Bool
+	}
+	if r.Expiry.Valid {
+		entry.EntryExpiry = r.Expiry.Int64
+	}
+	if r.StoreSvid.Valid {
+		entry.StoreSvid = r.StoreSvid.Bool
+	}
+	if r.RevisionNumber.Valid {
+		entry.RevisionNumber = r.RevisionNumber.Int64
+	}
+	if r.SelectorType.Valid {
+		if !r.SelectorValue.Valid {
+			return nil, sqlError.New("expected non-nil selector.value value for entry id %s", entry.EntryId)
+		}
+		entry.Selectors = append(entry.Selectors, &common.Selector{
+			Type:  r.SelectorType.String,
+			Value: r.SelectorValue.String,
+		})
+	}
+	if r.DNSName.Valid {
+		entry.DnsNames = append(entry.DnsNames, r.DNSName.String)
+	}
+	if r.TrustDomain.Valid {
+		entry.FederatesWith = append(entry.FederatesWith, r.TrustDomain.String)
+	}
+	if r.RegTTL.Valid {
+		entry.X509SvidTtl = int32(r.RegTTL.Int64)
+	}
+	if r.RegJwtSvidTTL.Valid {
+		entry.JwtSvidTtl = int32(r.RegJwtSvidTTL.Int64)
+	}
+	if r.Hint.Valid {
+		entry.Hint = r.Hint.String
+	}
+	if r.EventType.String == "delete" {
+		entry.CreatedAt = 0
+	} else if r.CreatedAt.Valid {
+		entry.CreatedAt = roundedCreatedAtInSeconds(r.CreatedAt.Time)
+	}
+
+	return entry, nil
+}
+
+func fillEntryFromRow(entry *common.RegistrationEntry,r *entryRow) error {
 	if r.EntryID.Valid {
 		entry.EntryId = r.EntryID.String
 	}
@@ -4117,8 +4290,8 @@ func nullableUnixTimeToDBTime(unixTime int64) *time.Time {
 	return &dbTime
 }
 
-func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	resp, err := listRegistrationEntriesOnce(ctx, tx.CommonDB().(queryContext), db.databaseType, db.supportsCTE, &datastore.ListRegistrationEntriesRequest{
+func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, eidToSpiffeID map[uint64]*common.RegistrationEntry, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
+	resp, err := listRegistrationEntriesOnce(ctx, tx.CommonDB().(queryContext), db.databaseType, db.supportsCTE, eidToSpiffeID, &datastore.ListRegistrationEntriesRequest{
 		BySpiffeID: entry.SpiffeId,
 		ByParentID: entry.ParentId,
 		BySelectors: &datastore.BySelectors{

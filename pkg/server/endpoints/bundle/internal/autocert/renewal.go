@@ -26,7 +26,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-//nolint // forked code
+// nolint // forked code
 package autocert
 
 import (
@@ -65,6 +65,7 @@ func (dr *domainRenewal) start(exp time.Time) {
 
 // stop stops the cert renewal timer.
 // If the timer is already stopped, calling stop is a noop.
+//
 //nolint:unused
 func (dr *domainRenewal) stop() {
 	dr.timerMu.Lock()

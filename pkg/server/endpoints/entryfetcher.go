@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -16,9 +17,10 @@ import (
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithFullCache)(nil)
 
 type entryCacheBuilderFn func(ctx context.Context) (entrycache.Cache, error)
+type entryCacheUpdateFn func(ctx context.Context, cache entrycache.Cache) error
 
 type AuthorizedEntryFetcherWithFullCache struct {
-	buildCache          entryCacheBuilderFn
+	updateCache         entryCacheUpdateFn
 	cache               entrycache.Cache
 	clk                 clock.Clock
 	log                 logrus.FieldLogger
@@ -26,7 +28,7 @@ type AuthorizedEntryFetcherWithFullCache struct {
 	cacheReloadInterval time.Duration
 }
 
-func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, log logrus.FieldLogger, clk clock.Clock, cacheReloadInterval time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
+func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, updateCache entryCacheUpdateFn, log logrus.FieldLogger, clk clock.Clock, cacheReloadInterval time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
 	log.Info("Building in-memory entry cache")
 	cache, err := buildCache(ctx)
 	if err != nil {
@@ -35,7 +37,7 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 
 	log.Info("Completed building in-memory entry cache")
 	return &AuthorizedEntryFetcherWithFullCache{
-		buildCache:          buildCache,
+		updateCache:         updateCache,
 		cache:               cache,
 		clk:                 clk,
 		log:                 log,
@@ -49,16 +51,28 @@ func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(ctx context
 	return a.cache.GetAuthorizedEntries(agentID), nil
 }
 
+func (a *AuthorizedEntryFetcherWithFullCache) FetchAllCachedEntries() ([]*types.Entry, error) {
+	return a.cache.GetAllEntries(), nil
+}
+
 // RunRebuildCacheTask starts a ticker which rebuilds the in-memory entry cache.
 func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Context) error {
 	rebuild := func() {
-		cache, err := a.buildCache(ctx)
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		a.log.Info("Updating Cache")
+		err := a.updateCache(ctx, a.cache)
 		if err != nil {
 			a.log.WithError(err).Error("Failed to reload entry cache")
-		} else {
-			a.mu.Lock()
-			a.cache = cache
-			a.mu.Unlock()
+		}
+
+		entries, err := a.FetchAllCachedEntries()
+		if err != nil {
+			a.log.WithError(err).Error("Failed to get cache")
+			return 
+		}
+		for _, entry := range entries {
+			printEntry(entry)
 		}
 	}
 
@@ -71,4 +85,27 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 			rebuild()
 		}
 	}
+}
+
+func printEntry(e *types.Entry) {
+	fmt.Printf("Entry ID         : %s\n", printableEntryID(e.Id))
+	fmt.Printf("SPIFFE ID        : %s\n", protoToIDString(e.SpiffeId))
+	fmt.Printf("Parent ID        : %s\n", protoToIDString(e.ParentId))
+	fmt.Printf("Revision         : %d\n", e.RevisionNumber)
+	fmt.Printf("\n")
+}
+
+func printableEntryID(id string) string {
+	if id == "" {
+		return "(none)"
+	}
+	return id
+}
+
+// protoToIDString converts a SPIFFE ID from the given *types.SPIFFEID to string
+func protoToIDString(id *types.SPIFFEID) string {
+	if id == nil {
+		return ""
+	}
+	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }

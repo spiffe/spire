@@ -65,6 +65,9 @@ type DataStore interface {
 	ListFederationRelationships(context.Context, *ListFederationRelationshipsRequest) (*ListFederationRelationshipsResponse, error)
 	DeleteFederationRelationship(context.Context, spiffeid.TrustDomain) error
 	UpdateFederationRelationship(context.Context, *FederationRelationship, *types.FederationRelationshipMask) (*FederationRelationship, error)
+
+	// Events
+	ListRegistrationEntriesEvents(context.Context, *ListRegistrationEntriesEventsRequest) (*ListRegistrationEntriesEventsResponse, error)
 }
 
 // DataConsistency indicates the required data consistency for a read operation.
@@ -179,6 +182,15 @@ type ListRegistrationEntriesRequest struct {
 }
 
 type ListRegistrationEntriesResponse struct {
+	Entries    []*common.RegistrationEntry
+	Pagination *Pagination
+}
+
+type ListRegistrationEntriesEventsRequest struct {
+	MinID uint
+}
+
+type ListRegistrationEntriesEventsResponse struct {
 	Entries    []*common.RegistrationEntry
 	Pagination *Pagination
 }

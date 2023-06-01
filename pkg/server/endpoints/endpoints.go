@@ -48,6 +48,8 @@ const (
 	defaultCacheReloadInterval = 5 * time.Second
 )
 
+var entryFetcher *AuthorizedEntryFetcherWithFullCache
+
 // Server manages gRPC and HTTP endpoint lifecycle
 type Server interface {
 	// ListenAndServe starts all endpoint servers and blocks until the context
@@ -110,14 +112,23 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
 	}
 
+	updateCacheFn := func(ctx context.Context, cache entrycache.Cache) (err error) {
+		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
+		defer call.Done(&err)
+		return entrycache.Update(ctx, c.Catalog.GetDataStore(), cache.(*entrycache.FullEntryCache))
+	}
+
 	if c.CacheReloadInterval == 0 {
 		c.CacheReloadInterval = defaultCacheReloadInterval
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, c.CacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, updateCacheFn, c.Log, c.Clock, c.CacheReloadInterval)
 	if err != nil {
 		return nil, err
 	}
+	entryFetcher = ef
+	ef.log.Info("TEST")
+	entryFetcher.log.Info("Test")
 
 	ds := c.Catalog.GetDataStore()
 
@@ -138,6 +149,10 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
 	}, nil
+}
+
+func GetFetcher() *AuthorizedEntryFetcherWithFullCache {
+	return entryFetcher
 }
 
 // ListenAndServe starts all endpoint servers and blocks until the context

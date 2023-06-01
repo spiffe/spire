@@ -7,6 +7,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
 	"github.com/spiffe/spire/cmd/spire-server/cli/bundle"
+	"github.com/spiffe/spire/cmd/spire-server/cli/cache"
 	"github.com/spiffe/spire/cmd/spire-server/cli/entry"
 	"github.com/spiffe/spire/cmd/spire-server/cli/federation"
 	"github.com/spiffe/spire/cmd/spire-server/cli/healthcheck"
@@ -113,6 +114,9 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		},
 		"validate": func() (cli.Command, error) {
 			return validate.NewValidateCommand(), nil
+		},
+		"cache show": func() (cli.Command, error) {
+			return cache.NewShowCommand(), nil
 		},
 	}
 

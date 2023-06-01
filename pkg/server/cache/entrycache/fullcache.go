@@ -2,10 +2,13 @@ package entrycache
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -29,6 +32,7 @@ var _ Cache = (*FullEntryCache)(nil)
 // at a particular moment in time.
 type Cache interface {
 	GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry
+	GetAllEntries() []*types.Entry
 }
 
 // Selector is a key-value attribute of a node or workload.
@@ -173,12 +177,65 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	}, nil
 }
 
+func Update(ctx context.Context, ds datastore.DataStore, cache *FullEntryCache) error {
+	req := &datastore.ListRegistrationEntriesEventsRequest{
+		MinID: 0,
+	}
+	resp, err := ds.ListRegistrationEntriesEvents(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	entries, err := api.RegistrationEntriesToProto(resp.Entries)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		parentID := spiffeIDFromProto(entry.ParentId)
+		var i int
+		fmt.Println(len(cache.entries[parentID]))
+		for i = 0; i < len(cache.entries[parentID]); i++ {
+			if cache.entries[parentID][i].Id == entry.Id {
+				if entry.CreatedAt == 0 {
+					fmt.Println("Deleted entry")
+					cache.entries[parentID] = append(cache.entries[parentID][:i], cache.entries[parentID][i+1:]...)
+				} else {
+					fmt.Println("Updated entry")
+					cache.entries[parentID][i] = entry
+				}
+				break
+			}
+		}
+		if i == len(cache.entries[parentID]) {
+			cache.entries[parentID] = append(cache.entries[parentID], entry)
+		}
+	}
+
+	fmt.Println(len(entries))
+
+	return nil
+}
+
 // GetAuthorizedEntries gets all authorized registration entries for a given Agent SPIFFE ID.
 func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
 	return cloneEntries(c.getAuthorizedEntries(spiffeIDFromID(agentID), seen))
+}
+
+// GetAllEntries gets all authorized registration entries for a given Agent SPIFFE ID.
+func (c *FullEntryCache) GetAllEntries() []*types.Entry {
+	var entries []*types.Entry
+
+	fmt.Println("Getting all entries")
+	for _, entry := range c.entries {
+		fmt.Println(len(entry))
+		entries = append(entries, entry...)
+	}
+
+	return entries
 }
 
 func (c *FullEntryCache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
