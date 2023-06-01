@@ -110,37 +110,6 @@ func (m *DiskCertManager) watchFileChanges() {
 	}
 }
 
-// hasFileChanges checks if the cert and key files have been modified since the last check.
-func (m *DiskCertManager) hasFileChanges(certLastModified time.Time, keyLastModified time.Time) bool {
-	certFileInfo, err := os.Stat(m.certFilePath)
-	if err != nil {
-		m.logStatError(err)
-		return false
-	}
-
-	if certFileInfo.Mode().Perm()&0400 == 0 {
-		m.log.Errorf("Failed to load certificate, file path %q is unreadable, please ensure it has correct permissions", m.certFilePath)
-		return false
-	}
-
-	keyFileInfo, err := os.Stat(m.keyFilePath)
-	if err != nil {
-		m.logStatError(err)
-		return false
-	}
-
-	if keyFileInfo.Mode().Perm()&0400 == 0 {
-		m.log.Errorf("Failed to load certificate, file path %q is unreadable, please ensure it has correct permissions", m.keyFilePath)
-		return false
-	}
-
-	if certFileInfo.ModTime() != certLastModified || keyFileInfo.ModTime() != keyLastModified {
-		return true
-	}
-
-	return false
-}
-
 // loadCert read the certificate and key files, and load the x509 certificate to memory.
 func (m *DiskCertManager) loadCert() error {
 	cert, err := tls.LoadX509KeyPair(m.certFilePath, m.keyFilePath)
@@ -161,13 +130,39 @@ func (m *DiskCertManager) loadCert() error {
 	return nil
 }
 
-// logStatError logs the error from os.Stat method.
-func (m *DiskCertManager) logStatError(err error) {
-	errFs := new(fs.PathError)
-	switch {
-	case errors.Is(err, fs.ErrNotExist) && errors.As(err, &errFs):
-		m.log.Errorf("Failed to load certificate, file path %q does not exist anymore, please check if the path is correct", errFs.Path)
-	default:
-		m.log.Errorf("Failed to load certificate: %v", err)
+// hasFileChanges checks if the cert and key files have been modified since the last check.
+func (m *DiskCertManager) hasFileChanges(certLastModified time.Time, keyLastModified time.Time) bool {
+	certFileInfo, err := m.getFileInfo(m.certFilePath)
+	if err != nil {
+		return false
 	}
+
+	keyFileInfo, err := m.getFileInfo(m.keyFilePath)
+	if err != nil {
+		return false
+	}
+
+	return certFileInfo.ModTime() != certLastModified || keyFileInfo.ModTime() != keyLastModified
+}
+
+// getFileInfo returns the file info of the given path, or error if the file is unreadable or does not exist.
+func (m *DiskCertManager) getFileInfo(path string) (os.FileInfo, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		errFs := new(fs.PathError)
+		switch {
+		case errors.Is(err, fs.ErrNotExist) && errors.As(err, &errFs):
+			m.log.Errorf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", errFs.Path)
+		default:
+			m.log.Errorf("Failed to get file info: %v", err)
+		}
+		return nil, err
+	}
+
+	if fileInfo.Mode().Perm()&0400 == 0 {
+		m.log.Errorf("Failed to get file info, file path %q is unreadable; please ensure it has correct permissions", path)
+		return nil, errors.New("file is unreadable")
+	}
+
+	return fileInfo, nil
 }

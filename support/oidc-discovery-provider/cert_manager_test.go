@@ -317,30 +317,28 @@ func TestTLSConfig(t *testing.T) {
 
 		// Assert error logs that will keep triggering until the key is created again.
 		errLogs := map[time.Time]struct{}{}
-
 		require.Eventuallyf(t, func() bool {
 			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate, file path %q does not exist anymore, please check if the path is correct", tmpDir+keyFilePath)) {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", tmpDir+keyFilePath)) {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}
 			return len(errLogs) >= 5
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert error logs")
+		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert non-existing key error logs")
 
 		err = removeFile(tmpDir + certFilePath)
 		require.NoError(t, err)
 
 		// Assert error logs that will keep triggering until the cert is created again.
 		errLogs = map[time.Time]struct{}{}
-
 		require.Eventuallyf(t, func() bool {
 			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate, file path %q does not exist anymore, please check if the path is correct", tmpDir+certFilePath)) {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", tmpDir+certFilePath)) {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}
 			return len(errLogs) >= 5
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert error logs")
+		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert non-existing cert error logs")
 
 		err = writeFile(tmpDir+keyFilePath, oidcServerKeyPem)
 		require.NoError(t, err)
@@ -350,7 +348,7 @@ func TestTLSConfig(t *testing.T) {
 
 		require.Eventuallyf(t, func() bool {
 			return logHook.LastEntry().Message == "Loaded provided certificate with success"
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert created file warning message")
+		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert updated certificate")
 
 		cert, err := tlsConfig.GetCertificate(chInfo)
 		require.NoError(t, err)
@@ -363,43 +361,40 @@ func TestTLSConfig(t *testing.T) {
 	t.Run("change cert and key file permissions will start error log loop", func(t *testing.T) {
 		//	make cert file not readable
 		err = makeFileUnreadable(tmpDir + certFilePath)
-		logger.Errorf("******************** FILE UNREADABLE BY NOW *********************")
 		require.NoError(t, err)
 
 		// Assert error logs that will keep triggering until the cert permission is valid again.
 		errLogs := map[time.Time]struct{}{}
-
 		require.Eventuallyf(t, func() bool {
 			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate, file path %q is unreadable, please ensure it has correct permissions", tmpDir+certFilePath)) {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q is unreadable; please ensure it has correct permissions", tmpDir+certFilePath)) {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}
 			return len(errLogs) >= 5
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert error logs")
+		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert file permission error logs")
 
-		//	make cert file readable again
 		oidcServerCertUpdated3Pem := pem.EncodeToMemory(&pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: oidcServerCertUpdated3.Raw,
 		})
+
+		//	make cert file readable again
 		err = makeFileReadable(tmpDir+certFilePath, oidcServerCertUpdated3Pem)
 		require.NoError(t, err)
 
-		//	make key file not readable
 		err = makeFileUnreadable(tmpDir + keyFilePath)
 		require.NoError(t, err)
 
 		errLogs = map[time.Time]struct{}{}
-
 		require.Eventuallyf(t, func() bool {
 			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate, file path %q is unreadable, please ensure it has correct permissions", tmpDir+keyFilePath)) {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q is unreadable; please ensure it has correct permissions", tmpDir+keyFilePath)) {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}
 			return len(errLogs) >= 5
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert error logs")
+		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert file permission error logs")
 
 		//	make cert file readable again
 		err = makeFileReadable(tmpDir+keyFilePath, oidcServerKeyPem)
