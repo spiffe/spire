@@ -15,26 +15,28 @@ import (
 	"golang.org/x/net/idna"
 )
 
-var (
-	fileSyncInterval = 1 * time.Minute
-)
-
 // DiskCertManager is a certificate manager that loads certificates from disk, and watches for changes.
 type DiskCertManager struct {
 	certFilePath     string
 	keyFilePath      string
 	certLastModified time.Time
 	keyLastModified  time.Time
+	fileSyncInterval time.Duration
 	certMtx          sync.RWMutex
 	cert             *tls.Certificate
 	log              logrus.FieldLogger
 }
 
 func NewDiskCertManager(config *Config, log logrus.FieldLogger) (*DiskCertManager, error) {
+	if config.ServingCertFile == nil {
+		return nil, errors.New("missing serving cert file configuration")
+	}
+
 	dm := &DiskCertManager{
-		certFilePath: config.ServingCertFile.CertFilePath,
-		keyFilePath:  config.ServingCertFile.KeyFilePath,
-		log:          log,
+		certFilePath:     config.ServingCertFile.CertFilePath,
+		keyFilePath:      config.ServingCertFile.KeyFilePath,
+		fileSyncInterval: config.ServingCertFile.FileSyncInterval,
+		log:              log,
 	}
 
 	if err := dm.loadCert(); err != nil {
@@ -96,12 +98,13 @@ func (m *DiskCertManager) getCertificate(chInfo *tls.ClientHelloInfo) (*tls.Cert
 
 // watchFileChanges starts a file watcher to watch for changes to the cert and key files.
 func (m *DiskCertManager) watchFileChanges() {
-	ticker := time.NewTicker(fileSyncInterval)
+	ticker := time.NewTicker(m.fileSyncInterval)
 	for range ticker.C {
 		m.syncCertificateFiles()
 	}
 }
 
+// syncCertificateFiles checks if the cert and key files have been modified, and reloads the certificate if necessary.
 func (m *DiskCertManager) syncCertificateFiles() {
 	certFileInfo, keyFileInfo, err := m.getFilesInfo()
 	if err != nil {

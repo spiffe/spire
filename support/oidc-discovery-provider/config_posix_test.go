@@ -111,6 +111,7 @@ func parseConfigCasesOS() []parseConfigCase {
 				serving_cert_file {
 					cert_file_path = "test"
 					key_file_path = "test"
+					file_sync_interval = "5m"
 				}
 				server_api {
 					address = "unix:///some/socket/path"
@@ -120,8 +121,10 @@ func parseConfigCasesOS() []parseConfigCase {
 				LogLevel: defaultLogLevel,
 				Domains:  []string{"domain.test"},
 				ServingCertFile: &ServingCertFileConfig{
-					CertFilePath: "test",
-					KeyFilePath:  "test",
+					CertFilePath:        "test",
+					KeyFilePath:         "test",
+					FileSyncInterval:    5 * time.Minute,
+					RawFileSyncInterval: "5m",
 				},
 				ServerAPI: &ServerAPIConfig{
 					Address:      "unix:///some/socket/path",

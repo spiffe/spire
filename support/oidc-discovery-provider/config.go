@@ -11,6 +11,7 @@ import (
 const (
 	defaultLogLevel              = "info"
 	defaultPollInterval          = time.Second * 10
+	defaultFileSyncInterval      = time.Minute
 	defaultCacheDir              = "./.acme-cache"
 	defaultHealthChecksBindPort  = 8008
 	defaultHealthChecksReadyPath = "/ready"
@@ -81,6 +82,11 @@ type ServingCertFileConfig struct {
 	// KeyFilePath is the path to the private key file. The provider will watch
 	// this file for changes and reload the key when it changes.
 	KeyFilePath string `hcl:"key_file_path"`
+	// FileSyncInterval controls how frequently the service polls the certificate for changes.
+	FileSyncInterval time.Duration `hcl:"-"`
+	// RawFileSyncInterval holds the string version of the FileSyncInterval. Consumers
+	// should use FileSyncInterval instead.
+	RawFileSyncInterval string `hcl:"file_sync_interval"`
 }
 
 type ACMEConfig struct {
@@ -214,12 +220,17 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		if c.ServingCertFile.KeyFilePath == "" {
 			return nil, errs.New("key_file_path must be configured in the serving_cert_file configuration section")
 		}
+
+		c.ServingCertFile.FileSyncInterval, err = parseDurationField(c.ServingCertFile.RawFileSyncInterval, defaultFileSyncInterval)
+		if err != nil {
+			return nil, errs.New("invalid file_sync_interval in the serving_cert_file configuration section: %v", err)
+		}
 	}
 
 	var methodCount int
 
 	if c.ServerAPI != nil {
-		c.ServerAPI.PollInterval, err = parsePollInterval(c.ServerAPI.RawPollInterval)
+		c.ServerAPI.PollInterval, err = parseDurationField(c.ServerAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
 			return nil, errs.New("invalid poll_interval in the server_api configuration section: %v", err)
 		}
@@ -230,7 +241,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		if c.WorkloadAPI.TrustDomain == "" {
 			return nil, errs.New("trust_domain must be configured in the workload_api configuration section")
 		}
-		c.WorkloadAPI.PollInterval, err = parsePollInterval(c.WorkloadAPI.RawPollInterval)
+		c.WorkloadAPI.PollInterval, err = parseDurationField(c.WorkloadAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
 			return nil, errs.New("invalid poll_interval in the workload_api configuration section: %v", err)
 		}
@@ -278,15 +289,15 @@ func dedupeList(items []string) []string {
 	return list
 }
 
-func parsePollInterval(rawPollInterval string) (pollInterval time.Duration, err error) {
-	if rawPollInterval != "" {
-		pollInterval, err = time.ParseDuration(rawPollInterval)
+func parseDurationField(rawValue string, defaultValue time.Duration) (duration time.Duration, err error) {
+	if rawValue != "" {
+		duration, err = time.ParseDuration(rawValue)
 		if err != nil {
 			return 0, err
 		}
 	}
-	if pollInterval <= 0 {
-		pollInterval = defaultPollInterval
+	if duration <= 0 {
+		duration = defaultValue
 	}
-	return pollInterval, nil
+	return duration, nil
 }

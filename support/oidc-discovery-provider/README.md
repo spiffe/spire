@@ -92,10 +92,11 @@ made in each of these files are detected, and the certificates are reloaded auto
 
 #### Serving Certificate Section
 
-| Key              | Type   | Required? | Description                                                        | Default |
-|------------------|--------|-----------|--------------------------------------------------------------------|---------|
-| `cert_file_path` | string | required  | The certificate file path, the file must contain PEM encoded data. |         |
-| `key_file_path`  | string | required  | The private key file path, the file must contain PEM encoded data. |         |
+| Key                  | Type     | Required? | Description                                                           | Default  |
+|----------------------|----------|-----------|-----------------------------------------------------------------------|----------|
+| `cert_file_path`     | string   | required  | The certificate file path, the file must contain PEM encoded data.    |          |
+| `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data.    |          |
+| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the certificate for changes | 1 minute |
 
 #### Server API Section
 

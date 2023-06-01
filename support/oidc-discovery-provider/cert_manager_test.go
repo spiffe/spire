@@ -32,8 +32,6 @@ func TestMain(m *testing.M) {
 }
 
 func TestTLSConfig(t *testing.T) {
-	fileSyncInterval = 10 * time.Millisecond
-
 	oidcServerKey := testkey.MustEC256()
 	oidcServerKeyDer, err := x509.MarshalECPrivateKey(oidcServerKey)
 	require.NoError(t, err)
@@ -100,13 +98,19 @@ func TestTLSConfig(t *testing.T) {
 	}
 
 	certManager, err := NewDiskCertManager(&Config{ServingCertFile: &ServingCertFileConfig{
-		CertFilePath: tmpDir + certFilePath,
-		KeyFilePath:  tmpDir + keyFilePath,
+		CertFilePath:     tmpDir + certFilePath,
+		KeyFilePath:      tmpDir + keyFilePath,
+		FileSyncInterval: 10 * time.Millisecond,
 	}}, logger)
 	require.NoError(t, err)
 
 	tlsConfig := certManager.TLSConfig()
 
+	t.Run("error when configuration does not contain serving cert file settings", func(t *testing.T) {
+		_, err := NewDiskCertManager(&Config{}, logger)
+		require.EqualError(t, err, "missing serving cert file configuration")
+	})
+	
 	t.Run("error when provided cert path do not exist", func(t *testing.T) {
 		_, err := NewDiskCertManager(&Config{ServingCertFile: &ServingCertFileConfig{
 			CertFilePath: tmpDir + "/nonexistent_cert.pem",
