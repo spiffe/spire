@@ -373,6 +373,9 @@ func TestTLSConfig(t *testing.T) {
 		err = makeFileUnreadable(tmpDir + certFilePath)
 		require.NoError(t, err)
 
+		err = writeFile(tmpDir+certFilePath, oidcServerCertPem)
+		require.NoError(t, err)
+
 		// Assert error logs that will keep triggering until the cert permission is valid again.
 		errLogs := map[time.Time]struct{}{}
 		require.Eventuallyf(t, func() bool {

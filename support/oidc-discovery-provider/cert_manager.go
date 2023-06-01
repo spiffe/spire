@@ -21,11 +21,13 @@ var (
 
 // DiskCertManager is a certificate manager that loads certificates from disk, and watches for changes.
 type DiskCertManager struct {
-	certFilePath string
-	keyFilePath  string
-	cert         *tls.Certificate
-	certMtx      sync.RWMutex
-	log          logrus.FieldLogger
+	certFilePath     string
+	keyFilePath      string
+	certLastModified time.Time
+	keyLastModified  time.Time
+	certMtx          sync.RWMutex
+	cert             *tls.Certificate
+	log              logrus.FieldLogger
 }
 
 func NewDiskCertManager(config *Config, log logrus.FieldLogger) (*DiskCertManager, error) {
@@ -95,17 +97,26 @@ func (m *DiskCertManager) getCertificate(chInfo *tls.ClientHelloInfo) (*tls.Cert
 // watchFileChanges starts a file watcher to watch for changes to the cert and key files.
 func (m *DiskCertManager) watchFileChanges() {
 	ticker := time.NewTicker(fileSyncInterval)
-	certLastModified := time.Now()
-	keyLastModified := time.Now()
 	for range ticker.C {
-		if m.hasFileChanges(certLastModified, keyLastModified) {
-			m.log.Info("File change detected, reloading certificate and key...")
+		m.syncCertificateFiles()
+	}
+}
 
-			if err := m.loadCert(); err != nil {
-				m.log.Errorf("Failed to load certificate: %v", err)
-			} else {
-				m.log.Info("Loaded provided certificate with success")
-			}
+func (m *DiskCertManager) syncCertificateFiles() {
+	certFileInfo, keyFileInfo, err := m.getFilesInfo()
+	if err != nil {
+		return
+	}
+
+	if certFileInfo.ModTime() != m.certLastModified || keyFileInfo.ModTime() != m.keyLastModified {
+		m.log.Info("File change detected, reloading certificate and key...")
+
+		if err := m.loadCert(); err != nil {
+			m.log.Errorf("Failed to load certificate: %v", err)
+		} else {
+			m.certLastModified = certFileInfo.ModTime()
+			m.keyLastModified = keyFileInfo.ModTime()
+			m.log.Info("Loaded provided certificate with success")
 		}
 	}
 }
@@ -130,19 +141,19 @@ func (m *DiskCertManager) loadCert() error {
 	return nil
 }
 
-// hasFileChanges checks if the cert and key files have been modified since the last check.
-func (m *DiskCertManager) hasFileChanges(certLastModified time.Time, keyLastModified time.Time) bool {
+// getFilesInfo returns the file info of the cert and key files, or error if the files are unreadable or do not exist.
+func (m *DiskCertManager) getFilesInfo() (os.FileInfo, os.FileInfo, error) {
 	certFileInfo, err := m.getFileInfo(m.certFilePath)
 	if err != nil {
-		return false
+		return nil, nil, err
 	}
 
 	keyFileInfo, err := m.getFileInfo(m.keyFilePath)
 	if err != nil {
-		return false
+		return nil, nil, err
 	}
 
-	return certFileInfo.ModTime() != certLastModified || keyFileInfo.ModTime() != keyLastModified
+	return certFileInfo, keyFileInfo, nil
 }
 
 // getFileInfo returns the file info of the given path, or error if the file is unreadable or does not exist.
