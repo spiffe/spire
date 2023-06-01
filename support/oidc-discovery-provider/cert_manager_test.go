@@ -7,7 +7,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -22,21 +21,8 @@ import (
 
 var logger, logHook = test.NewNullLogger()
 
-func TestMain(m *testing.M) {
-	code := m.Run()
-
-	if code != 0 {
-		for _, entry := range logHook.AllEntries() {
-			fmt.Println(entry.Message)
-		}
-	}
-
-	os.Exit(code)
-}
-
 func TestTLSConfig(t *testing.T) {
-	invalidCertLogInterval = 10 * time.Millisecond
-	parentDirNotFoundLogInterval = 10 * time.Millisecond
+	fileSyncInterval = 10 * time.Millisecond
 
 	oidcServerKey := testkey.MustEC256()
 	oidcServerKeyDer, err := x509.MarshalECPrivateKey(oidcServerKey)
@@ -325,53 +311,45 @@ func TestTLSConfig(t *testing.T) {
 		}, 1*time.Second, 100*time.Millisecond, "Failed to assert updated certificate")
 	})
 
-	t.Run("delete cert files trigger an warning message", func(t *testing.T) {
+	t.Run("delete cert files start error log loop", func(t *testing.T) {
 		err = removeFile(tmpDir + keyFilePath)
 		require.NoError(t, err)
 
+		// Assert error logs that will keep triggering until the key is created again.
+		errLogs := map[time.Time]struct{}{}
+
 		require.Eventuallyf(t, func() bool {
 			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.WarnLevel && strings.Contains(entry.Message, fmt.Sprintf("File %q was removed from the file system, please add it again so the discovery provider can detect future changes", tmpDir+keyFilePath)) {
-					return true
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate, file path %q does not exist anymore, please check if the path is correct", tmpDir+keyFilePath)) {
+					errLogs[entry.Time] = struct{}{}
 				}
 			}
-			return false
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert removed file warning message")
+			return len(errLogs) >= 5
+		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert error logs")
 
 		err = removeFile(tmpDir + certFilePath)
 		require.NoError(t, err)
 
+		// Assert error logs that will keep triggering until the cert is created again.
+		errLogs = map[time.Time]struct{}{}
+
 		require.Eventuallyf(t, func() bool {
 			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.WarnLevel && strings.Contains(entry.Message, fmt.Sprintf("File %q was removed from the file system, please add it again so the discovery provider can detect future changes", tmpDir+certFilePath)) {
-					return true
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate, file path %q does not exist anymore, please check if the path is correct", tmpDir+certFilePath)) {
+					errLogs[entry.Time] = struct{}{}
 				}
 			}
-			return false
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert removed file warning message")
+			return len(errLogs) >= 5
+		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert error logs")
 
 		err = writeFile(tmpDir+keyFilePath, oidcServerKeyPem)
 		require.NoError(t, err)
-
-		require.Eventuallyf(t, func() bool {
-			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.InfoLevel && strings.Contains(entry.Message, fmt.Sprintf("File %q created, the discovery provider started to watch for changes again", tmpDir+keyFilePath)) {
-					return true
-				}
-			}
-			return false
-		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert created file message")
 
 		err = writeFile(tmpDir+certFilePath, oidcServerCertPem)
 		require.NoError(t, err)
 
 		require.Eventuallyf(t, func() bool {
-			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.InfoLevel && strings.Contains(entry.Message, fmt.Sprintf("File %q created, the discovery provider started to watch for changes again", tmpDir+certFilePath)) {
-					return true
-				}
-			}
-			return false
+			return logHook.LastEntry().Message == "Loaded provided certificate with success"
 		}, 500*time.Millisecond, 10*time.Millisecond, "Failed to assert created file warning message")
 
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -385,9 +363,10 @@ func TestTLSConfig(t *testing.T) {
 	t.Run("change cert and key file permissions will start error log loop", func(t *testing.T) {
 		//	make cert file not readable
 		err = makeFileUnreadable(tmpDir + certFilePath)
+		logger.Errorf("******************** FILE UNREADABLE BY NOW *********************")
 		require.NoError(t, err)
 
-		// Assert error logs that will keep triggering until the cert is valid again.
+		// Assert error logs that will keep triggering until the cert permission is valid again.
 		errLogs := map[time.Time]struct{}{}
 
 		require.Eventuallyf(t, func() bool {
@@ -438,46 +417,6 @@ func TestTLSConfig(t *testing.T) {
 				return false
 			}
 			return reflect.DeepEqual(oidcServerCertUpdated3, x509Cert)
-		}, 1*time.Second, 100*time.Millisecond, "Failed to assert updated certificate")
-	})
-
-	t.Run("error when parent cert directory deleted", func(t *testing.T) {
-		err := os.RemoveAll(tmpDir)
-		require.NoError(t, err)
-
-		// Assert error logs that will keep triggering until key and cert files are created again.
-		errLogs := map[time.Time]struct{}{}
-
-		require.Eventuallyf(t, func() bool {
-			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Parent directory %q was not found, waiting for it to be created", tmpDir)) {
-					errLogs[entry.Time] = struct{}{}
-				}
-			}
-			return len(errLogs) >= 5
-		}, 1*time.Second, 100*time.Millisecond, "Failed to assert error logs")
-
-		err = os.Mkdir(tmpDir, 0700)
-		require.NoError(t, err)
-
-		err = writeFile(tmpDir+certFilePath, oidcServerCertPem)
-		require.NoError(t, err)
-
-		err = writeFile(tmpDir+keyFilePath, oidcServerKeyPem)
-		require.NoError(t, err)
-
-		// New cert can now be loaded.
-		require.Eventuallyf(t, func() bool {
-			cert, err := tlsConfig.GetCertificate(chInfo)
-			if err != nil {
-				return false
-			}
-			require.Len(t, cert.Certificate, 1)
-			x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-			if err != nil {
-				return false
-			}
-			return reflect.DeepEqual(oidcServerCert, x509Cert)
 		}, 1*time.Second, 100*time.Millisecond, "Failed to assert updated certificate")
 	})
 }

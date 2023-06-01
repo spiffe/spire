@@ -31,7 +31,6 @@ require (
 	github.com/cenkalti/backoff/v3 v3.2.2
 	github.com/docker/docker v24.0.2+incompatible
 	github.com/envoyproxy/go-control-plane v0.11.1
-	github.com/fsnotify/fsnotify v1.6.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/godbus/dbus/v5 v5.1.0
@@ -160,6 +159,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
+	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible // indirect
