@@ -285,7 +285,7 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID.String())
 
 		var svid *client.JWTSVID
-		svid, err = s.manager.FetchJWTSVID(ctx, spiffeID, req.Audience)
+		svid, err = s.manager.FetchJWTSVID(ctx, entry, req.Audience)
 		if err != nil {
 			loopLog.WithError(err).Error("Could not fetch JWT-SVID")
 			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)

@@ -1171,11 +1171,10 @@ func TestFetchJWTSVID(t *testing.T) {
 	m := newManager(c)
 	require.NoError(t, m.Initialize(context.Background()))
 
-	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 	audience := []string{"foo"}
 
 	// nothing in cache, fetch fails
-	svid, err := m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err := m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.Error(t, err)
 	require.Empty(t, svid)
 
@@ -1189,7 +1188,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		IssuedAt:  issuedAtA,
 		ExpiresAt: expiresAtA,
 	}
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenA, svid.Token)
 	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
@@ -1201,7 +1200,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		IssuedAt:  now.Unix(),
 		ExpiresAt: now.Add(time.Minute).Unix(),
 	}
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenA, svid.Token)
 	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
@@ -1218,7 +1217,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		IssuedAt:  issuedAtC,
 		ExpiresAt: expiresAtC,
 	}
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenC, svid.Token)
 	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
@@ -1227,7 +1226,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	// expire the JWT soon, fail the fetch, and make sure cached JWT is returned
 	clk.Add(time.Second * 30)
 	fetchResp.Svid = nil
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenC, svid.Token)
 	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
@@ -1236,7 +1235,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	// now completely expire the JWT and make sure an error is returned, since
 	// the fetch fails and the cached version is expired.
 	clk.Add(time.Second * 30)
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.Error(t, err)
 	require.Nil(t, svid)
 }
