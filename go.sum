@@ -1789,8 +1789,8 @@ github.com/spf13/viper v1.4.0/go.mod h1:PTJ7Z/lr49W6bUbkmS1V3by4uWynFiR9p7+dSq/y
 github.com/spf13/viper v1.7.1/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5qpdg=
 github.com/spf13/viper v1.15.0 h1:js3yy885G8xwJa6iOISGFwd+qlUo5AvyXb7CiihdtiU=
 github.com/spf13/viper v1.15.0/go.mod h1:fFcTBJxvhhzSJiZy8n+PeW6t8l+KeT/uTARa0jHOQLA=
-github.com/spiffe/go-spiffe/v2 v2.1.4 h1:Z31Ycaf2Z5DF38sQGmp+iGKjBhBlSzfAq68bfy67Mxw=
-github.com/spiffe/go-spiffe/v2 v2.1.4/go.mod h1:eVDqm9xFvyqao6C+eQensb9ZPkyNEeaUbqbBpOhBnNk=
+github.com/spiffe/go-spiffe/v2 v2.1.5 h1:nFzp6pllCxpso6A2CaokdjhmH3uHWMNL9DGYXeZrShs=
+github.com/spiffe/go-spiffe/v2 v2.1.5/go.mod h1:eVDqm9xFvyqao6C+eQensb9ZPkyNEeaUbqbBpOhBnNk=
 github.com/spiffe/spire-api-sdk v1.2.5-0.20230413135745-699e242b965d h1:0etgpf2R3yE+dwCM+leo1OcayEXfBdv0nZ3I7k/iRmk=
 github.com/spiffe/spire-api-sdk v1.2.5-0.20230413135745-699e242b965d/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
 github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230224144655-648f8c740f73 h1:uGW6T41jGq1ZTxqpc8Y4b/LIPDtSYDaVql2gYdJYUfM=
