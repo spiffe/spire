@@ -784,9 +784,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
 	}
 	if cfg.UseServerTimestamps {
-		db.SetNowFuncOverride(func() time.Time {
-			return time.Now()
-		})
+		db.SetNowFuncOverride(time.Now)
 	}
 
 	if !isReadOnly {
