@@ -34,7 +34,7 @@ func main() {
 	intermediateKey := generateRSAKey()
 
 	intermediateCert := createCertificate(intermediateKey, &x509.Certificate{
-		SerialNumber:          big.NewInt(1),
+		SerialNumber:          big.NewInt(2),
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		NotAfter:              neverExpires,
@@ -43,7 +43,7 @@ func main() {
 	leafKey := generateRSAKey()
 
 	leafCert := createCertificate(leafKey, &x509.Certificate{
-		SerialNumber: big.NewInt(1),
+		SerialNumber: big.NewInt(3),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		NotAfter:     neverExpires,
 		Subject:      pkix.Name{CommonName: "COMMONNAME"},
@@ -81,7 +81,7 @@ func writeKey(path string, key interface{}) {
 		Type:  "PRIVATE KEY",
 		Bytes: keyBytes,
 	})
-	err = os.WriteFile(path, pemBytes, 0600)
+	err = os.WriteFile(path, pemBytes, 0o600)
 	panice(err)
 }
 
@@ -94,6 +94,6 @@ func writeCerts(path string, certs ...*x509.Certificate) {
 		})
 		panice(err)
 	}
-	err := os.WriteFile(path, data.Bytes(), 0600)
+	err := os.WriteFile(path, data.Bytes(), 0o600)
 	panice(err)
 }
