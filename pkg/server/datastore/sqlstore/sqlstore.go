@@ -784,7 +784,10 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
 	}
 	if cfg.UseServerTimestamps {
-		db.SetNowFuncOverride(time.Now)
+		db.SetNowFuncOverride(func() time.Time {
+			// Round to nearest second to be consistent with how timestamps are rounded in CreateRegistrationEntry calls
+			return time.Now().Round(time.Second)
+		})
 	}
 
 	if !isReadOnly {
@@ -3399,7 +3402,7 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		entry.Hint = r.Hint.String
 	}
 	if r.CreatedAt.Valid {
-		entry.CreatedAt = r.CreatedAt.Time.Unix()
+		entry.CreatedAt = roundedInSecondsUnix(r.CreatedAt.Time)
 	}
 
 	return nil
@@ -3989,7 +3992,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		StoreSvid:      model.StoreSvid,
 		JwtSvidTtl:     model.JWTSvidTTL,
 		Hint:           model.Hint,
-		CreatedAt:      model.CreatedAt.Unix(),
+		CreatedAt:      roundedInSecondsUnix(model.CreatedAt),
 	}, nil
 }
 
@@ -4145,4 +4148,10 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *comm
 	}
 
 	return nil, nil
+}
+
+// roundedInSecondsUnix rounds the time to the nearest second, and return the time in seconds since the
+// unix epoch. This function is used to avoid issues with databases versions that do not support sub-second precision.
+func roundedInSecondsUnix(t time.Time) int64 {
+	return t.Round(time.Second).Unix()
 }
