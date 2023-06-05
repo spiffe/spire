@@ -5,7 +5,7 @@ go 1.20
 require (
 	cloud.google.com/go/iam v1.1.0
 	cloud.google.com/go/kms v1.11.0
-	cloud.google.com/go/secretmanager v1.10.1
+	cloud.google.com/go/secretmanager v1.11.0
 	cloud.google.com/go/security v1.15.0
 	cloud.google.com/go/storage v1.30.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0
