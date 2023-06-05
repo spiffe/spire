@@ -168,7 +168,7 @@ container_id_cgroup_matchers = [
 			expectMsg:  "unable to decode configuration:",
 		},
 		{
-			name: "unknow configuration",
+			name: "unknown configuration",
 			config: `
 invalid1 = "/oh/"
 invalid2 = "/no/"`,
