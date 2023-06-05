@@ -18,5 +18,5 @@ jobs:
         stale-issue-label: "stale"
         stale-issue-message: "This issue is stale because it has been open for 365 days with no activity."
         close-issue-message: "This issue was closed because it has been inactive for 30 days since being marked as stale."
-		days-before-pr-stale: -1 # Don't handle PRs
+        days-before-pr-stale: -1 # Don't handle PRs
         days-before-pr-close: -1 # Don't handle PRs
