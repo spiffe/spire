@@ -187,9 +187,9 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	m.x509CAMutex.Lock()
 	defer m.x509CAMutex.Unlock()
 
-	// If current is not empty, prepare the next
-	// generally we will be preparing on next,
-	// this is only needed on new installations without journal started
+	// If current is not empty, prepare the next.
+	// If the journal has been started, we will be preparing on next.
+	// This is only needed when the journal has not been started.
 	slot := m.currentX509CA
 	if !slot.IsEmpty() {
 		slot = m.nextX509CA

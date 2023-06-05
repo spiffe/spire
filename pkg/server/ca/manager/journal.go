@@ -100,15 +100,15 @@ func (j *Journal) AppendX509CA(slotID string, issuedAt time.Time, x509CA *ca.X50
 	return nil
 }
 
-// UpdateX509CAStatus updates a stored X509CA entry to have given status and update journal file.
+// UpdateX509CAStatus updates a stored X509CA entry to have the given status, updating the journal file.
 func (j *Journal) UpdateX509CAStatus(issuedAt time.Time, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
 	backup := j.entries.X509CAs
 
-	// Once we have authorityID we can use it to search for an entry,
-	// but for now depends on issuedAt
+	// Once we have the authorityID, we can use it to search for an entry,
+	// but for now, we depend on issuedAt.
 	issuedAtUnix := issuedAt.Unix()
 
 	var found bool
@@ -168,15 +168,15 @@ func (j *Journal) AppendJWTKey(slotID string, issuedAt time.Time, jwtKey *ca.JWT
 	return nil
 }
 
-// UpdateJWTKeyStatus updates a stored JWTKey entry to have given status and update journal file.
+// UpdateJWTKeyStatus updates a stored JWTKey entry to have the given status, updating the journal file.
 func (j *Journal) UpdateJWTKeyStatus(issuedAt time.Time, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
 	backup := j.entries.JwtKeys
 
-	// Once we have authorityID we can use it to search for an entry,
-	// but for now depends on issuedAt
+	// Once we have the authorityID, we can use it to search for an entry,
+	// but for now we depend on issuedAt.
 	issuedAtUnix := issuedAt.Unix()
 
 	var found bool

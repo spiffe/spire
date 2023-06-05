@@ -105,10 +105,10 @@ func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	return journal, slots, nil
 }
 
-// getX509CASlots returns slots based on status
-// - If all status are unknown, choose the two newest on the list
-// - Active entry is returned on current if set
-// - Newest Prepared or Old entry is returned on next
+// getX509CASlots returns X509CA slots based on the status of the slots.
+// - If all the statuses are unknown, the two most recent slots are returned.
+// - Active entry is returned on current slot if set.
+// - The most recent Prepared or Old entry is returned on next slot.
 func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*X509CAEntry) (*X509CASlot, *X509CASlot, error) {
 	var current *X509CASlot
 	var next *X509CASlot
@@ -177,7 +177,7 @@ func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*X509CAEntry)
 	return current, next, nil
 }
 
-// getJWTKeysSlots returns slots based on status
+// getJWTKeysSlots returns JWTKey slots based on the status of the slots.
 // - If all status are unknown, choose the two newest on the list
 // - Active entry is returned on current if set
 // - Newest Prepared or Old entry is returned on next
@@ -308,13 +308,17 @@ func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *X509
 	slot, badReason, err := s.loadX509CASlotFromEntry(ctx, entry)
 	if err != nil {
 		s.Log.WithError(err).WithFields(logrus.Fields{
-			telemetry.Slot: entry.SlotId,
+			telemetry.Slot:     entry.SlotId,
+			telemetry.IssuedAt: time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:   entry.Status,
 		}).Error("X509CA slot failed to load")
 		return nil, err
 	}
 	if badReason != "" {
 		s.Log.WithError(errors.New(badReason)).WithFields(logrus.Fields{
-			telemetry.Slot: entry.SlotId,
+			telemetry.Slot:     entry.SlotId,
+			telemetry.IssuedAt: time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:   entry.Status,
 		}).Warn("X509CA slot unusable")
 		return nil, nil
 	}
@@ -363,17 +367,22 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAE
 		status: entry.Status,
 	}, "", nil
 }
+
 func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntry) (*JwtKeySlot, error) {
 	slot, badReason, err := s.loadJWTKeySlotFromEntry(ctx, entry)
 	if err != nil {
 		s.Log.WithError(err).WithFields(logrus.Fields{
-			telemetry.Slot: entry.SlotId,
+			telemetry.Slot:     entry.SlotId,
+			telemetry.IssuedAt: time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:   entry.Status,
 		}).Error("JWT key slot failed to load")
 		return nil, err
 	}
 	if badReason != "" {
 		s.Log.WithError(errors.New(badReason)).WithFields(logrus.Fields{
-			telemetry.Slot: entry.SlotId,
+			telemetry.Slot:     entry.SlotId,
+			telemetry.IssuedAt: time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:   entry.Status,
 		}).Warn("JWT key slot unusable")
 		return nil, nil
 	}
