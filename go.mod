@@ -43,7 +43,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.10.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v1.5.0
-	github.com/hashicorp/go-plugin v1.4.8
+	github.com/hashicorp/go-plugin v1.4.10
 	github.com/hashicorp/hcl v1.0.1-vault-5
 	github.com/hashicorp/vault/api v1.9.2
 	github.com/hashicorp/vault/sdk v0.9.1
@@ -157,7 +157,7 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.0.1 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
-	github.com/fatih/color v1.13.0 // indirect
+	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
@@ -226,7 +226,7 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/miekg/pkcs11 v1.1.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
