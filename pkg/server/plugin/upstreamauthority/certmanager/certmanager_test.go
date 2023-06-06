@@ -127,7 +127,7 @@ func Test_MintX509CA(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			cmclient := fakeclient.NewClientBuilder().WithScheme(scheme).Build()
+			cmclient := fakeclient.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&cmapi.CertificateRequest{}).Build()
 			crCreated := make(chan struct{}, 1)
 			staleCRsDeleted := make(chan struct{}, 1)
 

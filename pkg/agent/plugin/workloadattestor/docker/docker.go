@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -11,6 +12,7 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/hcl/token"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -65,7 +67,7 @@ type dockerPluginConfig struct {
 	// DockerVersion is the API version of the docker daemon. If not specified, the version is negotiated by the client.
 	DockerVersion string `hcl:"docker_version" json:"docker_version"`
 
-	UnusedKeys []string `hcl:",unusedKeys"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -123,8 +125,14 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	if len(config.UnusedKeys) > 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(config.UnusedKeys, ","))
+	if len(config.UnusedKeyPositions) > 0 {
+		var keys []string
+		for k := range config.UnusedKeyPositions {
+			keys = append(keys, k)
+		}
+
+		sort.Strings(keys)
+		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(keys, ","))
 	}
 
 	containerHelper, err := createHelper(config)
