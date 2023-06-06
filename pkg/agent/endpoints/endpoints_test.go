@@ -173,7 +173,7 @@ func TestEndpoints(t *testing.T) {
 				DefaultAllBundlesName:       "DefaultAllBundlesName",
 				DisableSPIFFECertValidation: true,
 				AllowedForeignJWTClaims:     tt.allowedClaims,
-				EnableEnvoySDSv2:            true,
+				EnableDeprecatedSDSv2API:    true,
 
 				// Assert the provided config and return a fake Workload API server
 				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {

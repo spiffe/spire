@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	deprecatedAPIErrorMsg = "support to Envoy SDS v2 API has been deprecated in SPIRE and is no longer supported by Envoy. Please refer to: https://www.envoyproxy.io/docs/envoy/latest/api/api_supported_versions. It can be enabled using the config setting 'enable_sds_v2': https://github.com/spiffe/spire/blob/main/doc/spire_agent.md#sds-configuration. Please note that enabling SDS v2 is not recommended and this config setting will be removed in a future version."
+	deprecatedAPIErrorMsg = "the Envoy SDS v2 API is now deprecated in SPIRE and is no longer supported by Envoy. Please refer to: https://www.envoyproxy.io/docs/envoy/latest/api/api_supported_versions. The SDS v2 API can be enabled using the config setting 'enable_deprecated_v2_api': https://github.com/spiffe/spire/blob/main/doc/spire_agent.md#sds-configuration. It is recommended that users of the SDS v2 API migrate to the SDS v3 API. The SDS v2 API and this config setting will be removed in a future version."
 )
 
 type Attestor interface {
@@ -209,6 +209,9 @@ func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 }
 
 func (h *Handler) DeltaSecrets(discovery_v2.SecretDiscoveryService_DeltaSecretsServer) error {
+	if !h.c.Enabled {
+		return status.Error(codes.Unavailable, deprecatedAPIErrorMsg)
+	}
 	return status.Error(codes.Unimplemented, "Method is not implemented")
 }
 

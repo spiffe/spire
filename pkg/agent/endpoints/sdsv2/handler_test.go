@@ -206,7 +206,7 @@ func (s *HandlerSuite) TestStreamSecretsStreamAllSecrets() {
 	s.requireSecrets(resp, tdValidationContext, fedValidationContext, workloadTLSCertificate1)
 }
 
-func (s *HandlerSuite) TestAPIIsNoEnabled() {
+func (s *HandlerSuite) TestAPIIsNotEnabled() {
 	ctx := context.Background()
 	handler := New(Config{
 		Attestor:          FakeAttestor(workloadSelectors),
@@ -221,6 +221,9 @@ func (s *HandlerSuite) TestAPIIsNoEnabled() {
 	s.RequireGRPCStatus(err, codes.Unavailable, deprecatedAPIErrorMsg)
 
 	err = handler.StreamSecrets(nil)
+	s.RequireGRPCStatus(err, codes.Unavailable, deprecatedAPIErrorMsg)
+
+	err = handler.DeltaSecrets(nil)
 	s.RequireGRPCStatus(err, codes.Unavailable, deprecatedAPIErrorMsg)
 }
 
