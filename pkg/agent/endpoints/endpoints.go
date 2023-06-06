@@ -81,6 +81,7 @@ func New(c Config) *Endpoints {
 		Manager:           c.Manager,
 		DefaultSVIDName:   c.DefaultSVIDName,
 		DefaultBundleName: c.DefaultBundleName,
+		Enabled:           c.EnableDeprecatedSDSv2API,
 	})
 
 	sdsv3Server := c.newSDSv3Server(sdsv3.Config{
