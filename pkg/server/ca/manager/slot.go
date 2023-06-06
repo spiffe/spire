@@ -121,11 +121,11 @@ func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*X509CAEntry)
 		}
 
 		// Unable to load slot
-		// TODO: before this changes, we analize only latest two entries,
-		// and if this happens to both of them, we created new slots, but now
-		// we will iterate in all the file, to try to get a useful one,
-		// may we prevent this to happens? maybe just verifying if bundle
-		// is not expired?
+		// TODO: the previous implementation analized only the last two entries,
+		// and if those slots were empty, we created new slots.
+		// Now we iterate through all the file, to try to get a useful slot.
+		// Maybe there is room for improvement here, by just verifying if the
+		// bundle is not expired?
 		if slot == nil {
 			continue
 		}
@@ -137,7 +137,8 @@ func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*X509CAEntry)
 
 		// Status can be UNKNOWN only after an upgrade when this happens,
 		// we must first set next position, and then current is the next one
-		// DEPRECATED: this validation must be removed from v1.9
+		// TODO: status in journal has been introduced in v1.7.
+		// Keep this validation in v1.7.x and v1.8.x. Remove this in v1.9.
 		case journal.Status_UNKNOWN:
 			if next == nil {
 				next = slot
@@ -193,11 +194,11 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 		}
 
 		// Unable to load slot
-		// TODO: before this changes, we analize only latest two entries,
-		// and if this happens to both of them, we created new slots, but now
-		// we will iterate in all the file, to try to get a useful one,
-		// may we prevent this to happens? maybe just verifying if bundle
-		// is not expired?
+		// TODO: the previous implementation analized only the last two entries,
+		// and if those slots were empty, we created new slots.
+		// Now we iterate through all the file, to try to get a useful slot.
+		// Maybe there is room for improvement here, by just verifying if the
+		// bundle is not expired?
 		if slot == nil {
 			continue
 		}
@@ -209,7 +210,8 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 
 		// Status can be UNKNOWN only after an upgrade when this happens,
 		// we must first set next position, and then current is the next one
-		// DEPRECATED: this validation must be removed from v1.9
+		// TODO: status in journal has been introduced in v1.7.
+		// Keep this validation in v1.7.x and v1.8.x. Remove this in v1.9.
 		case journal.Status_UNKNOWN:
 			if next == nil {
 				next = slot
