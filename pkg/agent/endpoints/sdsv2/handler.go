@@ -26,6 +26,10 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
+const (
+	deprecatedAPIErrorMsg = "support to Envoy SDS v2 API has been deprecated in SPIRE and is no longer supported by Envoy. Please refer to: https://www.envoyproxy.io/docs/envoy/latest/api/api_supported_versions. It can be enabled using the config setting 'enable_sds_v2': https://github.com/spiffe/spire/blob/main/doc/spire_agent.md#sds-configuration. Please note that enabling SDS v2 is not recommended and this config setting will be removed in a future version."
+)
+
 type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
@@ -40,6 +44,7 @@ type Config struct {
 	Manager           Manager
 	DefaultBundleName string
 	DefaultSVIDName   string
+	Enabled           bool
 }
 
 type Handler struct {
@@ -56,6 +61,10 @@ func New(config Config) *Handler {
 }
 
 func (h *Handler) StreamSecrets(stream discovery_v2.SecretDiscoveryService_StreamSecretsServer) error {
+	if !h.c.Enabled {
+		return status.Error(codes.Unavailable, deprecatedAPIErrorMsg)
+	}
+
 	log := rpccontext.Logger(stream.Context())
 
 	selectors, err := h.c.Attestor.Attest(stream.Context())
@@ -204,6 +213,10 @@ func (h *Handler) DeltaSecrets(discovery_v2.SecretDiscoveryService_DeltaSecretsS
 }
 
 func (h *Handler) FetchSecrets(ctx context.Context, req *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
+	if !h.c.Enabled {
+		return nil, status.Error(codes.Unavailable, deprecatedAPIErrorMsg)
+	}
+
 	log := rpccontext.Logger(ctx).WithFields(logrus.Fields{
 		telemetry.ResourceNames: req.ResourceNames,
 	})
