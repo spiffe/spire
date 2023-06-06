@@ -2,6 +2,8 @@ package health
 
 import (
 	"fmt"
+
+	"github.com/hashicorp/hcl/hcl/token"
 )
 
 type Config struct {
@@ -15,7 +17,7 @@ type Config struct {
 	ReadyPath string `hcl:"ready_path"`
 	LivePath  string `hcl:"live_path"`
 
-	UnusedKeys []string `hcl:",unusedKeys"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 // getAddress returns an address suitable for use as http.Server.Addr.
