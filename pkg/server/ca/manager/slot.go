@@ -58,13 +58,6 @@ func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	var currentJWTKey *JwtKeySlot
 	var nextJWTKey *JwtKeySlot
 
-	jsonPath := filepath.Join(s.Dir, "certs.json")
-	if ok, err := migrateJSONFile(jsonPath, journalPath); err != nil {
-		return nil, nil, errs.New("failed to migrate old JSON data: %v", err)
-	} else if ok {
-		log.Info("Migrated data to journal")
-	}
-
 	// Load the journal and see if we can figure out the next and current
 	// X509CA and JWTKey entries, if any.
 	log.WithField(telemetry.Path, journalPath).Debug("Loading journal")

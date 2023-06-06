@@ -539,19 +539,6 @@ func TestPruneBundle(t *testing.T) {
 	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
 }
 
-func TestMigration(t *testing.T) {
-	test := setupTest(t)
-
-	// assert that we migrate on load by writing junk data to the old JSON file
-	// and making sure initialization fails. The journal tests exercise this
-	// code more carefully.
-	require.NoError(t, os.WriteFile(filepath.Join(test.dir, "certs.json"), []byte("NOTJSON"), 0600))
-	manager, err := NewManager(context.Background(), test.selfSignedConfig())
-
-	spiretest.RequireErrorContains(t, err, "failed to migrate old JSON data: unable to decode JSON")
-	require.Nil(t, manager)
-}
-
 func TestRunNotifiesBundleLoaded(t *testing.T) {
 	test := setupTest(t)
 	test.initAndActivateSelfSignedManager(context.Background())
