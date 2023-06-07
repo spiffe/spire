@@ -65,6 +65,7 @@ require (
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230224144655-648f8c740f73
 	github.com/stretchr/testify v1.8.4
 	github.com/uber-go/tally/v4 v4.1.7
+	github.com/valyala/fastjson v1.6.4
 	github.com/zeebo/errs v1.3.0
 	golang.org/x/crypto v0.9.0
 	golang.org/x/net v0.10.0

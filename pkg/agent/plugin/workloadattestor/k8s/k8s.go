@@ -222,29 +222,39 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	// Poll pod information and search for the pod with the container. If
 	// the pod is not found then delay for a little bit and try again.
+	var scratch []byte
 	for attempt := 1; ; attempt++ {
 		log = log.With(telemetry.Attempt, attempt)
 
-		list, err := config.Client.GetPodList()
+		podListBytes, err := config.Client.GetPodList()
 		if err != nil {
 			return nil, err
 		}
 
 		var parser fastjson.Parser
-		podList, err := parser.ParseBytes(*list)
+		podList, err := parser.ParseBytes(podListBytes)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to parse kubelet response: %v", err)
 		}
 
 		var attestResponse *workloadattestorv1.AttestResponse
-		for itemIndex, _ := range podList.GetArray("items") {
-			uid := strings.Trim(string(podList.GetStringBytes("items", strconv.Itoa(itemIndex), "metadata", "uid")), "\"")
-			if podKnown && uid != string(podUID) {
+		for _, podValue := range podList.GetArray("items") {
+			uidBytes := podValue.Get("metadata", "uid").GetStringBytes()
+			if uidBytes == nil {
+				continue
+			}
+
+			if podKnown && string(uidBytes) != string(podUID) {
 				// The pod holding the container is known. Skip unrelated pods.
 				continue
 			}
+
+			// Reduce allocations by dumping to the same backing array on
+			// each iteration in order to parse out the pod.
+			scratch = podValue.MarshalTo(scratch[:0])
+
 			pod := new(corev1.Pod)
-			if err := json.Unmarshal(podList.GetObject("items", strconv.Itoa(itemIndex)).MarshalTo(nil), &pod); err != nil {
+			if err := json.Unmarshal(scratch, &pod); err != nil {
 				return nil, status.Errorf(codes.Internal, "unable to decode pod info from kubelet response: %v", err)
 			}
 
@@ -597,7 +607,7 @@ type kubeletClient struct {
 	Token     string
 }
 
-func (c *kubeletClient) GetPodList() (*[]byte, error) {
+func (c *kubeletClient) GetPodList() ([]byte, error) {
 	url := c.URL
 	url.Path = "/pods"
 	req, err := http.NewRequest("GET", url.String(), nil)
@@ -626,7 +636,7 @@ func (c *kubeletClient) GetPodList() (*[]byte, error) {
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to read pods response: %v", err)
 	}
-	return &out, nil
+	return out, nil
 }
 
 func lookUpContainerInPod(containerID string, status corev1.PodStatus, log hclog.Logger) (*corev1.ContainerStatus, bool) {
