@@ -1,0 +1,38 @@
+#!/bin/bash
+
+source ./key-compare
+
+check-provider-start() {
+  MAXCHECKS=10
+  CHECKINTERVAL=1
+
+  for ((i=1;i<=MAXCHECKS;i++)); do
+    docker-compose logs oidc-discovery-provider-mashup
+    log-info "check oidc-discovery-provider status ($(($i)) of $MAXCHECKS max)..."
+    curl --unix-socket ${RUNDIR}/conf/oidc-discovery-provider/provider-workload.sock http://localhost && return 0
+    sleep "${CHECKINTERVAL}"
+  done
+
+  if (( $i>$MAXCHECKS )); then
+    fail-now "timed out waiting for oidc-discovery-provider to start"
+  fi
+}
+
+docker-up oidc-discovery-provider-mashup
+
+log-debug "creating registration entry for oidc-provider"
+docker-compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry create -socketPath /opt/spire/conf/server/api.sock \
+  -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+  -spiffeID "spiffe://domain.test/oidc-provider" \
+  -selector "unix:user:root" \
+  -ttl 0
+
+
+check-synced-entry "oidc-discovery-provider-mashup" "spiffe://domain.test/oidc-provider"
+
+docker-compose exec -T oidc-discovery-provider-mashup /opt/spire/bin/oidc-discovery-provider -config "/opt/spire/conf/oidc-discovery-provider/provider-workload-api.conf" &
+
+check-provider-start
+
+check-equal-keys ${RUNDIR}/conf/oidc-discovery-provider/provider-workload.sock
