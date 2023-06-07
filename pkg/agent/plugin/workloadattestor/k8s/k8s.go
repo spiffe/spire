@@ -239,14 +239,12 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 		var attestResponse *workloadattestorv1.AttestResponse
 		for _, podValue := range podList.GetArray("items") {
-			uidBytes := podValue.Get("metadata", "uid").GetStringBytes()
-			if uidBytes == nil {
-				continue
-			}
-
-			if podKnown && string(uidBytes) != string(podUID) {
-				// The pod holding the container is known. Skip unrelated pods.
-				continue
+			if podKnown {
+				uidBytes := podValue.Get("metadata", "uid").GetStringBytes()
+				if string(uidBytes) != string(podUID) {
+					// The pod holding the container is known. Skip unrelated pods.
+					continue
+				}
 			}
 
 			// Reduce allocations by dumping to the same backing array on
