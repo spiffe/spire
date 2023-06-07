@@ -57,13 +57,13 @@ The configuration file is **required** by the provider. It contains
 
 #### Considerations for Unix platforms
 
-[1]: One of `acme`, `serving_cert_file` or  `listen_socket_path` must be defined.
+[1]: One of `acme`, `serving_cert_file`, `listen_socket_path` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_socket_path`.
 
 #### Considerations for Windows platforms
 
-[1]: One of `acme`, `serving_cert_file` or `listen_named_pipe_name` must be defined.
+[1]: One of `acme`, `serving_cert_file`, `listen_named_pipe_name` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_named_pipe_name`.
 
@@ -78,8 +78,7 @@ will be rejected. Likewise, when ACME is used, the `domains` list contains the
 allowed domains for which certificates will be obtained. The TLS handshake
 will terminate if another domain is requested.
 
-[4]: The files provided in `serving_cert_file` configuration are monitored by oidc discovery provider, in a way that changes
-made in each of these files are detected, and the certificates are reloaded automatically.
+[4]: SPIRE OIDC Discovery provider monitors and reloads the files provided in the `serving_cert_file` configuration at runtime.
 
 #### ACME Section
 
@@ -92,11 +91,11 @@ made in each of these files are detected, and the certificates are reloaded auto
 
 #### Serving Certificate Section
 
-| Key                  | Type     | Required? | Description                                                           | Default  |
-|----------------------|----------|-----------|-----------------------------------------------------------------------|----------|
-| `cert_file_path`     | string   | required  | The certificate file path, the file must contain PEM encoded data.    |          |
-| `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data.    |          |
-| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the certificate for changes | 1 minute |
+| Key                  | Type     | Required? | Description                                                        | Default  |
+|----------------------|----------|-----------|--------------------------------------------------------------------|----------|
+| `cert_file_path`     | string   | required  | The certificate file path, the file must contain PEM encoded data. |          |
+| `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data. |          |
+| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute |
 
 #### Server API Section
 

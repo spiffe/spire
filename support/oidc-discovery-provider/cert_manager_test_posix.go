@@ -5,6 +5,9 @@ package main
 
 import (
 	"os"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -14,27 +17,25 @@ var (
 	filePermissionDeniedMessage = "permission denied"
 )
 
-func writeFile(name string, data []byte) error {
+func writeFile(t *testing.T, name string, data []byte) {
 	err := os.WriteFile(name, data, 0600)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	_, err = os.Stat(name)
-	return err
+	require.NoError(t, err)
 }
 
-func removeFile(name string) error {
-	return os.Remove(name)
+func removeFile(t *testing.T, name string) {
+	err := os.Remove(name)
+	require.NoError(t, err)
 }
 
-func makeFileUnreadable(name string) error {
-	return os.Chmod(name, 0200)
+func makeFileUnreadable(t *testing.T, name string) {
+	err := os.Chmod(name, 0200)
+	require.NoError(t, err)
 }
 
-func makeFileReadable(name string, data []byte) error {
+func makeFileReadable(t *testing.T, name string, data []byte) {
 	err := os.Chmod(name, 0600)
-	if err != nil {
-		return err
-	}
-	return writeFile(name, data)
+	require.NoError(t, err)
+	writeFile(t, name, data)
 }

@@ -153,7 +153,7 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 }
 
 func newListenerWithServingCert(log logrus.FieldLogger, config *Config) (net.Listener, error) {
-	certManager, err := NewDiskCertManager(config, log)
+	certManager, err := NewDiskCertManager(config.ServingCertFile, log)
 	if err != nil {
 		return nil, err
 	}

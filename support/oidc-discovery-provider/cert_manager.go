@@ -27,15 +27,15 @@ type DiskCertManager struct {
 	log              logrus.FieldLogger
 }
 
-func NewDiskCertManager(config *Config, log logrus.FieldLogger) (*DiskCertManager, error) {
-	if config.ServingCertFile == nil {
+func NewDiskCertManager(config *ServingCertFileConfig, log logrus.FieldLogger) (*DiskCertManager, error) {
+	if config == nil {
 		return nil, errors.New("missing serving cert file configuration")
 	}
 
 	dm := &DiskCertManager{
-		certFilePath:     config.ServingCertFile.CertFilePath,
-		keyFilePath:      config.ServingCertFile.KeyFilePath,
-		fileSyncInterval: config.ServingCertFile.FileSyncInterval,
+		certFilePath:     config.CertFilePath,
+		keyFilePath:      config.KeyFilePath,
+		fileSyncInterval: config.FileSyncInterval,
 		log:              log,
 	}
 
