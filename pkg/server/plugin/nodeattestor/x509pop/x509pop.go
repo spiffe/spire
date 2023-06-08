@@ -264,7 +264,8 @@ func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) [
 	}
 
 	if leaf.SerialNumber != nil {
-		selectorValues = append(selectorValues, "serialnumber:"+leaf.SerialNumber.String())
+		serialNumberHex := x509pop.SerialNumberHex(leaf.SerialNumber)
+		selectorValues = append(selectorValues, "serialnumber:"+serialNumberHex)
 	}
 
 	return selectorValues

@@ -25,7 +25,7 @@ func main() {
 	rootKey := generateRSAKey()
 
 	rootCert := createRootCertificate(rootKey, &x509.Certificate{
-		SerialNumber:          big.NewInt(1),
+		SerialNumber:          big.NewInt(0x1a2b3c),
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		NotAfter:              neverExpires,
@@ -34,7 +34,7 @@ func main() {
 	intermediateKey := generateRSAKey()
 
 	intermediateCert := createCertificate(intermediateKey, &x509.Certificate{
-		SerialNumber:          big.NewInt(2),
+		SerialNumber:          big.NewInt(0x4d5e6f),
 		BasicConstraintsValid: true,
 		IsCA:                  true,
 		NotAfter:              neverExpires,
@@ -43,7 +43,7 @@ func main() {
 	leafKey := generateRSAKey()
 
 	leafCert := createCertificate(leafKey, &x509.Certificate{
-		SerialNumber: big.NewInt(3),
+		SerialNumber: big.NewInt(0x0a1b2c3d4e5f),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 		NotAfter:     neverExpires,
 		Subject:      pkix.Name{CommonName: "COMMONNAME"},

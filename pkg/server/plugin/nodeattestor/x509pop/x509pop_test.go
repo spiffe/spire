@@ -88,7 +88,7 @@ func (s *Suite) TestAttestSuccess() {
 		},
 		{
 			desc:          "success with custom agent id (ca_bundle_paths)",
-			expectAgentID: "spiffe://example.org/spire/agent/serialnumber/3",
+			expectAgentID: "spiffe://example.org/spire/agent/serialnumber/0a1b2c3d4e5f",
 			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/serialnumber/{{ .SerialNumber }}"`),
 		},
 	}
@@ -124,7 +124,7 @@ func (s *Suite) TestAttestSuccess() {
 					{Type: "x509pop", Value: "subject:cn:COMMONNAME"},
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
-					{Type: "x509pop", Value: "serialnumber:3"},
+					{Type: "x509pop", Value: "serialnumber:0a1b2c3d4e5f"},
 				}, result.Selectors)
 		})
 	}
