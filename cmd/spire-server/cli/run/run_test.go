@@ -352,6 +352,42 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg:       "log_source_location should default to false if not set",
+			fileInput: func(c *Config) {},
+			cliFlags:  []string{},
+			test: func(t *testing.T, c *Config) {
+				require.False(t, c.Server.LogSourceLocation)
+			},
+		},
+		{
+			msg: "log_source_location should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.LogSourceLocation = true
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.LogSourceLocation)
+			},
+		},
+		{
+			msg:       "log_source_location should be configurable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliFlags:  []string{"-logSourceLocation"},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.LogSourceLocation)
+			},
+		},
+		{
+			msg: "log_source_location specified by CLI flag should take precedence over file",
+			fileInput: func(c *Config) {
+				c.Server.LogSourceLocation = false
+			},
+			cliFlags: []string{"-logSourceLocation"},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.LogSourceLocation)
+			},
+		},
+		{
 			msg: "default_x509_svid_ttl should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.DefaultX509SVIDTTL = "2h"
