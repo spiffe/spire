@@ -41,6 +41,9 @@ type Config struct {
 	// Disable custom Envoy SDS validator
 	DisableSPIFFECertValidation bool
 
+	// Enable deprecated envoy SDS v2 API
+	EnableDeprecatedSDSv2API bool
+
 	AllowUnauthenticatedVerifiers bool
 
 	AllowedForeignJWTClaims []string
