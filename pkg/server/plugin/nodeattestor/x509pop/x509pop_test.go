@@ -89,7 +89,7 @@ func (s *Suite) TestAttestSuccess() {
 		{
 			desc:          "success with custom agent id (ca_bundle_paths)",
 			expectAgentID: "spiffe://example.org/spire/agent/serialnumber/0a1b2c3d4e5f",
-			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/serialnumber/{{ .SerialNumber }}"`),
+			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/serialnumber/{{ .SerialNumberHex }}"`),
 		},
 	}
 
