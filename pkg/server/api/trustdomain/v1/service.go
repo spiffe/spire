@@ -198,7 +198,7 @@ func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshB
 		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse trust domain", err)
 	}
 
-	log = log.WithField(telemetry.TrustDomainID, trustDomain.String())
+	log = log.WithField(telemetry.TrustDomainID, trustDomain.Name())
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.TrustDomainID: req.TrustDomain})
 
 	isManagedByBm, err := s.br.RefreshBundleFor(ctx, trustDomain)
@@ -323,17 +323,17 @@ func (s *Service) deleteFederationRelationship(ctx context.Context, td string) *
 	case codes.OK:
 		log.Debug("Federation relationship deleted")
 		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
-			TrustDomain: trustDomain.String(),
+			TrustDomain: trustDomain.Name(),
 			Status:      api.OK(),
 		}
 	case codes.NotFound:
 		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
-			TrustDomain: trustDomain.String(),
+			TrustDomain: trustDomain.Name(),
 			Status:      api.MakeStatus(log, codes.NotFound, "federation relationship not found", nil),
 		}
 	default:
 		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
-			TrustDomain: trustDomain.String(),
+			TrustDomain: trustDomain.Name(),
 			Status:      api.MakeStatus(log, codes.Internal, "failed to delete federation relationship", err),
 		}
 	}

@@ -919,7 +919,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			name: "trust domain already exists",
 			req: []*types.FederationRelationship{
 				{
-					TrustDomain:           defaultFederationRelationship.TrustDomain.String(),
+					TrustDomain:           defaultFederationRelationship.TrustDomain.Name(),
 					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 					BundleEndpointUrl:     "https://federated-td-web.org/another",
 				},
@@ -960,7 +960,7 @@ func TestBatchCreateFederationRelationship(t *testing.T) {
 			name: "using server trust domain",
 			req: []*types.FederationRelationship{
 				{
-					TrustDomain:           td.String(),
+					TrustDomain:           td.Name(),
 					BundleEndpointProfile: &types.FederationRelationship_HttpsWeb{},
 					BundleEndpointUrl:     "https://federated-td-web.org/another",
 				},
@@ -1074,7 +1074,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 		BundleEndpointProfile: datastore.BundleEndpointWeb,
 	}
 
-	allRelationships := []string{fooFR.TrustDomain.String(), barFR.TrustDomain.String(), bazFR.TrustDomain.String()}
+	allRelationships := []string{fooFR.TrustDomain.Name(), barFR.TrustDomain.Name(), bazFR.TrustDomain.Name()}
 	for _, tt := range []struct {
 		name            string
 		dsError         error
@@ -1085,8 +1085,8 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 	}{
 		{
 			name:            "delete multiple trustdomains",
-			reqTrustDomains: []string{barFR.TrustDomain.String(), "not.found", bazFR.TrustDomain.String()},
-			expectDs:        []string{fooFR.TrustDomain.String()},
+			reqTrustDomains: []string{barFR.TrustDomain.Name(), "not.found", bazFR.TrustDomain.Name()},
+			expectDs:        []string{fooFR.TrustDomain.Name()},
 			expectResults: []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
 				{
 					Status:      api.OK(),
@@ -1261,7 +1261,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 		},
 		{
 			name:            "DS fails",
-			reqTrustDomains: []string{fooFR.TrustDomain.String()},
+			reqTrustDomains: []string{fooFR.TrustDomain.Name()},
 			dsError:         errors.New("oh! no"),
 			expectDs:        allRelationships,
 			expectResults: []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
@@ -1327,7 +1327,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 
 			var tds []string
 			for _, fr := range listResp.FederationRelationships {
-				tds = append(tds, fr.TrustDomain.String())
+				tds = append(tds, fr.TrustDomain.Name())
 			}
 			require.Equal(t, tt.expectDs, tds)
 		})

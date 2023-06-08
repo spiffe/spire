@@ -428,7 +428,7 @@ func (s *Server) newBundlePublishingManager(bundlePublishers []bundlepublisher.B
 }
 
 func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
-	trustDomain := s.config.TrustDomain.String()
+	trustDomain := s.config.TrustDomain.Name()
 
 	// Get only first page with a single element
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{

@@ -69,7 +69,7 @@ func getID(spiffeID string) (*types.SPIFFEID, error) {
 		return nil, err
 	}
 	return &types.SPIFFEID{
-		TrustDomain: id.TrustDomain().String(),
+		TrustDomain: id.TrustDomain().Name(),
 		Path:        id.Path(),
 	}, nil
 }

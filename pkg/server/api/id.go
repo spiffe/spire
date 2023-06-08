@@ -93,7 +93,7 @@ func VerifyTrustDomainWorkloadID(td spiffeid.TrustDomain, id spiffeid.ID) error 
 // types.SPIFFEID
 func ProtoFromID(id spiffeid.ID) *types.SPIFFEID {
 	return &types.SPIFFEID{
-		TrustDomain: id.TrustDomain().String(),
+		TrustDomain: id.TrustDomain().Name(),
 		Path:        id.Path(),
 	}
 }

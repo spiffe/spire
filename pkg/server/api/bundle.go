@@ -25,7 +25,7 @@ func BundleToProto(b *common.Bundle) (*types.Bundle, error) {
 	}
 
 	return &types.Bundle{
-		TrustDomain:     td.String(),
+		TrustDomain:     td.Name(),
 		RefreshHint:     b.RefreshHint,
 		SequenceNumber:  b.SequenceNumber,
 		X509Authorities: CertificatesToProto(b.RootCas),

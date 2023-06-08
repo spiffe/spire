@@ -113,7 +113,7 @@ func spiffeIDFromCert(cert *x509.Certificate) *types.SPIFFEID {
 	}
 
 	return &types.SPIFFEID{
-		TrustDomain: id.TrustDomain().String(),
+		TrustDomain: id.TrustDomain().Name(),
 		Path:        id.Path(),
 	}
 }
