@@ -2,17 +2,14 @@ package manager
 
 import (
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"os"
-	"sort"
 	"sync"
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/proto/private/server/journal"
-	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/protobuf/proto"
 )
@@ -155,133 +152,6 @@ func saveJournalEntries(path string, entries *JournalEntries) error {
 	}
 
 	return nil
-}
-
-func migrateJSONFile(from, to string) (bool, error) {
-	type keypairData struct {
-		CAs        map[string][]byte `json:"cas"`
-		PublicKeys map[string][]byte `json:"public_keys"`
-	}
-
-	jsonBytes, err := os.ReadFile(from)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, errs.New("error reading JSON file: %v", err)
-	}
-
-	data := new(keypairData)
-	if err := json.Unmarshal(jsonBytes, data); err != nil {
-		return false, errs.New("unable to decode JSON: %v", err)
-	}
-
-	parseX509CA := func(slotID string) (*X509CAEntry, error) {
-		certsBytes := data.CAs[x509CAKmKeyID(slotID)]
-		if len(certsBytes) == 0 {
-			return nil, nil
-		}
-		chain, err := x509.ParseCertificates(certsBytes)
-		if err != nil {
-			return nil, errs.New("failed to parse slot %q certificates: %v", slotID, err)
-		}
-		if len(chain) == 0 {
-			return nil, nil
-		}
-		// The chain is in one of two states:
-		// 1) single self-signed cert
-		// 2) an upstream-signed cert followed by any intermediates and a root
-		//
-		// In the case where the CA is an intermediate, we don't want to store
-		// the root, so remove it.
-		certificate := chain[0].Raw
-		var upstreamChain [][]byte
-		if len(chain) > 1 {
-			upstreamChain = chainDER(chain[:len(chain)-1])
-		}
-
-		return &X509CAEntry{
-			SlotId: slotID,
-			// Using NotBefore as IssuedAt is a close enough estimation.
-			IssuedAt:      chain[0].NotBefore.Unix(),
-			Certificate:   certificate,
-			UpstreamChain: upstreamChain,
-		}, nil
-	}
-
-	parseJWTKey := func(slotID string) (*JWTKeyEntry, error) {
-		entryData := data.PublicKeys[jwtKeyKmKeyID(slotID)]
-		if len(entryData) == 0 {
-			return nil, nil
-		}
-		publicKey := new(common.PublicKey)
-		if err := proto.Unmarshal(entryData, publicKey); err != nil {
-			return nil, errs.New("failed to parse slot %q public key: %v", slotID, err)
-		}
-		// Return a JWTKeyEntry w/o the IssuedAt. The CA and JWT key used to
-		// rotate at the same time, so the code below will estimate it based
-		// on the CA for the same lost.
-		return &JWTKeyEntry{
-			SlotId:    slotID,
-			PublicKey: publicKey.PkixBytes,
-			Kid:       publicKey.Kid,
-			NotAfter:  publicKey.NotAfter,
-		}, nil
-	}
-
-	aX509CA, err := parseX509CA("A")
-	if err != nil {
-		return false, err
-	}
-
-	bX509CA, err := parseX509CA("B")
-	if err != nil {
-		return false, err
-	}
-
-	aJWTKey, err := parseJWTKey("A")
-	if err != nil {
-		return false, err
-	}
-
-	bJWTKey, err := parseJWTKey("B")
-	if err != nil {
-		return false, err
-	}
-
-	// either both X509CA and JWTKey must be valid for each slot or we should
-	// discard the other since the old rotation code rotated them together and
-	// we need the X509CA to estimate the JWTKey "issued at" time.
-	entries := new(JournalEntries)
-	if aX509CA != nil && aJWTKey != nil {
-		aJWTKey.IssuedAt = aX509CA.IssuedAt
-		entries.X509CAs = append(entries.X509CAs, aX509CA)
-		entries.JwtKeys = append(entries.JwtKeys, aJWTKey)
-	}
-
-	if bX509CA != nil && bJWTKey != nil {
-		bJWTKey.IssuedAt = bX509CA.IssuedAt
-		entries.X509CAs = append(entries.X509CAs, bX509CA)
-		entries.JwtKeys = append(entries.JwtKeys, bJWTKey)
-	}
-
-	// sort in ascending "issued at" order
-	sort.Slice(entries.X509CAs, func(a, b int) bool {
-		return entries.X509CAs[a].IssuedAt < entries.X509CAs[b].IssuedAt
-	})
-	sort.Slice(entries.JwtKeys, func(a, b int) bool {
-		return entries.JwtKeys[a].IssuedAt < entries.JwtKeys[b].IssuedAt
-	})
-
-	// save the journal and remove the JSON file
-	if err := saveJournalEntries(to, entries); err != nil {
-		return false, err
-	}
-	if err := os.Remove(from); err != nil {
-		return false, errs.New("unable to remove old JSON file: %v", err)
-	}
-
-	return true, nil
 }
 
 func chainDER(chain []*x509.Certificate) [][]byte {
