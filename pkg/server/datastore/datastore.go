@@ -187,12 +187,14 @@ type ListRegistrationEntriesResponse struct {
 }
 
 type ListRegistrationEntriesEventsRequest struct {
-	MinID uint64
+	Pagination *Pagination
+	LastID     uint
 }
 
 type ListRegistrationEntriesEventsResponse struct {
-	Entries    []*common.RegistrationEntry
-	Pagination *Pagination
+	EntryIDs     []string
+	FirstEventID uint
+	Pagination   *Pagination
 }
 
 type ListFederationRelationshipsRequest struct {
