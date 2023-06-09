@@ -8,6 +8,10 @@ and
 [GOVERNANCE](https://github.com/spiffe/spiffe/blob/main/GOVERNANCE.md)
 from the SPIFFE project.
 
+As a general guideline, it is suggested to first create an issue summarizing the changes you would like to see to the project.
+The project maintainers regularly triage open issues to clarify the request, refine the scope, and determine the direction for the issue.
+Contributions that are tied to a triaged issue are more likely to be successfully merged into the project.
+
 ## Prerequisites
 
 For basic development you will need:
