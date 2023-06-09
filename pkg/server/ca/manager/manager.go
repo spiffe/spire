@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -128,9 +129,6 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
 		m.currentX509CA = currentX509CA.(*X509CASlot)
 
-		// TODO: Activation on journal depends on dates, it will need to be
-		// refactored to allow to set a status, because when forcing a rotation,
-		// we are no longer able to depend on date.
 		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
 			// activate the X509CA immediately if it is set and not within
 			// activation time of the next X509CA.
@@ -189,7 +187,9 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	m.x509CAMutex.Lock()
 	defer m.x509CAMutex.Unlock()
 
-	// If current is not empty, prepare the next
+	// If current is not empty, prepare the next.
+	// If the journal has been started, we will be preparing on next.
+	// This is only needed when the journal has not been started.
 	slot := m.currentX509CA
 	if !slot.IsEmpty() {
 		slot = m.nextX509CA
@@ -222,6 +222,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 
 	slot.issuedAt = now
 	slot.x509CA = x509CA
+	slot.status = journal.Status_PREPARED
 
 	if err := m.journal.AppendX509CA(slot.id, slot.issuedAt, slot.x509CA); err != nil {
 		log.WithError(err).Error("Unable to append X509 CA to journal")
@@ -249,6 +250,10 @@ func (m *Manager) RotateX509CA() {
 
 	m.currentX509CA, m.nextX509CA = m.nextX509CA, m.currentX509CA
 	m.nextX509CA.Reset()
+	if err := m.journal.UpdateX509CAStatus(m.nextX509CA.issuedAt, journal.Status_OLD); err != nil {
+		m.c.Log.WithError(err).Error("Failed to update status on X509CA journal entry")
+	}
+
 	m.activateX509CA()
 }
 
@@ -309,6 +314,7 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 
 	slot.issuedAt = now
 	slot.jwtKey = jwtKey
+	slot.status = journal.Status_PREPARED
 
 	if err := m.journal.AppendJWTKey(slot.id, slot.issuedAt, slot.jwtKey); err != nil {
 		log.WithError(err).Error("Unable to append JWT key to journal")
@@ -335,6 +341,11 @@ func (m *Manager) RotateJWTKey() {
 
 	m.currentJWTKey, m.nextJWTKey = m.nextJWTKey, m.currentJWTKey
 	m.nextJWTKey.Reset()
+
+	if err := m.journal.UpdateJWTKeyStatus(m.nextJWTKey.issuedAt, journal.Status_OLD); err != nil {
+		m.c.Log.WithError(err).Error("Failed to update status on JWTKey journal entry")
+	}
+
 	m.activateJWTKey()
 }
 
@@ -438,22 +449,35 @@ func (m *Manager) NotifyBundleLoaded(ctx context.Context) error {
 }
 
 func (m *Manager) activateJWTKey() {
-	m.c.Log.WithFields(logrus.Fields{
+	log := m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:       m.currentJWTKey.id,
 		telemetry.IssuedAt:   m.currentJWTKey.issuedAt,
 		telemetry.Expiration: m.currentJWTKey.jwtKey.NotAfter,
-	}).Info("JWT key activated")
+	})
+	log.Info("JWT key activated")
 	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
+
+	m.currentJWTKey.status = journal.Status_ACTIVE
+	if err := m.journal.UpdateJWTKeyStatus(m.currentJWTKey.issuedAt, journal.Status_ACTIVE); err != nil {
+		log.WithError(err).Error("Failed to update to activated status on JWTKey journal entry")
+	}
+
 	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
 }
 
 func (m *Manager) activateX509CA() {
-	m.c.Log.WithFields(logrus.Fields{
+	log := m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:       m.currentX509CA.id,
 		telemetry.IssuedAt:   m.currentX509CA.issuedAt,
 		telemetry.Expiration: m.currentX509CA.x509CA.Certificate.NotAfter,
-	}).Info("X509 CA activated")
+	})
+	log.Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
+
+	m.currentX509CA.status = journal.Status_ACTIVE
+	if err := m.journal.UpdateX509CAStatus(m.currentX509CA.issuedAt, journal.Status_ACTIVE); err != nil {
+		log.WithError(err).Error("Failed to update to activated status on X509CA journal entry")
+	}
 
 	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
 	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
