@@ -8,7 +8,7 @@ require (
 	cloud.google.com/go/secretmanager v1.11.0
 	cloud.google.com/go/security v1.15.0
 	cloud.google.com/go/storage v1.30.1
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.3
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.99.0
-	github.com/aws/aws-sdk-go-v2/service/iam v1.19.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.20.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.22.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.0
@@ -60,7 +60,7 @@ require (
 	github.com/sigstore/rekor v1.2.1
 	github.com/sigstore/sigstore v1.6.4
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spiffe/go-spiffe/v2 v2.1.5
+	github.com/spiffe/go-spiffe/v2 v2.1.6
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20230413135745-699e242b965d
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230224144655-648f8c740f73
 	github.com/stretchr/testify v1.8.4

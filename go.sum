@@ -622,8 +622,8 @@ github.com/Azure/azure-sdk-for-go v68.0.0+incompatible h1:fcYLmCpyNYRnvJbPerq7U0
 github.com/Azure/azure-sdk-for-go v68.0.0+incompatible/go.mod h1:9XXNKU+eRnpl9moKnB4QOLf1HestfXbmab5FXxiDBjc=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.0.0/go.mod h1:uGG2W01BaETf0Ozp+QxxKJdMBNRWPdstHG0Fmdwn1/U=
 github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.2/go.mod h1:uGG2W01BaETf0Ozp+QxxKJdMBNRWPdstHG0Fmdwn1/U=
-github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0 h1:8kDqDngH+DmVBiCtIjCFTGa7MBnsIOkF9IccInFEbjk=
-github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0/go.mod h1:bjGvMhVMb+EEm3VRNQawDMUyMMjo+S5ewNjflkep/0Q=
+github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.1 h1:SEy2xmstIphdPwNBUi7uhvjyjhVKISfwjfOJmuy7kg4=
+github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.1/go.mod h1:bjGvMhVMb+EEm3VRNQawDMUyMMjo+S5ewNjflkep/0Q=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.1/go.mod h1:gLa1CL2RNE4s7M3yopJ/p0iq5DdY6Yv5ZUt9MTRZOQM=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0 h1:vcYCAze6p19qBW7MhZybIsqD8sMV8js0NyQM8JDnVtg=
 github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0/go.mod h1:OQeznEEkTZ9OrhHJoDD8ZDq51FHgXjqtP9z6bEwBq9U=
@@ -809,8 +809,8 @@ github.com/aws/aws-sdk-go-v2/service/ecr v1.15.0/go.mod h1:4zYI85WiYDhFaU1jPFVfk
 github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.4.1/go.mod h1:eD5Eo4drVP2FLTw0G+SMIPWNWvQRGGTtIZR2XeAagoA=
 github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.12.0 h1:LsqBpyRofMG6eDs6YGud6FhdGyIyXelAasPOZ6wWLro=
 github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.12.0/go.mod h1:IArQ3IBR00FkuraKwudKZZU32OxJfdTdwV+W5iZh3Y4=
-github.com/aws/aws-sdk-go-v2/service/iam v1.19.0 h1:9vCynoqC+dgxZKrsjvAniyIopsv3RZFsZ6wkQ+yxtj8=
-github.com/aws/aws-sdk-go-v2/service/iam v1.19.0/go.mod h1:OyAuvpFeSVNppcSsp1hFOVQcaTRc1LE24YIR7pMbbAA=
+github.com/aws/aws-sdk-go-v2/service/iam v1.20.0 h1:ywXSXkssdnuPlJyCZVO5kAUQhFm/RhsbvWRHklJ0uH4=
+github.com/aws/aws-sdk-go-v2/service/iam v1.20.0/go.mod h1:kAnokExGCYs7zfvZEZdFHvQ/x4ZKIci0Raps6mZI1Ag=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.2.1/go.mod h1:zceowr5Z1Nh2WVP8bf/3ikB41IZW59E4yIYbg+pC6mw=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.27 h1:0iKliEXAcCa2qVtRs7Ot5hItA2MsufrphbRFlz1Owxo=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.27/go.mod h1:EOwBD4J4S5qYszS5/3DpkejfuK+Z5/1uzICfPaZLtqw=
@@ -1792,8 +1792,8 @@ github.com/spf13/viper v1.4.0/go.mod h1:PTJ7Z/lr49W6bUbkmS1V3by4uWynFiR9p7+dSq/y
 github.com/spf13/viper v1.7.1/go.mod h1:8WkrPz2fc9jxqZNCJI/76HCieCp4Q8HaLFoCha5qpdg=
 github.com/spf13/viper v1.15.0 h1:js3yy885G8xwJa6iOISGFwd+qlUo5AvyXb7CiihdtiU=
 github.com/spf13/viper v1.15.0/go.mod h1:fFcTBJxvhhzSJiZy8n+PeW6t8l+KeT/uTARa0jHOQLA=
-github.com/spiffe/go-spiffe/v2 v2.1.5 h1:nFzp6pllCxpso6A2CaokdjhmH3uHWMNL9DGYXeZrShs=
-github.com/spiffe/go-spiffe/v2 v2.1.5/go.mod h1:eVDqm9xFvyqao6C+eQensb9ZPkyNEeaUbqbBpOhBnNk=
+github.com/spiffe/go-spiffe/v2 v2.1.6 h1:4SdizuQieFyL9eNU+SPiCArH4kynzaKOOj0VvM8R7Xo=
+github.com/spiffe/go-spiffe/v2 v2.1.6/go.mod h1:eVDqm9xFvyqao6C+eQensb9ZPkyNEeaUbqbBpOhBnNk=
 github.com/spiffe/spire-api-sdk v1.2.5-0.20230413135745-699e242b965d h1:0etgpf2R3yE+dwCM+leo1OcayEXfBdv0nZ3I7k/iRmk=
 github.com/spiffe/spire-api-sdk v1.2.5-0.20230413135745-699e242b965d/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
 github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230224144655-648f8c740f73 h1:uGW6T41jGq1ZTxqpc8Y4b/LIPDtSYDaVql2gYdJYUfM=

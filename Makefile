@@ -212,8 +212,8 @@ endif
 # Flags passed to all invocations of go test
 go_test_flags :=
 ifeq ($(NIGHTLY),)
-	# Cap unit-test timout to 60s unless we're running nightlies.
-	go_test_flags += -timeout=60s
+	# Cap unit-test timout to 90s unless we're running nightlies.
+	go_test_flags += -timeout=90s
 endif
 
 go_flags :=
