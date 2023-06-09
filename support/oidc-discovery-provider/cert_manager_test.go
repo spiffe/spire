@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -82,12 +83,17 @@ func TestTLSConfig(t *testing.T) {
 		ServerName: "oidc-provider-discovery.example.com",
 	}
 
+	ctx, cancelFn := context.WithCancel(context.Background())
 	certManager, err := NewDiskCertManager(&ServingCertFileConfig{
 		CertFilePath:     tmpDir + certFilePath,
 		KeyFilePath:      tmpDir + keyFilePath,
 		FileSyncInterval: 10 * time.Millisecond,
 	}, logger)
 	require.NoError(t, err)
+
+	go func() {
+		certManager.WatchFileChanges(ctx)
+	}()
 
 	tlsConfig := certManager.TLSConfig()
 
@@ -148,32 +154,6 @@ func TestTLSConfig(t *testing.T) {
 		}, logger)
 
 		require.EqualError(t, err, "failed to load certificate: tls: failed to find any PEM data in key input")
-	})
-
-	t.Run("error when client misses server name", func(t *testing.T) {
-		_, err := tlsConfig.GetCertificate(&tls.ClientHelloInfo{})
-		require.EqualError(t, err, "missing server name")
-	})
-
-	t.Run("error when client send server name with invalid character", func(t *testing.T) {
-		_, err := tlsConfig.GetCertificate(&tls.ClientHelloInfo{
-			ServerName: "example.com:8080",
-		})
-		require.EqualError(t, err, "server name contains invalid character")
-	})
-
-	t.Run("error when client send server name with invalid component count", func(t *testing.T) {
-		_, err := tlsConfig.GetCertificate(&tls.ClientHelloInfo{
-			ServerName: "example",
-		})
-		require.EqualError(t, err, "server name component count invalid")
-	})
-
-	t.Run("error when client send wrong server name", func(t *testing.T) {
-		_, err := tlsConfig.GetCertificate(&tls.ClientHelloInfo{
-			ServerName: "example.com",
-		})
-		require.EqualError(t, err, `server name mismatch: x509: certificate is not valid for any names, but wanted to match example.com`)
 	})
 
 	t.Run("success loading initial certificate from disk", func(t *testing.T) {
@@ -397,5 +377,14 @@ func TestTLSConfig(t *testing.T) {
 			}
 			return reflect.DeepEqual(oidcServerCertUpdated3, x509Cert)
 		}, 10*time.Second, 100*time.Millisecond, "Failed to assert updated certificate")
+	})
+
+	t.Run("stop file watcher when context is canceled", func(t *testing.T) {
+		cancelFn()
+
+		require.Eventuallyf(t, func() bool {
+			lastEntry := logHook.LastEntry()
+			return lastEntry.Level == logrus.InfoLevel && lastEntry.Message == "Stopping file watcher"
+		}, 10*time.Second, 10*time.Millisecond, "Failed to assert file watcher stop log")
 	})
 }

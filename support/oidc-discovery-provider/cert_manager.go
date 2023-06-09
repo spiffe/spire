@@ -1,18 +1,17 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"golang.org/x/net/idna"
 )
 
 // DiskCertManager is a certificate manager that loads certificates from disk, and watches for changes.
@@ -43,8 +42,6 @@ func NewDiskCertManager(config *ServingCertFileConfig, log logrus.FieldLogger) (
 		return nil, fmt.Errorf("failed to load certificate: %w", err)
 	}
 
-	go dm.watchFileChanges()
-
 	return dm, nil
 }
 
@@ -61,46 +58,27 @@ func (m *DiskCertManager) TLSConfig() *tls.Config {
 
 // getCertificate is called by the TLS stack when a new TLS connection is established.
 func (m *DiskCertManager) getCertificate(chInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	name := chInfo.ServerName
-	if name == "" {
-		return nil, errors.New("missing server name")
-	}
-	if !strings.Contains(strings.Trim(name, "."), ".") {
-		return nil, errors.New("server name component count invalid")
-	}
-
-	// Note that this conversion is necessary because some server names in the handshakes
-	// started by some clients (such as cURL) are not converted to Punycode, which will
-	// prevent us from obtaining certificates for them. In addition, we should also treat
-	// example.com and EXAMPLE.COM as equivalent and return the same certificate for them.
-	// Fortunately, this conversion also helped us deal with this kind of mixedcase problems.
-	//
-	// Due to the "σςΣ" problem (see https://unicode.org/faq/idn.html#22), we can't use
-	// idna.Punycode.ToASCII (or just idna.ToASCII) here.
-	name, err := idna.Lookup.ToASCII(name)
-	if err != nil {
-		return nil, errors.New("server name contains invalid character")
-	}
-
 	m.certMtx.RLock()
 	defer m.certMtx.RUnlock()
 	cert := m.cert
 
-	// Verify that the certificate is valid for the requested server name.
-	if name != cert.Leaf.Subject.CommonName {
-		if err := cert.Leaf.VerifyHostname(name); err != nil {
-			return nil, fmt.Errorf("server name mismatch: %w", err)
-		}
-	}
-
 	return cert, nil
 }
 
-// watchFileChanges starts a file watcher to watch for changes to the cert and key files.
-func (m *DiskCertManager) watchFileChanges() {
+// WatchFileChanges starts a file watcher to watch for changes to the cert and key files.
+func (m *DiskCertManager) WatchFileChanges(ctx context.Context) {
+	m.log.WithField("interval", m.fileSyncInterval).Info("Started watching certificate files")
+
 	ticker := time.NewTicker(m.fileSyncInterval)
-	for range ticker.C {
-		m.syncCertificateFiles()
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			m.log.Info("Stopping file watcher")
+			return
+		case <-ticker.C:
+			m.syncCertificateFiles()
+		}
 	}
 }
 

@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -49,6 +52,9 @@ func run(configPath string) error {
 	}
 	defer log.Close()
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	source, err := newSource(log, config)
 	if err != nil {
 		return err
@@ -66,7 +72,7 @@ func run(configPath string) error {
 		handler = logHandler(log, handler)
 	}
 
-	listener, err := buildNetListener(config, log)
+	listener, err := buildNetListener(ctx, config, log)
 	if err != nil {
 		return err
 	}
@@ -91,10 +97,19 @@ func run(configPath string) error {
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+
+	go func() {
+		<-ctx.Done()
+		err = server.Shutdown(context.Background())
+		if err != nil {
+			log.Error(err)
+		}
+	}()
+
 	return server.Serve(listener)
 }
 
-func buildNetListener(config *Config, log *log.Logger) (listener net.Listener, err error) {
+func buildNetListener(ctx context.Context, config *Config, log *log.Logger) (listener net.Listener, err error) {
 	switch {
 	case config.InsecureAddr != "":
 		listener, err = net.Listen("tcp", config.InsecureAddr)
@@ -112,7 +127,7 @@ func buildNetListener(config *Config, log *log.Logger) (listener net.Listener, e
 			telemetry.Address: listener.Addr().String(),
 		}).Info("Serving HTTP")
 	case config.ServingCertFile != nil:
-		listener, err = newListenerWithServingCert(log, config)
+		listener, err = newListenerWithServingCert(ctx, log, config)
 		if err != nil {
 			return nil, err
 		}
@@ -152,15 +167,18 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 	}
 }
 
-func newListenerWithServingCert(log logrus.FieldLogger, config *Config) (net.Listener, error) {
+func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, config *Config) (net.Listener, error) {
 	certManager, err := NewDiskCertManager(config.ServingCertFile, log)
 	if err != nil {
 		return nil, err
 	}
+	go func() {
+		certManager.WatchFileChanges(ctx)
+	}()
 
 	tlsConfig := certManager.TLSConfig()
 
-	tcpListener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 443})
+	tcpListener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 8080})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create listener using certificate from disk: %w", err)
 	}

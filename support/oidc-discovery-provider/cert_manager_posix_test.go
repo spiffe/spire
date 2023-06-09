@@ -20,8 +20,6 @@ var (
 func writeFile(t *testing.T, name string, data []byte) {
 	err := os.WriteFile(name, data, 0600)
 	require.NoError(t, err)
-	_, err = os.Stat(name)
-	require.NoError(t, err)
 }
 
 func removeFile(t *testing.T, name string) {

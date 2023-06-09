@@ -19,7 +19,7 @@ var (
 )
 
 func writeFile(t *testing.T, name string, data []byte) {
-	err := os.WriteFile(name, data, 0666)
+	err := os.WriteFile(name, data, 0600)
 	require.NoError(t, err)
 }
 

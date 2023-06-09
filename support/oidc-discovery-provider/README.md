@@ -177,7 +177,7 @@ workload_api {
 ```hcl
 log_level = "debug"
 domains = ["mypublicdomain.test"]
-serving_certificate {
+serving_cert_file {
  cert_file_path = "/some/path/on/disk/to/cert.pem"
  key_file_path = "/some/path/on/disk/to/key.pem"
 }
@@ -191,7 +191,7 @@ server_api {
 ```hcl
 log_level = "debug"
 domains = ["mypublicdomain.test"]
-serving_certificate {
+serving_cert_file {
  cert_file_path = "/some/path/on/disk/to/cert.pem"
  key_file_path = "/some/path/on/disk/to/key.pem"
 }
