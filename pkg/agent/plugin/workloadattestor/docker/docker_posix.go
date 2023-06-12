@@ -76,6 +76,14 @@ func getContainerIDFromCGroups(finder cgroup.ContainerIDFinder, cgroups []cgroup
 		switch {
 		case containerID == "":
 			// This is the first container ID found so far.
+			// Try match on extracted path element to support cgroups v2 with
+			// systemd driver /proc values.
+			if v2match := dockerCGroupRE.FindStringSubmatch(candidate); v2match != nil {
+				containerID = v2match[1]
+				continue
+			}
+			// Assume candidate path element is already a container id from
+			// cgroupsfs driver /proc values.
 			containerID = candidate
 		case containerID != candidate:
 			// More than one container ID found in the cgroups.

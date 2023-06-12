@@ -17,6 +17,7 @@ import (
 
 const (
 	testCgroupEntries = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	testCgroupV2Entries = "0::/system.slice/system-unit.slice/docker-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope"
 )
 
 func TestContainerExtraction(t *testing.T) {
@@ -70,6 +71,20 @@ func TestContainerExtraction(t *testing.T) {
 		{
 			desc:    "default finder does not match cgroup missing docker prefix",
 			cgroups: "4:devices:/system.slice/41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
+		},
+		{
+			desc:    "default finder matches cgroups v2 with systemd driver",
+			cgroups: testCgroupV2Entries,
+			hasMatch: true,
+		},
+		{
+			desc:    "custom matchers match cgroups v2 with systemd driver",
+			cgroups: testCgroupV2Entries,
+			cfg: `container_id_cgroup_matchers = [
+"/system.slice/*/<id>", # systemd-managed cgroups
+"/docker/<id>", # Docker-managed cgroups
+]`,
+			hasMatch: true,
 		},
 	}
 
