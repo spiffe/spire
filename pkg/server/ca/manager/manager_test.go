@@ -432,7 +432,7 @@ func TestX509CARotationMetric(t *testing.T) {
 	expected := fakemetrics.New()
 	ttl := test.currentX509CA().Certificate.NotAfter.Sub(test.clock.Now())
 	telemetry_server.IncrActivateX509CAManagerCounter(expected)
-	telemetry_server.SetX509CARotateGauge(expected, test.m.c.TrustDomain.String(), float32(ttl.Seconds()))
+	telemetry_server.SetX509CARotateGauge(expected, test.m.c.TrustDomain.Name(), float32(ttl.Seconds()))
 
 	require.Equal(t, expected.AllMetrics(), test.metrics.AllMetrics())
 }

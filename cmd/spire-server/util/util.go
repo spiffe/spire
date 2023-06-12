@@ -236,7 +236,7 @@ func bundleProtoFromX509Authorities(trustDomain string, rootCAs []*x509.Certific
 // protoFromSpiffeBundle converts a bundle from the given *spiffebundle.Bundle to *api_types.Bundle
 func protoFromSpiffeBundle(bundle *spiffebundle.Bundle) (*api_types.Bundle, error) {
 	resp := &api_types.Bundle{
-		TrustDomain:     bundle.TrustDomain().String(),
+		TrustDomain:     bundle.TrustDomain().Name(),
 		X509Authorities: protoFromX509Certificates(bundle.X509Authorities()),
 	}
 

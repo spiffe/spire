@@ -480,7 +480,7 @@ func (m *Manager) activateX509CA() {
 	}
 
 	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
-	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.String(), float32(ttl.Seconds()))
+	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.Name(), float32(ttl.Seconds()))
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.TrustDomainID: m.c.TrustDomain.IDString(),
 		telemetry.TTL:           ttl.Seconds(),

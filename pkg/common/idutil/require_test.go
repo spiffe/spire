@@ -11,7 +11,7 @@ import (
 func TestRequireIDProtoString(t *testing.T) {
 	assert.NotPanics(t, func() {
 		id := RequireIDProtoString(&types.SPIFFEID{
-			TrustDomain: td.String(),
+			TrustDomain: td.Name(),
 			Path:        "/path",
 		})
 		assert.Equal(t, "spiffe://domain.test/path", id)
@@ -25,7 +25,7 @@ func TestRequireIDProtoString(t *testing.T) {
 func TestRequireIDFromProto(t *testing.T) {
 	assert.NotPanics(t, func() {
 		id := RequireIDFromProto(&types.SPIFFEID{
-			TrustDomain: td.String(),
+			TrustDomain: td.Name(),
 			Path:        "/path",
 		})
 		assert.Equal(t, "spiffe://domain.test/path", id.String())

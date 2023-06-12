@@ -133,7 +133,7 @@ func (v1 *identityProviderV1) FetchX509Identity(ctx context.Context, req *identi
 			PrivateKey: privateKey,
 		},
 		Bundle: &plugintypes.Bundle{
-			TrustDomain:     v1.s.config.TrustDomain.String(),
+			TrustDomain:     v1.s.config.TrustDomain.Name(),
 			X509Authorities: x509Authorities,
 			JwtAuthorities:  jwtAuthorities,
 			RefreshHint:     bundle.RefreshHint,

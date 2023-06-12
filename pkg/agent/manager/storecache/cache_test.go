@@ -1236,7 +1236,7 @@ func createTestEntry() *common.RegistrationEntry {
 			{Type: "a", Value: "c:2"},
 		},
 		SpiffeId:       fohID.String(),
-		FederatesWith:  []string{federatedTD.String()},
+		FederatesWith:  []string{federatedTD.Name()},
 		StoreSvid:      true,
 		RevisionNumber: 1,
 	}

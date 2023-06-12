@@ -140,7 +140,7 @@ func TestGetFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: getting a federated bundle for the server's own trust domain is not allowed",
 					Data: logrus.Fields{
-						telemetry.TrustDomainID: serverTrustDomain.String(),
+						telemetry.TrustDomainID: serverTrustDomain.Name(),
 					},
 				},
 				{
@@ -166,7 +166,7 @@ func TestGetFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Bundle not found",
 					Data: logrus.Fields{
-						telemetry.TrustDomainID: federatedTrustDomain.String(),
+						telemetry.TrustDomainID: federatedTrustDomain.Name(),
 					},
 				},
 				{
@@ -547,7 +547,7 @@ func TestAppendBundle(t *testing.T) {
 			name:            "output mask all false",
 			x509Authorities: []*types.X509Certificate{x509Cert},
 			jwtAuthorities:  []*types.JWTKey{jwtKey2},
-			expectBundle:    &types.Bundle{TrustDomain: serverTrustDomain.String()},
+			expectBundle:    &types.Bundle{TrustDomain: serverTrustDomain.Name()},
 			outputMask: &types.BundleMask{
 				X509Authorities: false,
 				JwtAuthorities:  false,
@@ -604,7 +604,7 @@ func TestAppendBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to convert X.509 authority",
 					Data: logrus.Fields{
-						telemetry.TrustDomainID: serverTrustDomain.String(),
+						telemetry.TrustDomainID: serverTrustDomain.Name(),
 						logrus.ErrorKey:         expectedX509Err.Error(),
 					},
 				},
@@ -637,7 +637,7 @@ func TestAppendBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to convert JWT authority",
 					Data: logrus.Fields{
-						telemetry.TrustDomainID: serverTrustDomain.String(),
+						telemetry.TrustDomainID: serverTrustDomain.Name(),
 						logrus.ErrorKey:         expectedJWTErr.Error(),
 					},
 				},
@@ -671,7 +671,7 @@ func TestAppendBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to convert JWT authority",
 					Data: logrus.Fields{
-						telemetry.TrustDomainID: serverTrustDomain.String(),
+						telemetry.TrustDomainID: serverTrustDomain.Name(),
 						logrus.ErrorKey:         "missing key ID",
 					},
 				},
@@ -701,7 +701,7 @@ func TestAppendBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to append bundle",
 					Data: logrus.Fields{
-						telemetry.TrustDomainID: serverTrustDomain.String(),
+						telemetry.TrustDomainID: serverTrustDomain.Name(),
 						logrus.ErrorKey:         "some error",
 					},
 				},
@@ -737,7 +737,7 @@ func TestAppendBundle(t *testing.T) {
 				},
 			},
 			expectBundle: &types.Bundle{
-				TrustDomain:     serverTrustDomain.String(),
+				TrustDomain:     serverTrustDomain.Name(),
 				X509Authorities: []*types.X509Certificate{x509Cert},
 				JwtAuthorities:  []*types.JWTKey{jwtKey2},
 			},
@@ -821,11 +821,11 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 		{
 			name: "remove multiple bundles",
 			expectResults: []*bundlev1.BatchDeleteFederatedBundleResponse_Result{
-				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td1.String()},
-				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td2.String()},
+				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td1.Name()},
+				{Status: &types.Status{Code: int32(codes.OK), Message: "OK"}, TrustDomain: td2.Name()},
 			},
 			expectDSBundles: []string{serverTrustDomain.IDString(), td3.IDString()},
-			trustDomains:    []string{td1.String(), td2.String()},
+			trustDomains:    []string{td1.Name(), td2.Name()},
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
@@ -890,7 +890,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				},
 			},
 			mode:            bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT,
-			trustDomains:    []string{td1.String()},
+			trustDomains:    []string{td1.Name()},
 			expectDSBundles: dsBundles,
 		},
 		{
@@ -906,7 +906,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				},
 			},
 			mode:         bundlev1.BatchDeleteFederatedBundleRequest_DISSOCIATE,
-			trustDomains: []string{td1.String()},
+			trustDomains: []string{td1.Name()},
 			expectDSBundles: []string{
 				serverTrustDomain.IDString(),
 				td2.IDString(),
@@ -938,7 +938,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 				},
 			},
 			mode:         bundlev1.BatchDeleteFederatedBundleRequest_DELETE,
-			trustDomains: []string{td1.String()},
+			trustDomains: []string{td1.Name()},
 			expectDSBundles: []string{
 				serverTrustDomain.IDString(),
 				td2.IDString(),
@@ -1001,7 +1001,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: removing the bundle for the server trust domain is not allowed",
 					Data: logrus.Fields{
-						telemetry.TrustDomainID:             serverTrustDomain.String(),
+						telemetry.TrustDomainID:             serverTrustDomain.Name(),
 						telemetry.DeleteFederatedBundleMode: "RESTRICT",
 					},
 				},
@@ -1024,11 +1024,11 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 						Code:    int32(codes.InvalidArgument),
 						Message: "removing the bundle for the server trust domain is not allowed",
 					},
-					TrustDomain: serverTrustDomain.String(),
+					TrustDomain: serverTrustDomain.Name(),
 				},
 			},
 			expectDSBundles: dsBundles,
-			trustDomains:    []string{serverTrustDomain.String()},
+			trustDomains:    []string{serverTrustDomain.Name()},
 		},
 		{
 			name: "bundle not found",
@@ -1075,7 +1075,7 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 					Data: logrus.Fields{
 						logrus.ErrorKey:                     "rpc error: code = Internal desc = datasource fails",
 						telemetry.DeleteFederatedBundleMode: "RESTRICT",
-						telemetry.TrustDomainID:             td1.String(),
+						telemetry.TrustDomainID:             td1.Name(),
 					},
 				},
 				{
@@ -1097,11 +1097,11 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 						Code:    int32(codes.Internal),
 						Message: "failed to delete federated bundle: datasource fails",
 					},
-					TrustDomain: td1.String(),
+					TrustDomain: td1.Name(),
 				},
 			},
 			expectDSBundles: dsBundles,
-			trustDomains:    []string{td1.String()},
+			trustDomains:    []string{td1.Name()},
 			dsError:         status.New(codes.Internal, "datasource fails").Err(),
 		},
 	} {
@@ -1803,7 +1803,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
-					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.String()},
+					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.Name()},
 				},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -2027,7 +2027,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			name: "Malformed bundle",
 			bundlesToCreate: []*types.Bundle{
 				{
-					TrustDomain: federatedTrustDomain.String(),
+					TrustDomain: federatedTrustDomain.Name(),
 					X509Authorities: []*types.X509Certificate{
 						{
 							Asn1: []byte("malformed"),
@@ -2186,7 +2186,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				{
 					Status: api.OK(),
 					Bundle: &types.Bundle{
-						TrustDomain: federatedTrustDomain.String(),
+						TrustDomain: federatedTrustDomain.Name(),
 						RefreshHint: makeValidBundle(t, federatedTrustDomain).RefreshHint,
 					},
 				},
@@ -2358,7 +2358,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			name: "Invalid bundle provided",
 			bundlesToUpdate: []*types.Bundle{
 				{
-					TrustDomain: federatedTrustDomain.String(),
+					TrustDomain: federatedTrustDomain.Name(),
 					X509Authorities: []*types.X509Certificate{
 						{
 							Asn1: []byte("malformed"),
@@ -2555,7 +2555,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{
 					Status: api.OK(),
-					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.String()},
+					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.Name()},
 				},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -2778,7 +2778,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			name: "Malformed bundle",
 			bundlesToSet: []*types.Bundle{
 				{
-					TrustDomain: federatedTrustDomain.String(),
+					TrustDomain: federatedTrustDomain.Name(),
 					X509Authorities: []*types.X509Certificate{
 						{
 							Asn1: []byte("malformed"),
@@ -2852,7 +2852,7 @@ func assertBundleWithMask(t *testing.T, expected, actual *types.Bundle, m *types
 		return
 	}
 
-	require.Equal(t, spiffeid.RequireTrustDomainFromString(expected.TrustDomain).String(), actual.TrustDomain)
+	require.Equal(t, spiffeid.RequireTrustDomainFromString(expected.TrustDomain).Name(), actual.TrustDomain)
 
 	if m == nil || m.RefreshHint {
 		require.Equal(t, expected.RefreshHint, actual.RefreshHint)
@@ -2957,7 +2957,7 @@ func makeValidBundle(t *testing.T, td spiffeid.TrustDomain) *types.Bundle {
 	require.NoError(t, err)
 
 	return &types.Bundle{
-		TrustDomain:    b.TrustDomain().String(),
+		TrustDomain:    b.TrustDomain().Name(),
 		RefreshHint:    60,
 		SequenceNumber: 42,
 		X509Authorities: func(certs []*x509.Certificate) []*types.X509Certificate {
