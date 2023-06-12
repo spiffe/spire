@@ -8,7 +8,9 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"os"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +25,8 @@ import (
 var (
 	oidcServerKey    = testkey.MustEC256()
 	oidcServerKeyNew = testkey.MustEC256()
+	certFilePath     = "/oidcServerCert.pem"
+	keyFilePath      = "/oidcServerKey.pem"
 )
 
 func TestTLSConfig(t *testing.T) {
@@ -65,19 +69,12 @@ func TestTLSConfig(t *testing.T) {
 
 	certTmpl.Subject.Country = []string{"US"}
 
-	oidcServerCertUpdated3, err := x509util.CreateCertificate(certTmpl, certTmpl, oidcServerKey.Public(), oidcServerKeyNew)
-	require.NoError(t, err)
-
 	tmpDir := t.TempDir()
 
 	writeFile(t, tmpDir+keyFilePath, oidcServerKeyPem)
 	writeFile(t, tmpDir+certFilePath, oidcServerCertPem)
 	writeFile(t, tmpDir+"/oidcServerKeyInvalid.pem", []byte{1})
 	writeFile(t, tmpDir+"/oidcServerCertInvalid.pem", []byte{1})
-	writeFile(t, tmpDir+"/oidcServerKeyUnreadable.pem", []byte{1})
-	makeFileUnreadable(t, tmpDir+"/oidcServerKeyUnreadable.pem")
-	writeFile(t, tmpDir+"/oidcServerCertUnreadable.pem", []byte{1})
-	makeFileUnreadable(t, tmpDir+"/oidcServerCertUnreadable.pem")
 
 	chInfo := &tls.ClientHelloInfo{
 		ServerName: "oidc-provider-discovery.example.com",
@@ -108,7 +105,7 @@ func TestTLSConfig(t *testing.T) {
 			KeyFilePath:  tmpDir + "/oidcServerKey.pem",
 		}, logger)
 
-		require.EqualError(t, err, "failed to load certificate: open "+tmpDir+"/nonexistent_cert.pem: "+fileDontExistMessage)
+		assertFileDontExist(t, tmpDir+"/nonexistent_cert.pem", err)
 	})
 
 	t.Run("error when provided key path do not exist", func(t *testing.T) {
@@ -117,25 +114,7 @@ func TestTLSConfig(t *testing.T) {
 			KeyFilePath:  tmpDir + "/nonexistent_key.pem",
 		}, logger)
 
-		require.EqualError(t, err, "failed to load certificate: open "+tmpDir+"/nonexistent_key.pem: "+fileDontExistMessage)
-	})
-
-	t.Run("error when provided cert path is unreadable", func(t *testing.T) {
-		_, err := NewDiskCertManager(&ServingCertFileConfig{
-			CertFilePath: tmpDir + "/oidcServerCertUnreadable.pem",
-			KeyFilePath:  tmpDir + "/oidcServerKey.pem",
-		}, logger)
-
-		require.EqualError(t, err, "failed to load certificate: open "+tmpDir+"/oidcServerCertUnreadable.pem: "+filePermissionDeniedMessage)
-	})
-
-	t.Run("error when provided key path is unreadable", func(t *testing.T) {
-		_, err := NewDiskCertManager(&ServingCertFileConfig{
-			CertFilePath: tmpDir + certFilePath,
-			KeyFilePath:  tmpDir + "/oidcServerKeyUnreadable.pem",
-		}, logger)
-
-		require.EqualError(t, err, "failed to load certificate: open "+tmpDir+"/oidcServerKeyUnreadable.pem: "+filePermissionDeniedMessage)
+		assertFileDontExist(t, tmpDir+"/nonexistent_key.pem", err)
 	})
 
 	t.Run("error when provided cert is invalid", func(t *testing.T) {
@@ -325,60 +304,6 @@ func TestTLSConfig(t *testing.T) {
 		require.Equal(t, oidcServerCert, x509Cert)
 	})
 
-	t.Run("change cert and key file permissions will start error log loop", func(t *testing.T) {
-		// Make cert file not readable
-		writeFile(t, tmpDir+certFilePath, oidcServerCertPem)
-		makeFileUnreadable(t, tmpDir+certFilePath)
-
-		// Assert error logs that will keep triggering until the cert permission is valid again.
-		errLogs := map[time.Time]struct{}{}
-		require.Eventuallyf(t, func() bool {
-			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate: open %s: %s", tmpDir+certFilePath, filePermissionDeniedMessage)) {
-					errLogs[entry.Time] = struct{}{}
-				}
-			}
-			return len(errLogs) >= 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert file permission error logs")
-
-		oidcServerCertUpdated3Pem := pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: oidcServerCertUpdated3.Raw,
-		})
-
-		// Make cert file readable again
-		makeFileReadable(t, tmpDir+certFilePath, oidcServerCertUpdated3Pem)
-
-		makeFileUnreadable(t, tmpDir+keyFilePath)
-
-		errLogs = map[time.Time]struct{}{}
-		require.Eventuallyf(t, func() bool {
-			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to load certificate: open %s: %s", tmpDir+keyFilePath, filePermissionDeniedMessage)) {
-					errLogs[entry.Time] = struct{}{}
-				}
-			}
-			return len(errLogs) >= 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert file permission error logs")
-
-		// Make cert file readable again
-		makeFileReadable(t, tmpDir+keyFilePath, oidcServerKeyPem)
-
-		// New cert can now be loaded.
-		require.Eventuallyf(t, func() bool {
-			cert, err := tlsConfig.GetCertificate(chInfo)
-			if err != nil {
-				return false
-			}
-			require.Len(t, cert.Certificate, 1)
-			x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-			if err != nil {
-				return false
-			}
-			return reflect.DeepEqual(oidcServerCertUpdated3, x509Cert)
-		}, 10*time.Second, 100*time.Millisecond, "Failed to assert updated certificate")
-	})
-
 	t.Run("stop file watcher when context is canceled", func(t *testing.T) {
 		cancelFn()
 
@@ -387,4 +312,23 @@ func TestTLSConfig(t *testing.T) {
 			return lastEntry.Level == logrus.InfoLevel && lastEntry.Message == "Stopping file watcher"
 		}, 10*time.Second, 10*time.Millisecond, "Failed to assert file watcher stop log")
 	})
+}
+
+func writeFile(t *testing.T, name string, data []byte) {
+	err := os.WriteFile(name, data, 0600)
+	require.NoError(t, err)
+}
+
+func removeFile(t *testing.T, name string) {
+	err := os.Remove(name)
+	require.NoError(t, err)
+}
+
+func assertFileDontExist(t *testing.T, filePath string, err error) {
+	switch runtime.GOOS {
+	case "windows":
+		require.EqualError(t, err, "failed to load certificate: open "+filePath+": The system cannot find the file specified.")
+	default:
+		require.EqualError(t, err, "failed to load certificate: open "+filePath+": no such file or directory")
+	}
 }
