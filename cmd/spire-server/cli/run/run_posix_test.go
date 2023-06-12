@@ -78,7 +78,7 @@ func TestCommand_Run(t *testing.T) {
 			args: args{
 				args: []string{
 					"-config", startConfigFile,
-					"-serverPort", strconv.Itoa(availablePort),
+					"-serverPort", availablePort,
 					"-namedPipeName", "\\spire-agent\\public\\api",
 				},
 			},
@@ -100,7 +100,7 @@ func TestCommand_Run(t *testing.T) {
 			args: args{
 				args: []string{
 					"-config", crashConfigFile,
-					"-serverPort", strconv.Itoa(availablePort),
+					"-serverPort", availablePort,
 					"-dataDir", fmt.Sprintf("%s/crash/data", testTempDir),
 					"-expandEnv", "true",
 				},
@@ -122,7 +122,7 @@ func TestCommand_Run(t *testing.T) {
 			name: "create data dir when config is loaded and server stops",
 			args: args{
 				args: []string{
-					"-serverPort", strconv.Itoa(availablePort),
+					"-serverPort", availablePort,
 					"-config", startConfigFile,
 					"-dataDir", fmt.Sprintf("%s/data", testTempDir),
 					"-expandEnv", "true",
@@ -275,11 +275,11 @@ func testParseConfigGoodOS(t *testing.T, c *Config) {
 	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api-test.sock")
 }
 
-func getAvailablePort() (int, error) {
+func getAvailablePort() (string, error) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return -1, err
+		return "", err
 	}
 	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
+	return strconv.Itoa(l.Addr().(*net.TCPAddr).Port), nil
 }
