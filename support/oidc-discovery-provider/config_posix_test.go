@@ -21,6 +21,8 @@ var (
 		Address:      "unix:///some/socket/path",
 		PollInterval: defaultPollInterval,
 	}
+
+	fileDontExistMessage = "no such file or directory"
 )
 
 func parseConfigCasesOS() []parseConfigCase {

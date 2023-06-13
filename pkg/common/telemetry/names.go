@@ -198,6 +198,12 @@ const (
 	// to add clarity
 	CallerPath = "caller_path"
 
+	// CertFilePath tags a certificate file path used for TLS connections.
+	CertFilePath = "cert_file_path"
+
+	// KeyFilePath tags a key file path used for TLS connections.
+	KeyFilePath = "key_file_path"
+
 	// CGroupPath tags a linux CGroup path, most likely for use in attestation
 	CGroupPath = "cgroup_path"
 

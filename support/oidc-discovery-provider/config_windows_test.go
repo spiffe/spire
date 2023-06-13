@@ -25,6 +25,8 @@ var (
 		},
 		PollInterval: defaultPollInterval,
 	}
+
+	fileDontExistMessage = "The system cannot find the file specified."
 )
 
 func parseConfigCasesOS() []parseConfigCase {

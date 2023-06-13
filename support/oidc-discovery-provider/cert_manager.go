@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 )
 
@@ -23,12 +24,17 @@ type DiskCertManager struct {
 	fileSyncInterval time.Duration
 	certMtx          sync.RWMutex
 	cert             *tls.Certificate
+	clk              clock.Clock
 	log              logrus.FieldLogger
 }
 
-func NewDiskCertManager(config *ServingCertFileConfig, log logrus.FieldLogger) (*DiskCertManager, error) {
+func NewDiskCertManager(config *ServingCertFileConfig, clk clock.Clock, log logrus.FieldLogger) (*DiskCertManager, error) {
 	if config == nil {
 		return nil, errors.New("missing serving cert file configuration")
+	}
+
+	if clk == nil {
+		clk = clock.New()
 	}
 
 	dm := &DiskCertManager{
@@ -36,6 +42,7 @@ func NewDiskCertManager(config *ServingCertFileConfig, log logrus.FieldLogger) (
 		keyFilePath:      config.KeyFilePath,
 		fileSyncInterval: config.FileSyncInterval,
 		log:              log,
+		clk:              clk,
 	}
 
 	if err := dm.loadCert(); err != nil {
@@ -68,8 +75,7 @@ func (m *DiskCertManager) getCertificate(chInfo *tls.ClientHelloInfo) (*tls.Cert
 // WatchFileChanges starts a file watcher to watch for changes to the cert and key files.
 func (m *DiskCertManager) WatchFileChanges(ctx context.Context) {
 	m.log.WithField("interval", m.fileSyncInterval).Info("Started watching certificate files")
-
-	ticker := time.NewTicker(m.fileSyncInterval)
+	ticker := m.clk.Ticker(m.fileSyncInterval)
 	defer ticker.Stop()
 	for {
 		select {

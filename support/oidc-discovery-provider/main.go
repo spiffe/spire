@@ -131,7 +131,11 @@ func buildNetListener(ctx context.Context, config *Config, log *log.Logger) (lis
 		if err != nil {
 			return nil, err
 		}
-		log.Info("Serving HTTPS using certificate loaded from disk")
+		log.WithFields(
+			logrus.Fields{
+				telemetry.CertFilePath: config.ServingCertFile.CertFilePath,
+				telemetry.Address:      config.ServingCertFile.KeyFilePath,
+			}).Info("Serving HTTPS using certificate loaded from disk")
 	default:
 		listener, err = newACMEListener(log, config)
 		if err != nil {
@@ -168,7 +172,7 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 }
 
 func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, config *Config) (net.Listener, error) {
-	certManager, err := NewDiskCertManager(config.ServingCertFile, log)
+	certManager, err := NewDiskCertManager(config.ServingCertFile, nil, log)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +182,7 @@ func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, con
 
 	tlsConfig := certManager.TLSConfig()
 
-	tcpListener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 8080})
+	tcpListener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 443})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create listener using certificate from disk: %w", err)
 	}
