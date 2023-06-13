@@ -39,7 +39,6 @@ type Slot interface {
 	ShouldPrepareNext(now time.Time) bool
 	ShouldActivateNext(now time.Time) bool
 	Status() journal.Status
-	GetPublicKey() crypto.PublicKey
 	AuthorityID() string
 	PublicKey() crypto.PublicKey
 }
@@ -313,17 +312,19 @@ func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *X509
 	slot, badReason, err := s.loadX509CASlotFromEntry(ctx, entry)
 	if err != nil {
 		s.Log.WithError(err).WithFields(logrus.Fields{
-			telemetry.Slot:     entry.SlotId,
-			telemetry.IssuedAt: time.Unix(entry.IssuedAt, 0),
-			telemetry.Status:   entry.Status,
+			telemetry.Slot:             entry.SlotId,
+			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:           entry.Status,
+			telemetry.LocalAuthorityID: entry.AuthorityId,
 		}).Error("X509CA slot failed to load")
 		return nil, err
 	}
 	if badReason != "" {
 		s.Log.WithError(errors.New(badReason)).WithFields(logrus.Fields{
-			telemetry.Slot:     entry.SlotId,
-			telemetry.IssuedAt: time.Unix(entry.IssuedAt, 0),
-			telemetry.Status:   entry.Status,
+			telemetry.Slot:             entry.SlotId,
+			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:           entry.Status,
+			telemetry.LocalAuthorityID: entry.AuthorityId,
 		}).Warn("X509CA slot unusable")
 		return nil, nil
 	}
@@ -369,7 +370,6 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAE
 			Certificate:   cert,
 			UpstreamChain: upstreamChain,
 		},
-		publicKey:   signer.Public(),
 		status:      entry.Status,
 		authorityID: entry.AuthorityId,
 		publicKey:   signer.Public(),
@@ -380,17 +380,19 @@ func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *JWTK
 	slot, badReason, err := s.loadJWTKeySlotFromEntry(ctx, entry)
 	if err != nil {
 		s.Log.WithError(err).WithFields(logrus.Fields{
-			telemetry.Slot:     entry.SlotId,
-			telemetry.IssuedAt: time.Unix(entry.IssuedAt, 0),
-			telemetry.Status:   entry.Status,
+			telemetry.Slot:             entry.SlotId,
+			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:           entry.Status,
+			telemetry.LocalAuthorityID: entry.AuthorityId,
 		}).Error("JWT key slot failed to load")
 		return nil, err
 	}
 	if badReason != "" {
 		s.Log.WithError(errors.New(badReason)).WithFields(logrus.Fields{
-			telemetry.Slot:     entry.SlotId,
-			telemetry.IssuedAt: time.Unix(entry.IssuedAt, 0),
-			telemetry.Status:   entry.Status,
+			telemetry.Slot:             entry.SlotId,
+			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:           entry.Status,
+			telemetry.LocalAuthorityID: entry.AuthorityId,
 		}).Warn("JWT key slot unusable")
 		return nil, nil
 	}
@@ -548,10 +550,6 @@ func (s *X509CASlot) ShouldActivateNext(now time.Time) bool {
 
 func (s *X509CASlot) Status() journal.Status {
 	return s.status
-}
-
-func (s *X509CASlot) GetPublicKey() crypto.PublicKey {
-	return s.publicKey
 }
 
 func (s *X509CASlot) AuthorityID() string {

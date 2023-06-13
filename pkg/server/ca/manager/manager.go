@@ -169,6 +169,7 @@ func (m *Manager) Close() {
 func (m *Manager) GetCurrentX509CASlot() Slot {
 	m.x509CAMutex.RLock()
 	defer m.x509CAMutex.RUnlock()
+
 	return m.currentX509CA
 }
 
@@ -232,10 +233,11 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	}
 
 	m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       slot.id,
-		telemetry.IssuedAt:   slot.issuedAt,
-		telemetry.Expiration: slot.x509CA.Certificate.NotAfter,
-		telemetry.SelfSigned: m.upstreamClient == nil,
+		telemetry.Slot:             slot.id,
+		telemetry.IssuedAt:         slot.issuedAt,
+		telemetry.Expiration:       slot.x509CA.Certificate.NotAfter,
+		telemetry.SelfSigned:       m.upstreamClient == nil,
+		telemetry.LocalAuthorityID: slot.authorityID,
 	}).Info("X509 CA prepared")
 	return nil
 }
@@ -325,9 +327,10 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 	}
 
 	m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       slot.id,
-		telemetry.IssuedAt:   slot.issuedAt,
-		telemetry.Expiration: slot.jwtKey.NotAfter,
+		telemetry.Slot:             slot.id,
+		telemetry.IssuedAt:         slot.issuedAt,
+		telemetry.Expiration:       slot.jwtKey.NotAfter,
+		telemetry.LocalAuthorityID: slot.authorityID,
 	}).Info("JWT key prepared")
 	return nil
 }
@@ -454,9 +457,10 @@ func (m *Manager) NotifyBundleLoaded(ctx context.Context) error {
 
 func (m *Manager) activateJWTKey() {
 	log := m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       m.currentJWTKey.id,
-		telemetry.IssuedAt:   m.currentJWTKey.issuedAt,
-		telemetry.Expiration: m.currentJWTKey.jwtKey.NotAfter,
+		telemetry.Slot:             m.currentJWTKey.id,
+		telemetry.IssuedAt:         m.currentJWTKey.issuedAt,
+		telemetry.Expiration:       m.currentJWTKey.jwtKey.NotAfter,
+		telemetry.LocalAuthorityID: m.currentJWTKey.authorityID,
 	})
 	log.Info("JWT key activated")
 	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
@@ -471,9 +475,10 @@ func (m *Manager) activateJWTKey() {
 
 func (m *Manager) activateX509CA() {
 	log := m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       m.currentX509CA.id,
-		telemetry.IssuedAt:   m.currentX509CA.issuedAt,
-		telemetry.Expiration: m.currentX509CA.x509CA.Certificate.NotAfter,
+		telemetry.Slot:             m.currentX509CA.id,
+		telemetry.IssuedAt:         m.currentX509CA.issuedAt,
+		telemetry.Expiration:       m.currentX509CA.x509CA.Certificate.NotAfter,
+		telemetry.LocalAuthorityID: m.currentX509CA.authorityID,
 	})
 	log.Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
