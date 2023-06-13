@@ -356,7 +356,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 			return nil, err
 		}
 		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
-			TrustDomain: federatedTD.String(),
+			TrustDomain: federatedTD.Name(),
 		})
 		switch status.Code(err) {
 		case codes.OK:

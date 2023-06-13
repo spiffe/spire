@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"github.com/hashicorp/hcl/hcl/token"
 	"github.com/sirupsen/logrus"
 )
 
@@ -23,31 +24,31 @@ type FileConfig struct {
 	AllowedLabels   []string `hcl:"AllowedLabels"`   // A list of metric labels to allow, with '.' as the separator
 	BlockedLabels   []string `hcl:"BlockedLabels"`   // A list of metric labels to block, with '.' as the separator
 
-	UnusedKeys []string `hcl:",unusedKeys"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type DogStatsdConfig struct {
-	Address    string   `hcl:"address"`
-	UnusedKeys []string `hcl:",unusedKeys"`
+	Address            string                 `hcl:"address"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type PrometheusConfig struct {
-	Host       string   `hcl:"host"`
-	Port       int      `hcl:"port"`
-	UnusedKeys []string `hcl:",unusedKeys"`
+	Host               string                 `hcl:"host"`
+	Port               int                    `hcl:"port"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type StatsdConfig struct {
-	Address    string   `hcl:"address"`
-	UnusedKeys []string `hcl:",unusedKeys"`
+	Address            string                 `hcl:"address"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type M3Config struct {
-	Address    string   `hcl:"address"`
-	Env        string   `hcl:"env"`
-	UnusedKeys []string `hcl:",unusedKeys"`
+	Address            string                 `hcl:"address"`
+	Env                string                 `hcl:"env"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type InMem struct {
-	UnusedKeys []string `hcl:",unusedKeys"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }

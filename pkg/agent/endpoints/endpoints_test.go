@@ -173,6 +173,7 @@ func TestEndpoints(t *testing.T) {
 				DefaultAllBundlesName:       "DefaultAllBundlesName",
 				DisableSPIFFECertValidation: true,
 				AllowedForeignJWTClaims:     tt.allowedClaims,
+				EnableDeprecatedSDSv2API:    true,
 
 				// Assert the provided config and return a fake Workload API server
 				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
@@ -194,6 +195,7 @@ func TestEndpoints(t *testing.T) {
 					assert.Equal(t, FakeManager{}, c.Manager)
 					assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
 					assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
+					assert.True(t, c.Enabled)
 					return FakeSDSv2Server{Attestor: attestor}
 				},
 

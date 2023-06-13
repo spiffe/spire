@@ -246,7 +246,7 @@ func TestListEntries(t *testing.T) {
 			{Type: "unix", Value: "uid:1000"},
 		},
 		FederatesWith: []string{
-			federatedTd.String(),
+			federatedTd.Name(),
 		},
 		Hint:      "internal",
 		CreatedAt: childEntry.CreatedAt,
@@ -260,8 +260,8 @@ func TestListEntries(t *testing.T) {
 			{Type: "unix", Value: "uid:1000"},
 		},
 		FederatesWith: []string{
-			federatedTd.String(),
-			secondFederatedTd.String(),
+			federatedTd.Name(),
+			secondFederatedTd.Name(),
 		},
 		Hint:      "external",
 		CreatedAt: secondChildEntry.CreatedAt,
@@ -524,7 +524,7 @@ func TestListEntries(t *testing.T) {
 						TrustDomains: []string{
 							// Both formats should work
 							federatedTd.IDString(),
-							secondFederatedTd.String(),
+							secondFederatedTd.Name(),
 						},
 						Match: types.FederatesWithMatch_MATCH_EXACT,
 					},
@@ -579,7 +579,7 @@ func TestListEntries(t *testing.T) {
 							// Both formats should work
 							federatedTd.IDString(),
 							secondFederatedTd.IDString(),
-							secondFederatedTd.String(), // repeated td
+							secondFederatedTd.Name(), // repeated td
 						},
 						Match: types.FederatesWithMatch_MATCH_EXACT,
 					},
@@ -605,7 +605,7 @@ func TestListEntries(t *testing.T) {
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
-							notFederatedTd.String(),
+							notFederatedTd.Name(),
 						},
 						Match: types.FederatesWithMatch_MATCH_EXACT,
 					},
@@ -633,7 +633,7 @@ func TestListEntries(t *testing.T) {
 						TrustDomains: []string{
 							// Both formats should work
 							federatedTd.IDString(),
-							secondFederatedTd.String(),
+							secondFederatedTd.Name(),
 							notFederatedTd.IDString(),
 						},
 						Match: types.FederatesWithMatch_MATCH_SUBSET,
@@ -689,7 +689,7 @@ func TestListEntries(t *testing.T) {
 							// Both formats should work
 							federatedTd.IDString(),
 							secondFederatedTd.IDString(),
-							secondFederatedTd.String(), // repeated td
+							secondFederatedTd.Name(), // repeated td
 						},
 						Match: types.FederatesWithMatch_MATCH_SUBSET,
 					},
@@ -715,7 +715,7 @@ func TestListEntries(t *testing.T) {
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
-							notFederatedTd.String(),
+							notFederatedTd.Name(),
 						},
 						Match: types.FederatesWithMatch_MATCH_SUBSET,
 					},
@@ -743,7 +743,7 @@ func TestListEntries(t *testing.T) {
 						TrustDomains: []string{
 							// Both formats should work
 							federatedTd.IDString(),
-							secondFederatedTd.String(),
+							secondFederatedTd.Name(),
 						},
 						Match: types.FederatesWithMatch_MATCH_ANY,
 					},
@@ -798,7 +798,7 @@ func TestListEntries(t *testing.T) {
 							// Both formats should work
 							federatedTd.IDString(),
 							secondFederatedTd.IDString(),
-							secondFederatedTd.String(), // repeated td
+							secondFederatedTd.Name(), // repeated td
 						},
 						Match: types.FederatesWithMatch_MATCH_ANY,
 					},
@@ -824,7 +824,7 @@ func TestListEntries(t *testing.T) {
 				Filter: &entryv1.ListEntriesRequest_Filter{
 					ByFederatesWith: &types.FederatesWithMatch{
 						TrustDomains: []string{
-							notFederatedTd.String(),
+							notFederatedTd.Name(),
 						},
 						Match: types.FederatesWithMatch_MATCH_ANY,
 					},
@@ -852,7 +852,7 @@ func TestListEntries(t *testing.T) {
 						TrustDomains: []string{
 							// Both formats should work
 							federatedTd.IDString(),
-							secondFederatedTd.String(),
+							secondFederatedTd.Name(),
 						},
 						Match: types.FederatesWithMatch_MATCH_SUPERSET,
 					},
@@ -907,7 +907,7 @@ func TestListEntries(t *testing.T) {
 							// Both formats should work
 							federatedTd.IDString(),
 							secondFederatedTd.IDString(),
-							secondFederatedTd.String(), // repeated td
+							secondFederatedTd.Name(), // repeated td
 						},
 						Match: types.FederatesWithMatch_MATCH_SUPERSET,
 					},
@@ -1300,7 +1300,7 @@ func TestGetEntry(t *testing.T) {
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
 				},
-				FederatesWith: []string{federatedTd.String()},
+				FederatesWith: []string{federatedTd.Name()},
 				Admin:         true,
 				DnsNames:      []string{"dns1", "dns2"},
 				Downstream:    true,
@@ -2710,7 +2710,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			{Type: "unix", Value: "uid:2000"},
 		},
 		FederatesWith: []string{
-			federatedTd.String(),
+			federatedTd.Name(),
 		},
 		Admin:      true,
 		ExpiresAt:  expiresAt,
@@ -2727,7 +2727,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			{Type: "typ", Value: "key2:value"},
 		},
 		FederatesWith: []string{
-			federatedTd.String(),
+			federatedTd.Name(),
 		},
 		ExpiresAt: expiresAt,
 	}

@@ -27,11 +27,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-var (
-	coreConfig = catalog.CoreConfig{
-		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-	}
-)
+var coreConfig = catalog.CoreConfig{
+	TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+}
 
 func TestBuiltInPlugin(t *testing.T) {
 	testPlugin(t, "")
@@ -86,9 +84,11 @@ func TestExternalPlugin(t *testing.T) {
 		testLoad(t, pluginPath, loadTest{
 			pluginMode: "bad",
 			expectErr: `failed to load plugin "test": failed to launch plugin: Unrecognized remote plugin message: 
-
-This usually means that the plugin is either invalid or simply
-needs to be recompiled to support the latest protocol.`,
+This usually means
+  the plugin was not compiled for this architecture,
+  the plugin is missing dynamic-link libraries necessary to run,
+  the plugin is not executable by this process due to file permissions, or
+  the plugin failed to negotiate the initial go-plugin protocol handshake`,
 		})
 	})
 }
@@ -369,7 +369,7 @@ func testLoad(t *testing.T, pluginPath string, tt loadTest) {
 	}
 
 	if tt.expectErr != "" {
-		require.EqualError(t, err, tt.expectErr, "load should have failed")
+		require.ErrorContains(t, err, tt.expectErr, "load should have failed")
 		assert.Nil(t, closer, "closer should have been nil")
 	} else {
 		require.NoError(t, err, "load should not have failed")

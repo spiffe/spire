@@ -293,7 +293,7 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 		resp.Svids = append(resp.Svids, &types.JWTSVID{
 			Token: svid.Token,
 			Id: &types.SPIFFEID{
-				TrustDomain: spiffeID.TrustDomain().String(),
+				TrustDomain: spiffeID.TrustDomain().Name(),
 				Path:        spiffeID.Path(),
 			},
 			ExpiresAt: svid.ExpiresAt.Unix(),

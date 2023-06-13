@@ -76,7 +76,7 @@ func (s *Service) CountBundles(ctx context.Context, req *bundlev1.CountBundlesRe
 
 // GetBundle returns the bundle associated with the given trust domain.
 func (s *Service) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
-	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.TrustDomainID: s.td.String()})
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.TrustDomainID: s.td.Name()})
 	log := rpccontext.Logger(ctx)
 
 	commonBundle, err := s.ds.FetchBundle(dscache.WithCache(ctx), s.td.IDString())
@@ -120,7 +120,7 @@ func (s *Service) AppendBundle(ctx context.Context, req *bundlev1.AppendBundleRe
 		return nil, api.MakeErr(log, codes.InvalidArgument, "no authorities to append", nil)
 	}
 
-	log = log.WithField(telemetry.TrustDomainID, s.td.String())
+	log = log.WithField(telemetry.TrustDomainID, s.td.Name())
 
 	jwtAuth, err := api.ParseJWTAuthorities(req.JwtAuthorities)
 	if err != nil {

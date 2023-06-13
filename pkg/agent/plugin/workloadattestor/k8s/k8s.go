@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/valyala/fastjson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
@@ -221,31 +222,49 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	// Poll pod information and search for the pod with the container. If
 	// the pod is not found then delay for a little bit and try again.
+	var scratch []byte
 	for attempt := 1; ; attempt++ {
 		log = log.With(telemetry.Attempt, attempt)
 
-		list, err := config.Client.GetPodList()
+		podListBytes, err := config.Client.GetPodList()
 		if err != nil {
 			return nil, err
 		}
 
+		var parser fastjson.Parser
+		podList, err := parser.ParseBytes(podListBytes)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to parse kubelet response: %v", err)
+		}
+
 		var attestResponse *workloadattestorv1.AttestResponse
-		for _, item := range list.Items {
-			item := item
-			if podKnown && item.UID != podUID {
-				// The pod holding the container is known. Skip unrelated pods.
-				continue
+		for _, podValue := range podList.GetArray("items") {
+			if podKnown {
+				uidBytes := podValue.Get("metadata", "uid").GetStringBytes()
+				if string(uidBytes) != string(podUID) {
+					// The pod holding the container is known. Skip unrelated pods.
+					continue
+				}
+			}
+
+			// Reduce allocations by dumping to the same backing array on
+			// each iteration in order to parse out the pod.
+			scratch = podValue.MarshalTo(scratch[:0])
+
+			pod := new(corev1.Pod)
+			if err := json.Unmarshal(scratch, &pod); err != nil {
+				return nil, status.Errorf(codes.Internal, "unable to decode pod info from kubelet response: %v", err)
 			}
 
 			var selectorValues []string
 
-			containerStatus, containerFound := lookUpContainerInPod(containerID, item.Status, log)
+			containerStatus, containerFound := lookUpContainerInPod(containerID, pod.Status, log)
 			switch {
 			case containerFound:
 				// The workload container was found in this pod. Add pod
 				// selectors. Only add workload container selectors if
 				// container selectors have not been disabled.
-				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(&item)...)
+				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(pod)...)
 				if !config.DisableContainerSelectors {
 					selectorValues = append(selectorValues, getSelectorValuesFromWorkloadContainerStatus(containerStatus)...)
 
@@ -262,7 +281,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 				// The workload container was not found (i.e. not ready yet?)
 				// but the pod is known. If container selectors have been
 				// disabled, then allow the pod selectors to be used.
-				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(&item)...)
+				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(pod)...)
 			}
 
 			if len(selectorValues) > 0 {
@@ -586,7 +605,7 @@ type kubeletClient struct {
 	Token     string
 }
 
-func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
+func (c *kubeletClient) GetPodList() ([]byte, error) {
 	url := c.URL
 	url.Path = "/pods"
 	req, err := http.NewRequest("GET", url.String(), nil)
@@ -611,11 +630,10 @@ func (c *kubeletClient) GetPodList() (*corev1.PodList, error) {
 		return nil, status.Errorf(codes.Internal, "unexpected status code on pods response: %d %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
-	out := new(corev1.PodList)
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to decode kubelet response: %v", err)
+	out, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to read pods response: %v", err)
 	}
-
 	return out, nil
 }
 
