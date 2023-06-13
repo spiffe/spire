@@ -7,7 +7,6 @@ check-provider-start() {
   CHECKINTERVAL=1
 
   for ((i=1;i<=MAXCHECKS;i++)); do
-    docker-compose logs oidc-discovery-provider-mashup
     log-info "check oidc-discovery-provider status ($(($i)) of $MAXCHECKS max)..."
     curl --unix-socket ${RUNDIR}/conf/oidc-discovery-provider/provider-workload.sock http://localhost && return 0
     sleep "${CHECKINTERVAL}"
@@ -27,7 +26,6 @@ docker-compose exec -T spire-server \
   -spiffeID "spiffe://domain.test/oidc-provider" \
   -selector "unix:user:root" \
   -ttl 0
-
 
 check-synced-entry "oidc-discovery-provider-mashup" "spiffe://domain.test/oidc-provider"
 
