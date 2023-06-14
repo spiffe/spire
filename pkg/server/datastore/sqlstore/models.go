@@ -102,18 +102,6 @@ type RegisteredEntry struct {
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
 }
 
-// RegisteredEntry holds a registered entity entry
-type RegisteredEntryEvent struct {
-	Model
-
-	EntryID string
-}
-
-// TableName gets table name for DNS entries
-func (RegisteredEntryEvent) TableName() string {
-	return "registered_entries_events"
-}
-
 // JoinToken holds a join token
 type JoinToken struct {
 	Model
@@ -173,6 +161,19 @@ type FederatedTrustDomain struct {
 func (FederatedTrustDomain) TableName() string {
 	return "federated_trust_domains"
 }
+
+// RegisteredEntry holds a registered entity entry
+type Event struct {
+	Model
+
+	EntryID string
+}
+
+// TableName gets table name for DNS entries
+func (Event) TableName() string {
+	return "events"
+}
+
 
 // Migration holds database schema version number, and
 // the SPIRE Code version number

@@ -180,10 +180,10 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 }
 
 func Update(ctx context.Context, ds datastore.DataStore, cache *FullEntryCache) error {
-	req := &datastore.ListRegistrationEntriesEventsRequest{
+	req := &datastore.ListEventsRequest{
 		LastID: cache.lastEventID,
 	}
-	resp, err := ds.ListRegistrationEntriesEvents(ctx, req)
+	resp, err := ds.ListEvents(ctx, req)
 	if err != nil {
 		return err
 	}

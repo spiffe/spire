@@ -451,7 +451,7 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore ti
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
-func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (resp *datastore.ListRegistrationEntriesEventsResponse, err error) {
+func (ds *Plugin) ListEvents(ctx context.Context, req *datastore.ListEventsRequest) (resp *datastore.ListEventsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = listEvents(tx, req)
 		return err
@@ -2121,7 +2121,7 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 }
 
 func createEvent(tx *gorm.DB, entryID string) error {
-	newEvent := RegisteredEntryEvent{
+	newEvent := Event{
 		EntryID: entryID,
 	}
 
@@ -2470,7 +2470,7 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 	}
 }
 
-func listEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+func listEvents(tx *gorm.DB, req *datastore.ListEventsRequest) (*datastore.ListEventsResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -2484,7 +2484,7 @@ func listEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest
 		}
 	}
 
-	var events []RegisteredEntryEvent
+	var events []Event
 	if err := tx.Find(&events, "id > ?", req.LastID).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -2498,7 +2498,7 @@ func listEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest
 		}
 	}
 
-	resp := &datastore.ListRegistrationEntriesEventsResponse{
+	resp := &datastore.ListEventsResponse{
 		Pagination: p,
 	}
 	for _, model := range events {
@@ -2509,7 +2509,7 @@ func listEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest
 }
 
 func pruneEvents(tx *gorm.DB, olderThan time.Duration) error {
-	var events []RegisteredEntryEvent
+	var events []Event
 	if err := tx.Where("created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)", olderThan.Seconds()).Find(&events).Error; err != nil {
 		return err
 	}
