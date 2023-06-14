@@ -81,18 +81,19 @@ func (s *Service) RevokeJWTAuthority(context.Context, *localauthorityv1.RevokeJW
 func (s *Service) GetX509AuthorityState(ctx context.Context, _ *localauthorityv1.GetX509AuthorityStateRequest) (*localauthorityv1.GetX509AuthorityStateResponse, error) {
 	log := rpccontext.Logger(ctx)
 
-	var states []*localauthorityv1.AuthorityState
 	current := s.ca.GetCurrentX509CASlot()
-	if !current.IsEmpty() {
-		if current.AuthorityID() == "" {
-			return nil, api.MakeErr(log, codes.Internal, "current slot does not contains authority ID", nil)
-		}
-
-		states = append(states, &localauthorityv1.AuthorityState{
-			AuthorityId: current.AuthorityID(),
-			Status:      localauthorityv1.AuthorityState_ACTIVE,
-		})
+	switch {
+	case current.IsEmpty():
+		return nil, api.MakeErr(log, codes.Unavailable, "server is initializing", nil)
+	case current.AuthorityID() == "":
+		return nil, api.MakeErr(log, codes.Internal, "current slot does not contains authority ID", nil)
 	}
+
+	var states []*localauthorityv1.AuthorityState
+	states = append(states, &localauthorityv1.AuthorityState{
+		AuthorityId: current.AuthorityID(),
+		Status:      localauthorityv1.AuthorityState_ACTIVE,
+	})
 
 	next := s.ca.GetNextX509CASlot()
 	// when next has a key indicates that it was initialized
@@ -119,15 +120,16 @@ func (s *Service) GetX509AuthorityState(ctx context.Context, _ *localauthorityv1
 func (s *Service) PrepareX509Authority(ctx context.Context, req *localauthorityv1.PrepareX509AuthorityRequest) (*localauthorityv1.PrepareX509AuthorityResponse, error) {
 	log := rpccontext.Logger(ctx)
 
+	current := s.ca.GetCurrentX509CASlot()
+	if current.IsEmpty() {
+		return nil, api.MakeErr(log, codes.Unavailable, "server is initializing", nil)
+	}
+
 	if err := s.ca.PrepareX509CA(ctx); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to prepare X.509 authority", err)
 	}
 
 	slot := s.ca.GetNextX509CASlot()
-	// Prepare is going to use current slot when it is empty
-	if slot.IsEmpty() {
-		slot = s.ca.GetCurrentX509CASlot()
-	}
 
 	rpccontext.AuditRPC(ctx)
 
@@ -228,7 +230,7 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 	}, nil
 }
 
-// getX509PublicKey validates provided authority ID, and return OLD associated publick key, in case of authority ID is not provided, use the current OLD authority
+// getX509PublicKey validates provided authority ID, and return OLD associated public key, in case of authority ID is not provided, use the current OLD authority
 func (s *Service) getX509PublicKey(ctx context.Context, authorityID string) (string, crypto.PublicKey, error) {
 	if authorityID == "" {
 		// No key provided, taint OLD key

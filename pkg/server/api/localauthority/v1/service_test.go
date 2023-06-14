@@ -73,24 +73,24 @@ func TestGetX509AuthorityState(t *testing.T) {
 			},
 		},
 		{
-			name:        "next is set",
+			name:        "no current slot is set",
 			currentSlot: &fakeSlot{},
 			nextSlot:    createSlot(true, authorityIDKeyB, keyB.Public()),
-			expectResp: &localauthorityv1.GetX509AuthorityStateResponse{
-				States: []*localauthorityv1.AuthorityState{
-					{
-						AuthorityId: authorityIDKeyB,
-						Status:      localauthorityv1.AuthorityState_PREPARED,
-					},
-				},
-			},
+			expectCode:  codes.Unavailable,
+			expectMsg:   "server is initializing",
 			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Server is initializing",
+				},
 				{
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status: "success",
-						telemetry.Type:   "audit",
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unavailable",
+						telemetry.StatusMessage: "server is initializing",
 					},
 				},
 			},
@@ -174,8 +174,9 @@ func TestPrepareX509Authority(t *testing.T) {
 		expectResp  *localauthorityv1.PrepareX509AuthorityResponse
 	}{
 		{
-			name:     "using next to prepare",
-			nextSlot: createSlot(true, authorityIDKeyB, keyB.Public()),
+			name:        "using next to prepare",
+			currentSlot: createSlot(true, authorityIDKeyA, keyA.Public()),
+			nextSlot:    createSlot(true, authorityIDKeyB, keyB.Public()),
 			expectResp: &localauthorityv1.PrepareX509AuthorityResponse{
 				PreparedAuthority: &localauthorityv1.AuthorityState{
 					Status:      localauthorityv1.AuthorityState_PREPARED,
@@ -194,32 +195,35 @@ func TestPrepareX509Authority(t *testing.T) {
 			},
 		},
 		{
-			name:        "using current to prepare",
-			currentSlot: createSlot(true, authorityIDKeyA, keyA.Public()),
-			nextSlot:    createSlot(false, authorityIDKeyB, keyB.Public()),
-			expectResp: &localauthorityv1.PrepareX509AuthorityResponse{
-				PreparedAuthority: &localauthorityv1.AuthorityState{
-					Status:      localauthorityv1.AuthorityState_PREPARED,
-					AuthorityId: authorityIDKeyA,
-				},
-			},
+			name:        "current slot is not initialized",
+			currentSlot: createSlot(false, authorityIDKeyA, keyA.Public()),
+			nextSlot:    createSlot(true, authorityIDKeyB, keyB.Public()),
+			expectCode:  codes.Unavailable,
+			expectMsg:   "server is initializing",
 			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Server is initializing",
+				},
 				{
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status: "success",
-						telemetry.Type:   "audit",
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unavailable",
+						telemetry.StatusMessage: "server is initializing",
 					},
 				},
 			},
 		},
 		{
-			name:       "failed to prepare",
-			nextSlot:   createSlot(true, authorityIDKeyB, keyB.Public()),
-			prepareErr: errors.New("oh no"),
-			expectCode: codes.Internal,
-			expectMsg:  "failed to prepare X.509 authority: oh no",
+			name:        "failed to prepare",
+			currentSlot: createSlot(true, authorityIDKeyA, keyA.Public()),
+			nextSlot:    createSlot(true, authorityIDKeyB, keyB.Public()),
+			prepareErr:  errors.New("oh no"),
+			expectCode:  codes.Internal,
+			expectMsg:   "failed to prepare X.509 authority: oh no",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
