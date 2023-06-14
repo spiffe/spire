@@ -218,7 +218,7 @@ func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entr
 	return cloneEntries(c.getAuthorizedEntries(spiffeIDFromID(agentID), seen))
 }
 
-// GetAllEntries gets all authorized registration entries for a given Agent SPIFFE ID.
+// GetAllEntries gets all registration entries
 func (c *FullEntryCache) GetAllEntries() []*types.Entry {
 	var entries []*types.Entry
 

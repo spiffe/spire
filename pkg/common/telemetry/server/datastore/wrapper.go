@@ -263,3 +263,9 @@ func (w metricsWrapper) ListRegistrationEntriesEvents(ctx context.Context, req *
 	defer callCounter.Done(&err)
 	return w.ds.ListRegistrationEntriesEvents(ctx, req)
 }
+
+func (w metricsWrapper) PruneEvents(ctx context.Context, olderThan time.Duration) (err error) {
+	//callCounter := StartPruneEventsCall(w.m)
+	//defer callCounter.Done(&err)
+	return w.ds.PruneEvents(ctx, olderThan)
+}

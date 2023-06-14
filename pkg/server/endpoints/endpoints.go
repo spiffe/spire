@@ -46,6 +46,10 @@ const (
 	// This is the default amount of time between two reloads of the in-memory
 	// entry cache.
 	defaultCacheReloadInterval = 5 * time.Second
+
+	// This is the default amount of time between two reloads of the in-memory
+	// entry cache.
+	defaultCachePruneEventsInterval = 20 * time.Second
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -70,6 +74,7 @@ type Endpoints struct {
 	Metrics                      telemetry.Metrics
 	RateLimit                    RateLimitConfig
 	EntryFetcherCacheRebuildTask func(context.Context) error
+	EntryFetcherPruneEventsTask  func(context.Context) error
 	AuditLogEnabled              bool
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
@@ -119,8 +124,11 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	if c.CacheReloadInterval == 0 {
 		c.CacheReloadInterval = defaultCacheReloadInterval
 	}
+	if c.CachePruneEventsInterval == 0 {
+		c.CachePruneEventsInterval = defaultCachePruneEventsInterval
+	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, updateCacheFn, c.Log, c.Clock, c.CacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, updateCacheFn, c)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +148,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		Metrics:                      c.Metrics,
 		RateLimit:                    c.RateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
+		EntryFetcherPruneEventsTask:  ef.RunPruneEventsTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
@@ -181,6 +190,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 			return e.runLocalAccess(ctx, udsServer)
 		},
 		e.EntryFetcherCacheRebuildTask,
+		e.EntryFetcherPruneEventsTask,
 	}
 
 	if e.BundleEndpointServer != nil {

@@ -100,9 +100,7 @@ type Plugin struct {
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
 func New(log logrus.FieldLogger) *Plugin {
-	return &Plugin{
-		log: log,
-	}
+	return &Plugin{log: log}
 }
 
 // CreateBundle stores the given bundle
@@ -418,7 +416,10 @@ func (ds *Plugin) ListRegistrationEntries(ctx context.Context, req *datastore.Li
 func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.RegistrationEntry, mask *common.RegistrationEntryMask) (entry *common.RegistrationEntry, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		entry, err = updateRegistrationEntry(tx, e, mask)
-		return err
+		if err != nil {
+			return err
+		}
+		return createEvent(tx, entry.EntryId)
 	}); err != nil {
 		return nil, err
 	}
@@ -458,6 +459,15 @@ func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datast
 		return nil, err
 	}
 	return resp, nil
+}
+
+// PruneEvents takes a registration entry message, and deletes all entries which have expired
+// before the date in the message
+func (ds *Plugin) PruneEvents(ctx context.Context, olderThan time.Duration) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		err = pruneEvents(tx, olderThan)
+		return err
+	})
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -2496,6 +2506,22 @@ func listEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest
 	}
 
 	return resp, nil
+}
+
+func pruneEvents(tx *gorm.DB, olderThan time.Duration) error {
+	var events []RegisteredEntryEvent
+	if err := tx.Where("created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)", olderThan.Seconds()).Find(&events).Error; err != nil {
+		return err
+	}
+
+	for _, event := range events {
+		event := event
+		if err := tx.Delete(&event).Error; err != nil {
+			return sqlError.Wrap(err)
+		}
+	}
+
+	return nil
 }
 
 func filterEntriesBySelectorSet(entries []*common.RegistrationEntry, selectors []*common.Selector) []*common.RegistrationEntry {

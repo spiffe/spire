@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
+	"github.com/spiffe/spire/pkg/server/datastore"
 )
 
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithFullCache)(nil)
@@ -20,28 +21,32 @@ type entryCacheBuilderFn func(ctx context.Context) (entrycache.Cache, error)
 type entryCacheUpdateFn func(ctx context.Context, cache entrycache.Cache) error
 
 type AuthorizedEntryFetcherWithFullCache struct {
-	updateCache         entryCacheUpdateFn
-	cache               entrycache.Cache
-	clk                 clock.Clock
-	log                 logrus.FieldLogger
-	mu                  sync.RWMutex
-	cacheReloadInterval time.Duration
+	updateCache              entryCacheUpdateFn
+	cache                    entrycache.Cache
+	clk                      clock.Clock
+	log                      logrus.FieldLogger
+	mu                       sync.RWMutex
+	dataStore                datastore.DataStore
+	cacheReloadInterval      time.Duration
+	cachePruneEventsInterval time.Duration
 }
 
-func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, updateCache entryCacheUpdateFn, log logrus.FieldLogger, clk clock.Clock, cacheReloadInterval time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
-	log.Info("Building in-memory entry cache")
+func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, updateCache entryCacheUpdateFn, c Config) (*AuthorizedEntryFetcherWithFullCache, error) {
+	c.Log.Info("Building in-memory entry cache")
 	cache, err := buildCache(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Info("Completed building in-memory entry cache")
+	c.Log.Info("Completed building in-memory entry cache")
 	return &AuthorizedEntryFetcherWithFullCache{
-		updateCache:         updateCache,
-		cache:               cache,
-		clk:                 clk,
-		log:                 log,
-		cacheReloadInterval: cacheReloadInterval,
+		updateCache:              updateCache,
+		cache:                    cache,
+		clk:                      c.Clock,
+		log:                      c.Log,
+		dataStore:                c.Catalog.GetDataStore(),
+		cacheReloadInterval:      c.CacheReloadInterval,
+		cachePruneEventsInterval: c.CachePruneEventsInterval,
 	}, nil
 }
 
@@ -60,16 +65,14 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 	rebuild := func() {
 		a.mu.Lock()
 		defer a.mu.Unlock()
-		a.log.Info("Updating Cache")
-		err := a.updateCache(ctx, a.cache)
-		if err != nil {
+		if err := a.updateCache(ctx, a.cache); err != nil {
 			a.log.WithError(err).Error("Failed to reload entry cache")
 		}
 
 		entries, err := a.FetchAllCachedEntries()
 		if err != nil {
 			a.log.WithError(err).Error("Failed to get cache")
-			return 
+			return
 		}
 		for _, entry := range entries {
 			printEntry(entry)
@@ -85,6 +88,26 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 			rebuild()
 		}
 	}
+}
+
+func (a *AuthorizedEntryFetcherWithFullCache) RunPruneEventsTask(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			a.log.Debug("Stopping event pruner")
+			return nil
+		case <-a.clk.After(a.cachePruneEventsInterval):
+			a.log.Info("Pruning events")
+			if err := a.pruneEvents(ctx); err != nil {
+				a.log.WithError(err).Error("Failed to prune events")
+			}
+		}
+	}
+}
+
+func (a *AuthorizedEntryFetcherWithFullCache) pruneEvents(ctx context.Context) error {
+	return a.dataStore.PruneEvents(ctx, a.cachePruneEventsInterval)
+
 }
 
 func printEntry(e *types.Entry) {

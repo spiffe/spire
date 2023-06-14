@@ -68,6 +68,7 @@ type DataStore interface {
 
 	// Events
 	ListRegistrationEntriesEvents(context.Context, *ListRegistrationEntriesEventsRequest) (*ListRegistrationEntriesEventsResponse, error)
+	PruneEvents(ctx context.Context, olderThan time.Duration) error
 }
 
 // DataConsistency indicates the required data consistency for a read operation.
@@ -186,17 +187,6 @@ type ListRegistrationEntriesResponse struct {
 	Pagination *Pagination
 }
 
-type ListRegistrationEntriesEventsRequest struct {
-	Pagination *Pagination
-	LastID     uint
-}
-
-type ListRegistrationEntriesEventsResponse struct {
-	EntryIDs     []string
-	FirstEventID uint
-	Pagination   *Pagination
-}
-
 type ListFederationRelationshipsRequest struct {
 	Pagination *Pagination
 }
@@ -221,4 +211,15 @@ type FederationRelationship struct {
 
 	// Fields only used for 'https_spiffe' bundle endpoint profile
 	EndpointSPIFFEID spiffeid.ID
+}
+
+type ListRegistrationEntriesEventsRequest struct {
+	Pagination *Pagination
+	LastID     uint
+}
+
+type ListRegistrationEntriesEventsResponse struct {
+	EntryIDs     []string
+	FirstEventID uint
+	Pagination   *Pagination
 }
