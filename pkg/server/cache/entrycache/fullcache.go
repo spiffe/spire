@@ -2,7 +2,6 @@ package entrycache
 
 import (
 	"context"
-	"fmt"
 	"sync"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -221,8 +220,6 @@ func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entr
 // GetAllEntries gets all registration entries
 func (c *FullEntryCache) GetAllEntries() []*types.Entry {
 	var entries []*types.Entry
-
-	fmt.Println("Getting all entries")
 	for _, entry := range c.entries {
 		entries = append(entries, entry...)
 	}
@@ -269,13 +266,11 @@ func (c *FullEntryCache) createOrUpdateEntry(commonEntry *common.RegistrationEnt
 	var i int
 	for i = 0; i < len(cacheEntries); i++ {
 		if cacheEntries[i].Id == protoEntry.Id {
-			fmt.Println("Updated entry")
 			cacheEntries[i] = protoEntry
 			break
 		}
 	}
 	if i == len(cacheEntries) {
-		fmt.Println("Created entry")
 		cacheEntries = append(cacheEntries, protoEntry)
 	}
 
@@ -285,11 +280,9 @@ func (c *FullEntryCache) createOrUpdateEntry(commonEntry *common.RegistrationEnt
 }
 
 func (c *FullEntryCache) deleteEntry(entryID string) {
-	fmt.Println("Deleting entry")
 	for parentID, cacheEntries := range c.entries {
 		for i := 0; i < len(cacheEntries); i++ {
 			if cacheEntries[i].Id == entryID {
-				fmt.Printf("Deleted entry %s", entryID)
 				cacheEntries = append(cacheEntries[:i], cacheEntries[i+1:]...)
 				c.entries[parentID] = cacheEntries
 				return

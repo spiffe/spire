@@ -2601,8 +2601,8 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		}
 
 		if entry == nil || lastEID != r.EId {
-			pushEntry(entry)
 			lastEID = r.EId
+			pushEntry(entry)
 			entry = new(common.RegistrationEntry)
 		}
 
