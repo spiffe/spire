@@ -6,6 +6,15 @@ services:
     volumes:
       - ./conf/server:/opt/spire/conf/server
     command: [ "-config", "/opt/spire/conf/server/server.conf" ]
+  spire-agent:
+    pid: "host"
+    image: spire-agent:latest-local
+    hostname: spire-agent
+    depends_on: [ "spire-server" ]
+    volumes:
+      - ./conf/agent:/opt/spire/conf/agent
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: [ "-config", "/opt/spire/conf/agent/agent.conf" ]
   oidc-discovery-provider-server:
     image: oidc-discovery-provider:latest-local
     hostname: oidc-discovery-provider-server
@@ -15,12 +24,16 @@ services:
       - ./conf/agent:/opt/spire/conf/agent
       - ./conf/server:/opt/spire/conf/server
     command: [ "-config", "/opt/spire/conf/oidc-discovery-provider/provider-server-api.conf" ]
-  oidc-discovery-provider-mashup:
-    image: oidc-discovery-provider-mashup
-    hostname: oidc-discovery-provider-mashup
+  oidc-discovery-provider-workload:
+    pid: "host"
+    image: oidc-discovery-provider:latest-local
+    hostname: oidc-discovery-provider-server
     depends_on: [ "spire-server" ]
+    labels:
+      # label to attest oidc against agent
+      - org.integration.name=oidc-discovery-provider
     volumes:
       - ./conf/oidc-discovery-provider:/opt/spire/conf/oidc-discovery-provider
       - ./conf/agent:/opt/spire/conf/agent
       - ./conf/server:/opt/spire/conf/server
-    command: [ "-config", "/opt/spire/conf/agent/agent.conf" ]
+    command: [ "-config", "/opt/spire/conf/oidc-discovery-provider/provider-workload-api.conf" ]

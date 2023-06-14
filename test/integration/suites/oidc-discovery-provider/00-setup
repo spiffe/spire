@@ -4,5 +4,3 @@
 
 "${ROOTDIR}/setup/debugserver/build.sh" "${RUNDIR}/conf/server/debugclient"
 "${ROOTDIR}/setup/debugagent/build.sh" "${RUNDIR}/conf/agent/debugclient"
-
-docker build --target oidc-discovery-provider-mashup -t oidc-discovery-provider-mashup .
