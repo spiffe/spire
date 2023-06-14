@@ -37,11 +37,11 @@ func New(tb testing.TB) *DataStore {
 	log, _ := test.NewNullLogger()
 
 	ds := sql.New(log)
+	ds.SetUseServerTimestamps(true)
 
 	err := ds.Configure(ctx, fmt.Sprintf(`
 		database_type = "sqlite3"
 		connection_string = "file:memdb%d?mode=memory&cache=shared"
-		use_server_timestamps = true
 	`, atomic.AddUint32(&nextID, 1)))
 	require.NoError(tb, err)
 
