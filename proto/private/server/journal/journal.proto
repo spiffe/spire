@@ -13,6 +13,9 @@ message X509CAEntry {
 
     // DER encoded upstream CA chain. See the X509CA struct for details.
     repeated bytes upstream_chain = 4;
+
+    // The entry status
+    Status status = 5;
 }
 
 message JWTKeyEntry {
@@ -30,6 +33,24 @@ message JWTKeyEntry {
 
     // PKIX encoded public key
     bytes public_key = 5;
+
+    // The entry status
+    Status status = 6;
+}
+
+enum Status {
+    // Status is unknown.
+    UNKNOWN = 0;
+    
+    // This holds a new authority that was prepared for future uses.
+    PREPARED = 2;
+    
+    // This holds the active authority that is currently being used for
+    // signing operations.
+    ACTIVE = 3;
+    
+    // This holds an old authority that is no longer used.
+    OLD = 4;
 }
 
 message Entries {

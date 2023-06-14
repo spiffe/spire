@@ -941,7 +941,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent succeeds",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				Path:        agentPath,
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -1019,7 +1019,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if ID is not a leaf ID",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  `invalid agent ID: "spiffe://example.org" is not an agent in trust domain "example.org"; path is empty`,
@@ -1046,7 +1046,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if ID is not an agent SPIFFE ID",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				Path:        "/agent-1",
 			},
 			expectCode: codes.InvalidArgument,
@@ -1102,7 +1102,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if agent does not exists",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				Path:        "/spire/agent/agent-2",
 			},
 			expectCode: codes.NotFound,
@@ -1131,7 +1131,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if there is a datastore error",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				Path:        agentPath,
 			},
 			dsError:    errors.New("unknown datastore error"),
@@ -1484,12 +1484,14 @@ func TestGetAgent(t *testing.T) {
 		},
 		{
 			name: "success - with mask",
-			req: &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"},
+			req: &agentv1.GetAgentRequest{
+				Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"},
 				OutputMask: &types.AgentMask{
 					AttestationType:      true,
 					X509SvidExpiresAt:    true,
 					X509SvidSerialNumber: true,
-				}},
+				},
+			},
 			agent: &types.Agent{
 				Id:                   expectedAgents[agent1].Id,
 				AttestationType:      expectedAgents[agent1].AttestationType,
@@ -1510,8 +1512,10 @@ func TestGetAgent(t *testing.T) {
 		},
 		{
 			name: "success - with all false mask",
-			req: &agentv1.GetAgentRequest{Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"},
-				OutputMask: &types.AgentMask{}},
+			req: &agentv1.GetAgentRequest{
+				Id:         &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/agent-1"},
+				OutputMask: &types.AgentMask{},
+			},
 			agent: &types.Agent{
 				Id: expectedAgents[agent1].Id,
 			},
@@ -1832,7 +1836,8 @@ func TestRenewAgent(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to parse CSR",
 					Data: logrus.Fields{
-						logrus.ErrorKey: malformedError.Error()},
+						logrus.ErrorKey: malformedError.Error(),
+					},
 				},
 				{
 					Level:   logrus.InfoLevel,
@@ -2211,7 +2216,6 @@ func TestAttestAgent(t *testing.T) {
 		rateLimiterErr    error
 		dsError           []error
 	}{
-
 		{
 			name:       "empty request",
 			request:    &agentv1.AttestAgentRequest{},
@@ -2517,6 +2521,25 @@ func TestAttestAgent(t *testing.T) {
 			expectMsg:  "failed to attest: join token does not exist or has already been used",
 			expectLogs: []spiretest.LogEntry{
 				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent attestation request completed",
+					Data: logrus.Fields{
+						telemetry.Address:          "",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/join_token/test_token",
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/join_token/test_token",
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.NodeAttestorType: "join_token",
+					},
+				},
+				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: failed to attest: join token does not exist or has already been used",
 					Data: logrus.Fields{
@@ -2576,6 +2599,25 @@ func TestAttestAgent(t *testing.T) {
 				{Type: "test_type", Value: "result"},
 			},
 			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent attestation request completed",
+					Data: logrus.Fields{
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_result",
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.Address:          "",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_result",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
 				{
 					Level:   logrus.InfoLevel,
 					Message: "Agent attestation request completed",
@@ -3065,12 +3107,8 @@ func TestAttestAgent(t *testing.T) {
 						e.Data[telemetry.Address] = ""
 					}
 				}
-				if tt.retry {
-					// Prevent cases where audit logs from previous calls are pushed after log is reset
-					spiretest.AssertLastLogs(t, test.logHook.AllEntries(), tt.expectLogs)
-				} else {
-					spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
-				}
+
+				spiretest.AssertLogsAnyOrder(t, test.logHook.AllEntries(), tt.expectLogs)
 			}()
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -3097,8 +3135,6 @@ func TestAttestAgent(t *testing.T) {
 				// make sure that the first request went well
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				// clear entries from the previous run
-				test.logHook.Reset()
 
 				// attest once more
 				stream, err = test.client.AttestAgent(ctx)
@@ -3293,7 +3329,7 @@ func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.
 	expiredAt := now.Add(s.ca.X509SVIDTTL())
 
 	require.NotNil(t, result.Svid)
-	expectedIDType := &types.SPIFFEID{TrustDomain: expectedID.TrustDomain().String(), Path: expectedID.Path()}
+	expectedIDType := &types.SPIFFEID{TrustDomain: expectedID.TrustDomain().Name(), Path: expectedID.Path()}
 	spiretest.AssertProtoEqual(t, expectedIDType, result.Svid.Id)
 	assert.Equal(t, expiredAt.Unix(), result.Svid.ExpiresAt)
 
@@ -3368,7 +3404,8 @@ func attest(t *testing.T, stream agentv1.Agent_AttestAgentClient, request *agent
 			request = &agentv1.AttestAgentRequest{
 				Step: &agentv1.AttestAgentRequest_ChallengeResponse{
 					ChallengeResponse: challenge,
-				}}
+				},
+			}
 
 			continue
 		}

@@ -73,7 +73,7 @@ func idStringToProto(id string) (*types.SPIFFEID, error) {
 		return nil, err
 	}
 	return &types.SPIFFEID{
-		TrustDomain: idType.TrustDomain().String(),
+		TrustDomain: idType.TrustDomain().Name(),
 		Path:        idType.Path(),
 	}, nil
 }

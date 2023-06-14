@@ -111,7 +111,7 @@ func TestNewServer(t *testing.T) {
 			trustDomain: "foo.test",
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
-				require.Equal(t, "foo.test", s.trustDomain.String())
+				require.Equal(t, "foo.test", s.trustDomain.Name())
 				require.Equal(t, "local", s.canonicalDomain)
 				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
 				pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(testCertAuthority))
@@ -127,7 +127,7 @@ func TestNewServer(t *testing.T) {
 			trustDomain: "foo.test",
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
-				require.Equal(t, "foo.test", s.trustDomain.String())
+				require.Equal(t, "foo.test", s.trustDomain.Name())
 				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
 				pubkey := requireParsePubkey(t, testCertAuthority)
 				pubkey2 := requireParsePubkey(t, testCertAuthority2)

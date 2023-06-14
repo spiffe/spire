@@ -262,7 +262,7 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 	timer := m.clock.Timer(time.Hour)
 	defer timer.Stop()
 
-	log := m.log.WithField("trust_domain", trustDomain.String())
+	log := m.log.WithField("trust_domain", trustDomain.Name())
 	for {
 		nextRefresh := m.runUpdateOnce(ctx, log, trustDomain, updater)
 
@@ -288,7 +288,7 @@ func (m *Manager) runUpdateOnce(ctx context.Context, log *logrus.Entry, trustDom
 	log.Debug("Polling for bundle update")
 
 	counter := telemetry_server.StartBundleManagerFetchFederatedBundleCall(m.metrics)
-	counter.AddLabel(telemetry.TrustDomainID, trustDomain.String())
+	counter.AddLabel(telemetry.TrustDomainID, trustDomain.Name())
 	var err error
 	defer counter.Done(&err)
 
@@ -299,7 +299,7 @@ func (m *Manager) runUpdateOnce(ctx context.Context, log *logrus.Entry, trustDom
 	}
 
 	if endpointBundle != nil {
-		telemetry_server.IncrBundleManagerUpdateFederatedBundleCounter(m.metrics, trustDomain.String())
+		telemetry_server.IncrBundleManagerUpdateFederatedBundleCounter(m.metrics, trustDomain.Name())
 		log.Info("Bundle refreshed")
 
 		return calculateNextUpdate(endpointBundle)

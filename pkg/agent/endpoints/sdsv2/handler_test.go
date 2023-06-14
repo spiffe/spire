@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -161,6 +162,7 @@ func (s *HandlerSuite) SetupTest() {
 		Manager:           s.manager,
 		DefaultSVIDName:   "default",
 		DefaultBundleName: "ROOTCA",
+		Enabled:           true,
 	})
 
 	s.received = make(chan struct{})
@@ -202,6 +204,27 @@ func (s *HandlerSuite) TestStreamSecretsStreamAllSecrets() {
 	resp, err := stream.Recv()
 	s.Require().NoError(err)
 	s.requireSecrets(resp, tdValidationContext, fedValidationContext, workloadTLSCertificate1)
+}
+
+func (s *HandlerSuite) TestAPIIsNotEnabled() {
+	ctx := context.Background()
+	handler := New(Config{
+		Attestor:          FakeAttestor(workloadSelectors),
+		Manager:           s.manager,
+		DefaultSVIDName:   "default",
+		DefaultBundleName: "ROOTCA",
+		// API is not enabled
+		Enabled: false,
+	})
+	resp, err := handler.FetchSecrets(ctx, &api_v2.DiscoveryRequest{})
+	s.Require().Nil(resp)
+	s.RequireGRPCStatus(err, codes.Unavailable, deprecatedAPIErrorMsg)
+
+	err = handler.StreamSecrets(nil)
+	s.RequireGRPCStatus(err, codes.Unavailable, deprecatedAPIErrorMsg)
+
+	err = handler.DeltaSecrets(nil)
+	s.RequireGRPCStatus(err, codes.Unavailable, deprecatedAPIErrorMsg)
 }
 
 func (s *HandlerSuite) TestStreamSecretsStreamTrustDomainBundleOnly() {
