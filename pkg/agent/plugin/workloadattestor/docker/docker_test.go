@@ -168,7 +168,7 @@ container_id_cgroup_matchers = [
 			expectMsg:  "unable to decode configuration:",
 		},
 		{
-			name: "unknow configuration",
+			name: "unknown configuration",
 			config: `
 invalid1 = "/oh/"
 invalid2 = "/no/"`,
@@ -194,7 +194,7 @@ func TestDockerConfigDefault(t *testing.T) {
 
 	require.NotNil(t, p.docker)
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
-	require.Equal(t, "1.42", p.docker.(*dockerclient.Client).ClientVersion())
+	require.Equal(t, "1.43", p.docker.(*dockerclient.Client).ClientVersion())
 	verifyConfigDefault(t, p.c)
 }
 

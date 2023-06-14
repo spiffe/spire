@@ -16,7 +16,7 @@ type CoreConfig struct {
 
 func (c CoreConfig) v1() *configv1.CoreConfiguration {
 	return &configv1.CoreConfiguration{
-		TrustDomain: c.TrustDomain.String(),
+		TrustDomain: c.TrustDomain.Name(),
 	}
 }
 

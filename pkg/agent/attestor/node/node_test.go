@@ -52,11 +52,11 @@ func TestAttestor(t *testing.T) {
 	agentCert := createAgentCertificate(t, caCert, agentKey, "/test/foo")
 	expiredCert := createExpiredCertificate(t, caCert, agentKey)
 	bundle := &types.Bundle{
-		TrustDomain:     trustDomain.String(),
+		TrustDomain:     trustDomain.Name(),
 		X509Authorities: []*types.X509Certificate{{Asn1: caCert.Raw}},
 	}
 	svid := &types.X509SVID{
-		Id:        &types.SPIFFEID{TrustDomain: trustDomain.String(), Path: "/test/foo"},
+		Id:        &types.SPIFFEID{TrustDomain: trustDomain.Name(), Path: "/test/foo"},
 		CertChain: [][]byte{agentCert.Raw},
 	}
 
@@ -193,7 +193,7 @@ func TestAttestor(t *testing.T) {
 			bootstrapBundle: caCert,
 			agentService: &fakeAgentService{
 				svid: &types.X509SVID{
-					Id:        &types.SPIFFEID{TrustDomain: trustDomain.String(), Path: "/join_token/JOINTOKEN"},
+					Id:        &types.SPIFFEID{TrustDomain: trustDomain.Name(), Path: "/join_token/JOINTOKEN"},
 					CertChain: [][]byte{createAgentCertificate(t, caCert, agentKey, "/join_token/JOINTOKEN").Raw},
 				},
 				joinToken: "JOINTOKEN",

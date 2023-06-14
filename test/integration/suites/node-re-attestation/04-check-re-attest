@@ -1,0 +1,9 @@
+#!/bin/bash
+source ./common
+
+docker-compose restart "spire-agent-a" "spire-agent-b" || fail-now "failed to stop services."
+
+# spire-agent-b can't re-attest because join_token implements trust on first use model.
+AGENT_A_SPIFFE_ID_PATH="/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
+
+check-attested-agents $AGENT_A_SPIFFE_ID_PATH

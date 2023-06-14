@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 
@@ -13,6 +14,7 @@ import (
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/hcl/token"
 	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
@@ -48,8 +50,8 @@ func newPlugin(newSecretManagerClient func(context.Context, string) (secretManag
 }
 
 type Configuration struct {
-	ServiceAccountFile string   `hcl:"service_account_file" json:"service_account_file"`
-	UnusedKeys         []string `hcl:",unusedKeys" json:",omitempty"`
+	ServiceAccountFile string                 `hcl:"service_account_file" json:"service_account_file"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" json:",omitempty"`
 }
 
 type SecretManagerPlugin struct {
@@ -70,7 +72,7 @@ func (p *SecretManagerPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-// Configure configures the SecretMangerPlugin.
+// Configure configures the SecretManagerPlugin.
 func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &Configuration{}
@@ -78,8 +80,14 @@ func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.Confi
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	if len(config.UnusedKeys) != 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(config.UnusedKeys, ","))
+	if len(config.UnusedKeyPositions) != 0 {
+		var keys []string
+		for k := range config.UnusedKeyPositions {
+			keys = append(keys, k)
+		}
+
+		sort.Strings(keys)
+		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(keys, ","))
 	}
 
 	secretMangerClient, err := p.hooks.newSecretManagerClient(ctx, config.ServiceAccountFile)

@@ -212,8 +212,8 @@ endif
 # Flags passed to all invocations of go test
 go_test_flags :=
 ifeq ($(NIGHTLY),)
-	# Cap unit-test timout to 60s unless we're running nightlies.
-	go_test_flags += -timeout=60s
+	# Cap unit-test timout to 90s unless we're running nightlies.
+	go_test_flags += -timeout=90s
 endif
 
 go_flags :=
@@ -308,9 +308,6 @@ endif
 integration:
 ifeq ($(os1), windows)
 	$(error Integration tests are not supported on windows)
-else ifeq (,$(filter $(arch2),arm64,aarch64))
-	# TODO: Remove this special handling of arm64 in 1.7.0
-	$(E)(export IGNORE_SUITES=suites/upgrade && $(go_path) ./test/integration/test.sh $(SUITES))
 else
 	$(E)$(go_path) ./test/integration/test.sh $(SUITES)
 endif

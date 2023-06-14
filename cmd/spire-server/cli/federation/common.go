@@ -103,7 +103,7 @@ func jsonToProto(fr *federationRelationshipConfig) (*types.FederationRelationshi
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse bundle endpoint SPIFFE ID: %w", err)
 		}
-		bundleTrustDomain = endpointSPIFFEID.TrustDomain().String()
+		bundleTrustDomain = endpointSPIFFEID.TrustDomain().Name()
 
 		proto.BundleEndpointProfile = &types.FederationRelationship_HttpsSpiffe{
 			HttpsSpiffe: &types.HTTPSSPIFFEProfile{
