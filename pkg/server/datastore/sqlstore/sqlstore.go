@@ -91,10 +91,10 @@ func (db *sqlDB) QueryContext(ctx context.Context, query string, args ...interfa
 
 // Plugin is a DataStore plugin implemented via a SQL database
 type Plugin struct {
-	mu          sync.Mutex
-	db          *sqlDB
-	roDb        *sqlDB
-	log         logrus.FieldLogger
+	mu   sync.Mutex
+	db   *sqlDB
+	roDb *sqlDB
+	log  logrus.FieldLogger
 }
 
 // New creates a new sql plugin struct. Configure must be called
@@ -2555,7 +2555,7 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		entries = make([]*common.RegistrationEntry, 0, 64)
 	}
 
-	pushEntry := func(entry *common.RegistrationEntry, eid uint64) {
+	pushEntry := func(entry *common.RegistrationEntry) {
 		// Due to previous bugs (i.e. #1191), there can be cruft rows related
 		// to a deleted registration entries that are fetched with the list
 		// query. To avoid hydrating partial entries, append only entries that
@@ -2575,7 +2575,7 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		}
 
 		if entry == nil || lastEID != r.EId {
-			pushEntry(entry, lastEID)
+			pushEntry(entry)
 			lastEID = r.EId
 			entry = new(common.RegistrationEntry)
 		}
@@ -2584,7 +2584,7 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 			return nil, err
 		}
 	}
-	pushEntry(entry, lastEID)
+	pushEntry(entry)
 
 	if err := rows.Err(); err != nil {
 		return nil, sqlError.Wrap(err)
