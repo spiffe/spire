@@ -174,7 +174,6 @@ func (Event) TableName() string {
 	return "events"
 }
 
-
 // Migration holds database schema version number, and
 // the SPIRE Code version number
 type Migration struct {

@@ -340,6 +340,20 @@ func (s *DataStore) UpdateFederationRelationship(ctx context.Context, fr *datast
 	return s.ds.UpdateFederationRelationship(ctx, fr, mask)
 }
 
+func (s *DataStore) ListEvents(ctx context.Context, req *datastore.ListEventsRequest) (*datastore.ListEventsResponse, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.ListEvents(ctx, req)
+}
+
+func (s *DataStore) PruneEvents(ctx context.Context, olderThan time.Duration) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.PruneEvents(ctx, olderThan)
+}
+
 func (s *DataStore) SetNextError(err error) {
 	s.errs = []error{err}
 }
