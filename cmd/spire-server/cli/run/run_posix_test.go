@@ -216,7 +216,7 @@ func killServerOnStart(t *testing.T, testLogFile string) {
 	}()
 }
 
-func mergeInputCasesOS(t *testing.T) []mergeInputCase {
+func mergeInputCasesOS() []mergeInputCase {
 	return []mergeInputCase{
 		{
 			msg: "socket_path should be configurable by file",

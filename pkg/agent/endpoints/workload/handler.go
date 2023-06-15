@@ -112,7 +112,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 }
 
 // FetchJWTBundles processes request for JWT bundles
-func (h *Handler) FetchJWTBundles(req *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
+func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
 

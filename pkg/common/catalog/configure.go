@@ -74,6 +74,6 @@ func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, hc
 
 type configurerUnsupported struct{}
 
-func (c configurerUnsupported) Configure(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) error {
+func (c configurerUnsupported) Configure(context.Context, CoreConfig, string) error {
 	return status.Error(codes.FailedPrecondition, "plugin does not support a configuration interface")
 }

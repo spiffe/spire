@@ -2241,7 +2241,7 @@ func newFakeDS(t *testing.T) *fakeDS {
 	}
 }
 
-func (d *fakeDS) CreateFederationRelationship(c context.Context, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
+func (d *fakeDS) CreateFederationRelationship(_ context.Context, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
 	if d.customDSResponse != nil {
 		return d.customDSResponse, nil
 	}
@@ -2249,7 +2249,7 @@ func (d *fakeDS) CreateFederationRelationship(c context.Context, fr *datastore.F
 	return d.DataStore.CreateFederationRelationship(ctx, fr)
 }
 
-func (d *fakeDS) UpdateFederationRelationship(c context.Context, fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) (*datastore.FederationRelationship, error) {
+func (d *fakeDS) UpdateFederationRelationship(_ context.Context, fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) (*datastore.FederationRelationship, error) {
 	if d.customDSResponse != nil {
 		return d.customDSResponse, nil
 	}
@@ -2269,7 +2269,7 @@ func (r *fakeBundleRefresher) ReloadCount() int {
 	return r.reloads
 }
 
-func (r *fakeBundleRefresher) RefreshBundleFor(ctx context.Context, td spiffeid.TrustDomain) (bool, error) {
+func (r *fakeBundleRefresher) RefreshBundleFor(_ context.Context, td spiffeid.TrustDomain) (bool, error) {
 	switch {
 	case td == spiffeid.RequireTrustDomainFromString("good.test"):
 		return true, nil

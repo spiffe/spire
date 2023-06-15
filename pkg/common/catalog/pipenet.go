@@ -38,7 +38,7 @@ func (n *pipeNet) Accept() (net.Conn, error) {
 	}
 }
 
-func (n *pipeNet) DialContext(ctx context.Context, addr string) (conn net.Conn, err error) {
+func (n *pipeNet) DialContext(ctx context.Context, _ string) (conn net.Conn, err error) {
 	c, s := net.Pipe()
 
 	defer func() {

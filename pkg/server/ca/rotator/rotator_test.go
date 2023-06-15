@@ -395,14 +395,14 @@ type fakeCAManager struct {
 	pruneCh        chan struct{}
 }
 
-func (f *fakeCAManager) NotifyBundleLoaded(ctx context.Context) error {
+func (f *fakeCAManager) NotifyBundleLoaded(context.Context) error {
 	if f.notifyBundleLoadedErr != nil {
 		return f.notifyBundleLoadedErr
 	}
 	return nil
 }
 
-func (f *fakeCAManager) NotifyOnBundleUpdate(ctx context.Context) {
+func (f *fakeCAManager) NotifyOnBundleUpdate(context.Context) {
 }
 
 func (f *fakeCAManager) GetCurrentX509CASlot() manager.Slot {
@@ -413,7 +413,7 @@ func (f *fakeCAManager) GetNextX509CASlot() manager.Slot {
 	return f.nextX509CASlot
 }
 
-func (f *fakeCAManager) PrepareX509CA(ctx context.Context) error {
+func (f *fakeCAManager) PrepareX509CA(context.Context) error {
 	f.cleanX509CACh()
 
 	if f.prepareX509CAErr != nil {
@@ -460,7 +460,7 @@ func (f *fakeCAManager) GetNextJWTKeySlot() manager.Slot {
 	return f.nextJWTKeySlot
 }
 
-func (f *fakeCAManager) PrepareJWTKey(ctx context.Context) error {
+func (f *fakeCAManager) PrepareJWTKey(context.Context) error {
 	f.cleanJWTKeyCh()
 	if f.prepareJWTKeyErr != nil {
 		return f.prepareJWTKeyErr
@@ -495,7 +495,7 @@ func (f *fakeCAManager) RotateJWTKey() {
 	f.jwtKeyCh <- struct{}{}
 }
 
-func (f *fakeCAManager) PruneBundle(ctx context.Context) error {
+func (f *fakeCAManager) PruneBundle(context.Context) error {
 	defer func() {
 		f.pruneCh <- struct{}{}
 	}()

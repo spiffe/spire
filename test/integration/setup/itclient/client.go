@@ -68,7 +68,7 @@ func New(ctx context.Context) *Client {
 func NewInsecure(ctx context.Context) *Client {
 	flag.Parse()
 	tlsConfig := tls.Config{
-		InsecureSkipVerify: true, // nolint: gosec // this is intentional for the integration test
+		InsecureSkipVerify: true, //nolint: gosec // this is intentional for the integration test
 	}
 	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
 	if err != nil {
@@ -91,7 +91,7 @@ func NewWithCert(ctx context.Context, cert *x509.Certificate, key crypto.Signer)
 				PrivateKey:  key,
 			}, nil
 		},
-		InsecureSkipVerify: true, // nolint: gosec // this is intentional for the integration test
+		InsecureSkipVerify: true, //nolint: gosec // this is intentional for the integration test
 	}
 	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
 	if err != nil {

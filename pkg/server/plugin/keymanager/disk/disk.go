@@ -54,7 +54,7 @@ func newKeyManager(generator Generator) *KeyManager {
 	return m
 }
 
-func (m *KeyManager) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (m *KeyManager) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := new(configuration)
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
@@ -88,7 +88,7 @@ func (m *KeyManager) configure(config *configuration) error {
 	return nil
 }
 
-func (m *KeyManager) writeEntries(ctx context.Context, entries []*keymanagerbase.KeyEntry) error {
+func (m *KeyManager) writeEntries(_ context.Context, entries []*keymanagerbase.KeyEntry) error {
 	m.mu.Lock()
 	config := m.config
 	m.mu.Unlock()

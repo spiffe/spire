@@ -31,7 +31,7 @@ type Plugin struct {
 	svids  map[string]*svidstorev1.X509SVID
 }
 
-func (p *Plugin) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
+func (p *Plugin) DeleteX509SVID(_ context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
 	secretName, err := getSecretName(req.Metadata)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (p *Plugin) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509
 	return &svidstorev1.DeleteX509SVIDResponse{}, nil
 }
 
-func (p *Plugin) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRequest) (*svidstorev1.PutX509SVIDResponse, error) {
+func (p *Plugin) PutX509SVID(_ context.Context, req *svidstorev1.PutX509SVIDRequest) (*svidstorev1.PutX509SVIDResponse, error) {
 	secretName, err := getSecretName(req.Metadata)
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func (p *Plugin) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRe
 	return &svidstorev1.PutX509SVIDResponse{}, nil
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	p.svids = make(map[string]*svidstorev1.X509SVID)
 
 	config := new(Config)

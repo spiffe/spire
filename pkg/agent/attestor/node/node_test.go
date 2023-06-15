@@ -417,7 +417,7 @@ type fakeBundleService struct {
 	bundlev1.BundleServer
 }
 
-func (c *fakeBundleService) GetBundle(ctx context.Context, in *bundlev1.GetBundleRequest) (*types.Bundle, error) {
+func (c *fakeBundleService) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	if c.getBundleErr != nil {
 		return nil, c.getBundleErr
 	}

@@ -112,7 +112,7 @@ func TestExitDetection(t *testing.T) {
 	require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
 
 	// Start a forking child and allow it to exit while the grandchild holds the socket
-	peer.connectFromForkingChild(t, test.addr, test.childPath, doneCh)
+	peer.connectFromForkingChild(test.addr, test.childPath, doneCh)
 
 	rawConn, err = test.listener.Accept()
 
@@ -215,14 +215,14 @@ func (f *fakePeer) disconnect() {
 }
 
 // run child to connect and fork. allows us to test stale PID data
-func (f *fakePeer) connectFromForkingChild(t *testing.T, addr net.Addr, childPath string, doneCh chan error) {
+func (f *fakePeer) connectFromForkingChild(addr net.Addr, childPath string, doneCh chan error) {
 	if f.grandchildPID != 0 {
 		f.t.Fatalf("grandchild already running with PID %v", f.grandchildPID)
 	}
 
 	go func() {
 		// #nosec G204 test code
-		out, err := childExecCommand(t, childPath, addr).Output()
+		out, err := childExecCommand(childPath, addr).Output()
 		if err != nil {
 			doneCh <- fmt.Errorf("child process failed: %w", err)
 			return

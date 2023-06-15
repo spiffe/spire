@@ -255,7 +255,7 @@ func TestAgentAuthorizer(t *testing.T) {
 			if !tt.time.IsZero() {
 				clk.Set(tt.time)
 			}
-			authorizer := AgentAuthorizer(log, ds, clk)
+			authorizer := AgentAuthorizer(ds, clk)
 			ctx := context.Background()
 			ctx = rpccontext.WithLogger(ctx, log.WithFields(logrus.Fields{
 				telemetry.CallerAddr: "127.0.0.1",

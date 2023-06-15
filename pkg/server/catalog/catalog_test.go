@@ -88,4 +88,4 @@ func Test(t *testing.T) {
 
 type fakeHealthChecker struct{}
 
-func (fakeHealthChecker) AddCheck(name string, checkable health.Checkable) error { return nil }
+func (fakeHealthChecker) AddCheck(string, health.Checkable) error { return nil }

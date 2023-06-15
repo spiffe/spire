@@ -555,7 +555,7 @@ func (s *HandlerSuite) requireSecrets(resp *api_v2.DiscoveryResponse, expectedSe
 
 type FakeAttestor []*common.Selector
 
-func (a FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
+func (a FakeAttestor) Attest(context.Context) ([]*common.Selector, error) {
 	return ([]*common.Selector)(a), nil
 }
 
@@ -575,7 +575,7 @@ func NewFakeManager(t *testing.T) *FakeManager {
 	}
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToCacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
 	require.Equal(m.t, workloadSelectors, selectors)
 
 	updch := make(chan *cache.WorkloadUpdate, 1)
@@ -594,7 +594,7 @@ func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cac
 	}), nil
 }
 
-func (m *FakeManager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {
+func (m *FakeManager) FetchWorkloadUpdate(_ []*common.Selector) *cache.WorkloadUpdate {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.upd
@@ -637,7 +637,7 @@ func (s *FakeSubscriber) Finish() {
 
 type FakeCreds struct{}
 
-func (c FakeCreds) ClientHandshake(_ context.Context, _ string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+func (c FakeCreds) ClientHandshake(context.Context, string, net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	return nil, nil, errors.New("unexpected")
 }
 

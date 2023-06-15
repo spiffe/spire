@@ -404,7 +404,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// Place all migrations handled by the current minor release here. This
 	// list can be opportunistically pruned after every minor release but won't
 	// break things if it isn't.
-	switch currVersion { // nolint: gocritic // No upgrade required yet, keeping switch for future additions
+	switch currVersion { //nolint: gocritic // No upgrade required yet, keeping switch for future additions
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}

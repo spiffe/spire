@@ -12,7 +12,6 @@ run:
 linters:
   enable:
     - bodyclose
-    - depguard
     - durationcheck
     - errorlint
     - goimports
@@ -24,9 +23,8 @@ linters:
     - unparam
     - whitespace
     - gocritic
-    # nolintlint can be re-enabled after the rest of the linters have gained
-    # support for go1.18.
-    # - nolintlint
+    - nolintlint
+
 linters-settings:
   revive:
     # minimal confidence for issues, default is 0.8

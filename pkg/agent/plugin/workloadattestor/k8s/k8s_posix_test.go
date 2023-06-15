@@ -697,25 +697,25 @@ func (s *sigstoreMock) SetEnforceSCT(enforceSCT bool) {
 	s.enforceSCT = enforceSCT
 }
 
-func (s *sigstoreMock) FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error) {
+func (s *sigstoreMock) FetchImageSignatures(context.Context, string) ([]oci.Signature, error) {
 	if s.returnError != nil {
 		return nil, s.returnError
 	}
 	return s.sigs, nil
 }
 
-func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature) (*sigstore.SelectorsFromSignatures, error) {
+func (s *sigstoreMock) SelectorValuesFromSignature(oci.Signature) (*sigstore.SelectorsFromSignatures, error) {
 	if len(s.selectors) != 0 {
 		return &s.selectors[0], nil
 	}
 	return nil, s.returnError
 }
 
-func (s *sigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
+func (s *sigstoreMock) ExtractSelectorsFromSignatures([]oci.Signature, string) []sigstore.SelectorsFromSignatures {
 	return s.selectors
 }
 
-func (s *sigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
+func (s *sigstoreMock) ShouldSkipImage(string) (bool, error) {
 	return s.skipSigs, s.returnError
 }
 
@@ -727,7 +727,7 @@ func (s *sigstoreMock) ClearAllowedSubjects() {
 	s.allowedSubjects = nil
 }
 
-func (s *sigstoreMock) AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error) {
+func (s *sigstoreMock) AttestContainerSignatures(_ context.Context, status *corev1.ContainerStatus) ([]string, error) {
 	if s.skipSigs {
 		return s.skippedSigSelectors, nil
 	}

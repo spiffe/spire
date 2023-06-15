@@ -1955,7 +1955,7 @@ func TestSigstoreimpl_SetRekorURL(t *testing.T) {
 	}
 }
 
-type ociSignature = oci.Signature //nolint: unused // used only to create an alias
+type ociSignature = oci.Signature
 
 type signature struct {
 	ociSignature

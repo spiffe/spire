@@ -920,7 +920,7 @@ func newBundleEndpointServer() *bundleEndpointServer {
 	return &bundleEndpointServer{}
 }
 
-func (s *bundleEndpointServer) ListenAndServe(ctx context.Context) error {
+func (s *bundleEndpointServer) ListenAndServe(context.Context) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	s.used = true

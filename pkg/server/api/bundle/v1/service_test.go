@@ -1569,7 +1569,6 @@ func TestListFederatedBundles(t *testing.T) {
 				actualBundlePages = append(actualBundlePages, resp.Bundles)
 				if len(actualBundlePages) > pagesLimit {
 					t.Fatalf("exceeded page count limit (%d); paging is likely broken", pagesLimit)
-					break
 				}
 				pageToken = resp.NextPageToken
 				if pageToken == "" {
@@ -3007,7 +3006,7 @@ type fakeUpstreamPublisher struct {
 	expectKey *common.PublicKey
 }
 
-func (f *fakeUpstreamPublisher) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error) {
+func (f *fakeUpstreamPublisher) PublishJWTKey(_ context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -3022,7 +3021,7 @@ type fakeRateLimiter struct {
 	err   error
 }
 
-func (f *fakeRateLimiter) RateLimit(ctx context.Context, count int) error {
+func (f *fakeRateLimiter) RateLimit(_ context.Context, count int) error {
 	if f.count != count {
 		return fmt.Errorf("rate limiter got %d but expected %d", count, f.count)
 	}

@@ -84,7 +84,7 @@ func (m *Base) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyReq
 }
 
 // GetPublicKey implements the KeyManager RPC of the same name.
-func (m *Base) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
+func (m *Base) GetPublicKey(_ context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
@@ -102,7 +102,7 @@ func (m *Base) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKeyR
 }
 
 // GetPublicKeys implements the KeyManager RPC of the same name.
-func (m *Base) GetPublicKeys(ctx context.Context, req *keymanagerv1.GetPublicKeysRequest) (*keymanagerv1.GetPublicKeysResponse, error) {
+func (m *Base) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysRequest) (*keymanagerv1.GetPublicKeysResponse, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -115,7 +115,7 @@ func (m *Base) GetPublicKeys(ctx context.Context, req *keymanagerv1.GetPublicKey
 }
 
 // SignData implements the KeyManager RPC of the same name.
-func (m *Base) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
+func (m *Base) SignData(_ context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
 	resp, err := m.signData(req)
 	return resp, prefixStatus(err, "failed to sign data")
 }

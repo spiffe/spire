@@ -886,27 +886,27 @@ type fakeV1Plugin struct {
 	composeWorkloadJWTSVIDResponseOut  *credentialcomposerv1.ComposeWorkloadJWTSVIDResponse
 }
 
-func (p *fakeV1Plugin) ComposeServerX509CA(ctx context.Context, req *credentialcomposerv1.ComposeServerX509CARequest) (*credentialcomposerv1.ComposeServerX509CAResponse, error) {
+func (p *fakeV1Plugin) ComposeServerX509CA(_ context.Context, req *credentialcomposerv1.ComposeServerX509CARequest) (*credentialcomposerv1.ComposeServerX509CAResponse, error) {
 	p.composeServerX509CARequestIn = req
 	return p.composeServerX509CAResponseOut, p.err
 }
 
-func (p *fakeV1Plugin) ComposeServerX509SVID(ctx context.Context, req *credentialcomposerv1.ComposeServerX509SVIDRequest) (*credentialcomposerv1.ComposeServerX509SVIDResponse, error) {
+func (p *fakeV1Plugin) ComposeServerX509SVID(_ context.Context, req *credentialcomposerv1.ComposeServerX509SVIDRequest) (*credentialcomposerv1.ComposeServerX509SVIDResponse, error) {
 	p.composeServerX509SVIDRequestIn = req
 	return p.composeServerX509SVIDResponseOut, p.err
 }
 
-func (p *fakeV1Plugin) ComposeAgentX509SVID(ctx context.Context, req *credentialcomposerv1.ComposeAgentX509SVIDRequest) (*credentialcomposerv1.ComposeAgentX509SVIDResponse, error) {
+func (p *fakeV1Plugin) ComposeAgentX509SVID(_ context.Context, req *credentialcomposerv1.ComposeAgentX509SVIDRequest) (*credentialcomposerv1.ComposeAgentX509SVIDResponse, error) {
 	p.composeAgentX509SVIDRequestIn = req
 	return p.composeAgentX509SVIDResponseOut, p.err
 }
 
-func (p *fakeV1Plugin) ComposeWorkloadX509SVID(ctx context.Context, req *credentialcomposerv1.ComposeWorkloadX509SVIDRequest) (*credentialcomposerv1.ComposeWorkloadX509SVIDResponse, error) {
+func (p *fakeV1Plugin) ComposeWorkloadX509SVID(_ context.Context, req *credentialcomposerv1.ComposeWorkloadX509SVIDRequest) (*credentialcomposerv1.ComposeWorkloadX509SVIDResponse, error) {
 	p.composeWorkloadX509SVIDRequestIn = req
 	return p.composeWorkloadX509SVIDResponseOut, p.err
 }
 
-func (p *fakeV1Plugin) ComposeWorkloadJWTSVID(ctx context.Context, req *credentialcomposerv1.ComposeWorkloadJWTSVIDRequest) (*credentialcomposerv1.ComposeWorkloadJWTSVIDResponse, error) {
+func (p *fakeV1Plugin) ComposeWorkloadJWTSVID(_ context.Context, req *credentialcomposerv1.ComposeWorkloadJWTSVIDRequest) (*credentialcomposerv1.ComposeWorkloadJWTSVIDResponse, error) {
 	p.composeWorkloadJWTSVIDRequestIn = req
 	return p.composeWorkloadJWTSVIDResponseOut, p.err
 }

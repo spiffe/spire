@@ -1,7 +1,6 @@
 package azure
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -17,54 +16,50 @@ import (
 )
 
 func TestFetchMSIToken(t *testing.T) {
-	ctx := context.Background()
-
 	// unexpected status
-	token, err := FetchMSIToken(ctx, fakeTokenHTTPClient(http.StatusBadRequest, "ERROR"), "RESOURCE")
+	token, err := FetchMSIToken(fakeTokenHTTPClient(http.StatusBadRequest, "ERROR"), "RESOURCE")
 	require.EqualError(t, err, "unexpected status code 400: ERROR")
 	require.Empty(t, token)
 
 	// empty response
-	token, err = FetchMSIToken(ctx, fakeTokenHTTPClient(http.StatusOK, ""), "RESOURCE")
+	token, err = FetchMSIToken(fakeTokenHTTPClient(http.StatusOK, ""), "RESOURCE")
 	require.EqualError(t, err, "unable to decode response: EOF")
 	require.Empty(t, token)
 
 	// malformed response
-	token, err = FetchMSIToken(ctx, fakeTokenHTTPClient(http.StatusOK, "{"), "RESOURCE")
+	token, err = FetchMSIToken(fakeTokenHTTPClient(http.StatusOK, "{"), "RESOURCE")
 	require.EqualError(t, err, "unable to decode response: unexpected EOF")
 	require.Empty(t, token)
 
 	// no access token
-	token, err = FetchMSIToken(ctx, fakeTokenHTTPClient(http.StatusOK, "{}"), "RESOURCE")
+	token, err = FetchMSIToken(fakeTokenHTTPClient(http.StatusOK, "{}"), "RESOURCE")
 	require.EqualError(t, err, "response missing access token")
 	require.Empty(t, token)
 
 	// success
-	token, err = FetchMSIToken(ctx, fakeTokenHTTPClient(http.StatusOK, `{"access_token": "ASDF"}`), "RESOURCE")
+	token, err = FetchMSIToken(fakeTokenHTTPClient(http.StatusOK, `{"access_token": "ASDF"}`), "RESOURCE")
 	require.NoError(t, err)
 	require.Equal(t, "ASDF", token)
 }
 
 func TestFetchInstanceMetadata(t *testing.T) {
-	ctx := context.Background()
-
 	// unexpected status
-	metadata, err := FetchInstanceMetadata(ctx, fakeMetadataHTTPClient(http.StatusBadRequest, "ERROR"))
+	metadata, err := FetchInstanceMetadata(fakeMetadataHTTPClient(http.StatusBadRequest, "ERROR"))
 	require.EqualError(t, err, "unexpected status code 400: ERROR")
 	require.Nil(t, metadata)
 
 	// empty response
-	metadata, err = FetchInstanceMetadata(ctx, fakeMetadataHTTPClient(http.StatusOK, ""))
+	metadata, err = FetchInstanceMetadata(fakeMetadataHTTPClient(http.StatusOK, ""))
 	require.EqualError(t, err, "unable to decode response: EOF")
 	require.Nil(t, metadata)
 
 	// malformed response
-	metadata, err = FetchInstanceMetadata(ctx, fakeMetadataHTTPClient(http.StatusOK, "{"))
+	metadata, err = FetchInstanceMetadata(fakeMetadataHTTPClient(http.StatusOK, "{"))
 	require.EqualError(t, err, "unable to decode response: unexpected EOF")
 	require.Nil(t, metadata)
 
 	// no instance name
-	metadata, err = FetchInstanceMetadata(ctx, fakeMetadataHTTPClient(http.StatusOK, `{
+	metadata, err = FetchInstanceMetadata(fakeMetadataHTTPClient(http.StatusOK, `{
 		"compute": {
 			"subscriptionId": "SUBSCRIPTION",
 			"resourceGroupName": "RESOURCEGROUP"
@@ -73,7 +68,7 @@ func TestFetchInstanceMetadata(t *testing.T) {
 	require.Nil(t, metadata)
 
 	// no subscription id
-	metadata, err = FetchInstanceMetadata(ctx, fakeMetadataHTTPClient(http.StatusOK, `{
+	metadata, err = FetchInstanceMetadata(fakeMetadataHTTPClient(http.StatusOK, `{
 		"compute": {
 			"name": "NAME",
 			"resourceGroupName": "RESOURCEGROUP"
@@ -82,7 +77,7 @@ func TestFetchInstanceMetadata(t *testing.T) {
 	require.Nil(t, metadata)
 
 	// no resource group name
-	metadata, err = FetchInstanceMetadata(ctx, fakeMetadataHTTPClient(http.StatusOK, `{
+	metadata, err = FetchInstanceMetadata(fakeMetadataHTTPClient(http.StatusOK, `{
 		"compute": {
 			"name": "NAME",
 			"subscriptionId": "SUBSCRIPTION"
@@ -98,7 +93,7 @@ func TestFetchInstanceMetadata(t *testing.T) {
 			ResourceGroupName: "RESOURCEGROUP",
 		},
 	}
-	metadata, err = FetchInstanceMetadata(ctx, fakeMetadataHTTPClient(http.StatusOK, `{
+	metadata, err = FetchInstanceMetadata(fakeMetadataHTTPClient(http.StatusOK, `{
 		"compute": {
 			"name": "NAME",
 			"subscriptionId": "SUBSCRIPTION",

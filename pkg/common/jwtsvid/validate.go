@@ -27,7 +27,7 @@ func NewKeyStore(trustDomainKeys map[spiffeid.TrustDomain]map[string]crypto.Publ
 	}
 }
 
-func (t *keyStore) FindPublicKey(ctx context.Context, td spiffeid.TrustDomain, keyID string) (crypto.PublicKey, error) {
+func (t *keyStore) FindPublicKey(_ context.Context, td spiffeid.TrustDomain, keyID string) (crypto.PublicKey, error) {
 	publicKeys, ok := t.trustDomainKeys[td]
 	if !ok {
 		return nil, fmt.Errorf("no keys found for trust domain %q", td)

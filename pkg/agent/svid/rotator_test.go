@@ -383,7 +383,7 @@ type fakeClient struct {
 	renewErr     error
 }
 
-func (c *fakeClient) RenewSVID(ctx context.Context, csrBytes []byte) (*client.X509SVID, error) {
+func (c *fakeClient) RenewSVID(_ context.Context, csrBytes []byte) (*client.X509SVID, error) {
 	if c.renewErr != nil {
 		return nil, c.renewErr
 	}

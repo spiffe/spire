@@ -254,13 +254,13 @@ func newFakeBucketClient() *fakeBucketClient {
 	return &fakeBucketClient{}
 }
 
-func (c *fakeBucketClient) GetObjectGeneration(ctx context.Context, bucket, object string) (int64, error) {
+func (c *fakeBucketClient) GetObjectGeneration(context.Context, string, string) (int64, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return 99, c.getObjectGenerationErr
 }
 
-func (c *fakeBucketClient) PutObject(ctx context.Context, bucket, object string, data []byte, generation int64) error {
+func (c *fakeBucketClient) PutObject(_ context.Context, bucket, object string, data []byte, generation int64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

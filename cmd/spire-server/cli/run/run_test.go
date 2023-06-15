@@ -419,7 +419,7 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 	}
-	cases = append(cases, mergeInputCasesOS(t)...)
+	cases = append(cases, mergeInputCasesOS()...)
 
 	for _, testCase := range cases {
 		testCase := testCase

@@ -3870,7 +3870,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 			name:        "fetching a federation relationship with corrupted bundle endpoint URL fails nicely",
 			expErr:      "rpc error: code = Unknown desc = unable to parse URL: parse \"not-valid-endpoint-url%\": invalid URL escape \"%\"",
 			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-url.org"),
-			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+			expFR: func() *datastore.FederationRelationship { //nolint // returns nil on purpose
 				model := FederatedTrustDomain{
 					TrustDomain:           "corrupted-bundle-endpoint-url.org",
 					BundleEndpointURL:     "not-valid-endpoint-url%",
@@ -3884,7 +3884,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 			name:        "fetching a federation relationship with corrupted bundle endpoint SPIFFE ID fails nicely",
 			expErr:      "rpc error: code = Unknown desc = unable to parse bundle endpoint SPIFFE ID: scheme is missing or invalid",
 			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-id.org"),
-			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+			expFR: func() *datastore.FederationRelationship { //nolint // returns nil on purpose
 				model := FederatedTrustDomain{
 					TrustDomain:           "corrupted-bundle-endpoint-id.org",
 					BundleEndpointURL:     "corrupted-bundle-endpoint-id.org/bundleendpoint",
@@ -3899,7 +3899,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 			name:        "fetching a federation relationship with corrupted type fails nicely",
 			expErr:      "rpc error: code = Unknown desc = unknown bundle endpoint profile type: \"other\"",
 			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-endpoint-profile.org"),
-			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+			expFR: func() *datastore.FederationRelationship { //nolint // returns nil on purpose
 				model := FederatedTrustDomain{
 					TrustDomain:           "corrupted-endpoint-profile.org",
 					BundleEndpointURL:     "corrupted-endpoint-profile.org/bundleendpoint",

@@ -118,7 +118,7 @@ func getSelectorValuesFromConfig(cfg *container.Config) []string {
 	return selectorValues
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	var err error
 	config := &dockerPluginConfig{}
 	if err = hcl.Decode(config, req.HclConfiguration); err != nil {

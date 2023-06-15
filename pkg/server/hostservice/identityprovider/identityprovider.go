@@ -91,7 +91,7 @@ type identityProviderV1 struct {
 	s *IdentityProvider
 }
 
-func (v1 *identityProviderV1) FetchX509Identity(ctx context.Context, req *identityproviderv1.FetchX509IdentityRequest) (*identityproviderv1.FetchX509IdentityResponse, error) {
+func (v1 *identityProviderV1) FetchX509Identity(ctx context.Context, _ *identityproviderv1.FetchX509IdentityRequest) (*identityproviderv1.FetchX509IdentityResponse, error) {
 	deps, err := v1.s.getDeps()
 	if err != nil {
 		return nil, err

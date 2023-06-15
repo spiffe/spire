@@ -314,7 +314,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	}
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
+func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
 	// Parse HCL config payload into config struct
 	config := new(HCLConfig)
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
