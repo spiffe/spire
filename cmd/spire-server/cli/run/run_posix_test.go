@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -281,5 +282,11 @@ func getAvailablePort() (string, error) {
 		return "", err
 	}
 	defer l.Close()
-	return strconv.Itoa(l.Addr().(*net.TCPAddr).Port), nil
+
+	addrPort, err := netip.ParseAddrPort(l.Addr().String())
+	if err != nil {
+		return "", err
+	}
+
+	return strconv.Itoa(int(addrPort.Port())), nil
 }
