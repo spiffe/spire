@@ -4507,15 +4507,8 @@ func (s *PluginSuite) TestMigration() {
 			switch schemaVersion {
 			// All of these schema versions were migrated by previous versions
 			// of SPIRE server and no longer have migration code.
-			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18:
+			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20:
 				prepareDB(false)
-			case 19:
-				prepareDB(true)
-				require.False(s.ds.db.Dialect().HasColumn("registered_entries", "x509_svid_ttl"))
-				require.True(s.ds.db.Dialect().HasColumn("registered_entries", "jwt_svid_ttl"))
-			case 20:
-				prepareDB(true)
-				require.True(s.ds.db.Dialect().HasIndex("registered_entries", "idx_registered_entries_hint"))
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}
