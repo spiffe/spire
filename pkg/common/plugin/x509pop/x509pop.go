@@ -30,9 +30,10 @@ var DefaultAgentPathTemplate = agentpathtemplate.MustParse("/{{ .PluginName }}/{
 
 type agentPathTemplateData struct {
 	*x509.Certificate
-	Fingerprint string
-	PluginName  string
-	TrustDomain string
+	SerialNumberHex string
+	Fingerprint     string
+	PluginName      string
+	TrustDomain     string
 }
 
 type AttestationData struct {
@@ -267,15 +268,28 @@ func Fingerprint(cert *x509.Certificate) string {
 // MakeAgentID creates an agent ID from X.509 certificate data.
 func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
-		Certificate: cert,
-		PluginName:  PluginName,
-		Fingerprint: Fingerprint(cert),
+		Certificate:     cert,
+		PluginName:      PluginName,
+		SerialNumberHex: SerialNumberHex(cert.SerialNumber),
+		Fingerprint:     Fingerprint(cert),
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
 	}
 
 	return idutil.AgentID(td, agentPath)
+}
+
+// SerialNumberHex returns a certificate serial number represented as lowercase hexadecimal with an even number of characters
+func SerialNumberHex(serialNumber *big.Int) string {
+	serialHex := fmt.Sprintf("%x", serialNumber)
+	if len(serialHex)%2 == 1 {
+		// Append leading 0 in cases where hexadecimal representation is odd number of characters
+		// in order to be more consistent with other tooling that displays certificate serial numbers.
+		serialHex = "0" + serialHex
+	}
+
+	return serialHex
 }
 
 func generateNonce() ([]byte, error) {
