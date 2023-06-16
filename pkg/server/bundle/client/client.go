@@ -58,7 +58,7 @@ func NewClient(config ClientConfig) (Client, error) {
 	if config.SPIFFEAuth != nil {
 		endpointID := config.SPIFFEAuth.EndpointSpiffeID
 		if endpointID.IsZero() {
-			return nil, fmt.Errorf("no SPIFFE ID specified for federation with %q", config.TrustDomain.String())
+			return nil, fmt.Errorf("no SPIFFE ID specified for federation with %q", config.TrustDomain.Name())
 		}
 
 		bundle := x509bundle.FromX509Authorities(endpointID.TrustDomain(), config.SPIFFEAuth.RootCAs)

@@ -41,7 +41,7 @@ func TestBundleToProto(t *testing.T) {
 				},
 			},
 			expectBundle: &types.Bundle{
-				TrustDomain:    td.String(),
+				TrustDomain:    td.Name(),
 				RefreshHint:    10,
 				SequenceNumber: 42,
 				X509Authorities: []*types.X509Certificate{
@@ -108,7 +108,7 @@ func TestProtoToBundle(t *testing.T) {
 		{
 			name: "success",
 			bundle: &types.Bundle{
-				TrustDomain:    td.String(),
+				TrustDomain:    td.Name(),
 				RefreshHint:    10,
 				SequenceNumber: 42,
 				X509Authorities: []*types.X509Certificate{
@@ -141,7 +141,7 @@ func TestProtoToBundle(t *testing.T) {
 		{
 			name: "Invalid X.509 certificate bytes",
 			bundle: &types.Bundle{
-				TrustDomain:    td.String(),
+				TrustDomain:    td.Name(),
 				RefreshHint:    10,
 				SequenceNumber: 42,
 				X509Authorities: []*types.X509Certificate{
@@ -155,7 +155,7 @@ func TestProtoToBundle(t *testing.T) {
 		{
 			name: "Invalid JWT key bytes",
 			bundle: &types.Bundle{
-				TrustDomain:    td.String(),
+				TrustDomain:    td.Name(),
 				RefreshHint:    10,
 				SequenceNumber: 42,
 				JwtAuthorities: []*types.JWTKey{
@@ -171,7 +171,7 @@ func TestProtoToBundle(t *testing.T) {
 		{
 			name: "Empty key ID",
 			bundle: &types.Bundle{
-				TrustDomain:    td.String(),
+				TrustDomain:    td.Name(),
 				RefreshHint:    10,
 				SequenceNumber: 42,
 				JwtAuthorities: []*types.JWTKey{
@@ -230,7 +230,7 @@ func TestFieldsFromBundleProto(t *testing.T) {
 	pkixHashed := api.HashByte(pkixBytes)
 
 	bundle := &types.Bundle{
-		TrustDomain:    td.String(),
+		TrustDomain:    td.Name(),
 		RefreshHint:    10,
 		SequenceNumber: 42,
 		X509Authorities: []*types.X509Certificate{

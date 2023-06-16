@@ -244,7 +244,7 @@ func createBundle(t *testing.T, trustDomain string) (*types.Bundle, string) {
 	require.NoError(t, os.WriteFile(bundlePath, pemutil.EncodeCertificates(ca.Bundle()), 0600))
 
 	return &types.Bundle{
-		TrustDomain: td.String(),
+		TrustDomain: td.Name(),
 		X509Authorities: []*types.X509Certificate{
 			{Asn1: ca.Bundle()[0].Raw},
 		},

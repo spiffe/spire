@@ -87,7 +87,7 @@ func (w *watcher) OnX509ContextUpdate(x509Context *workloadapi.X509Context) {
 			if candidateBundle.TrustDomain() == svid.ID.TrustDomain() {
 				bundle = candidateBundle.X509Authorities()
 			} else {
-				federatedBundles[candidateBundle.TrustDomain().String()] = candidateBundle.X509Authorities()
+				federatedBundles[candidateBundle.TrustDomain().Name()] = candidateBundle.X509Authorities()
 			}
 		}
 

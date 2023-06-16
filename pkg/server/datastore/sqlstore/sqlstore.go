@@ -3629,7 +3629,7 @@ func pruneJoinTokens(tx *gorm.DB, expiresBefore time.Time) error {
 
 func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
 	model := FederatedTrustDomain{
-		TrustDomain:           fr.TrustDomain.String(),
+		TrustDomain:           fr.TrustDomain.Name(),
 		BundleEndpointURL:     fr.BundleEndpointURL.String(),
 		BundleEndpointProfile: string(fr.BundleEndpointProfile),
 	}
@@ -3655,7 +3655,7 @@ func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 
 func deleteFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) error {
 	model := new(FederatedTrustDomain)
-	if err := tx.Find(model, "trust_domain = ?", trustDomain.String()).Error; err != nil {
+	if err := tx.Find(model, "trust_domain = ?", trustDomain.Name()).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	if err := tx.Delete(model).Error; err != nil {
@@ -3666,7 +3666,7 @@ func deleteFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain)
 
 func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
 	var model FederatedTrustDomain
-	err := tx.Find(&model, "trust_domain = ?", trustDomain.String()).Error
+	err := tx.Find(&model, "trust_domain = ?", trustDomain.Name()).Error
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, nil
@@ -3725,7 +3725,7 @@ func listFederationRelationships(tx *gorm.DB, req *datastore.ListFederationRelat
 
 func updateFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) (*datastore.FederationRelationship, error) {
 	var model FederatedTrustDomain
-	err := tx.Find(&model, "trust_domain = ?", fr.TrustDomain.String()).Error
+	err := tx.Find(&model, "trust_domain = ?", fr.TrustDomain.Name()).Error
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch federation relationship: %w", err)
 	}

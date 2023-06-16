@@ -49,7 +49,7 @@ func (e *Endpoints) bundleGetter(ctx context.Context, td spiffeid.TrustDomain) (
 	if serverBundle == nil {
 		if td != e.TrustDomain && shouldLogFederationMisconfiguration(td) {
 			e.Log.
-				WithField(telemetry.TrustDomain, td.String()).
+				WithField(telemetry.TrustDomain, td.Name()).
 				Warn(
 					"No bundle found for foreign admin trust domain; admins from this trust domain will not be able to connect. " +
 						"Make sure this trust domain is correctly federated.",
