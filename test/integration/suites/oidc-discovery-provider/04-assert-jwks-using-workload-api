@@ -1,0 +1,21 @@
+#!/bin/bash
+
+source common
+
+docker-up spire-agent
+
+log-debug "creating registration entry for oidc-provider"
+docker-compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry create -socketPath /opt/spire/conf/server/api.sock \
+  -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+  -spiffeID "spiffe://domain.test/oidc-provider" \
+  -selector "docker:label:org.integration.name:oidc-discovery-provider" \
+  -ttl 0
+
+check-synced-entry "spire-agent" "spiffe://domain.test/oidc-provider"
+
+docker-up oidc-discovery-provider-workload
+
+check-provider-start ${RUNDIR}/conf/oidc-discovery-provider/provider-workload.sock
+
+check-equal-keys ${RUNDIR}/conf/oidc-discovery-provider/provider-workload.sock

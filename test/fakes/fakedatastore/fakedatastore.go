@@ -37,6 +37,7 @@ func New(tb testing.TB) *DataStore {
 	log, _ := test.NewNullLogger()
 
 	ds := sql.New(log)
+	ds.SetUseServerTimestamps(true)
 
 	err := ds.Configure(ctx, fmt.Sprintf(`
 		database_type = "sqlite3"

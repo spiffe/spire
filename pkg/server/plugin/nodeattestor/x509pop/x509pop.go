@@ -240,7 +240,7 @@ func (p *Plugin) setConfiguration(config *configuration) {
 }
 
 func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {
-	selectorValues := []string{}
+	var selectorValues []string
 
 	if leaf.Subject.CommonName != "" {
 		selectorValues = append(selectorValues, "subject:cn:"+leaf.Subject.CommonName)
@@ -261,6 +261,11 @@ func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) [
 
 			selectorValues = append(selectorValues, "ca:fingerprint:"+fp)
 		}
+	}
+
+	if leaf.SerialNumber != nil {
+		serialNumberHex := x509pop.SerialNumberHex(leaf.SerialNumber)
+		selectorValues = append(selectorValues, "serialnumber:"+serialNumberHex)
 	}
 
 	return selectorValues
