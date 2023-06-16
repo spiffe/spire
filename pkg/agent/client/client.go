@@ -171,16 +171,15 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
 	})
 	if err != nil {
 		c.release(connection)
-		errToReturn := fmt.Errorf("failed to renew agent: %w", err)
+		log := c.c.Log
 		if s, ok := status.FromError(err); ok {
-			c.c.Log.WithFields(logrus.Fields{
+			log = log.WithFields(logrus.Fields{
 				"code":    s.Code(),
 				"message": s.Message(),
-			}).WithError(err).Error("Failed to renew agent")
-			return nil, errToReturn
+			})
 		}
-		c.c.Log.WithError(err).Error("Failed to renew agent")
-		return nil, errToReturn
+		log.WithError(err).Error("Failed to renew agent")
+		return nil, fmt.Errorf("failed to renew agent: %w", err)
 	}
 
 	var certChain []byte
@@ -253,16 +252,15 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 	})
 	if err != nil {
 		c.release(connection)
-		errToReturn := fmt.Errorf("failed to fetch JWT SVID: %w", err)
+		log := c.c.Log
 		if s, ok := status.FromError(err); ok {
-			c.c.Log.WithFields(logrus.Fields{
+			log = log.WithFields(logrus.Fields{
 				"code":    s.Code(),
 				"message": s.Message(),
-			}).WithError(err).Error("Failed to fetch JWT SVID")
-			return nil, errToReturn
+			})
 		}
-		c.c.Log.WithError(err).Error("Failed to fetch JWT SVID")
-		return nil, errToReturn
+		log.WithError(err).Error("Failed to fetch JWT SVID")
+		return nil, fmt.Errorf("failed to fetch JWT SVID: %w", err)
 	}
 
 	svid := resp.Svid
@@ -341,16 +339,15 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	})
 	if err != nil {
 		c.release(connection)
-		errToReturn := fmt.Errorf("failed to fetch authorized entries: %w", err)
+		log := c.c.Log
 		if s, ok := status.FromError(err); ok {
-			c.c.Log.WithFields(logrus.Fields{
+			log = log.WithFields(logrus.Fields{
 				"code":    s.Code(),
 				"message": s.Message(),
-			}).WithError(err).Error("Failed to fetch authorized entries")
-			return nil, errToReturn
+			})
 		}
-		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
-		return nil, errToReturn
+		log.WithError(err).Error("Failed to fetch authorized entries")
+		return nil, fmt.Errorf("failed to fetch authorized entries: %w", err)
 	}
 
 	return resp.Entries, err
@@ -369,16 +366,15 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	bundle, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
 		c.release(connection)
-		errToReturn := fmt.Errorf("failed to fetch bundle: %w", err)
+		log := c.c.Log
 		if s, ok := status.FromError(err); ok {
-			c.c.Log.WithFields(logrus.Fields{
+			log = log.WithFields(logrus.Fields{
 				"code":    s.Code(),
 				"message": s.Message(),
-			}).WithError(err).Error("Failed to fetch bundle")
-			return nil, errToReturn
+			})
 		}
-		c.c.Log.WithError(err).Error("Failed to fetch bundle")
-		return nil, errToReturn
+		log.WithError(err).Error("Failed to fetch bundle")
+		return nil, fmt.Errorf("failed to fetch bundle: %w", err)
 	}
 	bundles = append(bundles, bundle)
 
@@ -416,16 +412,15 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDPar
 	})
 	if err != nil {
 		c.release(connection)
-		errToReturn := fmt.Errorf("failed to batch new X509 SVID(s): %w", err)
+		log := c.c.Log
 		if s, ok := status.FromError(err); ok {
-			c.c.Log.WithFields(logrus.Fields{
+			log = log.WithFields(logrus.Fields{
 				"code":    s.Code(),
 				"message": s.Message(),
-			}).WithError(err).Error("Failed to batch new X509 SVID(s)")
-			return nil, errToReturn
+			})
 		}
-		c.c.Log.WithError(err).Error("Failed to batch new X509 SVID(s)")
-		return nil, errToReturn
+		log.WithError(err).Error("Failed to batch new X509 SVID(s)")
+		return nil, fmt.Errorf("failed to batch new X509 SVID(s): %w", err)
 	}
 
 	okStatus := int32(codes.OK)
