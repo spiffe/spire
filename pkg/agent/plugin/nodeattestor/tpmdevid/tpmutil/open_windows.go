@@ -20,6 +20,6 @@ func openTPM(paths ...string) (io.ReadWriteCloser, error) {
 }
 
 // closeTPM we must close always when running on windows
-func closeTPM(closer io.ReadWriteCloser) bool {
+func closeTPM(io.ReadWriteCloser) bool {
 	return true
 }

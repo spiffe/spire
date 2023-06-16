@@ -19,7 +19,7 @@ const (
 	containerMountPointEnvVar = "CONTAINER_SANDBOX_MOUNT_POINT"
 )
 
-func createHelper(p *Plugin) ContainerHelper {
+func createHelper(*Plugin) ContainerHelper {
 	return &containerHelper{
 		ph: process.CreateHelper(),
 	}
@@ -29,14 +29,14 @@ type containerHelper struct {
 	ph process.Helper
 }
 
-func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
+func (h *containerHelper) Configure(config *HCLConfig, _ hclog.Logger) error {
 	if config.Experimental != nil && config.Experimental.Sigstore != nil {
 		return status.Error(codes.InvalidArgument, "sigstore configuration is not supported on windows environment")
 	}
 	return nil
 }
 
-func (h *containerHelper) GetOSSelectors(ctx context.Context, log hclog.Logger, containerStatus *corev1.ContainerStatus) ([]string, error) {
+func (h *containerHelper) GetOSSelectors(context.Context, hclog.Logger, *corev1.ContainerStatus) ([]string, error) {
 	// No additional selectors on windows
 	return nil, nil
 }

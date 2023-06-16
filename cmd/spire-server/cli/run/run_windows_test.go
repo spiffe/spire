@@ -148,7 +148,7 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, c.LogLevel, "INFO")
 }
 
-func mergeInputCasesOS(t *testing.T) []mergeInputCase {
+func mergeInputCasesOS(*testing.T) []mergeInputCase {
 	return []mergeInputCase{
 		{
 			msg: "named_pipe_name should be configurable by file",

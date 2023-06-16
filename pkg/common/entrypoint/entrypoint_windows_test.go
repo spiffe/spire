@@ -47,7 +47,7 @@ func (s *fakeSystemCall) IsWindowsService() (bool, error) {
 	return s.isWindowsService, s.isWindowsServiceErr
 }
 
-func (s *fakeSystemCall) Run(name string, handler svc.Handler) error {
+func (s *fakeSystemCall) Run(string, svc.Handler) error {
 	var (
 		wg            sync.WaitGroup
 		svcSpecificEC bool

@@ -136,10 +136,9 @@ func (a *api) QuerySystemExtendedHandleInformation() ([]SystemHandleInformationE
 				buffer = make([]byte, int(retLen))
 			}
 			continue
-		} else {
-			// if no error
-			break
 		}
+		// if no error
+		break
 	}
 
 	if status>>30 != 3 {
