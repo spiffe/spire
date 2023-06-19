@@ -171,8 +171,7 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
 	})
 	if err != nil {
 		c.release(connection)
-		c.addErrorFields(err)
-		c.c.Log.WithError(err).Error("Failed to renew agent")
+		c.addErrorFields(err).Error("Failed to renew agent")
 		return nil, fmt.Errorf("failed to renew agent: %w", err)
 	}
 
@@ -246,8 +245,7 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 	})
 	if err != nil {
 		c.release(connection)
-		c.addErrorFields(err)
-		c.c.Log.WithError(err).Error("Failed to fetch JWT SVID")
+		c.addErrorFields(err).Error("Failed to fetch JWT SVID")
 		return nil, fmt.Errorf("failed to fetch JWT SVID: %w", err)
 	}
 
@@ -327,8 +325,7 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	})
 	if err != nil {
 		c.release(connection)
-		c.addErrorFields(err)
-		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
+		c.addErrorFields(err).Error("Failed to fetch authorized entries")
 		return nil, fmt.Errorf("failed to fetch authorized entries: %w", err)
 	}
 
@@ -348,8 +345,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	bundle, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
 		c.release(connection)
-		c.addErrorFields(err)
-		c.c.Log.WithError(err).Error("Failed to fetch bundle")
+		c.addErrorFields(err).Error("Failed to fetch bundle")
 		return nil, fmt.Errorf("failed to fetch bundle: %w", err)
 	}
 	bundles = append(bundles, bundle)
@@ -362,16 +358,13 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
 			TrustDomain: federatedTD.String(),
 		})
-
-		c.addErrorFields(err)
-
 		switch status.Code(err) {
 		case codes.OK:
 			bundles = append(bundles, bundle)
 		case codes.NotFound:
-			c.c.Log.WithError(err).WithField(telemetry.FederatedBundle, b).Warn("Federated bundle not found")
+			c.addErrorFields(err).WithField(telemetry.FederatedBundle, b).Warn("Federated bundle not found")
 		default:
-			c.c.Log.WithError(err).WithField(telemetry.FederatedBundle, b).Error("Failed to fetch federated bundle")
+			c.addErrorFields(err).WithField(telemetry.FederatedBundle, b).Error("Failed to fetch federated bundle")
 			return nil, fmt.Errorf("failed to fetch federated bundle: %w", err)
 		}
 	}
@@ -391,8 +384,7 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDPar
 	})
 	if err != nil {
 		c.release(connection)
-		c.addErrorFields(err)
-		c.c.Log.WithError(err).Error("Failed to batch new X509 SVID(s)")
+		c.addErrorFields(err).Error("Failed to batch new X509 SVID(s)")
 		return nil, fmt.Errorf("failed to batch new X509 SVID(s): %w", err)
 	}
 
@@ -475,11 +467,13 @@ func (c *client) newAgentClient(ctx context.Context) (agentv1.AgentClient, *node
 }
 
 // addErrorFields add fields of gRPC call status in logger
-func (c *client) addErrorFields(err error) {
+func (c *client) addErrorFields(err error) logrus.FieldLogger {
 	if s, ok := status.FromError(err); ok {
-		c.c.Log.WithFields(logrus.Fields{
+		c.c.Log = c.c.Log.WithFields(logrus.Fields{
 			telemetry.StatusCode:    s.Code(),
 			telemetry.StatusMessage: s.Message(),
 		})
 	}
+
+	return c.c.Log.WithError(err)
 }
