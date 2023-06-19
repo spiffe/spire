@@ -5,6 +5,8 @@ import (
 	"crypto"
 	"crypto/x509"
 	"errors"
+	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"sync"
 	"testing"
 	"time"
@@ -908,4 +910,62 @@ type testClient struct {
 	bundleClient *fakeBundleClient
 	entryClient  *fakeEntryClient
 	svidClient   *fakeSVIDClient
+}
+
+func Test_client_addErrorFields(t *testing.T) {
+	log := logrus.New()
+
+	type fields struct {
+		c *Config
+	}
+	type args struct {
+		err error
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   logrus.FieldLogger
+	}{
+		{
+			name: "OK_status",
+			fields: fields{
+				c: &Config{
+					Log: log,
+				},
+			},
+			args: args{
+				err: status.Error(codes.OK, ""),
+			},
+			want: log.WithFields(
+				logrus.Fields{
+					telemetry.StatusCode:    codes.OK,
+					telemetry.StatusMessage: "",
+				}).WithError(status.Error(codes.OK, "")),
+		},
+		{
+			name: "NotFound_status",
+			fields: fields{
+				c: &Config{
+					Log: log,
+				},
+			},
+			args: args{
+				err: status.Error(codes.NotFound, "NotFound"),
+			},
+			want: log.WithFields(
+				logrus.Fields{
+					telemetry.StatusCode:    codes.NotFound,
+					telemetry.StatusMessage: "NotFound",
+				}).WithError(status.Error(codes.NotFound, "NotFound")),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &client{
+				c: tt.fields.c,
+			}
+			assert.Equalf(t, tt.want, c.addErrorFields(tt.args.err), "addErrorFields(%v)", tt.args.err)
+		})
+	}
 }
