@@ -1141,23 +1141,23 @@ type badCC struct {
 	catalog.PluginInfo
 }
 
-func (badCC) ComposeServerX509CA(ctx context.Context, attributes credentialcomposer.X509CAAttributes) (credentialcomposer.X509CAAttributes, error) {
+func (badCC) ComposeServerX509CA(context.Context, credentialcomposer.X509CAAttributes) (credentialcomposer.X509CAAttributes, error) {
 	return credentialcomposer.X509CAAttributes{}, errors.New("oh no")
 }
 
-func (badCC) ComposeServerX509SVID(ctx context.Context, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
+func (badCC) ComposeServerX509SVID(context.Context, credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
 	return credentialcomposer.X509SVIDAttributes{}, errors.New("oh no")
 }
 
-func (badCC) ComposeAgentX509SVID(ctx context.Context, id spiffeid.ID, publicKey crypto.PublicKey, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
+func (badCC) ComposeAgentX509SVID(context.Context, spiffeid.ID, crypto.PublicKey, credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
 	return credentialcomposer.X509SVIDAttributes{}, errors.New("oh no")
 }
 
-func (badCC) ComposeWorkloadX509SVID(ctx context.Context, id spiffeid.ID, publicKey crypto.PublicKey, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
+func (badCC) ComposeWorkloadX509SVID(context.Context, spiffeid.ID, crypto.PublicKey, credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
 	return credentialcomposer.X509SVIDAttributes{}, errors.New("oh no")
 }
 
-func (badCC) ComposeWorkloadJWTSVID(ctx context.Context, id spiffeid.ID, attributes credentialcomposer.JWTSVIDAttributes) (credentialcomposer.JWTSVIDAttributes, error) {
+func (badCC) ComposeWorkloadJWTSVID(context.Context, spiffeid.ID, credentialcomposer.JWTSVIDAttributes) (credentialcomposer.JWTSVIDAttributes, error) {
 	return credentialcomposer.JWTSVIDAttributes{}, errors.New("oh no")
 }
 
@@ -1169,7 +1169,7 @@ type fakeCC struct {
 	onlyFoo        bool
 }
 
-func (cc fakeCC) ComposeServerX509CA(ctx context.Context, attributes credentialcomposer.X509CAAttributes) (credentialcomposer.X509CAAttributes, error) {
+func (cc fakeCC) ComposeServerX509CA(_ context.Context, attributes credentialcomposer.X509CAAttributes) (credentialcomposer.X509CAAttributes, error) {
 	attributes.Subject.CommonName = cc.applySuffix("OVERRIDE")
 	if !cc.onlyCommonName {
 		attributes.PolicyIdentifiers = []asn1.ObjectIdentifier{makeOID(cc.id)}
@@ -1178,19 +1178,19 @@ func (cc fakeCC) ComposeServerX509CA(ctx context.Context, attributes credentialc
 	return attributes, nil
 }
 
-func (cc fakeCC) ComposeServerX509SVID(ctx context.Context, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
+func (cc fakeCC) ComposeServerX509SVID(_ context.Context, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
 	return cc.overrideX509SVIDAttributes(attributes), nil
 }
 
-func (cc fakeCC) ComposeAgentX509SVID(ctx context.Context, id spiffeid.ID, publicKey crypto.PublicKey, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
+func (cc fakeCC) ComposeAgentX509SVID(_ context.Context, _ spiffeid.ID, _ crypto.PublicKey, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
 	return cc.overrideX509SVIDAttributes(attributes), nil
 }
 
-func (cc fakeCC) ComposeWorkloadX509SVID(ctx context.Context, id spiffeid.ID, publicKey crypto.PublicKey, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
+func (cc fakeCC) ComposeWorkloadX509SVID(_ context.Context, _ spiffeid.ID, _ crypto.PublicKey, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
 	return cc.overrideX509SVIDAttributes(attributes), nil
 }
 
-func (cc fakeCC) ComposeWorkloadJWTSVID(ctx context.Context, id spiffeid.ID, attributes credentialcomposer.JWTSVIDAttributes) (credentialcomposer.JWTSVIDAttributes, error) {
+func (cc fakeCC) ComposeWorkloadJWTSVID(_ context.Context, _ spiffeid.ID, attributes credentialcomposer.JWTSVIDAttributes) (credentialcomposer.JWTSVIDAttributes, error) {
 	attributes.Claims["foo"] = cc.applySuffix("VALUE")
 	if !cc.onlyFoo {
 		attributes.Claims["bar"] = cc.applySuffix("VALUE")

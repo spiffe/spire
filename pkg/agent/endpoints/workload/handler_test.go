@@ -1551,7 +1551,7 @@ type FakeManager struct {
 	err         error
 }
 
-func (m *FakeManager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
+func (m *FakeManager) MatchingRegistrationEntries([]*common.Selector) []*common.RegistrationEntry {
 	out := make([]*common.RegistrationEntry, 0, len(m.identities))
 	for _, identity := range m.identities {
 		out = append(out, identity.Entry)
@@ -1559,7 +1559,7 @@ func (m *FakeManager) MatchingRegistrationEntries(selectors []*common.Selector) 
 	return out
 }
 
-func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
+func (m *FakeManager) FetchJWTSVID(_ context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
 	svid := m.ca.CreateJWTSVID(spiffeID, audience)
 	if m.err != nil {
 		return nil, m.err
@@ -1569,7 +1569,7 @@ func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, au
 	}, nil
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) (cache.Subscriber, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -1577,7 +1577,7 @@ func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cac
 	return newFakeSubscriber(m, m.updates), nil
 }
 
-func (m *FakeManager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {
+func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate {
 	if len(m.updates) == 0 {
 		return &cache.WorkloadUpdate{}
 	}
@@ -1632,7 +1632,7 @@ type FakeAttestor struct {
 	err       error
 }
 
-func (a *FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
+func (a *FakeAttestor) Attest(context.Context) ([]*common.Selector, error) {
 	return a.selectors, a.err
 }
 

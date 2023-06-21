@@ -22,13 +22,13 @@ type metricsMiddleware struct {
 	metrics telemetry.Metrics
 }
 
-func (m metricsMiddleware) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+func (m metricsMiddleware) Preprocess(ctx context.Context, fullMethod string, _ interface{}) (context.Context, error) {
 	ctx, names := withNames(ctx, fullMethod)
 	counter := telemetry.StartCall(m.metrics, "rpc", names.MetricKey...)
 	return rpccontext.WithCallCounter(ctx, counter), nil
 }
 
-func (m metricsMiddleware) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
+func (m metricsMiddleware) Postprocess(ctx context.Context, _ string, _ bool, rpcErr error) {
 	counter, ok := rpccontext.CallCounter(ctx).(*telemetry.CallCounter)
 	if !ok {
 		LogMisconfiguration(ctx, "Metrics misconfigured; this is a bug")

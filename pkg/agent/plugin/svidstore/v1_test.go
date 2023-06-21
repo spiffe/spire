@@ -196,7 +196,7 @@ type fakePluginV1 struct {
 }
 
 // Deletes stored SVID
-func (p *fakePluginV1) DeleteX509SVID(ctx context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
+func (p *fakePluginV1) DeleteX509SVID(_ context.Context, req *svidstorev1.DeleteX509SVIDRequest) (*svidstorev1.DeleteX509SVIDResponse, error) {
 	if len(req.Metadata) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "oh no!")
 	}
@@ -205,7 +205,7 @@ func (p *fakePluginV1) DeleteX509SVID(ctx context.Context, req *svidstorev1.Dele
 	return &svidstorev1.DeleteX509SVIDResponse{}, nil
 }
 
-func (p *fakePluginV1) PutX509SVID(ctx context.Context, req *svidstorev1.PutX509SVIDRequest) (*svidstorev1.PutX509SVIDResponse, error) {
+func (p *fakePluginV1) PutX509SVID(_ context.Context, req *svidstorev1.PutX509SVIDRequest) (*svidstorev1.PutX509SVIDResponse, error) {
 	if len(req.Metadata) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "oh no!")
 	}

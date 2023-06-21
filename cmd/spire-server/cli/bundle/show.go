@@ -41,7 +41,7 @@ func (c *showCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintBundle)
 }
 
-func (c *showCommand) Run(ctx context.Context, env *common_cli.Env, serverClient util.ServerClient) error {
+func (c *showCommand) Run(ctx context.Context, _ *common_cli.Env, serverClient util.ServerClient) error {
 	bundleClient := serverClient.NewBundleClient()
 	resp, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {

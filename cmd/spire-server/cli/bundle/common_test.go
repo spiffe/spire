@@ -257,7 +257,7 @@ type fakeBundleServer struct {
 	toDelete          []string
 }
 
-func (f *fakeBundleServer) GetBundle(ctx context.Context, in *bundlev1.GetBundleRequest) (*types.Bundle, error) {
+func (f *fakeBundleServer) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -266,7 +266,7 @@ func (f *fakeBundleServer) GetBundle(ctx context.Context, in *bundlev1.GetBundle
 	return f.bundles[0], nil
 }
 
-func (f *fakeBundleServer) BatchSetFederatedBundle(ctx context.Context, req *bundlev1.BatchSetFederatedBundleRequest) (*bundlev1.BatchSetFederatedBundleResponse, error) {
+func (f *fakeBundleServer) BatchSetFederatedBundle(_ context.Context, req *bundlev1.BatchSetFederatedBundleRequest) (*bundlev1.BatchSetFederatedBundleResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -293,7 +293,7 @@ func (f *fakeBundleServer) ListFederatedBundles(context.Context, *bundlev1.ListF
 	}, nil
 }
 
-func (f *fakeBundleServer) GetFederatedBundle(ctx context.Context, req *bundlev1.GetFederatedBundleRequest) (*types.Bundle, error) {
+func (f *fakeBundleServer) GetFederatedBundle(_ context.Context, req *bundlev1.GetFederatedBundleRequest) (*types.Bundle, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -307,7 +307,7 @@ func (f *fakeBundleServer) GetFederatedBundle(ctx context.Context, req *bundlev1
 	return nil, status.New(codes.NotFound, "not found").Err()
 }
 
-func (f *fakeBundleServer) BatchDeleteFederatedBundle(ctx context.Context, req *bundlev1.BatchDeleteFederatedBundleRequest) (*bundlev1.BatchDeleteFederatedBundleResponse, error) {
+func (f *fakeBundleServer) BatchDeleteFederatedBundle(_ context.Context, req *bundlev1.BatchDeleteFederatedBundleRequest) (*bundlev1.BatchDeleteFederatedBundleResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

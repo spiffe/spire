@@ -128,7 +128,7 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.51.1
+golangci_lint_version = v1.53.3
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache

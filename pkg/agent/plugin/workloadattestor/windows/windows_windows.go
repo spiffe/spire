@@ -62,7 +62,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
+func (p *Plugin) Attest(_ context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool) (*processInfo, error)
 	return processInfo, nil
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := new(Configuration)
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)

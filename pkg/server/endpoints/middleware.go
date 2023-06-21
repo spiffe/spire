@@ -27,7 +27,7 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
-		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(log, ds, clk), adminIDs),
+		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(ds, clk), adminIDs),
 		middleware.WithRateLimits(RateLimits(rlConf), metrics),
 	}
 
@@ -57,7 +57,7 @@ func UpstreamPublisher(jwtKeyPublisher manager.JwtKeyPublisher) bundle.UpstreamP
 	return bundle.UpstreamPublisherFunc(jwtKeyPublisher.PublishJWTKey)
 }
 
-func AgentAuthorizer(log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock) middleware.AgentAuthorizer {
+func AgentAuthorizer(ds datastore.DataStore, clk clock.Clock) middleware.AgentAuthorizer {
 	return middleware.AgentAuthorizerFunc(func(ctx context.Context, agentID spiffeid.ID, agentSVID *x509.Certificate) error {
 		id := agentID.String()
 		log := rpccontext.Logger(ctx)

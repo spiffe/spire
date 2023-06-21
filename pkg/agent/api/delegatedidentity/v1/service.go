@@ -205,7 +205,7 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentit
 	return resp, nil
 }
 
-func (s *Service) SubscribeToX509Bundles(req *delegatedidentityv1.SubscribeToX509BundlesRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509BundlesServer) error {
+func (s *Service) SubscribeToX509Bundles(_ *delegatedidentityv1.SubscribeToX509BundlesRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509BundlesServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
 
@@ -313,7 +313,7 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 	return resp, nil
 }
 
-func (s *Service) SubscribeToJWTBundles(req *delegatedidentityv1.SubscribeToJWTBundlesRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToJWTBundlesServer) error {
+func (s *Service) SubscribeToJWTBundles(_ *delegatedidentityv1.SubscribeToJWTBundlesRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToJWTBundlesServer) error {
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
 

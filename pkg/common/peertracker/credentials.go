@@ -38,8 +38,8 @@ func (c *grpcCredentials) Info() credentials.ProtocolInfo {
 }
 
 func (c *grpcCredentials) Clone() credentials.TransportCredentials {
-	copy := *c
-	return &copy
+	credentialsCopy := *c
+	return &credentialsCopy
 }
 
 func (c *grpcCredentials) OverrideServerName(_ string) error {

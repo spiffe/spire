@@ -70,7 +70,7 @@ type getInfoResp struct {
 }
 
 // GetInfo gets SPIRE Server debug information
-func (s *Service) GetInfo(ctx context.Context, req *debugv1.GetInfoRequest) (*debugv1.GetInfoResponse, error) {
+func (s *Service) GetInfo(ctx context.Context, _ *debugv1.GetInfoRequest) (*debugv1.GetInfoResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	s.getInfoResp.mtx.Lock()

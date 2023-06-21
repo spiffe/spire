@@ -30,7 +30,7 @@ func (e *Endpoints) restrictLocalAddr() error {
 	return nil
 }
 
-func prepareLocalAddr(localAddr net.Addr) error {
+func prepareLocalAddr(net.Addr) error {
 	// Nothing to do in this platform
 	return nil
 }

@@ -187,7 +187,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	})
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	trustDomain, err := parseCoreConfig(req.CoreConfiguration)
 	if err != nil {
 		return nil, err

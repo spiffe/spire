@@ -35,7 +35,7 @@ func (c *fetchJWTCommand) synopsis() string {
 	return "Fetches a JWT SVID from the Workload API"
 }
 
-func (c *fetchJWTCommand) run(ctx context.Context, env *commoncli.Env, client *workloadClient) error {
+func (c *fetchJWTCommand) run(ctx context.Context, _ *commoncli.Env, client *workloadClient) error {
 	if len(c.audience) == 0 {
 		return errors.New("audience must be specified")
 	}

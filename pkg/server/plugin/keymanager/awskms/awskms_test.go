@@ -85,7 +85,7 @@ func TestKeyManagerContract(t *testing.T) {
 		dir := spiretest.TempDir(t)
 		c := clock.NewMock()
 		fakeKMSClient := newKMSClientFake(t, c)
-		fakeSTSClient := newSTSClientFake(t)
+		fakeSTSClient := newSTSClientFake()
 		p := newPlugin(
 			func(aws.Config) (kmsClient, error) { return fakeKMSClient, nil },
 			func(aws.Config) (stsClient, error) { return fakeSTSClient, nil },
@@ -127,7 +127,7 @@ func setupTest(t *testing.T) *pluginTest {
 
 	c := clock.NewMock()
 	fakeKMSClient := newKMSClientFake(t, c)
-	fakeSTSClient := newSTSClientFake(t)
+	fakeSTSClient := newSTSClientFake()
 	p := newPlugin(
 		func(aws.Config) (kmsClient, error) { return fakeKMSClient, nil },
 		func(aws.Config) (stsClient, error) { return fakeSTSClient, nil },

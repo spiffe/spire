@@ -91,7 +91,7 @@ func (m *m3Sink) SetGaugeWithLabels(key []string, val float32, labels []Label) {
 }
 
 // Not implemented for m3
-func (m *m3Sink) EmitKey(key []string, val float32) {}
+func (m *m3Sink) EmitKey([]string, float32) {}
 
 // Counters should accumulate values
 func (m *m3Sink) IncrCounter(key []string, val float32) {

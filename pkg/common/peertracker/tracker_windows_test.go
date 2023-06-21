@@ -203,24 +203,24 @@ type fakeSystemCall struct {
 	isCompareObjectHandlesNotFound bool
 }
 
-func (s *fakeSystemCall) CloseHandle(h windows.Handle) error {
+func (s *fakeSystemCall) CloseHandle(windows.Handle) error {
 	return s.closeHandleErr
 }
 
-func (s *fakeSystemCall) CompareObjectHandles(h1, h2 windows.Handle) error {
+func (s *fakeSystemCall) CompareObjectHandles(windows.Handle, windows.Handle) error {
 	return s.compareObjectHandlesErr
 }
 
-func (s *fakeSystemCall) GetExitCodeProcess(h windows.Handle, exitCode *uint32) error {
+func (s *fakeSystemCall) GetExitCodeProcess(_ windows.Handle, exitCode *uint32) error {
 	*exitCode = s.exitCode
 	return s.getExitCodeProcessErr
 }
 
-func (s *fakeSystemCall) GetProcessID(h windows.Handle) (uint32, error) {
+func (s *fakeSystemCall) GetProcessID(windows.Handle) (uint32, error) {
 	return s.processID, s.getProcessIDErr
 }
 
-func (s *fakeSystemCall) OpenProcess(pid int32) (handle windows.Handle, err error) {
+func (s *fakeSystemCall) OpenProcess(int32) (handle windows.Handle, err error) {
 	return s.handle, s.openProcessErr
 }
 

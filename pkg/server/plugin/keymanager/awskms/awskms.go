@@ -265,7 +265,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 }
 
 // GetPublicKey returns the public key for a given key
-func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
+func (p *Plugin) GetPublicKey(_ context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}

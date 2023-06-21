@@ -39,7 +39,7 @@ func (*countCommand) Synopsis() string {
 }
 
 // Run counts attested entries
-func (c *countCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *countCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	entryClient := serverClient.NewEntryClient()
 	countResponse, err := entryClient.CountEntries(ctx, &entryv1.CountEntriesRequest{})
 	if err != nil {

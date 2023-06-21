@@ -94,7 +94,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	})
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	if req.CoreConfiguration == nil {
 		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
 	}

@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-func getLocalAddr(t *testing.T) net.Addr {
+func getLocalAddr(*testing.T) net.Addr {
 	return spiretest.GetRandNamedPipeAddr()
 }
 

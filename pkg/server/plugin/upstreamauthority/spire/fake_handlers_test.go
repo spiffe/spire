@@ -218,7 +218,7 @@ func (h *handler) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types
 	return h.getBundle(), nil
 }
 
-func (h *handler) PublishJWTAuthority(ctx context.Context, req *bundlev1.PublishJWTAuthorityRequest) (*bundlev1.PublishJWTAuthorityResponse, error) {
+func (h *handler) PublishJWTAuthority(_ context.Context, req *bundlev1.PublishJWTAuthorityRequest) (*bundlev1.PublishJWTAuthorityResponse, error) {
 	if err := h.getError(); err != nil {
 		return nil, err
 	}

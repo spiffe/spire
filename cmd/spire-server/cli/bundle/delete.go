@@ -53,7 +53,7 @@ func (c *deleteCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintDelete)
 }
 
-func (c *deleteCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	if c.id == "" {
 		return errors.New("id is required")
 	}

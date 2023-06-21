@@ -63,7 +63,7 @@ func RegisterService(s *grpc.Server, service *Service) {
 }
 
 // CountBundles returns the total number of bundles.
-func (s *Service) CountBundles(ctx context.Context, req *bundlev1.CountBundlesRequest) (*bundlev1.CountBundlesResponse, error) {
+func (s *Service) CountBundles(ctx context.Context, _ *bundlev1.CountBundlesRequest) (*bundlev1.CountBundlesResponse, error) {
 	count, err := s.ds.CountBundles(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)

@@ -722,7 +722,7 @@ type FakeAttestor struct {
 	err       error
 }
 
-func (fa FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
+func (fa FakeAttestor) Attest(context.Context) ([]*common.Selector, error) {
 	return fa.selectors, fa.err
 }
 
@@ -747,7 +747,7 @@ func (m *FakeManager) subscriberDone() {
 	atomic.AddInt32(&m.subscribers, -1)
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) (cache.Subscriber, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -755,7 +755,7 @@ func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cac
 	return newFakeSubscriber(m, m.updates), nil
 }
 
-func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
+func (m *FakeManager) FetchJWTSVID(_ context.Context, spiffeID spiffeid.ID, _ []string) (*client.JWTSVID, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -766,7 +766,7 @@ func (m *FakeManager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, au
 	return svid, nil
 }
 
-func (m *FakeManager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
+func (m *FakeManager) MatchingRegistrationEntries([]*common.Selector) []*common.RegistrationEntry {
 	out := make([]*common.RegistrationEntry, 0, len(m.identities))
 	for _, identity := range m.identities {
 		out = append(out, identity.Entry)
