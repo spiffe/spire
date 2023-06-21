@@ -481,7 +481,7 @@ func TestNewServerConfig(t *testing.T) {
 			msg:         "invalid bind_address should return an error",
 			expectError: true,
 			input: func(c *Config) {
-				c.Server.BindAddress = "this-is-not-an-ip-address"
+				c.Server.BindAddress = "^[notavalidhostname*!"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
