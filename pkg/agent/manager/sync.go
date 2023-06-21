@@ -15,7 +15,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -116,14 +115,15 @@ func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVI
 	staleEntries := c.GetStaleEntries()
 	if len(staleEntries) > 0 {
 		var csrs []csrRequest
+		sizeLimit := m.csrSizeLimitedBackoff.NextBackOff()
 		log.WithFields(logrus.Fields{
 			telemetry.Count: len(staleEntries),
-			telemetry.Limit: limits.SignLimitPerIP,
+			telemetry.Limit: sizeLimit,
 		}).Debug("Renewing stale entries")
 
 		for _, entry := range staleEntries {
 			// we've exceeded the CSR limit, don't make any more CSRs
-			if len(csrs) >= limits.SignLimitPerIP {
+			if len(csrs) >= sizeLimit {
 				break
 			}
 
@@ -136,8 +136,10 @@ func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVI
 
 		update, err := m.fetchSVIDs(ctx, csrs)
 		if err != nil {
+			m.csrSizeLimitedBackoff.Failure()
 			return err
 		}
+		m.csrSizeLimitedBackoff.Success()
 		// the values in `update` now belong to the cache. DO NOT MODIFY.
 		c.UpdateSVIDs(update)
 	}

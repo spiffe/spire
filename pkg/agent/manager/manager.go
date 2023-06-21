@@ -22,7 +22,14 @@ import (
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/proto/spire/common"
+)
+
+const (
+	maxSVIDSyncInterval = 4 * time.Minute
+	// for sync interval of 5 sec this will result in max of 4 mins of backoff
+	synchronizeMaxIntervalMultiple = 48
 )
 
 // Manager provides cache management functionalities for agents.
@@ -132,6 +139,8 @@ type manager struct {
 	// fetch attempt
 	synchronizeBackoff backoff.BackOff
 	svidSyncBackoff    backoff.BackOff
+	// csrSizeLimitedBackoff backs off the number of csrs if error is returned on fetch svid attempt
+	csrSizeLimitedBackoff backoff.SizeLimitedBackOff
 
 	client client.Client
 
@@ -148,8 +157,9 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
 	m.storeBundle(m.cache.Bundle())
 
-	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
-	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval)
+	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval, backoff.WithMaxInterval(synchronizeMaxIntervalMultiple*m.c.SyncInterval))
+	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
+	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
 
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {
