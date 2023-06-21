@@ -202,22 +202,16 @@ func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expires
 
 // TaintX509CAByKey taints an X.509 CA signed using the provided public key
 func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
-	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return taintX509CA(tx, trustDoaminID, publicKey)
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // RevokeX509CA removes a Root CA from the bundle
 func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
-	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return revokeX509CA(tx, trustDoaminID, publicKey)
-	}); err != nil {
-		return err
-	}
-	return nil
+	})
 }
 
 // TaintJWTKey taints a JWT Authority key
@@ -570,7 +564,7 @@ func (ds *Plugin) SetUseServerTimestamps(useServerTimestamps bool) {
 
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
 // prunes all orphaned records
-func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
+func (ds *Plugin) Configure(_ context.Context, hclConfiguration string) error {
 	config := &configuration{}
 	if err := hcl.Decode(config, hclConfiguration); err != nil {
 		return err
@@ -580,11 +574,7 @@ func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error 
 		return err
 	}
 
-	if err := ds.openConnections(config); err != nil {
-		return err
-	}
-
-	return nil
+	return ds.openConnections(config)
 }
 
 func (ds *Plugin) openConnections(config *configuration) error {

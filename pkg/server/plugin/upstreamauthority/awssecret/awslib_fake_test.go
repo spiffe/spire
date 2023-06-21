@@ -32,7 +32,7 @@ type testKeysAndCerts struct {
 	intermediateCert *x509.Certificate
 }
 
-func (sm *fakeSecretsManagerClient) GetSecretValue(ctx context.Context, input *secretsmanager.GetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+func (sm *fakeSecretsManagerClient) GetSecretValue(_ context.Context, input *secretsmanager.GetSecretValueInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
 	if value, ok := sm.storage[*input.SecretId]; ok {
 		return &secretsmanager.GetSecretValueOutput{
 			ARN:          input.SecretId,

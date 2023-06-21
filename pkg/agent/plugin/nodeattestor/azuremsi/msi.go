@@ -48,7 +48,7 @@ type MSIAttestorPlugin struct {
 	config *MSIAttestorConfig
 
 	hooks struct {
-		fetchMSIToken func(context.Context, azure.HTTPClient, string) (string, error)
+		fetchMSIToken func(azure.HTTPClient, string) (string, error)
 	}
 }
 
@@ -65,7 +65,7 @@ func (p *MSIAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 	}
 
 	// Obtain an MSI token from the Azure Instance Metadata Service
-	token, err := p.hooks.fetchMSIToken(stream.Context(), http.DefaultClient, config.ResourceID)
+	token, err := p.hooks.fetchMSIToken(http.DefaultClient, config.ResourceID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to fetch token: %v", err)
 	}
@@ -84,7 +84,7 @@ func (p *MSIAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 	})
 }
 
-func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := new(MSIAttestorConfig)
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)

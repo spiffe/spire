@@ -20,15 +20,15 @@ func (fakeKeyManager) Name() string { return "" }
 
 func (fakeKeyManager) Type() string { return "" }
 
-func (fakeKeyManager) GenerateKey(ctx context.Context, id string, keyType keymanager.KeyType) (_ keymanager.Key, err error) {
+func (fakeKeyManager) GenerateKey(context.Context, string, keymanager.KeyType) (_ keymanager.Key, err error) {
 	return fakeKey{}, nil
 }
 
-func (fakeKeyManager) GetKey(ctx context.Context, id string) (_ keymanager.Key, err error) {
+func (fakeKeyManager) GetKey(context.Context, string) (_ keymanager.Key, err error) {
 	return fakeKey{}, nil
 }
 
-func (fakeKeyManager) GetKeys(ctx context.Context) (_ []keymanager.Key, err error) {
+func (fakeKeyManager) GetKeys(context.Context) (_ []keymanager.Key, err error) {
 	return []keymanager.Key{fakeKey{}}, nil
 }
 
@@ -36,7 +36,7 @@ type fakeKey struct{}
 
 func (fakeKey) ID() string { return "" }
 
-func (fakeKey) Sign(rand io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
+func (fakeKey) Sign(io.Reader, []byte, crypto.SignerOpts) ([]byte, error) {
 	return nil, nil
 }
 

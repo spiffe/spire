@@ -73,7 +73,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 }
 
 // Configure configures the Plugin.
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	sshclient, err := sshpop.NewClient(req.HclConfiguration)
 	if err != nil {
 		return nil, err

@@ -245,7 +245,7 @@ func (h3 *fakeIAMHandle3) Policy(context.Context) (*iam.Policy3, error) {
 	return &iam.Policy3{}, nil
 }
 
-func (h3 *fakeIAMHandle3) SetPolicy(ctx context.Context, policy *iam.Policy3) error {
+func (h3 *fakeIAMHandle3) SetPolicy(_ context.Context, policy *iam.Policy3) error {
 	h3.mu.Lock()
 	defer h3.mu.Unlock()
 
@@ -385,7 +385,7 @@ func (k *fakeKMSClient) setUpdateCryptoKeyErr(fakeError error) {
 	k.updateCryptoKeyErr = fakeError
 }
 
-func (k *fakeKMSClient) AsymmetricSign(ctx context.Context, signReq *kmspb.AsymmetricSignRequest, opts ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error) {
+func (k *fakeKMSClient) AsymmetricSign(_ context.Context, signReq *kmspb.AsymmetricSignRequest, _ ...gax.CallOption) (*kmspb.AsymmetricSignResponse, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
@@ -457,7 +457,7 @@ func (k *fakeKMSClient) Close() error {
 	return k.closeErr
 }
 
-func (k *fakeKMSClient) CreateCryptoKey(ctx context.Context, req *kmspb.CreateCryptoKeyRequest, opts ...gax.CallOption) (*kmspb.CryptoKey, error) {
+func (k *fakeKMSClient) CreateCryptoKey(_ context.Context, req *kmspb.CreateCryptoKeyRequest, _ ...gax.CallOption) (*kmspb.CryptoKey, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
@@ -487,7 +487,7 @@ func (k *fakeKMSClient) CreateCryptoKey(ctx context.Context, req *kmspb.CreateCr
 	return cryptoKey, nil
 }
 
-func (k *fakeKMSClient) CreateCryptoKeyVersion(ctx context.Context, req *kmspb.CreateCryptoKeyVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
+func (k *fakeKMSClient) CreateCryptoKeyVersion(_ context.Context, req *kmspb.CreateCryptoKeyVersionRequest, _ ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 
@@ -513,7 +513,7 @@ func (k *fakeKMSClient) CreateCryptoKeyVersion(ctx context.Context, req *kmspb.C
 	}, nil
 }
 
-func (k *fakeKMSClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.DestroyCryptoKeyVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
+func (k *fakeKMSClient) DestroyCryptoKeyVersion(_ context.Context, req *kmspb.DestroyCryptoKeyVersionRequest, _ ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
 	if k.destroyCryptoKeyVersionErr != nil {
 		return nil, k.destroyCryptoKeyVersionErr
 	}
@@ -548,7 +548,7 @@ func (k *fakeKMSClient) DestroyCryptoKeyVersion(ctx context.Context, req *kmspb.
 	return cryptoKeyVersion, nil
 }
 
-func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetCryptoKeyVersionRequest, opts ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
+func (k *fakeKMSClient) GetCryptoKeyVersion(_ context.Context, req *kmspb.GetCryptoKeyVersionRequest, _ ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
@@ -567,7 +567,7 @@ func (k *fakeKMSClient) GetCryptoKeyVersion(ctx context.Context, req *kmspb.GetC
 	return fakeCryptoKeyVersion.CryptoKeyVersion, nil
 }
 
-func (k *fakeKMSClient) GetPublicKey(ctx context.Context, req *kmspb.GetPublicKeyRequest, opts ...gax.CallOption) (*kmspb.PublicKey, error) {
+func (k *fakeKMSClient) GetPublicKey(_ context.Context, req *kmspb.GetPublicKeyRequest, _ ...gax.CallOption) (*kmspb.PublicKey, error) {
 	getPublicKeyErr := k.nextGetPublicKeySequentialErr()
 
 	if getPublicKeyErr != nil {
@@ -594,7 +594,7 @@ func (k *fakeKMSClient) GetTokeninfo() (*oauth2.Tokeninfo, error) {
 	return k.tokeninfo, k.getTokeninfoErr
 }
 
-func (k *fakeKMSClient) ListCryptoKeys(ctx context.Context, req *kmspb.ListCryptoKeysRequest, opts ...gax.CallOption) cryptoKeyIterator {
+func (k *fakeKMSClient) ListCryptoKeys(_ context.Context, req *kmspb.ListCryptoKeysRequest, _ ...gax.CallOption) cryptoKeyIterator {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
@@ -632,7 +632,7 @@ func (k *fakeKMSClient) ListCryptoKeys(ctx context.Context, req *kmspb.ListCrypt
 	return &fakeCryptoKeyIterator{cryptoKeys: cryptoKeys}
 }
 
-func (k *fakeKMSClient) ListCryptoKeyVersions(ctx context.Context, req *kmspb.ListCryptoKeyVersionsRequest, opts ...gax.CallOption) cryptoKeyVersionIterator {
+func (k *fakeKMSClient) ListCryptoKeyVersions(_ context.Context, req *kmspb.ListCryptoKeyVersionsRequest, _ ...gax.CallOption) cryptoKeyVersionIterator {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
@@ -670,7 +670,7 @@ func (k *fakeKMSClient) ResourceIAM(string) iamHandler {
 	return k.fakeIAMHandle
 }
 
-func (k *fakeKMSClient) UpdateCryptoKey(ctx context.Context, req *kmspb.UpdateCryptoKeyRequest, opts ...gax.CallOption) (*kmspb.CryptoKey, error) {
+func (k *fakeKMSClient) UpdateCryptoKey(_ context.Context, req *kmspb.UpdateCryptoKeyRequest, _ ...gax.CallOption) (*kmspb.CryptoKey, error) {
 	if k.updateCryptoKeyErr != nil {
 		return nil, k.updateCryptoKeyErr
 	}

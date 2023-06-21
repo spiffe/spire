@@ -343,7 +343,7 @@ type fakeV1Plugin struct {
 	signDataErr           error
 }
 
-func (p *fakeV1Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyRequest) (*keymanagerv1.GenerateKeyResponse, error) {
+func (p *fakeV1Plugin) GenerateKey(_ context.Context, req *keymanagerv1.GenerateKeyRequest) (*keymanagerv1.GenerateKeyResponse, error) {
 	if req.KeyId != "foo" {
 		return nil, status.Error(codes.InvalidArgument, "unexpected key id")
 	}
@@ -353,18 +353,18 @@ func (p *fakeV1Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.Genera
 	return p.generateKeyResponse, p.generateKeyErr
 }
 
-func (p *fakeV1Plugin) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
+func (p *fakeV1Plugin) GetPublicKey(_ context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
 	if req.KeyId != "foo" {
 		return nil, status.Error(codes.InvalidArgument, "unexpected key id")
 	}
 	return p.getPublicKeyResponse, p.getPublicKeyErr
 }
 
-func (p *fakeV1Plugin) GetPublicKeys(ctx context.Context, req *keymanagerv1.GetPublicKeysRequest) (*keymanagerv1.GetPublicKeysResponse, error) {
+func (p *fakeV1Plugin) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysRequest) (*keymanagerv1.GetPublicKeysResponse, error) {
 	return p.getPublicKeysResponse, p.getPublicKeysErr
 }
 
-func (p *fakeV1Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
+func (p *fakeV1Plugin) SignData(_ context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
 	if req.KeyId != "foo" {
 		return nil, status.Error(codes.InvalidArgument, "unexpected key id")
 	}

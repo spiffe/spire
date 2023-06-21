@@ -42,7 +42,7 @@ func (g *generateCommand) Synopsis() string {
 	return "Generates a join token"
 }
 
-func (g *generateCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (g *generateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	id, err := getID(g.SpiffeID)
 	if err != nil {
 		return err

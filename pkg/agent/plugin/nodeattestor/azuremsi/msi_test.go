@@ -81,7 +81,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 
 func (s *MSIAttestorSuite) loadAttestor(options ...plugintest.Option) nodeattestor.NodeAttestor {
 	p := New()
-	p.hooks.fetchMSIToken = func(ctx context.Context, httpClient azure.HTTPClient, resource string) (string, error) {
+	p.hooks.fetchMSIToken = func(httpClient azure.HTTPClient, resource string) (string, error) {
 		if httpClient != http.DefaultClient {
 			return "", errors.New("unexpected http client")
 		}

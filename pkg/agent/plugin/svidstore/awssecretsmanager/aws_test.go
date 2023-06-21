@@ -693,7 +693,7 @@ type fakeSecretsManagerClient struct {
 	c                    *smConfig
 }
 
-func (sm *fakeSecretsManagerClient) createTestClient(ctx context.Context, _, _, region string) (SecretsManagerClient, error) {
+func (sm *fakeSecretsManagerClient) createTestClient(_ context.Context, _, _, region string) (SecretsManagerClient, error) {
 	if sm.c.newClientErr != nil {
 		return nil, sm.c.newClientErr
 	}
@@ -703,7 +703,7 @@ func (sm *fakeSecretsManagerClient) createTestClient(ctx context.Context, _, _, 
 	return sm, nil
 }
 
-func (sm *fakeSecretsManagerClient) DescribeSecret(ctx context.Context, input *secretsmanager.DescribeSecretInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.DescribeSecretOutput, error) {
+func (sm *fakeSecretsManagerClient) DescribeSecret(_ context.Context, input *secretsmanager.DescribeSecretInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.DescribeSecretOutput, error) {
 	if sm.c.describeErr != nil {
 		return nil, sm.c.describeErr
 	}
@@ -724,7 +724,7 @@ func (sm *fakeSecretsManagerClient) DescribeSecret(ctx context.Context, input *s
 	return resp, nil
 }
 
-func (sm *fakeSecretsManagerClient) CreateSecret(ctx context.Context, input *secretsmanager.CreateSecretInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.CreateSecretOutput, error) {
+func (sm *fakeSecretsManagerClient) CreateSecret(_ context.Context, input *secretsmanager.CreateSecretInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.CreateSecretOutput, error) {
 	if sm.c.createSecretErr != nil {
 		return nil, sm.c.createSecretErr
 	}
@@ -733,7 +733,7 @@ func (sm *fakeSecretsManagerClient) CreateSecret(ctx context.Context, input *sec
 	return &secretsmanager.CreateSecretOutput{ARN: input.Name}, nil
 }
 
-func (sm *fakeSecretsManagerClient) PutSecretValue(ctx context.Context, input *secretsmanager.PutSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.PutSecretValueOutput, error) {
+func (sm *fakeSecretsManagerClient) PutSecretValue(_ context.Context, input *secretsmanager.PutSecretValueInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.PutSecretValueOutput, error) {
 	if sm.c.putSecretErr != nil {
 		return nil, sm.c.putSecretErr
 	}
@@ -745,7 +745,7 @@ func (sm *fakeSecretsManagerClient) PutSecretValue(ctx context.Context, input *s
 	return &secretsmanager.PutSecretValueOutput{ARN: input.SecretId, VersionId: aws.String("1")}, nil
 }
 
-func (sm *fakeSecretsManagerClient) DeleteSecret(ctx context.Context, params *secretsmanager.DeleteSecretInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.DeleteSecretOutput, error) {
+func (sm *fakeSecretsManagerClient) DeleteSecret(_ context.Context, params *secretsmanager.DeleteSecretInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.DeleteSecretOutput, error) {
 	if sm.c.deleteSecretErr != nil {
 		return nil, sm.c.deleteSecretErr
 	}
@@ -757,7 +757,7 @@ func (sm *fakeSecretsManagerClient) DeleteSecret(ctx context.Context, params *se
 		Name: params.SecretId,
 	}, nil
 }
-func (sm *fakeSecretsManagerClient) RestoreSecret(ctx context.Context, params *secretsmanager.RestoreSecretInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.RestoreSecretOutput, error) {
+func (sm *fakeSecretsManagerClient) RestoreSecret(_ context.Context, params *secretsmanager.RestoreSecretInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.RestoreSecretOutput, error) {
 	if sm.c.restoreSecretErr != nil {
 		return nil, sm.c.restoreSecretErr
 	}

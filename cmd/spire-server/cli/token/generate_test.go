@@ -155,7 +155,7 @@ type fakeAgentServer struct {
 	token     string
 }
 
-func (f *fakeAgentServer) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTokenRequest) (*types.JoinToken, error) {
+func (f *fakeAgentServer) CreateJoinToken(_ context.Context, req *agentv1.CreateJoinTokenRequest) (*types.JoinToken, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

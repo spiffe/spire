@@ -121,7 +121,7 @@ func (s *fakeServerAPIServer) GetBundleCount() int {
 	return count
 }
 
-func (s *fakeServerAPIServer) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
+func (s *fakeServerAPIServer) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.getBundleCount++

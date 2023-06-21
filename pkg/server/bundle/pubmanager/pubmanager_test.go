@@ -223,7 +223,7 @@ type fakeBundlePublisher struct {
 }
 
 // PublishBundle is a fake implementation for the PublishBundle method.
-func (p *fakeBundlePublisher) PublishBundle(ctx context.Context, bundle *common.Bundle) error {
+func (p *fakeBundlePublisher) PublishBundle(context.Context, *common.Bundle) error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 

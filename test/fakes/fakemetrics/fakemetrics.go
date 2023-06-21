@@ -108,14 +108,14 @@ func (m *FakeMetrics) AddSampleWithLabels(key []string, val float32, labels []te
 	})
 }
 
-func (m *FakeMetrics) MeasureSince(key []string, start time.Time) {
+func (m *FakeMetrics) MeasureSince(key []string, _ time.Time) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// TODO: record `start` when it is convenient to thread a clock through all the telemetry helpers
 	m.metrics = append(m.metrics, MetricItem{Type: MeasureSinceType, Key: key})
 }
 
-func (m *FakeMetrics) MeasureSinceWithLabels(key []string, start time.Time, labels []telemetry.Label) {
+func (m *FakeMetrics) MeasureSinceWithLabels(key []string, _ time.Time, labels []telemetry.Label) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// TODO: record `start` when it is convenient to thread a clock through all the telemetry helpers

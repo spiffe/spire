@@ -409,7 +409,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		attestor := New()
 		attestor.hooks.now = func() time.Time { return s.now }
 		attestor.hooks.keySetProvider = jwtutil.KeySetProviderFunc(func(ctx context.Context) (*jose.JSONWebKeySet, error) { return s.jwks, nil })
-		attestor.hooks.fetchInstanceMetadata = func(context.Context, azure.HTTPClient) (*azure.InstanceMetadata, error) {
+		attestor.hooks.fetchInstanceMetadata = func(azure.HTTPClient) (*azure.InstanceMetadata, error) {
 			return instanceMetadata, nil
 		}
 		attestor.hooks.msiCredential = func() (azcore.TokenCredential, error) {
@@ -648,7 +648,7 @@ func (s *MSIAttestorSuite) loadPluginWithConfig(config string, options ...plugin
 	attestor.hooks.newClient = func(string, azcore.TokenCredential) (apiClient, error) {
 		return s.api, nil
 	}
-	attestor.hooks.fetchInstanceMetadata = func(context.Context, azure.HTTPClient) (*azure.InstanceMetadata, error) {
+	attestor.hooks.fetchInstanceMetadata = func(azure.HTTPClient) (*azure.InstanceMetadata, error) {
 		return instanceMetadata, nil
 	}
 	attestor.hooks.msiCredential = func() (azcore.TokenCredential, error) {
@@ -728,7 +728,7 @@ func (c *fakeAPIClient) SetVirtualMachineResourceID(principalID, resourceID stri
 	c.vmResourceIDs[principalID] = resourceID
 }
 
-func (c *fakeAPIClient) GetVirtualMachineResourceID(ctx context.Context, principalID string) (string, error) {
+func (c *fakeAPIClient) GetVirtualMachineResourceID(_ context.Context, principalID string) (string, error) {
 	id := c.vmResourceIDs[principalID]
 	if id == "" {
 		return "", errors.New("not found")
@@ -740,7 +740,7 @@ func (c *fakeAPIClient) SetVirtualMachine(resourceGroup string, name string, vm 
 	c.virtualMachines[resourceGroupName(resourceGroup, name)] = vm
 }
 
-func (c *fakeAPIClient) GetVirtualMachine(ctx context.Context, resourceGroup string, name string) (*armcompute.VirtualMachine, error) {
+func (c *fakeAPIClient) GetVirtualMachine(_ context.Context, resourceGroup string, name string) (*armcompute.VirtualMachine, error) {
 	vm := c.virtualMachines[resourceGroupName(resourceGroup, name)]
 	if vm == nil {
 		return nil, errors.New("not found")
@@ -752,7 +752,7 @@ func (c *fakeAPIClient) SetNetworkInterface(resourceGroup string, name string, n
 	c.networkInterfaces[resourceGroupName(resourceGroup, name)] = ni
 }
 
-func (c *fakeAPIClient) GetNetworkInterface(ctx context.Context, resourceGroup string, name string) (*armnetwork.Interface, error) {
+func (c *fakeAPIClient) GetNetworkInterface(_ context.Context, resourceGroup string, name string) (*armnetwork.Interface, error) {
 	ni := c.networkInterfaces[resourceGroupName(resourceGroup, name)]
 	if ni == nil {
 		return nil, errors.New("not found")
@@ -770,6 +770,6 @@ func makeAttestPayload(token string) []byte {
 	return []byte(fmt.Sprintf(`{"token": %q}`, token))
 }
 
-func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
 }

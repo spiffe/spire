@@ -335,7 +335,7 @@ type fakeWinAPI struct {
 	duplicateHandleResp       map[int32]int32
 }
 
-func (f *fakeWinAPI) IsProcessInJob(procHandle windows.Handle, jobHandle windows.Handle, result *bool) error {
+func (f *fakeWinAPI) IsProcessInJob(_ windows.Handle, jobHandle windows.Handle, result *bool) error {
 	// TODO: how can I solve what handle is correct
 	*result = f.isProcessInJobMap[int32(jobHandle)]
 
@@ -374,11 +374,11 @@ func (f *fakeWinAPI) CurrentProcess() windows.Handle {
 	return windows.Handle(9999)
 }
 
-func (f *fakeWinAPI) CloseHandle(h windows.Handle) error {
+func (f *fakeWinAPI) CloseHandle(windows.Handle) error {
 	return f.closeHandleErr
 }
 
-func (f *fakeWinAPI) OpenProcess(desiredAccess uint32, inheritHandle bool, pID uint32) (windows.Handle, error) {
+func (f *fakeWinAPI) OpenProcess(_ uint32, _ bool, pID uint32) (windows.Handle, error) {
 	for _, id := range f.openProcessPIDs {
 		if id == pID {
 			return windows.Handle(id), nil
@@ -388,7 +388,7 @@ func (f *fakeWinAPI) OpenProcess(desiredAccess uint32, inheritHandle bool, pID u
 	return windows.InvalidHandle, windows.ERROR_FILE_NOT_FOUND
 }
 
-func (f *fakeWinAPI) DuplicateHandle(hSourceProcessHandle windows.Handle, hSourceHandle windows.Handle, hTargetProcessHandle windows.Handle, lpTargetHandle *windows.Handle, dwDesiredAccess uint32, bInheritHandle bool, dwOptions uint32) error {
+func (f *fakeWinAPI) DuplicateHandle(_ windows.Handle, hSourceHandle windows.Handle, _ windows.Handle, lpTargetHandle *windows.Handle, _ uint32, _ bool, _ uint32) error {
 	if f.duplicateHandleErr != nil {
 		return f.duplicateHandleErr
 	}
@@ -415,7 +415,7 @@ func (f *fakeWinAPI) CreateToolhelp32Snapshot(flags uint32, pID uint32) (windows
 	return f.createSnapshotHandle, nil
 }
 
-func (f *fakeWinAPI) Process32First(snapshot windows.Handle, procEntry *windows.ProcessEntry32) error {
+func (f *fakeWinAPI) Process32First(_ windows.Handle, procEntry *windows.ProcessEntry32) error {
 	if f.process32FirstErr != nil {
 		return f.process32FirstErr
 	}
@@ -424,7 +424,7 @@ func (f *fakeWinAPI) Process32First(snapshot windows.Handle, procEntry *windows.
 	return nil
 }
 
-func (f *fakeWinAPI) Process32Next(snapshot windows.Handle, procEntry *windows.ProcessEntry32) error {
+func (f *fakeWinAPI) Process32Next(_ windows.Handle, procEntry *windows.ProcessEntry32) error {
 	if f.process32NextEntryErr != nil {
 		return f.process32NextEntryErr
 	}

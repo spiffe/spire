@@ -201,7 +201,7 @@ func (c *Cache) FetchWorkloadUpdate(selectors []*common.Selector) *WorkloadUpdat
 	return c.buildWorkloadUpdate(set)
 }
 
-func (c *Cache) SubscribeToWorkloadUpdates(ctx context.Context, selectors Selectors) (Subscriber, error) {
+func (c *Cache) SubscribeToWorkloadUpdates(_ context.Context, selectors Selectors) (Subscriber, error) {
 	return c.subscribeToWorkloadUpdates(selectors), nil
 }
 

@@ -386,7 +386,7 @@ func (f *fakeSVIDServer) setMintX509SVIDResponse(resp *svidv1.MintX509SVIDRespon
 	f.resp = resp
 }
 
-func (f *fakeSVIDServer) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequest) (*svidv1.MintX509SVIDResponse, error) {
+func (f *fakeSVIDServer) MintX509SVID(_ context.Context, req *svidv1.MintX509SVIDRequest) (*svidv1.MintX509SVIDResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -397,7 +397,7 @@ func (f *fakeSVIDServer) MintX509SVID(ctx context.Context, req *svidv1.MintX509S
 	return f.resp, nil
 }
 
-func (f *fakeSVIDServer) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
+func (f *fakeSVIDServer) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	if f.bundleErr != nil {
 		return nil, f.bundleErr
 	}

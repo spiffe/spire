@@ -87,7 +87,7 @@ func (p *AttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAt
 }
 
 // Configure decodes JSON config from request and populates AttestorPlugin with it
-func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
+func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
 	hclConfig := new(AttestorConfig)
 	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)

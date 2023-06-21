@@ -25,7 +25,7 @@ type auditLogMiddleware struct {
 	localTrackerEnabled bool
 }
 
-func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+func (m auditLogMiddleware) Preprocess(ctx context.Context, _ string, _ interface{}) (context.Context, error) {
 	log := rpccontext.Logger(ctx)
 	if rpccontext.CallerIsLocal(ctx) && m.localTrackerEnabled {
 		fields, err := fieldsFromTracker(ctx)
@@ -43,7 +43,7 @@ func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string, r
 	return ctx, nil
 }
 
-func (m auditLogMiddleware) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
+func (m auditLogMiddleware) Postprocess(ctx context.Context, _ string, _ bool, rpcErr error) {
 	if rpcErr != nil {
 		if auditLog, ok := rpccontext.AuditLog(ctx); ok {
 			auditLog.AuditWithError(rpcErr)

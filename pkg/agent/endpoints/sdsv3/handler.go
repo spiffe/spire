@@ -396,7 +396,7 @@ func (b *rootCABuilder) buildOne(resourceName, trustDomain string) (*any.Any, er
 	})
 }
 
-func (b *rootCABuilder) buildAll(resourceName string) (*any.Any, error) {
+func (b *rootCABuilder) buildAll(string) (*any.Any, error) {
 	return nil, status.Error(codes.Internal, `unable to use "SPIFFE validator" on Envoy below 1.17`)
 }
 
