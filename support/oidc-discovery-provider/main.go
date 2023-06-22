@@ -100,8 +100,7 @@ func run(configPath string) error {
 
 	go func() {
 		<-ctx.Done()
-		err = server.Shutdown(context.Background())
-		if err != nil {
+		if err := server.Shutdown(context.Background()); err != nil {
 			log.Error(err)
 		}
 	}()
@@ -182,7 +181,7 @@ func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, con
 
 	tlsConfig := certManager.TLSConfig()
 
-	tcpListener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 443})
+	tcpListener, err := net.ListenTCP("tcp", config.ServingCertFile.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create listener using certificate from disk: %w", err)
 	}

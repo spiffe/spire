@@ -3,7 +3,10 @@
 
 package main
 
-import "time"
+import (
+	"net"
+	"time"
+)
 
 var (
 	minimalServerAPIConfig = `
@@ -107,13 +110,45 @@ func parseConfigCasesOS() []parseConfigCase {
 			},
 		},
 		{
-			name: "serving_cert_file configuration",
+			name: "serving_cert_file configuration with defaults",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domains:  []string{"domain.test"},
+				ServingCertFile: &ServingCertFileConfig{
+					CertFilePath:     "test",
+					KeyFilePath:      "test",
+					FileSyncInterval: time.Minute,
+					Addr: &net.TCPAddr{
+						IP:   nil,
+						Port: 433,
+					},
+					RawAddr: ":433",
+				},
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+			},
+		},
+		{
+			name: "serving_cert_file configuration with optionals",
 			in: `
 				domains = ["domain.test"]
 				serving_cert_file {
 					cert_file_path = "test"
 					key_file_path = "test"
 					file_sync_interval = "5m"
+					addr = "127.0.0.1:9090"
 				}
 				server_api {
 					address = "unix:///some/socket/path"
@@ -127,6 +162,11 @@ func parseConfigCasesOS() []parseConfigCase {
 					KeyFilePath:         "test",
 					FileSyncInterval:    5 * time.Minute,
 					RawFileSyncInterval: "5m",
+					Addr: &net.TCPAddr{
+						IP:   net.ParseIP("127.0.0.1"),
+						Port: 9090,
+					},
+					RawAddr: "127.0.0.1:9090",
 				},
 				ServerAPI: &ServerAPIConfig{
 					Address:      "unix:///some/socket/path",
@@ -159,6 +199,21 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 			`,
 			err: "key_file_path must be configured in the serving_cert_file configuration section",
+		},
+		{
+			name: "serving_cert_file configuration with invalid addr",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+					addr = "127.0.0.1.1:9090"
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			err: "invalid addr in the serving_cert_file configuration section: lookup 127.0.0.1.1: no such host",
 		},
 		{
 			name: "both acme and insecure_addr configured",

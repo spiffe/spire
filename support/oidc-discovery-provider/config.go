@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"os"
 	"time"
 
@@ -16,6 +17,7 @@ const (
 	defaultHealthChecksBindPort  = 8008
 	defaultHealthChecksReadyPath = "/ready"
 	defaultHealthChecksLivePath  = "/live"
+	defaultAddr                  = ":433"
 )
 
 type Config struct {
@@ -82,6 +84,10 @@ type ServingCertFileConfig struct {
 	// KeyFilePath is the path to the private key file. The provider will watch
 	// this file for changes and reload the key when it changes.
 	KeyFilePath string `hcl:"key_file_path"`
+	// Addr is the address to listen on. This is optional and defaults to ":433".
+	Addr *net.TCPAddr `hcl:"-"`
+	// RawAddr holds the string version of the Addr. Consumers should use Addr instead.
+	RawAddr string `hcl:"addr"`
 	// FileSyncInterval controls how frequently the service polls the certificate for changes.
 	FileSyncInterval time.Duration `hcl:"-"`
 	// RawFileSyncInterval holds the string version of the FileSyncInterval. Consumers
@@ -220,6 +226,16 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		if c.ServingCertFile.KeyFilePath == "" {
 			return nil, errs.New("key_file_path must be configured in the serving_cert_file configuration section")
 		}
+
+		if c.ServingCertFile.RawAddr == "" {
+			c.ServingCertFile.RawAddr = defaultAddr
+		}
+
+		addr, err := net.ResolveTCPAddr("tcp", c.ServingCertFile.RawAddr)
+		if err != nil {
+			return nil, errs.New("invalid addr in the serving_cert_file configuration section: %v", err)
+		}
+		c.ServingCertFile.Addr = addr
 
 		c.ServingCertFile.FileSyncInterval, err = parseDurationField(c.ServingCertFile.RawFileSyncInterval, defaultFileSyncInterval)
 		if err != nil {

@@ -57,13 +57,13 @@ The configuration file is **required** by the provider. It contains
 
 #### Considerations for Unix platforms
 
-[1]: One of `acme`, `serving_cert_file`, `listen_socket_path` must be defined.
+[1]: One of `acme`, `serving_cert_file` or `listen_socket_path` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_socket_path`.
 
 #### Considerations for Windows platforms
 
-[1]: One of `acme`, `serving_cert_file`, `listen_named_pipe_name` must be defined.
+[1]: One of `acme`, `serving_cert_file` or `listen_named_pipe_name` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_named_pipe_name`.
 
@@ -91,11 +91,13 @@ will terminate if another domain is requested.
 
 #### Serving Certificate Section
 
-| Key                  | Type     | Required? | Description                                                        | Default  |
-|----------------------|----------|-----------|--------------------------------------------------------------------|----------|
-| `cert_file_path`     | string   | required  | The certificate file path, the file must contain PEM encoded data. |          |
-| `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data. |          |
-| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute |
+| Key                  | Type     | Required? | Description                                                        | Default    |
+|----------------------|----------|-----------|--------------------------------------------------------------------|------------|
+| `cert_file_path`     | string   | required  | The certificate file path, the file must contain PEM encoded data. |            |
+| `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data. |            |
+| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute   |
+| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute   |
+| `addr`               | string   | optional  | Exposes the service on the given address.                          | :433 |
 
 #### Server API Section
 
