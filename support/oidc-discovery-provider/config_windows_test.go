@@ -3,7 +3,10 @@
 
 package main
 
-import "time"
+import (
+	"net"
+	"time"
+)
 
 var (
 	minimalServerAPIConfig = `

@@ -64,7 +64,7 @@ func (m *DiskCertManager) TLSConfig() *tls.Config {
 }
 
 // getCertificate is called by the TLS stack when a new TLS connection is established.
-func (m *DiskCertManager) getCertificate(chInfo *tls.ClientHelloInfo) (*tls.Certificate, error) {
+func (m *DiskCertManager) getCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	m.certMtx.RLock()
 	defer m.certMtx.RUnlock()
 	cert := m.cert
