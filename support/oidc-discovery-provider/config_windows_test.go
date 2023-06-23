@@ -134,7 +134,9 @@ func parseConfigCasesOS() []parseConfigCase {
 					key_file_path = "test"
 				}
 				server_api {
-					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			out: &Config{
@@ -151,7 +153,9 @@ func parseConfigCasesOS() []parseConfigCase {
 					RawAddr: ":433",
 				},
 				ServerAPI: &ServerAPIConfig{
-					Address:      "unix:///some/socket/path",
+					Experimental: experimentalServerAPIConfig{
+						NamedPipeName: "\\name\\for\\server\\api",
+					},
 					PollInterval: defaultPollInterval,
 				},
 			},
@@ -167,7 +171,9 @@ func parseConfigCasesOS() []parseConfigCase {
 					addr = "127.0.0.1:9090"
 				}
 				server_api {
-					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			out: &Config{
@@ -185,7 +191,9 @@ func parseConfigCasesOS() []parseConfigCase {
 					RawAddr: "127.0.0.1:9090",
 				},
 				ServerAPI: &ServerAPIConfig{
-					Address:      "unix:///some/socket/path",
+					Experimental: experimentalServerAPIConfig{
+						NamedPipeName: "\\name\\for\\server\\api",
+					},
 					PollInterval: defaultPollInterval,
 				},
 			},
@@ -198,7 +206,9 @@ func parseConfigCasesOS() []parseConfigCase {
 					key_file_path = "test"
 				}
 				server_api {
-					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			err: "cert_file_path must be configured in the serving_cert_file configuration section",
@@ -211,7 +221,9 @@ func parseConfigCasesOS() []parseConfigCase {
 					cert_file_path = "test"
 				}
 				server_api {
-					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			err: "key_file_path must be configured in the serving_cert_file configuration section",
@@ -226,7 +238,9 @@ func parseConfigCasesOS() []parseConfigCase {
 					addr = "127.0.0.1.1:9090"
 				}
 				server_api {
-					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			err: "invalid addr in the serving_cert_file configuration section: lookup 127.0.0.1.1: no such host",

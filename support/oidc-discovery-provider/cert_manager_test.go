@@ -156,7 +156,7 @@ func TestTLSConfig(t *testing.T) {
 		})
 		writeFile(t, certFilePath, oidcServerCertUpdatedPem)
 
-		clk.Add(10 * time.Millisecond)
+		clk.Add(20 * time.Millisecond)
 
 		require.Eventuallyf(t, func() bool {
 			cert, err := tlsConfig.GetCertificate(chInfo)
@@ -265,12 +265,19 @@ func TestTLSConfig(t *testing.T) {
 		writeFile(t, certFilePath, oidcServerCertPem)
 
 		clk.Add(10 * time.Millisecond)
-		cert, err := tlsConfig.GetCertificate(chInfo)
-		require.NoError(t, err)
-		require.Len(t, cert.Certificate, 1)
-		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-		require.NoError(t, err)
-		require.Equal(t, oidcServerCert, x509Cert)
+
+		require.Eventuallyf(t, func() bool {
+			cert, err := tlsConfig.GetCertificate(chInfo)
+			if err != nil {
+				return false
+			}
+			require.Len(t, cert.Certificate, 1)
+			x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+			if err != nil {
+				return false
+			}
+			return reflect.DeepEqual(oidcServerCert, x509Cert)
+		}, 10*time.Second, 10*time.Millisecond, "Failed to assert updated certificate")
 	})
 
 	t.Run("delete cert files start error log loop", func(t *testing.T) {
@@ -282,12 +289,14 @@ func TestTLSConfig(t *testing.T) {
 
 		// Assert error logs that will keep triggering until the key is created again.
 		errLogs := map[time.Time]struct{}{}
-		for _, entry := range logHook.AllEntries() {
-			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
-				errLogs[entry.Time] = struct{}{}
+		require.Eventuallyf(t, func() bool {
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
+					errLogs[entry.Time] = struct{}{}
+				}
 			}
-		}
-		require.Len(t, errLogs, 5)
+			return len(errLogs) == 5
+		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
 
 		removeFile(t, certFilePath)
 
