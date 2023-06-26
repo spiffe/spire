@@ -755,10 +755,16 @@ func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) 
 	return newFakeSubscriber(m, m.updates), nil
 }
 
-func (m *FakeManager) FetchJWTSVID(_ context.Context, spiffeID spiffeid.ID, _ []string) (*client.JWTSVID, error) {
+func (m *FakeManager) FetchJWTSVID(_ context.Context, entry *common.RegistrationEntry, _ []string) (*client.JWTSVID, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
+
+	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
+	if err != nil {
+		return nil, err
+	}
+
 	svid, ok := m.jwtSVIDs[spiffeID]
 	if !ok {
 		return nil, errors.New("not found")

@@ -1559,7 +1559,12 @@ func (m *FakeManager) MatchingRegistrationEntries([]*common.Selector) []*common.
 	return out
 }
 
-func (m *FakeManager) FetchJWTSVID(_ context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
+func (m *FakeManager) FetchJWTSVID(_ context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {
+	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
+	if err != nil {
+		return nil, err
+	}
+
 	svid := m.ca.CreateJWTSVID(spiffeID, audience)
 	if m.err != nil {
 		return nil, m.err

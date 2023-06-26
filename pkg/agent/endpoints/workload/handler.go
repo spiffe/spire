@@ -33,7 +33,7 @@ import (
 type Manager interface {
 	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
-	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
+	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
 }
 
@@ -274,7 +274,7 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 		return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
 	}
 
-	svid, err := h.c.Manager.FetchJWTSVID(ctx, spiffeID, audience)
+	svid, err := h.c.Manager.FetchJWTSVID(ctx, entry, audience)
 	if err != nil {
 		log.WithError(err).Error("Could not fetch JWT-SVID")
 		return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)

@@ -64,7 +64,7 @@ type Manager interface {
 
 	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
 	// is no JWT cached, the manager will get one signed upstream.
-	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
+	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
 
 	// CountSVIDs returns the amount of X509 SVIDs on memory
 	CountSVIDs() int
@@ -228,7 +228,12 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 	return m.cache.FetchWorkloadUpdate(selectors)
 }
 
-func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
+func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {
+	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
+	if err != nil {
+		return nil, errors.New("Invalid SPIFFE ID: " + err.Error())
+	}
+
 	now := m.clk.Now()
 
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
@@ -236,12 +241,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audien
 		return cachedSVID, nil
 	}
 
-	entryID := m.getEntryID(spiffeID.String())
-	if entryID == "" {
-		return nil, errors.New("no entry found")
-	}
-
-	newSVID, err := m.client.NewJWTSVID(ctx, entryID, audience)
+	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
@@ -255,15 +255,6 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audien
 
 	m.cache.SetJWTSVID(spiffeID, audience, newSVID)
 	return newSVID, nil
-}
-
-func (m *manager) getEntryID(spiffeID string) string {
-	for _, entry := range m.cache.Entries() {
-		if entry.SpiffeId == spiffeID {
-			return entry.EntryId
-		}
-	}
-	return ""
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
