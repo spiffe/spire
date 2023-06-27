@@ -467,13 +467,18 @@ func (c *client) newAgentClient(ctx context.Context) (agentv1.AgentClient, *node
 }
 
 // addErrorFields add fields of gRPC call status in logger
-func (c *client) addErrorFields(err error) logrus.FieldLogger {
+func (c *client) withErrorFields(err error) logrus.FieldLogger {
+	if err == nil {
+		return c.c.Log
+	}
+	
+	logger := c.c.Log.WithError(err)
 	if s, ok := status.FromError(err); ok {
-		c.c.Log = c.c.Log.WithFields(logrus.Fields{
+		logger = c.c.Log.WithFields(logrus.Fields{
 			telemetry.StatusCode:    s.Code(),
 			telemetry.StatusMessage: s.Message(),
 		})
 	}
 
-	return c.c.Log.WithError(err)
+	return logger
 }
