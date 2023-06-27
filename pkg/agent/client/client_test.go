@@ -5,12 +5,13 @@ import (
 	"crypto"
 	"crypto/x509"
 	"errors"
+	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -18,7 +19,6 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -243,6 +243,12 @@ func TestRenewSVID(t *testing.T) {
 			agentErr: errors.New("renew fails"),
 			err:      "failed to renew agent: renew fails",
 		},
+		{
+			name:     "call to RenewAgent fails",
+			csr:      []byte{0, 1, 2},
+			agentErr: status.Error(codes.Internal, "renew fails"),
+			err:      "failed to renew agent: rpc error: code = Internal desc = renew fails",
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -344,6 +350,90 @@ func TestNewX509SVIDs(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, testSvids, svids)
 	assertConnectionIsNotNil(t, client)
+}
+
+func TestNewX509SVIDsFails(t *testing.T) {
+	client, tc := createClient()
+
+	tc.entryClient.entries = []*types.Entry{
+		{
+			Id:       "ENTRYID1",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id1",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "1"},
+			},
+			FederatesWith:  []string{"domain1.com"},
+			RevisionNumber: 1234,
+		},
+		// This entry should be ignored since it is missing an entry ID
+		{
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id2",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "2"},
+			},
+			FederatesWith: []string{"domain2.com"},
+		},
+		// This entry should be ignored since it is missing a SPIFFE ID
+		{
+			Id:       "ENTRYID3",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "3"},
+			},
+		},
+		// This entry should be ignored since it is missing selectors
+		{
+			Id:       "ENTRYID4",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id4",
+			},
+		},
+	}
+
+	tc.svidClient.x509SVIDs = map[string]*types.X509SVID{
+		"entry-id": {
+			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+			CertChain: [][]byte{{11, 22, 33}},
+		},
+	}
+
+	tc.svidClient.batchSVIDErr = status.Error(codes.NotFound, "not found when executing BatchNewX509SVID")
+
+	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
+	client.c.RotMtx.Lock()
+
+	// Do the request in a different go routine
+	var wg sync.WaitGroup
+	var svids map[string]*X509SVID
+	err := errors.New("a not nil error")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		svids, err = client.NewX509SVIDs(context.Background(), newTestCSRs())
+	}()
+
+	// The request should wait until the SVID rotation finishes
+	require.Contains(t, "a not nil error", err.Error())
+	require.Nil(t, svids)
+
+	// Simulate the end of the SVID rotation
+	client.c.RotMtx.Unlock()
+	wg.Wait()
+
+	// Assert results
+	require.Error(t, err)
+	assert.Nil(t, svids)
+	assertConnectionIsNil(t, client)
 }
 
 func newTestCSRs() map[string][]byte {
@@ -571,6 +661,43 @@ func TestFetchUpdatesReleaseConnectionIfItFails(t *testing.T) {
 	assertConnectionIsNil(t, client)
 }
 
+func TestFetchUpdatesAddStructuredLoggingIfCallToFetchEntriesFails(t *testing.T) {
+	client, tc := createClient()
+
+	tc.entryClient.err = status.Error(codes.Internal, "call to grpc method fetchEntries has failed")
+
+	update, err := client.FetchUpdates(context.Background())
+	assert.Nil(t, update)
+	assert.Error(t, err)
+	assertConnectionIsNil(t, client)
+
+	expectedLog := log.WithFields(
+		logrus.Fields{
+			telemetry.StatusCode:    codes.Internal,
+			telemetry.StatusMessage: "call to grpc method fetchEntries has failed",
+		})
+	assert.Equal(t, expectedLog, client.c.Log)
+
+}
+
+func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T) {
+	client, tc := createClient()
+
+	tc.bundleClient.bundleErr = status.Error(codes.Internal, "call to grpc method fetchBundles has failed")
+	update, err := client.FetchUpdates(context.Background())
+	assert.Nil(t, update)
+	assert.Error(t, err)
+	assertConnectionIsNil(t, client)
+
+	expectedLog := log.WithFields(
+		logrus.Fields{
+			telemetry.StatusCode:    codes.Internal,
+			telemetry.StatusMessage: "call to grpc method fetchBundles has failed",
+		})
+	assert.Equal(t, expectedLog, client.c.Log)
+
+}
+
 func TestNewAgentClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
@@ -697,6 +824,19 @@ func TestFetchJWTSVID(t *testing.T) {
 				tc.svidClient.newJWTSVID = err
 			},
 			err: "JWTSVID issued after it has expired",
+		},
+		{
+			name: "grpc call to NewJWTSVID fails",
+			setupTest: func(err error) {
+				tc.svidClient.jwtSVID = &types.JWTSVID{
+					Token:     "token",
+					ExpiresAt: issuedAt,
+					IssuedAt:  expiresAt,
+				}
+				tc.svidClient.newJWTSVID = err
+			},
+			err:      "failed to fetch JWT SVID: rpc error: code = Internal desc = NewJWTSVID fails",
+			fetchErr: status.Error(codes.Internal, "NewJWTSVID fails"),
 		},
 	} {
 		tt := tt
@@ -910,62 +1050,4 @@ type testClient struct {
 	bundleClient *fakeBundleClient
 	entryClient  *fakeEntryClient
 	svidClient   *fakeSVIDClient
-}
-
-func Test_client_addErrorFields(t *testing.T) {
-	log := logrus.New()
-
-	type fields struct {
-		c *Config
-	}
-	type args struct {
-		err error
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   logrus.FieldLogger
-	}{
-		{
-			name: "OK_status",
-			fields: fields{
-				c: &Config{
-					Log: log,
-				},
-			},
-			args: args{
-				err: status.Error(codes.OK, ""),
-			},
-			want: log.WithFields(
-				logrus.Fields{
-					telemetry.StatusCode:    codes.OK,
-					telemetry.StatusMessage: "",
-				}).WithError(status.Error(codes.OK, "")),
-		},
-		{
-			name: "NotFound_status",
-			fields: fields{
-				c: &Config{
-					Log: log,
-				},
-			},
-			args: args{
-				err: status.Error(codes.NotFound, "NotFound"),
-			},
-			want: log.WithFields(
-				logrus.Fields{
-					telemetry.StatusCode:    codes.NotFound,
-					telemetry.StatusMessage: "NotFound",
-				}).WithError(status.Error(codes.NotFound, "NotFound")),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &client{
-				c: tt.fields.c,
-			}
-			assert.Equalf(t, tt.want, c.addErrorFields(tt.args.err), "addErrorFields(%v)", tt.args.err)
-		})
-	}
 }
