@@ -47,5 +47,6 @@ func AttestedNodeToProto(node *common.AttestedNode, selectors []*types.Selector)
 		X509SvidExpiresAt:    node.CertNotAfter,
 		Selectors:            selectors,
 		Banned:               nodeutil.IsAgentBanned(node),
+		CanReattest:          node.CanReattest,
 	}, nil
 }
