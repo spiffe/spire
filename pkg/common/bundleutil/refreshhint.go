@@ -13,6 +13,10 @@ const (
 	// MinimumRefreshHint is the smallest refresh hint the client allows.
 	// Anything smaller than the minimum will be reset to the minimum.
 	MinimumRefreshHint = time.Minute
+
+	// MaximumRefreshHint is the maximum refresh hint the client allows.
+	// Anything larger than the maximum will be reset to the maximum.
+	MaximumRefreshHint = 10 * time.Minute
 )
 
 // CalculateRefreshHint is used to calculate the refresh hint for a given
@@ -50,6 +54,9 @@ func CalculateRefreshHint(bundle *spiffebundle.Bundle) time.Duration {
 func safeRefreshHint(refreshHint time.Duration) time.Duration {
 	if refreshHint < MinimumRefreshHint {
 		return MinimumRefreshHint
+	}
+	if refreshHint > MaximumRefreshHint {
+		return MaximumRefreshHint
 	}
 	return refreshHint
 }

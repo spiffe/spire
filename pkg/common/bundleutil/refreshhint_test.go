@@ -13,6 +13,9 @@ import (
 func TestCalculateRefreshHint(t *testing.T) {
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 	emptyBundle := spiffebundle.New(trustDomain)
+	emptyBundleWithShortRefreshHint := spiffebundle.New(trustDomain)
+	emptyBundleWithShortRefreshHint.SetRefreshHint(time.Minute)
+
 	emptyBundleWithRefreshHint := spiffebundle.New(trustDomain)
 	emptyBundleWithRefreshHint.SetRefreshHint(time.Hour * 1)
 
@@ -33,6 +36,12 @@ func TestCalculateRefreshHint(t *testing.T) {
 		NotBefore: now,
 		NotAfter:  now.Add(time.Hour * 3),
 	})
+	bundleWithLongLivedCerts := spiffebundle.New(trustDomain)
+	bundleWithLongLivedCerts.AddX509Authority(&x509.Certificate{
+		Raw:       []byte{1},
+		NotBefore: now,
+		NotAfter:  now.Add(time.Hour * 720),
+	})
 
 	testCases := []struct {
 		name        string
@@ -45,9 +54,14 @@ func TestCalculateRefreshHint(t *testing.T) {
 			refreshHint: MinimumRefreshHint,
 		},
 		{
+			name:        "empty bundle with short refresh hint",
+			bundle:      emptyBundleWithShortRefreshHint,
+			refreshHint: time.Minute,
+		},
+		{
 			name:        "empty bundle with refresh hint",
 			bundle:      emptyBundleWithRefreshHint,
-			refreshHint: time.Hour,
+			refreshHint: 10 * time.Minute,
 		},
 		{
 			// the bundle has a few certs. the lowest lifetime is 1 hour.
@@ -55,6 +69,11 @@ func TestCalculateRefreshHint(t *testing.T) {
 			name:        "bundle with certs",
 			bundle:      bundleWithCerts,
 			refreshHint: time.Hour / refreshHintLeewayFactor,
+		},
+		{
+			name:        "bundle with longed lived certs",
+			bundle:      bundleWithLongLivedCerts,
+			refreshHint: 10 * time.Minute,
 		},
 	}
 
