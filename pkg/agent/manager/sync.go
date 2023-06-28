@@ -136,10 +136,8 @@ func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVI
 
 		update, err := m.fetchSVIDs(ctx, csrs)
 		if err != nil {
-			m.csrSizeLimitedBackoff.Failure()
 			return err
 		}
-		m.csrSizeLimitedBackoff.Success()
 		// the values in `update` now belong to the cache. DO NOT MODIFY.
 		c.UpdateSVIDs(update)
 	}
@@ -150,6 +148,11 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	counter := telemetry_agent.StartManagerFetchSVIDsUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
+	defer func() {
+		if err == nil {
+			m.csrSizeLimitedBackoff.Success()
+		}
+	}()
 
 	csrsIn := make(map[string][]byte)
 
@@ -182,6 +185,8 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 
 	svidsOut, err := m.client.NewX509SVIDs(ctx, csrsIn)
 	if err != nil {
+		// Reduce csr size for next invocation
+		m.csrSizeLimitedBackoff.Failure()
 		return nil, err
 	}
 
