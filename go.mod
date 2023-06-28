@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/iam v1.1.0
 	cloud.google.com/go/kms v1.12.0
 	cloud.google.com/go/secretmanager v1.11.0
-	cloud.google.com/go/security v1.15.0
+	cloud.google.com/go/security v1.15.1
 	cloud.google.com/go/storage v1.30.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
@@ -88,7 +88,7 @@ require (
 	cloud.google.com/go v0.110.2 // indirect
 	cloud.google.com/go/compute v1.19.3 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	cloud.google.com/go/longrunning v0.4.2 // indirect
+	cloud.google.com/go/longrunning v0.5.0 // indirect
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/alibabacloudsdkgo/helper v0.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
