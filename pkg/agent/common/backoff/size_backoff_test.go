@@ -28,6 +28,12 @@ func TestRequestSizeBackOff(t *testing.T) {
 	b.Failure()
 	assert.Equal(t, maxRequestSize/8, b.NextBackOff())
 
+	// After success backoff value should keep doubling
+	b.Success()
+	assert.Equal(t, maxRequestSize/4, b.NextBackOff())
+	b.Success()
+	assert.Equal(t, maxRequestSize/2, b.NextBackOff())
+
 	// Reset should set the backoff value back to the initial maxRequestSize
 	b.Reset()
 	assert.Equal(t, maxRequestSize, b.NextBackOff())

@@ -31,17 +31,19 @@ func (r *sizeLimitedBackOff) NextBackOff() int {
 }
 
 func (r *sizeLimitedBackOff) Success() {
-	r.currentSize *= 2
-	if r.currentSize > r.maxSize {
-		r.currentSize = r.maxSize
+	newSize := r.currentSize * 2
+	if newSize > r.maxSize {
+		newSize = r.maxSize
 	}
+	r.currentSize = newSize
 }
 
 func (r *sizeLimitedBackOff) Failure() {
-	r.currentSize /= 2
-	if r.currentSize < 1 {
-		r.currentSize = 1
+	newSize := r.currentSize / 2
+	if newSize < 1 {
+		newSize = 1
 	}
+	r.currentSize = newSize
 }
 
 func (r *sizeLimitedBackOff) Reset() {
@@ -49,6 +51,7 @@ func (r *sizeLimitedBackOff) Reset() {
 }
 
 // NewSizeLimitedBackOff returns a new SizeLimitedBackOff with provided maxRequestSize and lowest request size of 1.
+// On Failure the size gets reduced by half and on Success size gets doubled
 func NewSizeLimitedBackOff(maxRequestSize int) SizeLimitedBackOff {
 	b := &sizeLimitedBackOff{
 		maxSize: maxRequestSize,

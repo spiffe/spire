@@ -30,6 +30,8 @@ const (
 	maxSVIDSyncInterval = 4 * time.Minute
 	// for sync interval of 5 sec this will result in max of 4 mins of backoff
 	synchronizeMaxIntervalMultiple = 48
+	// for larger sync interval set max interval as 8 mins
+	synchronizeMaxInterval = 8 * time.Minute
 )
 
 // Manager provides cache management functionalities for agents.
@@ -157,7 +159,11 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
 	m.storeBundle(m.cache.Bundle())
 
-	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval, backoff.WithMaxInterval(synchronizeMaxIntervalMultiple*m.c.SyncInterval))
+	synchronizeBackoffMaxInterval := synchronizeMaxIntervalMultiple * m.c.SyncInterval
+	if synchronizeBackoffMaxInterval > synchronizeMaxInterval {
+		synchronizeBackoffMaxInterval = synchronizeMaxInterval
+	}
+	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval, backoff.WithMaxInterval(synchronizeBackoffMaxInterval))
 	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
 	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
 
