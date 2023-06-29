@@ -22,7 +22,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	notAfter := time.Now().Add(time.Minute * 10)
+	notAfter := time.Now().Add(time.Hour)
 
 	caKey := generateKey()
 	caCert := createRootCertificate(caKey, &x509.Certificate{
@@ -74,7 +74,7 @@ func writeKey(path string, key crypto.Signer) {
 		Type:  "PRIVATE KEY",
 		Bytes: keyBytes,
 	})
-	writeFile(path, pemBytes, 0600)
+	writeFile(path, pemBytes, 0o600)
 }
 
 func writeCerts(path string, certs ...*x509.Certificate) {
@@ -86,7 +86,7 @@ func writeCerts(path string, certs ...*x509.Certificate) {
 		})
 		checkErr(err)
 	}
-	writeFile(path, data.Bytes(), 0644)
+	writeFile(path, data.Bytes(), 0o644)
 }
 
 func writeFile(path string, data []byte, mode os.FileMode) {
