@@ -17,7 +17,7 @@ const (
 	defaultHealthChecksBindPort  = 8008
 	defaultHealthChecksReadyPath = "/ready"
 	defaultHealthChecksLivePath  = "/live"
-	defaultAddr                  = ":433"
+	defaultAddr                  = ":443"
 )
 
 type Config struct {
@@ -84,7 +84,7 @@ type ServingCertFileConfig struct {
 	// KeyFilePath is the path to the private key file. The provider will watch
 	// this file for changes and reload the key when it changes.
 	KeyFilePath string `hcl:"key_file_path"`
-	// Addr is the address to listen on. This is optional and defaults to ":433".
+	// Addr is the address to listen on. This is optional and defaults to ":443".
 	Addr *net.TCPAddr `hcl:"-"`
 	// RawAddr holds the string version of the Addr. Consumers should use Addr instead.
 	RawAddr string `hcl:"addr"`

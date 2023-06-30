@@ -130,9 +130,9 @@ func parseConfigCasesOS() []parseConfigCase {
 					FileSyncInterval: time.Minute,
 					Addr: &net.TCPAddr{
 						IP:   nil,
-						Port: 433,
+						Port: 443,
 					},
-					RawAddr: ":433",
+					RawAddr: ":443",
 				},
 				ServerAPI: &ServerAPIConfig{
 					Address:      "unix:///some/socket/path",

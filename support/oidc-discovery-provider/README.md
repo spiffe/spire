@@ -91,13 +91,13 @@ will terminate if another domain is requested.
 
 #### Serving Certificate Section
 
-| Key                  | Type     | Required? | Description                                                        | Default    |
-|----------------------|----------|-----------|--------------------------------------------------------------------|------------|
-| `cert_file_path`     | string   | required  | The certificate file path, the file must contain PEM encoded data. |            |
-| `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data. |            |
-| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute   |
-| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute   |
-| `addr`               | string   | optional  | Exposes the service on the given address.                          | :433 |
+| Key                  | Type     | Required? | Description                                                        | Default  |
+|----------------------|----------|-----------|--------------------------------------------------------------------|----------|
+| `cert_file_path`     | string   | required  | The certificate file path, the file must contain PEM encoded data. |          |
+| `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data. |          |
+| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute |
+| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute |
+| `addr`               | string   | optional  | Exposes the service on the given address.                          | :443     |
 
 #### Server API Section
 
