@@ -14,6 +14,8 @@ updates:
     versions: ["2.x"]
   - dependency-name: "github.com/aws/aws-sdk-go-v2*"
     update-types: ["version-update:semver-patch"]
+  - dependency-name: "cloud.google.com/go/*"
+    update-types: ["version-update:semver-patch"]
   open-pull-requests-limit: 5
 - package-ecosystem: "github-actions"
   directory: "/"
