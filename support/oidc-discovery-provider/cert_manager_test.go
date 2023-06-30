@@ -156,8 +156,19 @@ func TestTLSConfig(t *testing.T) {
 		})
 		writeFile(t, certFilePath, oidcServerCertUpdatedPem)
 
-		clk.Add(20 * time.Millisecond)
+		clk.Add(5 * time.Millisecond)
 
+		// Certificate is not updated yet
+		cert, err := tlsConfig.GetCertificate(chInfo)
+		require.NoError(t, err)
+		require.Len(t, cert.Certificate, 1)
+		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+		require.NoError(t, err)
+		require.Equal(t, oidcServerCert, x509Cert)
+
+		clk.Add(10 * time.Millisecond)
+
+		// Assert certificate is updated
 		require.Eventuallyf(t, func() bool {
 			cert, err := tlsConfig.GetCertificate(chInfo)
 			if err != nil {
@@ -203,7 +214,7 @@ func TestTLSConfig(t *testing.T) {
 		writeFile(t, certFilePath, []byte("invalid-cert"))
 
 		for i := 0; i < 5; i++ {
-			clk.Add(11 * time.Millisecond)
+			clk.Add(10 * time.Millisecond)
 		}
 
 		errLogs := map[time.Time]struct{}{}
@@ -306,13 +317,14 @@ func TestTLSConfig(t *testing.T) {
 
 		// Assert error logs that will keep triggering until the cert is created again.
 		errLogs = map[time.Time]struct{}{}
-		for _, entry := range logHook.AllEntries() {
-			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
-				errLogs[entry.Time] = struct{}{}
+		require.Eventuallyf(t, func() bool {
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
+					errLogs[entry.Time] = struct{}{}
+				}
 			}
-		}
-
-		require.Len(t, errLogs, 5)
+			return len(errLogs) == 5
+		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
 
 		writeFile(t, keyFilePath, oidcServerKeyPem)
 
@@ -320,14 +332,16 @@ func TestTLSConfig(t *testing.T) {
 
 		clk.Add(10 * time.Millisecond)
 
-		require.Equal(t, "Loaded provided certificate with success", logHook.LastEntry().Message)
+		require.Eventuallyf(t, func() bool {
+			cert, err := tlsConfig.GetCertificate(chInfo)
+			require.NoError(t, err)
+			require.Len(t, cert.Certificate, 1)
+			x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+			require.NoError(t, err)
+			require.Equal(t, oidcServerCert, x509Cert)
 
-		cert, err := tlsConfig.GetCertificate(chInfo)
-		require.NoError(t, err)
-		require.Len(t, cert.Certificate, 1)
-		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-		require.NoError(t, err)
-		require.Equal(t, oidcServerCert, x509Cert)
+			return reflect.DeepEqual(oidcServerCert, x509Cert) && logHook.LastEntry().Message == "Loaded provided certificate with success"
+		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
 	})
 
 	t.Run("stop file watcher when context is canceled", func(t *testing.T) {
