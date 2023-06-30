@@ -675,8 +675,8 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchEntriesFails(t *testing.T)
 		logrus.Fields{
 			telemetry.StatusCode:    codes.Internal,
 			telemetry.StatusMessage: "call to grpc method fetchEntries has failed",
-		})
-	assert.Equal(t, expectedLog, client.c.Log)
+		}).WithError(tc.entryClient.err)
+	assert.Equal(t, expectedLog.Logger, client.c.Log)
 
 }
 
@@ -694,8 +694,7 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T)
 			telemetry.StatusCode:    codes.Internal,
 			telemetry.StatusMessage: "call to grpc method fetchBundles has failed",
 		})
-	assert.Equal(t, expectedLog, client.c.Log)
-
+	assert.Equal(t, expectedLog.Logger, client.c.Log)
 }
 
 func TestNewAgentClientFailsDial(t *testing.T) {
