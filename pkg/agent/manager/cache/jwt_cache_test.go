@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestJWTSVIDCache(t *testing.T) {
+func TestJWTSVIDCacheBasic(t *testing.T) {
 	now := time.Now()
 	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
 
@@ -27,4 +27,24 @@ func TestJWTSVIDCache(t *testing.T) {
 	actual, ok = cache.GetJWTSVID(spiffeID, []string{"bar"})
 	assert.True(t, ok)
 	assert.Equal(t, expected, actual)
+}
+
+func TestJWTSVIDCacheKeyHashing(t *testing.T) {
+	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
+	now := time.Now()
+	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+
+	cache := NewJWTSVIDCache()
+	cache.SetJWTSVID(spiffeID, []string{"ab", "cd"}, expected)
+
+	// JWT is cached
+	actual, ok := cache.GetJWTSVID(spiffeID, []string{"ab", "cd"})
+	assert.True(t, ok)
+	assert.Equal(t, expected, actual)
+
+	// JWT is not cached, despite concatenation of audiences (in lexicographical order) matching
+	// that of the cached item
+	actual, ok = cache.GetJWTSVID(spiffeID, []string{"a", "bcd"})
+	assert.False(t, ok)
+	assert.Nil(t, actual)
 }
