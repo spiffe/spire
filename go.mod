@@ -5,9 +5,9 @@ go 1.20
 require (
 	cloud.google.com/go/iam v1.1.0
 	cloud.google.com/go/kms v1.12.0
-	cloud.google.com/go/secretmanager v1.11.0
-	cloud.google.com/go/security v1.15.0
-	cloud.google.com/go/storage v1.30.1
+	cloud.google.com/go/secretmanager v1.11.1
+	cloud.google.com/go/security v1.15.1
+	cloud.google.com/go/storage v1.31.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.3
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.102.0
-	github.com/aws/aws-sdk-go-v2/service/iam v1.20.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.22.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.0
@@ -38,9 +38,9 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/google/go-cmp v0.5.9
 	github.com/google/go-containerregistry v0.14.1-0.20230409045903-ed5c185df419
-	github.com/google/go-tpm v0.3.3
-	github.com/google/go-tpm-tools v0.3.12
-	github.com/googleapis/gax-go/v2 v2.10.0
+	github.com/google/go-tpm v0.9.0
+	github.com/google/go-tpm-tools v0.3.13-0.20230620182252-4639ecce2aba
+	github.com/googleapis/gax-go/v2 v2.11.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-plugin v1.4.10
@@ -69,13 +69,13 @@ require (
 	github.com/zeebo/errs v1.3.0
 	golang.org/x/crypto v0.10.0
 	golang.org/x/net v0.11.0
-	golang.org/x/sync v0.2.0
+	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.9.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.128.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc
 	google.golang.org/grpc v1.56.1
-	google.golang.org/protobuf v1.30.0
+	google.golang.org/protobuf v1.31.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 	k8s.io/api v0.27.3
 	k8s.io/apimachinery v0.27.3
@@ -88,7 +88,7 @@ require (
 	cloud.google.com/go v0.110.2 // indirect
 	cloud.google.com/go/compute v1.19.3 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
-	cloud.google.com/go/longrunning v0.4.2 // indirect
+	cloud.google.com/go/longrunning v0.5.0 // indirect
 	filippo.io/edwards25519 v1.0.0 // indirect
 	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/alibabacloudsdkgo/helper v0.2.0 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
