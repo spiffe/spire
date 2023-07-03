@@ -52,6 +52,6 @@ type backoffOption struct {
 	maxInterval time.Duration
 }
 
-func (b backoffOption) applyOption(backoff *backoff.ExponentialBackOff) {
-	backoff.MaxInterval = b.maxInterval
+func (b backoffOption) applyOption(bo *backoff.ExponentialBackOff) {
+	bo.MaxInterval = b.maxInterval
 }
