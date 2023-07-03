@@ -28,7 +28,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.0
 	github.com/blang/semver/v4 v4.0.0
-	github.com/cenkalti/backoff/v3 v3.2.2
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/docker/docker v24.0.2+incompatible
 	github.com/envoyproxy/go-control-plane v0.11.1
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
@@ -136,6 +136,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
+	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20220119192733-fe33c00cee21 // indirect
 	github.com/clbanning/mxj/v2 v2.5.6 // indirect

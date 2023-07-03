@@ -4,10 +4,10 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/cenkalti/backoff/v3"
+	"github.com/cenkalti/backoff/v4"
 )
 
-// BackOff type alias of "github.com/cenkalti/backoff/v3" BackOff, for
+// BackOff type alias of "github.com/cenkalti/backoff/v4" BackOff, for
 // better readability in importing
 type BackOff = backoff.BackOff
 
