@@ -112,7 +112,7 @@ func (s *Service) GetX509AuthorityState(ctx context.Context, _ *localauthorityv1
 	return resp, nil
 }
 
-func (s *Service) PrepareX509Authority(ctx context.Context, req *localauthorityv1.PrepareX509AuthorityRequest) (*localauthorityv1.PrepareX509AuthorityResponse, error) {
+func (s *Service) PrepareX509Authority(ctx context.Context, _ *localauthorityv1.PrepareX509AuthorityRequest) (*localauthorityv1.PrepareX509AuthorityResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	current := s.ca.GetCurrentX509CASlot()

@@ -440,7 +440,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 }
 
 // PostStatus post agent status
-func (s *Service) PostStatus(ctx context.Context, req *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
+func (s *Service) PostStatus(context.Context, *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
 

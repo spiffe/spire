@@ -972,7 +972,7 @@ func (m *fakeCAManager) GetNextJWTKeySlot() manager.Slot {
 	return m.nextJWTKeySlot
 }
 
-func (m *fakeCAManager) PrepareJWTKey(ctx context.Context) error {
+func (m *fakeCAManager) PrepareJWTKey(context.Context) error {
 	return m.prepareJWTKeyErr
 }
 
@@ -986,7 +986,7 @@ func (m *fakeCAManager) GetNextX509CASlot() manager.Slot {
 	return m.nextX509CASlot
 }
 
-func (m *fakeCAManager) PrepareX509CA(ctx context.Context) error {
+func (m *fakeCAManager) PrepareX509CA(context.Context) error {
 	return m.prepareX509CAErr
 }
 
