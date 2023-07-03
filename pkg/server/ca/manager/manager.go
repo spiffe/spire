@@ -227,6 +227,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	// slot moved to old state
 	slot.authorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId)
 	slot.publicKey = slot.x509CA.Certificate.PublicKey
+	slot.notAfter = slot.x509CA.Certificate.NotAfter
 
 	if err := m.journal.AppendX509CA(slot.id, slot.issuedAt, slot.x509CA); err != nil {
 		log.WithError(err).Error("Unable to append X509 CA to journal")
@@ -321,6 +322,7 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 	slot.jwtKey = jwtKey
 	slot.status = journal.Status_PREPARED
 	slot.authorityID = jwtKey.Kid
+	slot.notAfter = jwtKey.NotAfter
 
 	if err := m.journal.AppendJWTKey(slot.id, slot.issuedAt, slot.jwtKey); err != nil {
 		log.WithError(err).Error("Unable to append JWT key to journal")

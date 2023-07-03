@@ -255,6 +255,7 @@ func TestJournalLoad(t *testing.T) {
 					},
 					authorityID: "",
 					publicKey:   x509KeyB.Public(),
+					notAfter:    x509RootB.NotAfter,
 				},
 				NextX509CASlot: &X509CASlot{id: "A"},
 				CurrentJWTKeySlot: &JwtKeySlot{
@@ -267,6 +268,7 @@ func TestJournalLoad(t *testing.T) {
 						NotAfter: notAfter,
 					},
 					authorityID: "",
+					notAfter:    notAfter,
 				},
 				NextJWTKeySlot: &JwtKeySlot{id: "A"},
 			},
@@ -342,6 +344,7 @@ func TestJournalLoad(t *testing.T) {
 					},
 					publicKey:   x509KeyB.Public(),
 					authorityID: "2",
+					notAfter:    x509RootB.NotAfter,
 				},
 				NextX509CASlot: &X509CASlot{
 					id:       "A",
@@ -353,6 +356,7 @@ func TestJournalLoad(t *testing.T) {
 					},
 					publicKey:   x509KeyA.Public(),
 					authorityID: "1",
+					notAfter:    x509RootA.NotAfter,
 				},
 				CurrentJWTKeySlot: &JwtKeySlot{
 					id:       "B",
@@ -364,6 +368,7 @@ func TestJournalLoad(t *testing.T) {
 						NotAfter: notAfter,
 					},
 					authorityID: "b",
+					notAfter:    notAfter,
 				},
 				NextJWTKeySlot: &JwtKeySlot{
 					id:       "A",
@@ -375,6 +380,7 @@ func TestJournalLoad(t *testing.T) {
 						NotAfter: notAfter,
 					},
 					authorityID: "a",
+					notAfter:    notAfter,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -423,6 +429,7 @@ func TestJournalLoad(t *testing.T) {
 					},
 					publicKey:   x509KeyA.Public(),
 					authorityID: "1",
+					notAfter:    x509RootA.NotAfter,
 				},
 				NextX509CASlot: &X509CASlot{
 					id: "B",
@@ -437,6 +444,7 @@ func TestJournalLoad(t *testing.T) {
 						NotAfter: notAfter,
 					},
 					authorityID: "a",
+					notAfter:    notAfter,
 				},
 				NextJWTKeySlot: &JwtKeySlot{
 					id: "B",
@@ -520,6 +528,7 @@ func TestJournalLoad(t *testing.T) {
 					},
 					authorityID: "1",
 					publicKey:   x509KeyA.Public(),
+					notAfter:    x509RootA.NotAfter,
 				},
 				NextX509CASlot: &X509CASlot{
 					id:       "B",
@@ -531,6 +540,7 @@ func TestJournalLoad(t *testing.T) {
 					},
 					authorityID: "2",
 					publicKey:   x509KeyB.Public(),
+					notAfter:    x509RootB.NotAfter,
 				},
 				CurrentJWTKeySlot: &JwtKeySlot{
 					id:       "A",
@@ -542,6 +552,7 @@ func TestJournalLoad(t *testing.T) {
 						NotAfter: notAfter,
 					},
 					authorityID: "a",
+					notAfter:    notAfter,
 				},
 				NextJWTKeySlot: &JwtKeySlot{
 					id:       "B",
@@ -553,6 +564,7 @@ func TestJournalLoad(t *testing.T) {
 						NotAfter: notAfter,
 					},
 					authorityID: "b",
+					notAfter:    notAfter,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -635,6 +647,7 @@ func TestJournalLoad(t *testing.T) {
 					},
 					publicKey:   x509KeyA.Public(),
 					authorityID: "3",
+					notAfter:    x509RootA.NotAfter,
 				},
 				NextX509CASlot: &X509CASlot{
 					id:       "B",
@@ -646,6 +659,7 @@ func TestJournalLoad(t *testing.T) {
 					},
 					publicKey:   x509KeyB.Public(),
 					authorityID: "1",
+					notAfter:    x509RootB.NotAfter,
 				},
 				CurrentJWTKeySlot: &JwtKeySlot{
 					id:       "A",
@@ -657,6 +671,7 @@ func TestJournalLoad(t *testing.T) {
 						NotAfter: notAfter,
 					},
 					authorityID: "c",
+					notAfter:    notAfter,
 				},
 				NextJWTKeySlot: &JwtKeySlot{
 					id:       "B",
@@ -668,6 +683,7 @@ func TestJournalLoad(t *testing.T) {
 						NotAfter: notAfter,
 					},
 					authorityID: "a",
+					notAfter:    notAfter,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{

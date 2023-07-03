@@ -41,6 +41,7 @@ type Slot interface {
 	Status() journal.Status
 	AuthorityID() string
 	PublicKey() crypto.PublicKey
+	NotAfter() time.Time
 }
 
 type SlotLoader struct {
@@ -373,6 +374,7 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAE
 		status:      entry.Status,
 		authorityID: entry.AuthorityId,
 		publicKey:   signer.Public(),
+		notAfter:    cert.NotAfter,
 	}, "", nil
 }
 
@@ -431,6 +433,7 @@ func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyE
 		},
 		status:      entry.Status,
 		authorityID: entry.AuthorityId,
+		notAfter:    time.Unix(entry.NotAfter, 0),
 	}, "", nil
 }
 
@@ -519,6 +522,7 @@ type X509CASlot struct {
 	status      journal.Status
 	authorityID string
 	publicKey   crypto.PublicKey
+	notAfter    time.Time
 }
 
 func newX509CASlot(id string) *X509CASlot {
@@ -560,12 +564,17 @@ func (s *X509CASlot) PublicKey() crypto.PublicKey {
 	return s.publicKey
 }
 
+func (s *X509CASlot) NotAfter() time.Time {
+	return s.notAfter
+}
+
 type JwtKeySlot struct {
 	id          string
 	issuedAt    time.Time
 	jwtKey      *ca.JWTKey
 	status      journal.Status
 	authorityID string
+	notAfter    time.Time
 }
 
 func newJWTKeySlot(id string) *JwtKeySlot {
@@ -608,4 +617,8 @@ func (s *JwtKeySlot) ShouldPrepareNext(now time.Time) bool {
 
 func (s *JwtKeySlot) ShouldActivateNext(now time.Time) bool {
 	return s.jwtKey == nil || now.After(keyActivationThreshold(s.issuedAt, s.jwtKey.NotAfter))
+}
+
+func (s *JwtKeySlot) NotAfter() time.Time {
+	return s.notAfter
 }

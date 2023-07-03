@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -83,45 +84,39 @@ func (s *Service) GetX509AuthorityState(ctx context.Context, _ *localauthorityv1
 
 	current := s.ca.GetCurrentX509CASlot()
 	switch {
-	case current.IsEmpty():
+	case current.Status() != journal.Status_ACTIVE:
 		return nil, api.MakeErr(log, codes.Unavailable, "server is initializing", nil)
 	case current.AuthorityID() == "":
 		return nil, api.MakeErr(log, codes.Internal, "current slot does not contains authority ID", nil)
 	}
 
-	var states []*localauthorityv1.AuthorityState
-	states = append(states, &localauthorityv1.AuthorityState{
-		AuthorityId: current.AuthorityID(),
-		Status:      localauthorityv1.AuthorityState_ACTIVE,
-	})
+	resp := &localauthorityv1.GetX509AuthorityStateResponse{
+		Active: stateFromSlot(current),
+	}
 
 	next := s.ca.GetNextX509CASlot()
 	// when next has a key indicates that it was initialized
 	if next.AuthorityID() != "" {
-		status := localauthorityv1.AuthorityState_PREPARED
-		// CA is removed from slot on rotation
-		if next.IsEmpty() {
-			status = localauthorityv1.AuthorityState_OLD
+		switch next.Status() {
+		case journal.Status_OLD:
+			resp.Old = stateFromSlot(next)
+		case journal.Status_PREPARED:
+			resp.Prepared = stateFromSlot(next)
+		case journal.Status_UNKNOWN:
+			log.WithField(telemetry.LocalAuthorityID, next.AuthorityID()).Error("Slot has an unknown status")
 		}
-
-		states = append(states, &localauthorityv1.AuthorityState{
-			AuthorityId: next.AuthorityID(),
-			Status:      status,
-		})
 	}
 
 	rpccontext.AuditRPC(ctx)
 
-	return &localauthorityv1.GetX509AuthorityStateResponse{
-		States: states,
-	}, nil
+	return resp, nil
 }
 
 func (s *Service) PrepareX509Authority(ctx context.Context, req *localauthorityv1.PrepareX509AuthorityRequest) (*localauthorityv1.PrepareX509AuthorityResponse, error) {
 	log := rpccontext.Logger(ctx)
 
 	current := s.ca.GetCurrentX509CASlot()
-	if current.IsEmpty() {
+	if current.Status() != journal.Status_ACTIVE {
 		return nil, api.MakeErr(log, codes.Unavailable, "server is initializing", nil)
 	}
 
@@ -136,7 +131,7 @@ func (s *Service) PrepareX509Authority(ctx context.Context, req *localauthorityv
 	return &localauthorityv1.PrepareX509AuthorityResponse{
 		PreparedAuthority: &localauthorityv1.AuthorityState{
 			AuthorityId: slot.AuthorityID(),
-			Status:      localauthorityv1.AuthorityState_PREPARED,
+			ExpiresAt:   slot.NotAfter().Unix(),
 		},
 	}, nil
 }
@@ -144,15 +139,24 @@ func (s *Service) PrepareX509Authority(ctx context.Context, req *localauthorityv
 func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthorityv1.ActivateX509AuthorityRequest) (*localauthorityv1.ActivateX509AuthorityResponse, error) {
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
-
-	// TODO: implement a way to activate an OLD authority
 	if req.AuthorityId != "" {
 		log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
-		return nil, api.MakeErr(log, codes.InvalidArgument, "activating an old authority is not supported yet", nil)
 	}
 
-	if s.ca.GetNextX509CASlot().IsEmpty() {
-		return nil, api.MakeErr(log, codes.Internal, "no prepared authority found", nil)
+	nextSlot := s.ca.GetNextX509CASlot()
+
+	switch {
+	// Authority ID is required
+	case req.AuthorityId == "":
+		return nil, api.MakeErr(log, codes.InvalidArgument, "no authority ID provided", nil)
+
+	/// Only next local authority can be Activated
+	case req.AuthorityId != nextSlot.AuthorityID():
+		return nil, api.MakeErr(log, codes.InvalidArgument, "unexpected authority ID", nil)
+
+	// Only PREPARED local authorities can be Activated
+	case nextSlot.Status() != journal.Status_PREPARED:
+		return nil, api.MakeErr(log, codes.Internal, "only Prepared authorities can be activated", nil)
 	}
 
 	// Move next into current and reset next to clean CA
@@ -161,7 +165,7 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 	current := s.ca.GetCurrentX509CASlot()
 	state := &localauthorityv1.AuthorityState{
 		AuthorityId: current.AuthorityID(),
-		Status:      localauthorityv1.AuthorityState_ACTIVE,
+		ExpiresAt:   current.NotAfter().Unix(),
 	}
 	rpccontext.AuditRPC(ctx)
 
@@ -173,23 +177,36 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.TaintX509AuthorityRequest) (*localauthorityv1.TaintX509AuthorityResponse, error) {
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
-
-	authorityID, publicKey, err := s.getX509PublicKey(ctx, req.AuthorityId)
-	if err != nil {
-		if req.AuthorityId != "" {
-			log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
-		}
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid authority ID", err)
+	if req.AuthorityId != "" {
+		log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
 	}
-	log = log.WithField(telemetry.LocalAuthorityID, authorityID)
 
-	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), publicKey); err != nil {
+	nextSlot := s.ca.GetNextX509CASlot()
+
+	switch {
+	// Authority ID is required
+	case req.AuthorityId == "":
+		return nil, api.MakeErr(log, codes.InvalidArgument, "no authority ID provided", nil)
+
+		// It is not possible to taint Active authority
+	case req.AuthorityId == s.ca.GetCurrentX509CASlot().AuthorityID():
+		return nil, api.MakeErr(log, codes.InvalidArgument, "unable to taint current local authority", nil)
+
+	// Only next local authority can be tainted
+	case req.AuthorityId != nextSlot.AuthorityID():
+		return nil, api.MakeErr(log, codes.InvalidArgument, "unexpected authority ID", nil)
+
+	// Unable to taint a Prepared authority
+	case nextSlot.Status() == journal.Status_PREPARED:
+		return nil, api.MakeErr(log, codes.InvalidArgument, "unable to taint a Prepared local authority", nil)
+	}
+
+	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), nextSlot.PublicKey()); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint X.509 authority", err)
 	}
 
 	state := &localauthorityv1.AuthorityState{
-		AuthorityId: authorityID,
-		Status:      localauthorityv1.AuthorityState_OLD,
+		AuthorityId: nextSlot.AuthorityID(),
 	}
 
 	rpccontext.AuditRPC(ctx)
@@ -219,7 +236,6 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 
 	state := &localauthorityv1.AuthorityState{
 		AuthorityId: authorityID,
-		Status:      localauthorityv1.AuthorityState_OLD,
 	}
 
 	rpccontext.AuditRPC(ctx)
@@ -230,20 +246,18 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 	}, nil
 }
 
-// getX509PublicKey validates provided authority ID, and return OLD associated public key, in case of authority ID is not provided, use the current OLD authority
+// getX509PublicKey validates provided authority ID, and return OLD associated public key
 func (s *Service) getX509PublicKey(ctx context.Context, authorityID string) (string, crypto.PublicKey, error) {
 	if authorityID == "" {
-		// No key provided, taint OLD key
-		nextSlot := s.ca.GetNextX509CASlot()
-		if !nextSlot.IsEmpty() {
-			return "", nil, errors.New("unable to use a prepared key")
-		}
-
-		return nextSlot.AuthorityID(), nextSlot.PublicKey(), nil
+		return "", nil, errors.New("no authority ID provided")
 	}
 
 	nextSlot := s.ca.GetNextX509CASlot()
-	if nextSlot.AuthorityID() == authorityID {
+	if authorityID == nextSlot.AuthorityID() {
+		if nextSlot.Status() == journal.Status_PREPARED {
+			return "", nil, errors.New("unable to use a prepared key")
+		}
+
 		return nextSlot.AuthorityID(), nextSlot.PublicKey(), nil
 	}
 
@@ -278,4 +292,11 @@ func buildAuditLogFields(authorityID string) logrus.Fields {
 		fields[telemetry.LocalAuthorityID] = authorityID
 	}
 	return fields
+}
+
+func stateFromSlot(s manager.Slot) *localauthorityv1.AuthorityState {
+	return &localauthorityv1.AuthorityState{
+		AuthorityId: s.AuthorityID(),
+		ExpiresAt:   s.NotAfter().Unix(),
+	}
 }
