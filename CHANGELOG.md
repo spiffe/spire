@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.7.0] - 2023-06-14
+
+### Added
+
+- AWS IID Node Attestor now supports all regions, including GovCloud and regions in China (#4124)
+
+### Fixed
+
+- Systemd workload attestor fails with error `connection closed by user` (#4165)
+- Reduced SPIRE Agent CPU usage during kubernetes workload attestation (#4240)
+
+### Removed
+
+- Envoy SDSv2 API is deprecated and now disabled by default (#4228)
+
 ## [1.6.4] - 2023-05-17
 
 ### Added

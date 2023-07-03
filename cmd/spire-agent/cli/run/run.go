@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,6 +22,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/hashicorp/hcl/hcl/token"
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
@@ -57,11 +59,11 @@ const (
 
 // Config contains all available configurables, arranged by section
 type Config struct {
-	Agent        *agentConfig         `hcl:"agent"`
-	Plugins      ast.Node             `hcl:"plugins"`
-	Telemetry    telemetry.FileConfig `hcl:"telemetry"`
-	HealthChecks health.Config        `hcl:"health_checks"`
-	UnusedKeys   []string             `hcl:",unusedKeys"`
+	Agent              *agentConfig           `hcl:"agent"`
+	Plugins            ast.Node               `hcl:"plugins"`
+	Telemetry          telemetry.FileConfig   `hcl:"telemetry"`
+	HealthChecks       health.Config          `hcl:"health_checks"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type agentConfig struct {
@@ -96,7 +98,7 @@ type agentConfig struct {
 	ProfilingNames   []string           `hcl:"profiling_names"`
 	Experimental     experimentalConfig `hcl:"experimental"`
 
-	UnusedKeys []string `hcl:",unusedKeys"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type sdsConfig struct {
@@ -104,6 +106,7 @@ type sdsConfig struct {
 	DefaultBundleName           string `hcl:"default_bundle_name"`
 	DefaultAllBundlesName       string `hcl:"default_all_bundles_name"`
 	DisableSPIFFECertValidation bool   `hcl:"disable_spiffe_cert_validation"`
+	EnableDeprecatedv2API       bool   `hcl:"enable_deprecated_v2_api"`
 }
 
 type experimentalConfig struct {
@@ -113,8 +116,8 @@ type experimentalConfig struct {
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
-	UnusedKeys           []string `hcl:",unusedKeys"`
-	X509SVIDCacheMaxSize int      `hcl:"x509_svid_cache_max_size"`
+	UnusedKeyPositions   map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	X509SVIDCacheMaxSize int                    `hcl:"x509_svid_cache_max_size"`
 }
 
 type Command struct {
@@ -496,6 +499,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.JoinToken = c.Agent.JoinToken
 	ac.DataDir = c.Agent.DataDir
 	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName
+	ac.EnableDeprecatedSDSv2API = c.Agent.SDS.EnableDeprecatedv2API
+	if ac.EnableDeprecatedSDSv2API {
+		logger.Warn("The Envoy SDS v2 API is now deprecated in SPIRE and is no longer supported by Envoy. It is recommended that users of the SDS v2 API migrate to the SDS v3 API. The SDS v2 API and this config setting will be removed in a future version.")
+	}
 	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
 	ac.DefaultAllBundlesName = c.Agent.SDS.DefaultAllBundlesName
 	if ac.DefaultAllBundlesName == ac.DefaultBundleName {
@@ -563,15 +570,17 @@ func validateConfig(c *Config) error {
 		return errors.New("plugins section must be configured")
 	}
 
-	if err := c.Agent.validate(); err != nil {
-		return err
-	}
-
-	return nil
+	return c.Agent.validate()
 }
 
 func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
-	detectedUnknown := func(section string, keys []string) {
+	detectedUnknown := func(section string, keyPositions map[string][]token.Pos) {
+		var keys []string
+		for k := range keyPositions {
+			keys = append(keys, k)
+		}
+
+		sort.Strings(keys)
 		l.WithFields(logrus.Fields{
 			"section": section,
 			"keys":    strings.Join(keys, ","),
@@ -579,49 +588,49 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 		err = errors.New("unknown configuration detected")
 	}
 
-	if len(c.UnusedKeys) != 0 {
-		detectedUnknown("top-level", c.UnusedKeys)
+	if len(c.UnusedKeyPositions) != 0 {
+		detectedUnknown("top-level", c.UnusedKeyPositions)
 	}
 
-	if a := c.Agent; a != nil && len(a.UnusedKeys) != 0 {
-		detectedUnknown("agent", a.UnusedKeys)
+	if a := c.Agent; a != nil && len(a.UnusedKeyPositions) != 0 {
+		detectedUnknown("agent", a.UnusedKeyPositions)
 	}
 
 	// TODO: Re-enable unused key detection for telemetry. See
 	// https://github.com/spiffe/spire/issues/1101 for more information
 	//
-	// if len(c.Telemetry.UnusedKeys) != 0 {
-	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeys)
+	// if len(c.Telemetry.UnusedKeyPositions) != 0 {
+	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeyPositions)
 	// }
 
-	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
-		detectedUnknown("Prometheus", p.UnusedKeys)
+	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeyPositions) != 0 {
+		detectedUnknown("Prometheus", p.UnusedKeyPositions)
 	}
 
 	for _, v := range c.Telemetry.DogStatsd {
-		if len(v.UnusedKeys) != 0 {
-			detectedUnknown("DogStatsd", v.UnusedKeys)
+		if len(v.UnusedKeyPositions) != 0 {
+			detectedUnknown("DogStatsd", v.UnusedKeyPositions)
 		}
 	}
 
 	for _, v := range c.Telemetry.Statsd {
-		if len(v.UnusedKeys) != 0 {
-			detectedUnknown("Statsd", v.UnusedKeys)
+		if len(v.UnusedKeyPositions) != 0 {
+			detectedUnknown("Statsd", v.UnusedKeyPositions)
 		}
 	}
 
 	for _, v := range c.Telemetry.M3 {
-		if len(v.UnusedKeys) != 0 {
-			detectedUnknown("M3", v.UnusedKeys)
+		if len(v.UnusedKeyPositions) != 0 {
+			detectedUnknown("M3", v.UnusedKeyPositions)
 		}
 	}
 
-	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
-		detectedUnknown("InMem", p.UnusedKeys)
+	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeyPositions) != 0 {
+		detectedUnknown("InMem", p.UnusedKeyPositions)
 	}
 
-	if len(c.HealthChecks.UnusedKeys) != 0 {
-		detectedUnknown("health check", c.HealthChecks.UnusedKeys)
+	if len(c.HealthChecks.UnusedKeyPositions) != 0 {
+		detectedUnknown("health check", c.HealthChecks.UnusedKeyPositions)
 	}
 
 	return err

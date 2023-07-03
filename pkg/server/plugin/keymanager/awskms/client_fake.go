@@ -64,11 +64,11 @@ func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
 	}
 }
 
-func newSTSClientFake(t *testing.T) *stsClientFake {
+func newSTSClientFake() *stsClientFake {
 	return &stsClientFake{}
 }
 
-func (s *stsClientFake) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+func (s *stsClientFake) GetCallerIdentity(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	if s.err != "" {
 		return nil, errors.New(s.err)
 	}
@@ -95,7 +95,7 @@ func (k *kmsClientFake) setExpectedKeyPolicy(keyPolicy *string) {
 	k.expectedKeyPolicy = keyPolicy
 }
 
-func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput, opts ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
+func (k *kmsClientFake) CreateKey(_ context.Context, input *kms.CreateKeyInput, _ ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.createKeyErr != nil {
@@ -149,7 +149,7 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, input *kms.CreateKeyInput
 	}, nil
 }
 
-func (k *kmsClientFake) DescribeKey(ctx context.Context, input *kms.DescribeKeyInput, opts ...func(*kms.Options)) (*kms.DescribeKeyOutput, error) {
+func (k *kmsClientFake) DescribeKey(_ context.Context, input *kms.DescribeKeyInput, _ ...func(*kms.Options)) (*kms.DescribeKeyOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.describeKeyErr != nil {
@@ -173,7 +173,7 @@ func (k *kmsClientFake) DescribeKey(ctx context.Context, input *kms.DescribeKeyI
 	}, nil
 }
 
-func (k *kmsClientFake) GetPublicKey(ctx context.Context, input *kms.GetPublicKeyInput, opts ...func(*kms.Options)) (*kms.GetPublicKeyOutput, error) {
+func (k *kmsClientFake) GetPublicKey(_ context.Context, input *kms.GetPublicKeyInput, _ ...func(*kms.Options)) (*kms.GetPublicKeyOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.getPublicKeyErr != nil {
@@ -191,7 +191,7 @@ func (k *kmsClientFake) GetPublicKey(ctx context.Context, input *kms.GetPublicKe
 	}, nil
 }
 
-func (k *kmsClientFake) ListAliases(ctw context.Context, input *kms.ListAliasesInput, opts ...func(*kms.Options)) (*kms.ListAliasesOutput, error) {
+func (k *kmsClientFake) ListAliases(_ context.Context, input *kms.ListAliasesInput, _ ...func(*kms.Options)) (*kms.ListAliasesOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.listAliasesErr != nil {
@@ -229,7 +229,7 @@ func (k *kmsClientFake) ListAliases(ctw context.Context, input *kms.ListAliasesI
 	return &kms.ListAliasesOutput{Aliases: aliasesResp}, nil
 }
 
-func (k *kmsClientFake) ScheduleKeyDeletion(ctx context.Context, input *kms.ScheduleKeyDeletionInput, opts ...func(*kms.Options)) (*kms.ScheduleKeyDeletionOutput, error) {
+func (k *kmsClientFake) ScheduleKeyDeletion(_ context.Context, input *kms.ScheduleKeyDeletionInput, _ ...func(*kms.Options)) (*kms.ScheduleKeyDeletionOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.scheduleKeyDeletionErr != nil {
@@ -241,7 +241,7 @@ func (k *kmsClientFake) ScheduleKeyDeletion(ctx context.Context, input *kms.Sche
 	return &kms.ScheduleKeyDeletionOutput{}, nil
 }
 
-func (k *kmsClientFake) Sign(ctx context.Context, input *kms.SignInput, opts ...func(*kms.Options)) (*kms.SignOutput, error) {
+func (k *kmsClientFake) Sign(_ context.Context, input *kms.SignInput, _ ...func(*kms.Options)) (*kms.SignOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
@@ -301,7 +301,7 @@ func (k *kmsClientFake) Sign(ctx context.Context, input *kms.SignInput, opts ...
 	return &kms.SignOutput{Signature: signature}, nil
 }
 
-func (k *kmsClientFake) CreateAlias(ctx context.Context, input *kms.CreateAliasInput, opts ...func(*kms.Options)) (*kms.CreateAliasOutput, error) {
+func (k *kmsClientFake) CreateAlias(_ context.Context, input *kms.CreateAliasInput, _ ...func(*kms.Options)) (*kms.CreateAliasOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.createAliasErr != nil {
@@ -320,7 +320,7 @@ func (k *kmsClientFake) CreateAlias(ctx context.Context, input *kms.CreateAliasI
 	return &kms.CreateAliasOutput{}, nil
 }
 
-func (k *kmsClientFake) UpdateAlias(ctw context.Context, input *kms.UpdateAliasInput, opts ...func(*kms.Options)) (*kms.UpdateAliasOutput, error) {
+func (k *kmsClientFake) UpdateAlias(_ context.Context, input *kms.UpdateAliasInput, _ ...func(*kms.Options)) (*kms.UpdateAliasOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.updateAliasErr != nil {
@@ -335,7 +335,7 @@ func (k *kmsClientFake) UpdateAlias(ctw context.Context, input *kms.UpdateAliasI
 	return &kms.UpdateAliasOutput{}, nil
 }
 
-func (k *kmsClientFake) ListKeys(ctw context.Context, input *kms.ListKeysInput, opts ...func(*kms.Options)) (*kms.ListKeysOutput, error) {
+func (k *kmsClientFake) ListKeys(context.Context, *kms.ListKeysInput, ...func(*kms.Options)) (*kms.ListKeysOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.listKeysErr != nil {
@@ -353,7 +353,7 @@ func (k *kmsClientFake) ListKeys(ctw context.Context, input *kms.ListKeysInput, 
 	return &kms.ListKeysOutput{Keys: keysResp}, nil
 }
 
-func (k *kmsClientFake) DeleteAlias(ctx context.Context, params *kms.DeleteAliasInput, optFns ...func(*kms.Options)) (*kms.DeleteAliasOutput, error) {
+func (k *kmsClientFake) DeleteAlias(_ context.Context, params *kms.DeleteAliasInput, _ ...func(*kms.Options)) (*kms.DeleteAliasOutput, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.deleteAliasErr != nil {

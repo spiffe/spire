@@ -154,7 +154,7 @@ func readStringAndClose(r io.ReadCloser) (string, error) {
 }
 
 // Configure implements the Config interface method of the same name
-func (p *IIDAttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	config := &IIDAttestorConfig{}
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {

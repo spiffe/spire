@@ -88,8 +88,8 @@ func (s *Suite) TestAttestSuccess() {
 		},
 		{
 			desc:          "success with custom agent id (ca_bundle_paths)",
-			expectAgentID: "spiffe://example.org/spire/agent/cn/COMMONNAME",
-			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/cn/{{ .Subject.CommonName }}"`),
+			expectAgentID: "spiffe://example.org/spire/agent/serialnumber/0a1b2c3d4e5f",
+			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/serialnumber/{{ .SerialNumberHex }}"`),
 		},
 	}
 
@@ -124,6 +124,7 @@ func (s *Suite) TestAttestSuccess() {
 					{Type: "x509pop", Value: "subject:cn:COMMONNAME"},
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
+					{Type: "x509pop", Value: "serialnumber:0a1b2c3d4e5f"},
 				}, result.Selectors)
 		})
 	}
@@ -310,6 +311,6 @@ func unmarshal(t *testing.T, data []byte, obj interface{}) {
 	require.NoError(t, json.Unmarshal(data, obj))
 }
 
-func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
 }

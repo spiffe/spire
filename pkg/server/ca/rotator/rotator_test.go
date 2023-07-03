@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -394,14 +395,14 @@ type fakeCAManager struct {
 	pruneCh        chan struct{}
 }
 
-func (f *fakeCAManager) NotifyBundleLoaded(ctx context.Context) error {
+func (f *fakeCAManager) NotifyBundleLoaded(context.Context) error {
 	if f.notifyBundleLoadedErr != nil {
 		return f.notifyBundleLoadedErr
 	}
 	return nil
 }
 
-func (f *fakeCAManager) NotifyOnBundleUpdate(ctx context.Context) {
+func (f *fakeCAManager) NotifyOnBundleUpdate(context.Context) {
 }
 
 func (f *fakeCAManager) GetCurrentX509CASlot() manager.Slot {
@@ -412,7 +413,7 @@ func (f *fakeCAManager) GetNextX509CASlot() manager.Slot {
 	return f.nextX509CASlot
 }
 
-func (f *fakeCAManager) PrepareX509CA(ctx context.Context) error {
+func (f *fakeCAManager) PrepareX509CA(context.Context) error {
 	f.cleanX509CACh()
 
 	if f.prepareX509CAErr != nil {
@@ -459,7 +460,7 @@ func (f *fakeCAManager) GetNextJWTKeySlot() manager.Slot {
 	return f.nextJWTKeySlot
 }
 
-func (f *fakeCAManager) PrepareJWTKey(ctx context.Context) error {
+func (f *fakeCAManager) PrepareJWTKey(context.Context) error {
 	f.cleanJWTKeyCh()
 	if f.prepareJWTKeyErr != nil {
 		return f.prepareJWTKeyErr
@@ -494,7 +495,7 @@ func (f *fakeCAManager) RotateJWTKey() {
 	f.jwtKeyCh <- struct{}{}
 }
 
-func (f *fakeCAManager) PruneBundle(ctx context.Context) error {
+func (f *fakeCAManager) PruneBundle(context.Context) error {
 	defer func() {
 		f.pruneCh <- struct{}{}
 	}()
@@ -547,6 +548,7 @@ type fakeSlot struct {
 	activationTime  time.Time
 	hasValue        bool
 	isActive        bool
+	status          journal.Status
 }
 
 func (s *fakeSlot) KmKeyID() string {
@@ -554,12 +556,13 @@ func (s *fakeSlot) KmKeyID() string {
 }
 
 func (s *fakeSlot) IsEmpty() bool {
-	return !s.hasValue
+	return !s.hasValue || s.status == journal.Status_OLD
 }
 
 func (s *fakeSlot) Reset() {
 	s.hasValue = false
 	s.isActive = false
+	s.status = journal.Status_OLD
 }
 
 func (s *fakeSlot) ShouldPrepareNext(now time.Time) bool {
@@ -568,6 +571,10 @@ func (s *fakeSlot) ShouldPrepareNext(now time.Time) bool {
 
 func (s *fakeSlot) ShouldActivateNext(now time.Time) bool {
 	return !s.hasValue || now.After(s.activationTime)
+}
+
+func (s *fakeSlot) Status() journal.Status {
+	return s.status
 }
 
 func createSlot(id string, now time.Time, hasValue bool) *fakeSlot {

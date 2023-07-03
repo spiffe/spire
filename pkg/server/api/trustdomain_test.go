@@ -86,7 +86,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 					},
 				},
 				TrustDomainBundle: &types.Bundle{
-					TrustDomain: td.String(),
+					TrustDomain: td.Name(),
 				},
 			},
 			expectResp: &datastore.FederationRelationship{
@@ -110,7 +110,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 					},
 				},
 				TrustDomainBundle: &types.Bundle{
-					TrustDomain: td.String(),
+					TrustDomain: td.Name(),
 				},
 			},
 			mask: &types.FederationRelationshipMask{},
@@ -151,7 +151,7 @@ func TestProtoToFederationRelationshipWithMask(t *testing.T) {
 					},
 				},
 				TrustDomainBundle: &types.Bundle{
-					TrustDomain: td.String(),
+					TrustDomain: td.Name(),
 				},
 			},
 			expectErr: "failed to parse endpoint SPIFFE ID:",

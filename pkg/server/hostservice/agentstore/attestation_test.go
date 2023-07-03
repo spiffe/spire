@@ -46,7 +46,7 @@ func TestIsAttested(t *testing.T) {
 
 type fakeAgentStore struct{}
 
-func (fakeAgentStore) GetAgentInfo(ctx context.Context, in *agentstorev1.GetAgentInfoRequest, dialOpts ...grpc.CallOption) (*agentstorev1.GetAgentInfoResponse, error) {
+func (fakeAgentStore) GetAgentInfo(_ context.Context, in *agentstorev1.GetAgentInfoRequest, _ ...grpc.CallOption) (*agentstorev1.GetAgentInfoResponse, error) {
 	switch in.AgentId {
 	case "spiffe://domain.test/spire/agent/test/attested":
 		return &agentstorev1.GetAgentInfoResponse{

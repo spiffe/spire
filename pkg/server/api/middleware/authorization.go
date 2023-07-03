@@ -83,7 +83,7 @@ func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName str
 	return nil, deniedErr
 }
 
-func (m *authorizationMiddleware) Postprocess(ctx context.Context, methodName string, handlerInvoked bool, rpcErr error) {
+func (m *authorizationMiddleware) Postprocess(context.Context, string, bool, error) {
 	// Intentionally empty.
 }
 

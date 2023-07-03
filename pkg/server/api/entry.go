@@ -56,7 +56,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 			if err != nil {
 				return nil, fmt.Errorf("invalid federated trust domain: %w", err)
 			}
-			federatesWith = append(federatesWith, td.String())
+			federatesWith = append(federatesWith, td.Name())
 		}
 	}
 

@@ -99,7 +99,7 @@ type MSIAttestorPlugin struct {
 		now                   func() time.Time
 		keySetProvider        jwtutil.KeySetProvider
 		newClient             func(string, azcore.TokenCredential) (apiClient, error)
-		fetchInstanceMetadata func(context.Context, azure.HTTPClient) (*azure.InstanceMetadata, error)
+		fetchInstanceMetadata func(azure.HTTPClient) (*azure.InstanceMetadata, error)
 		msiCredential         func() (azcore.TokenCredential, error)
 	}
 }
@@ -221,7 +221,7 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	})
 }
 
-func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	hclConfig := new(MSIAttestorConfig)
 	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
@@ -278,7 +278,7 @@ func (p *MSIAttestorPlugin) Configure(ctx context.Context, req *configv1.Configu
 				return nil, status.Errorf(codes.Internal, "unable to create client for tenant %q: %v", tenantID, err)
 			}
 		case tenant.UseMSI:
-			instanceMetadata, err := p.hooks.fetchInstanceMetadata(ctx, http.DefaultClient)
+			instanceMetadata, err := p.hooks.fetchInstanceMetadata(http.DefaultClient)
 			if err != nil {
 				return nil, err
 			}

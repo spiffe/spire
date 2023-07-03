@@ -341,7 +341,7 @@ func (ls *FakeLimiters) newRawRateLimiter(limit rate.Limit, burst int) rawRateLi
 	}
 }
 
-func (ls *FakeLimiters) waitN(ctx context.Context, id, count int) error {
+func (ls *FakeLimiters) waitN(_ context.Context, id, count int) error {
 	ls.WaitNEvents = append(ls.WaitNEvents, WaitNEvent{
 		ID:    id,
 		Count: count,

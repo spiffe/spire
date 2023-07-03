@@ -772,7 +772,7 @@ type fakeEntryClient struct {
 	err     error
 }
 
-func (c *fakeEntryClient) GetAuthorizedEntries(ctx context.Context, in *entryv1.GetAuthorizedEntriesRequest, opts ...grpc.CallOption) (*entryv1.GetAuthorizedEntriesResponse, error) {
+func (c *fakeEntryClient) GetAuthorizedEntries(_ context.Context, in *entryv1.GetAuthorizedEntriesRequest, _ ...grpc.CallOption) (*entryv1.GetAuthorizedEntriesResponse, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -805,7 +805,7 @@ type fakeBundleClient struct {
 	simulateRelease func()
 }
 
-func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlev1.GetBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
+func (c *fakeBundleClient) GetBundle(context.Context, *bundlev1.GetBundleRequest, ...grpc.CallOption) (*types.Bundle, error) {
 	if c.bundleErr != nil {
 		return nil, c.bundleErr
 	}
@@ -817,7 +817,7 @@ func (c *fakeBundleClient) GetBundle(ctx context.Context, in *bundlev1.GetBundle
 	return c.agentBundle, nil
 }
 
-func (c *fakeBundleClient) GetFederatedBundle(ctx context.Context, in *bundlev1.GetFederatedBundleRequest, opts ...grpc.CallOption) (*types.Bundle, error) {
+func (c *fakeBundleClient) GetFederatedBundle(_ context.Context, in *bundlev1.GetFederatedBundleRequest, _ ...grpc.CallOption) (*types.Bundle, error) {
 	if c.federatedBundleErr != nil {
 		return nil, c.federatedBundleErr
 	}
@@ -838,7 +838,7 @@ type fakeSVIDClient struct {
 	simulateRelease func()
 }
 
-func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidv1.BatchNewX509SVIDRequest, opts ...grpc.CallOption) (*svidv1.BatchNewX509SVIDResponse, error) {
+func (c *fakeSVIDClient) BatchNewX509SVID(_ context.Context, in *svidv1.BatchNewX509SVIDRequest, _ ...grpc.CallOption) (*svidv1.BatchNewX509SVIDResponse, error) {
 	if c.batchSVIDErr != nil {
 		return nil, c.batchSVIDErr
 	}
@@ -874,7 +874,7 @@ func (c *fakeSVIDClient) BatchNewX509SVID(ctx context.Context, in *svidv1.BatchN
 	}, nil
 }
 
-func (c *fakeSVIDClient) NewJWTSVID(ctx context.Context, in *svidv1.NewJWTSVIDRequest, opts ...grpc.CallOption) (*svidv1.NewJWTSVIDResponse, error) {
+func (c *fakeSVIDClient) NewJWTSVID(context.Context, *svidv1.NewJWTSVIDRequest, ...grpc.CallOption) (*svidv1.NewJWTSVIDResponse, error) {
 	if c.newJWTSVID != nil {
 		return nil, c.newJWTSVID
 	}
@@ -889,7 +889,7 @@ type fakeAgentClient struct {
 	svid *types.X509SVID
 }
 
-func (c *fakeAgentClient) RenewAgent(ctx context.Context, in *agentv1.RenewAgentRequest, opts ...grpc.CallOption) (*agentv1.RenewAgentResponse, error) {
+func (c *fakeAgentClient) RenewAgent(_ context.Context, in *agentv1.RenewAgentRequest, _ ...grpc.CallOption) (*agentv1.RenewAgentResponse, error) {
 	if c.err != nil {
 		return nil, c.err
 	}

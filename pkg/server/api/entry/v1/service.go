@@ -50,7 +50,7 @@ func RegisterService(s *grpc.Server, service *Service) {
 }
 
 // CountEntries returns the total number of entries.
-func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesRequest) (*entryv1.CountEntriesResponse, error) {
+func (s *Service) CountEntries(ctx context.Context, _ *entryv1.CountEntriesRequest) (*entryv1.CountEntriesResponse, error) {
 	count, err := s.ds.CountRegistrationEntries(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)

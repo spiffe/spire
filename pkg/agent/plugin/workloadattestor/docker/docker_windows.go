@@ -15,7 +15,7 @@ type OSConfig struct {
 	DockerHost string `hcl:"docker_host" json:"docker_host"`
 }
 
-func createHelper(c *dockerPluginConfig) (*containerHelper, error) {
+func createHelper(*dockerPluginConfig) (*containerHelper, error) {
 	return &containerHelper{
 		ph: process.CreateHelper(),
 	}, nil

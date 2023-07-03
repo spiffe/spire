@@ -6,7 +6,10 @@ package run
 import (
 	"bytes"
 	"fmt"
+	"net"
+	"net/netip"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -27,6 +30,8 @@ const (
 )
 
 func TestCommand_Run(t *testing.T) {
+	availablePort, err := getAvailablePort()
+	require.NoError(t, err)
 	testTempDir := t.TempDir()
 	testLogFile := testTempDir + "/spire-server.log"
 
@@ -74,6 +79,7 @@ func TestCommand_Run(t *testing.T) {
 			args: args{
 				args: []string{
 					"-config", startConfigFile,
+					"-serverPort", availablePort,
 					"-namedPipeName", "\\spire-agent\\public\\api",
 				},
 			},
@@ -95,6 +101,7 @@ func TestCommand_Run(t *testing.T) {
 			args: args{
 				args: []string{
 					"-config", crashConfigFile,
+					"-serverPort", availablePort,
 					"-dataDir", fmt.Sprintf("%s/crash/data", testTempDir),
 					"-expandEnv", "true",
 				},
@@ -116,6 +123,7 @@ func TestCommand_Run(t *testing.T) {
 			name: "create data dir when config is loaded and server stops",
 			args: args{
 				args: []string{
+					"-serverPort", availablePort,
 					"-config", startConfigFile,
 					"-dataDir", fmt.Sprintf("%s/data", testTempDir),
 					"-expandEnv", "true",
@@ -216,7 +224,7 @@ func killServerOnStart(t *testing.T, testLogFile string) {
 	}()
 }
 
-func mergeInputCasesOS(t *testing.T) []mergeInputCase {
+func mergeInputCasesOS(*testing.T) []mergeInputCase {
 	return []mergeInputCase{
 		{
 			msg: "socket_path should be configurable by file",
@@ -266,4 +274,19 @@ func newServerConfigCasesOS() []newServerConfigCase {
 
 func testParseConfigGoodOS(t *testing.T, c *Config) {
 	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api-test.sock")
+}
+
+func getAvailablePort() (string, error) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", err
+	}
+	defer l.Close()
+
+	addrPort, err := netip.ParseAddrPort(l.Addr().String())
+	if err != nil {
+		return "", err
+	}
+
+	return strconv.Itoa(int(addrPort.Port())), nil
 }

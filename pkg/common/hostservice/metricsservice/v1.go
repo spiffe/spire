@@ -19,30 +19,30 @@ type metricsV1 struct {
 	metrics telemetry.Metrics
 }
 
-func (m metricsV1) AddSample(ctx context.Context, req *metricsv1.AddSampleRequest) (*emptypb.Empty, error) {
+func (m metricsV1) AddSample(_ context.Context, req *metricsv1.AddSampleRequest) (*emptypb.Empty, error) {
 	labels := v1ConvertToTelemetryLabels(req.Labels)
 	m.metrics.AddSampleWithLabels(req.Key, req.Val, labels)
 	return &emptypb.Empty{}, nil
 }
 
-func (m metricsV1) EmitKey(ctx context.Context, req *metricsv1.EmitKeyRequest) (*emptypb.Empty, error) {
+func (m metricsV1) EmitKey(_ context.Context, req *metricsv1.EmitKeyRequest) (*emptypb.Empty, error) {
 	m.metrics.EmitKey(req.Key, req.Val)
 	return &emptypb.Empty{}, nil
 }
 
-func (m metricsV1) IncrCounter(ctx context.Context, req *metricsv1.IncrCounterRequest) (*emptypb.Empty, error) {
+func (m metricsV1) IncrCounter(_ context.Context, req *metricsv1.IncrCounterRequest) (*emptypb.Empty, error) {
 	labels := v1ConvertToTelemetryLabels(req.Labels)
 	m.metrics.IncrCounterWithLabels(req.Key, req.Val, labels)
 	return &emptypb.Empty{}, nil
 }
 
-func (m metricsV1) MeasureSince(ctx context.Context, req *metricsv1.MeasureSinceRequest) (*emptypb.Empty, error) {
+func (m metricsV1) MeasureSince(_ context.Context, req *metricsv1.MeasureSinceRequest) (*emptypb.Empty, error) {
 	labels := v1ConvertToTelemetryLabels(req.Labels)
 	m.metrics.MeasureSinceWithLabels(req.Key, time.Unix(0, req.Time), labels)
 	return &emptypb.Empty{}, nil
 }
 
-func (m metricsV1) SetGauge(ctx context.Context, req *metricsv1.SetGaugeRequest) (*emptypb.Empty, error) {
+func (m metricsV1) SetGauge(_ context.Context, req *metricsv1.SetGaugeRequest) (*emptypb.Empty, error) {
 	labels := v1ConvertToTelemetryLabels(req.Labels)
 	m.metrics.SetGaugeWithLabels(req.Key, req.Val, labels)
 	return &emptypb.Empty{}, nil

@@ -46,7 +46,7 @@ func (f *fakePeer) killGrandchild() {
 	f.grandchildPID = 0
 }
 
-func addr(t *testing.T) net.Addr {
+func addr(*testing.T) net.Addr {
 	return spiretest.GetRandNamedPipeAddr()
 }
 
@@ -57,7 +57,7 @@ func listener(t *testing.T, log *logrus.Logger, addr net.Addr) *Listener {
 	return listener
 }
 
-func childExecCommand(t *testing.T, childPath string, addr net.Addr) *exec.Cmd {
+func childExecCommand(childPath string, addr net.Addr) *exec.Cmd {
 	// #nosec G204 test code
 	return exec.Command(childPath, "-namedPipeName", addr.String())
 }

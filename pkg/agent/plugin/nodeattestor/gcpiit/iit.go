@@ -75,7 +75,7 @@ func (p *IITAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 	})
 }
 
-func (p *IITAttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *IITAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := &IITAttestorConfig{}
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)

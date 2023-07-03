@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -161,6 +162,7 @@ func (s *HandlerSuite) SetupTest() {
 		Manager:           s.manager,
 		DefaultSVIDName:   "default",
 		DefaultBundleName: "ROOTCA",
+		Enabled:           true,
 	})
 
 	s.received = make(chan struct{})
@@ -202,6 +204,27 @@ func (s *HandlerSuite) TestStreamSecretsStreamAllSecrets() {
 	resp, err := stream.Recv()
 	s.Require().NoError(err)
 	s.requireSecrets(resp, tdValidationContext, fedValidationContext, workloadTLSCertificate1)
+}
+
+func (s *HandlerSuite) TestAPIIsNotEnabled() {
+	ctx := context.Background()
+	handler := New(Config{
+		Attestor:          FakeAttestor(workloadSelectors),
+		Manager:           s.manager,
+		DefaultSVIDName:   "default",
+		DefaultBundleName: "ROOTCA",
+		// API is not enabled
+		Enabled: false,
+	})
+	resp, err := handler.FetchSecrets(ctx, &api_v2.DiscoveryRequest{})
+	s.Require().Nil(resp)
+	s.RequireGRPCStatus(err, codes.Unavailable, deprecatedAPIErrorMsg)
+
+	err = handler.StreamSecrets(nil)
+	s.RequireGRPCStatus(err, codes.Unavailable, deprecatedAPIErrorMsg)
+
+	err = handler.DeltaSecrets(nil)
+	s.RequireGRPCStatus(err, codes.Unavailable, deprecatedAPIErrorMsg)
 }
 
 func (s *HandlerSuite) TestStreamSecretsStreamTrustDomainBundleOnly() {
@@ -532,7 +555,7 @@ func (s *HandlerSuite) requireSecrets(resp *api_v2.DiscoveryResponse, expectedSe
 
 type FakeAttestor []*common.Selector
 
-func (a FakeAttestor) Attest(ctx context.Context) ([]*common.Selector, error) {
+func (a FakeAttestor) Attest(context.Context) ([]*common.Selector, error) {
 	return ([]*common.Selector)(a), nil
 }
 
@@ -552,7 +575,7 @@ func NewFakeManager(t *testing.T) *FakeManager {
 	}
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToCacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
 	require.Equal(m.t, workloadSelectors, selectors)
 
 	updch := make(chan *cache.WorkloadUpdate, 1)
@@ -571,7 +594,7 @@ func (m *FakeManager) SubscribeToCacheChanges(ctx context.Context, selectors cac
 	}), nil
 }
 
-func (m *FakeManager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {
+func (m *FakeManager) FetchWorkloadUpdate(_ []*common.Selector) *cache.WorkloadUpdate {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.upd
@@ -614,7 +637,7 @@ func (s *FakeSubscriber) Finish() {
 
 type FakeCreds struct{}
 
-func (c FakeCreds) ClientHandshake(_ context.Context, _ string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+func (c FakeCreds) ClientHandshake(context.Context, string, net.Conn) (net.Conn, credentials.AuthInfo, error) {
 	return nil, nil, errors.New("unexpected")
 }
 

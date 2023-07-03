@@ -16,7 +16,7 @@ type CoreConfig struct {
 
 func (c CoreConfig) v1() *configv1.CoreConfiguration {
 	return &configv1.CoreConfiguration{
-		TrustDomain: c.TrustDomain.String(),
+		TrustDomain: c.TrustDomain.Name(),
 	}
 }
 
@@ -74,6 +74,6 @@ func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, hc
 
 type configurerUnsupported struct{}
 
-func (c configurerUnsupported) Configure(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) error {
+func (c configurerUnsupported) Configure(context.Context, CoreConfig, string) error {
 	return status.Error(codes.FailedPrecondition, "plugin does not support a configuration interface")
 }

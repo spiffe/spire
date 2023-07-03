@@ -71,6 +71,7 @@ This may be useful for templating configuration files, for example across differ
 | experimental      | Description                                                     | Default                 |
 |:------------------|-----------------------------------------------------------------|-------------------------|
 | `named_pipe_name` | Pipe name to bind the SPIRE Agent API named pipe (Windows only) | \spire-agent\public\api |
+| `sync_interval`   | Sync interval with SPIRE server with exponential backoff        | 5 sec                   |
 
 ### Initial trust bundle configuration
 
@@ -84,12 +85,13 @@ Only one of these three options may be set at a time.
 
 ### SDS Configuration
 
-| Configuration                    | Description                                                                                      | Default |
-|----------------------------------|--------------------------------------------------------------------------------------------------|---------|
-| `default_svid_name`              | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS                | default |
-| `default_bundle_name`            | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS          | ROOTCA  |
-| `default_all_bundles_name`       | The Validation Context resource name to use for all bundles (including federated) with Envoy SDS | ALL     |
-| `disable_spiffe_cert_validation` | Disable Envoy SDS custom validation                                                              | false   |
+| Configuration                    | Description                                                                                                                                                                         | Default |
+|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `enable_deprecated_v2_api`       | Enable deprecated SDS v2 API. It is recommended that users of the SDS v2 API migrate to the SDS v3 API. The SDS v2 API and this config setting will be removed in a future version. | false   |
+| `default_svid_name`              | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS                                                                                                   | default |
+| `default_bundle_name`            | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS                                                                                             | ROOTCA  |
+| `default_all_bundles_name`       | The Validation Context resource name to use for all bundles (including federated) with Envoy SDS                                                                                    | ALL     |
+| `disable_spiffe_cert_validation` | Disable Envoy SDS custom validation                                                                                                                                                 | false   |
 
 ### Profiling Names
 

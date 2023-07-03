@@ -261,7 +261,7 @@ func (p *AttestorPlugin) getNamesFromClaims(claims *k8s.SATClaims) (namespace st
 	return namespace, serviceAccountName, nil
 }
 
-func (p *AttestorPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	hclConfig := new(AttestorConfig)
 	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)

@@ -584,7 +584,7 @@ func newFakeClient() *fakeClient {
 	}
 }
 
-func (c *fakeClient) DescribeInstances(ctx context.Context, input *ec2.DescribeInstancesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
+func (c *fakeClient) DescribeInstances(_ context.Context, input *ec2.DescribeInstancesInput, _ ...func(*ec2.Options)) (*ec2.DescribeInstancesOutput, error) {
 	expectInput := &ec2.DescribeInstancesInput{
 		InstanceIds: []string{testInstance},
 		Filters:     instanceFilters,
@@ -595,7 +595,7 @@ func (c *fakeClient) DescribeInstances(ctx context.Context, input *ec2.DescribeI
 	return c.DescribeInstancesOutput, c.DescribeInstancesError
 }
 
-func (c *fakeClient) GetInstanceProfile(ctx context.Context, input *iam.GetInstanceProfileInput, optFns ...func(*iam.Options)) (*iam.GetInstanceProfileOutput, error) {
+func (c *fakeClient) GetInstanceProfile(_ context.Context, input *iam.GetInstanceProfileInput, _ ...func(*iam.Options)) (*iam.GetInstanceProfileOutput, error) {
 	expectInput := &iam.GetInstanceProfileInput{
 		InstanceProfileName: aws.String(testProfile),
 	}
@@ -697,6 +697,6 @@ func toJSON(t *testing.T, obj interface{}) []byte {
 	return jsonBytes
 }
 
-func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
 }

@@ -90,7 +90,7 @@ func (w *WorkloadAPI) FetchX509SVID(req *workload.X509SVIDRequest, stream worklo
 	return nil
 }
 
-func (w *WorkloadAPI) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
+func (w *WorkloadAPI) FetchJWTSVID(_ context.Context, req *workload.JWTSVIDRequest) (*workload.JWTSVIDResponse, error) {
 	if w.fetchJWTSVIDRequest.Err != nil {
 		return nil, w.fetchJWTSVIDRequest.Err
 	}
@@ -131,7 +131,7 @@ func (w *WorkloadAPI) FetchJWTBundles(req *workload.JWTBundlesRequest, stream wo
 	return nil
 }
 
-func (w *WorkloadAPI) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
+func (w *WorkloadAPI) ValidateJWTSVID(_ context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
 	if w.validateJWTRequest.Err != nil {
 		return nil, w.validateJWTRequest.Err
 	}

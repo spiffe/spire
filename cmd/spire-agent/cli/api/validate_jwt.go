@@ -44,7 +44,7 @@ func (c *validateJWTCommand) appendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintValidate)
 }
 
-func (c *validateJWTCommand) run(ctx context.Context, env *commoncli.Env, client *workloadClient) error {
+func (c *validateJWTCommand) run(ctx context.Context, _ *commoncli.Env, client *workloadClient) error {
 	if c.audience == "" {
 		return errors.New("audience must be specified")
 	}

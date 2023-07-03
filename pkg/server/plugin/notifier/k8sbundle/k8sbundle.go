@@ -450,7 +450,7 @@ func (c configMapClient) GetList(ctx context.Context) (runtime.Object, error) {
 	}, nil
 }
 
-func (c configMapClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c configMapClient) CreatePatch(_ context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ConfigMap")
@@ -470,7 +470,7 @@ func (c configMapClient) Patch(ctx context.Context, namespace, name string, patc
 	return err
 }
 
-func (c configMapClient) Informer(callback informerCallback) (cache.SharedIndexInformer, error) {
+func (c configMapClient) Informer(informerCallback) (cache.SharedIndexInformer, error) {
 	return nil, nil
 }
 
@@ -481,7 +481,7 @@ type apiServiceClient struct {
 	factory         aggregatorinformers.SharedInformerFactory
 }
 
-func (c apiServiceClient) Get(ctx context.Context, namespace, name string) (runtime.Object, error) {
+func (c apiServiceClient) Get(ctx context.Context, _, name string) (runtime.Object, error) {
 	return c.ApiregistrationV1().APIServices().Get(ctx, name, metav1.GetOptions{})
 }
 
@@ -491,7 +491,7 @@ func (c apiServiceClient) GetList(ctx context.Context) (runtime.Object, error) {
 	})
 }
 
-func (c apiServiceClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c apiServiceClient) CreatePatch(_ context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	apiService, ok := obj.(*apiregistrationv1.APIService)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting APIService")
@@ -516,7 +516,7 @@ func (c apiServiceClient) CreatePatch(ctx context.Context, obj runtime.Object, r
 	return patch, nil
 }
 
-func (c apiServiceClient) Patch(ctx context.Context, namespace, name string, patchBytes []byte) error {
+func (c apiServiceClient) Patch(ctx context.Context, _, name string, patchBytes []byte) error {
 	_, err := c.ApiregistrationV1().APIServices().Patch(ctx, name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	return err
 }
@@ -546,7 +546,7 @@ type mutatingWebhookClient struct {
 	factory      informers.SharedInformerFactory
 }
 
-func (c mutatingWebhookClient) Get(ctx context.Context, namespace, mutatingWebhook string) (runtime.Object, error) {
+func (c mutatingWebhookClient) Get(ctx context.Context, _, mutatingWebhook string) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(ctx, mutatingWebhook, metav1.GetOptions{})
 }
 
@@ -556,7 +556,7 @@ func (c mutatingWebhookClient) GetList(ctx context.Context) (runtime.Object, err
 	})
 }
 
-func (c mutatingWebhookClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c mutatingWebhookClient) CreatePatch(_ context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	mutatingWebhook, ok := obj.(*admissionv1.MutatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting MutatingWebhookConfiguration")
@@ -592,7 +592,7 @@ func (c mutatingWebhookClient) CreatePatch(ctx context.Context, obj runtime.Obje
 	return patch, nil
 }
 
-func (c mutatingWebhookClient) Patch(ctx context.Context, namespace, name string, patchBytes []byte) error {
+func (c mutatingWebhookClient) Patch(ctx context.Context, _, name string, patchBytes []byte) error {
 	_, err := c.AdmissionregistrationV1().MutatingWebhookConfigurations().Patch(ctx, name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	return err
 }
@@ -620,7 +620,7 @@ type validatingWebhookClient struct {
 	factory      informers.SharedInformerFactory
 }
 
-func (c validatingWebhookClient) Get(ctx context.Context, namespace, validatingWebhook string) (runtime.Object, error) {
+func (c validatingWebhookClient) Get(ctx context.Context, _, validatingWebhook string) (runtime.Object, error) {
 	return c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Get(ctx, validatingWebhook, metav1.GetOptions{})
 }
 
@@ -630,7 +630,7 @@ func (c validatingWebhookClient) GetList(ctx context.Context) (runtime.Object, e
 	})
 }
 
-func (c validatingWebhookClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c validatingWebhookClient) CreatePatch(_ context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	validatingWebhook, ok := obj.(*admissionv1.ValidatingWebhookConfiguration)
 	if !ok {
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ValidatingWebhookConfiguration")
@@ -666,7 +666,7 @@ func (c validatingWebhookClient) CreatePatch(ctx context.Context, obj runtime.Ob
 	return patch, nil
 }
 
-func (c validatingWebhookClient) Patch(ctx context.Context, namespace, name string, patchBytes []byte) error {
+func (c validatingWebhookClient) Patch(ctx context.Context, _, name string, patchBytes []byte) error {
 	_, err := c.AdmissionregistrationV1().ValidatingWebhookConfigurations().Patch(ctx, name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	return err
 }
