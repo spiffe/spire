@@ -71,6 +71,7 @@ This may be useful for templating configuration files, for example across differ
 | experimental      | Description                                                     | Default                 |
 |:------------------|-----------------------------------------------------------------|-------------------------|
 | `named_pipe_name` | Pipe name to bind the SPIRE Agent API named pipe (Windows only) | \spire-agent\public\api |
+| `sync_interval`   | Sync interval with SPIRE server with exponential backoff        | 5 sec                   |
 
 ### Initial trust bundle configuration
 
