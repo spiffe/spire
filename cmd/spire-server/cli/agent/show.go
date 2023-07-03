@@ -42,7 +42,7 @@ func (*showCommand) Synopsis() string {
 }
 
 // Run shows an agent given its SPIFFE ID
-func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *showCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("a SPIFFE ID is required")
 	}

@@ -570,11 +570,7 @@ func validateConfig(c *Config) error {
 		return errors.New("plugins section must be configured")
 	}
 
-	if err := c.Agent.validate(); err != nil {
-		return err
-	}
-
-	return nil
+	return c.Agent.validate()
 }
 
 func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {

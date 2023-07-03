@@ -200,7 +200,7 @@ func (c *checker) checkStates() (bool, bool, interface{}, interface{}) {
 	return isLive, isReady, liveDetails, readyDetails
 }
 
-func (c *checker) liveHandler(w http.ResponseWriter, req *http.Request) {
+func (c *checker) liveHandler(w http.ResponseWriter, _ *http.Request) {
 	live, details := c.LiveState()
 
 	statusCode := http.StatusOK
@@ -213,7 +213,7 @@ func (c *checker) liveHandler(w http.ResponseWriter, req *http.Request) {
 	_ = json.NewEncoder(w).Encode(details)
 }
 
-func (c *checker) readyHandler(w http.ResponseWriter, req *http.Request) {
+func (c *checker) readyHandler(w http.ResponseWriter, _ *http.Request) {
 	ready, details := c.ReadyState()
 
 	statusCode := http.StatusOK

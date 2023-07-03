@@ -95,7 +95,7 @@ type builtinDialer struct {
 	conn         *pipeConn
 }
 
-func (d *builtinDialer) DialHost(ctx context.Context) (grpc.ClientConnInterface, error) {
+func (d *builtinDialer) DialHost(context.Context) (grpc.ClientConnInterface, error) {
 	if d.conn != nil {
 		return d.conn, nil
 	}

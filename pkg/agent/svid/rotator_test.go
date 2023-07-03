@@ -383,7 +383,7 @@ type fakeClient struct {
 	renewErr     error
 }
 
-func (c *fakeClient) RenewSVID(ctx context.Context, csrBytes []byte) (*client.X509SVID, error) {
+func (c *fakeClient) RenewSVID(_ context.Context, csrBytes []byte) (*client.X509SVID, error) {
 	if c.renewErr != nil {
 		return nil, c.renewErr
 	}
@@ -489,7 +489,7 @@ func createTestSVIDBytes(svidKey crypto.PublicKey, ca *x509.Certificate, caKey c
 		SerialNumber: big.NewInt(1),
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
-		URIs:         []*url.URL{{Scheme: "spiffe", Host: trustDomain.String(), Path: "/spire/agent/test"}},
+		URIs:         []*url.URL{{Scheme: "spiffe", Host: trustDomain.Name(), Path: "/spire/agent/test"}},
 	}
 
 	return x509.CreateCertificate(rand.Reader, tmpl, ca, svidKey, caKey)

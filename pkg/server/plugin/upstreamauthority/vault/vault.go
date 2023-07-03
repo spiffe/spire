@@ -133,7 +133,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.logger = log
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := new(Configuration)
 
 	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {

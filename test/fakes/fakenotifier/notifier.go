@@ -31,7 +31,7 @@ type fakeNotifer struct {
 	config Config
 }
 
-func (n *fakeNotifer) Notify(ctx context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
+func (n *fakeNotifer) Notify(_ context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
 	var err error
 	if event := req.GetBundleUpdated(); event != nil && n.config.OnNotifyBundleUpdated != nil {
 		err = n.config.OnNotifyBundleUpdated(bundle.RequireToCommonFromPluginProto(event.Bundle))
@@ -39,7 +39,7 @@ func (n *fakeNotifer) Notify(ctx context.Context, req *notifierv1.NotifyRequest)
 	return &notifierv1.NotifyResponse{}, err
 }
 
-func (n *fakeNotifer) NotifyAndAdvise(ctx context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
+func (n *fakeNotifer) NotifyAndAdvise(_ context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
 	var err error
 	if event := req.GetBundleLoaded(); event != nil && n.config.OnNotifyAndAdviseBundleLoaded != nil {
 		err = n.config.OnNotifyAndAdviseBundleLoaded(bundle.RequireToCommonFromPluginProto(event.Bundle))

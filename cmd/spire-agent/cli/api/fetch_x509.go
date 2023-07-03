@@ -45,7 +45,7 @@ func (*fetchX509Command) synopsis() string {
 	return "Fetches X509 SVIDs from the Workload API"
 }
 
-func (c *fetchX509Command) run(ctx context.Context, env *commoncli.Env, client *workloadClient) error {
+func (c *fetchX509Command) run(ctx context.Context, _ *commoncli.Env, client *workloadClient) error {
 	start := time.Now()
 	resp, err := c.fetchX509SVID(ctx, client)
 	c.respTime = time.Since(start)

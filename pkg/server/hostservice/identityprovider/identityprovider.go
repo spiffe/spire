@@ -91,7 +91,7 @@ type identityProviderV1 struct {
 	s *IdentityProvider
 }
 
-func (v1 *identityProviderV1) FetchX509Identity(ctx context.Context, req *identityproviderv1.FetchX509IdentityRequest) (*identityproviderv1.FetchX509IdentityResponse, error) {
+func (v1 *identityProviderV1) FetchX509Identity(ctx context.Context, _ *identityproviderv1.FetchX509IdentityRequest) (*identityproviderv1.FetchX509IdentityResponse, error) {
 	deps, err := v1.s.getDeps()
 	if err != nil {
 		return nil, err
@@ -133,7 +133,7 @@ func (v1 *identityProviderV1) FetchX509Identity(ctx context.Context, req *identi
 			PrivateKey: privateKey,
 		},
 		Bundle: &plugintypes.Bundle{
-			TrustDomain:     v1.s.config.TrustDomain.String(),
+			TrustDomain:     v1.s.config.TrustDomain.Name(),
 			X509Authorities: x509Authorities,
 			JwtAuthorities:  jwtAuthorities,
 			RefreshHint:     bundle.RefreshHint,

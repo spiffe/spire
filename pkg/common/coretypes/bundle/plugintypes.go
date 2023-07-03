@@ -31,7 +31,7 @@ func ToPluginFromAPIProto(pb *apitypes.Bundle) (*plugintypes.Bundle, error) {
 	}
 
 	return &plugintypes.Bundle{
-		TrustDomain:     td.String(),
+		TrustDomain:     td.Name(),
 		RefreshHint:     pb.RefreshHint,
 		SequenceNumber:  pb.SequenceNumber,
 		JwtAuthorities:  jwtAuthorities,
@@ -60,7 +60,7 @@ func ToPluginProtoFromCommon(b *common.Bundle) (*plugintypes.Bundle, error) {
 	}
 
 	return &plugintypes.Bundle{
-		TrustDomain:     td.String(),
+		TrustDomain:     td.Name(),
 		RefreshHint:     b.RefreshHint,
 		SequenceNumber:  b.SequenceNumber,
 		X509Authorities: x509Authorities,

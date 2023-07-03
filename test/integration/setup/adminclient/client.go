@@ -135,7 +135,7 @@ func mintX509SVID(ctx context.Context, c *itclient.Client) error {
 	id := spiffeid.RequireFromPath(c.Td, "/new_workload")
 
 	expectedID := &types.SPIFFEID{
-		TrustDomain: id.TrustDomain().String(),
+		TrustDomain: id.TrustDomain().Name(),
 		Path:        id.Path(),
 	}
 
@@ -187,7 +187,7 @@ func mintX509SVID(ctx context.Context, c *itclient.Client) error {
 }
 
 func mintJWTSVID(ctx context.Context, c *itclient.Client) error {
-	id := &types.SPIFFEID{TrustDomain: c.Td.String(), Path: "/new_workload"}
+	id := &types.SPIFFEID{TrustDomain: c.Td.Name(), Path: "/new_workload"}
 	resp, err := c.SVIDClient().MintJWTSVID(ctx, &svidv1.MintJWTSVIDRequest{
 		Id:       id,
 		Audience: []string{"myAud"},
@@ -224,7 +224,7 @@ func mintJWTSVID(ctx context.Context, c *itclient.Client) error {
 		return errors.New("missing exp")
 	case claimsMap["iat"] == 0:
 		return errors.New("missing iat")
-	case claimsMap["sub"] != fmt.Sprintf("spiffe://%s/new_workload", c.Td.String()):
+	case claimsMap["sub"] != fmt.Sprintf("spiffe://%s/new_workload", c.Td.Name()):
 		return fmt.Errorf("unexpected sub: %q, %s", claimsMap["sub"], fmt.Sprintf("spiffe://%q/new_workload", c.Td))
 	}
 
@@ -247,7 +247,7 @@ func appendBundle(ctx context.Context, c *itclient.Client) error {
 		return validatePermissionError(err)
 	case err != nil:
 		return err
-	case resp.TrustDomain != c.Td.String():
+	case resp.TrustDomain != c.Td.Name():
 		return fmt.Errorf("unexpected td: %v", resp.TrustDomain)
 	case len(resp.JwtAuthorities) == 0:
 		return errors.New("missing JWT authorities")
@@ -477,11 +477,11 @@ func batchDeleteFederatedBundle(ctx context.Context, c *itclient.Client) error {
 func batchCreateEntry(ctx context.Context, c *itclient.Client) error {
 	testEntry := &types.Entry{
 		ParentId: &types.SPIFFEID{
-			TrustDomain: c.Td.String(),
+			TrustDomain: c.Td.Name(),
 			Path:        "/foo",
 		},
 		SpiffeId: &types.SPIFFEID{
-			TrustDomain: c.Td.String(),
+			TrustDomain: c.Td.Name(),
 			Path:        "/bar",
 		},
 		Selectors: []*types.Selector{
@@ -536,10 +536,10 @@ func countEntries(ctx context.Context, c *itclient.Client) error {
 
 func listEntries(ctx context.Context, c *itclient.Client) error {
 	expectedSpiffeIDs := []*types.SPIFFEID{
-		{TrustDomain: c.Td.String(), Path: "/admin"},
-		{TrustDomain: c.Td.String(), Path: "/agent-alias"},
-		{TrustDomain: c.Td.String(), Path: "/workload"},
-		{TrustDomain: c.Td.String(), Path: "/bar"},
+		{TrustDomain: c.Td.Name(), Path: "/admin"},
+		{TrustDomain: c.Td.Name(), Path: "/agent-alias"},
+		{TrustDomain: c.Td.Name(), Path: "/workload"},
+		{TrustDomain: c.Td.Name(), Path: "/bar"},
 	}
 	resp, err := c.EntryClient().ListEntries(ctx, &entryv1.ListEntriesRequest{})
 	switch {
@@ -573,11 +573,11 @@ func getEntry(ctx context.Context, c *itclient.Client) error {
 	testEntry := &types.Entry{
 		Id: entryID,
 		ParentId: &types.SPIFFEID{
-			TrustDomain: c.Td.String(),
+			TrustDomain: c.Td.Name(),
 			Path:        "/foo",
 		},
 		SpiffeId: &types.SPIFFEID{
-			TrustDomain: c.Td.String(),
+			TrustDomain: c.Td.Name(),
 			Path:        "/bar",
 		},
 		Selectors: []*types.Selector{
@@ -610,11 +610,11 @@ func batchUpdateEntry(ctx context.Context, c *itclient.Client) error {
 	testEntry := &types.Entry{
 		Id: entryID,
 		ParentId: &types.SPIFFEID{
-			TrustDomain: c.Td.String(),
+			TrustDomain: c.Td.Name(),
 			Path:        "/foo",
 		},
 		SpiffeId: &types.SPIFFEID{
-			TrustDomain: c.Td.String(),
+			TrustDomain: c.Td.Name(),
 			Path:        "/bar",
 		},
 		Selectors: []*types.Selector{
@@ -683,7 +683,7 @@ func batchDeleteEntry(ctx context.Context, c *itclient.Client) error {
 
 func createJoinToken(ctx context.Context, c *itclient.Client) error {
 	id := &types.SPIFFEID{
-		TrustDomain: c.Td.String(),
+		TrustDomain: c.Td.Name(),
 		Path:        "/agent-alias",
 	}
 
@@ -704,7 +704,7 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 
 	// Set agentID that will be used in other tests
 	agentID = &types.SPIFFEID{
-		TrustDomain: c.Td.String(),
+		TrustDomain: c.Td.Name(),
 		Path:        fmt.Sprintf("/spire/agent/join_token/%s", resp.Value),
 	}
 

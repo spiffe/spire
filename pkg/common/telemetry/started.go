@@ -8,6 +8,6 @@ import (
 func EmitStarted(m Metrics, td spiffeid.TrustDomain) {
 	m.SetGaugeWithLabels([]string{"started"}, 1, []Label{
 		{Name: "version", Value: version.Version()},
-		{Name: TrustDomainID, Value: td.String()},
+		{Name: TrustDomainID, Value: td.Name()},
 	})
 }

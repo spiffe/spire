@@ -39,7 +39,7 @@ func (s *AgentStore) SetAgentErr(agentID string, err error) {
 	s.agents[agentID] = agentConfig{err: err}
 }
 
-func (s *AgentStore) GetAgentInfo(ctx context.Context, req *agentstorev1.GetAgentInfoRequest) (*agentstorev1.GetAgentInfoResponse, error) {
+func (s *AgentStore) GetAgentInfo(_ context.Context, req *agentstorev1.GetAgentInfoRequest) (*agentstorev1.GetAgentInfoResponse, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

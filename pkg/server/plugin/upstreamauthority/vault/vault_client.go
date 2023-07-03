@@ -395,9 +395,8 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 	}
 	resp.UpstreamCACertPEM = caCert
 
-	if caChainData, ok := s.Data["ca_chain"]; !ok {
-		// empty is general use case when Vault is Root CA.
-	} else {
+	// expect to be empty case when Vault is Root CA.
+	if caChainData, ok := s.Data["ca_chain"]; ok {
 		caChainCertsObj, ok := caChainData.([]interface{})
 		if !ok {
 			return nil, status.Errorf(codes.Internal, "expected ca_chain data type %T but got %T", caChainCertsObj, caChainData)

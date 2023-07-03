@@ -396,7 +396,7 @@ func (b *rootCABuilder) buildOne(resourceName, trustDomain string) (*any.Any, er
 	})
 }
 
-func (b *rootCABuilder) buildAll(resourceName string) (*any.Any, error) {
+func (b *rootCABuilder) buildAll(string) (*any.Any, error) {
 	return nil, status.Error(codes.Internal, `unable to use "SPIFFE validator" on Envoy below 1.17`)
 }
 
@@ -436,7 +436,7 @@ func (b *spiffeBuilder) buildOne(resourceName, trustDomainID string) (*any.Any, 
 	typedConfig, err := anypb.New(&tls_v3.SPIFFECertValidatorConfig{
 		TrustDomains: []*tls_v3.SPIFFECertValidatorConfig_TrustDomain{
 			{
-				Name: td.String(),
+				Name: td.Name(),
 				TrustBundle: &core_v3.DataSource{
 					Specifier: &core_v3.DataSource_InlineBytes{
 						InlineBytes: caBytes,
@@ -470,7 +470,7 @@ func (b *spiffeBuilder) buildAll(resourceName string) (*any.Any, error) {
 		// bundle := bundles[td]
 		caBytes := pemutil.EncodeCertificates(bundle.X509Authorities())
 		configTrustDomains = append(configTrustDomains, &tls_v3.SPIFFECertValidatorConfig_TrustDomain{
-			Name: td.String(),
+			Name: td.Name(),
 			TrustBundle: &core_v3.DataSource{
 				Specifier: &core_v3.DataSource_InlineBytes{
 					InlineBytes: caBytes,

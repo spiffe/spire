@@ -259,13 +259,13 @@ func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 
 type dockerError struct{}
 
-func (dockerError) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
+func (dockerError) ContainerInspect(context.Context, string) (types.ContainerJSON, error) {
 	return types.ContainerJSON{}, errors.New("docker error")
 }
 
 type fakeContainer container.Config
 
-func (f fakeContainer) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
+func (f fakeContainer) ContainerInspect(_ context.Context, containerID string) (types.ContainerJSON, error) {
 	if containerID != testContainerID {
 		return types.ContainerJSON{}, errors.New("expected test container ID")
 	}

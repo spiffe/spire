@@ -1171,11 +1171,10 @@ func TestFetchJWTSVID(t *testing.T) {
 	m := newManager(c)
 	require.NoError(t, m.Initialize(context.Background()))
 
-	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 	audience := []string{"foo"}
 
 	// nothing in cache, fetch fails
-	svid, err := m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err := m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.Error(t, err)
 	require.Empty(t, svid)
 
@@ -1189,7 +1188,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		IssuedAt:  issuedAtA,
 		ExpiresAt: expiresAtA,
 	}
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenA, svid.Token)
 	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
@@ -1201,7 +1200,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		IssuedAt:  now.Unix(),
 		ExpiresAt: now.Add(time.Minute).Unix(),
 	}
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenA, svid.Token)
 	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
@@ -1218,7 +1217,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		IssuedAt:  issuedAtC,
 		ExpiresAt: expiresAtC,
 	}
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenC, svid.Token)
 	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
@@ -1227,7 +1226,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	// expire the JWT soon, fail the fetch, and make sure cached JWT is returned
 	clk.Add(time.Second * 30)
 	fetchResp.Svid = nil
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenC, svid.Token)
 	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
@@ -1236,7 +1235,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	// now completely expire the JWT and make sure an error is returned, since
 	// the fetch fails and the cached version is expired.
 	clk.Add(time.Second * 30)
-	svid, err = m.FetchJWTSVID(context.Background(), spiffeID, audience)
+	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.Error(t, err)
 	require.Nil(t, svid)
 }
@@ -1491,7 +1490,7 @@ func (h *mockAPI) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	}, nil
 }
 
-func (h *mockAPI) GetAuthorizedEntries(ctx context.Context, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+func (h *mockAPI) GetAuthorizedEntries(_ context.Context, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 	count := atomic.AddInt32(&h.getAuthorizedEntriesCount, 1)
 	if h.c.getAuthorizedEntries != nil {
 		return h.c.getAuthorizedEntries(h, count, req)
@@ -1499,7 +1498,7 @@ func (h *mockAPI) GetAuthorizedEntries(ctx context.Context, req *entryv1.GetAuth
 	return nil, errors.New("no GetAuthorizedEntries implementation for test")
 }
 
-func (h *mockAPI) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
+func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
 	count := atomic.AddInt32(&h.batchNewX509SVIDCount, 1)
 
 	var entries map[string]*common.RegistrationEntry
@@ -1531,18 +1530,18 @@ func (h *mockAPI) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 	return resp, nil
 }
 
-func (h *mockAPI) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error) {
+func (h *mockAPI) NewJWTSVID(_ context.Context, req *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error) {
 	if h.c.newJWTSVID != nil {
 		return h.c.newJWTSVID(h, req)
 	}
 	return nil, errors.New("no FetchJWTSVID implementation for test")
 }
 
-func (h *mockAPI) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
+func (h *mockAPI) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	return api.BundleToProto(bundleutil.BundleProtoFromRootCAs(h.bundle.TrustDomain().IDString(), h.bundle.X509Authorities()))
 }
 
-func (h *mockAPI) GetFederatedBundle(ctx context.Context, req *bundlev1.GetFederatedBundleRequest) (*types.Bundle, error) {
+func (h *mockAPI) GetFederatedBundle(_ context.Context, req *bundlev1.GetFederatedBundleRequest) (*types.Bundle, error) {
 	return &types.Bundle{
 		TrustDomain: req.TrustDomain,
 		X509Authorities: []*types.X509Certificate{
@@ -1566,7 +1565,7 @@ func (h *mockAPI) newSVIDFromCSR(spiffeID spiffeid.ID, csr []byte) []*x509.Certi
 	return createSVIDFromCSR(h.t, h.clk, h.ca, h.caKey, spiffeID, csr, h.c.svidTTL)
 }
 
-func (h *mockAPI) getGRPCServerConfig(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+func (h *mockAPI) getGRPCServerConfig(*tls.ClientHelloInfo) (*tls.Config, error) {
 	certChain := [][]byte{}
 	for _, c := range h.svid {
 		certChain = append(certChain, c.Raw)

@@ -3,6 +3,6 @@
 
 package peertracker
 
-func getCallerInfoFromFileDescriptor(fd uintptr) (CallerInfo, error) {
+func getCallerInfoFromFileDescriptor(uintptr) (CallerInfo, error) {
 	return CallerInfo{}, ErrUnsupportedPlatform
 }

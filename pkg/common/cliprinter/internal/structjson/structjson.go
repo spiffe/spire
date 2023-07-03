@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-func Print(msgs []interface{}, stdout, stderr io.Writer) error {
+func Print(msgs []interface{}, stdout, _ io.Writer) error {
 	var jb []byte
 	var err error
 

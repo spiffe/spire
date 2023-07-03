@@ -478,7 +478,7 @@ func (s *fakeSVIDStore) Name() string {
 	return s.name
 }
 
-func (s *fakeSVIDStore) PutX509SVID(ctx context.Context, req *svidstore.X509SVID) error {
+func (s *fakeSVIDStore) PutX509SVID(_ context.Context, req *svidstore.X509SVID) error {
 	if s.err != nil {
 		return s.err
 	}
@@ -487,7 +487,7 @@ func (s *fakeSVIDStore) PutX509SVID(ctx context.Context, req *svidstore.X509SVID
 	return nil
 }
 
-func (s *fakeSVIDStore) DeleteX509SVID(ctx context.Context, req []string) error {
+func (s *fakeSVIDStore) DeleteX509SVID(_ context.Context, req []string) error {
 	if s.err != nil {
 		return s.err
 	}

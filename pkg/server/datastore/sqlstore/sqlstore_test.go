@@ -3870,7 +3870,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 			name:        "fetching a federation relationship with corrupted bundle endpoint URL fails nicely",
 			expErr:      "rpc error: code = Unknown desc = unable to parse URL: parse \"not-valid-endpoint-url%\": invalid URL escape \"%\"",
 			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-url.org"),
-			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+			expFR: func() *datastore.FederationRelationship { //nolint // returns nil on purpose
 				model := FederatedTrustDomain{
 					TrustDomain:           "corrupted-bundle-endpoint-url.org",
 					BundleEndpointURL:     "not-valid-endpoint-url%",
@@ -3884,7 +3884,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 			name:        "fetching a federation relationship with corrupted bundle endpoint SPIFFE ID fails nicely",
 			expErr:      "rpc error: code = Unknown desc = unable to parse bundle endpoint SPIFFE ID: scheme is missing or invalid",
 			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-id.org"),
-			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+			expFR: func() *datastore.FederationRelationship { //nolint // returns nil on purpose
 				model := FederatedTrustDomain{
 					TrustDomain:           "corrupted-bundle-endpoint-id.org",
 					BundleEndpointURL:     "corrupted-bundle-endpoint-id.org/bundleendpoint",
@@ -3899,7 +3899,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 			name:        "fetching a federation relationship with corrupted type fails nicely",
 			expErr:      "rpc error: code = Unknown desc = unknown bundle endpoint profile type: \"other\"",
 			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-endpoint-profile.org"),
-			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
+			expFR: func() *datastore.FederationRelationship { //nolint // returns nil on purpose
 				model := FederatedTrustDomain{
 					TrustDomain:           "corrupted-endpoint-profile.org",
 					BundleEndpointURL:     "corrupted-endpoint-profile.org/bundleendpoint",
@@ -4507,15 +4507,8 @@ func (s *PluginSuite) TestMigration() {
 			switch schemaVersion {
 			// All of these schema versions were migrated by previous versions
 			// of SPIRE server and no longer have migration code.
-			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18:
+			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20:
 				prepareDB(false)
-			case 19:
-				prepareDB(true)
-				require.False(s.ds.db.Dialect().HasColumn("registered_entries", "x509_svid_ttl"))
-				require.True(s.ds.db.Dialect().HasColumn("registered_entries", "jwt_svid_ttl"))
-			case 20:
-				prepareDB(true)
-				require.True(s.ds.db.Dialect().HasIndex("registered_entries", "idx_registered_entries_hint"))
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}

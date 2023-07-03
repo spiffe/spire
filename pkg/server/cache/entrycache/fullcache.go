@@ -210,7 +210,7 @@ func (c *FullEntryCache) crawl(parentID spiffeID, seen map[spiffeID]struct{}) []
 
 func spiffeIDFromID(id spiffeid.ID) spiffeID {
 	return spiffeID{
-		TrustDomain: id.TrustDomain().String(),
+		TrustDomain: id.TrustDomain().Name(),
 		Path:        id.Path(),
 	}
 }

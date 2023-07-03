@@ -54,7 +54,7 @@ func (f *fakeReopenableFile) Close() error {
 	return nil
 }
 
-func (f *fakeReopenableFile) fakeCloseError(fake *os.File) error {
+func (f *fakeReopenableFile) fakeCloseError(_ *os.File) error {
 	f.t.Helper()
 	f.t.Log("entering closeFake()")
 	return f.closeErr

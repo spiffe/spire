@@ -123,7 +123,7 @@ func TestCommonBundleFromProto(t *testing.T) {
 		{
 			name: "success",
 			bundle: &types.Bundle{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				RefreshHint: 10,
 				X509Authorities: []*types.X509Certificate{
 					{
@@ -156,7 +156,7 @@ func TestCommonBundleFromProto(t *testing.T) {
 		{
 			name: "Empty key ID",
 			bundle: &types.Bundle{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				RefreshHint: 10,
 				JwtAuthorities: []*types.JWTKey{
 					{

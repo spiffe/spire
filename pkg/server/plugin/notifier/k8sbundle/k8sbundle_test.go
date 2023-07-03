@@ -723,14 +723,14 @@ func newFakeKubeClient(config *pluginConfig, configMaps ...*corev1.ConfigMap) *f
 	return fake
 }
 
-func (c *fakeKubeClient) Get(ctx context.Context, namespace, configMap string) (runtime.Object, error) {
+func (c *fakeKubeClient) Get(_ context.Context, namespace, configMap string) (runtime.Object, error) {
 	entry := c.getConfigMap(namespace, configMap)
 	if entry == nil {
 		return nil, errors.New("not found")
 	}
 	return entry, nil
 }
-func (c *fakeKubeClient) GetList(ctx context.Context) (runtime.Object, error) {
+func (c *fakeKubeClient) GetList(context.Context) (runtime.Object, error) {
 	list := c.getConfigMapList()
 	if list.Items == nil {
 		return nil, errors.New("not found")
@@ -738,7 +738,7 @@ func (c *fakeKubeClient) GetList(ctx context.Context) (runtime.Object, error) {
 	return list, nil
 }
 
-func (c *fakeKubeClient) CreatePatch(ctx context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
+func (c *fakeKubeClient) CreatePatch(_ context.Context, obj runtime.Object, resp *identityproviderv1.FetchX509IdentityResponse) (runtime.Object, error) {
 	configMap, ok := obj.(*corev1.ConfigMap)
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "wrong type, expecting config map")
@@ -753,7 +753,7 @@ func (c *fakeKubeClient) CreatePatch(ctx context.Context, obj runtime.Object, re
 	}, nil
 }
 
-func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string, patchBytes []byte) error {
+func (c *fakeKubeClient) Patch(_ context.Context, namespace, configMap string, patchBytes []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -787,7 +787,7 @@ func (c *fakeKubeClient) Patch(ctx context.Context, namespace, configMap string,
 	return nil
 }
 
-func (c *fakeKubeClient) Informer(callback informerCallback) (cache.SharedIndexInformer, error) {
+func (c *fakeKubeClient) Informer(informerCallback) (cache.SharedIndexInformer, error) {
 	return nil, nil
 }
 

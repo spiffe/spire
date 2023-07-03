@@ -941,7 +941,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent succeeds",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				Path:        agentPath,
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -1019,7 +1019,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if ID is not a leaf ID",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  `invalid agent ID: "spiffe://example.org" is not an agent in trust domain "example.org"; path is empty`,
@@ -1046,7 +1046,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if ID is not an agent SPIFFE ID",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				Path:        "/agent-1",
 			},
 			expectCode: codes.InvalidArgument,
@@ -1102,7 +1102,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if agent does not exists",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				Path:        "/spire/agent/agent-2",
 			},
 			expectCode: codes.NotFound,
@@ -1131,7 +1131,7 @@ func TestBanAgent(t *testing.T) {
 		{
 			name: "Ban agent fails if there is a datastore error",
 			reqID: &types.SPIFFEID{
-				TrustDomain: td.String(),
+				TrustDomain: td.Name(),
 				Path:        agentPath,
 			},
 			dsError:    errors.New("unknown datastore error"),
@@ -3329,7 +3329,7 @@ func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.
 	expiredAt := now.Add(s.ca.X509SVIDTTL())
 
 	require.NotNil(t, result.Svid)
-	expectedIDType := &types.SPIFFEID{TrustDomain: expectedID.TrustDomain().String(), Path: expectedID.Path()}
+	expectedIDType := &types.SPIFFEID{TrustDomain: expectedID.TrustDomain().Name(), Path: expectedID.Path()}
 	spiretest.AssertProtoEqual(t, expectedIDType, result.Svid.Id)
 	assert.Equal(t, expiredAt.Unix(), result.Svid.ExpiresAt)
 
@@ -3358,7 +3358,7 @@ type fakeRateLimiter struct {
 	err   error
 }
 
-func (f *fakeRateLimiter) RateLimit(ctx context.Context, count int) error {
+func (f *fakeRateLimiter) RateLimit(_ context.Context, count int) error {
 	if f.count != count {
 		return fmt.Errorf("rate limiter got %d but expected %d", count, f.count)
 	}
