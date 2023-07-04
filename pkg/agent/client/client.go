@@ -358,13 +358,14 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
 			TrustDomain: federatedTD.String(),
 		})
+		log := c.withErrorFields(err)
 		switch status.Code(err) {
 		case codes.OK:
 			bundles = append(bundles, bundle)
 		case codes.NotFound:
-			c.withErrorFields(err).WithField(telemetry.FederatedBundle, b).Warn("Federated bundle not found")
+			log.WithField(telemetry.FederatedBundle, b).Warn("Federated bundle not found")
 		default:
-			c.withErrorFields(err).WithField(telemetry.FederatedBundle, b).Error("Failed to fetch federated bundle")
+			log.WithField(telemetry.FederatedBundle, b).Error("Failed to fetch federated bundle")
 			return nil, fmt.Errorf("failed to fetch federated bundle: %w", err)
 		}
 	}
