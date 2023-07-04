@@ -25,17 +25,21 @@ func (c *Config) getServerAPITargetName() string {
 // validateOS performs os specific validations of the configuration
 func (c *Config) validateOS() (err error) {
 	switch {
-	case c.ACME == nil:
-		if c.InsecureAddr == "" && c.Experimental.ListenNamedPipeName == "" {
-			return errs.New("either acme or listen_named_pipe_name must be configured")
-		}
-		if c.InsecureAddr != "" && c.Experimental.ListenNamedPipeName != "" {
-			return errs.New("insecure_addr and listen_named_pipe_name are mutually exclusive")
-		}
-	case c.Experimental.ListenNamedPipeName != "":
+	case c.ACME == nil && c.Experimental.ListenNamedPipeName == "" && c.ServingCertFile == nil && c.InsecureAddr == "":
+		return errs.New("either acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured")
+	case c.ACME != nil && c.ServingCertFile != nil:
+		return errs.New("acme and serving_cert_file are mutually exclusive")
+	case c.ACME != nil && c.Experimental.ListenNamedPipeName != "":
 		return errs.New("listen_named_pipe_name and the acme section are mutually exclusive")
+	case c.ACME != nil && c.InsecureAddr != "":
+		return errs.New("acme and insecure_addr are mutually exclusive")
+	case c.ServingCertFile != nil && c.InsecureAddr != "":
+		return errs.New("serving_cert_file and insecure_addr are mutually exclusive")
+	case c.ServingCertFile != nil && c.Experimental.ListenNamedPipeName != "":
+		return errs.New("serving_cert_file and listen_named_pipe_name are mutually exclusive")
+	case c.InsecureAddr != "" && c.Experimental.ListenNamedPipeName != "":
+		return errs.New("insecure_addr and listen_named_pipe_name are mutually exclusive")
 	}
-
 	if c.ServerAPI != nil {
 		if c.ServerAPI.Experimental.NamedPipeName == "" {
 			return errs.New("named_pipe_name must be configured in the server_api configuration section")
