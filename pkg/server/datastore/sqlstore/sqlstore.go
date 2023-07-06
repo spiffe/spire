@@ -378,8 +378,7 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 		if err != nil {
 			return err
 		}
-
-		return createEvent(tx, registrationEntry.EntryId)
+		return createEntryEvent(tx, registrationEntry.EntryId)
 	}); err != nil {
 		return nil, false, err
 	}
@@ -419,7 +418,7 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.Registr
 		if err != nil {
 			return err
 		}
-		return createEvent(tx, entry.EntryId)
+		return createEntryEvent(tx, entry.EntryId)
 	}); err != nil {
 		return nil, err
 	}
@@ -434,7 +433,7 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 		if err != nil {
 			return err
 		}
-		return createEvent(tx, entryID)
+		return createEntryEvent(tx, entryID)
 	}); err != nil {
 		return nil, err
 	}
@@ -451,9 +450,9 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore ti
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
-func (ds *Plugin) ListEvents(ctx context.Context, req *datastore.ListEventsRequest) (resp *datastore.ListEventsResponse, err error) {
+func (ds *Plugin) ListEntryEvents(ctx context.Context, req *datastore.ListEntryEventsRequest) (resp *datastore.ListEntryEventsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listEvents(tx, req)
+		resp, err = listEntryEvents(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -461,11 +460,11 @@ func (ds *Plugin) ListEvents(ctx context.Context, req *datastore.ListEventsReque
 	return resp, nil
 }
 
-// PruneEvents takes a registration entry message, and deletes all entries which have expired
+// PruneEntryEvents takes a registration entry message, and deletes all entries which have expired
 // before the date in the message
-func (ds *Plugin) PruneEvents(ctx context.Context, olderThan time.Duration) (err error) {
+func (ds *Plugin) PruneEntryEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneEvents(tx, olderThan)
+		err = pruneEntryEvents(tx, olderThan)
 		return err
 	})
 }
@@ -2120,13 +2119,13 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 	return registrationEntry, nil
 }
 
-func createEvent(tx *gorm.DB, entryID string) error {
-	newEvent := Event{
+func createEntryEvent(tx *gorm.DB, entryID string) error {
+	newEntryEvent := EntryEvent{
 		EntryID: entryID,
 	}
 
-	if err := tx.Create(&newEvent).Error; err != nil {
-		fmt.Println("Error creating event")
+	if err := tx.Create(&newEntryEvent).Error; err != nil {
+		fmt.Println("Error creating entry event")
 		return sqlError.Wrap(err)
 	}
 
@@ -2470,7 +2469,7 @@ func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLog
 	}
 }
 
-func listEvents(tx *gorm.DB, req *datastore.ListEventsRequest) (*datastore.ListEventsResponse, error) {
+func listEntryEvents(tx *gorm.DB, req *datastore.ListEntryEventsRequest) (*datastore.ListEntryEventsResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -2484,7 +2483,7 @@ func listEvents(tx *gorm.DB, req *datastore.ListEventsRequest) (*datastore.ListE
 		}
 	}
 
-	var events []Event
+	var events []EntryEvent
 	if err := tx.Find(&events, "id > ?", req.LastID).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
@@ -2498,7 +2497,7 @@ func listEvents(tx *gorm.DB, req *datastore.ListEventsRequest) (*datastore.ListE
 		}
 	}
 
-	resp := &datastore.ListEventsResponse{
+	resp := &datastore.ListEntryEventsResponse{
 		Pagination: p,
 	}
 	for _, model := range events {
@@ -2508,8 +2507,8 @@ func listEvents(tx *gorm.DB, req *datastore.ListEventsRequest) (*datastore.ListE
 	return resp, nil
 }
 
-func pruneEvents(tx *gorm.DB, olderThan time.Duration) error {
-	var events []Event
+func pruneEntryEvents(tx *gorm.DB, olderThan time.Duration) error {
+	var events []EntryEvent
 	if err := tx.Where("created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)", olderThan.Seconds()).Find(&events).Error; err != nil {
 		return err
 	}

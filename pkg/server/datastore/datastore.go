@@ -67,8 +67,8 @@ type DataStore interface {
 	UpdateFederationRelationship(context.Context, *FederationRelationship, *types.FederationRelationshipMask) (*FederationRelationship, error)
 
 	// Events
-	ListEvents(context.Context, *ListEventsRequest) (*ListEventsResponse, error)
-	PruneEvents(ctx context.Context, olderThan time.Duration) error
+	ListEntryEvents(context.Context, *ListEntryEventsRequest) (*ListEntryEventsResponse, error)
+	PruneEntryEvents(ctx context.Context, olderThan time.Duration) error
 }
 
 // DataConsistency indicates the required data consistency for a read operation.
@@ -213,12 +213,12 @@ type FederationRelationship struct {
 	EndpointSPIFFEID spiffeid.ID
 }
 
-type ListEventsRequest struct {
+type ListEntryEventsRequest struct {
 	Pagination *Pagination
 	LastID     uint
 }
 
-type ListEventsResponse struct {
+type ListEntryEventsResponse struct {
 	EntryIDs     []string
 	FirstEventID uint
 	Pagination   *Pagination

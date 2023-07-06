@@ -163,15 +163,17 @@ func (FederatedTrustDomain) TableName() string {
 }
 
 // RegisteredEntry holds a registered entity entry
-type Event struct {
-	Model
+type EntryEvent struct {
+	ID uint `gorm:"primary_key"`
 
-	EntryID string
+	EntryID   string
+	ChangedAt time.Time
+	ChangeOp  string
 }
 
 // TableName gets table name for DNS entries
-func (Event) TableName() string {
-	return "events"
+func (EntryEvent) TableName() string {
+	return "entry_event"
 }
 
 // Migration holds database schema version number, and

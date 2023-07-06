@@ -37,7 +37,12 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	ds := fakedatastore.New(t)
-	clk := clock.NewMock(t)
+	config := Config{
+		Log:                      log,
+		Clock:                    clock.NewMock(t),
+		CacheReloadInterval:      defaultCacheReloadInterval,
+		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+	}
 
 	e := createAuthorizedEntryTestData(t, ds)
 	expectedNodeAliasEntries := e.nodeAliasEntries
@@ -54,7 +59,11 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 		return newStaticEntryCache(entryMap), nil
 	}
 
-	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	updateCache := func(context.Context, entrycache.Cache) error {
+		return nil
+	}
+
+	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, updateCache, config)
 	require.NoError(t, err)
 
 	entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)

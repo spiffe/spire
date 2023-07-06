@@ -31,6 +31,14 @@ func (sef *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.
 	return sef.entries[agentID]
 }
 
+func (sef *staticEntryCache) GetAllEntries() []*types.Entry {
+	var entries []*types.Entry
+	for _, entry := range sef.entries {
+		entries = append(entries, entry...)
+	}
+	return entries
+}
+
 func newStaticEntryCache(entries map[spiffeid.ID][]*types.Entry) *staticEntryCache {
 	return &staticEntryCache{
 		entries: entries,
@@ -40,13 +48,23 @@ func newStaticEntryCache(entries map[spiffeid.ID][]*types.Entry) *staticEntryCac
 func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
-	clk := clock.NewMock(t)
+	config := Config{
+		Log:                      log,
+		Clock:                    clock.NewMock(t),
+		CacheReloadInterval:      defaultCacheReloadInterval,
+		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+	}
+
 	entries := make(map[spiffeid.ID][]*types.Entry)
 	buildCache := func(context.Context) (entrycache.Cache, error) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	updateCache := func(context.Context, entrycache.Cache) error {
+		return nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, updateCache, config)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 }
@@ -54,13 +72,22 @@ func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
-	clk := clock.NewMock(t)
+	config := Config{
+		Log:                      log,
+		Clock:                    clock.NewMock(t),
+		CacheReloadInterval:      defaultCacheReloadInterval,
+		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+	}
 
 	buildCache := func(context.Context) (entrycache.Cache, error) {
 		return nil, errors.New("some cache build error")
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	updateCache := func(ctx context.Context, cache entrycache.Cache) (err error) {
+		return nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, updateCache, config)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 }
@@ -68,10 +95,15 @@ func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) 
 func TestFetchRegistrationEntries(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
-	clk := clock.NewMock(t)
+	config := Config{
+		Log:                      log,
+		Clock:                    clock.NewMock(t),
+		CacheReloadInterval:      defaultCacheReloadInterval,
+		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+	}
+
 	agentID := spiffeid.RequireFromPath(trustDomain, "/root")
 	expected := setupExpectedEntriesData(t, agentID)
-
 	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
 		entries := map[spiffeid.ID][]*types.Entry{
 			agentID: expected,
@@ -80,7 +112,11 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, log, clk, defaultCacheReloadInterval)
+	updateCacheFn := func(ctx context.Context, cache entrycache.Cache) (err error) {
+		return nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, updateCacheFn, config)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -104,6 +140,12 @@ func TestRunRebuildCacheTask(t *testing.T) {
 
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
+	config := Config{
+		Log:                      log,
+		Clock:                    clk,
+		CacheReloadInterval:      defaultCacheReloadInterval,
+		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+	}
 	agentID := spiffeid.RequireFromPath(trustDomain, "/root")
 	var expectedEntries []*types.Entry
 
@@ -149,7 +191,11 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		}
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	updateCache := func(context.Context, entrycache.Cache) error {
+		return nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, updateCache, config)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 

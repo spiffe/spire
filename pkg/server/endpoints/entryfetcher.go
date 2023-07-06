@@ -28,7 +28,7 @@ type AuthorizedEntryFetcherWithFullCache struct {
 	mu                       sync.RWMutex
 	dataStore                datastore.DataStore
 	cacheReloadInterval      time.Duration
-	cachePruneEventsInterval time.Duration
+	entryEventsPruneInterval time.Duration
 }
 
 func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, updateCache entryCacheUpdateFn, c Config) (*AuthorizedEntryFetcherWithFullCache, error) {
@@ -46,7 +46,7 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 		log:                      c.Log,
 		dataStore:                c.Catalog.GetDataStore(),
 		cacheReloadInterval:      c.CacheReloadInterval,
-		cachePruneEventsInterval: c.CachePruneEventsInterval,
+		entryEventsPruneInterval: c.EntryEventsPruneInterval,
 	}, nil
 }
 
@@ -60,7 +60,7 @@ func (a *AuthorizedEntryFetcherWithFullCache) FetchAllCachedEntries() ([]*types.
 	return a.cache.GetAllEntries(), nil
 }
 
-// RunRebuildCacheTask starts a ticker which rebuilds the in-memory entry cache.
+// RunUpdateCacheTask starts a ticker which updates the in-memory entry cache.
 func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Context) error {
 	rebuild := func() {
 		a.mu.Lock()
@@ -90,24 +90,23 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 	}
 }
 
-func (a *AuthorizedEntryFetcherWithFullCache) RunPruneEventsTask(ctx context.Context) error {
+func (a *AuthorizedEntryFetcherWithFullCache) EntryEventsPruneTask(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
 			a.log.Debug("Stopping event pruner")
 			return nil
-		case <-a.clk.After(a.cachePruneEventsInterval):
+		case <-a.clk.After(a.entryEventsPruneInterval):
 			a.log.Info("Pruning events")
-			if err := a.pruneEvents(ctx); err != nil {
+			if err := a.pruneEntryEvents(ctx); err != nil {
 				a.log.WithError(err).Error("Failed to prune events")
 			}
 		}
 	}
 }
 
-func (a *AuthorizedEntryFetcherWithFullCache) pruneEvents(ctx context.Context) error {
-	return a.dataStore.PruneEvents(ctx, a.cachePruneEventsInterval)
-
+func (a *AuthorizedEntryFetcherWithFullCache) pruneEntryEvents(ctx context.Context) error {
+	return a.dataStore.PruneEntryEvents(ctx, a.entryEventsPruneInterval)
 }
 
 func printEntry(e *types.Entry) {

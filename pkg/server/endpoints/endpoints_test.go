@@ -182,11 +182,21 @@ func TestListenAndServe(t *testing.T) {
 	bundleEndpointServer := newBundleEndpointServer()
 	clk := clock.NewMock(t)
 
+	config := Config{
+		Log:                      log,
+		CacheReloadInterval:      defaultCacheReloadInterval,
+		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+	}
+
 	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
 		return entrycache.BuildFromDataStore(ctx, ds)
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, defaultCacheReloadInterval)
+	updateCacheFn := func(ctx context.Context, cache entrycache.Cache) (err error) {
+		return entrycache.Update(ctx, ds, cache.(*entrycache.FullEntryCache))
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, updateCacheFn, config)
 	require.NoError(t, err)
 
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)
@@ -213,6 +223,7 @@ func TestListenAndServe(t *testing.T) {
 		Metrics:                      metrics,
 		RateLimit:                    rateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
+		EntryEventsPruneTask:         ef.EntryEventsPruneTask,
 		AuthPolicyEngine:             pe,
 		AdminIDs:                     []spiffeid.ID{foreignAdminSVID.ID},
 	}

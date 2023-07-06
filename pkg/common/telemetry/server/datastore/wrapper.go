@@ -258,14 +258,14 @@ func (w metricsWrapper) UpdateFederationRelationship(ctx context.Context, fr *da
 	return w.ds.UpdateFederationRelationship(ctx, fr, mask)
 }
 
-func (w metricsWrapper) ListEvents(ctx context.Context, req *datastore.ListEventsRequest) (_ *datastore.ListEventsResponse, err error) {
-	callCounter := StartListEventsCall(w.m)
+func (w metricsWrapper) ListEntryEvents(ctx context.Context, req *datastore.ListEntryEventsRequest) (_ *datastore.ListEntryEventsResponse, err error) {
+	callCounter := StartListEntryEventsCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.ListEvents(ctx, req)
+	return w.ds.ListEntryEvents(ctx, req)
 }
 
-func (w metricsWrapper) PruneEvents(ctx context.Context, olderThan time.Duration) (err error) {
-	callCounter := StartPruneEventsCall(w.m)
+func (w metricsWrapper) PruneEntryEvents(ctx context.Context, olderThan time.Duration) (err error) {
+	callCounter := StartPruneEntryEventsCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.PruneEvents(ctx, olderThan)
+	return w.ds.PruneEntryEvents(ctx, olderThan)
 }

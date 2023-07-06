@@ -430,10 +430,10 @@ func (ds *fakeDataStore) UpdateFederationRelationship(context.Context, *datastor
 	return &datastore.FederationRelationship{}, ds.err
 }
 
-func (ds *fakeDataStore) ListEvents(ctx context.Context, req *datastore.ListEventsRequest) (*datastore.ListEventsResponse, error) {
-	return &datastore.ListEventsResponse{}, ds.err
+func (ds *fakeDataStore) ListEntryEvents(ctx context.Context, req *datastore.ListEntryEventsRequest) (*datastore.ListEntryEventsResponse, error) {
+	return &datastore.ListEntryEventsResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) PruneEvents(ctx context.Context, olderThan time.Duration) error {
+func (ds *fakeDataStore) PruneEntryEvents(ctx context.Context, olderThan time.Duration) error {
 	return ds.err
 }

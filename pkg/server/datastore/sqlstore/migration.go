@@ -182,11 +182,13 @@ import (
 // | v1.6.3  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.6.4  |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v1.8.0  | 22     | Add entry_event table                                                     |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 21
+	latestSchemaVersion = 22
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -208,7 +210,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 		return sqlError.New("current migration code not compatible with current release version")
 	}
 
-	isNew := !db.HasTable(&Migration{}) || !db.HasTable(&Event{})
+	isNew := !db.HasTable(&Migration{}) || !db.HasTable(&EntryEvent{})
 	if err := db.Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -348,7 +350,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		&Migration{},
 		&DNSName{},
 		&FederatedTrustDomain{},
-		&Event{},
+		&EntryEvent{},
 	}
 
 	if err := tableOptionsForDialect(tx, dbType).AutoMigrate(tables...).Error; err != nil {

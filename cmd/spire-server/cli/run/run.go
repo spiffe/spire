@@ -96,8 +96,9 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
-	CacheReloadInterval string                      `hcl:"cache_reload_interval"`
+	AuthOpaPolicyEngine      *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
+	CacheReloadInterval      string                      `hcl:"cache_reload_interval"`
+	EntryEventsPurgeInterval string                      `hcl:"entry_events_purge_interval"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -612,6 +613,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			return nil, fmt.Errorf("could not parse cache reload interval: %w", err)
 		}
 		sc.CacheReloadInterval = interval
+	}
+
+	if c.Server.Experimental.EntryEventsPurgeInterval != "" {
+		interval, err := time.ParseDuration(c.Server.Experimental.EntryEventsPurgeInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse entry events purge interval: %w", err)
+		}
+		sc.EntryEventsPurgeInterval = interval
 	}
 
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
