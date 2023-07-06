@@ -34,6 +34,7 @@ The configuration file is **required** by the provider. It contains
 | Key                     | Type    | Required?      | Description                                                            | Default  |
 |-------------------------|---------|----------------|------------------------------------------------------------------------|----------|
 | `acme`                  | section | required[1]    | Provides the ACME configuration.                                       |          |
+| `serving_cert_file`     | section | required[1][4] | Provides the serving certificate configuration.                        |          |
 | `allow_insecure_scheme` | string  | optional[3]    | Serves OIDC configuration response with HTTP url.                      | `false`  |
 | `domains`               | strings | required       | One or more domains the provider is being served from.                 |          |
 | `experimental`          | section | optional       | The experimental options that are subject to change or removal.        |          |
@@ -56,13 +57,13 @@ The configuration file is **required** by the provider. It contains
 
 #### Considerations for Unix platforms
 
-[1]: One of `acme` or `listen_socket_path` must be defined.
+[1]: One of `acme`, `serving_cert_file` or `listen_socket_path` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_socket_path`.
 
 #### Considerations for Windows platforms
 
-[1]: One of `acme` or `listen_named_pipe_name` must be defined.
+[1]: One of `acme`, `serving_cert_file` or `listen_named_pipe_name` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_named_pipe_name`.
 
@@ -77,6 +78,8 @@ will be rejected. Likewise, when ACME is used, the `domains` list contains the
 allowed domains for which certificates will be obtained. The TLS handshake
 will terminate if another domain is requested.
 
+[4]: SPIRE OIDC Discovery provider monitors and reloads the files provided in the `serving_cert_file` configuration at runtime.
+
 #### ACME Section
 
 | Key             | Type   | Required? | Description                                                                                               | Default                                            |
@@ -85,6 +88,15 @@ will terminate if another domain is requested.
 | `directory_url` | string | optional  | The ACME directory URL to use. Uses Let's Encrypt if unset.                                               | `"https://acme-v01.api.letsencrypt.org/directory"` |
 | `email`         | string | required  | The email address used to register with the ACME service                                                  |                                                    |
 | `tos_accepted`  | bool   | required  | Indicates explicit acceptance of the ACME service Terms of Service. Must be true.                         |                                                    |
+
+#### Serving Certificate Section
+
+| Key                  | Type     | Required? | Description                                                        | Default  |
+|----------------------|----------|-----------|--------------------------------------------------------------------|----------|
+| `cert_file_path`     | string   | required  | The certificate file path, the file must contain PEM encoded data. |          |
+| `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data. |          |
+| `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute |
+| `addr`               | string   | optional  | Exposes the service on the given address.                          | :443     |
 
 #### Server API Section
 
@@ -130,7 +142,7 @@ Both states respond with a 200 OK status code for success or 500 Internal Server
 
 ### Examples (Unix platforms)
 
-#### Server API
+#### Server API and ACME
 
 ```hcl
 log_level = "debug"
@@ -145,7 +157,7 @@ server_api {
 }
 ```
 
-#### Workload API
+#### Workload API and ACME
 
 ```hcl
 log_level = "debug"
@@ -154,6 +166,35 @@ acme {
     cache_dir = "/some/path/on/disk/to/cache/creds"
     email = "email@domain.test"
     tos_accepted = true
+}
+workload_api {
+    socket_path = "/tmp/spire-agent/public/api.sock"
+    trust_domain = "domain.test"
+}
+```
+
+#### Server API and Serving Certificate
+
+```hcl
+log_level = "debug"
+domains = ["mypublicdomain.test"]
+serving_cert_file {
+ cert_file_path = "/some/path/on/disk/to/cert.pem"
+ key_file_path = "/some/path/on/disk/to/key.pem"
+}
+server_api {
+    address = "unix:///tmp/spire-server/private/api.sock"
+}
+```
+
+#### Workload API and Serving Certificate
+
+```hcl
+log_level = "debug"
+domains = ["mypublicdomain.test"]
+serving_cert_file {
+ cert_file_path = "/some/path/on/disk/to/cert.pem"
+ key_file_path = "/some/path/on/disk/to/key.pem"
 }
 workload_api {
     socket_path = "/tmp/spire-agent/public/api.sock"
@@ -200,7 +241,7 @@ daemon off;
 
 ### Examples (Windows)
 
-#### Server API
+#### Server API and ACME
 
 ```hcl
 log_level = "debug"
@@ -217,7 +258,7 @@ server_api {
 }
 ```
 
-#### Workload API
+#### Workload API and ACME
 
 ```hcl
 log_level = "debug"
@@ -226,6 +267,39 @@ acme {
     cache_dir = "c:\\some\\path\\on\\disk\\to\\cache\\creds"
     email = "email@domain.test"
     tos_accepted = true
+}
+workload_api {
+    experimental {
+        named_pipe_name = "\\spire-agent\\public\\api"
+    }
+    trust_domain = "domain.test"
+}
+```
+
+#### Server API and Serving Certificate
+
+```hcl
+log_level = "debug"
+domains = ["mypublicdomain.test"]
+serving_cert_file {
+    cert_file_path = "c:\\some\\path\\on\\disk\\to\\cert.pem"
+    key_file_path = "c:\\some\\path\\on\\disk\\to\\key.pem"
+}
+server_api {
+    experimental {
+        named_pipe_name = "\\spire-server\\private\\api"
+    }
+}
+```
+
+#### Workload API and Serving Certificate
+
+```hcl
+log_level = "debug"
+domains = ["mypublicdomain.test"]
+serving_cert_file {
+ cert_file_path = "c:\\some\\path\\on\\disk\\to\\cert.pem"
+ key_file_path = "c:\\some\\path\\on\\disk\\to\\key.pem"
 }
 workload_api {
     experimental {

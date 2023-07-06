@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"os"
 	"time"
 
@@ -11,10 +12,12 @@ import (
 const (
 	defaultLogLevel              = "info"
 	defaultPollInterval          = time.Second * 10
+	defaultFileSyncInterval      = time.Minute
 	defaultCacheDir              = "./.acme-cache"
 	defaultHealthChecksBindPort  = 8008
 	defaultHealthChecksReadyPath = "/ready"
 	defaultHealthChecksLivePath  = "/live"
+	defaultAddr                  = ":443"
 )
 
 type Config struct {
@@ -52,8 +55,12 @@ type Config struct {
 	ListenSocketPath string `hcl:"listen_socket_path"`
 
 	// ACME is the ACME configuration. It is required unless InsecureAddr or
-	// ListenSocketPath is set.
+	// ListenSocketPath is set, or if ServingCertFile is used.
 	ACME *ACMEConfig `hcl:"acme"`
+
+	// ServingCertFile is the configuration for using a serving certificate to serve HTTPS.
+	// It is required unless InsecureAddr or ListenSocketPath is set, or if ACME configuration is used.
+	ServingCertFile *ServingCertFileConfig `hcl:"serving_cert_file"`
 
 	// ServerAPI is the configuration for using the SPIRE Server API as the
 	// source for the public keys. Only one source can be configured.
@@ -68,6 +75,24 @@ type Config struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
+}
+
+type ServingCertFileConfig struct {
+	// CertFilePath is the path to the certificate file. The provider will watch
+	// this file for changes and reload the certificate when it changes.
+	CertFilePath string `hcl:"cert_file_path"`
+	// KeyFilePath is the path to the private key file. The provider will watch
+	// this file for changes and reload the key when it changes.
+	KeyFilePath string `hcl:"key_file_path"`
+	// Addr is the address to listen on. This is optional and defaults to ":443".
+	Addr *net.TCPAddr `hcl:"-"`
+	// RawAddr holds the string version of the Addr. Consumers should use Addr instead.
+	RawAddr string `hcl:"addr"`
+	// FileSyncInterval controls how frequently the service polls the certificate for changes.
+	FileSyncInterval time.Duration `hcl:"-"`
+	// RawFileSyncInterval holds the string version of the FileSyncInterval. Consumers
+	// should use FileSyncInterval instead.
+	RawFileSyncInterval string `hcl:"file_sync_interval"`
 }
 
 type ACMEConfig struct {
@@ -194,10 +219,34 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		}
 	}
 
+	if c.ServingCertFile != nil {
+		if c.ServingCertFile.CertFilePath == "" {
+			return nil, errs.New("cert_file_path must be configured in the serving_cert_file configuration section")
+		}
+		if c.ServingCertFile.KeyFilePath == "" {
+			return nil, errs.New("key_file_path must be configured in the serving_cert_file configuration section")
+		}
+
+		if c.ServingCertFile.RawAddr == "" {
+			c.ServingCertFile.RawAddr = defaultAddr
+		}
+
+		addr, err := net.ResolveTCPAddr("tcp", c.ServingCertFile.RawAddr)
+		if err != nil {
+			return nil, errs.New("invalid addr in the serving_cert_file configuration section: %v", err)
+		}
+		c.ServingCertFile.Addr = addr
+
+		c.ServingCertFile.FileSyncInterval, err = parseDurationField(c.ServingCertFile.RawFileSyncInterval, defaultFileSyncInterval)
+		if err != nil {
+			return nil, errs.New("invalid file_sync_interval in the serving_cert_file configuration section: %v", err)
+		}
+	}
+
 	var methodCount int
 
 	if c.ServerAPI != nil {
-		c.ServerAPI.PollInterval, err = parsePollInterval(c.ServerAPI.RawPollInterval)
+		c.ServerAPI.PollInterval, err = parseDurationField(c.ServerAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
 			return nil, errs.New("invalid poll_interval in the server_api configuration section: %v", err)
 		}
@@ -208,7 +257,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		if c.WorkloadAPI.TrustDomain == "" {
 			return nil, errs.New("trust_domain must be configured in the workload_api configuration section")
 		}
-		c.WorkloadAPI.PollInterval, err = parsePollInterval(c.WorkloadAPI.RawPollInterval)
+		c.WorkloadAPI.PollInterval, err = parseDurationField(c.WorkloadAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
 			return nil, errs.New("invalid poll_interval in the workload_api configuration section: %v", err)
 		}
@@ -256,15 +305,15 @@ func dedupeList(items []string) []string {
 	return list
 }
 
-func parsePollInterval(rawPollInterval string) (pollInterval time.Duration, err error) {
-	if rawPollInterval != "" {
-		pollInterval, err = time.ParseDuration(rawPollInterval)
+func parseDurationField(rawValue string, defaultValue time.Duration) (duration time.Duration, err error) {
+	if rawValue != "" {
+		duration, err = time.ParseDuration(rawValue)
 		if err != nil {
 			return 0, err
 		}
 	}
-	if pollInterval <= 0 {
-		pollInterval = defaultPollInterval
+	if duration <= 0 {
+		duration = defaultValue
 	}
-	return pollInterval, nil
+	return duration, nil
 }

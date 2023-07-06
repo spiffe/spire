@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -49,6 +52,9 @@ func run(configPath string) error {
 	}
 	defer log.Close()
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	source, err := newSource(log, config)
 	if err != nil {
 		return err
@@ -66,30 +72,9 @@ func run(configPath string) error {
 		handler = logHandler(log, handler)
 	}
 
-	var listener net.Listener
-
-	switch {
-	case config.InsecureAddr != "":
-		listener, err = net.Listen("tcp", config.InsecureAddr)
-		if err != nil {
-			return err
-		}
-		log.WithField("address", config.InsecureAddr).Warn("Serving HTTP (insecure)")
-	case config.ListenSocketPath != "" || config.Experimental.ListenNamedPipeName != "":
-		listener, err = listenLocal(config)
-		if err != nil {
-			return err
-		}
-		log.WithFields(logrus.Fields{
-			telemetry.Network: listener.Addr().Network(),
-			telemetry.Address: listener.Addr().String(),
-		}).Info("Serving HTTP")
-	default:
-		listener, err = newACMEListener(log, config)
-		if err != nil {
-			return err
-		}
-		log.Info("Serving HTTPS via ACME")
+	listener, err := buildNetListener(ctx, config, log)
+	if err != nil {
+		return err
 	}
 
 	defer func() {
@@ -112,7 +97,52 @@ func run(configPath string) error {
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+
+	go func() {
+		<-ctx.Done()
+		if err := server.Shutdown(context.Background()); err != nil {
+			log.Error(err)
+		}
+	}()
+
 	return server.Serve(listener)
+}
+
+func buildNetListener(ctx context.Context, config *Config, log *log.Logger) (listener net.Listener, err error) {
+	switch {
+	case config.InsecureAddr != "":
+		listener, err = net.Listen("tcp", config.InsecureAddr)
+		if err != nil {
+			return nil, err
+		}
+		log.WithField("address", config.InsecureAddr).Warn("Serving HTTP (insecure)")
+	case config.ListenSocketPath != "" || config.Experimental.ListenNamedPipeName != "":
+		listener, err = listenLocal(config)
+		if err != nil {
+			return nil, err
+		}
+		log.WithFields(logrus.Fields{
+			telemetry.Network: listener.Addr().Network(),
+			telemetry.Address: listener.Addr().String(),
+		}).Info("Serving HTTP")
+	case config.ServingCertFile != nil:
+		listener, err = newListenerWithServingCert(ctx, log, config)
+		if err != nil {
+			return nil, err
+		}
+		log.WithFields(
+			logrus.Fields{
+				telemetry.CertFilePath: config.ServingCertFile.CertFilePath,
+				telemetry.Address:      config.ServingCertFile.KeyFilePath,
+			}).Info("Serving HTTPS using certificate loaded from disk")
+	default:
+		listener, err = newACMEListener(log, config)
+		if err != nil {
+			return nil, err
+		}
+		log.Info("Serving HTTPS via ACME")
+	}
+	return listener, nil
 }
 
 func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
@@ -138,6 +168,25 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 		// This is defensive; LoadConfig should prevent this from happening.
 		return nil, errs.New("no source has been configured")
 	}
+}
+
+func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, config *Config) (net.Listener, error) {
+	certManager, err := NewDiskCertManager(config.ServingCertFile, nil, log)
+	if err != nil {
+		return nil, err
+	}
+	go func() {
+		certManager.WatchFileChanges(ctx)
+	}()
+
+	tlsConfig := certManager.TLSConfig()
+
+	tcpListener, err := net.ListenTCP("tcp", config.ServingCertFile.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create listener using certificate from disk: %w", err)
+	}
+
+	return &tlsListener{TCPListener: tcpListener, conf: tlsConfig}, nil
 }
 
 func newACMEListener(log logrus.FieldLogger, config *Config) (net.Listener, error) {
@@ -168,7 +217,7 @@ func newACMEListener(log logrus.FieldLogger, config *Config) (net.Listener, erro
 		return nil, fmt.Errorf("failed to create an ACME listener: %w", err)
 	}
 
-	return &acmeListener{TCPListener: tcpListener, conf: tlsConfig}, nil
+	return &tlsListener{TCPListener: tcpListener, conf: tlsConfig}, nil
 }
 
 func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {
@@ -187,12 +236,12 @@ func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {
 // golang.org/x/crypto/acme/autocert package. It wraps a normal TCP listener to
 // set a reasonable keepalive on the TCP connection in the same vein as the
 // net/http package.
-type acmeListener struct {
+type tlsListener struct {
 	*net.TCPListener
 	conf *tls.Config
 }
 
-func (ln *acmeListener) Accept() (net.Conn, error) {
+func (ln *tlsListener) Accept() (net.Conn, error) {
 	conn, err := ln.TCPListener.AcceptTCP()
 	if err != nil {
 		return nil, err
