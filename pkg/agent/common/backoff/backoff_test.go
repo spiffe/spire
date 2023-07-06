@@ -7,7 +7,7 @@ import (
 	"github.com/spiffe/spire/test/clock"
 )
 
-// modified from `TestBackoff` in "github.com/cenkalti/backoff/v3", narrowed down to specific usage
+// modified from `TestBackoff` in "github.com/cenkalti/backoff/v4", narrowed down to specific usage
 func TestBackOff(t *testing.T) {
 	testInitialInterval := 6400 * time.Millisecond
 
@@ -53,9 +53,9 @@ func TestBackOffWithMaxInterval(t *testing.T) {
 }
 
 func inRange(t *testing.T, expected time.Duration, b BackOff) {
-	var minInterval = expected - time.Duration(_jitter*float64(expected))
-	var maxInterval = expected + time.Duration(_jitter*float64(expected))
-	var actualInterval = b.NextBackOff()
+	minInterval := expected - time.Duration(_jitter*float64(expected))
+	maxInterval := expected + time.Duration(_jitter*float64(expected))
+	actualInterval := b.NextBackOff()
 	if !(minInterval <= actualInterval && actualInterval <= maxInterval) {
 		t.Error("error")
 	}
