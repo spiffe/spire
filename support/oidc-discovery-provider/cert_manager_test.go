@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +30,11 @@ var (
 )
 
 func TestTLSConfig(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// Skip this test on Windows for now
+		// https://github.com/spiffe/spire/issues/4324
+		t.Skip()
+	}
 	logger, logHook := test.NewNullLogger()
 
 	clk := clock.NewMock(t)
