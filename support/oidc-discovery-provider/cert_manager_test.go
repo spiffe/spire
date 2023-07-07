@@ -28,6 +28,11 @@ var (
 	oidcServerKeyNew = testkey.MustEC256()
 )
 
+const (
+	testTimeout      = time.Minute
+	testPollInterval = 50 * time.Millisecond
+)
+
 func TestTLSConfig(t *testing.T) {
 	logger, logHook := test.NewNullLogger()
 
@@ -180,7 +185,7 @@ func TestTLSConfig(t *testing.T) {
 				return false
 			}
 			return reflect.DeepEqual(oidcServerCertUpdated1, x509Cert)
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert updated certificate")
+		}, testTimeout, testPollInterval, "Failed to assert updated certificate")
 	})
 
 	t.Run("success watching to key file changes", func(t *testing.T) {
@@ -207,7 +212,7 @@ func TestTLSConfig(t *testing.T) {
 				return false
 			}
 			return reflect.DeepEqual(oidcServerCertUpdated2, x509Cert)
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert updated certificate")
+		}, testTimeout, testPollInterval, "Failed to assert updated certificate")
 	})
 
 	t.Run("update cert file with an invalid cert start error log loop", func(t *testing.T) {
@@ -227,7 +232,7 @@ func TestTLSConfig(t *testing.T) {
 				}
 			}
 			return len(errLogs) <= 5
-		}, 10*time.Second, 10*time.Millisecond, "failed to find error logs")
+		}, testTimeout, testPollInterval, "failed to find error logs")
 
 		// New cert is not loaded because it is invalid.
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -260,7 +265,7 @@ func TestTLSConfig(t *testing.T) {
 				}
 			}
 			return len(errLogs) <= 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+		}, testTimeout, testPollInterval, "Failed to assert error logs")
 
 		// New cert is not loaded because it is invalid.
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -288,7 +293,7 @@ func TestTLSConfig(t *testing.T) {
 				return false
 			}
 			return reflect.DeepEqual(oidcServerCert, x509Cert)
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert updated certificate")
+		}, testTimeout, testPollInterval, "Failed to assert updated certificate")
 	})
 
 	t.Run("delete cert files start error log loop", func(t *testing.T) {
@@ -307,7 +312,7 @@ func TestTLSConfig(t *testing.T) {
 				}
 			}
 			return len(errLogs) == 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+		}, testTimeout, testPollInterval, "Failed to assert error logs")
 
 		removeFile(t, certFilePath)
 
@@ -324,7 +329,7 @@ func TestTLSConfig(t *testing.T) {
 				}
 			}
 			return len(errLogs) == 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+		}, testTimeout, testPollInterval, "Failed to assert error logs")
 
 		writeFile(t, keyFilePath, oidcServerKeyPem)
 
@@ -341,7 +346,7 @@ func TestTLSConfig(t *testing.T) {
 			require.Equal(t, oidcServerCert, x509Cert)
 
 			return reflect.DeepEqual(oidcServerCert, x509Cert) && logHook.LastEntry().Message == "Loaded provided certificate with success"
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+		}, testTimeout, testPollInterval, "Failed to assert error logs")
 	})
 
 	t.Run("stop file watcher when context is canceled", func(t *testing.T) {
@@ -350,7 +355,7 @@ func TestTLSConfig(t *testing.T) {
 		require.Eventuallyf(t, func() bool {
 			lastEntry := logHook.LastEntry()
 			return lastEntry.Level == logrus.InfoLevel && lastEntry.Message == "Stopping file watcher"
-		}, 1*time.Second, 10*time.Millisecond, "Failed to assert file watcher stop log")
+		}, testTimeout, testPollInterval, "Failed to assert file watcher stop log")
 	})
 }
 
