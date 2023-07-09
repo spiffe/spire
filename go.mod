@@ -24,7 +24,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.102.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/kms v1.22.2
+	github.com/aws/aws-sdk-go-v2/service/kms v1.23.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.19.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.2
 	github.com/blang/semver/v4 v4.0.0
