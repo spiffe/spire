@@ -40,7 +40,7 @@ require (
 	github.com/google/go-containerregistry v0.15.2
 	github.com/google/go-tpm v0.9.0
 	github.com/google/go-tpm-tools v0.4.0
-	github.com/googleapis/gax-go/v2 v2.11.0
+	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-plugin v1.4.10
