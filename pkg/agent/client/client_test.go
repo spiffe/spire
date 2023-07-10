@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"sync"
@@ -271,9 +272,9 @@ func TestRenewSVID(t *testing.T) {
 }
 
 func TestNewX509SVIDs(t *testing.T) {
-	client, tc := createClient()
+	sClient, tc := createClient()
 
-	tc.entryClient.entries = []*types.Entry{
+	entries := []*types.Entry{
 		{
 			Id:       "ENTRYID1",
 			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
@@ -317,123 +318,76 @@ func TestNewX509SVIDs(t *testing.T) {
 			},
 		},
 	}
-
-	tc.svidClient.x509SVIDs = map[string]*types.X509SVID{
+	x509SVIDs := map[string]*types.X509SVID{
 		"entry-id": {
 			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
 			CertChain: [][]byte{{11, 22, 33}},
 		},
 	}
 
-	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
-	client.c.RotMtx.Lock()
-
-	// Do the request in a different go routine
-	var wg sync.WaitGroup
-	var svids map[string]*X509SVID
-	err := errors.New("a not nil error")
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		svids, err = client.NewX509SVIDs(context.Background(), newTestCSRs())
-	}()
-
-	// The request should wait until the SVID rotation finishes
-	require.Contains(t, "a not nil error", err.Error())
-	require.Nil(t, svids)
-
-	// Simulate the end of the SVID rotation
-	client.c.RotMtx.Unlock()
-	wg.Wait()
-
-	// Assert results
-	require.Nil(t, err)
-	assert.Equal(t, testSvids, svids)
-	assertConnectionIsNotNil(t, client)
-}
-
-func TestNewX509SVIDsFails(t *testing.T) {
-	client, tc := createClient()
-
-	tc.entryClient.entries = []*types.Entry{
+	tests := []struct {
+		name           string
+		entries        []*types.Entry
+		x509SVIDs      map[string]*types.X509SVID
+		batchSVIDErr   error
+		wantError      assert.ErrorAssertionFunc
+		assertFuncConn func(t *testing.T, client *client)
+		testSvids      map[string]*X509SVID
+	}{
 		{
-			Id:       "ENTRYID1",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id1",
-			},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "1"},
-			},
-			FederatesWith:  []string{"domain1.com"},
-			RevisionNumber: 1234,
+			name:           "success",
+			entries:        entries,
+			x509SVIDs:      x509SVIDs,
+			batchSVIDErr:   nil,
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      testSvids,
 		},
-		// This entry should be ignored since it is missing an entry ID
 		{
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id2",
-			},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "2"},
-			},
-			FederatesWith: []string{"domain2.com"},
-		},
-		// This entry should be ignored since it is missing a SPIFFE ID
-		{
-			Id:       "ENTRYID3",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "3"},
-			},
-		},
-		// This entry should be ignored since it is missing selectors
-		{
-			Id:       "ENTRYID4",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id4",
-			},
+			name:           "failed",
+			entries:        entries,
+			x509SVIDs:      x509SVIDs,
+			batchSVIDErr:   status.Error(codes.NotFound, "not found when executing BatchNewX509SVID"),
+			wantError:      assert.Error,
+			assertFuncConn: assertConnectionIsNil,
+			testSvids:      nil,
 		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc.entryClient.entries = tt.entries
+			tc.svidClient.x509SVIDs = tt.x509SVIDs
+			tc.svidClient.batchSVIDErr = tt.batchSVIDErr
 
-	tc.svidClient.x509SVIDs = map[string]*types.X509SVID{
-		"entry-id": {
-			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
-			CertChain: [][]byte{{11, 22, 33}},
-		},
+			// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
+			sClient.c.RotMtx.Lock()
+
+			// Do the request in a different go routine
+			var wg sync.WaitGroup
+			var svids map[string]*X509SVID
+			err := errors.New("a not nil error")
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				svids, err = sClient.NewX509SVIDs(context.Background(), newTestCSRs())
+			}()
+
+			// The request should wait until the SVID rotation finishes
+			require.Contains(t, "a not nil error", err.Error())
+			require.Nil(t, svids)
+
+			// Simulate the end of the SVID rotation
+			sClient.c.RotMtx.Unlock()
+			wg.Wait()
+
+			// Assert results
+			tt.assertFuncConn(t, sClient)
+			if !tt.wantError(t, err, fmt.Sprintf("error was not expected for test case %s", tt.name)) {
+				return
+			}
+			assert.Equal(t, tt.testSvids, svids)
+		})
 	}
-
-	tc.svidClient.batchSVIDErr = status.Error(codes.NotFound, "not found when executing BatchNewX509SVID")
-
-	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
-	client.c.RotMtx.Lock()
-
-	// Do the request in a different go routine
-	var wg sync.WaitGroup
-	var svids map[string]*X509SVID
-	err := errors.New("a not nil error")
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		svids, err = client.NewX509SVIDs(context.Background(), newTestCSRs())
-	}()
-
-	// The request should wait until the SVID rotation finishes
-	require.Contains(t, "a not nil error", err.Error())
-	require.Nil(t, svids)
-
-	// Simulate the end of the SVID rotation
-	client.c.RotMtx.Unlock()
-	wg.Wait()
-
-	// Assert results
-	require.Error(t, err)
-	assert.Nil(t, svids)
-	assertConnectionIsNil(t, client)
 }
 
 func newTestCSRs() map[string][]byte {
