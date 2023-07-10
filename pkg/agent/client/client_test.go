@@ -783,8 +783,8 @@ func TestFetchJWTSVID(t *testing.T) {
 			setupTest: func(err error) {
 				tc.svidClient.jwtSVID = &types.JWTSVID{
 					Token:     "token",
-					ExpiresAt: issuedAt,
-					IssuedAt:  expiresAt,
+					ExpiresAt: expiresAt,
+					IssuedAt:  issuedAt,
 				}
 				tc.svidClient.newJWTSVID = err
 			},
