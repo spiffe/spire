@@ -475,7 +475,7 @@ func (c *client) withErrorFields(err error) logrus.FieldLogger {
 
 	logger := c.c.Log.WithError(err)
 	if s, ok := status.FromError(err); ok {
-		logger = c.c.Log.WithFields(logrus.Fields{
+		logger = logger.WithFields(logrus.Fields{
 			telemetry.StatusCode:    s.Code(),
 			telemetry.StatusMessage: s.Message(),
 		})
