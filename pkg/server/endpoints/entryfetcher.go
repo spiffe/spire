@@ -3,7 +3,6 @@ package endpoints
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -17,30 +16,17 @@ import (
 
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithFullCache)(nil)
 
-type entryCacheBuilderFn func(ctx context.Context) (entrycache.Cache, error)
-type entryCacheUpdateFn func(ctx context.Context, cache entrycache.Cache) error
-
 type AuthorizedEntryFetcherWithFullCache struct {
-	updateCache              entryCacheUpdateFn
 	cache                    entrycache.Cache
 	clk                      clock.Clock
 	log                      logrus.FieldLogger
-	mu                       sync.RWMutex
 	dataStore                datastore.DataStore
 	cacheReloadInterval      time.Duration
 	entryEventsPruneInterval time.Duration
 }
 
-func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, updateCache entryCacheUpdateFn, c Config) (*AuthorizedEntryFetcherWithFullCache, error) {
-	c.Log.Info("Building in-memory entry cache")
-	cache, err := buildCache(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	c.Log.Info("Completed building in-memory entry cache")
+func NewAuthorizedEntryFetcherWithFullCache(c Config, cache entrycache.Cache) (*AuthorizedEntryFetcherWithFullCache, error) {
 	return &AuthorizedEntryFetcherWithFullCache{
-		updateCache:              updateCache,
 		cache:                    cache,
 		clk:                      c.Clock,
 		log:                      c.Log,
@@ -51,8 +37,6 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 }
 
 func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
 	return a.cache.GetAuthorizedEntries(agentID), nil
 }
 
@@ -63,9 +47,7 @@ func (a *AuthorizedEntryFetcherWithFullCache) FetchAllCachedEntries() ([]*types.
 // RunUpdateCacheTask starts a ticker which updates the in-memory entry cache.
 func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Context) error {
 	rebuild := func() {
-		a.mu.Lock()
-		defer a.mu.Unlock()
-		if err := a.updateCache(ctx, a.cache); err != nil {
+		if err := a.cache.Update(ctx, a.dataStore); err != nil {
 			a.log.WithError(err).Error("Failed to reload entry cache")
 		}
 

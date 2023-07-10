@@ -33,6 +33,7 @@ var _ Cache = (*FullEntryCache)(nil)
 type Cache interface {
 	GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry
 	GetAllEntries() []*types.Entry
+	Update(ctx context.Context, ds datastore.DataStore) error
 }
 
 // Selector is a key-value attribute of a node or workload.
@@ -95,6 +96,7 @@ type FullEntryCache struct {
 	aliases     map[spiffeID][]aliasEntry
 	entries     map[spiffeID][]*types.Entry
 	lastEventID uint
+	mu          sync.RWMutex
 }
 
 type selectorSet map[Selector]struct{}
@@ -178,9 +180,9 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	}, nil
 }
 
-func Update(ctx context.Context, ds datastore.DataStore, cache *FullEntryCache) error {
+func (c *FullEntryCache) Update(ctx context.Context, ds datastore.DataStore) error {
 	req := &datastore.ListEntryEventsRequest{
-		LastID: cache.lastEventID,
+		LastID: c.lastEventID,
 	}
 	resp, err := ds.ListEntryEvents(ctx, req)
 	if err != nil {
@@ -194,16 +196,16 @@ func Update(ctx context.Context, ds datastore.DataStore, cache *FullEntryCache) 
 		}
 
 		if commonEntry == nil {
-			cache.deleteEntry(entryID)
-			cache.lastEventID++
+			c.deleteEntry(entryID)
+			c.lastEventID++
 			continue
 		}
 
-		if err := cache.createOrUpdateEntry(commonEntry); err != nil {
+		if err := c.createOrUpdateEntry(commonEntry); err != nil {
 			return err
 		}
 
-		cache.lastEventID++
+		c.lastEventID++
 	}
 
 	return nil
@@ -211,6 +213,8 @@ func Update(ctx context.Context, ds datastore.DataStore, cache *FullEntryCache) 
 
 // GetAuthorizedEntries gets all authorized registration entries for a given Agent SPIFFE ID.
 func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
@@ -255,6 +259,8 @@ func (c *FullEntryCache) crawl(parentID spiffeID, seen map[spiffeID]struct{}) []
 }
 
 func (c *FullEntryCache) createOrUpdateEntry(commonEntry *common.RegistrationEntry) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	protoEntry, err := api.RegistrationEntryToProto(commonEntry)
 	if err != nil {
 		return err
@@ -280,6 +286,8 @@ func (c *FullEntryCache) createOrUpdateEntry(commonEntry *common.RegistrationEnt
 }
 
 func (c *FullEntryCache) deleteEntry(entryID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	for parentID, cacheEntries := range c.entries {
 		for i := 0; i < len(cacheEntries); i++ {
 			if cacheEntries[i].Id == entryID {

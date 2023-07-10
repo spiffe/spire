@@ -108,17 +108,14 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return nil, errors.New("policy engine not provided for new endpoint")
 	}
 
-	buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
-		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
-		defer call.Done(&err)
-		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
+	c.Log.Info("Building in-memory entry cache")
+	call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
+	cache, err := entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
+	call.Done(&err)
+	if err != nil {
+		return nil, err
 	}
-
-	updateCacheFn := func(ctx context.Context, cache entrycache.Cache) (err error) {
-		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
-		defer call.Done(&err)
-		return entrycache.Update(ctx, c.Catalog.GetDataStore(), cache.(*entrycache.FullEntryCache))
-	}
+	c.Log.Info("Completed building in-memory entry cache")
 
 	if c.CacheReloadInterval == 0 {
 		c.CacheReloadInterval = defaultCacheReloadInterval
@@ -127,7 +124,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		c.EntryEventsPruneInterval = defaultEntryEventsPruneInterval
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, updateCacheFn, c)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(c, cache)
 	if err != nil {
 		return nil, err
 	}

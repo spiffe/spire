@@ -11,8 +11,11 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,8 +26,11 @@ var (
 
 var _ entrycache.Cache = (*staticEntryCache)(nil)
 
+type entryCacheUpdateFn func() (map[spiffeid.ID][]*types.Entry, error)
+
 type staticEntryCache struct {
-	entries map[spiffeid.ID][]*types.Entry
+	entries     map[spiffeid.ID][]*types.Entry
+	updateCache entryCacheUpdateFn
 }
 
 func (sef *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
@@ -39,32 +45,42 @@ func (sef *staticEntryCache) GetAllEntries() []*types.Entry {
 	return entries
 }
 
-func newStaticEntryCache(entries map[spiffeid.ID][]*types.Entry) *staticEntryCache {
+func (sef *staticEntryCache) Update(ctx context.Context, ds datastore.DataStore) error {
+	if sef.updateCache != nil {
+		entries, err := sef.updateCache()
+		if err != nil {
+			return err
+		}
+
+		sef.entries = entries
+	}
+
+	return nil
+}
+
+func newStaticEntryCache(entries map[spiffeid.ID][]*types.Entry, updateCache entryCacheUpdateFn) *staticEntryCache {
 	return &staticEntryCache{
-		entries: entries,
+		entries:     entries,
+		updateCache: updateCache,
 	}
 }
 
 func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
-	ctx := context.Background()
 	log, _ := test.NewNullLogger()
+	cat := fakeservercatalog.New()
+	cat.SetDataStore(fakedatastore.New(t))
 	config := Config{
 		Log:                      log,
 		Clock:                    clock.NewMock(t),
 		CacheReloadInterval:      defaultCacheReloadInterval,
 		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+		Catalog:                  cat,
 	}
 
 	entries := make(map[spiffeid.ID][]*types.Entry)
-	buildCache := func(context.Context) (entrycache.Cache, error) {
-		return newStaticEntryCache(entries), nil
-	}
+	cache := newStaticEntryCache(entries, nil)
 
-	updateCache := func(context.Context, entrycache.Cache) error {
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, updateCache, config)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(config, cache)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 }
@@ -95,28 +111,24 @@ func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) 
 func TestFetchRegistrationEntries(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
+	cat := fakeservercatalog.New()
+	cat.SetDataStore(fakedatastore.New(t))
 	config := Config{
 		Log:                      log,
 		Clock:                    clock.NewMock(t),
 		CacheReloadInterval:      defaultCacheReloadInterval,
 		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+		Catalog:                  cat,
 	}
 
 	agentID := spiffeid.RequireFromPath(trustDomain, "/root")
 	expected := setupExpectedEntriesData(t, agentID)
-	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
-		entries := map[spiffeid.ID][]*types.Entry{
-			agentID: expected,
-		}
-
-		return newStaticEntryCache(entries), nil
+	cacheEntries := map[spiffeid.ID][]*types.Entry{
+		agentID: expected,
 	}
+	cache := newStaticEntryCache(cacheEntries, nil)
 
-	updateCacheFn := func(ctx context.Context, cache entrycache.Cache) (err error) {
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, updateCacheFn, config)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(config, cache)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -140,17 +152,20 @@ func TestRunRebuildCacheTask(t *testing.T) {
 
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
+	cat := fakeservercatalog.New()
+	cat.SetDataStore(fakedatastore.New(t))
 	config := Config{
 		Log:                      log,
 		Clock:                    clk,
 		CacheReloadInterval:      defaultCacheReloadInterval,
 		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+		Catalog:                  cat,
 	}
 	agentID := spiffeid.RequireFromPath(trustDomain, "/root")
 	var expectedEntries []*types.Entry
 
 	type buildCacheResult struct {
-		cache entrycache.Cache
+		cache *staticEntryCache
 		err   error
 	}
 	type buildCacheRequest struct {
@@ -162,13 +177,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 	// All subsequent cache rebuilds are handled by the entry fetcher in a separate goroutine.
 	// For the first cache build only, we don't want to rely on the request-response mechanism
 	// used for coordination between the test goroutine and the entry fetcher goroutine.
-	isFirstCacheBuild := true
-	buildCache := func(ctx context.Context) (entrycache.Cache, error) {
-		if isFirstCacheBuild {
-			isFirstCacheBuild = false
-			emptyEntries := make(map[spiffeid.ID][]*types.Entry)
-			return newStaticEntryCache(emptyEntries), nil
-		}
+	updateCache := func() (map[spiffeid.ID][]*types.Entry, error) {
 		resultCh := make(chan buildCacheResult)
 		// Block until the test is ready for hydration to occur (which it
 		// does by reading on hydrateCh).
@@ -180,22 +189,20 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
-		// Wait for the test to provide the resultss
+		// Wait for the test to provide the results
 		select {
 		case result := <-resultCh:
-			return result.cache, result.err
+			return result.cache.entries, result.err
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-time.After(5 * time.Second):
 			return nil, errors.New("cache hydrate function timed out waiting for test to invoke it")
 		}
 	}
+	emptyEntries := make(map[spiffeid.ID][]*types.Entry)
+	cache := newStaticEntryCache(emptyEntries, updateCache)
 
-	updateCache := func(context.Context, entrycache.Cache) error {
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, updateCache, config)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(config, cache)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -221,7 +228,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		}
 
 		result := buildCacheResult{
-			cache: newStaticEntryCache(entries),
+			cache: newStaticEntryCache(entries, nil),
 			err:   err,
 		}
 		select {

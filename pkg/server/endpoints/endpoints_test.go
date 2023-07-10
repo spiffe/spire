@@ -176,6 +176,8 @@ func TestListenAndServe(t *testing.T) {
 	require.NoError(t, listener.Close())
 
 	ds := fakedatastore.New(t)
+	cat := fakeservercatalog.New()
+	cat.SetDataStore(ds)
 	log, _ := test.NewNullLogger()
 	metrics := fakemetrics.New()
 
@@ -186,17 +188,13 @@ func TestListenAndServe(t *testing.T) {
 		Log:                      log,
 		CacheReloadInterval:      defaultCacheReloadInterval,
 		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+		Catalog:                  cat,
 	}
 
-	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
-		return entrycache.BuildFromDataStore(ctx, ds)
-	}
+	cache, err := entrycache.BuildFromDataStore(ctx, ds)
+	require.NoError(t, err)
 
-	updateCacheFn := func(ctx context.Context, cache entrycache.Cache) (err error) {
-		return entrycache.Update(ctx, ds, cache.(*entrycache.FullEntryCache))
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, updateCacheFn, config)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(config, cache)
 	require.NoError(t, err)
 
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)
@@ -235,7 +233,7 @@ func TestListenAndServe(t *testing.T) {
 	// - downstream registration entry
 	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Start listening

@@ -14,11 +14,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
@@ -34,14 +34,16 @@ type testEntries struct {
 }
 
 func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
-	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	ds := fakedatastore.New(t)
+	cat := fakeservercatalog.New()
+	cat.SetDataStore(ds)
 	config := Config{
 		Log:                      log,
 		Clock:                    clock.NewMock(t),
 		CacheReloadInterval:      defaultCacheReloadInterval,
 		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
+		Catalog:                  cat,
 	}
 
 	e := createAuthorizedEntryTestData(t, ds)
@@ -51,19 +53,12 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	expectedEntries = append(expectedEntries, expectedNodeAliasEntries...)
 	expectedEntries = append(expectedEntries, expectedWorkloadEntries...)
 
-	buildCache := func(context.Context) (entrycache.Cache, error) {
-		entryMap := map[spiffeid.ID][]*types.Entry{
-			agentID: expectedEntries,
-		}
-
-		return newStaticEntryCache(entryMap), nil
+	entryMap := map[spiffeid.ID][]*types.Entry{
+		agentID: expectedEntries,
 	}
+	cache := newStaticEntryCache(entryMap, nil)
 
-	updateCache := func(context.Context, entrycache.Cache) error {
-		return nil
-	}
-
-	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, updateCache, config)
+	f, err := NewAuthorizedEntryFetcherWithFullCache(config, cache)
 	require.NoError(t, err)
 
 	entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
