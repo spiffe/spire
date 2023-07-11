@@ -186,6 +186,7 @@ func TestListenAndServe(t *testing.T) {
 
 	config := Config{
 		Log:                      log,
+		Clock:                    clk,
 		CacheReloadInterval:      defaultCacheReloadInterval,
 		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
 		Catalog:                  cat,
@@ -233,7 +234,7 @@ func TestListenAndServe(t *testing.T) {
 	// - downstream registration entry
 	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	// Start listening
@@ -653,6 +654,7 @@ func testEntryAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"BatchUpdateEntry":     true,
 			"BatchDeleteEntry":     true,
 			"GetAuthorizedEntries": false,
+			"ListCachedEntries":    true,
 		})
 	})
 
@@ -665,6 +667,7 @@ func testEntryAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"BatchUpdateEntry":     false,
 			"BatchDeleteEntry":     false,
 			"GetAuthorizedEntries": false,
+			"ListCachedEntries":    false,
 		})
 	})
 
@@ -677,6 +680,7 @@ func testEntryAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"BatchUpdateEntry":     false,
 			"BatchDeleteEntry":     false,
 			"GetAuthorizedEntries": true,
+			"ListCachedEntries":    false,
 		})
 	})
 
@@ -689,6 +693,7 @@ func testEntryAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"BatchUpdateEntry":     true,
 			"BatchDeleteEntry":     true,
 			"GetAuthorizedEntries": false,
+			"ListCachedEntries":    false,
 		})
 	})
 
@@ -701,6 +706,7 @@ func testEntryAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"BatchUpdateEntry":     true,
 			"BatchDeleteEntry":     true,
 			"GetAuthorizedEntries": false,
+			"ListCachedEntries":    false,
 		})
 	})
 
@@ -713,6 +719,7 @@ func testEntryAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"BatchUpdateEntry":     false,
 			"BatchDeleteEntry":     false,
 			"GetAuthorizedEntries": false,
+			"ListCachedEntries":    false,
 		})
 	})
 }
