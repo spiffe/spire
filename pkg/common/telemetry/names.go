@@ -260,6 +260,9 @@ const (
 	// EndpointSpiffeID tags endpoint SPIFFE ID
 	EndpointSpiffeID = "endpoint_spiffe_id"
 
+	// EntryEvent is a notice a registration entry has been create, modified, or deleted
+	EntryEvent = "entry_event"
+
 	// Error tag for some error that occurred. Limited usage, such as logging errors at
 	// non-error level.
 	Error = "error"

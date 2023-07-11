@@ -131,6 +131,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "ListBundles",
 		},
 		{
+			key:        "datastore.entry_event.list",
+			methodName: "ListEntryEvents",
+		},
+		{
 			key:        "datastore.node.selectors.list",
 			methodName: "ListNodeSelectors",
 		},
@@ -149,6 +153,10 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.join_token.prune",
 			methodName: "PruneJoinTokens",
+		},
+		{
+			key:        "datastore.entry_event.prune",
+			methodName: "PruneEntryEvents",
 		},
 		{
 			key:        "datastore.registration_entry.prune",
