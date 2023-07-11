@@ -166,14 +166,12 @@ func (FederatedTrustDomain) TableName() string {
 type EntryEvent struct {
 	ID uint `gorm:"primary_key"`
 
-	EntryID   string
-	ChangedAt time.Time
-	ChangeOp  string
+	EntryID string
 }
 
 // TableName gets table name for DNS entries
 func (EntryEvent) TableName() string {
-	return "entry_event"
+	return "entry_events"
 }
 
 // Migration holds database schema version number, and

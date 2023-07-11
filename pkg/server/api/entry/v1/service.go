@@ -337,6 +337,23 @@ func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) ([]*
 	return entries, nil
 }
 
+// ListCachedEntries returns the list of entries cached by the server
+func (s *Service) ListCachedEntries(ctx context.Context, req *entryv1.ListCachedEntriesRequest) (*entryv1.ListCachedEntriesResponse, error) {
+	log := rpccontext.Logger(ctx)
+
+	entries, err := s.ef.FetchCachedEntries(ctx)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to list cached entries", err)
+	}
+
+	resp := &entryv1.ListCachedEntriesResponse{
+		Entries: entries,
+	}
+	rpccontext.AuditRPC(ctx)
+
+	return resp, nil
+}
+
 func applyMask(e *types.Entry, mask *types.EntryMask) {
 	if mask == nil {
 		return

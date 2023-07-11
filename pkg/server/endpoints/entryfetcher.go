@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -40,7 +39,7 @@ func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(ctx context
 	return a.cache.GetAuthorizedEntries(agentID), nil
 }
 
-func (a *AuthorizedEntryFetcherWithFullCache) FetchAllCachedEntries() ([]*types.Entry, error) {
+func (a *AuthorizedEntryFetcherWithFullCache) FetchCachedEntries(ctx context.Context) ([]*types.Entry, error) {
 	return a.cache.GetAllEntries(), nil
 }
 
@@ -49,15 +48,6 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 	rebuild := func() {
 		if err := a.cache.Update(ctx, a.dataStore); err != nil {
 			a.log.WithError(err).Error("Failed to reload entry cache")
-		}
-
-		entries, err := a.FetchAllCachedEntries()
-		if err != nil {
-			a.log.WithError(err).Error("Failed to get cache")
-			return
-		}
-		for _, entry := range entries {
-			printEntry(entry)
 		}
 	}
 
@@ -89,27 +79,4 @@ func (a *AuthorizedEntryFetcherWithFullCache) EntryEventsPruneTask(ctx context.C
 
 func (a *AuthorizedEntryFetcherWithFullCache) pruneEntryEvents(ctx context.Context) error {
 	return a.dataStore.PruneEntryEvents(ctx, a.entryEventsPruneInterval)
-}
-
-func printEntry(e *types.Entry) {
-	fmt.Printf("Entry ID         : %s\n", printableEntryID(e.Id))
-	fmt.Printf("SPIFFE ID        : %s\n", protoToIDString(e.SpiffeId))
-	fmt.Printf("Parent ID        : %s\n", protoToIDString(e.ParentId))
-	fmt.Printf("Revision         : %d\n", e.RevisionNumber)
-	fmt.Printf("\n")
-}
-
-func printableEntryID(id string) string {
-	if id == "" {
-		return "(none)"
-	}
-	return id
-}
-
-// protoToIDString converts a SPIFFE ID from the given *types.SPIFFEID to string
-func protoToIDString(id *types.SPIFFEID) string {
-	if id == nil {
-		return ""
-	}
-	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }

@@ -984,6 +984,8 @@ github.com/evanphx/json-patch/v5 v5.6.0/go.mod h1:G79N1coSVB93tBe7j6PhzjmR3/2Vvl
 github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a h1:yDWHCSQ40h88yih2JAcL6Ls/kVkSE8GFACTGVnMPruw=
 github.com/facebookgo/limitgroup v0.0.0-20150612190941-6abd8d71ec01 h1:IeaD1VDVBPlx3viJT9Md8if8IxxJnO+x0JCGb054heg=
 github.com/facebookgo/muster v0.0.0-20150708232844-fd3d7953fd52 h1:a4DFiKFJiDRGFD1qIcqGLX/WlUMD9dyLSLDt+9QZgt8=
+github.com/faisal-memon/spire-api-sdk v1.2.3-0.20230710221523-4d7211d9a489 h1:u4EioHvBBR7GL8H+IcLE8ELx3a5X6eGCsxeTadmX6+Q=
+github.com/faisal-memon/spire-api-sdk v1.2.3-0.20230710221523-4d7211d9a489/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
 github.com/fatih/color v1.15.0 h1:kOqh6YHBtK8aywxGerMG2Eq3H6Qgoqeo13Bk2Mv/nBs=
@@ -1794,8 +1796,6 @@ github.com/spf13/viper v1.15.0 h1:js3yy885G8xwJa6iOISGFwd+qlUo5AvyXb7CiihdtiU=
 github.com/spf13/viper v1.15.0/go.mod h1:fFcTBJxvhhzSJiZy8n+PeW6t8l+KeT/uTARa0jHOQLA=
 github.com/spiffe/go-spiffe/v2 v2.1.6 h1:4SdizuQieFyL9eNU+SPiCArH4kynzaKOOj0VvM8R7Xo=
 github.com/spiffe/go-spiffe/v2 v2.1.6/go.mod h1:eVDqm9xFvyqao6C+eQensb9ZPkyNEeaUbqbBpOhBnNk=
-github.com/spiffe/spire-api-sdk v1.2.5-0.20230413135745-699e242b965d h1:0etgpf2R3yE+dwCM+leo1OcayEXfBdv0nZ3I7k/iRmk=
-github.com/spiffe/spire-api-sdk v1.2.5-0.20230413135745-699e242b965d/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
 github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230224144655-648f8c740f73 h1:uGW6T41jGq1ZTxqpc8Y4b/LIPDtSYDaVql2gYdJYUfM=
 github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230224144655-648f8c740f73/go.mod h1:4KW5J6abGIAyUS8IL7Fi0NOfoWR6jA5LufKPnIdm9FE=
 github.com/stoewer/go-strcase v1.2.0/go.mod h1:IBiWB2sKIp3wVVQ3Y035++gc+knqhUQag1KpM8ahLw8=
