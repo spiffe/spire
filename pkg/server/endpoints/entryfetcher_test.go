@@ -85,29 +85,6 @@ func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	assert.NotNil(t, ef)
 }
 
-func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) {
-	ctx := context.Background()
-	log, _ := test.NewNullLogger()
-	config := Config{
-		Log:                      log,
-		Clock:                    clock.NewMock(t),
-		CacheReloadInterval:      defaultCacheReloadInterval,
-		EntryEventsPruneInterval: defaultEntryEventsPruneInterval,
-	}
-
-	buildCache := func(context.Context) (entrycache.Cache, error) {
-		return nil, errors.New("some cache build error")
-	}
-
-	updateCache := func(ctx context.Context, cache entrycache.Cache) (err error) {
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, updateCache, config)
-	assert.Error(t, err)
-	assert.Nil(t, ef)
-}
-
 func TestFetchRegistrationEntries(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
@@ -164,28 +141,28 @@ func TestRunRebuildCacheTask(t *testing.T) {
 	agentID := spiffeid.RequireFromPath(trustDomain, "/root")
 	var expectedEntries []*types.Entry
 
-	type buildCacheResult struct {
+	type updateCacheResult struct {
 		cache *staticEntryCache
 		err   error
 	}
-	type buildCacheRequest struct {
-		resultCh chan buildCacheResult
+	type updateCacheRequest struct {
+		resultCh chan updateCacheResult
 	}
 
-	buildCacheCh := make(chan buildCacheRequest)
+	updateCacheCh := make(chan updateCacheRequest)
 	// The first time the cache is built synchronously in the same goroutine as the test.
 	// All subsequent cache rebuilds are handled by the entry fetcher in a separate goroutine.
 	// For the first cache build only, we don't want to rely on the request-response mechanism
 	// used for coordination between the test goroutine and the entry fetcher goroutine.
 	updateCache := func() (map[spiffeid.ID][]*types.Entry, error) {
-		resultCh := make(chan buildCacheResult)
+		resultCh := make(chan updateCacheResult)
 		// Block until the test is ready for hydration to occur (which it
 		// does by reading on hydrateCh).
-		req := buildCacheRequest{
+		req := updateCacheRequest{
 			resultCh: resultCh,
 		}
 		select {
-		case buildCacheCh <- req:
+		case updateCacheCh <- req:
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -210,24 +187,24 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		watchErr <- ef.RunRebuildCacheTask(ctx)
 	}()
 
-	waitForRequest := func() buildCacheRequest {
+	waitForRequest := func() updateCacheRequest {
 		clk.WaitForAfter(time.Minute, "waiting for watch timer")
 		clk.Add(defaultCacheReloadInterval)
 		select {
-		case request := <-buildCacheCh:
+		case request := <-updateCacheCh:
 			return request
 		case <-ctx.Done():
 			t.Fatal("timed out waiting for the build cache request")
-			return buildCacheRequest{} // unreachable
+			return updateCacheRequest{} // unreachable
 		}
 	}
 
-	sendResult := func(request buildCacheRequest, entries map[spiffeid.ID][]*types.Entry, err error) {
+	sendResult := func(request updateCacheRequest, entries map[spiffeid.ID][]*types.Entry, err error) {
 		if entries == nil {
 			entries = make(map[spiffeid.ID][]*types.Entry)
 		}
 
-		result := buildCacheResult{
+		result := updateCacheResult{
 			cache: newStaticEntryCache(entries, nil),
 			err:   err,
 		}
@@ -239,13 +216,13 @@ func TestRunRebuildCacheTask(t *testing.T) {
 	}
 
 	// There should be no entries initially
-	var req buildCacheRequest
+	var req updateCacheRequest
 	req = waitForRequest()
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
 	assert.Empty(t, entries)
-	buildCacheErr := errors.New("some cache build error")
-	sendResult(req, nil, buildCacheErr)
+	updateCacheErr := errors.New("some cache update error")
+	sendResult(req, nil, updateCacheErr)
 
 	// Verify that rebuild task gracefully handles downstream errors and retries after the reload interval elapses again
 	req = waitForRequest()
