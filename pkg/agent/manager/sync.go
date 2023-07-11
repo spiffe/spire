@@ -130,7 +130,7 @@ func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVI
 			csrs = append(csrs, csrRequest{
 				EntryID:              entry.Entry.EntryId,
 				SpiffeID:             entry.Entry.SpiffeId,
-				CurrentSVIDExpiresAt: entry.ExpiresAt,
+				CurrentSVIDExpiresAt: entry.SVIDExpiresAt,
 			})
 		}
 
@@ -158,7 +158,10 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 
 	privateKeys := make(map[string]crypto.Signer, len(csrs))
 	for _, csr := range csrs {
-		log := m.c.Log.WithField("spiffe_id", csr.SpiffeID)
+		log := m.c.Log.WithFields(logrus.Fields{
+			"spiffe_id": csr.SpiffeID,
+			"entry_id":  csr.EntryID,
+		})
 		if !csr.CurrentSVIDExpiresAt.IsZero() {
 			log = log.WithField("expires_at", csr.CurrentSVIDExpiresAt.Format(time.RFC3339))
 		}

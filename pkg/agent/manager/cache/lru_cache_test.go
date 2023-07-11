@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,6 +101,19 @@ func TestLRUCacheCountSVIDs(t *testing.T) {
 
 	// Only one SVID expected
 	require.Equal(t, 1, cache.CountSVIDs())
+}
+
+func TestLRUCacheCountRecords(t *testing.T) {
+	cache := newTestLRUCache(t)
+	// populate the cache with FOO and BAR without SVIDS
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	updateEntries := &UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}
+	cache.UpdateEntries(updateEntries, nil)
+	require.Equal(t, 2, cache.CountRecords())
 }
 
 func TestLRUCacheBundleChanges(t *testing.T) {
@@ -564,8 +578,8 @@ func TestLRUCacheGetStaleEntries(t *testing.T) {
 
 	// Assert that the entry again returns as stale. This time the `ExpiresAt` field should be populated with the expiration of the SVID.
 	expectedEntries = []*StaleEntry{{
-		Entry:     cache.records[bar.EntryId].entry,
-		ExpiresAt: expiredAt,
+		Entry:         cache.records[bar.EntryId].entry,
+		SVIDExpiresAt: expiredAt,
 	}}
 	assert.Equal(t, expectedEntries, cache.GetStaleEntries())
 
@@ -870,6 +884,47 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		require.FailNow(t, "timed out waiting for SVID")
 	}
+}
+
+func TestMetrics(t *testing.T) {
+	cache := newTestLRUCache(t)
+	fakeMetrics := fakemetrics.New()
+	cache.metrics = fakeMetrics
+
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	updateEntries := &UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}
+	updateSVIDs := &UpdateSVIDs{
+		X509SVIDs: makeX509SVIDs(foo),
+	}
+	cache.UpdateEntries(updateEntries, nil)
+	cache.UpdateSVIDs(updateSVIDs)
+
+	fooUpdate := makeRegistrationEntry("FOO", "A", "B")
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(fooUpdate),
+	}, nil)
+	cache.UpdateEntries(updateEntries, nil)
+
+	assert.Equal(t, []fakemetrics.MetricItem{
+		{Type: fakemetrics.IncrCounterType, Key: []string{EntryRemoved}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{EntryUpdated}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{EntryAdded}, Val: 2},
+		{Type: fakemetrics.SetGaugeType, Key: []string{RecordMapSize}, Val: 2},
+		{Type: fakemetrics.SetGaugeType, Key: []string{SVIDMapSize}, Val: 1},
+		{Type: fakemetrics.IncrCounterType, Key: []string{EntryRemoved}, Val: 1},
+		{Type: fakemetrics.IncrCounterType, Key: []string{EntryUpdated}, Val: 1},
+		{Type: fakemetrics.IncrCounterType, Key: []string{EntryAdded}, Val: 0},
+		{Type: fakemetrics.SetGaugeType, Key: []string{RecordMapSize}, Val: 1},
+		{Type: fakemetrics.IncrCounterType, Key: []string{EntryRemoved}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{EntryUpdated}, Val: 1},
+		{Type: fakemetrics.IncrCounterType, Key: []string{EntryAdded}, Val: 1},
+		{Type: fakemetrics.SetGaugeType, Key: []string{RecordMapSize}, Val: 2},
+	}, fakeMetrics.AllMetrics())
 }
 
 func TestNewLRUCache(t *testing.T) {

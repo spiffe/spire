@@ -18,6 +18,11 @@ import (
 const (
 	DefaultSVIDCacheMaxSize = 1000
 	SVIDSyncInterval        = 500 * time.Millisecond
+	SVIDMapSize             = "lru_cache_svid_map_size"
+	RecordMapSize           = "lru_cache_record_map_size"
+	EntryAdded              = "lru_cache_entry_add"
+	EntryUpdated            = "lru_cache_entry_update"
+	EntryRemoved            = "lru_cache_entry_remove"
 )
 
 // Cache caches each registration entry, bundles, and JWT SVIDs for the agent.
@@ -174,6 +179,13 @@ func (c *LRUCache) CountSVIDs() int {
 	return len(c.svids)
 }
 
+func (c *LRUCache) CountRecords() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return len(c.records)
+}
+
 func (c *LRUCache) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
 	set, setDone := allocSelectorSet(selectors...)
 	defer setDone()
@@ -214,6 +226,7 @@ func (c *LRUCache) NewSubscriber(selectors []*common.Selector) Subscriber {
 // updated through a call to UpdateSVIDs.
 func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *X509SVID) bool) {
 	c.mu.Lock()
+	defer func() { c.metrics.SetGauge([]string{RecordMapSize}, float32(c.CountRecords())) }()
 	defer c.mu.Unlock()
 
 	// Remove bundles that no longer exist. The bundle for the agent trust
@@ -262,6 +275,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 	fedRem, fedRemDone := allocStringSet()
 	defer fedRemDone()
 
+	entriesRemoved := 0
 	// Remove records for registration entries that no longer exist
 	for id, record := range c.records {
 		if _, ok := update.RegistrationEntries[id]; !ok {
@@ -269,6 +283,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 				telemetry.Entry:    id,
 				telemetry.SPIFFEID: record.entry.SpiffeId,
 			}).Debug("Entry removed")
+			entriesRemoved++
 
 			// built a set of selectors for the record being removed, drop the
 			// record for each selector index, and add the entry selectors to
@@ -283,8 +298,11 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 			delete(c.staleEntries, id)
 		}
 	}
+	c.metrics.IncrCounter([]string{EntryRemoved}, float32(entriesRemoved))
 
 	outdatedEntries := make(map[string]struct{})
+	entriesUpdated := 0
+	entriesCreated := 0
 
 	// Add/update records for registration entries in the update
 	for _, newEntry := range update.RegistrationEntries {
@@ -366,11 +384,15 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 			}
 			if existingEntry != nil {
 				log.Debug("Entry updated")
+				entriesUpdated++
 			} else {
 				log.Debug("Entry created")
+				entriesCreated++
 			}
 		}
 	}
+	c.metrics.IncrCounter([]string{EntryUpdated}, float32(entriesUpdated))
+	c.metrics.IncrCounter([]string{EntryAdded}, float32(entriesCreated))
 
 	// entries with active subscribers which are not cached will be put in staleEntries map;
 	// irrespective of what svid cache size as we cannot deny identity to a subscriber
@@ -422,6 +444,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 
 func (c *LRUCache) UpdateSVIDs(update *UpdateSVIDs) {
 	c.mu.Lock()
+	defer func() { c.metrics.SetGauge([]string{SVIDMapSize}, float32(c.CountSVIDs())) }()
 	defer c.mu.Unlock()
 
 	// Allocate a set of selectors that
@@ -471,8 +494,8 @@ func (c *LRUCache) GetStaleEntries() []*StaleEntry {
 		}
 
 		staleEntries = append(staleEntries, &StaleEntry{
-			Entry:     cachedEntry.entry,
-			ExpiresAt: expiresAt,
+			Entry:         cachedEntry.entry,
+			SVIDExpiresAt: expiresAt,
 		})
 	}
 
