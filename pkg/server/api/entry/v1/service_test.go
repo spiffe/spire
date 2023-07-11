@@ -4111,3 +4111,7 @@ func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiff
 
 	return f.entries, nil
 }
+
+func (f *entryFetcher) FetchCachedEntries(ctx context.Context) ([]*types.Entry, error) {
+	return f.entries, nil
+}
