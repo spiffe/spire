@@ -889,7 +889,7 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	cache := newTestLRUCache(t)
 	fakeMetrics := fakemetrics.New()
-	cache.metrics = telemetry.NewLRUMetrics(&telemetry.LRUConfig{MetricsImpl: fakeMetrics})
+	cache.metrics = fakeMetrics
 
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
