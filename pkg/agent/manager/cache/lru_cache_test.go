@@ -889,7 +889,7 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 func TestMetrics(t *testing.T) {
 	cache := newTestLRUCache(t)
 	fakeMetrics := fakemetrics.New()
-	cache.metrics = fakeMetrics
+	cache.metrics = telemetry.NewLRUMetrics(&telemetry.LRUConfig{MetricsImpl: fakeMetrics})
 
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
@@ -911,19 +911,19 @@ func TestMetrics(t *testing.T) {
 	cache.UpdateEntries(updateEntries, nil)
 
 	assert.Equal(t, []fakemetrics.MetricItem{
-		{Type: fakemetrics.IncrCounterType, Key: []string{EntryRemoved}, Val: 0},
-		{Type: fakemetrics.IncrCounterType, Key: []string{EntryUpdated}, Val: 0},
-		{Type: fakemetrics.IncrCounterType, Key: []string{EntryAdded}, Val: 2},
-		{Type: fakemetrics.SetGaugeType, Key: []string{RecordMapSize}, Val: 2},
-		{Type: fakemetrics.SetGaugeType, Key: []string{SVIDMapSize}, Val: 1},
-		{Type: fakemetrics.IncrCounterType, Key: []string{EntryRemoved}, Val: 1},
-		{Type: fakemetrics.IncrCounterType, Key: []string{EntryUpdated}, Val: 1},
-		{Type: fakemetrics.IncrCounterType, Key: []string{EntryAdded}, Val: 0},
-		{Type: fakemetrics.SetGaugeType, Key: []string{RecordMapSize}, Val: 1},
-		{Type: fakemetrics.IncrCounterType, Key: []string{EntryRemoved}, Val: 0},
-		{Type: fakemetrics.IncrCounterType, Key: []string{EntryUpdated}, Val: 1},
-		{Type: fakemetrics.IncrCounterType, Key: []string{EntryAdded}, Val: 1},
-		{Type: fakemetrics.SetGaugeType, Key: []string{RecordMapSize}, Val: 2},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
+		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 2},
+		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.SVIDMapSize}, Val: 1},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 1},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 1},
+		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 1},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 1},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 1},
+		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 2},
 	}, fakeMetrics.AllMetrics())
 }
 
