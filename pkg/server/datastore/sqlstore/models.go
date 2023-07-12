@@ -164,7 +164,7 @@ func (FederatedTrustDomain) TableName() string {
 
 // RegisteredEntry holds a registered entity entry
 type EntryEvent struct {
-	ID uint `gorm:"primary_key"`
+	Model
 
 	EntryID string
 }

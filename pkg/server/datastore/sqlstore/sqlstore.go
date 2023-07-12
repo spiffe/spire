@@ -2508,16 +2508,8 @@ func listEntryEvents(tx *gorm.DB, req *datastore.ListEntryEventsRequest) (*datas
 }
 
 func pruneEntryEvents(tx *gorm.DB, olderThan time.Duration) error {
-	var events []EntryEvent
-	if err := tx.Where("created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)", olderThan.Seconds()).Find(&events).Error; err != nil {
-		return err
-	}
-
-	for _, event := range events {
-		event := event
-		if err := tx.Delete(&event).Error; err != nil {
-			return sqlError.Wrap(err)
-		}
+	if err := tx.Where("created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)", olderThan.Seconds()).Delete(&EntryEvent{}).Error; err != nil {
+		return sqlError.Wrap(err)
 	}
 
 	return nil
