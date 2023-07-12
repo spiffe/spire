@@ -52,7 +52,3 @@ type M3Config struct {
 type InMem struct {
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
-
-type LRUConfig struct {
-	MetricsImpl Metrics
-}
