@@ -67,7 +67,9 @@ The following metrics are emitted:
 | Call Counter | `agent_svid`, `rotate`                     |                              | The Agent's SVID is being rotated.                                                    |
 | Sample       | `cache_manager`, `expiring_svids`          |                              | The number of expiring SVIDs that the Cache Manager has.                              |
 | Sample       | `cache_manager`, `outdated_svids`          |                              | The number of outdated SVIDs that the Cache Manager has.                              |
-| Counter      | `lru_cache_entry_add`, `lru_cache_entry_remove`, `lru_cache_entry_update`| | The number of add, update, and remove entry calls to the LRU cache.                   |
+| Counter      | `lru_cache_entry_add`                      |                              | The number of entries added to the LRU cache.                                         |
+| Counter      | `lru_cache_entry_remove`                   |                              | The number of entries removed from the LRU cache.                                     |
+| Counter      | `lru_cache_entry_update`                   |                              | The number of entries update in the LRU cache.                                        |
 | Call Counter | `manager`, `sync`, `fetch_entries_updates` |                              | The Sync Manager is fetching entries updates.                                         |
 | Call Counter | `manager`, `sync`, `fetch_svids_updates`   |                              | The Sync Manager is fetching SVIDs updates.                                           |
 | Call Counter | `node`, `attestor`, `new_svid`             |                              | The Node Attestor is calling to get an SVID.                                          |
