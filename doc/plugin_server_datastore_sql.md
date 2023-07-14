@@ -56,6 +56,7 @@ For example:
 ```hcl
 connection_string="dbname=postgres user=postgres password=password host=localhost sslmode=disable"
 ```
+
 Consult the [lib/pq driver documentation](https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters) for more `connection_string` options.
 
 #### Configuration Options
