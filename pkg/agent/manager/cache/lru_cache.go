@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/telemetry/agent"
+	agentmetrics "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -222,7 +222,7 @@ func (c *LRUCache) NewSubscriber(selectors []*common.Selector) Subscriber {
 // updated through a call to UpdateSVIDs.
 func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *X509SVID) bool) {
 	c.mu.Lock()
-	defer func() { agent.SetEntriesMapSize(c.metrics, c.CountRecords()) }()
+	defer func() { agentmetrics.SetEntriesMapSize(c.metrics, c.CountRecords()) }()
 	defer c.mu.Unlock()
 
 	// Remove bundles that no longer exist. The bundle for the agent trust
@@ -294,7 +294,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 			delete(c.staleEntries, id)
 		}
 	}
-	agent.IncrementEntriesRemoved(c.metrics, entriesRemoved)
+	agentmetrics.IncrementEntriesRemoved(c.metrics, entriesRemoved)
 
 	outdatedEntries := make(map[string]struct{})
 	entriesUpdated := 0
@@ -387,8 +387,8 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 			}
 		}
 	}
-	agent.IncrementEntriesAdded(c.metrics, entriesCreated)
-	agent.IncrementEntriesUpdated(c.metrics, entriesUpdated)
+	agentmetrics.IncrementEntriesAdded(c.metrics, entriesCreated)
+	agentmetrics.IncrementEntriesUpdated(c.metrics, entriesUpdated)
 
 	// entries with active subscribers which are not cached will be put in staleEntries map;
 	// irrespective of what svid cache size as we cannot deny identity to a subscriber
@@ -440,7 +440,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 
 func (c *LRUCache) UpdateSVIDs(update *UpdateSVIDs) {
 	c.mu.Lock()
-	defer func() { agent.SetSVIDMapSize(c.metrics, c.CountSVIDs()) }()
+	defer func() { agentmetrics.SetSVIDMapSize(c.metrics, c.CountSVIDs()) }()
 	defer c.mu.Unlock()
 
 	// Allocate a set of selectors that

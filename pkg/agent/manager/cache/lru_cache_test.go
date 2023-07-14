@@ -897,19 +897,36 @@ func TestMetrics(t *testing.T) {
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo, bar),
 	}
+
+	// add entries to cache
+	cache.UpdateEntries(updateEntries, nil)
+	assert.Equal(t, []fakemetrics.MetricItem{
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
+		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 2},
+	}, fakeMetrics.AllMetrics())
+
+	// add SVIDs to cache
 	updateSVIDs := &UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo),
 	}
-	cache.UpdateEntries(updateEntries, nil)
 	cache.UpdateSVIDs(updateSVIDs)
+	assert.Equal(t, []fakemetrics.MetricItem{
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
+		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
+		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 2},
+		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.SVIDMapSize}, Val: 1},
+	}, fakeMetrics.AllMetrics())
 
+	// update entries in cache
 	fooUpdate := makeRegistrationEntry("FOO", "A", "B")
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(fooUpdate),
 	}, nil)
 	cache.UpdateEntries(updateEntries, nil)
-
 	assert.Equal(t, []fakemetrics.MetricItem{
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
