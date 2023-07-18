@@ -39,7 +39,7 @@ log-info "verifying cert auth..."
 
 # Verify Token Auth
 log-info "verifying token auth..."
-TOKEN=$(./bin/kubectl exec -n vault vault-0 -- vault token create -policy=spire -field=token)
+TOKEN=$(./bin/kubectl exec -n vault vault-0 -- vault token create -policy=spire -ttl=1m -field=token)
 ./bin/kubectl create secret -n spire generic vault-credential \
               --from-literal=token=$TOKEN
 ./bin/kubectl apply -k ./conf/server/token-auth
