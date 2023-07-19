@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.7.1] - 2023-07-20
+
+### Added
+
+- x509pop node attestor emits a new selector with the leaf certificate serial number (#4216)
+- HTTPS server in the OIDC Discovery Provider can now be configured to use a certificate file (#4190)
+- Option to log source information in server and agent logs (#4246)
+
+### Changed
+
+- Improvement in entry lookup logic when fetching JWT-SVIDs (#4211)
+- Agent now has an exponential backoff strategy when syncing with the server (#4279)
+
+### Fixed
+
+- Bug distinguishing audience sets in the agent's JWT-SVID cache (#4309)
+- The `spire-server agent show` command to properly show the "Can re-attest" attribute (#4288)
+
 ## [1.7.0] - 2023-06-14
 
 ### Added
