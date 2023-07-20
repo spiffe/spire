@@ -67,11 +67,16 @@ The following metrics are emitted:
 | Call Counter | `agent_svid`, `rotate`                     |                              | The Agent's SVID is being rotated.                                                    |
 | Sample       | `cache_manager`, `expiring_svids`          |                              | The number of expiring SVIDs that the Cache Manager has.                              |
 | Sample       | `cache_manager`, `outdated_svids`          |                              | The number of outdated SVIDs that the Cache Manager has.                              |
+| Counter      | `lru_cache_entry_add`                      |                              | The number of entries added to the LRU cache.                                         |
+| Counter      | `lru_cache_entry_remove`                   |                              | The number of entries removed from the LRU cache.                                     |
+| Counter      | `lru_cache_entry_update`                   |                              | The number of entries updated in the LRU cache.                                       |
 | Call Counter | `manager`, `sync`, `fetch_entries_updates` |                              | The Sync Manager is fetching entries updates.                                         |
 | Call Counter | `manager`, `sync`, `fetch_svids_updates`   |                              | The Sync Manager is fetching SVIDs updates.                                           |
 | Call Counter | `node`, `attestor`, `new_svid`             |                              | The Node Attestor is calling to get an SVID.                                          |
+| Gauge        | `lru_cache_record_map_size`                |                              | The total number of entries in the LRU cache records map.                             |
 | Counter      | `sds_api`, `connections`                   |                              | The SDS API has successfully established a connection.                                |
 | Gauge        | `sds_api`, `connections`                   |                              | The number of active connection that the SDS API has.                                 |
+| Gauge        | `lru_cache_svid_map_size`                  |                              | The total number of SVIDs in the LRU cache SVID map.                                  |
 | Counter      | `workload_api`, `bundles_update`, `jwt`    |                              | The Workload API has successfully updated a JWT bundle.                               |
 | Counter      | `workload_api`, `connection`               |                              | The Workload API has successfully established a new connection.                       |
 | Gauge        | `workload_api`, `connections`              |                              | The number of active connections that the Workload API has.                           |

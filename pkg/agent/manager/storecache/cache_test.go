@@ -1049,8 +1049,8 @@ func TestGetStaleEntries(t *testing.T) {
 			Entry: barEntry,
 		},
 		{
-			Entry:     fohEntry,
-			ExpiresAt: expiresAt,
+			Entry:         fohEntry,
+			SVIDExpiresAt: expiresAt,
 		},
 	}
 	require.Equal(t, expectedStaleEntries, c.GetStaleEntries())

@@ -599,8 +599,8 @@ func TestGetStaleEntries(t *testing.T) {
 
 	// Assert that the entry again returns as stale. This time the `ExpiresAt` field should be populated with the expiration of the SVID.
 	expectedEntries = []*StaleEntry{{
-		Entry:     cache.records[foo.EntryId].entry,
-		ExpiresAt: expiredAt,
+		Entry:         cache.records[foo.EntryId].entry,
+		SVIDExpiresAt: expiredAt,
 	}}
 	assert.Equal(t, expectedEntries, cache.GetStaleEntries())
 
