@@ -79,6 +79,7 @@ type serverConfig struct {
 	LogFile            string             `hcl:"log_file"`
 	LogLevel           string             `hcl:"log_level"`
 	LogFormat          string             `hcl:"log_format"`
+	LogSourceLocation  bool               `hcl:"log_source_location"`
 	RateLimit          rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath         string             `hcl:"socket_path"`
 	TrustDomain        string             `hcl:"trust_domain"`
@@ -303,6 +304,7 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.DataDir, "dataDir", "", "Directory to store runtime data to")
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
+	flags.BoolVar(&c.LogSourceLocation, "logSourceLocation", false, "Include source file, line number and function name in log lines")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
@@ -349,6 +351,9 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		log.WithLevel(c.Server.LogLevel),
 		log.WithFormat(c.Server.LogFormat),
 	)
+	if c.Server.LogSourceLocation {
+		logOptions = append(logOptions, log.WithSourceLocation())
+	}
 	var reopenableFile *log.ReopenableFile
 	if c.Server.LogFile != "" {
 		reopenableFile, err := log.NewReopenableFile(c.Server.LogFile)

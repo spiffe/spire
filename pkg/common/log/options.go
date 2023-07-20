@@ -3,6 +3,9 @@ package log
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -85,4 +88,63 @@ func WithLevel(logLevel string) Option {
 		logger.SetLevel(level)
 		return nil
 	}
+}
+
+func WithSourceLocation() Option {
+	return func(logger *Logger) error {
+		// logrus provides a built-in feature that is very close to what we
+		// want (logger.SetReportCaller). Unfortunately, it always reports the
+		// immediate caller; but in certain cases, we want to skip over some
+		// more frames; in particular, this applies to the HCLogAdapter.
+		logger.AddHook(sourceLocHook{})
+		return nil
+	}
+}
+
+type sourceLocHook struct{}
+
+func (sourceLocHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+func (sourceLocHook) Fire(e *logrus.Entry) error {
+	frame := getCaller()
+	if frame != nil {
+		e.Data[logrus.FieldKeyFile] = fmt.Sprintf("%s:%d", filepath.Base(frame.File), frame.Line)
+		e.Data[logrus.FieldKeyFunc] = frame.Function
+	}
+	return nil
+}
+
+func getCaller() *runtime.Frame {
+	pcs := make([]uintptr, 10)
+	skip := 3 // skip 'runtime.Callers', this function, and its caller
+	numPcs := runtime.Callers(skip, pcs)
+	if numPcs == 0 {
+		return nil
+	}
+	frames := runtime.CallersFrames(pcs[:numPcs])
+
+	for {
+		f, more := frames.Next()
+
+		// skip over frames within the logging infrastructure
+		if !isLoggingFunc(f.Function) {
+			return &f
+		}
+
+		if !more {
+			break
+		}
+	}
+
+	return nil
+}
+
+var loggingFuncRegexp = regexp.MustCompile(
+	`^github\.com/(?:sirupsen/logrus|spiffe/spire/pkg/common/log)[./]`)
+
+func isLoggingFunc(funcName string) bool {
+	return loggingFuncRegexp.MatchString(funcName) &&
+		!strings.HasPrefix(funcName, "github.com/spiffe/spire/pkg/common/log.Test")
 }
