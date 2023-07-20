@@ -54,6 +54,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_file`                        | File to write logs to                                                                                                          |                                  |
 | `log_level`                       | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                            | INFO                             |
 | `log_format`                      | Format of logs, &lt;text&vert;json&gt;                                                                                         | Text                             |
+| `log_source_location`             | If true, logs include source file, line number, and method name fields (adds a bit of runtime cost)                            | false                                          |
 | `profiling_enabled`               | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                | false                            |
 | `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.         |                                  |
 | `profiling_names`                 | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)              |                                  |
