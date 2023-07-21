@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.7.1] - 2023-07-20
+## [1.7.1] - 2023-07-27
 
 ### Added
 
@@ -10,12 +10,11 @@
 
 ### Changed
 
-- Improvement in entry lookup logic when fetching JWT-SVIDs (#4211)
 - Agent now has an exponential backoff strategy when syncing with the server (#4279)
 
 ### Fixed
 
-- Bug distinguishing audience sets in the agent's JWT-SVID cache (#4309)
+- SPIRE Agent cache bug resulting in workloads receiving JWT-SVIDs with incomplete audience set (#4309)
 - The `spire-server agent show` command to properly show the "Can re-attest" attribute (#4288)
 
 ## [1.7.0] - 2023-06-14
