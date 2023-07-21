@@ -3,7 +3,10 @@
 
 package main
 
-import "time"
+import (
+	"net"
+	"time"
+)
 
 var (
 	minimalServerAPIConfig = `
@@ -25,6 +28,8 @@ var (
 		},
 		PollInterval: defaultPollInterval,
 	}
+
+	fileDontExistMessage = "The system cannot find the file specified."
 )
 
 func parseConfigCasesOS() []parseConfigCase {
@@ -45,7 +50,7 @@ func parseConfigCasesOS() []parseConfigCase {
 			err: "at least one domain must be configured",
 		},
 		{
-			name: "no ACME configuration",
+			name: "no ACME and serving_cert_file configuration",
 			in: `
 				domains = ["domain.test"]
 				server_api {
@@ -54,7 +59,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					}					
 				}
 			`,
-			err: "either acme or listen_named_pipe_name must be configured",
+			err: "either acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured",
 		},
 		{
 			name: "ACME ToS not accepted",
@@ -121,6 +126,126 @@ func parseConfigCasesOS() []parseConfigCase {
 			},
 		},
 		{
+			name: "serving_cert_file configuration with defaults",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				server_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domains:  []string{"domain.test"},
+				ServingCertFile: &ServingCertFileConfig{
+					CertFilePath:     "test",
+					KeyFilePath:      "test",
+					FileSyncInterval: time.Minute,
+					Addr: &net.TCPAddr{
+						IP:   nil,
+						Port: 443,
+					},
+					RawAddr: ":443",
+				},
+				ServerAPI: &ServerAPIConfig{
+					Experimental: experimentalServerAPIConfig{
+						NamedPipeName: "\\name\\for\\server\\api",
+					},
+					PollInterval: defaultPollInterval,
+				},
+			},
+		},
+		{
+			name: "serving_cert_file configuration with optionals",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+					file_sync_interval = "5m"
+					addr = "127.0.0.1:9090"
+				}
+				server_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domains:  []string{"domain.test"},
+				ServingCertFile: &ServingCertFileConfig{
+					CertFilePath:        "test",
+					KeyFilePath:         "test",
+					FileSyncInterval:    5 * time.Minute,
+					RawFileSyncInterval: "5m",
+					Addr: &net.TCPAddr{
+						IP:   net.ParseIP("127.0.0.1"),
+						Port: 9090,
+					},
+					RawAddr: "127.0.0.1:9090",
+				},
+				ServerAPI: &ServerAPIConfig{
+					Experimental: experimentalServerAPIConfig{
+						NamedPipeName: "\\name\\for\\server\\api",
+					},
+					PollInterval: defaultPollInterval,
+				},
+			},
+		},
+		{
+			name: "serving_cert_file configuration without cert_file_path",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					key_file_path = "test"
+				}
+				server_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
+				}
+			`,
+			err: "cert_file_path must be configured in the serving_cert_file configuration section",
+		},
+		{
+			name: "serving_cert_file configuration without key_file_path",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+				}
+				server_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
+				}
+			`,
+			err: "key_file_path must be configured in the serving_cert_file configuration section",
+		},
+		{
+			name: "serving_cert_file configuration with invalid addr",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+					addr = "127.0.0.1.1:9090"
+				}
+				server_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
+				}
+			`,
+			err: "invalid addr in the serving_cert_file configuration section: lookup 127.0.0.1.1: no such host",
+		},
+		{
 			name: "both acme and insecure_addr configured",
 			in: `
 				domains = ["domain.test"]
@@ -153,6 +278,24 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 			`,
 			err: "listen_named_pipe_name and the acme section are mutually exclusive",
+		},
+		{
+			name: "both acme and serving_cert_file configured",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					socket_path = "/other/socket/path"
+				}
+			`,
+			err: "acme and serving_cert_file are mutually exclusive",
 		},
 		{
 			name: "both insecure_addr and listen_named_pipe_name configured",

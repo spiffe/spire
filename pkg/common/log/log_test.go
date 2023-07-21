@@ -1,6 +1,7 @@
 package log
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -61,6 +62,49 @@ func TestLocalTimeHook(t *testing.T) {
 				"other field types should be unchanged")
 		})
 	}
+}
+
+func TestTextFormat(t *testing.T) {
+	logger, err := NewLogger()
+	require.NoError(t, err)
+	var buffer bytes.Buffer
+	logger.SetOutput(&buffer)
+	require.NoError(t, err)
+
+	logger.Info("Testing")
+
+	require.Regexp(t, `^time=.+ level=info msg=Testing\n$`, buffer.String())
+}
+
+func TestSourceLocation(t *testing.T) {
+	logger, err := NewLogger(WithSourceLocation())
+	require.NoError(t, err)
+	var buffer bytes.Buffer
+	logger.SetOutput(&buffer)
+	require.NoError(t, err)
+
+	logger.Info("Hello world")
+
+	require.Regexp(t,
+		`^time=.+ level=info msg="Hello world" file="log_test\.go:\d+" func=github\.com/spiffe/spire/pkg/common/log\.TestSourceLocation\n$`,
+		buffer.String())
+}
+
+// Test HCLogAdapter separately to verify that the correct frame in the call
+// stack gets reported.
+func TestSourceLocationHCLog(t *testing.T) {
+	logger, err := NewLogger(WithSourceLocation())
+	require.NoError(t, err)
+	var buffer bytes.Buffer
+	logger.SetOutput(&buffer)
+	require.NoError(t, err)
+
+	hcLogger := NewHCLogAdapter(*logger, "test-logger")
+	hcLogger.Info("Hello world")
+
+	require.Regexp(t,
+		`^time=.+ level=info msg="Hello world" file="log_test\.go:\d+" func=github\.com/spiffe/spire/pkg/common/log\.TestSourceLocationHCLog\n$`,
+		buffer.String())
 }
 
 // Basic smoketest: set up a logger, make sure options work
