@@ -163,32 +163,32 @@ func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*c
 	return s.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
-func (s *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
+func (s *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.TaintX509CA(ctx, trustDomainID, publicKey)
+	return s.ds.TaintX509CA(ctx, trustDomainID, publicKeyToTaint)
 }
 
-func (s *DataStore) RevokeX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
+func (s *DataStore) RevokeX509CA(ctx context.Context, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.RevokeX509CA(ctx, trustDomainID, publicKey)
+	return s.ds.RevokeX509CA(ctx, trustDomainID, publicKeyToRevoke)
 }
 
-func (s *DataStore) TaintJWTKey(ctx context.Context, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func (s *DataStore) TaintJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.TaintJWTKey(ctx, trustDomainID, keyID)
+	return s.ds.TaintJWTKey(ctx, trustDomainID, authorityID)
 }
 
-func (s *DataStore) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func (s *DataStore) RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.RevokeJWTKey(ctx, trustDomainID, keyID)
+	return s.ds.RevokeJWTKey(ctx, trustDomainID, authorityID)
 }
 
 func (s *DataStore) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) error {

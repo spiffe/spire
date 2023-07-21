@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/zeebo/errs"
@@ -82,6 +83,7 @@ func (j *Journal) AppendX509CA(slotID string, issuedAt time.Time, x509CA *ca.X50
 		Certificate:   x509CA.Certificate.Raw,
 		UpstreamChain: chainDER(x509CA.UpstreamChain),
 		Status:        journal.Status_PREPARED,
+		AuthorityId:   x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId),
 	})
 
 	exceeded := len(j.entries.X509CAs) - journalCap
@@ -144,12 +146,13 @@ func (j *Journal) AppendJWTKey(slotID string, issuedAt time.Time, jwtKey *ca.JWT
 
 	backup := j.entries.JwtKeys
 	j.entries.JwtKeys = append(j.entries.JwtKeys, &JWTKeyEntry{
-		SlotId:    slotID,
-		IssuedAt:  issuedAt.Unix(),
-		Kid:       jwtKey.Kid,
-		PublicKey: pkixBytes,
-		NotAfter:  jwtKey.NotAfter.Unix(),
-		Status:    journal.Status_PREPARED,
+		SlotId:      slotID,
+		IssuedAt:    issuedAt.Unix(),
+		Kid:         jwtKey.Kid,
+		PublicKey:   pkixBytes,
+		NotAfter:    jwtKey.NotAfter.Unix(),
+		Status:      journal.Status_PREPARED,
+		AuthorityId: jwtKey.Kid,
 	})
 
 	exceeded := len(j.entries.JwtKeys) - journalCap

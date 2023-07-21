@@ -39,16 +39,16 @@ func (w datastoreWrapper) PruneBundle(ctx context.Context, trustDomainID string,
 	return changed, err
 }
 
-func (w datastoreWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
-	err := w.DataStore.RevokeX509CA(ctx, trustDomainID, publicKey)
+func (w datastoreWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error {
+	err := w.DataStore.RevokeX509CA(ctx, trustDomainID, publicKeyToRevoke)
 	if err == nil {
 		w.bundleUpdated()
 	}
 	return err
 }
 
-func (w datastoreWrapper) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (*common.PublicKey, error) {
-	pubKey, err := w.DataStore.RevokeJWTKey(ctx, trustDomainID, keyID)
+func (w datastoreWrapper) RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
+	pubKey, err := w.DataStore.RevokeJWTKey(ctx, trustDomainID, authorityID)
 	if err == nil {
 		w.bundleUpdated()
 	}
