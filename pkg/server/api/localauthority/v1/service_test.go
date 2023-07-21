@@ -491,11 +491,11 @@ func TestTaintX509Authority(t *testing.T) {
 			nextSlot:    createSlot(journal.Status_PREPARED, nextAuthorityID, nextKey.Public(), notAfterNext),
 			keyToTaint:  nextAuthorityID,
 			expectCode:  codes.InvalidArgument,
-			expectMsg:   "unable to taint a Prepared local authority",
+			expectMsg:   "only Old local authorities can be tainted",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: unable to taint a Prepared local authority",
+					Message: "Invalid argument: only Old local authorities can be tainted",
 					Data: logrus.Fields{
 						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
@@ -506,7 +506,7 @@ func TestTaintX509Authority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
 						telemetry.StatusCode:       "InvalidArgument",
-						telemetry.StatusMessage:    "unable to taint a Prepared local authority",
+						telemetry.StatusMessage:    "only Old local authorities can be tainted",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: nextAuthorityID,
 					},

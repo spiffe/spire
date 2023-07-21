@@ -188,7 +188,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	case req.AuthorityId == "":
 		return nil, api.MakeErr(log, codes.InvalidArgument, "no authority ID provided", nil)
 
-		// It is not possible to taint Active authority
+	// It is not possible to taint Active authority
 	case req.AuthorityId == s.ca.GetCurrentX509CASlot().AuthorityID():
 		return nil, api.MakeErr(log, codes.InvalidArgument, "unable to taint current local authority", nil)
 
@@ -196,9 +196,9 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	case req.AuthorityId != nextSlot.AuthorityID():
 		return nil, api.MakeErr(log, codes.InvalidArgument, "unexpected authority ID", nil)
 
-	// Unable to taint a Prepared authority
-	case nextSlot.Status() == journal.Status_PREPARED:
-		return nil, api.MakeErr(log, codes.InvalidArgument, "unable to taint a Prepared local authority", nil)
+	// Only OLD authorities can be tainted
+	case nextSlot.Status() != journal.Status_OLD:
+		return nil, api.MakeErr(log, codes.InvalidArgument, "only Old local authorities can be tainted", nil)
 	}
 
 	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), nextSlot.PublicKey()); err != nil {
