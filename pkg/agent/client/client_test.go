@@ -631,7 +631,6 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchEntriesFails(t *testing.T)
 			telemetry.StatusMessage: "call to grpc method fetchEntries has failed",
 		}).WithError(tc.entryClient.err)
 	assert.Equal(t, expectedLog.Logger, client.c.Log)
-
 }
 
 func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T) {
