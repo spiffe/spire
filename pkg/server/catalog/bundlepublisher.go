@@ -3,6 +3,7 @@ package catalog
 import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/awss3"
 )
 
 type bundlePublisherRepository struct {
@@ -22,7 +23,9 @@ func (repo *bundlePublisherRepository) Versions() []catalog.Version {
 }
 
 func (repo *bundlePublisherRepository) BuiltIns() []catalog.BuiltIn {
-	return nil
+	return []catalog.BuiltIn{
+		awss3.BuiltIn(),
+	}
 }
 
 type bundlePublisherV1 struct{}
