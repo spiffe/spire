@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	cloud.google.com/go/iam v1.1.0
-	cloud.google.com/go/kms v1.12.1
+	cloud.google.com/go/kms v1.15.0
 	cloud.google.com/go/secretmanager v1.11.1
 	cloud.google.com/go/security v1.15.1
 	cloud.google.com/go/storage v1.31.0
