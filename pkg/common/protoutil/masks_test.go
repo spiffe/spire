@@ -44,10 +44,11 @@ func TestAllTrueMasks(t *testing.T) {
 	}, protoutil.AllTrueEntryMask)
 
 	spiretest.AssertProtoEqual(t, &common.BundleMask{
-		RootCas:        true,
-		JwtSigningKeys: true,
-		RefreshHint:    true,
-		SequenceNumber: true,
+		RootCas:         true,
+		JwtSigningKeys:  true,
+		RefreshHint:     true,
+		SequenceNumber:  true,
+		X509TaintedKeys: true,
 	}, protoutil.AllTrueCommonBundleMask)
 
 	spiretest.AssertProtoEqual(t, &common.AttestedNodeMask{
