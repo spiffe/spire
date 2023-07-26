@@ -68,11 +68,11 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 }
 
 func getSystemdUnitInfo(ctx context.Context, pid uint) (*DBusUnitInfo, error) {
+	// Do not close this connection because it is shared and will autoclose on errors
 	conn, err := dbus.SystemBus()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to open dbus connection: %v", err)
 	}
-	defer conn.Close()
 
 	// Get the unit for the given PID from the systemd service.
 	call := conn.Object(systemdDBusInterface, systemdDBusPath).CallWithContext(ctx, systemdGetUnitByPIDMethod, 0, pid)
