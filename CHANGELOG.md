@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- Regression causing X509 CAs minted by an UpstreamAuthority plugin to be rejected if they have the digitalSignature key usage set(#4352)
 - SPIRE Agent cache bug resulting in workloads receiving JWT-SVIDs with incomplete audience set (#4309)
 - The `spire-server agent show` command to properly show the "Can re-attest" attribute (#4288)
 
