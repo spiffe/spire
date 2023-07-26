@@ -239,8 +239,8 @@ func (c *Cache) GetStaleEntries() []*cache.StaleEntry {
 		}
 
 		staleEntries = append(staleEntries, &cache.StaleEntry{
-			Entry:     record.entry,
-			ExpiresAt: expiresAt,
+			Entry:         record.entry,
+			SVIDExpiresAt: expiresAt,
 		})
 	}
 

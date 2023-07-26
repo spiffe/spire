@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"fmt"
 )
 
 // GetSubjectKeyID calculates a subject key identifier by doing a SHA-1 hash
@@ -26,4 +27,16 @@ func GetSubjectKeyID(pubKey interface{}) ([]byte, error) {
 	}
 	keyID := sha1.Sum(subjectKeyInfo.SubjectPublicKey.Bytes) //nolint: gosec // usage of SHA1 is according to specification
 	return keyID[:], nil
+}
+
+// SubjectKeyIDToString parse Subject Key ID into string
+func SubjectKeyIDToString(ski []byte) string {
+	serialHex := fmt.Sprintf("%x", ski)
+	if len(serialHex)%2 == 1 {
+		// Append leading 0 in cases where hexadecimal representation is odd number of characters
+		// in order to be more consistent with other tooling that displays certificate serial numbers.
+		serialHex = "0" + serialHex
+	}
+
+	return serialHex
 }

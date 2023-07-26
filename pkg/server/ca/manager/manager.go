@@ -223,16 +223,22 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	slot.issuedAt = now
 	slot.x509CA = x509CA
 	slot.status = journal.Status_PREPARED
+	// Set key from new CA, to be able to get it after
+	// slot moved to old state
+	slot.authorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId)
+	slot.publicKey = slot.x509CA.Certificate.PublicKey
+	slot.notAfter = slot.x509CA.Certificate.NotAfter
 
 	if err := m.journal.AppendX509CA(slot.id, slot.issuedAt, slot.x509CA); err != nil {
 		log.WithError(err).Error("Unable to append X509 CA to journal")
 	}
 
 	m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       slot.id,
-		telemetry.IssuedAt:   slot.issuedAt,
-		telemetry.Expiration: slot.x509CA.Certificate.NotAfter,
-		telemetry.SelfSigned: m.upstreamClient == nil,
+		telemetry.Slot:             slot.id,
+		telemetry.IssuedAt:         slot.issuedAt,
+		telemetry.Expiration:       slot.x509CA.Certificate.NotAfter,
+		telemetry.SelfSigned:       m.upstreamClient == nil,
+		telemetry.LocalAuthorityID: slot.authorityID,
 	}).Info("X509 CA prepared")
 	return nil
 }
@@ -315,15 +321,18 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 	slot.issuedAt = now
 	slot.jwtKey = jwtKey
 	slot.status = journal.Status_PREPARED
+	slot.authorityID = jwtKey.Kid
+	slot.notAfter = jwtKey.NotAfter
 
 	if err := m.journal.AppendJWTKey(slot.id, slot.issuedAt, slot.jwtKey); err != nil {
 		log.WithError(err).Error("Unable to append JWT key to journal")
 	}
 
 	m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       slot.id,
-		telemetry.IssuedAt:   slot.issuedAt,
-		telemetry.Expiration: slot.jwtKey.NotAfter,
+		telemetry.Slot:             slot.id,
+		telemetry.IssuedAt:         slot.issuedAt,
+		telemetry.Expiration:       slot.jwtKey.NotAfter,
+		telemetry.LocalAuthorityID: slot.authorityID,
 	}).Info("JWT key prepared")
 	return nil
 }
@@ -450,9 +459,10 @@ func (m *Manager) NotifyBundleLoaded(ctx context.Context) error {
 
 func (m *Manager) activateJWTKey() {
 	log := m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       m.currentJWTKey.id,
-		telemetry.IssuedAt:   m.currentJWTKey.issuedAt,
-		telemetry.Expiration: m.currentJWTKey.jwtKey.NotAfter,
+		telemetry.Slot:             m.currentJWTKey.id,
+		telemetry.IssuedAt:         m.currentJWTKey.issuedAt,
+		telemetry.Expiration:       m.currentJWTKey.jwtKey.NotAfter,
+		telemetry.LocalAuthorityID: m.currentJWTKey.authorityID,
 	})
 	log.Info("JWT key activated")
 	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
@@ -467,9 +477,10 @@ func (m *Manager) activateJWTKey() {
 
 func (m *Manager) activateX509CA() {
 	log := m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:       m.currentX509CA.id,
-		telemetry.IssuedAt:   m.currentX509CA.issuedAt,
-		telemetry.Expiration: m.currentX509CA.x509CA.Certificate.NotAfter,
+		telemetry.Slot:             m.currentX509CA.id,
+		telemetry.IssuedAt:         m.currentX509CA.issuedAt,
+		telemetry.Expiration:       m.currentX509CA.x509CA.Certificate.NotAfter,
+		telemetry.LocalAuthorityID: m.currentX509CA.authorityID,
 	})
 	log.Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)

@@ -201,24 +201,24 @@ func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expires
 }
 
 // TaintX509CAByKey taints an X.509 CA signed using the provided public key
-func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
+func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKeyToTaint crypto.PublicKey) error {
 	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return taintX509CA(tx, trustDoaminID, publicKey)
+		return taintX509CA(tx, trustDoaminID, publicKeyToTaint)
 	})
 }
 
 // RevokeX509CA removes a Root CA from the bundle
-func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
+func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKeyToRevoke crypto.PublicKey) error {
 	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return revokeX509CA(tx, trustDoaminID, publicKey)
+		return revokeX509CA(tx, trustDoaminID, publicKeyToRevoke)
 	})
 }
 
 // TaintJWTKey taints a JWT Authority key
-func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
+func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, authorityID string) (*common.PublicKey, error) {
 	var taintedKey *common.PublicKey
 	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		taintedKey, err = taintJWTKey(tx, trustDoaminID, keyID)
+		taintedKey, err = taintJWTKey(tx, trustDoaminID, authorityID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -227,10 +227,10 @@ func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, keyID s
 }
 
 // RevokeJWTAuthority removes JWT key from the bundle
-func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
+func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDoaminID string, authorityID string) (*common.PublicKey, error) {
 	var revokedKey *common.PublicKey
 	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		revokedKey, err = revokeJWTKey(tx, trustDoaminID, keyID)
+		revokedKey, err = revokeJWTKey(tx, trustDoaminID, authorityID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -891,6 +891,10 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 		bundle.SequenceNumber = newBundle.SequenceNumber
 	}
 
+	if inputMask.X509TaintedKeys {
+		bundle.X509TaintedKeys = newBundle.X509TaintedKeys
+	}
+
 	newModel, err := bundleToModel(bundle)
 	if err != nil {
 		return nil, nil, err
@@ -1114,42 +1118,33 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	return changed, nil
 }
 
-func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.PublicKey) error {
+func taintX509CA(tx *gorm.DB, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
 
-	var found bool
-	for _, ca := range bundle.RootCas {
-		rootCACert, err := x509.ParseCertificate(ca.DerBytes)
+	for _, eachTaintedKey := range bundle.X509TaintedKeys {
+		taintedKey, err := x509.ParsePKIXPublicKey(eachTaintedKey.PublicKey)
 		if err != nil {
-			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
+			return status.Errorf(codes.Internal, "failed to parse tainted Key: %v", err)
 		}
 
-		ok, err := cryptoutil.PublicKeyEqual(rootCACert.PublicKey, taintedPublicKey)
+		ok, err := cryptoutil.PublicKeyEqual(taintedKey, publicKeyToTaint)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
 		}
 		if ok {
-			if ca.TaintedKey {
-				return status.Errorf(codes.InvalidArgument, "root CA is already tainted")
-			}
-
-			// Do not break the loop here so we can be sure
-			// that we taint all bundles associated with the
-			// given public key.
-			// We also check if there is at least one bundle
-			// signed by the provided key. If not, the function
-			// returns codes.NotFound status error.
-			found = true
-			ca.TaintedKey = true
+			return status.Errorf(codes.InvalidArgument, "root CA is already tainted")
 		}
 	}
 
-	if !found {
-		return status.Error(codes.NotFound, "no root CA found with provided public key")
+	pKey, err := x509.MarshalPKIXPublicKey(publicKeyToTaint)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to marshal public key to taint: %v", err)
 	}
+
+	bundle.X509TaintedKeys = append(bundle.X509TaintedKeys, &common.X509TaintedKey{PublicKey: pKey})
 
 	_, err = updateBundle(tx, bundle, nil)
 	if err != nil {
@@ -1159,13 +1154,41 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 	return nil
 }
 
-func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey) error {
+func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
 
-	found := false
+	var taintedKeyFound bool
+	var taintedKeys []*common.X509TaintedKey
+
+	for _, eachTaintedKey := range bundle.X509TaintedKeys {
+		taintedKey, err := x509.ParsePKIXPublicKey(eachTaintedKey.PublicKey)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to parse tainted Key: %v", err)
+		}
+
+		ok, err := cryptoutil.PublicKeyEqual(taintedKey, publicKeyToRevoke)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
+		}
+		if ok {
+			taintedKeyFound = true
+			continue
+		}
+
+		taintedKeys = append(taintedKeys, eachTaintedKey)
+	}
+
+	if !taintedKeyFound {
+		return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
+	}
+	bundle.X509TaintedKeys = taintedKeys
+
+	// It is possible to keep bundles on journal, when there is no upstream authority,
+	// this code will be used to remove a CA bundle that is persisted on datastore,
+	// only in case it is found
 	var rootCAs []*common.Certificate
 	for _, ca := range bundle.RootCas {
 		cert, err := x509.ParseCertificate(ca.DerBytes)
@@ -1173,25 +1196,17 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
 		}
 
-		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKey)
+		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKeyToRevoke)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
 		}
 
 		if ok {
-			if !ca.TaintedKey {
-				return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
-			}
-			found = true
 			continue
 		}
 		rootCAs = append(rootCAs, ca)
 	}
 	bundle.RootCas = rootCAs
-
-	if !found {
-		return status.Error(codes.NotFound, "no root CA found with provided public key")
-	}
 
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
 		return status.Errorf(codes.Internal, "failed to update bundle: %v", err)
@@ -1200,7 +1215,7 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 	return nil
 }
 
-func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func taintJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return nil, err
@@ -1208,7 +1223,7 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publi
 
 	var taintedKey *common.PublicKey
 	for _, jwtKey := range bundle.JwtSigningKeys {
-		if jwtKey.Kid != keyID {
+		if jwtKey.Kid != authorityID {
 			continue
 		}
 
@@ -1237,7 +1252,7 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publi
 	return taintedKey, nil
 }
 
-func revokeJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func revokeJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return nil, err
@@ -1246,7 +1261,7 @@ func revokeJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publ
 	var publicKeys []*common.PublicKey
 	var revokedKey *common.PublicKey
 	for _, key := range bundle.JwtSigningKeys {
-		if key.Kid == keyID {
+		if key.Kid == authorityID {
 			// Check if a JWT Key with the provided keyID was already
 			// found in this loop. This is purely defensive since we do not
 			// allow to have repeated key IDs.
