@@ -33,6 +33,12 @@
 
 - Envoy SDSv2 API is deprecated and now disabled by default (#4228)
 
+## [1.6.5] - 2023-07-27
+
+### Fixed
+
+- Regression causing X509 CAs minted by an UpstreamAuthority plugin to be rejected if they have the digitalSignature key usage set (#4352)
+
 ## [1.6.4] - 2023-05-17
 
 ### Added
