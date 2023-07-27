@@ -52,8 +52,8 @@ func (v *Validator) ValidateX509CA(ca *x509.Certificate) error {
 	if ca.KeyUsage&x509.KeyUsageCertSign == 0 {
 		return errors.New("invalid X509 CA: keyCertSign key usage must be set")
 	}
-	if ca.KeyUsage&^(x509.KeyUsageCertSign|x509.KeyUsageCRLSign) > 0 {
-		return errors.New("invalid X509 CA: only keyCertSign and cRLSign key usage can be set")
+	if ca.KeyUsage&^(x509.KeyUsageCertSign|x509.KeyUsageCRLSign|x509.KeyUsageDigitalSignature) > 0 {
+		return errors.New("invalid X509 CA: only keyCertSign, cRLSign, or digitalSignature key usage can be set")
 	}
 	if err := checkURISAN(ca, true, v.x509CAID); err != nil {
 		return fmt.Errorf("invalid X509 CA: %w", err)
