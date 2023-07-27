@@ -104,29 +104,29 @@ func (ds *DatastoreCache) SetBundle(ctx context.Context, b *common.Bundle) (bund
 	return
 }
 
-func (ds *DatastoreCache) TaintX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
-	if err := ds.DataStore.TaintX509CA(ctx, trustDomainID, publicKey); err == nil {
-		ds.invalidateBundleEntry(trustDomainID)
-	}
-	return nil
-}
-
-func (ds *DatastoreCache) RevokeX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
-	if err := ds.DataStore.RevokeX509CA(ctx, trustDomainID, publicKey); err == nil {
-		ds.invalidateBundleEntry(trustDomainID)
-	}
-	return nil
-}
-
-func (ds *DatastoreCache) TaintJWTKey(ctx context.Context, trustDomainID string, keyID string) (taintedKey *common.PublicKey, err error) {
-	if taintedKey, err = ds.DataStore.TaintJWTKey(ctx, trustDomainID, keyID); err == nil {
+func (ds *DatastoreCache) TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) (err error) {
+	if err = ds.DataStore.TaintX509CA(ctx, trustDomainID, publicKeyToTaint); err == nil {
 		ds.invalidateBundleEntry(trustDomainID)
 	}
 	return
 }
 
-func (ds *DatastoreCache) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (revokedKey *common.PublicKey, err error) {
-	if revokedKey, err = ds.DataStore.RevokeJWTKey(ctx, trustDomainID, keyID); err == nil {
+func (ds *DatastoreCache) RevokeX509CA(ctx context.Context, trustDomainID string, publicKeyToRevoke crypto.PublicKey) (err error) {
+	if err = ds.DataStore.RevokeX509CA(ctx, trustDomainID, publicKeyToRevoke); err == nil {
+		ds.invalidateBundleEntry(trustDomainID)
+	}
+	return
+}
+
+func (ds *DatastoreCache) TaintJWTKey(ctx context.Context, trustDomainID string, authorityID string) (taintedKey *common.PublicKey, err error) {
+	if taintedKey, err = ds.DataStore.TaintJWTKey(ctx, trustDomainID, authorityID); err == nil {
+		ds.invalidateBundleEntry(trustDomainID)
+	}
+	return
+}
+
+func (ds *DatastoreCache) RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (revokedKey *common.PublicKey, err error) {
+	if revokedKey, err = ds.DataStore.RevokeJWTKey(ctx, trustDomainID, authorityID); err == nil {
 		ds.invalidateBundleEntry(trustDomainID)
 	}
 	return

@@ -354,6 +354,9 @@ const (
 	// Kid tags some key ID
 	Kid = "kid"
 
+	// LocalAuthorityID tags a local authority ID
+	LocalAuthorityID = "local_authority_id"
+
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 

@@ -543,6 +543,8 @@ func (f *fakeCAManager) waitPruneCalled(ctx context.Context, t *testing.T) {
 }
 
 type fakeSlot struct {
+	manager.Slot
+
 	keyID           string
 	preparationTime time.Time
 	activationTime  time.Time

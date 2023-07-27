@@ -4,11 +4,11 @@ go 1.20
 
 require (
 	cloud.google.com/go/iam v1.1.0
-	cloud.google.com/go/kms v1.12.1
+	cloud.google.com/go/kms v1.15.0
 	cloud.google.com/go/secretmanager v1.11.1
 	cloud.google.com/go/security v1.15.1
 	cloud.google.com/go/storage v1.31.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.1
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.7.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
@@ -61,7 +61,7 @@ require (
 	github.com/sigstore/sigstore v1.7.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spiffe/go-spiffe/v2 v2.1.6
-	github.com/spiffe/spire-api-sdk v1.2.5-0.20230413135745-699e242b965d
+	github.com/spiffe/spire-api-sdk v1.2.5-0.20230629125323-08049dbe95e6
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230224144655-648f8c740f73
 	github.com/stretchr/testify v1.8.4
 	github.com/uber-go/tally/v4 v4.1.7
