@@ -1,9 +1,11 @@
 package entry
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
-	"fmt"
+	"io"
+	"os"
 
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
@@ -26,9 +28,10 @@ func newDeleteCommand(env *commoncli.Env) cli.Command {
 
 type deleteCommand struct {
 	// ID of the record to delete
-	entryID string
-	env     *commoncli.Env
-	printer cliprinter.Printer
+	entriesIDs StringsFlag
+	path       string
+	env        *commoncli.Env
+	printer    cliprinter.Printer
 }
 
 func (*deleteCommand) Name() string {
@@ -40,8 +43,32 @@ func (*deleteCommand) Synopsis() string {
 }
 
 func (c *deleteCommand) AppendFlags(f *flag.FlagSet) {
-	f.StringVar(&c.entryID, "entryID", "", "The Registration Entry ID of the record to delete")
+	f.Var(&c.entriesIDs, "entryID", "The Registration Entry ID of the record to delete. Can be used more than once")
+	f.StringVar(&c.path, "data", "", "Path to a file containing deletion JSON (optional). If set to '-', read the JSON from stdin.")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, c.prettyPrintDelete)
+}
+
+func parseEntryDeleteJSON(path string) ([]string, error) {
+	r := os.Stdin
+	if path != "-" {
+		f, err := os.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		r = f
+	}
+
+	dat, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	batchDeleteEntryRequest := &entryv1.BatchDeleteEntryRequest{}
+	if err := json.Unmarshal(dat, batchDeleteEntryRequest); err != nil {
+		return nil, err
+	}
+	return batchDeleteEntryRequest.Ids, nil
 }
 
 func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
@@ -49,7 +76,18 @@ func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 		return err
 	}
 
-	req := &entryv1.BatchDeleteEntryRequest{Ids: []string{c.entryID}}
+	var err error
+	if c.path != "" {
+		entriesIDs, err := parseEntryDeleteJSON(c.path)
+		if err != nil {
+			return err
+		}
+		for _, entryId := range entriesIDs {
+			c.entriesIDs.Set(entryId)
+		}
+	}
+
+	req := &entryv1.BatchDeleteEntryRequest{Ids: c.entriesIDs}
 	resp, err := serverClient.NewEntryClient().BatchDeleteEntry(ctx, req)
 	if err != nil {
 		return err
@@ -60,7 +98,11 @@ func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 
 // Perform basic validation.
 func (c *deleteCommand) validate() error {
-	if c.entryID == "" {
+	if c.path != "" {
+		return nil
+	}
+
+	if len(c.entriesIDs) < 1 {
 		return errors.New("an entry ID is required")
 	}
 
@@ -73,12 +115,30 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...interfa
 		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 
-	sts := deleteResp.Results[0].Status
-	switch sts.Code {
-	case int32(codes.OK):
-		env.Printf("Deleted entry with ID: %s\n", c.entryID)
-		return nil
-	default:
-		return fmt.Errorf("failed to delete entry: %s", sts.Message)
+	var failed, succeded []*entryv1.BatchDeleteEntryResponse_Result
+	for _, result := range deleteResp.Results {
+		switch result.Status.Code {
+		case int32(codes.OK):
+			succeded = append(succeded, result)
+		default:
+			failed = append(failed, result)
+		}
 	}
+
+	for _, result := range succeded {
+		env.Printf("Deleted entry with ID: %s\n", result.Id)
+	}
+
+	for _, result := range failed {
+		env.ErrPrintf("Failed to delete entry with ID %s (code: %s, msg: %q)\n",
+			result.Id,
+			codes.Code(result.Status.Code),
+			result.Status.Message)
+	}
+
+	if len(failed) > 0 {
+		return errors.New("failed to delete one or more entries")
+	}
+
+	return nil
 }

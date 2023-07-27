@@ -101,12 +101,14 @@ const (
     	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl flag
 `
 	deleteUsage = `Usage of entry delete:
-  -entryID string
-    	The Registration Entry ID of the record to delete
-  -namedPipeName string
-    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
+  -data string
+    	Path to a file containing deletion JSON (optional). If set to '-', read the JSON from stdin.
+  -entryID value
+    	The Registration Entry ID of the record to delete. Can be used more than once
   -output value
     	Desired output format (pretty, json); default: pretty.
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	countUsage = `Usage of entry count:
   -namedPipeName string
