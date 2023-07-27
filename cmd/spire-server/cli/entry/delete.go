@@ -82,8 +82,11 @@ func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 		if err != nil {
 			return err
 		}
-		for _, entryId := range entriesIDs {
-			c.entriesIDs.Set(entryId)
+		for _, entryID := range entriesIDs {
+			err = c.entriesIDs.Set(entryID)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -115,17 +118,17 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...interfa
 		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 
-	var failed, succeded []*entryv1.BatchDeleteEntryResponse_Result
+	var failed, succeeded []*entryv1.BatchDeleteEntryResponse_Result
 	for _, result := range deleteResp.Results {
 		switch result.Status.Code {
 		case int32(codes.OK):
-			succeded = append(succeded, result)
+			succeeded = append(succeeded, result)
 		default:
 			failed = append(failed, result)
 		}
 	}
 
-	for _, result := range succeded {
+	for _, result := range succeeded {
 		env.Printf("Deleted entry with ID: %s\n", result.Id)
 	}
 
