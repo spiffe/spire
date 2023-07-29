@@ -162,6 +162,30 @@ func (FederatedTrustDomain) TableName() string {
 	return "federated_trust_domains"
 }
 
+// EntryEvent holds the entry id of an entry that had an event
+type EntryEvent struct {
+	Model
+
+	EntryID string `gorm:"unique_index"`
+}
+
+// TableName gets table name for Entry Events
+func (EntryEvent) TableName() string {
+	return "entry_events"
+}
+
+// NodeEvent holds the SPIFFE ID of nodes that had an event
+type NodeEvent struct {
+	Model
+
+	SpiffeID string `gorm:"unique_index"`
+}
+
+// TableName gets table name for Node Events
+func (NodeEvent) TableName() string {
+	return "node_events"
+}
+
 // Migration holds database schema version number, and
 // the SPIRE Code version number
 type Migration struct {

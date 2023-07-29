@@ -188,11 +188,13 @@ import (
 // | v1.7.0  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.7.1  |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v1.8.0  | 22     | Add entry_event and node_event tables                                     |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 21
+	latestSchemaVersion = 22
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -354,6 +356,8 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		&Migration{},
 		&DNSName{},
 		&FederatedTrustDomain{},
+		&EntryEvent{},
+		&NodeEvent{},
 	}
 
 	if err := tableOptionsForDialect(tx, dbType).AutoMigrate(tables...).Error; err != nil {
@@ -408,7 +412,9 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// Place all migrations handled by the current minor release here. This
 	// list can be opportunistically pruned after every minor release but won't
 	// break things if it isn't.
-	switch currVersion { //nolint: gocritic // No upgrade required yet, keeping switch for future additions
+	switch currVersion {
+	case 21:
+		err = migrateToV22(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -417,6 +423,13 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	}
 
 	return nextVersion, nil
+}
+
+func migrateToV22(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&EntryEvent{}, &NodeEvent{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
