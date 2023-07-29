@@ -46,6 +46,9 @@ const (
 	// This is the default amount of time between two reloads of the in-memory
 	// entry cache.
 	defaultCacheReloadInterval = 5 * time.Second
+
+	// This is the default frequency that the entry and node events tables are pruned
+	defaultPruneEventsInterval = 12 * time.Hour
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -70,6 +73,7 @@ type Endpoints struct {
 	Metrics                      telemetry.Metrics
 	RateLimit                    RateLimitConfig
 	EntryFetcherCacheRebuildTask func(context.Context) error
+	EntryFetcherPruneEventsTask  func(context.Context) error
 	AuditLogEnabled              bool
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
@@ -110,11 +114,19 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
 	}
 
+	pruneEventsFn := func(ctx context.Context, olderThan time.Duration) error {
+		ds := c.Catalog.GetDataStore()
+		return ds.PruneRegistrationEntriesEvents(ctx, olderThan)
+	}
+
 	if c.CacheReloadInterval == 0 {
 		c.CacheReloadInterval = defaultCacheReloadInterval
 	}
+	if c.PruneEventsInterval == 0 {
+		c.PruneEventsInterval = defaultPruneEventsInterval
+	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, c.CacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, pruneEventsFn, c.Log, c.Clock, c.CacheReloadInterval, c.PruneEventsInterval)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +146,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		Metrics:                      c.Metrics,
 		RateLimit:                    c.RateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
+		EntryFetcherPruneEventsTask:  ef.PruneEventsTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
@@ -175,6 +188,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 			return e.runLocalAccess(ctx, udsServer)
 		},
 		e.EntryFetcherCacheRebuildTask,
+		e.EntryFetcherPruneEventsTask,
 	}
 
 	if e.BundleEndpointServer != nil {

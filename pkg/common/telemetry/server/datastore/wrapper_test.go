@@ -139,6 +139,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "ListRegistrationEntries",
 		},
 		{
+			key:        "datastore.registration_entry_event.list",
+			methodName: "ListRegistrationEntriesEvents",
+		},
+		{
 			key:        "datastore.federation_relationship.list",
 			methodName: "ListFederationRelationships",
 		},
@@ -153,6 +157,10 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.registration_entry.prune",
 			methodName: "PruneRegistrationEntries",
+		},
+		{
+			key:        "datastore.registration_entry_event.prune",
+			methodName: "PruneRegistrationEntriesEvents",
 		},
 		{
 			key:        "datastore.bundle.set",
@@ -378,6 +386,10 @@ func (ds *fakeDataStore) ListRegistrationEntries(context.Context, *datastore.Lis
 	return &datastore.ListRegistrationEntriesResponse{}, ds.err
 }
 
+func (ds *fakeDataStore) ListRegistrationEntriesEvents(context.Context, *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+	return &datastore.ListRegistrationEntriesEventsResponse{}, ds.err
+}
+
 func (ds *fakeDataStore) PruneBundle(context.Context, string, time.Time) (bool, error) {
 	return false, ds.err
 }
@@ -387,6 +399,10 @@ func (ds *fakeDataStore) PruneJoinTokens(context.Context, time.Time) error {
 }
 
 func (ds *fakeDataStore) PruneRegistrationEntries(context.Context, time.Time) error {
+	return ds.err
+}
+
+func (ds *fakeDataStore) PruneRegistrationEntriesEvents(context.Context, time.Duration) error {
 	return ds.err
 }
 

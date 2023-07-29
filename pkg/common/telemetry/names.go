@@ -443,6 +443,9 @@ const (
 	// RegistrationEntry tags a registration entry
 	RegistrationEntry = "registration_entry"
 
+	// RegistrationEntryEvent is a notice a registration entry has been create, modified, or deleted
+	RegistrationEntryEvent = "registration_entry_event"
+
 	// RequestID tags a request identifier
 	RequestID = "request_id"
 

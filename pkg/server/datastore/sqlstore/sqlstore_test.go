@@ -3693,6 +3693,52 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 	s.Require().Empty(entry.FederatesWith)
 }
 
+func (s *PluginSuite) TestListRegistrationEntriesEvents() {
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+		},
+		SpiffeId: "spiffe://example.org/foo1",
+		ParentId: "spiffe://example.org/bar",
+	})
+	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(1, len(resp.EntryIDs))
+	s.Require().Equal(entry1.EntryId, resp.EntryIDs[0])
+
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type2", Value: "Value2"},
+		},
+		SpiffeId: "spiffe://example.org/foo2",
+		ParentId: "spiffe://example.org/bar",
+	})
+	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(2, len(resp.EntryIDs))
+	s.Require().Equal(entry2.EntryId, resp.EntryIDs[1])
+
+	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry1, nil)
+	s.Require().NoError(err)
+	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(3, len(resp.EntryIDs))
+	s.Require().Equal(updatedRegistrationEntry.EntryId, resp.EntryIDs[2])
+
+	s.deleteRegistrationEntry(entry2.EntryId)
+	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(4, len(resp.EntryIDs))
+	s.Require().Equal(entry2.EntryId, resp.EntryIDs[3])
+
+	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+		GreaterThanEventID: 2,
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(2, len(resp.EntryIDs))
+	s.Require().Equal(uint(3), resp.FirstEventID)
+}
+
 func (s *PluginSuite) TestCreateJoinToken() {
 	req := &datastore.JoinToken{
 		Token:  "foobar",

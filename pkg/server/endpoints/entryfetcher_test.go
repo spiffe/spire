@@ -41,12 +41,17 @@ func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
+
 	entries := make(map[spiffeid.ID][]*types.Entry)
 	buildCache := func(context.Context) (entrycache.Cache, error) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	pruneEventsFn := func(context.Context, time.Duration) error {
+		return nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsInterval)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 }
@@ -60,7 +65,11 @@ func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) 
 		return nil, errors.New("some cache build error")
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	pruneEventsFn := func(context.Context, time.Duration) error {
+		return nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsInterval)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 }
@@ -80,7 +89,11 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, log, clk, defaultCacheReloadInterval)
+	pruneEventsFn := func(context.Context, time.Duration) error {
+		return nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsInterval)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -149,7 +162,11 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		}
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	pruneEventsFn := func(context.Context, time.Duration) error {
+		return nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsInterval)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 

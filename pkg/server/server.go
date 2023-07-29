@@ -392,6 +392,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Uptime:              uptime.Uptime,
 		Clock:               clock.New(),
 		CacheReloadInterval: s.config.CacheReloadInterval,
+		PruneEventsInterval: s.config.PruneEventsInterval,
 		AuditLogEnabled:     s.config.AuditLogEnabled,
 		AuthPolicyEngine:    authPolicyEngine,
 		BundleManager:       bundleManager,
