@@ -124,6 +124,7 @@ type bundleEndpointConfig struct {
 	Address            string                    `hcl:"address"`
 	Port               int                       `hcl:"port"`
 	ACME               *bundleEndpointACMEConfig `hcl:"acme"`
+	RefreshHint        string                    `hcl:"refresh_hint"`
 	UnusedKeyPositions map[string][]token.Pos    `hcl:",unusedKeyPositions"`
 }
 
@@ -412,6 +413,27 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 					IP:   net.ParseIP(c.Server.Federation.BundleEndpoint.Address),
 					Port: c.Server.Federation.BundleEndpoint.Port,
 				},
+			}
+
+			if c.Server.Federation.BundleEndpoint.RefreshHint != "" {
+				refreshHint, err := time.ParseDuration(c.Server.Federation.BundleEndpoint.RefreshHint)
+				if err != nil {
+					return nil, fmt.Errorf("Could not parse refresh_hint %q: %w", c.Server.Federation.BundleEndpoint.RefreshHint, err)
+				}
+
+				if refreshHint >= 24*time.Hour {
+					sc.Log.Warn("Bundle endpoint refresh hint set to a high value. " +
+						"It's recommended to set the refresh hint to a small value" +
+						", e.g. 5 minutes to make sure that trust domains that federate " +
+						"with this trust domain refresh the trust bundle often enough to " +
+						"cover the case of unscheduled trust bundle updates.")
+				}
+
+				sc.Federation.BundleEndpoint.RefreshHint = &refreshHint
+			} else {
+				sc.Log.Warn("Bundle endpoint refresh_hint is not set. This configuration " +
+					"will default to 5 minutes in a future release; please check if you " +
+					"need to specify it")
 			}
 
 			if acme := c.Server.Federation.BundleEndpoint.ACME; acme != nil {
