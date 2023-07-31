@@ -5,14 +5,14 @@ Amazon S3 bucket, keeping it updated.
 
 The plugin accepts the following configuration options:
 
-| Configuration     | Description                                                                                                                                                    | Default                                             |
-|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------|
-| access_key_id     | AWS access key id.                                                                                                                                             | Value of AWS_ACCESS_KEY_ID environment variable.    |
-| secret_access_key | AWS secret access key.                                                                                                                                         | Value of AWS_SECRET_ACCESSKEY environment variable. |
-| region            | AWS region to store the trust bundle.                                                                                                                          |                                                     |
-| bucket            | The Amazon S3 bucket name to which the trust bundle is uploaded.                                                                                               |                                                     |
-| object_key        | The object key inside the bucket.                                                                                                                              |                                                     |
-| format            | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details. |                                                     |
+| Configuration     | Description                                                                                                                                                    | Required                                                               | Default                                             |
+|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------|
+| access_key_id     | AWS access key id.                                                                                                                                             | Required only if AWS_ACCESS_KEY_ID environment variable is not set.    | Value of AWS_ACCESS_KEY_ID environment variable.    |
+| secret_access_key | AWS secret access key.                                                                                                                                         | Required only if AWS_SECRET_ACCESSKEY environment variable is not set. | Value of AWS_SECRET_ACCESSKEY environment variable. |
+| region            | AWS region to store the trust bundle.                                                                                                                          | Yes.                                                                   |                                                     |
+| bucket            | The Amazon S3 bucket name to which the trust bundle is uploaded.                                                                                               | Yes.                                                                   |                                                     |
+| object_key        | The object key inside the bucket.                                                                                                                              | Yes.                                                                   |                                                     |
+| format            | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details. | Yes.                                                                   |                                                     |
 
 ## Supported bundle formats
 

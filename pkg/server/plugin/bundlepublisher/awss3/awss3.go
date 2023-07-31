@@ -43,6 +43,10 @@ type Config struct {
 	Bucket          string `hcl:"bucket" json:"bucket"`
 	ObjectKey       string `hcl:"object_key" json:"object_key"`
 	Format          string `hcl:"format" json:"format"`
+
+	// bundleFormat is used to store the content of Format, parsed
+	// as bundleformat.Format.
+	bundleFormat bundleformat.Format
 }
 
 // Plugin is the main representation of this bundle publisher plugin.
@@ -61,6 +65,7 @@ type Plugin struct {
 	log      hclog.Logger
 }
 
+// SetLogger sets a logger in the plugin.
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
@@ -87,10 +92,12 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.s3Client = s3Client
 
 	p.setConfig(config)
+	p.setBundle(nil)
 	return &configv1.ConfigureResponse{}, nil
 }
 
-// PublishBundle puts the bundle in the specified S3 bucket and key.
+// PublishBundle puts the bundle in the configured S3 bucket name and
+// object key.
 func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.PublishBundleRequest) (*bundlepublisherv1.PublishBundleResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
@@ -98,11 +105,11 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 	}
 
 	if req == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "request is missing")
+		return nil, status.Error(codes.InvalidArgument, "request is missing")
 	}
 
 	if req.Bundle == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "missing bundle in request")
+		return nil, status.Error(codes.InvalidArgument, "missing bundle in request")
 	}
 
 	currentBundle := p.getBundle()
@@ -111,15 +118,10 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		return &bundlepublisherv1.PublishBundleResponse{}, nil
 	}
 
-	bundleFormat, err := bundleformat.FromString(config.Format)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "could not parse bundle format from configuration: %v", err)
-	}
-
 	bundle := bundleformat.NewFormatter(req.Bundle)
-	bundleBytes, err := bundle.Format(bundleFormat)
+	bundleBytes, err := bundle.Format(config.bundleFormat)
 	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
 	}
 
 	_, err = p.s3Client.PutObject(ctx, &s3.PutObjectInput{
@@ -172,7 +174,7 @@ func (p *Plugin) setConfig(config *Config) {
 	p.config = config
 }
 
-// builtin creates a new BundlePublisherP built-in plugin.
+// builtin creates a new BundlePublisher built-in plugin.
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
 		bundlepublisherv1.BundlePublisherPluginServer(p),
@@ -196,6 +198,10 @@ func parseAndValidateConfig(c string) (*Config, error) {
 
 	if err := hcl.Decode(config, c); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	}
+
+	if config.Region == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration is missing the region")
 	}
 
 	if config.Bucket == "" {
@@ -223,5 +229,6 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Errorf(codes.InvalidArgument, "format not supported %q", config.Format)
 	}
 
+	config.bundleFormat = bundleFormat
 	return config, nil
 }
