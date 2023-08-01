@@ -153,13 +153,12 @@ func TestPublishBundle(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 
-		newClientErr     error
-		expectCode       codes.Code
-		expectMsg        string
-		config           *Config
-		bundle           *types.Bundle
-		putObjectErr     error
-		testMultiplePuts bool
+		newClientErr error
+		expectCode   codes.Code
+		expectMsg    string
+		config       *Config
+		bundle       *types.Bundle
+		putObjectErr error
 	}{
 		{
 			name:   "success",
@@ -184,7 +183,6 @@ func TestPublishBundle(t *testing.T) {
 				ObjectKey:       "object-key",
 				Format:          "spiffe",
 			},
-			testMultiplePuts: true,
 		},
 		{
 			name:   "put object failure",
@@ -257,27 +255,6 @@ func TestPublishBundle(t *testing.T) {
 			require.NotNil(t, resp)
 		})
 	}
-}
-
-type fakeClient struct {
-	t *testing.T
-
-	awsConfig      aws.Config
-	putObjectErr   error
-	expectBucket   *string
-	expectKey      *string
-	putObjectCount int
-}
-
-func (c *fakeClient) PutObject(_ context.Context, params *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
-	if c.putObjectErr != nil {
-		return nil, c.putObjectErr
-	}
-
-	require.Equal(c.t, c.expectBucket, params.Bucket, "bucket mismatch")
-	require.Equal(c.t, c.expectKey, params.Key, "key mismatch")
-	c.putObjectCount++
-	return &s3.PutObjectOutput{}, nil
 }
 
 func TestPublishMultiple(t *testing.T) {
@@ -394,6 +371,27 @@ func TestPublishMultiple(t *testing.T) {
 	// The putObjectCount counter should be incremented to 3, since the bundle
 	// should have been published successfully.
 	require.Equal(t, 3, client.putObjectCount)
+}
+
+type fakeClient struct {
+	t *testing.T
+
+	awsConfig      aws.Config
+	putObjectErr   error
+	expectBucket   *string
+	expectKey      *string
+	putObjectCount int
+}
+
+func (c *fakeClient) PutObject(_ context.Context, params *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	if c.putObjectErr != nil {
+		return nil, c.putObjectErr
+	}
+
+	require.Equal(c.t, c.expectBucket, params.Bucket, "bucket mismatch")
+	require.Equal(c.t, c.expectKey, params.Key, "key mismatch")
+	c.putObjectCount++
+	return &s3.PutObjectOutput{}, nil
 }
 
 func getTestBundle(t *testing.T) *types.Bundle {
