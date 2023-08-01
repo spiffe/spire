@@ -789,6 +789,9 @@ const (
 	// FetchX509SVID functionality related to fetching an X509 SVID
 	FetchX509SVID = "fetch_x509_svid"
 
+	// FirstX509SVIDUpdate functionality related to fetching first X.509-SVID update
+	FirstX509SVIDUpdate = "first_x509_svid_update"
+
 	// GetNodeSelectors functionality related to getting node selectors
 	GetNodeSelectors = "get_node_selectors"
 
@@ -843,6 +846,9 @@ const (
 
 	// StreamSecrets functionality related to streaming secrets
 	StreamSecrets = "stream_secrets"
+
+	// SubscribeX509SVIDs functionality related to subscribing to X.509 SVIDs.
+	SubscribeX509SVIDs = "subscribe_x509_svids"
 
 	// SubsystemName declares field for some subsystem name (an API, module...)
 	SubsystemName = "subsystem_name"

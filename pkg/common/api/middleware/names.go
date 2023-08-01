@@ -13,14 +13,16 @@ import (
 const (
 	serverAPIPrefix = "spire.api.server."
 
-	WorkloadAPIServiceName      = "SpiffeWorkloadAPI"
-	WorkloadAPIServiceShortName = "WorkloadAPI"
-	EnvoySDSv2ServiceName       = "envoy.service.discovery.v2.SecretDiscoveryService"
-	EnvoySDSv2ServiceShortName  = "SDS.v2"
-	EnvoySDSv3ServiceName       = "envoy.service.secret.v3.SecretDiscoveryService"
-	EnvoySDSv3ServiceShortName  = "SDS.v3"
-	HealthServiceName           = "grpc.health.v1.Health"
-	HealthServiceShortName      = "Health"
+	WorkloadAPIServiceName            = "SpiffeWorkloadAPI"
+	WorkloadAPIServiceShortName       = "WorkloadAPI"
+	EnvoySDSv2ServiceName             = "envoy.service.discovery.v2.SecretDiscoveryService"
+	EnvoySDSv2ServiceShortName        = "SDS.v2"
+	EnvoySDSv3ServiceName             = "envoy.service.secret.v3.SecretDiscoveryService"
+	EnvoySDSv3ServiceShortName        = "SDS.v3"
+	HealthServiceName                 = "grpc.health.v1.Health"
+	HealthServiceShortName            = "Health"
+	DelegatedIdentityServiceName      = "spire.api.agent.delegatedidentity.v1.DelegatedIdentity"
+	DelegatedIdentityServiceShortName = "DelegatedIdentity"
 )
 
 var (
@@ -30,6 +32,7 @@ var (
 		EnvoySDSv2ServiceName, EnvoySDSv2ServiceShortName,
 		EnvoySDSv3ServiceName, EnvoySDSv3ServiceShortName,
 		HealthServiceName, HealthServiceShortName,
+		DelegatedIdentityServiceName, DelegatedIdentityServiceShortName,
 	)
 
 	// namesCache caches parsed names
