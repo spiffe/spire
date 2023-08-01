@@ -72,8 +72,15 @@ func Marshal(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error)
 	if !ok {
 		refreshHint = 0
 	}
+
+	sequenceNumber, ok := bundle.SequenceNumber()
+	if !ok {
+		sequenceNumber = 0
+	}
+
 	c := &marshalConfig{
-		refreshHint: refreshHint,
+		refreshHint:    refreshHint,
+		sequenceNumber: sequenceNumber,
 	}
 	for _, opt := range opts {
 		if err := opt.configure(c); err != nil {
