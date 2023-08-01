@@ -72,10 +72,6 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 // Configure configures the plugin.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request is missing")
-	}
-
 	config, err := parseAndValidateConfig(req.HclConfiguration)
 	if err != nil {
 		return nil, err
@@ -104,10 +100,6 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		return nil, err
 	}
 
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request is missing")
-	}
-
 	if req.Bundle == nil {
 		return nil, status.Error(codes.InvalidArgument, "missing bundle in request")
 	}
@@ -118,8 +110,8 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		return &bundlepublisherv1.PublishBundleResponse{}, nil
 	}
 
-	bundle := bundleformat.NewFormatter(req.Bundle)
-	bundleBytes, err := bundle.Format(config.bundleFormat)
+	formatter := bundleformat.NewFormatter(req.Bundle)
+	bundleBytes, err := formatter.Format(config.bundleFormat)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
 	}
@@ -219,7 +211,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "could not parse bundle format from configuration: %v", err)
 	}
-	// The bundleformat package may support formats that this plugin do not
+	// The bundleformat package may support formats that this plugin does not
 	// support. Validate that the format is a supported format in this plugin.
 	switch bundleFormat {
 	case bundleformat.JWKS:
