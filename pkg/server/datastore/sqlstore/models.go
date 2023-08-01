@@ -162,28 +162,28 @@ func (FederatedTrustDomain) TableName() string {
 	return "federated_trust_domains"
 }
 
-// EntryEvent holds the entry id of an entry that had an event
-type EntryEvent struct {
+// RegisteredEntriesEvent holds the entry id of a registered entry that had an event
+type RegisteredEntriesEvent struct {
 	Model
 
 	EntryID string `gorm:"unique_index"`
 }
 
-// TableName gets table name for Entry Events
-func (EntryEvent) TableName() string {
-	return "entry_events"
+// TableName gets table name for RegisteredEntriesEvent
+func (RegisteredEntriesEvent) TableName() string {
+	return "registered_entries_events"
 }
 
-// NodeEvent holds the SPIFFE ID of nodes that had an event
-type NodeEvent struct {
+// AttestedNodeEntriesEvent holds the SPIFFE ID of nodes that had an event
+type AttestedNodeEntriesEvent struct {
 	Model
 
 	SpiffeID string `gorm:"unique_index"`
 }
 
-// TableName gets table name for Node Events
-func (NodeEvent) TableName() string {
-	return "node_events"
+// TableName gets table name for AttestedNodeEntriesEvent
+func (AttestedNodeEntriesEvent) TableName() string {
+	return "attested_node_entries_events"
 }
 
 // Migration holds database schema version number, and

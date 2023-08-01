@@ -189,7 +189,7 @@ import (
 // |---------|        |                                                                           |
 // | v1.7.1  |        |                                                                           |
 // |---------|--------|---------------------------------------------------------------------------|
-// | v1.7.2  | 22     | Add entry_event and node_event tables                                     |
+// | v1.7.2  | 22     | Add registered_entries_events and attested_node_entries_events tables         |
 // ================================================================================================
 
 const (
@@ -356,8 +356,8 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		&Migration{},
 		&DNSName{},
 		&FederatedTrustDomain{},
-		&EntryEvent{},
-		&NodeEvent{},
+		&RegisteredEntriesEvent{},
+		&AttestedNodeEntriesEvent{},
 	}
 
 	if err := tableOptionsForDialect(tx, dbType).AutoMigrate(tables...).Error; err != nil {
@@ -426,7 +426,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 }
 
 func migrateToV22(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&EntryEvent{}, &NodeEvent{}).Error; err != nil {
+	if err := tx.AutoMigrate(&RegisteredEntriesEvent{}, &AttestedNodeEntriesEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
