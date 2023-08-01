@@ -579,7 +579,7 @@ func (s *Suite) writeFile(path, data string) {
 	s.Require().NoError(os.WriteFile(realPath, []byte(data), 0600))
 }
 
-func (s *Suite) serveHTTP(w http.ResponseWriter, req *http.Request) {
+func (s *Suite) serveHTTP(w http.ResponseWriter, _ *http.Request) {
 	// TODO:
 	if len(s.podList) == 0 {
 		http.Error(w, "not configured to return a pod list", http.StatusOK)

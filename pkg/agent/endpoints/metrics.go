@@ -23,7 +23,7 @@ type connectionMetrics struct {
 	sdsAPIConns      int32
 }
 
-func (m *connectionMetrics) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+func (m *connectionMetrics) Preprocess(ctx context.Context, _ string, _ interface{}) (context.Context, error) {
 	if names, ok := rpccontext.Names(ctx); ok {
 		switch names.RawService {
 		case middleware.WorkloadAPIServiceName:
@@ -41,7 +41,7 @@ func (m *connectionMetrics) Preprocess(ctx context.Context, fullMethod string, r
 	return ctx, nil
 }
 
-func (m *connectionMetrics) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
+func (m *connectionMetrics) Postprocess(ctx context.Context, _ string, _ bool, _ error) {
 	if names, ok := rpccontext.Names(ctx); ok {
 		switch names.RawService {
 		case middleware.WorkloadAPIServiceName:

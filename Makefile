@@ -98,6 +98,8 @@ else ifeq ($(arch1),arm64)
 arch2=arm64
 else ifeq ($(arch1),s390x)
 arch2=s390x
+else ifeq ($(arch1),ppc64le)
+arch2=ppc64le
 else
 $(error unsupported ARCH: $(arch1))
 endif
@@ -128,7 +130,7 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.51.1
+golangci_lint_version = v1.53.3
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
@@ -143,6 +145,8 @@ else ifeq ($(arch2),arm64)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-aarch_64.zip
 else ifeq ($(arch2),s390x)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-s390_64.zip
+else ifeq ($(arch2),ppc64le)
+protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-ppcle_64.zip
 else
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-$(arch1).zip
 endif

@@ -74,6 +74,7 @@ type agentConfig struct {
 	LogFile                       string    `hcl:"log_file"`
 	LogFormat                     string    `hcl:"log_format"`
 	LogLevel                      string    `hcl:"log_level"`
+	LogSourceLocation             bool      `hcl:"log_source_location"`
 	SDS                           sdsConfig `hcl:"sds"`
 	ServerAddress                 string    `hcl:"server_address"`
 	ServerPort                    int       `hcl:"server_port"`
@@ -309,6 +310,7 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
+	flags.BoolVar(&c.LogSourceLocation, "logSourceLocation", false, "Include source file, line number and function name in log lines")
 	flags.StringVar(&c.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
 	flags.IntVar(&c.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
@@ -459,6 +461,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		log.WithLevel(c.Agent.LogLevel),
 		log.WithFormat(c.Agent.LogFormat),
 	)
+	if c.Agent.LogSourceLocation {
+		logOptions = append(logOptions, log.WithSourceLocation())
+	}
 	var reopenableFile *log.ReopenableFile
 	if c.Agent.LogFile != "" {
 		reopenableFile, err := log.NewReopenableFile(c.Agent.LogFile)
@@ -570,11 +575,7 @@ func validateConfig(c *Config) error {
 		return errors.New("plugins section must be configured")
 	}
 
-	if err := c.Agent.validate(); err != nil {
-		return err
-	}
-
-	return nil
+	return c.Agent.validate()
 }
 
 func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {

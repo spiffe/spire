@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"testing"
 
-	legacyProto "github.com/golang/protobuf/proto" // nolint:staticcheck // deprecated library needed until WithDetails can take v2
+	legacyProto "github.com/golang/protobuf/proto" //nolint:staticcheck // deprecated library needed until WithDetails can take v2
 	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -440,7 +440,7 @@ type testAgentAuthorizer struct {
 	details []legacyProto.Message
 }
 
-func (a *testAgentAuthorizer) AuthorizeAgent(ctx context.Context, agentID spiffeid.ID, agentSVID *x509.Certificate) error {
+func (a *testAgentAuthorizer) AuthorizeAgent(context.Context, spiffeid.ID, *x509.Certificate) error {
 	if a.isAgent {
 		return nil
 	}

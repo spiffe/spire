@@ -269,7 +269,7 @@ type FakeWorkloadAPIServer struct {
 	*workload_pb.UnimplementedSpiffeWorkloadAPIServer
 }
 
-func (s FakeWorkloadAPIServer) FetchJWTSVID(ctx context.Context, in *workload_pb.JWTSVIDRequest) (*workload_pb.JWTSVIDResponse, error) {
+func (s FakeWorkloadAPIServer) FetchJWTSVID(ctx context.Context, _ *workload_pb.JWTSVIDRequest) (*workload_pb.JWTSVIDResponse, error) {
 	if err := attest(ctx, s.Attestor); err != nil {
 		return nil, err
 	}
@@ -281,7 +281,7 @@ type FakeSDSv2Server struct {
 	*discovery_v2.UnimplementedSecretDiscoveryServiceServer
 }
 
-func (s FakeSDSv2Server) FetchSecrets(ctx context.Context, in *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
+func (s FakeSDSv2Server) FetchSecrets(ctx context.Context, _ *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
 	if err := attest(ctx, s.Attestor); err != nil {
 		return nil, err
 	}
@@ -293,7 +293,7 @@ type FakeSDSv3Server struct {
 	*secret_v3.UnimplementedSecretDiscoveryServiceServer
 }
 
-func (s FakeSDSv3Server) FetchSecrets(ctx context.Context, in *discovery_v3.DiscoveryRequest) (*discovery_v3.DiscoveryResponse, error) {
+func (s FakeSDSv3Server) FetchSecrets(ctx context.Context, _ *discovery_v3.DiscoveryRequest) (*discovery_v3.DiscoveryResponse, error) {
 	if err := attest(ctx, s.Attestor); err != nil {
 		return nil, err
 	}

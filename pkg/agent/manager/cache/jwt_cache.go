@@ -42,13 +42,19 @@ func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid 
 func jwtSVIDKey(spiffeID spiffeid.ID, audience []string) string {
 	h := sha256.New()
 
+	// Form the cache key as the SHA-256 hash of the SPIFFE ID and all the audiences.
+	// In order to avoid ambiguities, we will write a nul byte to the hash function after each data
+	// item.
+
 	// duplicate and sort the audience slice
 	audience = append([]string(nil), audience...)
 	sort.Strings(audience)
 
 	_, _ = io.WriteString(h, spiffeID.String())
+	h.Write([]byte{0})
 	for _, a := range audience {
 		_, _ = io.WriteString(h, a)
+		h.Write([]byte{0})
 	}
 
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))

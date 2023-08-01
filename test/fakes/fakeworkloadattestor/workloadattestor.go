@@ -26,7 +26,7 @@ type workloadAttestor struct {
 	pids map[int32][]string
 }
 
-func (p *workloadAttestor) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
+func (p *workloadAttestor) Attest(_ context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
 	s, ok := p.pids[req.Pid]
 	if !ok {
 		return nil, fmt.Errorf("cannot attest pid %d", req.Pid)

@@ -149,12 +149,12 @@ func (a *HCLogAdapter) ResetNamed(name string) hclog.Logger {
 // writer, and hardcode the level to INFO.
 //
 // Apologies to those who find themselves here.
-func (a *HCLogAdapter) StandardLogger(opts *hclog.StandardLoggerOptions) *log.Logger {
+func (a *HCLogAdapter) StandardLogger(*hclog.StandardLoggerOptions) *log.Logger {
 	entry := a.log.WithFields(logrus.Fields{})
 	return log.New(entry.WriterLevel(logrus.InfoLevel), "", 0)
 }
 
-func (a *HCLogAdapter) StandardWriter(opts *hclog.StandardLoggerOptions) io.Writer {
+func (a *HCLogAdapter) StandardWriter(*hclog.StandardLoggerOptions) io.Writer {
 	var w io.Writer
 	logger, ok := a.log.(*logrus.Logger)
 	if ok {

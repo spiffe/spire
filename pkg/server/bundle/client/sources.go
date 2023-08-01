@@ -47,7 +47,7 @@ func (s *TrustDomainConfigSet) SetAll(configMap TrustDomainConfigMap) {
 	s.configMap = configMap
 }
 
-func (s *TrustDomainConfigSet) GetTrustDomainConfigs(ctx context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error) {
+func (s *TrustDomainConfigSet) GetTrustDomainConfigs(context.Context) (map[spiffeid.TrustDomain]TrustDomainConfig, error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 	return s.configMap, nil

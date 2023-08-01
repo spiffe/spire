@@ -71,7 +71,7 @@ func RegisterService(s *grpc.Server, service *Service) {
 }
 
 // CountAgents returns the total number of agents.
-func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
+func (s *Service) CountAgents(ctx context.Context, _ *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
 	count, err := s.ds.CountAttestedNodes(ctx)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
@@ -437,6 +437,11 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 			CertChain: x509util.RawCertsFromCertificates(agentSVID),
 		},
 	}, nil
+}
+
+// PostStatus post agent status
+func (s *Service) PostStatus(context.Context, *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "unimplemented")
 }
 
 // CreateJoinToken returns a new JoinToken for an agent.

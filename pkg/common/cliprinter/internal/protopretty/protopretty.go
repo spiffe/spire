@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func Print(msgs []proto.Message, stdout, stderr io.Writer) error {
+func Print(msgs []proto.Message, stdout, _ io.Writer) error {
 	if len(msgs) == 0 {
 		return nil
 	}

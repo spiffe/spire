@@ -143,7 +143,7 @@ type hcClientPlugin struct {
 
 var _ goplugin.GRPCPlugin = (*hcClientPlugin)(nil)
 
-func (p *hcClientPlugin) GRPCServer(b *goplugin.GRPCBroker, s *grpc.Server) error {
+func (p *hcClientPlugin) GRPCServer(*goplugin.GRPCBroker, *grpc.Server) error {
 	return errors.New("not implemented host side")
 }
 

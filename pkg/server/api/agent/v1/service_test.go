@@ -2019,6 +2019,14 @@ func TestRenewAgent(t *testing.T) {
 	}
 }
 
+func TestPostStatus(t *testing.T) {
+	test := setupServiceTest(t, 0)
+
+	resp, err := test.client.PostStatus(context.Background(), &agentv1.PostStatusRequest{})
+	require.Nil(t, resp)
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "unimplemented")
+}
+
 func TestCreateJoinToken(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
@@ -3358,7 +3366,7 @@ type fakeRateLimiter struct {
 	err   error
 }
 
-func (f *fakeRateLimiter) RateLimit(ctx context.Context, count int) error {
+func (f *fakeRateLimiter) RateLimit(_ context.Context, count int) error {
 	if f.count != count {
 		return fmt.Errorf("rate limiter got %d but expected %d", count, f.count)
 	}

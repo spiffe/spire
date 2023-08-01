@@ -15,7 +15,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -116,21 +115,22 @@ func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVI
 	staleEntries := c.GetStaleEntries()
 	if len(staleEntries) > 0 {
 		var csrs []csrRequest
+		sizeLimit := m.csrSizeLimitedBackoff.NextBackOff()
 		log.WithFields(logrus.Fields{
 			telemetry.Count: len(staleEntries),
-			telemetry.Limit: limits.SignLimitPerIP,
+			telemetry.Limit: sizeLimit,
 		}).Debug("Renewing stale entries")
 
 		for _, entry := range staleEntries {
 			// we've exceeded the CSR limit, don't make any more CSRs
-			if len(csrs) >= limits.SignLimitPerIP {
+			if len(csrs) >= sizeLimit {
 				break
 			}
 
 			csrs = append(csrs, csrRequest{
 				EntryID:              entry.Entry.EntryId,
 				SpiffeID:             entry.Entry.SpiffeId,
-				CurrentSVIDExpiresAt: entry.ExpiresAt,
+				CurrentSVIDExpiresAt: entry.SVIDExpiresAt,
 			})
 		}
 
@@ -148,12 +148,20 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	counter := telemetry_agent.StartManagerFetchSVIDsUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
+	defer func() {
+		if err == nil {
+			m.csrSizeLimitedBackoff.Success()
+		}
+	}()
 
 	csrsIn := make(map[string][]byte)
 
 	privateKeys := make(map[string]crypto.Signer, len(csrs))
 	for _, csr := range csrs {
-		log := m.c.Log.WithField("spiffe_id", csr.SpiffeID)
+		log := m.c.Log.WithFields(logrus.Fields{
+			"spiffe_id": csr.SpiffeID,
+			"entry_id":  csr.EntryID,
+		})
 		if !csr.CurrentSVIDExpiresAt.IsZero() {
 			log = log.WithField("expires_at", csr.CurrentSVIDExpiresAt.Format(time.RFC3339))
 		}
@@ -180,6 +188,8 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 
 	svidsOut, err := m.client.NewX509SVIDs(ctx, csrsIn)
 	if err != nil {
+		// Reduce csr size for next invocation
+		m.csrSizeLimitedBackoff.Failure()
 		return nil, err
 	}
 

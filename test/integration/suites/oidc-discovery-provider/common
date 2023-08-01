@@ -1,0 +1,59 @@
+#!/bin/bash
+
+check-equal-keys() {
+  PROVIDER_SOCKET_PATH=$1
+
+  JWK=$(curl --unix-socket $PROVIDER_SOCKET_PATH http://localhost/keys | jq ".keys[0]" || fail-now "Failed to fetch JWK from provider")
+  BUNDLE=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle show -socketPath /opt/spire/conf/server/api.sock -output json | jq ".jwt_authorities[0]" || fail-now "Failed to fetch JWT bundle from SPIRE server")
+
+  PROVIDER_KEY_ID=$(echo ${JWK} | jq -r ".kid")
+  BUNDLE_KEY_ID=$(echo ${BUNDLE} | jq -r ".key_id")
+
+  if [ "${PROVIDER_KEY_ID}" != "${BUNDLE_KEY_ID}" ]; then
+    fail-now "JWK key id (${PROVIDER_KEY_ID}) does not match bundle key id (${BUNDLE_KEY_ID})"
+  fi
+
+  OIDC_CONFIG=$(curl --unix-socket ${RUNDIR}/conf/oidc-discovery-provider/provider-server.sock http://localhost/.well-known/openid-configuration | jq)
+
+  EXPECTED_OIDC_CONFIG=$(jq <./expected-oidc-config.json)
+
+  if [ "${OIDC_CONFIG}" != "${EXPECTED_OIDC_CONFIG}" ]; then
+    echo "OIDC_CONFIG: ${OIDC_CONFIG}"
+    echo "EXPECTED_OIDC_CONFIG: ${EXPECTED_OIDC_CONFIG}"
+    fail-now "OIDC config does not match expected"
+  fi
+
+  BUNDLE_PK=$(echo ${BUNDLE} | jq -r ".public_key")
+
+  JWK_KEY=$(echo ${JWK} | jq -r '.x + .y')
+
+  DER_KEY=$(echo "$BUNDLE_PK" | base64 -d | openssl ec -pubin -inform DER -text -noout | grep -E "[0-9a-fA-F]{2}:" | tr -d '[:space:]' | cut -c4-)
+
+  FIRST_HALF=$(echo "$DER_KEY" | cut -c1-$((${#DER_KEY} / 2)) | xxd -r -p | base64)
+
+  SECOND_HALF=$(echo "$DER_KEY" | cut -c$((${#DER_KEY} / 2 + 1))- | cut -c2- | xxd -r -p | base64)
+
+  DER_KEY=$(echo "$FIRST_HALF$SECOND_HALF" | tr -d '=')
+  # convert JWK_KEY from base64url to base64
+  JWK_KEY=$(echo "$JWK_KEY" | tr '_-' '/+' | tr -d '=')
+
+  if [ "$DER_KEY" != "$JWK_KEY" ]; then
+    fail-now "JWK key does not match bundle key: $DER_KEY != $JWK_KEY"
+  fi
+}
+
+check-provider-start() {
+  MAXCHECKS=10
+  CHECKINTERVAL=1
+  PROVIDER_SOCKET_PATH=$1
+
+  for ((i = 1; i <= MAXCHECKS; i++)); do
+    log-info "check oidc-discovery-provider status ($(($i)) of $MAXCHECKS max)..."
+    curl --unix-socket $PROVIDER_SOCKET_PATH http://localhost && return 0
+    sleep "${CHECKINTERVAL}"
+  done
+
+  if (($i > $MAXCHECKS)); then
+    fail-now "timed out waiting for oidc-discovery-provider to start"
+  fi
+}

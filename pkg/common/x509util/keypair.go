@@ -28,10 +28,10 @@ func NewMemoryKeypair(cert *x509.Certificate, key crypto.PrivateKey) *MemoryKeyp
 	}
 }
 
-func (m *MemoryKeypair) GetCertificate(ctx context.Context) (*x509.Certificate, error) {
+func (m *MemoryKeypair) GetCertificate(_ context.Context) (*x509.Certificate, error) {
 	return m.cert, nil
 }
 
-func (m *MemoryKeypair) CreateCertificate(ctx context.Context, template *x509.Certificate, publicKey interface{}) ([]byte, error) {
+func (m *MemoryKeypair) CreateCertificate(_ context.Context, template *x509.Certificate, publicKey interface{}) ([]byte, error) {
 	return x509.CreateCertificate(rand.Reader, template, m.cert, publicKey, m.key)
 }

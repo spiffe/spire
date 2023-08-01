@@ -431,6 +431,46 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg:       "log_source_location should default to false if not set",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.False(t, c.Agent.LogSourceLocation)
+			},
+		},
+		{
+			msg: "log_source_location should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.LogSourceLocation = true
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.LogSourceLocation)
+			},
+		},
+		{
+			msg:       "log_source_location should be configurable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *agentConfig) {
+				c.LogSourceLocation = true
+			},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.LogSourceLocation)
+			},
+		},
+		{
+			msg: "log_source_location specified by CLI flag should take precedence over file",
+			fileInput: func(c *Config) {
+				c.Agent.LogSourceLocation = false
+			},
+			cliInput: func(c *agentConfig) {
+				c.LogSourceLocation = true
+			},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.LogSourceLocation)
+			},
+		},
+		{
 			msg:       "server_address should not have a default value",
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},

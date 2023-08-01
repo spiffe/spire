@@ -85,7 +85,7 @@ func (c *showCommand) AppendFlags(f *flag.FlagSet) {
 
 // Run executes all logic associated with a single invocation of the
 // `spire-server entry show` CLI command
-func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *showCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	if err := c.validate(); err != nil {
 		return err
 	}

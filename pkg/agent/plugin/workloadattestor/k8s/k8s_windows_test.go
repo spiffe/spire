@@ -39,11 +39,11 @@ type fakeContainerHelper struct {
 	osError     error
 }
 
-func (h *fakeContainerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
+func (h *fakeContainerHelper) Configure(*HCLConfig, hclog.Logger) error {
 	return h.err
 }
 
-func (h *fakeContainerHelper) GetOSSelectors(ctx context.Context, log hclog.Logger, containerStatus *corev1.ContainerStatus) ([]string, error) {
+func (h *fakeContainerHelper) GetOSSelectors(context.Context, hclog.Logger, *corev1.ContainerStatus) ([]string, error) {
 	if h.osError != nil {
 		return nil, h.osError
 	}
@@ -116,7 +116,7 @@ type fakeProcessHelper struct {
 	err         error
 }
 
-func (f *fakeProcessHelper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, error) {
+func (f *fakeProcessHelper) GetContainerIDByProcess(int32, hclog.Logger) (string, error) {
 	if f.err != nil {
 		return "", f.err
 	}

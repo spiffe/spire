@@ -74,6 +74,6 @@ type fakeV1Plugin struct {
 	err error
 }
 
-func (p *fakeV1Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.PublishBundleRequest) (*bundlepublisherv1.PublishBundleResponse, error) {
+func (p *fakeV1Plugin) PublishBundle(context.Context, *bundlepublisherv1.PublishBundleRequest) (*bundlepublisherv1.PublishBundleResponse, error) {
 	return &bundlepublisherv1.PublishBundleResponse{}, p.err
 }

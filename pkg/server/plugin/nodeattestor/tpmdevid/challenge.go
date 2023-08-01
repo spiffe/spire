@@ -8,8 +8,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/go-tpm/tpm2"
-	"github.com/google/go-tpm/tpm2/credactivation"
+	"github.com/google/go-tpm/legacy/tpm2"
+	"github.com/google/go-tpm/legacy/tpm2/credactivation"
 	devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 )
 

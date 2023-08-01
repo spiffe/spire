@@ -99,7 +99,7 @@ func ProtoFromID(id spiffeid.ID) *types.SPIFFEID {
 }
 
 // IDFromProto converts a SPIFFEID message into an ID type
-func IDFromProto(ctx context.Context, protoID *types.SPIFFEID) (spiffeid.ID, error) {
+func IDFromProto(_ context.Context, protoID *types.SPIFFEID) (spiffeid.ID, error) {
 	if protoID == nil {
 		return spiffeid.ID{}, errors.New("request must specify SPIFFE ID")
 	}

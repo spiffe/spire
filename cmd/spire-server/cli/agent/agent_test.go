@@ -772,29 +772,29 @@ type fakeAgentServer struct {
 	err                    error
 }
 
-func (s *fakeAgentServer) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*emptypb.Empty, error) {
+func (s *fakeAgentServer) BanAgent(context.Context, *agentv1.BanAgentRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, s.err
 }
 
-func (s *fakeAgentServer) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentRequest) (*emptypb.Empty, error) {
+func (s *fakeAgentServer) DeleteAgent(_ context.Context, req *agentv1.DeleteAgentRequest) (*emptypb.Empty, error) {
 	s.gotDeleteAgentRequests = append(s.gotDeleteAgentRequests, req)
 	return &emptypb.Empty{}, s.deleteErr
 }
 
-func (s *fakeAgentServer) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
+func (s *fakeAgentServer) CountAgents(context.Context, *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
 	return &agentv1.CountAgentsResponse{
 		Count: int32(len(s.agents)),
 	}, s.err
 }
 
-func (s *fakeAgentServer) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest) (*agentv1.ListAgentsResponse, error) {
+func (s *fakeAgentServer) ListAgents(_ context.Context, req *agentv1.ListAgentsRequest) (*agentv1.ListAgentsResponse, error) {
 	s.gotListAgentRequest = req
 	return &agentv1.ListAgentsResponse{
 		Agents: s.agents,
 	}, s.err
 }
 
-func (s *fakeAgentServer) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*types.Agent, error) {
+func (s *fakeAgentServer) GetAgent(context.Context, *agentv1.GetAgentRequest) (*types.Agent, error) {
 	if len(s.agents) > 0 {
 		return s.agents[0], s.err
 	}

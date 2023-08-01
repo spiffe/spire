@@ -24,7 +24,7 @@ type pcaClientFake struct {
 	getCertificateErr           error
 }
 
-func (f *pcaClientFake) DescribeCertificateAuthority(ctx context.Context, input *acmpca.DescribeCertificateAuthorityInput, optFns ...func(*acmpca.Options)) (*acmpca.DescribeCertificateAuthorityOutput, error) {
+func (f *pcaClientFake) DescribeCertificateAuthority(_ context.Context, input *acmpca.DescribeCertificateAuthorityInput, _ ...func(*acmpca.Options)) (*acmpca.DescribeCertificateAuthorityOutput, error) {
 	require.Equal(f.t, f.expectedDescribeInput, input)
 	if f.describeCertificateErr != nil {
 		return nil, f.describeCertificateErr
@@ -32,7 +32,7 @@ func (f *pcaClientFake) DescribeCertificateAuthority(ctx context.Context, input 
 	return f.describeCertificateOutput, nil
 }
 
-func (f *pcaClientFake) IssueCertificate(ctx context.Context, input *acmpca.IssueCertificateInput, optFns ...func(*acmpca.Options)) (*acmpca.IssueCertificateOutput, error) {
+func (f *pcaClientFake) IssueCertificate(_ context.Context, input *acmpca.IssueCertificateInput, _ ...func(*acmpca.Options)) (*acmpca.IssueCertificateOutput, error) {
 	require.Equal(f.t, f.expectedIssueInput, input)
 	if f.issueCertifcateErr != nil {
 		return nil, f.issueCertifcateErr
@@ -40,7 +40,7 @@ func (f *pcaClientFake) IssueCertificate(ctx context.Context, input *acmpca.Issu
 	return f.issueCertificateOutput, nil
 }
 
-func (f *pcaClientFake) GetCertificate(ctx context.Context, input *acmpca.GetCertificateInput, optFns ...func(*acmpca.Options)) (*acmpca.GetCertificateOutput, error) {
+func (f *pcaClientFake) GetCertificate(_ context.Context, input *acmpca.GetCertificateInput, _ ...func(*acmpca.Options)) (*acmpca.GetCertificateOutput, error) {
 	require.Equal(f.t, f.expectedGetCertificateInput, input)
 	if f.getCertificateErr != nil {
 		return nil, f.getCertificateErr

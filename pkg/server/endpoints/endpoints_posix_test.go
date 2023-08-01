@@ -17,6 +17,6 @@ func getLocalAddr(t *testing.T) net.Addr {
 	return &net.UnixAddr{Net: "unix", Name: filepath.Join(tempdir, "sockets")}
 }
 
-func testRemoteCaller(ctx context.Context, t *testing.T, target string) {
+func testRemoteCaller(context.Context, *testing.T, string) {
 	// No testing for UDS endpoints
 }

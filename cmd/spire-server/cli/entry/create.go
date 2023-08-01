@@ -107,7 +107,7 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintCreate)
 }
 
-func (c *createCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *createCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	if err := c.validate(); err != nil {
 		return err
 	}

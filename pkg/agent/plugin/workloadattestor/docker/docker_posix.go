@@ -43,7 +43,7 @@ type containerHelper struct {
 	fs                cgroups.FileSystem
 }
 
-func (h *containerHelper) getContainerID(pID int32, log hclog.Logger) (string, error) {
+func (h *containerHelper) getContainerID(pID int32, _ hclog.Logger) (string, error) {
 	cgroupList, err := cgroups.GetCgroups(pID, h.fs)
 	if err != nil {
 		return "", err

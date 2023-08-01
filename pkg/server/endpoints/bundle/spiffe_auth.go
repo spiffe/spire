@@ -23,7 +23,7 @@ func (s *spiffeAuth) GetTLSConfig() *tls.Config {
 	}
 }
 
-func (s *spiffeAuth) getCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+func (s *spiffeAuth) getCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	chain, privateKey, err := s.getter()
 	if err != nil {
 		return nil, err

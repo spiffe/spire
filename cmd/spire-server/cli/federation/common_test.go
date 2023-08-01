@@ -148,7 +148,7 @@ type fakeServer struct {
 	updateResp  *trustdomainv1.BatchUpdateFederationRelationshipResponse
 }
 
-func (f *fakeServer) BatchCreateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchCreateFederationRelationshipRequest) (*trustdomainv1.BatchCreateFederationRelationshipResponse, error) {
+func (f *fakeServer) BatchCreateFederationRelationship(_ context.Context, req *trustdomainv1.BatchCreateFederationRelationshipRequest) (*trustdomainv1.BatchCreateFederationRelationshipResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -157,7 +157,7 @@ func (f *fakeServer) BatchCreateFederationRelationship(ctx context.Context, req 
 	return f.createResp, nil
 }
 
-func (f *fakeServer) BatchDeleteFederationRelationship(ctx context.Context, req *trustdomainv1.BatchDeleteFederationRelationshipRequest) (*trustdomainv1.BatchDeleteFederationRelationshipResponse, error) {
+func (f *fakeServer) BatchDeleteFederationRelationship(_ context.Context, req *trustdomainv1.BatchDeleteFederationRelationshipRequest) (*trustdomainv1.BatchDeleteFederationRelationshipResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -166,7 +166,7 @@ func (f *fakeServer) BatchDeleteFederationRelationship(ctx context.Context, req 
 	return f.deleteResp, nil
 }
 
-func (f *fakeServer) ListFederationRelationships(ctx context.Context, req *trustdomainv1.ListFederationRelationshipsRequest) (*trustdomainv1.ListFederationRelationshipsResponse, error) {
+func (f *fakeServer) ListFederationRelationships(_ context.Context, req *trustdomainv1.ListFederationRelationshipsRequest) (*trustdomainv1.ListFederationRelationshipsResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -175,7 +175,7 @@ func (f *fakeServer) ListFederationRelationships(ctx context.Context, req *trust
 	return f.listResp, nil
 }
 
-func (f *fakeServer) GetFederationRelationship(ctx context.Context, req *trustdomainv1.GetFederationRelationshipRequest) (*types.FederationRelationship, error) {
+func (f *fakeServer) GetFederationRelationship(_ context.Context, req *trustdomainv1.GetFederationRelationshipRequest) (*types.FederationRelationship, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -187,7 +187,7 @@ func (f *fakeServer) GetFederationRelationship(ctx context.Context, req *trustdo
 	return &types.FederationRelationship{}, status.Error(codes.NotFound, "federation relationship does not exist")
 }
 
-func (f *fakeServer) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
+func (f *fakeServer) RefreshBundle(_ context.Context, req *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -196,7 +196,7 @@ func (f *fakeServer) RefreshBundle(ctx context.Context, req *trustdomainv1.Refre
 	return f.refreshResp, nil
 }
 
-func (f *fakeServer) BatchUpdateFederationRelationship(ctx context.Context, req *trustdomainv1.BatchUpdateFederationRelationshipRequest) (*trustdomainv1.BatchUpdateFederationRelationshipResponse, error) {
+func (f *fakeServer) BatchUpdateFederationRelationship(_ context.Context, req *trustdomainv1.BatchUpdateFederationRelationshipRequest) (*trustdomainv1.BatchUpdateFederationRelationshipResponse, error) {
 	if f.err != nil {
 		return nil, f.err
 	}

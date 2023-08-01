@@ -34,10 +34,10 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
+func (p *Plugin) Attest(nodeattestorv1.NodeAttestor_AttestServer) error {
 	return status.Error(codes.Unimplemented, "join token attestation is currently implemented within the server")
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(context.Context, *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	return &configv1.ConfigureResponse{}, nil
 }
