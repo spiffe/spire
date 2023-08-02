@@ -189,7 +189,7 @@ import (
 // |---------|        |                                                                           |
 // | v1.7.1  |        |                                                                           |
 // |---------|--------|---------------------------------------------------------------------------|
-// | v1.7.2  | 22     | Add registered_entries_events and attested_node_entries_events tables         |
+// | v1.7.2  | 22     | Add registered_entries_events and attested_node_entries_events tables     |
 // ================================================================================================
 
 const (
