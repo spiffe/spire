@@ -349,15 +349,15 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 	tables := []interface{}{
 		&Bundle{},
 		&AttestedNode{},
+		&AttestedNodeEvent{},
 		&NodeSelector{},
 		&RegisteredEntry{},
+		&RegisteredEntryEvent{},
 		&JoinToken{},
 		&Selector{},
 		&Migration{},
 		&DNSName{},
 		&FederatedTrustDomain{},
-		&RegisteredEntriesEvent{},
-		&AttestedNodeEntriesEvent{},
 	}
 
 	if err := tableOptionsForDialect(tx, dbType).AutoMigrate(tables...).Error; err != nil {
@@ -426,7 +426,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 }
 
 func migrateToV22(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&RegisteredEntriesEvent{}, &AttestedNodeEntriesEvent{}).Error; err != nil {
+	if err := tx.AutoMigrate(&RegisteredEntryEvent{}, &AttestedNodeEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil

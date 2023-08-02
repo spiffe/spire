@@ -42,6 +42,18 @@ func (AttestedNode) TableName() string {
 	return "attested_node_entries"
 }
 
+// AttestedNodeEvent holds the SPIFFE ID of nodes that had an event
+type AttestedNodeEvent struct {
+	Model
+
+	SpiffeID string `gorm:"unique_index"`
+}
+
+// TableName gets table name for AttestedNodeEvent
+func (AttestedNodeEvent) TableName() string {
+	return "attested_node_entries_events"
+}
+
 type V3AttestedNode struct {
 	Model
 
@@ -102,6 +114,18 @@ type RegisteredEntry struct {
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
 }
 
+// RegisteredEntryEvent holds the entry id of a registered entry that had an event
+type RegisteredEntryEvent struct {
+	Model
+
+	EntryID string `gorm:"unique_index"`
+}
+
+// TableName gets table name for RegisteredEntryEvent
+func (RegisteredEntryEvent) TableName() string {
+	return "registered_entries_events"
+}
+
 // JoinToken holds a join token
 type JoinToken struct {
 	Model
@@ -160,30 +184,6 @@ type FederatedTrustDomain struct {
 // TableName gets table name of FederatedTrustDomain
 func (FederatedTrustDomain) TableName() string {
 	return "federated_trust_domains"
-}
-
-// RegisteredEntriesEvent holds the entry id of a registered entry that had an event
-type RegisteredEntriesEvent struct {
-	Model
-
-	EntryID string `gorm:"unique_index"`
-}
-
-// TableName gets table name for RegisteredEntriesEvent
-func (RegisteredEntriesEvent) TableName() string {
-	return "registered_entries_events"
-}
-
-// AttestedNodeEntriesEvent holds the SPIFFE ID of nodes that had an event
-type AttestedNodeEntriesEvent struct {
-	Model
-
-	SpiffeID string `gorm:"unique_index"`
-}
-
-// TableName gets table name for AttestedNodeEntriesEvent
-func (AttestedNodeEntriesEvent) TableName() string {
-	return "attested_node_entries_events"
 }
 
 // Migration holds database schema version number, and
