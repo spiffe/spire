@@ -46,7 +46,7 @@ func (AttestedNode) TableName() string {
 type AttestedNodeEvent struct {
 	Model
 
-	SpiffeID string `gorm:"unique_index"`
+	SpiffeID string
 }
 
 // TableName gets table name for AttestedNodeEvent
@@ -118,7 +118,7 @@ type RegisteredEntry struct {
 type RegisteredEntryEvent struct {
 	Model
 
-	EntryID string `gorm:"unique_index"`
+	EntryID string
 }
 
 // TableName gets table name for RegisteredEntryEvent
