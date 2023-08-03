@@ -8,24 +8,15 @@ import (
 // Latency is used to track timing between two specific events. It
 // is a generic version of CallCounter and can be used to measure latency between any two events.
 //
-// Example 1:
-//		func Foo() {
-//		    latency := StartLatencyMetric(metrics, "foo")
-//		 	call.AddLabel("food", "burgers")
-//  		// do something
-//	     	latency.Measure() // measure time elapsed between StartLatencyMetric() and Measure()
-//			// do other things
-//		}
+// Example:
 //
-// Example 2:
-//		func Bar() {
-//		    latency := StartLatencyMetric(metrics, "bar")
-//		 	call.AddLabel("food", "pizza")
-//  		// do something
-//	     	latency.MeasureAndReset() // emits metric for time elapsed between StartLatencyMetric() and Measure()
-//			// do other things
-//          latency.Measure() // emits metric for time elapsed between MeasureAndReset() and Measure()
-//		}
+//	func Foo() {
+//	    latency := StartLatencyMetric(metrics, "foo")
+//	    call.AddLabel("food", "burgers")
+//	    // do something
+//	    latency.Measure()
+//	    // do other things
+//	}
 //
 // Instances of this struct should only be created directly by this package
 // and its subpackages, which define the specific metrics that are emitted.
@@ -35,7 +26,6 @@ type Latency struct {
 	key     []string
 	labels  []Label
 	start   time.Time
-	done    bool
 	mu      sync.Mutex
 }
 
@@ -57,24 +47,9 @@ func (l *Latency) AddLabel(name, value string) {
 	l.labels = append(l.labels, Label{Name: name, Value: value})
 }
 
-// Reset resets the start time for the latency metric
-func (l *Latency) Reset() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.start = time.Now()
-}
-
 // Measure emits a latency metric based on l.start along with labels configured.
 func (l *Latency) Measure() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.metrics.MeasureSinceWithLabels(append(l.key, ElapsedTime), l.start, l.labels)
-}
-
-// MeasureAndReset combines Measure() and Reset()
-func (l *Latency) MeasureAndReset() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.metrics.MeasureSinceWithLabels(append(l.key, ElapsedTime), l.start, l.labels)
-	l.start = time.Now()
 }

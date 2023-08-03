@@ -86,6 +86,7 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 		}
 	}
 
+	log = log.WithField("delegate_selectors", callerSelectors)
 	entries := s.manager.MatchingRegistrationEntries(callerSelectors)
 	numRegisteredEntries := len(entries)
 
@@ -96,10 +97,7 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 
 	for _, entry := range entries {
 		if _, ok := s.authorizedDelegates[entry.SpiffeId]; ok {
-			log.WithFields(logrus.Fields{
-				"delegate_id":        entry.SpiffeId,
-				"delegate_selectors": callerSelectors,
-			}).Debug("Caller authorized as delegate")
+			log.WithField("delegate_id", entry.SpiffeId).Debug("Caller authorized as delegate")
 			return callerSelectors, nil
 		}
 	}
@@ -114,9 +112,9 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 }
 
 func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509SVIDsRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509SVIDsServer) error {
+	latency := adminapi.StartFirstX509SVIDUpdateLatency(s.metrics)
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
-	latency := adminapi.StartFirstUpdateLatency(s.metrics)
 	var receivedFirstUpdate bool
 
 	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
@@ -133,7 +131,7 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 	log.WithFields(logrus.Fields{
 		"delegate_selectors": cachedSelectors,
 		"request_selectors":  selectors,
-	}).Debug("Subscribing to cache changes")
+	}).Info("Subscribing to cache changes")
 
 	subscriber, err := s.manager.SubscribeToCacheChanges(ctx, selectors)
 	if err != nil {
@@ -186,7 +184,7 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentity
 		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: svid.X509Svid.Id.String(),
 			telemetry.TTL:      ttl.Seconds(),
-		}).Debug("Fetched X.509 SVID")
+		}).Debug("Fetched X.509 SVID for delegated identity")
 	}
 
 	return nil

@@ -7,9 +7,9 @@ import (
 // Call Counters (timing and success metrics)
 // Allows adding labels in-code
 
-// StartFirstUpdateLatency returns Latency metric
+// StartFirstX509SVIDUpdateLatency returns Latency metric
 // for SubscribeToX509SVIDs API fetching the first update from cache.
-func StartFirstUpdateLatency(m telemetry.Metrics) *telemetry.Latency {
+func StartFirstX509SVIDUpdateLatency(m telemetry.Metrics) *telemetry.Latency {
 	latency := telemetry.StartLatencyMetric(m, telemetry.DelegatedIdentityAPI, telemetry.SubscribeX509SVIDs, telemetry.FirstX509SVIDUpdate)
 	return latency
 }
@@ -24,7 +24,7 @@ func IncrDelegatedIdentityAPIConnectionCounter(m telemetry.Metrics) {
 	m.IncrCounter([]string{telemetry.DelegatedIdentityAPI, telemetry.Connection}, 1)
 }
 
-// SetDelegatedIdentityAPIConnectionGauge sets the number of active SDS connections
+// SetDelegatedIdentityAPIConnectionGauge sets the number of active connections
 func SetDelegatedIdentityAPIConnectionGauge(m telemetry.Metrics, connections int32) {
 	m.SetGauge([]string{telemetry.DelegatedIdentityAPI, telemetry.Connections}, float32(connections))
 }
