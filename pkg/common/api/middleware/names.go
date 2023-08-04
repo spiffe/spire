@@ -23,6 +23,8 @@ const (
 	HealthServiceShortName            = "Health"
 	DelegatedIdentityServiceName      = "spire.api.agent.delegatedidentity.v1.DelegatedIdentity"
 	DelegatedIdentityServiceShortName = "DelegatedIdentity"
+	SubscribeToX509SVIDsMethodName    = "SubscribeToX509SVIDs"
+	SubscribeToX509SVIDsMetricKey     = "subscribe_to_x509_svids"
 )
 
 var (
@@ -33,6 +35,13 @@ var (
 		EnvoySDSv3ServiceName, EnvoySDSv3ServiceShortName,
 		HealthServiceName, HealthServiceShortName,
 		DelegatedIdentityServiceName, DelegatedIdentityServiceShortName,
+	)
+
+	// methodMetricKeyReplacer allows adding replacement for method names that
+	// are not parsed correctly by metricKey func. Since changes to metricKey would
+	// be breaking, add a direct replacement here for the required metric key.
+	methodMetricKeyReplacer = strings.NewReplacer(
+		SubscribeToX509SVIDsMethodName, SubscribeToX509SVIDsMetricKey,
 	)
 
 	// namesCache caches parsed names
@@ -81,7 +90,7 @@ func makeNames(fullMethod string) (names api.Names) {
 
 	names.Service = serviceReplacer.Replace(names.RawService)
 	names.MetricKey = append(names.MetricKey, strings.Split(names.Service, ".")...)
-	names.MetricKey = append(names.MetricKey, names.Method)
+	names.MetricKey = append(names.MetricKey, methodMetricKeyReplacer.Replace(names.Method))
 	for i := range names.MetricKey {
 		names.MetricKey[i] = metricKey(names.MetricKey[i])
 	}
