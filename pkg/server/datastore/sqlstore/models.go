@@ -42,6 +42,18 @@ func (AttestedNode) TableName() string {
 	return "attested_node_entries"
 }
 
+// AttestedNodeEvent holds the SPIFFE ID of nodes that had an event
+type AttestedNodeEvent struct {
+	Model
+
+	SpiffeID string
+}
+
+// TableName gets table name for AttestedNodeEvent
+func (AttestedNodeEvent) TableName() string {
+	return "attested_node_entries_events"
+}
+
 type V3AttestedNode struct {
 	Model
 
@@ -100,6 +112,18 @@ type RegisteredEntry struct {
 
 	// TTL of JWT identities derived from this entry
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
+}
+
+// RegisteredEntryEvent holds the entry id of a registered entry that had an event
+type RegisteredEntryEvent struct {
+	Model
+
+	EntryID string
+}
+
+// TableName gets table name for RegisteredEntryEvent
+func (RegisteredEntryEvent) TableName() string {
+	return "registered_entries_events"
 }
 
 // JoinToken holds a join token
