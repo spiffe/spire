@@ -22,7 +22,7 @@ func TestMarshal(t *testing.T) {
 		{
 			name:  "empty bundle",
 			empty: true,
-			out:   `{"keys":null, "spiffe_refresh_hint": 60}`,
+			out:   `{"keys":null, "spiffe_refresh_hint": 60, "spiffe_sequence": 42}`,
 		},
 		{
 			name:  "with refresh hint override",
@@ -30,7 +30,15 @@ func TestMarshal(t *testing.T) {
 			opts: []MarshalOption{
 				OverrideRefreshHint(time.Second * 10),
 			},
-			out: `{"keys":null, "spiffe_refresh_hint": 10}`,
+			out: `{"keys":null, "spiffe_refresh_hint": 10, "spiffe_sequence": 42}`,
+		},
+		{
+			name:  "with sequence number override",
+			empty: true,
+			opts: []MarshalOption{
+				OverrideSequenceNumber(1),
+			},
+			out: `{"keys":null, "spiffe_refresh_hint": 60, "spiffe_sequence": 1}`,
 		},
 		{
 			name: "without X509 SVID keys",
@@ -48,7 +56,8 @@ func TestMarshal(t *testing.T) {
 						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
 					}
 				],
-				"spiffe_refresh_hint": 60
+				"spiffe_refresh_hint": 60,
+				"spiffe_sequence": 42
 			}`,
 		},
 
@@ -70,7 +79,8 @@ func TestMarshal(t *testing.T) {
 						]
 					}
 				],
-				"spiffe_refresh_hint": 60
+				"spiffe_refresh_hint": 60,
+				"spiffe_sequence": 42
 			}`, x5c(rootCA)),
 		},
 		{
@@ -96,7 +106,8 @@ func TestMarshal(t *testing.T) {
 						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
 					}
 				],
-				"spiffe_refresh_hint": 60
+				"spiffe_refresh_hint": 60,
+				"spiffe_sequence": 42
 			}`, x5c(rootCA)),
 		},
 		{
@@ -134,6 +145,7 @@ func TestMarshal(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			bundle := spiffebundle.New(trustDomain)
 			bundle.SetRefreshHint(time.Minute)
+			bundle.SetSequenceNumber(42)
 			if !testCase.empty {
 				bundle.AddX509Authority(rootCA)
 				require.NoError(t, bundle.AddJWTAuthority("FOO", testKey.Public()))
