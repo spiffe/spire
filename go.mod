@@ -71,7 +71,7 @@ require (
 	golang.org/x/crypto v0.11.0
 	golang.org/x/net v0.13.0
 	golang.org/x/sync v0.3.0
-	golang.org/x/sys v0.10.0
+	golang.org/x/sys v0.11.0
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.134.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230720185612-659f7aaaa771
@@ -82,7 +82,7 @@ require (
 	k8s.io/apimachinery v0.27.4
 	k8s.io/client-go v0.27.4
 	k8s.io/kube-aggregator v0.27.4
-	sigs.k8s.io/controller-runtime v0.15.0
+	sigs.k8s.io/controller-runtime v0.15.1
 )
 
 require (
