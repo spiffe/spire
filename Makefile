@@ -105,6 +105,14 @@ $(error unsupported ARCH: $(arch1))
 endif
 
 ############################################################################
+# Docker TLS detection for buildx
+############################################################################
+dockertls=
+ifeq ($(DOCKER_TLS_VERIFY), 1)
+dockertls=spire-buildx-tls
+endif
+
+############################################################################
 # Vars
 ############################################################################
 
@@ -332,14 +340,19 @@ artifact: build
 # Docker Images
 #############################################################################
 
+.PHONY: spire-buildx-tls
+spire-buildx-tls:
+	$(E)docker context rm -f "$(dockertls)" > /dev/null
+	$(E)docker context create $(dockertls) --description "$(dockertls)" --docker "host=$(DOCKER_HOST),ca=$(DOCKER_CERT_PATH)/ca.pem,cert=$(DOCKER_CERT_PATH)/cert.pem,key=$(DOCKER_CERT_PATH)/key.pem" > /dev/null
+
 .PHONY: container-builder
-container-builder:
-	$(E)docker buildx create --platform $(PLATFORMS) --name container-builder --node container-builder0 --use
+container-builder: $(dockertls)
+	$(E)docker buildx create $(dockertls) --platform $(PLATFORMS) --name container-builder --node container-builder0 --use
 
 define image_rule
 .PHONY: $1
 $1: $3 container-builder
-	echo Building docker image $2 $(PLATFORM)…
+	@echo Building docker image $2 $(PLATFORM)…
 	$(E)docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg goversion=$(go_version_full) \
@@ -371,7 +384,7 @@ load-images:
 define windows_image_rule
 .PHONY: $1
 $1: $3
-	echo Building docker image $2…
+	@echo Building docker image $2…
 	$(E)docker build \
 		--build-arg goversion=$(go_version_full) \
 		--target $2 \
