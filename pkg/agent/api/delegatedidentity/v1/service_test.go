@@ -872,7 +872,7 @@ func generateSubscribeToX509SVIDMetrics() []fakemetrics.MetricItem {
 	return []fakemetrics.MetricItem{
 		{
 			Type:   fakemetrics.MeasureSinceWithLabelsType,
-			Key:    []string{telemetry.DelegatedIdentityAPI, telemetry.SubscribeX509SVIDs, telemetry.FirstX509SVIDUpdate, telemetry.ElapsedTime},
+			Key:    []string{telemetry.DelegatedIdentityAPI, telemetry.SubscribeX509SVIDs, telemetry.FirstUpdate, telemetry.ElapsedTime},
 			Val:    0,
 			Labels: []telemetry.Label{},
 		},

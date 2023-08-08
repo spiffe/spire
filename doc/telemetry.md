@@ -85,7 +85,7 @@ The following metrics are emitted:
 | Call Counter | `workload_api`, `workload_attestor`                                      | `attestor`                   | The Workload API is invoking a given attestor.                                        |
 | Gauge        | `started`                                                                | `version`, `trust_domain_id` | Information about the Agent.                                                          |
 | Gauge        | `uptime_in_ms`                                                           |                              | The uptime of the Agent in milliseconds.                                              |
-| Counter      | `delegated_identity_api`, `connections`                                  |                              | The Delegated Identity API has successfully established a connection.                 |
+| Counter      | `delegated_identity_api`, `connection`                                   |                              | The Delegated Identity API has successfully established a connection.                 |
 | Gauge        | `delegated_identity_api`, `connections`                                  |                              | The number of active connection that the Delegated Identity API has.                  |
 | Latency      | `delegated_identity_api`, `subscribe_x509_svid` `first_x509_svid_update` |                              | The latency fetching first X.509-SVID in Delegated Identity API.                      |
 

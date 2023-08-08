@@ -789,8 +789,8 @@ const (
 	// FetchX509SVID functionality related to fetching an X509 SVID
 	FetchX509SVID = "fetch_x509_svid"
 
-	// FirstX509SVIDUpdate functionality related to fetching first X.509-SVID update
-	FirstX509SVIDUpdate = "first_x509_svid_update"
+	// FirstUpdate functionality related to fetching first update in a streaming API.
+	FirstUpdate = "first_update"
 
 	// GetNodeSelectors functionality related to getting node selectors
 	GetNodeSelectors = "get_node_selectors"

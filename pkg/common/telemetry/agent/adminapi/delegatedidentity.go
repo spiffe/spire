@@ -10,8 +10,7 @@ import (
 // StartFirstX509SVIDUpdateLatency returns Latency metric
 // for SubscribeToX509SVIDs API fetching the first update from cache.
 func StartFirstX509SVIDUpdateLatency(m telemetry.Metrics) *telemetry.Latency {
-	latency := telemetry.StartLatencyMetric(m, telemetry.DelegatedIdentityAPI, telemetry.SubscribeX509SVIDs, telemetry.FirstX509SVIDUpdate)
-	return latency
+	return telemetry.StartLatencyMetric(m, telemetry.DelegatedIdentityAPI, telemetry.SubscribeX509SVIDs, telemetry.FirstUpdate)
 }
 
 // End Call Counters
