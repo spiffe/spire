@@ -59,7 +59,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.23.7
 	github.com/sigstore/cosign/v2 v2.1.1
 	github.com/sigstore/rekor v1.2.2
-	github.com/sigstore/sigstore v1.7.1
+	github.com/sigstore/sigstore v1.7.2
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spiffe/go-spiffe/v2 v2.1.6
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20230629125323-08049dbe95e6
@@ -267,7 +267,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
-	github.com/secure-systems-lab/go-securesystemslib v0.6.0 // indirect
+	github.com/secure-systems-lab/go-securesystemslib v0.7.0 // indirect
 	github.com/segmentio/ksuid v1.0.4 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
