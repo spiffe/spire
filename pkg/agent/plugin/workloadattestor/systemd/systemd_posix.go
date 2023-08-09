@@ -6,6 +6,7 @@ package systemd
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/hashicorp/go-hclog"
@@ -37,8 +38,11 @@ type Plugin struct {
 
 	log hclog.Logger
 
+	dbusMutex sync.Mutex
+	dbusConn  *dbus.Conn
+
 	// hook for tests
-	getUnitInfo func(ctx context.Context, pid uint) (*DBusUnitInfo, error)
+	getUnitInfo func(p *Plugin, ctx context.Context, pid uint) (*DBusUnitInfo, error)
 }
 
 func New() *Plugin {
@@ -52,7 +56,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	uInfo, err := p.getUnitInfo(ctx, uint(req.Pid))
+	uInfo, err := p.getUnitInfo(p, ctx, uint(req.Pid))
 	if err != nil {
 		return nil, err
 	}
@@ -67,9 +71,26 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	}, nil
 }
 
-func getSystemdUnitInfo(ctx context.Context, pid uint) (*DBusUnitInfo, error) {
+func (p *Plugin) DBusConn() (*dbus.Conn, error) {
+	p.dbusMutex.Lock()
+	defer p.dbusMutex.Unlock()
+
+	if p.dbusConn != nil &&
+		p.dbusConn.Connected() {
+		return p.dbusConn, nil
+	}
+
+	conn, err := dbus.ConnectSystemBus()
+	if err != nil {
+		return nil, err
+	}
+	p.dbusConn = conn
+	return p.dbusConn, nil
+}
+
+func getSystemdUnitInfo(p *Plugin, ctx context.Context, pid uint) (*DBusUnitInfo, error) {
 	// Do not close this connection because it is shared and will autoclose on errors
-	conn, err := dbus.SystemBus()
+	conn, err := p.DBusConn()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to open dbus connection: %v", err)
 	}
