@@ -305,7 +305,7 @@ jobs:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Install msys2
-        uses: msys2/setup-msys2@d40200dc2db4c351366b048a9565ad82919e1c24 # v2
+        uses: msys2/setup-msys2@07aeda7763550b267746a772dcea5e5ac3340b36 # v2
         with:
           msystem: MINGW64
           update: true
@@ -376,7 +376,7 @@ jobs:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Install msys2
-        uses: msys2/setup-msys2@d40200dc2db4c351366b048a9565ad82919e1c24 # v2
+        uses: msys2/setup-msys2@07aeda7763550b267746a772dcea5e5ac3340b36 # v2
         with:
           msystem: MINGW64
           update: true
@@ -414,7 +414,7 @@ jobs:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Install msys2
-        uses: msys2/setup-msys2@d40200dc2db4c351366b048a9565ad82919e1c24 # v2
+        uses: msys2/setup-msys2@07aeda7763550b267746a772dcea5e5ac3340b36 # v2
         with:
           msystem: MINGW64
           update: true
@@ -453,7 +453,7 @@ jobs:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Install msys2
-        uses: msys2/setup-msys2@d40200dc2db4c351366b048a9565ad82919e1c24 # v2
+        uses: msys2/setup-msys2@07aeda7763550b267746a772dcea5e5ac3340b36 # v2
         with:
           msystem: MINGW64
           update: true
