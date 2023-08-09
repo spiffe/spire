@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/telemetry/agent/adminapi"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -39,6 +40,7 @@ type attestor interface {
 
 type Config struct {
 	Log                 logrus.FieldLogger
+	Metrics             telemetry.Metrics
 	Manager             manager.Manager
 	Attestor            workloadattestor.Attestor
 	AuthorizedDelegates []string
@@ -54,6 +56,7 @@ func New(config Config) *Service {
 	return &Service{
 		manager:             config.Manager,
 		attestor:            endpoints.PeerTrackerAttestor{Attestor: config.Attestor},
+		metrics:             config.Metrics,
 		authorizedDelegates: AuthorizedDelegates,
 	}
 }
@@ -64,6 +67,7 @@ type Service struct {
 
 	manager  manager.Manager
 	attestor attestor
+	metrics  telemetry.Metrics
 
 	// SPIFFE IDs of delegates that are authorized to use this API
 	authorizedDelegates map[string]bool
@@ -82,6 +86,7 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 		}
 	}
 
+	log = log.WithField("delegate_selectors", callerSelectors)
 	entries := s.manager.MatchingRegistrationEntries(callerSelectors)
 	numRegisteredEntries := len(entries)
 
@@ -92,6 +97,7 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 
 	for _, entry := range entries {
 		if _, ok := s.authorizedDelegates[entry.SpiffeId]; ok {
+			log.WithField("delegate_id", entry.SpiffeId).Debug("Caller authorized as delegate")
 			return callerSelectors, nil
 		}
 	}
@@ -106,8 +112,10 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 }
 
 func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509SVIDsRequest, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509SVIDsServer) error {
+	latency := adminapi.StartFirstX509SVIDUpdateLatency(s.metrics)
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
+	var receivedFirstUpdate bool
 
 	cachedSelectors, err := s.isCallerAuthorized(ctx, log, nil)
 	if err != nil {
@@ -120,6 +128,11 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 		return status.Error(codes.InvalidArgument, "could not parse provided selectors")
 	}
 
+	log.WithFields(logrus.Fields{
+		"delegate_selectors": cachedSelectors,
+		"request_selectors":  selectors,
+	}).Info("Subscribing to cache changes")
+
 	subscriber, err := s.manager.SubscribeToCacheChanges(ctx, selectors)
 	if err != nil {
 		log.WithError(err).Error("Subscribe to cache changes failed")
@@ -130,6 +143,12 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 	for {
 		select {
 		case update := <-subscriber.Updates():
+			if !receivedFirstUpdate {
+				// emit latency metric for first update.
+				latency.Measure()
+				receivedFirstUpdate = true
+			}
+
 			if _, err := s.isCallerAuthorized(ctx, log, cachedSelectors); err != nil {
 				return err
 			}
@@ -153,6 +172,19 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentity
 	if err := stream.Send(resp); err != nil {
 		log.WithError(err).Error("Failed to send X.509 SVID response")
 		return err
+	}
+
+	log = log.WithField(telemetry.Count, len(resp.X509Svids))
+
+	// log details on each SVID
+	// a response has already been sent so nothing is
+	// blocked on this logic
+	for i, svid := range resp.X509Svids {
+		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
+		log.WithFields(logrus.Fields{
+			telemetry.SPIFFEID: svid.X509Svid.Id.String(),
+			telemetry.TTL:      ttl.Seconds(),
+		}).Debug("Fetched X.509 SVID for delegated identity")
 	}
 
 	return nil

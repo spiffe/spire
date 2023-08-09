@@ -27,6 +27,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
@@ -68,15 +69,16 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 	identities[1].Entry.Hint = "external"
 
 	for _, tt := range []struct {
-		testName     string
-		identities   []cache.Identity
-		updates      []*cache.WorkloadUpdate
-		authSpiffeID []string
-		expectCode   codes.Code
-		expectMsg    string
-		attestErr    error
-		managerErr   error
-		expectResp   *delegatedidentityv1.SubscribeToX509SVIDsResponse
+		testName      string
+		identities    []cache.Identity
+		updates       []*cache.WorkloadUpdate
+		authSpiffeID  []string
+		expectCode    codes.Code
+		expectMsg     string
+		attestErr     error
+		managerErr    error
+		expectMetrics []fakemetrics.MetricItem
+		expectResp    *delegatedidentityv1.SubscribeToX509SVIDsResponse
 	}{
 		{
 			testName:   "attest error",
@@ -128,6 +130,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 					},
 				},
 			},
+			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
 		{
 			testName:     "workload update with two identities",
@@ -164,6 +167,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 					},
 				},
 			},
+			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
 		{
 			testName:     "no workload update",
@@ -171,8 +175,9 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			identities: []cache.Identity{
 				identities[0],
 			},
-			updates:    []*cache.WorkloadUpdate{{}},
-			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{},
+			updates:       []*cache.WorkloadUpdate{{}},
+			expectResp:    &delegatedidentityv1.SubscribeToX509SVIDsResponse{},
+			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
 		{
 			testName:     "workload update without identity.SVID",
@@ -185,8 +190,9 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 					identityFromX509SVIDWithoutSVID(x509SVID1),
 				}},
 			},
-			expectCode: codes.Internal,
-			expectMsg:  "could not serialize response",
+			expectCode:    codes.Internal,
+			expectMsg:     "could not serialize response",
+			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
 		{
 			testName:     "workload update with identity and federated bundles",
@@ -217,6 +223,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				},
 				FederatesWith: []string{federatedBundle1.TrustDomain().IDString()},
 			},
+			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
 		{
 			testName:     "workload update with identity and two federated bundles",
@@ -249,10 +256,12 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				FederatesWith: []string{federatedBundle1.TrustDomain().IDString(),
 					federatedBundle2.TrustDomain().IDString()},
 			},
+			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
 	} {
 		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
+			metrics := fakemetrics.New()
 			params := testParams{
 				CA:           ca,
 				Identities:   tt.identities,
@@ -260,6 +269,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				AuthSpiffeID: tt.authSpiffeID,
 				AttestErr:    tt.attestErr,
 				ManagerErr:   tt.managerErr,
+				Metrics:      metrics,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
@@ -275,6 +285,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 
 					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
+					require.Equal(t, tt.expectMetrics, metrics.AllMetrics())
 				})
 		})
 	}
@@ -672,6 +683,7 @@ type testParams struct {
 	AuthSpiffeID []string
 	AttestErr    error
 	ManagerErr   error
+	Metrics      *fakemetrics.FakeMetrics
 }
 
 func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient)) {
@@ -691,6 +703,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	service := New(Config{
 		Log:                 log,
 		Manager:             manager,
+		Metrics:             params.Metrics,
 		AuthorizedDelegates: params.AuthSpiffeID,
 	})
 
@@ -853,4 +866,15 @@ func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
 func newTestCache() *cache.Cache {
 	log, _ := test.NewNullLogger()
 	return cache.New(log, trustDomain1, bundle1, telemetry.Blackhole{})
+}
+
+func generateSubscribeToX509SVIDMetrics() []fakemetrics.MetricItem {
+	return []fakemetrics.MetricItem{
+		{
+			Type:   fakemetrics.MeasureSinceWithLabelsType,
+			Key:    []string{telemetry.DelegatedIdentityAPI, telemetry.SubscribeX509SVIDs, telemetry.FirstUpdate, telemetry.ElapsedTime},
+			Val:    0,
+			Labels: []telemetry.Label{},
+		},
+	}
 }

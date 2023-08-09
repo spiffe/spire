@@ -122,7 +122,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	if a.c.AdminBindAddress != nil {
-		adminEndpoints := a.newAdminEndpoints(manager, workloadAttestor, a.c.AuthorizedDelegates)
+		adminEndpoints := a.newAdminEndpoints(metrics, manager, workloadAttestor, a.c.AuthorizedDelegates)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
 
@@ -276,11 +276,12 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 	})
 }
 
-func (a *Agent) newAdminEndpoints(mgr manager.Manager, attestor workload_attestor.Attestor, authorizedDelegates []string) admin_api.Server {
+func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager, attestor workload_attestor.Attestor, authorizedDelegates []string) admin_api.Server {
 	config := &admin_api.Config{
 		BindAddr:            a.c.AdminBindAddress,
 		Manager:             mgr,
-		Log:                 a.c.Log.WithField(telemetry.SubsystemName, telemetry.DebugAPI),
+		Log:                 a.c.Log,
+		Metrics:             metrics,
 		TrustDomain:         a.c.TrustDomain,
 		Uptime:              uptime.Uptime,
 		Attestor:            attestor,
