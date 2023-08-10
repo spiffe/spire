@@ -27,6 +27,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/fflag"
@@ -422,11 +423,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 				}
 
 				if refreshHint >= 24*time.Hour {
-					sc.Log.Warn("Bundle endpoint refresh hint set to a high value. " +
-						"It's recommended to set the refresh hint to a small value" +
-						", e.g. 5 minutes to make sure that trust domains that federate " +
-						"with this trust domain refresh the trust bundle often enough to " +
-						"cover the case of unscheduled trust bundle updates.")
+					sc.Log.Warn("Bundle endpoint refresh hint set to a high value. To cover " +
+						"the case of unscheduled trust bundle updates, it's recommended to " +
+						"have a smaller value, e.g. 5m")
+				}
+
+				if refreshHint < bundleutil.MinimumRefreshHint {
+					sc.Log.Warn("Bundle endpoint refresh hint set too low. SPIRE will not " +
+						"refresh more often than 1 minutes")
 				}
 
 				sc.Federation.BundleEndpoint.RefreshHint = &refreshHint
