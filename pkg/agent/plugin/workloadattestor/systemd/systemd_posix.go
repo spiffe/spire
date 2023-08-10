@@ -42,7 +42,7 @@ type Plugin struct {
 	dbusConn  *dbus.Conn
 
 	// hook for tests
-	getUnitInfo func(p *Plugin, ctx context.Context, pid uint) (*DBusUnitInfo, error)
+	getUnitInfo func(ctx context.Context, p *Plugin, pid uint) (*DBusUnitInfo, error)
 }
 
 func New() *Plugin {
@@ -56,7 +56,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	uInfo, err := p.getUnitInfo(p, ctx, uint(req.Pid))
+	uInfo, err := p.getUnitInfo(ctx, p, uint(req.Pid))
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (p *Plugin) DBusConn() (*dbus.Conn, error) {
 	return p.dbusConn, nil
 }
 
-func getSystemdUnitInfo(p *Plugin, ctx context.Context, pid uint) (*DBusUnitInfo, error) {
+func getSystemdUnitInfo(ctx context.Context, p *Plugin, pid uint) (*DBusUnitInfo, error) {
 	// Do not close this connection because it is shared and will autoclose on errors
 	conn, err := p.DBusConn()
 	if err != nil {
