@@ -17,6 +17,7 @@ type SessionConfig struct {
 	AccessKeyID     string `hcl:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key"`
 	AssumeRole      string `hcl:"assume_role"`
+	Partition       string `hcl:"partition"`
 }
 
 func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey string) error {
