@@ -5,6 +5,7 @@
 ### Added
 
 - `aws_s3` BundlePublisher plugin (#4355)
+- SPIRE Server bundle endpoint now includes bundle sequence number (#4389)
 - Telemetry in experimental Agent LRU cache (#4335)
 - Telemetry in Agent Delegated Identity API (#4399)
 - Documentation improvements (#4336, #4407)
@@ -12,7 +13,6 @@
 ### Fixed
 
 - Server no longer unnecessarily activates its CA a second time on startup (#4368)
-- SPIRE Server bundle endpoint now correctly includes bundle sequence number (#4389)
 
 ## [1.7.1] - 2023-07-27
 
