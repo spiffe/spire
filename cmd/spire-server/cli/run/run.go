@@ -418,7 +418,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			if c.Server.Federation.BundleEndpoint.RefreshHint != "" {
 				refreshHint, err := time.ParseDuration(c.Server.Federation.BundleEndpoint.RefreshHint)
 				if err != nil {
-					return nil, fmt.Errorf("Could not parse refresh_hint %q: %w", c.Server.Federation.BundleEndpoint.RefreshHint, err)
+					return nil, fmt.Errorf("could not parse refresh_hint %q: %w", c.Server.Federation.BundleEndpoint.RefreshHint, err)
 				}
 
 				if refreshHint >= 24*time.Hour {

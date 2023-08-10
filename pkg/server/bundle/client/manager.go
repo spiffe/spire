@@ -27,8 +27,8 @@ const (
 	// updaters.
 	configRefreshInterval = time.Second * 10
 
-	// defaultRefreshInterval is how often the managed reloads the trust bundle
-	// for a trust domain if that trust domain does not specify a refresh hin in
+	// defaultRefreshInterval is how often the manager reloads the trust bundle
+	// for a trust domain if that trust domain does not specify a refresh hint in
 	// its current trust bundle.
 	defaultRefreshInterval = time.Minute * 5
 )
