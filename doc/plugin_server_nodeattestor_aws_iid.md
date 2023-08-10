@@ -31,7 +31,7 @@ A sample configuration:
     }
 ```
 
-If `assume_role` is set, the spire server will assume the role as specified by the template `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}` where `AccountID` is taken from the AWS IID document sent by the spire agent to the spire server and `AssumeRole` comes from the AWS NodeAttestor plugin configuration.
+If `assume_role` is set, the spire server will assume the role as specified by the template `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}` where `Partition` comes from the AWS NodeAttestor plugin configuration if specified otherwise set ot 'aws', `AccountID` is taken from the AWS IID document sent by the spire agent to the spire server and `AssumeRole` comes from the AWS NodeAttestor plugin configuration.
 
 In the following configuration,
 
