@@ -18,7 +18,7 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `skip_block_device`                  | Skip anti-tampering mechanism which checks to make sure that the underlying root volume has not been detached prior to attestation.                           | false                                                 |
 | `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false                                                 |
 | `assume_role`                        | The role to assume                                                                                                                                            | Empty string, Optional parameter.                     |
-| `partition`                          | The aws partition spire server is running in <aws|aws-cn|aws-us-gov>                                                                                           | aws                                                  |
+| `partition`                          | The aws partition spire server is running in &lt;aws&vert;aws-cn&vert;aws-us-gov&gt;                                                                          | aws                                                  |
 
 A sample configuration:
 
