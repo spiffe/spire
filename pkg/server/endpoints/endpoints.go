@@ -28,6 +28,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -188,11 +189,14 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 			return e.runLocalAccess(ctx, udsServer)
 		},
 		e.EntryFetcherCacheRebuildTask,
-		e.EntryFetcherPruneEventsTask,
 	}
 
 	if e.BundleEndpointServer != nil {
 		tasks = append(tasks, e.BundleEndpointServer.ListenAndServe)
+	}
+
+	if fflag.IsSet(fflag.FlagEventsBasedCache) {
+		tasks = append(tasks, e.EntryFetcherPruneEventsTask)
 	}
 
 	err := util.RunTasks(ctx, tasks...)

@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -112,6 +113,9 @@ func (s *PluginSuite) SetupSuite() {
 		s.Require().NoError(err, "failed to parse read-only delay")
 		s.readOnlyDelay = delay
 	}
+
+	err = fflag.Load(fflag.RawConfig{"events_based_cache"})
+	s.Require().NoError(err)
 }
 
 func (s *PluginSuite) SetupTest() {

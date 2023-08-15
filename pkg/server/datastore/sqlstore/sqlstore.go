@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -377,7 +378,12 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 		if err != nil {
 			return err
 		}
-		return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
+
+		if fflag.IsSet(fflag.FlagEventsBasedCache) {
+			return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
+		}
+
+		return nil
 	}); err != nil {
 		return nil, false, err
 	}
@@ -420,7 +426,12 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.Registr
 		if err != nil {
 			return err
 		}
-		return createRegistrationEntryEvent(tx, entry.EntryId)
+
+		if fflag.IsSet(fflag.FlagEventsBasedCache) {
+			return createRegistrationEntryEvent(tx, entry.EntryId)
+		}
+
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -436,7 +447,12 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 		if err != nil {
 			return err
 		}
-		return createRegistrationEntryEvent(tx, entryID)
+
+		if fflag.IsSet(fflag.FlagEventsBasedCache) {
+			return createRegistrationEntryEvent(tx, entryID)
+		}
+
+		return nil
 	}); err != nil {
 		return nil, err
 	}

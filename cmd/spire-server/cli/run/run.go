@@ -99,7 +99,7 @@ type serverConfig struct {
 type experimentalConfig struct {
 	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 	CacheReloadInterval string                      `hcl:"cache_reload_interval"`
-	PruneEventsInterval string                      `hcl:"events_purge_interval"`
+	PruneEventsInterval string                      `hcl:"prune_events_interval"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
