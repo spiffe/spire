@@ -181,11 +181,11 @@ func TestGetJWTAuthorityState(t *testing.T) {
 			currentSlot: createSlot(journal.Status_ACTIVE, "", nil, time.Time{}),
 			nextSlot:    &fakeSlot{},
 			expectCode:  codes.Internal,
-			expectMsg:   "current slot does not contains authority ID",
+			expectMsg:   "current slot does not contain authority ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Current slot does not contains authority ID",
+					Message: "Current slot does not contain authority ID",
 				},
 				{
 					Level:   logrus.InfoLevel,
@@ -193,7 +193,7 @@ func TestGetJWTAuthorityState(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "Internal",
-						telemetry.StatusMessage: "current slot does not contains authority ID",
+						telemetry.StatusMessage: "current slot does not contain authority ID",
 						telemetry.Type:          "audit",
 					},
 				},
@@ -385,13 +385,14 @@ func TestActivateJWTAuthority(t *testing.T) {
 			nextSlot:      createSlot(journal.Status_OLD, authorityIDKeyB, keyB.Public(), notAfterNext),
 			keyToActivate: authorityIDKeyB,
 			expectCode:    codes.Internal,
-			expectMsg:     "only Prepared authorities can be activated",
+			expectMsg:     "only Prepared authorities can be activated: unsupported local authority status: OLD",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Only Prepared authorities can be activated",
 					Data: logrus.Fields{
 						telemetry.LocalAuthorityID: authorityIDKeyB,
+						logrus.ErrorKey:            "unsupported local authority status: OLD",
 					},
 				},
 				{
@@ -400,7 +401,7 @@ func TestActivateJWTAuthority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
 						telemetry.StatusCode:       "Internal",
-						telemetry.StatusMessage:    "only Prepared authorities can be activated",
+						telemetry.StatusMessage:    "only Prepared authorities can be activated: unsupported local authority status: OLD",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: authorityIDKeyB,
 					},
@@ -542,6 +543,7 @@ func TestTaintJWTAuthority(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: only Old local authorities can be tainted",
 					Data: logrus.Fields{
+						logrus.ErrorKey:            "unsupported local authority status: PREPARED",
 						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
 				},
@@ -551,7 +553,7 @@ func TestTaintJWTAuthority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
 						telemetry.StatusCode:       "InvalidArgument",
-						telemetry.StatusMessage:    "only Old local authorities can be tainted",
+						telemetry.StatusMessage:    "only Old local authorities can be tainted: unsupported local authority status: PREPARED",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
@@ -768,7 +770,7 @@ func TestRevokeJWTAuthority(t *testing.T) {
 			},
 		},
 		{
-			name:        "no allow to revoke a prepared key",
+			name:        "not allow to revoke a prepared key",
 			currentSlot: createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), currentKeyNotAfter),
 			nextSlot:    createSlot(journal.Status_PREPARED, nextAuthorityID, nextKey.Public(), nextKeyNotAfter),
 			keyToRevoke: nextAuthorityID,
@@ -1011,11 +1013,11 @@ func TestGetX509AuthorityState(t *testing.T) {
 			currentSlot: createSlot(journal.Status_ACTIVE, "", nil, time.Time{}),
 			nextSlot:    &fakeSlot{},
 			expectCode:  codes.Internal,
-			expectMsg:   "current slot does not contains authority ID",
+			expectMsg:   "current slot does not contain authority ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Current slot does not contains authority ID",
+					Message: "Current slot does not contain authority ID",
 				},
 				{
 					Level:   logrus.InfoLevel,
@@ -1023,7 +1025,7 @@ func TestGetX509AuthorityState(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "Internal",
-						telemetry.StatusMessage: "current slot does not contains authority ID",
+						telemetry.StatusMessage: "current slot does not contain authority ID",
 						telemetry.Type:          "audit",
 					},
 				},
@@ -1217,12 +1219,13 @@ func TestActivateX509Authority(t *testing.T) {
 			nextSlot:      createSlot(journal.Status_OLD, authorityIDKeyB, keyB.Public(), notAfterNext),
 			keyToActivate: authorityIDKeyB,
 			expectCode:    codes.Internal,
-			expectMsg:     "only Prepared authorities can be activated",
+			expectMsg:     "only Prepared authorities can be activated: unsupported local authority status: OLD",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Only Prepared authorities can be activated",
 					Data: logrus.Fields{
+						logrus.ErrorKey:            "unsupported local authority status: OLD",
 						telemetry.LocalAuthorityID: authorityIDKeyB,
 					},
 				},
@@ -1232,7 +1235,7 @@ func TestActivateX509Authority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
 						telemetry.StatusCode:       "Internal",
-						telemetry.StatusMessage:    "only Prepared authorities can be activated",
+						telemetry.StatusMessage:    "only Prepared authorities can be activated: unsupported local authority status: OLD",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: authorityIDKeyB,
 					},
@@ -1375,12 +1378,13 @@ func TestTaintX509Authority(t *testing.T) {
 			nextSlot:    createSlot(journal.Status_PREPARED, nextAuthorityID, nextKey.Public(), notAfterNext),
 			keyToTaint:  nextAuthorityID,
 			expectCode:  codes.InvalidArgument,
-			expectMsg:   "only Old local authorities can be tainted",
+			expectMsg:   "only Old local authorities can be tainted: unsupported local authority status: PREPARED",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: only Old local authorities can be tainted",
 					Data: logrus.Fields{
+						logrus.ErrorKey:            "unsupported local authority status: PREPARED",
 						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
 				},
@@ -1390,7 +1394,7 @@ func TestTaintX509Authority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
 						telemetry.StatusCode:       "InvalidArgument",
-						telemetry.StatusMessage:    "only Old local authorities can be tainted",
+						telemetry.StatusMessage:    "only Old local authorities can be tainted: unsupported local authority status: PREPARED",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: nextAuthorityID,
 					},

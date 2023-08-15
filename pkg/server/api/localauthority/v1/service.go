@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"errors"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -66,7 +67,7 @@ func (s *Service) GetJWTAuthorityState(ctx context.Context, _ *localauthorityv1.
 	case current.Status() != journal.Status_ACTIVE:
 		return nil, api.MakeErr(log, codes.Unavailable, "server is initializing", nil)
 	case current.AuthorityID() == "":
-		return nil, api.MakeErr(log, codes.Internal, "current slot does not contains authority ID", nil)
+		return nil, api.MakeErr(log, codes.Internal, "current slot does not contain authority ID", nil)
 	}
 
 	resp := &localauthorityv1.GetJWTAuthorityStateResponse{
@@ -136,7 +137,7 @@ func (s *Service) ActivateJWTAuthority(ctx context.Context, req *localauthorityv
 
 	// Only PREPARED local authorities can be Activated
 	case nextSlot.Status() != journal.Status_PREPARED:
-		return nil, api.MakeErr(log, codes.Internal, "only Prepared authorities can be activated", nil)
+		return nil, api.MakeErr(log, codes.Internal, "only Prepared authorities can be activated", fmt.Errorf("unsupported local authority status: %v", nextSlot.Status()))
 	}
 
 	s.ca.RotateJWTKey()
@@ -177,7 +178,7 @@ func (s *Service) TaintJWTAuthority(ctx context.Context, req *localauthorityv1.T
 
 	// Only OLD authorities can be tainted
 	case nextSlot.Status() != journal.Status_OLD:
-		return nil, api.MakeErr(log, codes.InvalidArgument, "only Old local authorities can be tainted", nil)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "only Old local authorities can be tainted", fmt.Errorf("unsupported local authority status: %v", nextSlot.Status()))
 	}
 
 	if _, err := s.ds.TaintJWTKey(ctx, s.td.IDString(), nextSlot.AuthorityID()); err != nil {
@@ -234,7 +235,7 @@ func (s *Service) GetX509AuthorityState(ctx context.Context, _ *localauthorityv1
 	case current.Status() != journal.Status_ACTIVE:
 		return nil, api.MakeErr(log, codes.Unavailable, "server is initializing", nil)
 	case current.AuthorityID() == "":
-		return nil, api.MakeErr(log, codes.Internal, "current slot does not contains authority ID", nil)
+		return nil, api.MakeErr(log, codes.Internal, "current slot does not contain authority ID", nil)
 	}
 
 	resp := &localauthorityv1.GetX509AuthorityStateResponse{
@@ -303,7 +304,7 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 
 	// Only PREPARED local authorities can be Activated
 	case nextSlot.Status() != journal.Status_PREPARED:
-		return nil, api.MakeErr(log, codes.Internal, "only Prepared authorities can be activated", nil)
+		return nil, api.MakeErr(log, codes.Internal, "only Prepared authorities can be activated", fmt.Errorf("unsupported local authority status: %v", nextSlot.Status()))
 	}
 
 	// Move next into current and reset next to clean CA
@@ -345,7 +346,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 
 	// Only OLD authorities can be tainted
 	case nextSlot.Status() != journal.Status_OLD:
-		return nil, api.MakeErr(log, codes.InvalidArgument, "only Old local authorities can be tainted", nil)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "only Old local authorities can be tainted", fmt.Errorf("unsupported local authority status: %v", nextSlot.Status()))
 	}
 
 	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), nextSlot.PublicKey()); err != nil {
