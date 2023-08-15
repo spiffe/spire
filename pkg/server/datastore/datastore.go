@@ -41,7 +41,7 @@ type DataStore interface {
 	UpdateRegistrationEntry(context.Context, *common.RegistrationEntry, *common.RegistrationEntryMask) (*common.RegistrationEntry, error)
 
 	// Entries Events
-	ListRegistrationEntriesEvents(context.Context, *ListRegistrationEntriesEventsRequest) (*ListRegistrationEntriesEventsResponse, error)
+	ListRegistrationEntriesEvents(ctx context.Context, req *ListRegistrationEntriesEventsRequest) (*ListRegistrationEntriesEventsResponse, error)
 	PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) error
 
 	// Nodes
