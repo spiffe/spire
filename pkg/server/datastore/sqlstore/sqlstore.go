@@ -479,7 +479,7 @@ func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datast
 	return resp, nil
 }
 
-// PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration, ie more thano 24 hours old
+// PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
 func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = pruneRegistrationEntriesEvents(tx, olderThan)
