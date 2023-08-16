@@ -35,7 +35,7 @@
             key="${key//\"}"
             lowest_target_version="v1.21"
             # Check if the key is greater than or equal to "1.21"
-            if [[ $(printf "%s\n$lowest_target_version" "$key" | sort -V | head -n1) == "$lowest_target_version" ]]; then
+            if [[ $(printf "%s\n$lowest_target_version" "$key" | sort -V | head -n1) == $lowest_target_version ]]; then
                 # Extract the "YY" part as the value for the map
                 value="${element##*.}"
                 tags_map["$key"]=$value
@@ -45,7 +45,7 @@
           # Read the content of the array.txt file
           # Currently we just have one row as example, add more if we need to test a specific version
           # Test elements should be added as [KubeCTLVersion, K8s-image, KindVersion]
-          IFS= readarray -t matrix_lines < ./.github/workflows/scripts/integration_k8s_versions.txt
+          IFS= readarray -t matrix_lines < ./.github/workflows/utils/integration_k8s_versions.txt
 
           # Convert each line of the file into a JSON array element
           json_array="["
