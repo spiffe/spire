@@ -44,12 +44,12 @@
           # Read the content of the array.txt file
           # Currently we just have one row as example, add more if we need to test a specific version
           # Test elements should be added as [KubeCTLVersion, K8s-image, KindVersion]
-          IFS= readarray -t matrix_lines < ./.github/k8s-version/array.txt
+          IFS= readarray -t matrix_lines < ./.github/workflows/integration_k8s_versions.txt
 
           # Convert each line of the file into a JSON array element
           json_array="["
           for line in "${matrix_lines[@]}"; do
-          json_array+="$line,"
+            json_array+="$line,"
           done
 
           # Add every version from tags_map
