@@ -14,7 +14,7 @@ fi
 
 declare -a job_set
 current_runner=1
-for FILE in test/integration/suites-k8s/*; do
+for FILE in test/integration/suites/k8s*; do
         job_set[$current_runner]+="${FILE##test/integration/} "
 
         ((current_runner++))
