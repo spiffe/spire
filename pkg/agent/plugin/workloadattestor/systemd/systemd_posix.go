@@ -71,7 +71,17 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	}, nil
 }
 
-func (p *Plugin) DBusConn() (*dbus.Conn, error) {
+func (p *Plugin) Close() error {
+	p.dbusMutex.Lock()
+	defer p.dbusMutex.Unlock()
+
+	if p.dbusConn != nil {
+		return p.dbusConn.Close()
+	}
+	return nil
+}
+
+func (p *Plugin) getDBusConn() (*dbus.Conn, error) {
 	p.dbusMutex.Lock()
 	defer p.dbusMutex.Unlock()
 
@@ -89,8 +99,8 @@ func (p *Plugin) DBusConn() (*dbus.Conn, error) {
 }
 
 func getSystemdUnitInfo(ctx context.Context, p *Plugin, pid uint) (*DBusUnitInfo, error) {
-	// Do not close this connection because it is shared and will autoclose on errors
-	conn, err := p.DBusConn()
+	// We are not closing the connection here because it's closed when the Close() function is called as part of unloading the plugin.
+	conn, err := p.getDBusConn()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to open dbus connection: %v", err)
 	}
