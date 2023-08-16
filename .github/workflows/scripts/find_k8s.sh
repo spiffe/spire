@@ -19,6 +19,8 @@
           
           readarray -t tags_sorted < <(printf '%s\n' "${all_tags[@]}" | sort -V)
 
+          lowest_target_version=$(cat ./.github/workflows/utils/lowest_target_version.txt)
+        #   lowest_target_version="v1.21"
           declare -A tags_map
           for element in "${tags_sorted[@]}"; do
             # Element is in this form: "X.XX.YY"
@@ -33,9 +35,8 @@
             # Extract the "X.XX" part as the key for the map
             key="${element%.*}"
             key="${key//\"}"
-            lowest_target_version="v1.21"
             # Check if the key is greater than or equal to "1.21"
-            if [[ $(printf "%s\n$lowest_target_version" "$key" | sort -V | head -n1) == $lowest_target_version ]]; then
+            if [[ $(printf "%s\n$lowest_target_version" "$key" | sort -V | head -n1) == "$lowest_target_version" ]]; then
                 # Extract the "YY" part as the value for the map
                 value="${element##*.}"
                 tags_map["$key"]=$value
