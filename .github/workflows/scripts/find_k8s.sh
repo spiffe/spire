@@ -20,7 +20,7 @@
           readarray -t tags_sorted < <(printf '%s\n' "${all_tags[@]}" | sort -V)
 
           lowest_target_version=$(cat ./.github/workflows/utils/lowest_target_version.txt)
-        #   lowest_target_version="v1.21"
+          
           declare -A tags_map
           for element in "${tags_sorted[@]}"; do
             # Element is in this form: "X.XX.YY"
