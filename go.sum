@@ -792,8 +792,8 @@ github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbi
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-go v3.2.0+incompatible h1:qSG2N4FghB1He/r2mFrWKCaL7dXCilEuNEeAn20fdD4=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.9 h1:YjE60yhoMx231GwDrJgeBWSTbTbazZAuK89H0iuXJlM=
-github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.9/go.mod h1:+FaFzlKsx+X/2dR5Rjr6EN9ZzuYDW950s4MmFILchJM=
+github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.10 h1:h2qYaJSDGyVzjGVj3HansB3mJUnyU9wBc/8/nm/kSLs=
+github.com/GoogleCloudPlatform/cloudsql-proxy v1.33.10/go.mod h1:+FaFzlKsx+X/2dR5Rjr6EN9ZzuYDW950s4MmFILchJM=
 github.com/JohnCGriffin/overflow v0.0.0-20211019200055-46fa312c352c/go.mod h1:X0CRv0ky0k6m906ixxpzmDRLvX58TFUKS2eePweuyxk=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
