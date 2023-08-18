@@ -107,7 +107,6 @@ type sdsConfig struct {
 	DefaultBundleName           string `hcl:"default_bundle_name"`
 	DefaultAllBundlesName       string `hcl:"default_all_bundles_name"`
 	DisableSPIFFECertValidation bool   `hcl:"disable_spiffe_cert_validation"`
-	EnableDeprecatedv2API       bool   `hcl:"enable_deprecated_v2_api"`
 }
 
 type experimentalConfig struct {
@@ -504,10 +503,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.JoinToken = c.Agent.JoinToken
 	ac.DataDir = c.Agent.DataDir
 	ac.DefaultSVIDName = c.Agent.SDS.DefaultSVIDName
-	ac.EnableDeprecatedSDSv2API = c.Agent.SDS.EnableDeprecatedv2API
-	if ac.EnableDeprecatedSDSv2API {
-		logger.Warn("The Envoy SDS v2 API is now deprecated in SPIRE and is no longer supported by Envoy. It is recommended that users of the SDS v2 API migrate to the SDS v3 API. The SDS v2 API and this config setting will be removed in a future version.")
-	}
 	ac.DefaultBundleName = c.Agent.SDS.DefaultBundleName
 	ac.DefaultAllBundlesName = c.Agent.SDS.DefaultAllBundlesName
 	if ac.DefaultAllBundlesName == ac.DefaultBundleName {
