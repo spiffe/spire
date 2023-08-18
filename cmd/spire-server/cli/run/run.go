@@ -430,7 +430,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 				if refreshHint < bundleutil.MinimumRefreshHint {
 					sc.Log.Warn("Bundle endpoint refresh hint set too low. SPIRE will not " +
-						"refresh more often than 1 minutes")
+						"refresh more often than 1 minute")
 				}
 
 				sc.Federation.BundleEndpoint.RefreshHint = &refreshHint
