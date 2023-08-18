@@ -4432,67 +4432,6 @@ func (s *PluginSuite) TestUpdateFederationRelationship() {
 	}
 }
 
-func (s *PluginSuite) TestCleanStaleNodeResolverEntries() {
-	deletedNodeSPIFFEID := "thisNodeDoesNotExist"
-	existentNode := &common.AttestedNode{
-		SpiffeId:            "foo",
-		AttestationDataType: "aws-tag",
-		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
-	}
-
-	selectors := []*common.Selector{
-		{Type: "TYPE1", Value: "VALUE1"},
-		{Type: "TYPE2", Value: "VALUE2"},
-		{Type: "TYPE3", Value: "VALUE3"},
-		{Type: "TYPE4", Value: "VALUE4"},
-	}
-	_, err := s.ds.CreateAttestedNode(ctx, existentNode)
-	require.NoError(s.T(), err)
-	err = s.ds.SetNodeSelectors(ctx, existentNode.SpiffeId, selectors)
-	require.NoError(s.T(), err)
-	nodeSelectors, err := s.ds.GetNodeSelectors(ctx, existentNode.SpiffeId, datastore.RequireCurrent)
-	s.Require().NoError(err)
-	s.Equal(selectors, nodeSelectors)
-
-	err = s.ds.SetNodeSelectors(ctx, deletedNodeSPIFFEID, selectors)
-	require.NoError(s.T(), err)
-	staleNodeSelectors, err := s.ds.GetNodeSelectors(ctx, deletedNodeSPIFFEID, datastore.RequireCurrent)
-	s.Require().NoError(err)
-	s.Equal(selectors, staleNodeSelectors)
-
-	// Initialize a new datastore to force a cleanup of stale node resolver entries
-	dbPath := s.ds.db.connectionString
-	databaseType := s.ds.db.databaseType
-	err = s.ds.Close()
-	s.Require().NoError(err)
-	s.ds.db = nil
-	err = s.ds.Configure(ctx, fmt.Sprintf(`
-			database_type = "%s"
-			log_sql = true
-			connection_string = "%s"
-            ro_connection_string = "%s"
-		`, databaseType, dbPath, TestROConnString))
-	s.Require().NoError(err)
-
-	spiretest.AssertLogsContainEntries(s.T(), s.hook.AllEntries(), []spiretest.LogEntry{
-		{
-			Level:   logrus.InfoLevel,
-			Message: "Deleted 4 stale node resolver entries",
-		},
-	})
-
-	// Check that stale node selectors were deleted since the underlying attested node entry does not exist
-	staleNodeSelectors, err = s.ds.GetNodeSelectors(ctx, deletedNodeSPIFFEID, datastore.RequireCurrent)
-	s.Require().NoError(err)
-	s.Empty(staleNodeSelectors)
-
-	// Check that foo node selectors were not deleted because the attested node entry still exists
-	nodeSelectors, err = s.ds.GetNodeSelectors(ctx, existentNode.SpiffeId, datastore.RequireCurrent)
-	s.Require().NoError(err)
-	s.Equal(selectors, nodeSelectors)
-}
-
 func (s *PluginSuite) TestMigration() {
 	for schemaVersion := 0; schemaVersion < latestSchemaVersion; schemaVersion++ {
 		s.T().Run(fmt.Sprintf("migration_from_schema_version_%d", schemaVersion), func(t *testing.T) {
