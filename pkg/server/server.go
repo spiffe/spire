@@ -208,7 +208,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 		registrationManager.Run,
 		bundlePublishingManager.Run,
 		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
-		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
 	}
 
 	if s.config.LogReopener != nil {
