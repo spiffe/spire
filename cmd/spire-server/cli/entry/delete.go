@@ -28,10 +28,10 @@ func newDeleteCommand(env *commoncli.Env) cli.Command {
 
 type deleteCommand struct {
 	// ID of the record to delete
-	entriesIDs StringsFlag
-	path       string
-	env        *commoncli.Env
-	printer    cliprinter.Printer
+	entryID string
+	file    string
+	env     *commoncli.Env
+	printer cliprinter.Printer
 }
 
 func (*deleteCommand) Name() string {
@@ -43,8 +43,8 @@ func (*deleteCommand) Synopsis() string {
 }
 
 func (c *deleteCommand) AppendFlags(f *flag.FlagSet) {
-	f.Var(&c.entriesIDs, "entryID", "The Registration Entry ID of the record to delete. Can be used more than once")
-	f.StringVar(&c.path, "data", "", "Path to a file containing deletion JSON (optional). If set to '-', read the JSON from stdin.")
+	f.StringVar(&c.entryID, "entryID", "", "The Registration Entry ID of the record to delete.")
+	f.StringVar(&c.file, "file", "", "Path to a file containing a JSON structure for batch deletion (optional). If set to '-', read from stdin.")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, c.prettyPrintDelete)
 }
 
@@ -77,20 +77,17 @@ func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 	}
 
 	var err error
-	if c.path != "" {
-		entriesIDs, err := parseEntryDeleteJSON(c.path)
+	entriesIDs := []string{}
+	if c.file != "" {
+		entriesIDs, err = parseEntryDeleteJSON(c.file)
 		if err != nil {
 			return err
 		}
-		for _, entryID := range entriesIDs {
-			err = c.entriesIDs.Set(entryID)
-			if err != nil {
-				return err
-			}
-		}
+	} else {
+		entriesIDs = append(entriesIDs, c.entryID)
 	}
 
-	req := &entryv1.BatchDeleteEntryRequest{Ids: c.entriesIDs}
+	req := &entryv1.BatchDeleteEntryRequest{Ids: entriesIDs}
 	resp, err := serverClient.NewEntryClient().BatchDeleteEntry(ctx, req)
 	if err != nil {
 		return err
@@ -101,11 +98,11 @@ func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 
 // Perform basic validation.
 func (c *deleteCommand) validate() error {
-	if c.path != "" {
+	if c.file != "" {
 		return nil
 	}
 
-	if len(c.entriesIDs) < 1 {
+	if c.entryID == "" {
 		return errors.New("an entry ID is required")
 	}
 
@@ -132,6 +129,10 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...interfa
 		env.Printf("Deleted entry with ID: %s\n", result.Id)
 	}
 
+	if len(succeeded) > 0 {
+		env.Printf("\n\n")
+	}
+
 	for _, result := range failed {
 		env.ErrPrintf("Failed to delete entry with ID %s (code: %s, msg: %q)\n",
 			result.Id,
@@ -140,8 +141,11 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...interfa
 	}
 
 	if len(failed) > 0 {
+		env.Printf("\n\n")
 		return errors.New("failed to delete one or more entries")
 	}
+
+	env.Printf("Deleted %d entries successfully, but failed to delete %d entries", len(succeeded), len(failed))
 
 	return nil
 }
