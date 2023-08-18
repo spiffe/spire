@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/armon/go-metrics"
-	api_v2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
-	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/sirupsen/logrus"
@@ -17,7 +15,6 @@ import (
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
-	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv2"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -99,33 +96,6 @@ func TestEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name: "sds v2 api has peertracker attestor plumbed",
-			do: func(t *testing.T, conn *grpc.ClientConn) {
-				sdsClient := discovery_v2.NewSecretDiscoveryServiceClient(conn)
-				_, err := sdsClient.FetchSecrets(ctx, &api_v2.DiscoveryRequest{})
-				require.NoError(t, err)
-			},
-			expectedLogs: []spiretest.LogEntry{
-				logEntryWithPID(logrus.InfoLevel, "Success",
-					"method", "FetchSecrets",
-					"service", "SDS.v2",
-				),
-			},
-			expectedMetrics: []fakemetrics.MetricItem{
-				// Global connection counter and then the increment/decrement of the connection gauge
-				{Type: fakemetrics.IncrCounterType, Key: []string{"sds_api", "connection"}, Val: 1},
-				{Type: fakemetrics.SetGaugeType, Key: []string{"sds_api", "connections"}, Val: 1},
-				{Type: fakemetrics.SetGaugeType, Key: []string{"sds_api", "connections"}, Val: 0},
-				// Call counter
-				{Type: fakemetrics.IncrCounterWithLabelsType, Key: []string{"rpc", "sds", "v2", "fetch_secrets"}, Val: 1, Labels: []metrics.Label{
-					{Name: "status", Value: "OK"},
-				}},
-				{Type: fakemetrics.MeasureSinceWithLabelsType, Key: []string{"rpc", "sds", "v2", "fetch_secrets", "elapsed_time"}, Val: 0, Labels: []metrics.Label{
-					{Name: "status", Value: "OK"},
-				}},
-			},
-		},
-		{
 			name: "sds v3 api has peertracker attestor plumbed",
 			do: func(t *testing.T, conn *grpc.ClientConn) {
 				sdsClient := secret_v3.NewSecretDiscoveryServiceClient(conn)
@@ -173,7 +143,6 @@ func TestEndpoints(t *testing.T) {
 				DefaultAllBundlesName:       "DefaultAllBundlesName",
 				DisableSPIFFECertValidation: true,
 				AllowedForeignJWTClaims:     tt.allowedClaims,
-				EnableDeprecatedSDSv2API:    true,
 
 				// Assert the provided config and return a fake Workload API server
 				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
@@ -186,17 +155,6 @@ func TestEndpoints(t *testing.T) {
 						assert.Empty(t, c.AllowedForeignJWTClaims)
 					}
 					return FakeWorkloadAPIServer{Attestor: attestor}
-				},
-
-				// Assert the provided config and return a fake SDS server
-				newSDSv2Server: func(c sdsv2.Config) discovery_v2.SecretDiscoveryServiceServer {
-					attestor, ok := c.Attestor.(PeerTrackerAttestor)
-					require.True(t, ok, "attestor was not a PeerTrackerAttestor wrapper")
-					assert.Equal(t, FakeManager{}, c.Manager)
-					assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
-					assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
-					assert.True(t, c.Enabled)
-					return FakeSDSv2Server{Attestor: attestor}
 				},
 
 				// Assert the provided config and return a fake SDS server
@@ -274,18 +232,6 @@ func (s FakeWorkloadAPIServer) FetchJWTSVID(ctx context.Context, _ *workload_pb.
 		return nil, err
 	}
 	return &workload_pb.JWTSVIDResponse{}, nil
-}
-
-type FakeSDSv2Server struct {
-	Attestor PeerTrackerAttestor
-	*discovery_v2.UnimplementedSecretDiscoveryServiceServer
-}
-
-func (s FakeSDSv2Server) FetchSecrets(ctx context.Context, _ *api_v2.DiscoveryRequest) (*api_v2.DiscoveryResponse, error) {
-	if err := attest(ctx, s.Attestor); err != nil {
-		return nil, err
-	}
-	return &api_v2.DiscoveryResponse{}, nil
 }
 
 type FakeSDSv3Server struct {

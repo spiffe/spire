@@ -245,18 +245,6 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
-			msg: "enable_deprecated_v2_api should be configurable by file",
-			fileInput: func(c *Config) {
-				c.Agent.SDS = sdsConfig{
-					EnableDeprecatedv2API: true,
-				}
-			},
-			cliInput: func(ac *agentConfig) {},
-			test: func(t *testing.T, c *Config) {
-				require.True(t, c.Agent.SDS.EnableDeprecatedv2API)
-			},
-		},
-		{
 			msg:       "disable_spiffe_cert_validation should default value of false",
 			fileInput: func(c *Config) {},
 			cliInput:  func(ac *agentConfig) {},
@@ -881,14 +869,12 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.SDS.DefaultBundleName = "DefaultBundleName"
 				c.Agent.SDS.DefaultAllBundlesName = "DefaultAllBundlesName"
 				c.Agent.SDS.DisableSPIFFECertValidation = true
-				c.Agent.SDS.EnableDeprecatedv2API = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				assert.Equal(t, c.DefaultSVIDName, "DefaultSVIDName")
 				assert.Equal(t, c.DefaultBundleName, "DefaultBundleName")
 				assert.Equal(t, c.DefaultAllBundlesName, "DefaultAllBundlesName")
 				assert.True(t, c.DisableSPIFFECertValidation)
-				assert.True(t, c.EnableDeprecatedSDSv2API)
 			},
 		},
 		{

@@ -269,7 +269,6 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		DefaultBundleName:             a.c.DefaultBundleName,
 		DefaultAllBundlesName:         a.c.DefaultAllBundlesName,
 		DisableSPIFFECertValidation:   a.c.DisableSPIFFECertValidation,
-		EnableDeprecatedSDSv2API:      a.c.EnableDeprecatedSDSv2API,
 		AllowUnauthenticatedVerifiers: a.c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
 		TrustDomain:                   a.c.TrustDomain,

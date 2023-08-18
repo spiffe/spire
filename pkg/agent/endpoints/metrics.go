@@ -31,7 +31,7 @@ func (m *connectionMetrics) Preprocess(ctx context.Context, _ string, _ interfac
 		case middleware.WorkloadAPIServiceName:
 			workloadAPITelemetry.IncrConnectionCounter(m.metrics)
 			workloadAPITelemetry.SetConnectionTotalGauge(m.metrics, atomic.AddInt32(&m.workloadAPIConns, 1))
-		case middleware.EnvoySDSv2ServiceName, middleware.EnvoySDSv3ServiceName:
+		case middleware.EnvoySDSv3ServiceName:
 			sdsAPITelemetry.IncrSDSAPIConnectionCounter(m.metrics)
 			sdsAPITelemetry.SetSDSAPIConnectionTotalGauge(m.metrics, atomic.AddInt32(&m.sdsAPIConns, 1))
 		case middleware.DelegatedIdentityServiceName:
@@ -51,7 +51,7 @@ func (m *connectionMetrics) Postprocess(ctx context.Context, _ string, _ bool, _
 		switch names.RawService {
 		case middleware.WorkloadAPIServiceName:
 			workloadAPITelemetry.SetConnectionTotalGauge(m.metrics, atomic.AddInt32(&m.workloadAPIConns, -1))
-		case middleware.EnvoySDSv2ServiceName, middleware.EnvoySDSv3ServiceName:
+		case middleware.EnvoySDSv3ServiceName:
 			sdsAPITelemetry.SetSDSAPIConnectionTotalGauge(m.metrics, atomic.AddInt32(&m.sdsAPIConns, -1))
 		case middleware.DelegatedIdentityServiceName:
 			adminapi.SetDelegatedIdentityAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.delegatedIdentityAPIConns, -1))
