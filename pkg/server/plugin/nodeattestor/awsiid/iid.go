@@ -266,7 +266,7 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 	if config.Partition == "" {
 		config.Partition = defaultPartition
 	}
-	if !isValidAWSParition(config.Partition) {
+	if !isValidAWSPartition(config.Partition) {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid partition %q, must be one of: %v", config.Partition, partitions)
 	}
 
@@ -548,7 +548,7 @@ func instanceProfileNameFromArn(profileArn string) (string, error) {
 	return name[len(name)-1], nil
 }
 
-func isValidAWSParition(partition string) bool {
+func isValidAWSPartition(partition string) bool {
 	for _, p := range partitions {
 		if p == partition {
 			return true
