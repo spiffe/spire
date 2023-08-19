@@ -29,6 +29,10 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 		cfg.SecretAccessKey = defaultSecretAccessKey
 	}
 
+	if cfg.Partition == "" {
+		cfg.Partition = defaultPartition
+	}
+
 	switch {
 	case cfg.AccessKeyID != "" && cfg.SecretAccessKey == "":
 		return status.Error(codes.InvalidArgument, "configuration missing secret access key, but has access key id")
