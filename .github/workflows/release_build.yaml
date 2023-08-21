@@ -206,7 +206,7 @@ jobs:
           name: images-windows
           path: images-windows.tar.gz
 
-    build-matrix:
+  build-matrix:
     name: Build matrix
     runs-on: ubuntu-20.04
     needs: [cache-deps]
