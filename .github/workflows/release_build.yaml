@@ -225,7 +225,7 @@ jobs:
     outputs:
       test: ${{ steps.set-matrix.outputs.test }}
 
-integration:
+ integration:
     name: integration (linux)
     runs-on: ubuntu-20.04
     needs: [cache-deps, images]
