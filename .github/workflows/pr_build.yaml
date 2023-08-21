@@ -347,7 +347,9 @@ jobs:
         run: |
           tar xvf images.tar.gz
           make load-images
-      - name: Set executable permission for script
+      - name: Set executable permission for script split_k8s.sh
+        run: chmod +x ./.github/workflows/scripts/split_k8s.sh
+      - name: Set executable permission for script test-k8s.sh
         run: chmod +x ./test/integration/test-k8s.sh
       - name: Run k8s integration
         env:
@@ -358,7 +360,7 @@ jobs:
           KINDVERSION: ${{ matrix.test[2] }}
           TERM: dumb
           CICD_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
-        run: ./.github/workflows/scripts/split.sh | xargs ./test/integration/test-k8s.sh
+        run: ./.github/workflows/scripts/split_k8s.sh | xargs ./test/integration/test-k8s.sh
 
 
   integration-windows:
