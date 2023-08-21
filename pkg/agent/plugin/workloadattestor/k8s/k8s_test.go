@@ -230,7 +230,7 @@ func (s *Suite) TestAttestOverSecurePortViaClientAuth() {
 	s.writeCert(certPath, clientCert)
 
 	s.clock.Add(defaultReloadInterval)
-	s.requireAttestFailure(p, codes.Internal, "tls: bad certificate")
+	s.requireAttestFailure(p, codes.Internal, "remote error: tls")
 }
 
 func (s *Suite) TestAttestOverSecurePortViaAnonymousAuth() {

@@ -56,15 +56,18 @@ func TestServer(t *testing.T) {
 		},
 	}
 
+	fiveMinutes := time.Minute * 5
+
 	testCases := []struct {
-		name       string
-		method     string
-		path       string
-		status     int
-		body       string
-		bundle     *spiffebundle.Bundle
-		serverCert *x509.Certificate
-		reqErr     string
+		name        string
+		method      string
+		path        string
+		status      int
+		body        string
+		bundle      *spiffebundle.Bundle
+		serverCert  *x509.Certificate
+		reqErr      string
+		refreshHint *time.Duration
 	}{
 		{
 			name:   "success",
@@ -86,6 +89,28 @@ func TestServer(t *testing.T) {
 			}`, base64.StdEncoding.EncodeToString(serverCert.Raw)),
 			bundle:     bundle,
 			serverCert: serverCert,
+		},
+		{
+			name:   "manually configured refresh hint",
+			method: "GET",
+			path:   "/",
+			status: http.StatusOK,
+			body: fmt.Sprintf(`{
+				"keys": [
+					{
+						"crv":"P-256",
+						"kty":"EC",
+						"use":"x509-svid",
+						"x":"kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y":"qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA",
+						"x5c": [%q]
+					}
+				],
+				"spiffe_refresh_hint": 300
+			}`, base64.StdEncoding.EncodeToString(serverCert.Raw)),
+			bundle:      bundle,
+			serverCert:  serverCert,
+			refreshHint: &fiveMinutes,
 		},
 		{
 			name:       "invalid method",
@@ -123,6 +148,7 @@ func TestServer(t *testing.T) {
 			addr, done := newTestServer(t,
 				testGetter(testCase.bundle),
 				testSPIFFEAuth(testCase.serverCert, serverKey),
+				testCase.refreshHint,
 			)
 			defer done()
 
@@ -184,6 +210,7 @@ func TestACMEAuth(t *testing.T) {
 				Email:        "admin@domain.test",
 				ToSAccepted:  false,
 			}),
+			nil,
 		)
 		defer done()
 
@@ -216,6 +243,7 @@ func TestACMEAuth(t *testing.T) {
 				Email:        "admin@domain.test",
 				ToSAccepted:  true,
 			}),
+			nil,
 		)
 		defer done()
 
@@ -264,6 +292,7 @@ func TestACMEAuth(t *testing.T) {
 				Email:        "admin@domain.test",
 				ToSAccepted:  true,
 			}),
+			nil,
 		)
 		defer done()
 
@@ -275,7 +304,7 @@ func TestACMEAuth(t *testing.T) {
 	})
 }
 
-func newTestServer(t *testing.T, getter Getter, serverAuth ServerAuth) (net.Addr, func()) {
+func newTestServer(t *testing.T, getter Getter, serverAuth ServerAuth, refreshHint *time.Duration) (net.Addr, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	addrCh := make(chan net.Addr, 1)
@@ -290,11 +319,12 @@ func newTestServer(t *testing.T, getter Getter, serverAuth ServerAuth) (net.Addr
 
 	log, _ := test.NewNullLogger()
 	server := NewServer(ServerConfig{
-		Log:        log,
-		Address:    "localhost:0",
-		Getter:     getter,
-		ServerAuth: serverAuth,
-		listen:     listen,
+		Log:         log,
+		Address:     "localhost:0",
+		Getter:      getter,
+		ServerAuth:  serverAuth,
+		listen:      listen,
+		RefreshHint: refreshHint,
 	})
 
 	errCh := make(chan error, 1)
