@@ -122,17 +122,16 @@ binaries := spire-server spire-agent oidc-discovery-provider
 
 build_dir := $(DIR)/.build/$(os1)-$(arch1)
 
-go_version_full := $(shell cat .go-version)
-go_version := $(go_version_full:.0=)
+go_version := $(shell cat .go-version)
 go_dir := $(build_dir)/go/$(go_version)
 
 ifeq ($(os1),windows)
 	go_bin_dir = $(go_dir)/go/bin
-	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).zip
+	go_url = https://go.dev/dl/go$(go_version).$(os1)-$(arch2).zip
 	exe=".exe"
 else
 	go_bin_dir = $(go_dir)/bin
-	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
+	go_url = https://go.dev/dl/go$(go_version).$(os1)-$(arch2).tar.gz
 	exe=
 endif
 
@@ -355,7 +354,7 @@ $1: $3 container-builder
 	@echo Building docker image $2 $(PLATFORM)…
 	$(E)docker buildx build \
 		--platform $(PLATFORMS) \
-		--build-arg goversion=$(go_version_full) \
+		--build-arg goversion=$(go_version) \
 		--target $2 \
 		-o type=oci,dest=$2-image.tar \
 		-f $3 \
@@ -386,7 +385,7 @@ define windows_image_rule
 $1: $3
 	@echo Building docker image $2…
 	$(E)docker build \
-		--build-arg goversion=$(go_version_full) \
+		--build-arg goversion=$(go_version) \
 		--target $2 \
 		-t $2 -t $2:latest-local \
 		-f $3 \
