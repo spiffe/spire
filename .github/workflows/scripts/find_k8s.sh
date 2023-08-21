@@ -19,7 +19,7 @@
           
           readarray -t tags_sorted < <(printf '%s\n' "${all_tags[@]}" | sort -V)
 
-          lowest_target_version=$(cat ./.github/workflows/utils/lowest_target_version.txt)
+          lowest_target_version=$(cat ./test/integration/suites/k8s/integration_k8s_min_version.txt)
           
           declare -A tags_map
           for element in "${tags_sorted[@]}"; do
@@ -46,7 +46,7 @@
           # Read the content of the array.txt file
           # Currently we just have one row as example, add more if we need to test a specific version
           # Test elements should be added as [KubeCTLVersion, K8s-image, KindVersion]
-          IFS= readarray -t matrix_lines < ./.github/workflows/utils/integration_k8s_versions.txt
+          IFS= readarray -t matrix_lines < ./test/integration/suites/k8s/integration_k8s_versions.txt
 
           # Convert each line of the file into a JSON array element
           json_array="["
