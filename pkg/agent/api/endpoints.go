@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	debugv1 "github.com/spiffe/spire/pkg/agent/api/debug/v1"
 	delegatedidentityv1 "github.com/spiffe/spire/pkg/agent/api/delegatedidentity/v1"
+	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -25,7 +26,7 @@ type Endpoints struct {
 
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(
-		middleware.WithLogger(e.c.Log),
+		endpoints.Middleware(e.c.Log, e.c.Metrics),
 	)
 
 	server := grpc.NewServer(
@@ -81,6 +82,7 @@ func (e *Endpoints) registerDelegatedIdentityAPI(server *grpc.Server) {
 		Manager:             e.c.Manager,
 		Attestor:            e.c.Attestor,
 		AuthorizedDelegates: e.c.AuthorizedDelegates,
+		Metrics:             e.c.Metrics,
 		Log:                 e.c.Log.WithField(telemetry.SubsystemName, telemetry.DelegatedIdentityAPI),
 	})
 

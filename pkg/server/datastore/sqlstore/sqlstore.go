@@ -797,28 +797,9 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 			db.Close()
 			return nil, "", false, nil, err
 		}
-		// TODO: we should keep this logic for a minor release cycle to make sure stale entries are removed eventually.
-		// Remove in SPIRE 1.8.0
-		if err := cleanStaleNodeResolverEntries(db, ds.log); err != nil {
-			ds.log.WithError(err).Error("Failed to clean stale node resolver entries")
-		}
 	}
 
 	return db, version, supportsCTE, dialect, nil
-}
-
-func cleanStaleNodeResolverEntries(tx *gorm.DB, log logrus.FieldLogger) error {
-	result := tx.Delete(&NodeSelector{}, fmt.Sprintf("spiffe_id NOT IN (SELECT spiffe_id FROM %s)", AttestedNode{}.TableName()))
-
-	if result.Error != nil {
-		return sqlError.Wrap(result.Error)
-	}
-
-	if result.RowsAffected > 0 {
-		log.Infof("Deleted %d stale node resolver entries", result.RowsAffected)
-	}
-
-	return nil
 }
 
 type gormLogger struct {

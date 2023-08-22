@@ -9,6 +9,7 @@ import (
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/peertracker"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 type Config struct {
@@ -17,6 +18,8 @@ type Config struct {
 	Manager manager.Manager
 
 	Log logrus.FieldLogger
+
+	Metrics telemetry.Metrics
 
 	// Agent trust domain
 	TrustDomain spiffeid.TrustDomain
