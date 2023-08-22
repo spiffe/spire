@@ -265,6 +265,9 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 		config.pathTemplate = tmpl
 	}
 
+	if config.Partition == "" {
+		config.Partition = defaultPartition
+	}
 	if !isValidAWSPartition(config.Partition) {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid partition %q, must be one of: %v", config.Partition, partitions)
 	}

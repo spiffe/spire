@@ -524,7 +524,7 @@ func TestConfigure(t *testing.T) {
 	})
 
 	t.Run("success when valid partitions specified ", func(t *testing.T) {
-		for _, partition := range append(partitions, "") {
+		for _, partition := range partitions {
 			err := doConfig(t, coreConfig, fmt.Sprintf("partition = \"%s\"", partition))
 			require.NoError(t, err)
 		}
