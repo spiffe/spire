@@ -21,7 +21,7 @@ type keyFetcher struct {
 	trustDomain string
 }
 
-// fetchKeyEntries requests Cloud KMS to get the list of keys that are
+// fetchKeyEntries requests Key Vault to get the list of keys that are
 // active in this server. They are returned as a keyEntry array.
 func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) {
 	var keyEntries []*keyEntry
@@ -36,8 +36,6 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed while listing keys: %v", err)
 		}
-		kf.log.Debug("Found keys", "num_keys", len(resp.Value))
-
 		for _, key := range resp.Value {
 			// Skip keys that do not belong this server
 			belongsToServer := kf.keyBelongsToServer(key)

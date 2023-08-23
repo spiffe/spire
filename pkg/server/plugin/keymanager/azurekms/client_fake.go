@@ -8,7 +8,6 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
-	"github.com/spiffe/spire/test/testkey"
 	"math/big"
 	"path"
 	"sync"
@@ -19,6 +18,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
+	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -29,7 +29,6 @@ type kmsClientFake struct {
 	vaultURI        string
 	trustDomain     string
 	serverID        string
-	fakeKeyIDPrefix string
 	mu              sync.RWMutex
 	createKeyErr    error
 	deleteKeyErr    error
@@ -57,12 +56,11 @@ type fakeKeyEntry struct {
 
 func newKMSClientFake(t *testing.T, vaultURI string, trustDomain string, serverID string, c *clock.Mock) *kmsClientFake {
 	return &kmsClientFake{
-		t:               t,
-		vaultURI:        vaultURI,
-		trustDomain:     trustDomain,
-		serverID:        serverID,
-		store:           newFakeStore(c, t),
-		fakeKeyIDPrefix: vaultURI + "keys/spire-key-" + serverID + "-",
+		t:           t,
+		vaultURI:    vaultURI,
+		trustDomain: trustDomain,
+		serverID:    serverID,
+		store:       newFakeStore(c, t),
 	}
 }
 

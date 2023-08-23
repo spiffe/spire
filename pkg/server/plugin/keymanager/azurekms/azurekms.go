@@ -321,11 +321,14 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 		}
 
 		for _, key := range resp.Value {
-			// Skip keys that do not belong the current trust domain
-			// Keys that are administered by other servers in this server's trust domain will be considered
-			// for deletion if they're stale (i.e:have not been updated for maxStaleDuration)
+			// Skip keys that do not belong to this trust domain
 			trustDomain, hasTD := key.Tags[tagNameServerTrustDomain]
 			if !hasTD || *trustDomain != p.trustDomain {
+				continue
+			}
+
+			// Skip keys that belong to this server
+			if p.serverID == *key.Tags[tagNameServerID] {
 				continue
 			}
 
@@ -376,7 +379,10 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
-	keyName := p.generateKeyName(spireKeyID)
+	keyName, err := p.generateKeyName(spireKeyID)
+	if err != nil {
+		return nil, fmt.Errorf("could not generate key name: %w", err)
+	}
 
 	createResp, err := p.kmsClient.CreateKey(ctx, keyName, *createKeyParameters, nil)
 	if err != nil {
@@ -392,6 +398,15 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	publicKey, err := x509.MarshalPKIXPublicKey(rawKey)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to marshal public key: %v", err)
+	}
+
+	if keyEntry, ok := p.getKeyEntry(spireKeyID); ok {
+		select {
+		case p.scheduleDelete <- keyEntry.KeyName:
+			p.log.Debug("Key enqueued for deletion", keyNameTag, keyEntry.KeyName)
+		default:
+			p.log.Error("Failed to enqueue key for deletion", keyNameTag, keyEntry.KeyName)
+		}
 	}
 
 	return &keyEntry{
@@ -640,8 +655,13 @@ func getCreateKeyParameters(keyType keymanagerv1.KeyType, keyTags map[string]*st
 // The returned name has the form: spire-key-<UUID>-<SPIRE-KEY-ID>,
 // where UUID is a new randomly generated UUID and SPIRE-KEY-ID is provided
 // through the spireKeyID parameter.
-func (p *Plugin) generateKeyName(spireKeyID string) (keyName string) {
-	return fmt.Sprintf("%s-%s-%s", keyNamePrefix, p.serverID, spireKeyID)
+func (p *Plugin) generateKeyName(spireKeyID string) (keyName string, err error) {
+	uniqueID, err := generateUniqueID()
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s-%s-%s", keyNamePrefix, uniqueID, spireKeyID), nil
 }
 
 // parseAndValidateConfig returns an error if any configuration provided does not meet acceptable criteria
@@ -692,20 +712,29 @@ func (p *Plugin) setCache(keyEntries []*keyEntry) {
 	}
 }
 
+// createServerID creates a randomly generated UUID to be used as a server ID
+// and stores it in the specified idPath.
 func createServerID(idPath string) (string, error) {
-	// generate id
-	u, err := uuid.NewV4()
+	id, err := generateUniqueID()
 	if err != nil {
-		return "", status.Errorf(codes.Internal, "failed to generate id for server: %v", err)
+		return "", status.Errorf(codes.Internal, "failed to generate ID for server: %v", err)
 	}
-	id := u.String()
 
-	// persist id
 	err = diskutil.WritePrivateFile(idPath, []byte(id))
 	if err != nil {
-		return "", status.Errorf(codes.Internal, "failed to persist server id on path: %v", err)
+		return "", status.Errorf(codes.Internal, "failed to persist server ID on path: %v", err)
 	}
 	return id, nil
+}
+
+// generateUniqueID returns a randomly generated UUID.
+func generateUniqueID() (id string, err error) {
+	u, err := uuid.NewV4()
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "could not create a randomly generated UUID: %v", err)
+	}
+
+	return u.String(), nil
 }
 
 func makeFingerprint(pkixData []byte) string {
