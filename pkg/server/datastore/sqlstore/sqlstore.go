@@ -379,11 +379,7 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		if fflag.IsSet(fflag.FlagEventsBasedCache) {
-			return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
-		}
-
-		return nil
+		return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
 	}); err != nil {
 		return nil, false, err
 	}
@@ -427,11 +423,7 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.Registr
 			return err
 		}
 
-		if fflag.IsSet(fflag.FlagEventsBasedCache) {
-			return createRegistrationEntryEvent(tx, entry.EntryId)
-		}
-
-		return nil
+		return createRegistrationEntryEvent(tx, entry.EntryId)
 	}); err != nil {
 		return nil, err
 	}
@@ -448,11 +440,7 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		if fflag.IsSet(fflag.FlagEventsBasedCache) {
-			return createRegistrationEntryEvent(tx, entryID)
-		}
-
-		return nil
+		return createRegistrationEntryEvent(tx, entryID)
 	}); err != nil {
 		return nil, err
 	}
@@ -3634,6 +3622,10 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 }
 
 func createRegistrationEntryEvent(tx *gorm.DB, entryID string) error {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return nil
+	}
+
 	newRegisteredEntryEvent := RegisteredEntryEvent{
 		EntryID: entryID,
 	}
