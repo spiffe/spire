@@ -341,10 +341,6 @@ jobs:
         run: |
           tar xvf images.tar.gz
           make load-images
-      - name: Set executable permission for script split_k8s.sh
-        run: chmod +x ./.github/workflows/scripts/split_k8s.sh
-      - name: Set executable permission for script test-k8s.sh
-        run: chmod +x ./test/integration/test-k8s.sh
       - name: Run k8s integration
         env:
           NUM_RUNNERS: ${{ matrix.num_runners }}
