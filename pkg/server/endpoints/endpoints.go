@@ -48,8 +48,8 @@ const (
 	// entry cache.
 	defaultCacheReloadInterval = 5 * time.Second
 
-	// This is the default frequency that the entry and node events tables are pruned
-	defaultPruneEventsInterval = 12 * time.Hour
+	// This is the default amoount of time events live before they are pruned
+	defaultPruneEventsOlderThan = 12 * time.Hour
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -123,11 +123,11 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	if c.CacheReloadInterval == 0 {
 		c.CacheReloadInterval = defaultCacheReloadInterval
 	}
-	if c.PruneEventsInterval == 0 {
-		c.PruneEventsInterval = defaultPruneEventsInterval
+	if c.PruneEventsOlderThan == 0 {
+		c.PruneEventsOlderThan = defaultPruneEventsOlderThan
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, pruneEventsFn, c.Log, c.Clock, c.CacheReloadInterval, c.PruneEventsInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, pruneEventsFn, c.Log, c.Clock, c.CacheReloadInterval, c.PruneEventsOlderThan)
 	if err != nil {
 		return nil, err
 	}

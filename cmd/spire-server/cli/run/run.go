@@ -98,9 +98,9 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
-	CacheReloadInterval string                      `hcl:"cache_reload_interval"`
-	PruneEventsInterval string                      `hcl:"prune_events_interval"`
+	AuthOpaPolicyEngine  *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
+	CacheReloadInterval  string                      `hcl:"cache_reload_interval"`
+	PruneEventsOlderThan string                      `hcl:"prune_events_older_than"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -646,12 +646,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CacheReloadInterval = interval
 	}
 
-	if c.Server.Experimental.PruneEventsInterval != "" {
-		interval, err := time.ParseDuration(c.Server.Experimental.PruneEventsInterval)
+	if c.Server.Experimental.PruneEventsOlderThan != "" {
+		interval, err := time.ParseDuration(c.Server.Experimental.PruneEventsOlderThan)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse prune events interval: %w", err)
 		}
-		sc.PruneEventsInterval = interval
+		sc.PruneEventsOlderThan = interval
 	}
 
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine

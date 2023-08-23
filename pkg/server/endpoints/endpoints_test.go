@@ -190,7 +190,7 @@ func TestListenAndServe(t *testing.T) {
 		return nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
 
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)

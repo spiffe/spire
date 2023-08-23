@@ -51,7 +51,7 @@ func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 		return nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 }
@@ -69,7 +69,7 @@ func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) 
 		return nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 }
@@ -93,7 +93,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		return nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -166,7 +166,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		return nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 

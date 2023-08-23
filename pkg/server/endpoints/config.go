@@ -74,8 +74,8 @@ type Config struct {
 	// CacheReloadInterval controls how often the in-memory entry cache reloads
 	CacheReloadInterval time.Duration
 
-	// PruneEventsInterval controls how often the events table is pruned
-	PruneEventsInterval time.Duration
+	// PruneEventsOlderThan controls how long events can live before they are pruned
+	PruneEventsOlderThan time.Duration
 
 	AuditLogEnabled bool
 

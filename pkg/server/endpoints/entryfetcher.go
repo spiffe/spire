@@ -19,17 +19,17 @@ type entryCacheBuilderFn func(ctx context.Context) (entrycache.Cache, error)
 type pruneEventsFn func(ctx context.Context, olderThan time.Duration) error
 
 type AuthorizedEntryFetcherWithFullCache struct {
-	buildCache          entryCacheBuilderFn
-	pruneEvents         pruneEventsFn
-	cache               entrycache.Cache
-	clk                 clock.Clock
-	log                 logrus.FieldLogger
-	mu                  sync.RWMutex
-	cacheReloadInterval time.Duration
-	eventsPruneInterval time.Duration
+	buildCache           entryCacheBuilderFn
+	pruneEvents          pruneEventsFn
+	cache                entrycache.Cache
+	clk                  clock.Clock
+	log                  logrus.FieldLogger
+	mu                   sync.RWMutex
+	cacheReloadInterval  time.Duration
+	pruneEventsOlderThan time.Duration
 }
 
-func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, pruneEvents pruneEventsFn, log logrus.FieldLogger, clk clock.Clock, cacheReloadInterval, eventsPruneInterval time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
+func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, pruneEvents pruneEventsFn, log logrus.FieldLogger, clk clock.Clock, cacheReloadInterval, pruneEventsOlderThan time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
 	log.Info("Building in-memory entry cache")
 	cache, err := buildCache(ctx)
 	if err != nil {
@@ -38,13 +38,13 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 
 	log.Info("Completed building in-memory entry cache")
 	return &AuthorizedEntryFetcherWithFullCache{
-		buildCache:          buildCache,
-		pruneEvents:         pruneEvents,
-		cache:               cache,
-		clk:                 clk,
-		log:                 log,
-		cacheReloadInterval: cacheReloadInterval,
-		eventsPruneInterval: eventsPruneInterval,
+		buildCache:           buildCache,
+		pruneEvents:          pruneEvents,
+		cache:                cache,
+		clk:                  clk,
+		log:                  log,
+		cacheReloadInterval:  cacheReloadInterval,
+		pruneEventsOlderThan: pruneEventsOlderThan,
 	}, nil
 }
 
@@ -84,9 +84,9 @@ func (a *AuthorizedEntryFetcherWithFullCache) PruneEventsTask(ctx context.Contex
 		case <-ctx.Done():
 			a.log.Debug("Stopping event pruner")
 			return nil
-		case <-a.clk.After(a.eventsPruneInterval):
+		case <-a.clk.After(a.pruneEventsOlderThan / 2):
 			a.log.Debug("Pruning events")
-			if err := a.pruneEvents(ctx, a.eventsPruneInterval); err != nil {
+			if err := a.pruneEvents(ctx, a.pruneEventsOlderThan); err != nil {
 				a.log.WithError(err).Error("Failed to prune events")
 			}
 		}
