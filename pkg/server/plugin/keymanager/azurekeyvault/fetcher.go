@@ -1,4 +1,4 @@
-package azurekms
+package azurekeyvault
 
 import (
 	"context"
@@ -15,10 +15,10 @@ import (
 )
 
 type keyFetcher struct {
-	kmsClient   cloudKeyManagementService
-	log         hclog.Logger
-	serverID    string
-	trustDomain string
+	keyVaultClient cloudKeyManagementService
+	log            hclog.Logger
+	serverID       string
+	trustDomain    string
 }
 
 // fetchKeyEntries requests Key Vault to get the list of keys that are
@@ -29,7 +29,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 	g, ctx := errgroup.WithContext(ctx)
 
 	// List all the key from the configured key vault URL
-	pager := kf.kmsClient.NewListKeysPager(nil)
+	pager := kf.keyVaultClient.NewListKeysPager(nil)
 
 	for pager.More() {
 		resp, err := pager.NextPage(ctx)
@@ -85,7 +85,7 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, keyItem *azkeys.
 		return nil, status.Error(codes.Internal, "keyItem is nil")
 	}
 
-	getKeyResponse, err := kf.kmsClient.GetKey(ctx, keyItem.KID.Name(), keyItem.KID.Version(), nil)
+	getKeyResponse, err := kf.keyVaultClient.GetKey(ctx, keyItem.KID.Name(), keyItem.KID.Version(), nil)
 
 	switch {
 	case err != nil:
@@ -103,7 +103,7 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, keyItem *azkeys.
 		return nil, status.Errorf(codes.Internal, "unsupported key spec: %v", *getKeyResponse.KeyBundle.Key)
 	}
 
-	rawkey, err := kmsKeyToRawKey(getKeyResponse.Key)
+	rawkey, err := keyVaultKeyToRawKey(getKeyResponse.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func keyTypeFromKeySpec(keyBundle azkeys.KeyBundle) (keymanagerv1.KeyType, bool)
 	}
 }
 
-// spireKeyIDFromKeyName parses a KMS key name to get the
+// spireKeyIDFromKeyName parses a Key Vault key name to get the
 // SPIRE Key ID. This Key ID is used in the Server KeyManager interface.
 func spireKeyIDFromKeyName(keyName string) (string, bool) {
 	// A key name would have the format spire-key-${UUID}-x509-CA-A.

@@ -1,4 +1,4 @@
-package azurekms
+package azurekeyvault
 
 import (
 	"context"
@@ -963,7 +963,7 @@ func getUUID(t *testing.T) string {
 	return uuid.String()
 }
 
-func serializedConfiguration(keyMetadataFile string, keyVaultURI string, tenantID string, subscriptionID string, appID string, appSecret string, useMsi string) string {
+func serializedConfiguration(keyMetadataFile, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi string) string {
 	return fmt.Sprintf(`{
 		"key_metadata_file":"%s",
 		"key_vault_uri":"%s",
@@ -982,7 +982,7 @@ func serializedConfiguration(keyMetadataFile string, keyVaultURI string, tenantI
 		useMsi)
 }
 
-func configureRequestWithVars(keyMetadataFile string, keyVaultURI string, tenantID string, subscriptionID string, appID string, appSecret string, useMsi string) *configv1.ConfigureRequest {
+func configureRequestWithVars(keyMetadataFile, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		HclConfiguration:  serializedConfiguration(keyMetadataFile, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
@@ -1006,7 +1006,7 @@ func createKeyMetadataFile(t *testing.T) string {
 	return tempFilePath
 }
 
-func makeFakeKeyEntry(t *testing.T, keyName string, trustDomain string, serverID string, keyType azkeys.JSONWebKeyType, curveName *azkeys.JSONWebKeyCurveName, rsaKeySize *int) fakeKeyEntry {
+func makeFakeKeyEntry(t *testing.T, keyName, trustDomain, serverID string, keyType azkeys.JSONWebKeyType, curveName *azkeys.JSONWebKeyCurveName, rsaKeySize *int) fakeKeyEntry {
 	var publicKey *azkeys.JSONWebKey
 	var privateKey crypto.Signer
 	keyOperations := getKeyOperations()

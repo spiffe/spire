@@ -1,4 +1,4 @@
-package azurekms
+package azurekeyvault
 
 import (
 	"context"
@@ -17,41 +17,41 @@ type cloudKeyManagementService interface {
 	Sign(ctx context.Context, name string, version string, parameters azkeys.SignParameters, options *azkeys.SignOptions) (azkeys.SignResponse, error)
 }
 
-type kmsClient struct {
+type keyVaultClient struct {
 	client *azkeys.Client
 }
 
-func (c *kmsClient) CreateKey(ctx context.Context, name string, parameters azkeys.CreateKeyParameters, options *azkeys.CreateKeyOptions) (azkeys.CreateKeyResponse, error) {
+func (c *keyVaultClient) CreateKey(ctx context.Context, name string, parameters azkeys.CreateKeyParameters, options *azkeys.CreateKeyOptions) (azkeys.CreateKeyResponse, error) {
 	return c.client.CreateKey(ctx, name, parameters, options)
 }
 
-func (c *kmsClient) DeleteKey(ctx context.Context, name string, options *azkeys.DeleteKeyOptions) (azkeys.DeleteKeyResponse, error) {
+func (c *keyVaultClient) DeleteKey(ctx context.Context, name string, options *azkeys.DeleteKeyOptions) (azkeys.DeleteKeyResponse, error) {
 	return c.client.DeleteKey(ctx, name, options)
 }
 
-func (c *kmsClient) UpdateKey(ctx context.Context, name string, version string, parameters azkeys.UpdateKeyParameters, options *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
+func (c *keyVaultClient) UpdateKey(ctx context.Context, name string, version string, parameters azkeys.UpdateKeyParameters, options *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
 	return c.client.UpdateKey(ctx, name, version, parameters, options)
 }
 
-func (c *kmsClient) GetKey(ctx context.Context, name string, version string, options *azkeys.GetKeyOptions) (azkeys.GetKeyResponse, error) {
+func (c *keyVaultClient) GetKey(ctx context.Context, name string, version string, options *azkeys.GetKeyOptions) (azkeys.GetKeyResponse, error) {
 	return c.client.GetKey(ctx, name, version, options)
 }
 
-func (c *kmsClient) NewListKeysPager(options *azkeys.ListKeysOptions) *runtime.Pager[azkeys.ListKeysResponse] {
+func (c *keyVaultClient) NewListKeysPager(options *azkeys.ListKeysOptions) *runtime.Pager[azkeys.ListKeysResponse] {
 	return c.client.NewListKeysPager(options)
 }
 
-func (c *kmsClient) Sign(ctx context.Context, name string, version string, parameters azkeys.SignParameters, options *azkeys.SignOptions) (azkeys.SignResponse, error) {
+func (c *keyVaultClient) Sign(ctx context.Context, name string, version string, parameters azkeys.SignParameters, options *azkeys.SignOptions) (azkeys.SignResponse, error) {
 	return c.client.Sign(ctx, name, version, parameters, options)
 }
 
-func newKMSClient(creds azcore.TokenCredential, keyVaultURI string) (cloudKeyManagementService, error) {
+func newKeyVaultClient(creds azcore.TokenCredential, keyVaultURI string) (cloudKeyManagementService, error) {
 	client, err := azkeys.NewClient(keyVaultURI, creds, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &kmsClient{
+	return &keyVaultClient{
 		client: client,
 	}, nil
 }

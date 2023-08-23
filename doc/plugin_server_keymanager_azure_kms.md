@@ -1,6 +1,6 @@
-# Server plugin: KeyManager "azure_kms"
+# Server plugin: KeyManager "azure_key_vault"
 
-The `azure_kms` key manager plugin leverages the Microsoft Azure Key Vault
+The `azure_key_vault` key manager plugin leverages the Microsoft Azure Key Vault
 Service to create, maintain, and rotate key pairs, signing SVIDs as needed. No
 Microsoft Azure principal can view or export the raw cryptographic key material
 represented by a key. Instead, Key Vault accesses the key material on behalf of
