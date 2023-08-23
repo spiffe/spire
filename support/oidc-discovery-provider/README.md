@@ -31,27 +31,27 @@ The provider has the following command line flags:
 The configuration file is **required** by the provider. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
-| Key                     | Type    | Required?      | Description                                                            | Default  |
-|-------------------------|---------|----------------|------------------------------------------------------------------------|----------|
-| `acme`                  | section | required[1]    | Provides the ACME configuration.                                       |          |
-| `serving_cert_file`     | section | required[1][4] | Provides the serving certificate configuration.                        |          |
-| `allow_insecure_scheme` | string  | optional[3]    | Serves OIDC configuration response with HTTP url.                      | `false`  |
-| `domains`               | strings | required       | One or more domains the provider is being served from.                 |          |
-| `experimental`          | section | optional       | The experimental options that are subject to change or removal.        |          |
-| `insecure_addr`         | string  | optional[3]    | Exposes the service on http.                                           |          |
-| `set_key_use`           | bool    | optional       | If true, the `use` parameter on JWKs will be set to `sig`.             | `false`  |
-| `listen_socket_path`    | string  | required[1][3] | Path on disk to listen with a Unix Domain Socket. Unix platforms only. |          |
-| `log_format`            | string  | optional       | Format of the logs (either `"TEXT"` or `"JSON"`)                       | `""`     |
-| `log_level`             | string  | required       | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`)               | `"info"` |
-| `log_path`              | string  | optional       | Path on disk to write the log.                                         |          |
-| `log_requests`          | bool    | optional       | If true, all HTTP requests are logged at the debug level               | `false`  |
-| `server_api`            | section | required[2]    | Provides SPIRE Server API details.                                     |          |
-| `workload_api`          | section | required[2]    | Provides Workload API details.                                         |          |
-| `health_checks`         | section | optional       | Enable and configure health check endpoints                            |          |
+| Key                     | Type    | Required?          | Description                                                            | Default  |
+|-------------------------|---------|--------------------|------------------------------------------------------------------------|----------|
+| `acme`                  | section | required[1]        | Provides the ACME configuration.                                       |          |
+| `serving_cert_file`     | section | required\[1\]\[4\] | Provides the serving certificate configuration.                        |          |
+| `allow_insecure_scheme` | string  | optional\[3\]      | Serves OIDC configuration response with HTTP url.                      | `false`  |
+| `domains`               | strings | required           | One or more domains the provider is being served from.                 |          |
+| `experimental`          | section | optional           | The experimental options that are subject to change or removal.        |          |
+| `insecure_addr`         | string  | optional\[3\]      | Exposes the service on http.                                           |          |
+| `set_key_use`           | bool    | optional           | If true, the `use` parameter on JWKs will be set to `sig`.             | `false`  |
+| `listen_socket_path`    | string  | required\[1\]\[3\] | Path on disk to listen with a Unix Domain Socket. Unix platforms only. |          |
+| `log_format`            | string  | optional           | Format of the logs (either `"TEXT"` or `"JSON"`)                       | `""`     |
+| `log_level`             | string  | required           | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`)               | `"info"` |
+| `log_path`              | string  | optional           | Path on disk to write the log.                                         |          |
+| `log_requests`          | bool    | optional           | If true, all HTTP requests are logged at the debug level               | `false`  |
+| `server_api`            | section | required\[2\]      | Provides SPIRE Server API details.                                     |          |
+| `workload_api`          | section | required\[2\]      | Provides Workload API details.                                         |          |
+| `health_checks`         | section | optional           | Enable and configure health check endpoints                            |          |
 
-| experimental             | Type   | Required?      | Description                                          | Default |
-|--------------------------|--------|----------------|------------------------------------------------------|---------|
-| `listen_named_pipe_name` | string | required[1][3] | Pipe name to listen with a named pipe. Windows only. |         |
+| experimental             | Type   | Required?          | Description                                          | Default |
+|--------------------------|--------|--------------------|------------------------------------------------------|---------|
+| `listen_named_pipe_name` | string | required\[1\]\[3\] | Pipe name to listen with a named pipe. Windows only. |         |
 
 <!-- markdownlint-configure-file { "MD053": false } -->
 

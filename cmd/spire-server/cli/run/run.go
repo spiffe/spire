@@ -27,6 +27,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/fflag"
@@ -124,6 +125,7 @@ type bundleEndpointConfig struct {
 	Address            string                    `hcl:"address"`
 	Port               int                       `hcl:"port"`
 	ACME               *bundleEndpointACMEConfig `hcl:"acme"`
+	RefreshHint        string                    `hcl:"refresh_hint"`
 	UnusedKeyPositions map[string][]token.Pos    `hcl:",unusedKeyPositions"`
 }
 
@@ -412,6 +414,30 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 					IP:   net.ParseIP(c.Server.Federation.BundleEndpoint.Address),
 					Port: c.Server.Federation.BundleEndpoint.Port,
 				},
+			}
+
+			if c.Server.Federation.BundleEndpoint.RefreshHint != "" {
+				refreshHint, err := time.ParseDuration(c.Server.Federation.BundleEndpoint.RefreshHint)
+				if err != nil {
+					return nil, fmt.Errorf("could not parse refresh_hint %q: %w", c.Server.Federation.BundleEndpoint.RefreshHint, err)
+				}
+
+				if refreshHint >= 24*time.Hour {
+					sc.Log.Warn("Bundle endpoint refresh hint set to a high value. To cover " +
+						"the case of unscheduled trust bundle updates, it's recommended to " +
+						"have a smaller value, e.g. 5m")
+				}
+
+				if refreshHint < bundleutil.MinimumRefreshHint {
+					sc.Log.Warn("Bundle endpoint refresh hint set too low. SPIRE will not " +
+						"refresh more often than 1 minute")
+				}
+
+				sc.Federation.BundleEndpoint.RefreshHint = &refreshHint
+			} else {
+				sc.Log.Warn("Bundle endpoint refresh_hint is not set. This configuration " +
+					"will default to 5 minutes in a future release; please check if you " +
+					"need to specify it")
 			}
 
 			if acme := c.Server.Federation.BundleEndpoint.ACME; acme != nil {

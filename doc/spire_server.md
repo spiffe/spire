@@ -163,6 +163,7 @@ server {
                 domain_name = "example.org"
                 email = "mail@example.org"
             }
+            refresh_hint = "10m"
         }
         federates_with "domain1.test" {
             bundle_endpoint_url = "https://1.2.3.4:8443"
@@ -185,11 +186,12 @@ The `federation.federates_with` section is also optional and is used to configur
 
 This optional section contains the configurables used by SPIRE Server to expose a bundle endpoint.
 
-| Configuration | Description                                                                    |
-|---------------|--------------------------------------------------------------------------------|
-| address       | IP address where this server will listen for HTTP requests                     |
-| port          | TCP port number where this server will listen for HTTP requests                |
-| acme          | Automated Certificate Management Environment configuration section (see below) |
+| Configuration | Description                                                                                                                                                                                                                                                                                                 |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| address       | IP address where this server will listen for HTTP requests                                                                                                                                                                                                                                                  |
+| port          | TCP port number where this server will listen for HTTP requests                                                                                                                                                                                                                                             |
+| acme          | Automated Certificate Management Environment configuration section (see below)                                                                                                                                                                                                                              |
+| refresh_hint  | Allow manually specifying a [refresh hint](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#412-refresh-hint). When not set, it is determined based on the lifetime of the keys in the bundle. Small values allow to retrieve trust bundle updates in a timely manner |
 
 ### Configuration options for `federation.bundle_endpoint.acme`
 
