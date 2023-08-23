@@ -3679,7 +3679,7 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 }
 
 func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
-	if err := tx.Where("created_at < DATE_SUB(NOW(), INTERVAL ? SECOND)", olderThan.Seconds()).Delete(&RegisteredEntryEvent{}).Error; err != nil {
+	if err := tx.Where("created_at < NOW() - INTERVAL ? SECOND", olderThan.Seconds()).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
