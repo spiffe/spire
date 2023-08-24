@@ -105,10 +105,10 @@ const (
     	The Registration Entry ID of the record to delete.
   -file string
     	Path to a file containing a JSON structure for batch deletion (optional). If set to '-', read from stdin.
+  -namedPipeName string
+    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	countUsage = `Usage of entry count:
   -namedPipeName string
