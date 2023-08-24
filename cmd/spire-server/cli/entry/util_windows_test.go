@@ -101,10 +101,10 @@ const (
     	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl flag
 `
 	deleteUsage = `Usage of entry delete:
-  -data string
-    	Path to a file containing deletion JSON (optional). If set to '-', read the JSON from stdin.
-  -entryID value
-    	The Registration Entry ID of the record to delete. Can be used more than once
+  -entryID string
+    	The Registration Entry ID of the record to delete.
+  -file string
+    	Path to a file containing a JSON structure for batch deletion (optional). If set to '-', read from stdin.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
