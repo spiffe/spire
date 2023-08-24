@@ -24,7 +24,7 @@ Metadata endpoint.  For more information, see [the AWS SDK documentation](https:
 ```hcl
     NodeAttestor "aws_iid" {
         plugin_data {
-            ec2_metadata_endpoint = "http://169.264.169.254/latest"
+            ec2_metadata_endpoint = "http://169.254.169.254/latest"
         }
     }
 ```

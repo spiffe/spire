@@ -263,6 +263,15 @@ const (
 	// ElapsedTime tags some duration of time.
 	ElapsedTime = "elapsed_time"
 
+	// EntryAdded is the counter key for when a entry is added to LRU cache
+	EntryAdded = "lru_cache_entry_add"
+
+	// EntryRemoved is the counter key for when a entry is removed from LRU cache
+	EntryRemoved = "lru_cache_entry_remove"
+
+	// EntryUpdated is the counter key for when an LRU cache entry is updated
+	EntryUpdated = "lru_cache_entry_update"
+
 	// EndpointSpiffeID tags endpoint SPIFFE ID
 	EndpointSpiffeID = "endpoint_spiffe_id"
 
@@ -345,6 +354,9 @@ const (
 	// Kid tags some key ID
 	Kid = "kid"
 
+	// LocalAuthorityID tags a local authority ID
+	LocalAuthorityID = "local_authority_id"
+
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 
@@ -414,6 +426,9 @@ const (
 
 	// ReceivedUID is like Received, specific to uid.
 	ReceivedUID = "received_uid"
+
+	// RecordMapSize is the gauge key to hold the size of the LRU cache entries map
+	RecordMapSize = "lru_cache_record_map_size"
 
 	// RefreshHint tags a bundle refresh hint
 	RefreshHint = "refresh_hint"
@@ -492,6 +507,9 @@ const (
 	// Subject tags some subject (likely a SPIFFE ID, and likely for a token); should be used
 	// with other tags to add clarity
 	Subject = "subject"
+
+	// SVIDMapSize is the gauge key for the size of the LRU cache SVID map
+	SVIDMapSize = "lru_cache_svid_map_size"
 
 	// SVIDResponseLatency tags latency for SVID response
 	SVIDResponseLatency = "svid_response_latency"
@@ -771,6 +789,9 @@ const (
 	// FetchX509SVID functionality related to fetching an X509 SVID
 	FetchX509SVID = "fetch_x509_svid"
 
+	// FirstUpdate functionality related to fetching first update in a streaming API.
+	FirstUpdate = "first_update"
+
 	// GetNodeSelectors functionality related to getting node selectors
 	GetNodeSelectors = "get_node_selectors"
 
@@ -825,6 +846,9 @@ const (
 
 	// StreamSecrets functionality related to streaming secrets
 	StreamSecrets = "stream_secrets"
+
+	// SubscribeX509SVIDs functionality related to subscribing to X.509 SVIDs.
+	SubscribeX509SVIDs = "subscribe_x509_svids"
 
 	// SubsystemName declares field for some subsystem name (an API, module...)
 	SubsystemName = "subsystem_name"

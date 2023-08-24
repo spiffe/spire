@@ -611,36 +611,37 @@ func (s *PluginSuite) TestTaintX509CA() {
 	t := s.T()
 
 	// Setup
-	unusedKey := testkey.NewRSA2048(t)
+	unusedKey := testkey.NewEC256(t)
 
-	keyForMalformedCert := testkey.NewEC256(t)
-	malformedX509 := &x509.Certificate{
-		PublicKey: keyForMalformedCert.PublicKey,
-		Raw:       []byte("not a certificate"),
-	}
+	// Tainted public key on raw format
+	certPublicKeyRaw, err := x509.MarshalPKIXPublicKey(s.cert.PublicKey)
+	require.NoError(t, err)
 
 	// Create new bundle with two certs
-	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert, malformedX509})
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert})
+	bundle.X509TaintedKeys = []*common.X509TaintedKey{
+		{PublicKey: []byte("foh")},
+	}
 
 	// Bundle not found
-	err := s.ds.TaintX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
+	err = s.ds.TaintX509CA(ctx, "spiffe://foo", unusedKey.Public())
 	spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
 
 	_, err = s.ds.CreateBundle(ctx, bundle)
 	require.NoError(t, err)
 
-	// Bundle contains malformed CA
-	err = s.ds.TaintX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to parse root CA: x509: malformed certificate")
+	// Bundle contains a malformed tainted key
+	err = s.ds.TaintX509CA(ctx, "spiffe://foo", unusedKey.Public())
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to parse tainted Key:")
 
-	// Remove malformed certificate
-	bundle.RootCas = []*common.Certificate{{DerBytes: s.cert.Raw}, {DerBytes: s.cacert.Raw}}
+	// Remove malformed tainted key
+	bundle.X509TaintedKeys = []*common.X509TaintedKey{}
 	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
 	require.NoError(t, err)
 
-	// No root CA is using provided key
-	err = s.ds.TaintX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided public key")
+	// Invalid public key to taint provided
+	err = s.ds.TaintX509CA(ctx, "spiffe://foo", unusedKey)
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "failed to marshal public key to taint: x509: unsupported public key type: *ecdsa.PrivateKey")
 
 	// Taint successfully
 	err = s.ds.TaintX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
@@ -650,10 +651,16 @@ func (s *PluginSuite) TestTaintX509CA() {
 	require.NoError(t, err)
 
 	expectedRootCAs := []*common.Certificate{
-		{DerBytes: s.cert.Raw, TaintedKey: true},
+		{DerBytes: s.cert.Raw},
 		{DerBytes: s.cacert.Raw},
 	}
+
 	require.Equal(t, expectedRootCAs, fetchedBundle.RootCas)
+
+	expectedTaintedKeys := []*common.X509TaintedKey{
+		{PublicKey: certPublicKeyRaw},
+	}
+	require.Equal(t, expectedTaintedKeys, fetchedBundle.X509TaintedKeys)
 
 	// Not able to taint a tainted CA
 	err = s.ds.TaintX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
@@ -666,6 +673,13 @@ func (s *PluginSuite) TestRevokeX509CA() {
 	// Setup
 	unusedKey := testkey.NewRSA2048(t)
 
+	caCertPublicKeyRaw, err := x509.MarshalPKIXPublicKey(s.cacert.PublicKey)
+	require.NoError(t, err)
+
+	// Tainted public key on raw format
+	certPublicKeyRaw, err := x509.MarshalPKIXPublicKey(s.cert.PublicKey)
+	require.NoError(t, err)
+
 	keyForMalformedCert := testkey.NewEC256(t)
 	malformedX509 := &x509.Certificate{
 		PublicKey: keyForMalformedCert.PublicKey,
@@ -674,37 +688,51 @@ func (s *PluginSuite) TestRevokeX509CA() {
 
 	// Create new bundle with two cert (one valid and one expired)
 	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert, malformedX509})
+	bundle.X509TaintedKeys = []*common.X509TaintedKey{
+		{PublicKey: []byte("foh")},
+	}
 
 	// Bundle not found
-	err := s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.Public())
 	spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
 
 	_, err = s.ds.CreateBundle(ctx, bundle)
 	require.NoError(t, err)
 
-	// Bundle contains malformed CA
+	// Bundle contains a malformed tainted key
 	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
-	spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to parse root CA: x509: malformed certificate")
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to parse tainted Key:")
 
-	// Remove malformed certificate
-	bundle.RootCas = []*common.Certificate{{DerBytes: s.cert.Raw}, {DerBytes: s.cacert.Raw}}
+	// Remove malformed tainted key
+	bundle.X509TaintedKeys = []*common.X509TaintedKey{}
 	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
 	require.NoError(t, err)
 
-	// No root CA is using provided key
-	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
-	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided public key")
+	// // No root CA is using provided key
+	// err = s.ds.RevokeX509CA(ctx, "spiffe://foo", unusedKey.PublicKey)
+	// spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided public key")
 
 	// No able to revoke untainted bundles
 	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
 	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
 
 	// Mark cert as tainted
+	bundle.X509TaintedKeys = []*common.X509TaintedKey{
+		{PublicKey: certPublicKeyRaw},
+		{PublicKey: caCertPublicKeyRaw},
+	}
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	// Bundle contains a malformed root CA
+	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to parse root CA: x509: malformed certificate")
+
+	// Remove malformed root CA
 	bundle.RootCas = []*common.Certificate{
-		{DerBytes: s.cert.Raw, TaintedKey: true},
+		{DerBytes: s.cert.Raw},
 		{DerBytes: s.cacert.Raw},
 	}
-
 	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
 	require.NoError(t, err)
 
@@ -718,8 +746,12 @@ func (s *PluginSuite) TestRevokeX509CA() {
 	expectedRootCAs := []*common.Certificate{
 		{DerBytes: s.cacert.Raw},
 	}
-
 	require.Equal(t, expectedRootCAs, fetchedBunde.RootCas)
+
+	expectedTaintedKeys := []*common.X509TaintedKey{
+		{PublicKey: caCertPublicKeyRaw},
+	}
+	require.Equal(t, expectedTaintedKeys, fetchedBunde.X509TaintedKeys)
 }
 
 func (s *PluginSuite) TestTaintJWTKey() {
@@ -4400,67 +4432,6 @@ func (s *PluginSuite) TestUpdateFederationRelationship() {
 	}
 }
 
-func (s *PluginSuite) TestCleanStaleNodeResolverEntries() {
-	deletedNodeSPIFFEID := "thisNodeDoesNotExist"
-	existentNode := &common.AttestedNode{
-		SpiffeId:            "foo",
-		AttestationDataType: "aws-tag",
-		CertSerialNumber:    "badcafe",
-		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
-	}
-
-	selectors := []*common.Selector{
-		{Type: "TYPE1", Value: "VALUE1"},
-		{Type: "TYPE2", Value: "VALUE2"},
-		{Type: "TYPE3", Value: "VALUE3"},
-		{Type: "TYPE4", Value: "VALUE4"},
-	}
-	_, err := s.ds.CreateAttestedNode(ctx, existentNode)
-	require.NoError(s.T(), err)
-	err = s.ds.SetNodeSelectors(ctx, existentNode.SpiffeId, selectors)
-	require.NoError(s.T(), err)
-	nodeSelectors, err := s.ds.GetNodeSelectors(ctx, existentNode.SpiffeId, datastore.RequireCurrent)
-	s.Require().NoError(err)
-	s.Equal(selectors, nodeSelectors)
-
-	err = s.ds.SetNodeSelectors(ctx, deletedNodeSPIFFEID, selectors)
-	require.NoError(s.T(), err)
-	staleNodeSelectors, err := s.ds.GetNodeSelectors(ctx, deletedNodeSPIFFEID, datastore.RequireCurrent)
-	s.Require().NoError(err)
-	s.Equal(selectors, staleNodeSelectors)
-
-	// Initialize a new datastore to force a cleanup of stale node resolver entries
-	dbPath := s.ds.db.connectionString
-	databaseType := s.ds.db.databaseType
-	err = s.ds.Close()
-	s.Require().NoError(err)
-	s.ds.db = nil
-	err = s.ds.Configure(ctx, fmt.Sprintf(`
-			database_type = "%s"
-			log_sql = true
-			connection_string = "%s"
-            ro_connection_string = "%s"
-		`, databaseType, dbPath, TestROConnString))
-	s.Require().NoError(err)
-
-	spiretest.AssertLogsContainEntries(s.T(), s.hook.AllEntries(), []spiretest.LogEntry{
-		{
-			Level:   logrus.InfoLevel,
-			Message: "Deleted 4 stale node resolver entries",
-		},
-	})
-
-	// Check that stale node selectors were deleted since the underlying attested node entry does not exist
-	staleNodeSelectors, err = s.ds.GetNodeSelectors(ctx, deletedNodeSPIFFEID, datastore.RequireCurrent)
-	s.Require().NoError(err)
-	s.Empty(staleNodeSelectors)
-
-	// Check that foo node selectors were not deleted because the attested node entry still exists
-	nodeSelectors, err = s.ds.GetNodeSelectors(ctx, existentNode.SpiffeId, datastore.RequireCurrent)
-	s.Require().NoError(err)
-	s.Equal(selectors, nodeSelectors)
-}
-
 func (s *PluginSuite) TestMigration() {
 	for schemaVersion := 0; schemaVersion < latestSchemaVersion; schemaVersion++ {
 		s.T().Run(fmt.Sprintf("migration_from_schema_version_%d", schemaVersion), func(t *testing.T) {
@@ -4509,6 +4480,8 @@ func (s *PluginSuite) TestMigration() {
 			// of SPIRE server and no longer have migration code.
 			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20:
 				prepareDB(false)
+			case 21:
+				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}

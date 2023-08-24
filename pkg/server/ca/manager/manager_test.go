@@ -64,15 +64,22 @@ func TestGetCurrentJWTKeySlot(t *testing.T) {
 
 		require.True(t, slot.IsEmpty())
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
+		require.Empty(t, slot.notAfter)
 	})
 
 	t.Run("slot returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL)
+
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
 		currentSlot := test.m.GetCurrentJWTKeySlot()
 		slot := currentSlot.(*JwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
-		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
 	})
 }
 
@@ -88,15 +95,22 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 
 		require.Nil(t, slot.jwtKey)
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
+		require.Empty(t, slot.notAfter)
 	})
 
 	t.Run("next returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL)
+
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
 		nextSlot := test.m.GetNextJWTKeySlot()
 		slot := nextSlot.(*JwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
-		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
 	})
 }
 
@@ -111,16 +125,25 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 
 		slot := currentSlot.(*X509CASlot)
 		require.Nil(t, slot.x509CA)
+		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.publicKey)
+		require.Empty(t, slot.notAfter)
 	})
 
 	t.Run("slot returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL).UTC()
+
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
 		currentSlot := test.m.GetCurrentX509CASlot()
 		slot := currentSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
-		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
+		require.NotNil(t, slot.publicKey)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
 	})
 }
 
@@ -135,16 +158,25 @@ func TestGetNextX509CASlot(t *testing.T) {
 		slot := nextSlot.(*X509CASlot)
 
 		require.Nil(t, slot.x509CA)
+		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.publicKey)
+		require.Empty(t, slot.notAfter)
 	})
 
 	t.Run("next returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL).UTC()
+
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
 		nextSlot := test.m.GetNextX509CASlot()
 		slot := nextSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
-		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
+		require.NotNil(t, slot.publicKey)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
 	})
 }
 

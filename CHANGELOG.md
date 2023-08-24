@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.7.2] - 2023-08-16
+
+### Added
+
+- `aws_s3` BundlePublisher plugin (#4355)
+- SPIRE Server bundle endpoint now includes bundle sequence number (#4389)
+- Telemetry in experimental Agent LRU cache (#4335)
+- Telemetry in Agent Delegated Identity API (#4399)
+- Documentation improvements (#4336, #4407)
+
+### Fixed
+
+- Server no longer unnecessarily activates its CA a second time on startup (#4368)
+
+## [1.7.1] - 2023-07-27
+
+### Added
+
+- x509pop node attestor emits a new selector with the leaf certificate serial number (#4216)
+- HTTPS server in the OIDC Discovery Provider can now be configured to use a certificate file (#4190)
+- Option to log source information in server and agent logs (#4246)
+
+### Changed
+
+- Agent now has an exponential backoff strategy when syncing with the server (#4279)
+
+### Fixed
+
+- Regression causing X509 CAs minted by an UpstreamAuthority plugin to be rejected if they have the digitalSignature key usage set (#4352)
+- SPIRE Agent cache bug resulting in workloads receiving JWT-SVIDs with incomplete audience set (#4309)
+- The `spire-server agent show` command to properly show the "Can re-attest" attribute (#4288)
+
 ## [1.7.0] - 2023-06-14
 
 ### Added
@@ -14,6 +46,12 @@
 ### Removed
 
 - Envoy SDSv2 API is deprecated and now disabled by default (#4228)
+
+## [1.6.5] - 2023-07-27
+
+### Fixed
+
+- Regression causing X509 CAs minted by an UpstreamAuthority plugin to be rejected if they have the digitalSignature key usage set (#4352)
 
 ## [1.6.4] - 2023-05-17
 

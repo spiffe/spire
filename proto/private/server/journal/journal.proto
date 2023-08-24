@@ -16,6 +16,9 @@ message X509CAEntry {
 
     // The entry status
     Status status = 5;
+
+    // The X.509 Subject Key Identifier (SKID)
+    string authority_id = 6;
 }
 
 message JWTKeyEntry {
@@ -36,6 +39,9 @@ message JWTKeyEntry {
 
     // The entry status
     Status status = 6;
+
+    // The JWT key ID
+    string authority_id = 7;
 }
 
 enum Status {

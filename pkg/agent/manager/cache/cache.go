@@ -127,7 +127,7 @@ type StaleEntry struct {
 	// Entry stale registration entry
 	Entry *common.RegistrationEntry
 	// SVIDs expiration time
-	ExpiresAt time.Time
+	SVIDExpiresAt time.Time
 }
 
 func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics) *Cache {
@@ -429,8 +429,8 @@ func (c *Cache) GetStaleEntries() []*StaleEntry {
 		}
 
 		staleEntries = append(staleEntries, &StaleEntry{
-			Entry:     cachedEntry.entry,
-			ExpiresAt: expiresAt,
+			Entry:         cachedEntry.entry,
+			SVIDExpiresAt: expiresAt,
 		})
 	}
 

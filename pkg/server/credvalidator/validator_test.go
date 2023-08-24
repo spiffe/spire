@@ -63,11 +63,17 @@ func TestValidateX509CA(t *testing.T) {
 			},
 		},
 		{
-			desc: "key usage other than certSign and cRLSign",
+			desc: "digitalSignature key usage",
 			setup: func(ca *x509.Certificate) {
 				ca.KeyUsage |= x509.KeyUsageDigitalSignature
 			},
-			expectErr: "invalid X509 CA: only keyCertSign and cRLSign key usage can be set",
+		},
+		{
+			desc: "key usage other than certSign, cRLSign, and digitalSignature",
+			setup: func(ca *x509.Certificate) {
+				ca.KeyUsage |= x509.KeyUsageKeyAgreement
+			},
+			expectErr: "invalid X509 CA: only keyCertSign, cRLSign, or digitalSignature key usage can be set",
 		},
 		{
 			desc: "no URI SAN",
