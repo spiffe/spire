@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
@@ -3767,7 +3768,6 @@ func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
 	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(createdRegistrationEntry.EntryId, resp.EntryIDs[0])
-	time.Sleep(1 * time.Second)
 
 	for _, tt := range []struct {
 		name             string
@@ -3785,13 +3785,14 @@ func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
 			expectedEntryIDs: nil,
 		},
 	} {
-		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
-			err = s.ds.PruneRegistrationEntriesEvents(ctx, tt.olderThan)
-			s.Require().NoError(err)
-			resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
-			s.Require().NoError(err)
-			s.Require().Equal(tt.expectedEntryIDs, resp.EntryIDs)
+			s.Require().Eventuallyf(func() bool {
+				err = s.ds.PruneRegistrationEntriesEvents(ctx, tt.olderThan)
+				s.Require().NoError(err)
+				resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+				s.Require().NoError(err)
+				return reflect.DeepEqual(tt.expectedEntryIDs, resp.EntryIDs)
+			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
 		})
 	}
 }
