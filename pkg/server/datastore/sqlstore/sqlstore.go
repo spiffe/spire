@@ -471,10 +471,14 @@ func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datast
 func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		switch ds.db.databaseType {
+		case MySQL:
+			return pruneRegistrationEntriesEventsMySQL(tx, olderThan)
+		case PostgreSQL:
+			return pruneRegistrationEntriesEventsPostgreSQL(tx, olderThan)
 		case SQLite:
 			return pruneRegistrationEntriesEventsSQLite(tx, olderThan)
 		default:
-			return pruneRegistrationEntriesEvents(tx, olderThan)
+			return sqlError.New("unsupported database_type: %v", ds.db.databaseType)
 		}
 	})
 }
@@ -3682,16 +3686,24 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	return resp, nil
 }
 
-func pruneRegistrationEntriesEventsSQLite(tx *gorm.DB, olderThan time.Duration) error {
-	if err := tx.Where(fmt.Sprintf("created_at < datetime('now', 'localtime', '-%d seconds')", int64(olderThan.Seconds()))).Delete(&RegisteredEntryEvent{}).Error; err != nil {
+func pruneRegistrationEntriesEventsMySQL(tx *gorm.DB, olderThan time.Duration) error {
+	if err := tx.Where("created_at < NOW() - INTERVAL ? SECOND", olderThan.Seconds()).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
 	return nil
 }
 
-func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
-	if err := tx.Where("created_at < NOW() - INTERVAL ? SECOND", olderThan.Seconds()).Delete(&RegisteredEntryEvent{}).Error; err != nil {
+func pruneRegistrationEntriesEventsPostgreSQL(tx *gorm.DB, olderThan time.Duration) error {
+	if err := tx.Where("created_at < NOW() - (? || 'SECOND')::INTERVAL", olderThan.Seconds()).Delete(&RegisteredEntryEvent{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
+}
+
+func pruneRegistrationEntriesEventsSQLite(tx *gorm.DB, olderThan time.Duration) error {
+	if err := tx.Where(fmt.Sprintf("created_at < datetime('now', 'localtime', '-%d seconds')", int64(olderThan.Seconds()))).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
