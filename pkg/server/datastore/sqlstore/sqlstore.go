@@ -470,8 +470,12 @@ func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datast
 // PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
 func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneRegistrationEntriesEvents(tx, olderThan)
-		return err
+		switch ds.db.databaseType {
+		case SQLite:
+			return pruneRegistrationEntriesEventsSQLite(tx, olderThan)
+		default:
+			return pruneRegistrationEntriesEvents(tx, olderThan)
+		}
 	})
 }
 
@@ -3676,6 +3680,14 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	}
 
 	return resp, nil
+}
+
+func pruneRegistrationEntriesEventsSQLite(tx *gorm.DB, olderThan time.Duration) error {
+	if err := tx.Where(fmt.Sprintf("created_at < datetime('now', 'localtime', '-%d seconds')", int64(olderThan.Seconds()))).Delete(&RegisteredEntryEvent{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
 }
 
 func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {

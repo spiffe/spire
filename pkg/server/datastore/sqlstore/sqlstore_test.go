@@ -3698,6 +3698,9 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesEvents() {
+	var expectedEntryIDs []string
+
+	// Create an entry
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
@@ -3705,11 +3708,13 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 		SpiffeId: "spiffe://example.org/foo1",
 		ParentId: "spiffe://example.org/bar",
 	})
+	expectedEntryIDs = append(expectedEntryIDs, entry1.EntryId)
+
 	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(1, len(resp.EntryIDs))
-	s.Require().Equal(entry1.EntryId, resp.EntryIDs[0])
+	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
 
+	// Create second entry
 	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type2", Value: "Value2"},
@@ -3717,30 +3722,78 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 		SpiffeId: "spiffe://example.org/foo2",
 		ParentId: "spiffe://example.org/bar",
 	})
+	expectedEntryIDs = append(expectedEntryIDs, entry2.EntryId)
+
 	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(2, len(resp.EntryIDs))
-	s.Require().Equal(entry2.EntryId, resp.EntryIDs[1])
+	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
 
+	// Update first entry
 	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry1, nil)
 	s.Require().NoError(err)
+	expectedEntryIDs = append(expectedEntryIDs, updatedRegistrationEntry.EntryId)
+
 	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(3, len(resp.EntryIDs))
-	s.Require().Equal(updatedRegistrationEntry.EntryId, resp.EntryIDs[2])
+	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
 
+	// Delete second entry
 	s.deleteRegistrationEntry(entry2.EntryId)
+	expectedEntryIDs = append(expectedEntryIDs, entry2.EntryId)
+
 	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(4, len(resp.EntryIDs))
-	s.Require().Equal(entry2.EntryId, resp.EntryIDs[3])
+	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
 
+	// Check filtering events by id
 	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
 		GreaterThanEventID: 2,
 	})
 	s.Require().NoError(err)
-	s.Require().Equal(2, len(resp.EntryIDs))
 	s.Require().Equal(uint(3), resp.FirstEventID)
+	s.Require().Equal(expectedEntryIDs[2:], resp.EntryIDs)
+}
+
+func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
+	entry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+		},
+		SpiffeId: "SpiffeId",
+		ParentId: "ParentId",
+	}
+
+	createdRegistrationEntry := s.createRegistrationEntry(entry)
+	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(createdRegistrationEntry.EntryId, resp.EntryIDs[0])
+	time.Sleep(1 * time.Second)
+
+	for _, tt := range []struct {
+		name             string
+		olderThan        time.Duration
+		expectedEntryIDs []string
+	}{
+		{
+			name:             "Don't prune valid events",
+			olderThan:        1 * time.Hour,
+			expectedEntryIDs: []string{createdRegistrationEntry.EntryId},
+		},
+		{
+			name:             "Prune old events",
+			olderThan:        0 * time.Second,
+			expectedEntryIDs: nil,
+		},
+	} {
+		tt := tt
+		s.T().Run(tt.name, func(t *testing.T) {
+			err = s.ds.PruneRegistrationEntriesEvents(ctx, tt.olderThan)
+			s.Require().NoError(err)
+			resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+			s.Require().NoError(err)
+			s.Require().Equal(tt.expectedEntryIDs, resp.EntryIDs)
+		})
+	}
 }
 
 func (s *PluginSuite) TestCreateJoinToken() {
