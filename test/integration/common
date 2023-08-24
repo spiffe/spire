@@ -207,7 +207,6 @@ download-kind() {
     elif [ "${ARCH}" = "aarch64" ]; then
         ARCH=arm64
     fi
-
     KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-$ARCH"
 
     local kind_path=$1
