@@ -1,4 +1,4 @@
-package azurekms
+package azurekeyvault
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
-	"github.com/spiffe/spire/test/testkey"
 	"math/big"
 	"path"
 	"sync"
@@ -19,6 +18,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
+	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -29,7 +29,6 @@ type kmsClientFake struct {
 	vaultURI        string
 	trustDomain     string
 	serverID        string
-	fakeKeyIDPrefix string
 	mu              sync.RWMutex
 	createKeyErr    error
 	deleteKeyErr    error
@@ -55,14 +54,13 @@ type fakeKeyEntry struct {
 	PrivateKey crypto.Signer
 }
 
-func newKMSClientFake(t *testing.T, vaultURI string, trustDomain string, serverID string, c *clock.Mock) *kmsClientFake {
+func newKMSClientFake(t *testing.T, vaultURI, trustDomain, serverID string, c *clock.Mock) *kmsClientFake {
 	return &kmsClientFake{
-		t:               t,
-		vaultURI:        vaultURI,
-		trustDomain:     trustDomain,
-		serverID:        serverID,
-		store:           newFakeStore(c, t),
-		fakeKeyIDPrefix: vaultURI + "keys/spire-key-" + serverID + "-",
+		t:           t,
+		vaultURI:    vaultURI,
+		trustDomain: trustDomain,
+		serverID:    serverID,
+		store:       newFakeStore(c, t),
 	}
 }
 
@@ -160,7 +158,7 @@ func (k *kmsClientFake) setListKeysErr(fakeError string) {
 	}
 }
 
-func (k *kmsClientFake) CreateKey(ctx context.Context, keyName string, parameters azkeys.CreateKeyParameters, options *azkeys.CreateKeyOptions) (azkeys.CreateKeyResponse, error) {
+func (k *kmsClientFake) CreateKey(_ context.Context, keyName string, parameters azkeys.CreateKeyParameters, _ *azkeys.CreateKeyOptions) (azkeys.CreateKeyResponse, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.createKeyErr != nil {
@@ -213,7 +211,7 @@ func (k *kmsClientFake) CreateKey(ctx context.Context, keyName string, parameter
 	return azkeys.CreateKeyResponse{KeyBundle: *keyBundle}, nil
 }
 
-func (k *kmsClientFake) DeleteKey(ctx context.Context, name string, options *azkeys.DeleteKeyOptions) (azkeys.DeleteKeyResponse, error) {
+func (k *kmsClientFake) DeleteKey(_ context.Context, name string, _ *azkeys.DeleteKeyOptions) (azkeys.DeleteKeyResponse, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.deleteKeyErr != nil {
@@ -234,7 +232,7 @@ func (k *kmsClientFake) DeleteKey(ctx context.Context, name string, options *azk
 	return azkeys.DeleteKeyResponse{DeletedKeyBundle: deletedKeyBundle}, nil
 }
 
-func (k *kmsClientFake) UpdateKey(ctx context.Context, name string, version string, parameters azkeys.UpdateKeyParameters, options *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
+func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, _ azkeys.UpdateKeyParameters, _ *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.updateKeyErr != nil {
@@ -257,7 +255,7 @@ func (k *kmsClientFake) UpdateKey(ctx context.Context, name string, version stri
 	return azkeys.UpdateKeyResponse{KeyBundle: *keyBundle}, nil
 }
 
-func (k *kmsClientFake) GetKey(ctx context.Context, keyName string, version string, options *azkeys.GetKeyOptions) (azkeys.GetKeyResponse, error) {
+func (k *kmsClientFake) GetKey(_ context.Context, keyName, _ string, _ *azkeys.GetKeyOptions) (azkeys.GetKeyResponse, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.getKeyErr != nil {
@@ -275,7 +273,7 @@ func (k *kmsClientFake) GetKey(ctx context.Context, keyName string, version stri
 	return azkeys.GetKeyResponse{KeyBundle: *keyBundle}, err
 }
 
-func (k *kmsClientFake) NewListKeysPager(options *azkeys.ListKeysOptions) *runtime.Pager[azkeys.ListKeysResponse] {
+func (k *kmsClientFake) NewListKeysPager(_ *azkeys.ListKeysOptions) *runtime.Pager[azkeys.ListKeysResponse] {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
@@ -307,7 +305,7 @@ func (k *kmsClientFake) NewListKeysPager(options *azkeys.ListKeysOptions) *runti
 	})
 }
 
-func (k *kmsClientFake) Sign(ctx context.Context, keyName string, version string, parameters azkeys.SignParameters, options *azkeys.SignOptions) (azkeys.SignResponse, error) {
+func (k *kmsClientFake) Sign(_ context.Context, keyName, _ string, parameters azkeys.SignParameters, _ *azkeys.SignOptions) (azkeys.SignResponse, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 

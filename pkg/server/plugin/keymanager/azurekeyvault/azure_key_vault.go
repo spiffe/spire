@@ -1,4 +1,4 @@
-package azurekms
+package azurekeyvault
 
 import (
 	"context"
@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	pluginName               = "azure_kms"
+	pluginName               = "azure_key_vault"
 	refreshKeysFrequency     = time.Hour * 6
 	algorithmTag             = "algorithm"
 	keyIDTag                 = "key_id"
@@ -66,9 +66,9 @@ type keyEntry struct {
 }
 
 type pluginHooks struct {
-	newKMSClient  func(creds azcore.TokenCredential, keyVaultUri string) (cloudKeyManagementService, error)
-	clk           clock.Clock
-	msiCredential func() (azcore.TokenCredential, error)
+	newKeyVaultClient func(creds azcore.TokenCredential, keyVaultUri string) (cloudKeyManagementService, error)
+	clk               clock.Clock
+	msiCredential     func() (azcore.TokenCredential, error)
 	// Used for testing only.
 	scheduleDeleteSignal chan error
 	refreshKeysSignal    chan error
@@ -94,7 +94,7 @@ type Plugin struct {
 	mu             sync.RWMutex
 	entries        map[string]keyEntry
 	entriesMtx     sync.RWMutex
-	kmsClient      cloudKeyManagementService
+	keyVaultClient cloudKeyManagementService
 	trustDomain    string
 	serverID       string
 	scheduleDelete chan string
@@ -105,18 +105,18 @@ type Plugin struct {
 
 // New returns an instantiated plugin.
 func New() *Plugin {
-	return newPlugin(newKMSClient)
+	return newPlugin(newKeyVaultClient)
 }
 
 // newPlugin returns a new plugin instance.
 func newPlugin(
-	newKMSClient func(creds azcore.TokenCredential, keyVaultUri string) (cloudKeyManagementService, error),
+	newKeyVaultClient func(creds azcore.TokenCredential, keyVaultUri string) (cloudKeyManagementService, error),
 ) *Plugin {
 	return &Plugin{
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
-			newKMSClient: newKMSClient,
-			clk:          clock.New(),
+			newKeyVaultClient: newKeyVaultClient,
+			clk:               clock.New(),
 			msiCredential: func() (azcore.TokenCredential, error) {
 				return azidentity.NewManagedIdentityCredential(nil)
 			},
@@ -167,28 +167,28 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 			return nil, status.Errorf(codes.Internal, "unable to get client credential: %v", err)
 		}
 
-		client, err = p.hooks.newKMSClient(creds, config.KeyVaultURI)
+		client, err = p.hooks.newKeyVaultClient(creds, config.KeyVaultURI)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create KMS client with client credentials: %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to create Key Vault client with client credentials: %v", err)
 		}
 	case config.UseMSI:
 		cred, err := p.hooks.msiCredential()
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to get MSI credential: %v", err)
 		}
-		client, err = p.hooks.newKMSClient(cred, config.KeyVaultURI)
+		client, err = p.hooks.newKeyVaultClient(cred, config.KeyVaultURI)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create KMS client with MSI credential: %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to create Key Vault client with MSI credential: %v", err)
 		}
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "either MSI (use_msi) must be set to true or app authentication (tenant_id, subscription_id, app_id and app_secret) must be set")
 	}
 
 	fetcher := &keyFetcher{
-		kmsClient:   client,
-		log:         p.log,
-		serverID:    serverID,
-		trustDomain: req.CoreConfiguration.TrustDomain,
+		keyVaultClient: client,
+		log:            p.log,
+		serverID:       serverID,
+		trustDomain:    req.CoreConfiguration.TrustDomain,
 	}
 
 	p.log.Debug("Fetching keys from Azure Key Vault", "key_vault_uri", config.KeyVaultURI)
@@ -201,7 +201,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	defer p.mu.Unlock()
 
 	p.setCache(keyEntries)
-	p.kmsClient = client
+	p.keyVaultClient = client
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
 	p.keyTags = make(map[string]*string)
@@ -257,14 +257,14 @@ func (p *Plugin) refreshKeys(ctx context.Context) error {
 	for _, entry := range p.entries {
 		keyName := entry.KeyName
 		keyVersion := entry.keyVersion
-		_, err := p.kmsClient.GetKey(ctx, keyName, keyVersion, nil)
+		_, err := p.keyVaultClient.GetKey(ctx, keyName, keyVersion, nil)
 		if err != nil {
 			p.log.Warn("failed fetching cached key to refresh it", keyNameTag, keyName)
 			continue
 		}
 
 		// Update the key with the same key to only change the Updated timestamp
-		_, err = p.kmsClient.UpdateKey(ctx, keyName, keyVersion, azkeys.UpdateKeyParameters{
+		_, err = p.keyVaultClient.UpdateKey(ctx, keyName, keyVersion, azkeys.UpdateKeyParameters{
 			KeyOps: []*azkeys.JSONWebKeyOperation{to.Ptr(azkeys.JSONWebKeyOperationSign), to.Ptr(azkeys.JSONWebKeyOperationVerify)},
 		}, nil)
 		if err != nil {
@@ -310,7 +310,7 @@ func (p *Plugin) notifyDisposeKeys(err error) {
 
 func (p *Plugin) disposeKeys(ctx context.Context) error {
 	p.log.Debug("Looking for keys in trust domain to dispose")
-	pager := p.kmsClient.NewListKeysPager(nil)
+	pager := p.keyVaultClient.NewListKeysPager(nil)
 	now := p.hooks.clk.Now()
 	maxStaleTime := now.Add(-maxStaleDuration)
 	for pager.More() {
@@ -321,11 +321,14 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 		}
 
 		for _, key := range resp.Value {
-			// Skip keys that do not belong the current trust domain
-			// Keys that are administered by other servers in this server's trust domain will be considered
-			// for deletion if they're stale (i.e:have not been updated for maxStaleDuration)
+			// Skip keys that do not belong to this trust domain
 			trustDomain, hasTD := key.Tags[tagNameServerTrustDomain]
 			if !hasTD || *trustDomain != p.trustDomain {
+				continue
+			}
+
+			// Skip keys that belong to this server
+			if p.serverID == *key.Tags[tagNameServerID] {
 				continue
 			}
 
@@ -345,7 +348,8 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 	return nil
 }
 
-// GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.
+// GenerateKey creates a key in Key Vault. If a key already exists in the local
+// storage, it is updated.
 func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyRequest) (*keymanagerv1.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
@@ -376,22 +380,34 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
-	keyName := p.generateKeyName(spireKeyID)
+	keyName, err := p.generateKeyName(spireKeyID)
+	if err != nil {
+		return nil, fmt.Errorf("could not generate key name: %w", err)
+	}
 
-	createResp, err := p.kmsClient.CreateKey(ctx, keyName, *createKeyParameters, nil)
+	createResp, err := p.keyVaultClient.CreateKey(ctx, keyName, *createKeyParameters, nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create key: %v", err)
 	}
 	log := p.log.With(keyIDTag, *createResp.Key.KID)
 	log.Debug("Key created", algorithmTag, *createResp.Key.Kty)
 
-	rawKey, err := kmsKeyToRawKey(createResp.Key)
+	rawKey, err := keyVaultKeyToRawKey(createResp.Key)
 	if err != nil {
 		return nil, err
 	}
 	publicKey, err := x509.MarshalPKIXPublicKey(rawKey)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to marshal public key: %v", err)
+	}
+
+	if keyEntry, ok := p.getKeyEntry(spireKeyID); ok {
+		select {
+		case p.scheduleDelete <- keyEntry.KeyName:
+			p.log.Debug("Key enqueued for deletion", keyNameTag, keyEntry.KeyName)
+		default:
+			p.log.Error("Failed to enqueue key for deletion", keyNameTag, keyEntry.KeyName)
+		}
 	}
 
 	return &keyEntry{
@@ -429,12 +445,12 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	keyVersion := key.keyVersion
 	keyFingerprint := key.PublicKey.Fingerprint
 
-	signingAlgo, err := signingAlgorithmForKMS(keyType, req.SignerOpts)
+	signingAlgo, err := signingAlgorithmForKeyVault(keyType, req.SignerOpts)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	signResponse, err := p.kmsClient.Sign(ctx, keyName, keyVersion, azkeys.SignParameters{
+	signResponse, err := p.keyVaultClient.Sign(ctx, keyName, keyVersion, azkeys.SignParameters{
 		Algorithm: to.Ptr(signingAlgo),
 		Value:     req.Data,
 	}, nil)
@@ -443,9 +459,9 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	}
 
 	result := signResponse.Result
-	signatureBytes, err := kmsSignatureToASN1Encoded(result, keyType)
+	signatureBytes, err := keyVaultSignatureToASN1Encoded(result, keyType)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to convert KMS signature to ASN.1/DER format: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to convert Key Vault signature to ASN.1/DER format: %v", err)
 	}
 
 	return &keymanagerv1.SignDataResponse{
@@ -454,25 +470,25 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	}, nil
 }
 
-// kmsSignatureToASN1Encoded converts the signature format from IEEE P1363 to ASN.1/DER for ECDSA signed messages
+// keyVaultSignatureToASN1Encoded converts the signature format from IEEE P1363 to ASN.1/DER for ECDSA signed messages
 // If the message is RSA signed, it's just returned i.e: no conversion needed for RSA signed messages
 // This is all because when the signing algorithm used is ECDSA, azure's Sign API produces an IEEE P1363 format response
 // while we expect the RFC3279 ASN.1 DER Format during signature verification (ecdsa.VerifyASN1).
-func kmsSignatureToASN1Encoded(kmsSigResult []byte, keyType keymanagerv1.KeyType) ([]byte, error) {
+func keyVaultSignatureToASN1Encoded(keyVaultSigResult []byte, keyType keymanagerv1.KeyType) ([]byte, error) {
 	isRSA := keyType == keymanagerv1.KeyType_RSA_2048 || keyType == keymanagerv1.KeyType_RSA_4096
 	if isRSA {
 		// No conversion needed, it's already ASN.1 encoded
-		return kmsSigResult, nil
+		return keyVaultSigResult, nil
 	}
-	sigLength := len(kmsSigResult)
+	sigLength := len(keyVaultSigResult)
 	// The sig byte array length must either be 64 (ec-p256) or 96 (ec-p384)
 	if sigLength != 64 && sigLength != 96 {
 		return nil, status.Errorf(codes.Internal, "malformed signature response")
 	}
 	rVal := new(big.Int)
-	rVal.SetBytes(kmsSigResult[0 : sigLength/2])
+	rVal.SetBytes(keyVaultSigResult[0 : sigLength/2])
 	sVal := new(big.Int)
-	sVal.SetBytes(kmsSigResult[sigLength/2 : sigLength])
+	sVal.SetBytes(keyVaultSigResult[sigLength/2 : sigLength])
 	var b cryptobyte.Builder
 	b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
 		b.AddASN1BigInt(rVal)
@@ -481,11 +497,11 @@ func kmsSignatureToASN1Encoded(kmsSigResult []byte, keyType keymanagerv1.KeyType
 	return b.Bytes()
 }
 
-// kmsKeyToRawKey takes a *azkeys.JSONWebKey and returns the corresponding raw public key
+// keyVaultKeyToRawKey takes a *azkeys.JSONWebKey and returns the corresponding raw public key
 // For example *ecdsa.PublicKey or *rsa.PublicKey etc
-func kmsKeyToRawKey(kmsKey *azkeys.JSONWebKey) (interface{}, error) {
+func keyVaultKeyToRawKey(keyVaultKey *azkeys.JSONWebKey) (interface{}, error) {
 	// Marshal the key to JSON
-	jwkJSON, err := kmsKey.MarshalJSON()
+	jwkJSON, err := keyVaultKey.MarshalJSON()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to marshal key: %v", err)
 	}
@@ -499,13 +515,13 @@ func kmsKeyToRawKey(kmsKey *azkeys.JSONWebKey) (interface{}, error) {
 	var rawkey interface{}
 	// Raw returns the public key represented by this JWK (in this case, *rsa.PublicKey or *ecdsa.PublicKey)
 	if err := key.Raw(&rawkey); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to convert kms key to raw key: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to convert Key Vault key to raw key: %v", err)
 	}
 	return rawkey, nil
 }
 
 // GetPublicKey returns the public key for a given key
-func (p *Plugin) GetPublicKey(ctx context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
+func (p *Plugin) GetPublicKey(_ context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
 	}
@@ -565,7 +581,7 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 		case keyName := <-p.scheduleDelete:
 			log := p.log.With(keyNameTag, keyName)
 
-			_, err := p.kmsClient.DeleteKey(ctx, keyName, nil)
+			_, err := p.keyVaultClient.DeleteKey(ctx, keyName, nil)
 			if err == nil {
 				log.Debug("Key deleted")
 				backoff = backoffMin
@@ -640,8 +656,13 @@ func getCreateKeyParameters(keyType keymanagerv1.KeyType, keyTags map[string]*st
 // The returned name has the form: spire-key-<UUID>-<SPIRE-KEY-ID>,
 // where UUID is a new randomly generated UUID and SPIRE-KEY-ID is provided
 // through the spireKeyID parameter.
-func (p *Plugin) generateKeyName(spireKeyID string) (keyName string) {
-	return fmt.Sprintf("%s-%s-%s", keyNamePrefix, p.serverID, spireKeyID)
+func (p *Plugin) generateKeyName(spireKeyID string) (keyName string, err error) {
+	uniqueID, err := generateUniqueID()
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s-%s-%s", keyNamePrefix, uniqueID, spireKeyID), nil
 }
 
 // parseAndValidateConfig returns an error if any configuration provided does not meet acceptable criteria
@@ -692,20 +713,29 @@ func (p *Plugin) setCache(keyEntries []*keyEntry) {
 	}
 }
 
+// createServerID creates a randomly generated UUID to be used as a server ID
+// and stores it in the specified idPath.
 func createServerID(idPath string) (string, error) {
-	// generate id
-	u, err := uuid.NewV4()
+	id, err := generateUniqueID()
 	if err != nil {
-		return "", status.Errorf(codes.Internal, "failed to generate id for server: %v", err)
+		return "", status.Errorf(codes.Internal, "failed to generate ID for server: %v", err)
 	}
-	id := u.String()
 
-	// persist id
 	err = diskutil.WritePrivateFile(idPath, []byte(id))
 	if err != nil {
-		return "", status.Errorf(codes.Internal, "failed to persist server id on path: %v", err)
+		return "", status.Errorf(codes.Internal, "failed to persist server ID on path: %v", err)
 	}
 	return id, nil
+}
+
+// generateUniqueID returns a randomly generated UUID.
+func generateUniqueID() (id string, err error) {
+	u, err := uuid.NewV4()
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "could not create a randomly generated UUID: %v", err)
+	}
+
+	return u.String(), nil
 }
 
 func makeFingerprint(pkixData []byte) string {
@@ -713,7 +743,7 @@ func makeFingerprint(pkixData []byte) string {
 	return hex.EncodeToString(s[:])
 }
 
-func signingAlgorithmForKMS(keyType keymanagerv1.KeyType, signerOpts interface{}) (azkeys.JSONWebKeySignatureAlgorithm, error) {
+func signingAlgorithmForKeyVault(keyType keymanagerv1.KeyType, signerOpts interface{}) (azkeys.JSONWebKeySignatureAlgorithm, error) {
 	var (
 		hashAlgo keymanagerv1.HashAlgorithm
 		isPSS    bool
@@ -729,7 +759,7 @@ func signingAlgorithmForKMS(keyType keymanagerv1.KeyType, signerOpts interface{}
 		}
 		hashAlgo = opts.PssOptions.HashAlgorithm
 		isPSS = true
-		// opts.PssOptions.SaltLength is handled by KMS. The salt length matches the bits of the hashing algorithm.
+		// opts.PssOptions.SaltLength is handled by Key Vault. The salt length matches the bits of the hashing algorithm.
 	default:
 		return "", fmt.Errorf("unsupported signer opts type %T", opts)
 	}

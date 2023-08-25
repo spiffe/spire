@@ -1,4 +1,4 @@
-package azurekms
+package azurekeyvault
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
+	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
@@ -37,7 +39,6 @@ const (
 	validSubscriptionID = "fake-subscription-id"
 	validAppID          = "fake-app-id"
 	validAppSecret      = "fake-app-secret"
-	keyIDTemplate       = validKeyVaultURI + "keys/spire-key-" + validServerID + "-" + "%s"
 	trustDomain         = "test.example.org"
 	keyName             = "fake-key-name"
 	spireKeyID          = "spireKeyID"
@@ -70,7 +71,7 @@ func TestKeyManagerContract(t *testing.T) {
 		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
 			key_metadata_file = %q
 			key_vault_uri = "https://spire-server.vault.azure.net/"
-			use_msi="true"
+			use_msi=true
 		`, keyMetadataFile))
 		return km
 	}
@@ -130,9 +131,9 @@ func TestConfigure(t *testing.T) {
 			code:             codes.InvalidArgument,
 		},
 		{
-			name:             "missing key vault URL",
+			name:             "missing Key Vault URI",
 			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), "", validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
-			err:              "configuration is missing the key vault URI",
+			err:              "configuration is missing the Key Vault URI",
 			code:             codes.InvalidArgument,
 		},
 		{
@@ -745,10 +746,10 @@ func TestGetPublicKeys(t *testing.T) {
 }
 
 func TestRefreshKeys(t *testing.T) {
-	entry1 := makeFakeKeyEntry(t, keyName+"-1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
-	entry2 := makeFakeKeyEntry(t, keyName+"-2", trustDomain, "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
-	entry3 := makeFakeKeyEntry(t, keyName+"-3", "another-td", validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
-	entry4 := makeFakeKeyEntry(t, keyName+"-4", "another-td", "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
+	entry1 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
+	entry2 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey2", trustDomain, "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
+	entry3 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey3", "another-td", validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
+	entry4 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey4", "another-td", "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
 
 	for _, tt := range []struct {
 		name             string
@@ -951,46 +952,39 @@ func setupTest(t *testing.T) *pluginTest {
 
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret),
+		HclConfiguration:  serializedConfiguration(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, ""),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
 	}
 }
 
-func serializedConfiguration(keyMetadataFile string, keyVaultURI string, tenantID string, subscriptionID string, appID string, appSecret string) string {
+func getUUID(t *testing.T) string {
+	uuid, err := uuid.NewV4()
+	require.NoError(t, err)
+	return uuid.String()
+}
+
+func serializedConfiguration(keyMetadataFile, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi string) string {
 	return fmt.Sprintf(`{
 		"key_metadata_file":"%s",
 		"key_vault_uri":"%s",
 		"tenant_id":"%s",
 		"subscription_id":"%s",
 		"app_id":"%s",
-		"app_secret":"%s"
+		"app_secret":"%s",
+		"use_msi":%s
 		}`,
 		keyMetadataFile,
 		keyVaultURI,
 		tenantID,
 		subscriptionID,
 		appID,
-		appSecret)
+		appSecret,
+		useMsi)
 }
 
-func configureRequestWithVars(keyMetadataFile string, keyVaultURI string, tenantID string, subscriptionID string, appID string, appSecret string, useMsi string) *configv1.ConfigureRequest {
+func configureRequestWithVars(keyMetadataFile, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration: fmt.Sprintf(`{
-		"key_metadata_file":"%s",
-		"key_vault_uri":"%s",
-		"tenant_id":"%s",
-		"subscription_id":"%s",
-		"app_id":"%s",
-		"app_secret":"%s",
-		"use_msi":"%s",
-		}`,
-			keyMetadataFile,
-			keyVaultURI,
-			tenantID,
-			subscriptionID,
-			appID,
-			appSecret,
-			useMsi),
+		HclConfiguration:  serializedConfiguration(keyMetadataFile, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
 	}
 }
@@ -1012,11 +1006,11 @@ func createKeyMetadataFile(t *testing.T) string {
 	return tempFilePath
 }
 
-func makeFakeKeyEntry(t *testing.T, keyName string, trustDomain string, serverID string, keyType azkeys.JSONWebKeyType, curveName *azkeys.JSONWebKeyCurveName, rsaKeySize *int) fakeKeyEntry {
+func makeFakeKeyEntry(t *testing.T, keyName, trustDomain, serverID string, keyType azkeys.JSONWebKeyType, curveName *azkeys.JSONWebKeyCurveName, rsaKeySize *int) fakeKeyEntry {
 	var publicKey *azkeys.JSONWebKey
 	var privateKey crypto.Signer
 	keyOperations := getKeyOperations()
-	kmsKeyID := fmt.Sprintf(keyIDTemplate, keyName)
+	kmsKeyID := validKeyVaultURI + path.Join("keys", fmt.Sprintf("%s-%s-%s", keyNamePrefix, fmt.Sprintf("%s-%s", getUUID(t), keyName), spireKeyID))
 	switch {
 	case keyType == azkeys.JSONWebKeyTypeEC && *curveName == azkeys.JSONWebKeyCurveNameP256:
 		privateKey = testkey.NewEC256(t)
