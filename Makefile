@@ -268,10 +268,6 @@ bin/%: support/% FORCE | go-check
 	@echo Building $@…
 	$(E)$(go_build) $@$(exe) ./$<
 
-bin/%: support/k8s/% FORCE | go-check
-	@echo Building $@…
-	$(E)$(go_build) $@$(exe) ./$<
-
 #############################################################################
 # Build static binaries for docker images
 #############################################################################
@@ -289,10 +285,6 @@ bin/static/%: cmd/% FORCE | go-check
 	$(E)$(go_build_static) $@$(exe) ./$<
 
 bin/static/%: support/% FORCE | go-check
-	@echo Building $@…
-	$(E)$(go_build_static) $@$(exe) ./$<
-
-bin/static/%: support/k8s/% FORCE | go-check
 	@echo Building $@…
 	$(E)$(go_build_static) $@$(exe) ./$<
 
