@@ -56,7 +56,7 @@ var (
 	// No constant was found in the sdk, using the list of paritions defined on
 	// the page https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
 	partitions = []string{
-		"aws",
+		defaultPartition,
 		"aws-cn",
 		"aws-us-gov",
 	}
