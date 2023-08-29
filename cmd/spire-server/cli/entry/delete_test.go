@@ -24,18 +24,6 @@ func TestDeleteSynopsis(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	fakeRespOK := &entryv1.BatchDeleteEntryResponse{
-		Results: []*entryv1.BatchDeleteEntryResponse_Result{
-			{
-				Id: "entry-id",
-				Status: &types.Status{
-					Code:    int32(codes.OK),
-					Message: "OK",
-				},
-			},
-		},
-	}
-
 	fakeRespErr := &entryv1.BatchDeleteEntryResponse{
 		Results: []*entryv1.BatchDeleteEntryResponse_Result{
 			{
@@ -67,12 +55,13 @@ func TestDelete(t *testing.T) {
 			expErrJSON:   "Error: an entry ID is required\n",
 		},
 		{
-			name:         "Entry not found",
-			args:         []string{"-entryID", "entry-id"},
-			expReq:       &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
-			fakeResp:     fakeRespErr,
-			expErrPretty: "Error: failed to delete entry: entry not found\n",
-			expOutJSON:   `{"results":[{"status":{"code":5,"message":"entry not found"},"id":"entry-id"}]}`,
+			name:     "Entry not found",
+			args:     []string{"-entryID", "entry-id"},
+			expReq:   &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
+			fakeResp: fakeRespErr,
+			expErrPretty: "Failed to delete entry with ID entry-id (code: NotFound, msg: \"entry not found\")" +
+				"\nError: failed to delete one or more entries\n",
+			expOutJSON: `{"results":[{"status":{"code":5,"message":"entry not found"},"id":"entry-id"}]}`,
 		},
 		{
 			name:         "Server error",
@@ -83,12 +72,113 @@ func TestDelete(t *testing.T) {
 			expErrJSON:   "Error: rpc error: code = Unknown desc = server-error\n",
 		},
 		{
-			name:         "Delete succeeds",
-			args:         []string{"-entryID", "entry-id"},
-			expReq:       &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-id"}},
-			fakeResp:     fakeRespOK,
-			expOutPretty: "Deleted entry with ID: entry-id\n",
-			expOutJSON:   `{"results":[{"status":{"code":0,"message":"OK"},"id":"entry-id"}]}`,
+			name:   "Delete succeeded",
+			args:   []string{"-entryID", "entry-0"},
+			expReq: &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-0"}},
+			fakeResp: &entryv1.BatchDeleteEntryResponse{
+				Results: []*entryv1.BatchDeleteEntryResponse_Result{
+					{
+						Id: "entry-0",
+						Status: &types.Status{
+							Code:    int32(codes.OK),
+							Message: "OK",
+						},
+					},
+				},
+			},
+			expOutPretty: "Deleted entry with ID: entry-0\n",
+			expOutJSON:   `{"results":[{"status":{"code":0,"message":"OK"},"id":"entry-0"}]}`,
+		},
+		{
+			name:   "Delete succeeded using data file",
+			args:   []string{"-file", "../../../../test/fixture/registration/good-for-delete.json"},
+			expReq: &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-0", "entry-1"}},
+			fakeResp: &entryv1.BatchDeleteEntryResponse{
+				Results: []*entryv1.BatchDeleteEntryResponse_Result{
+					{
+						Id: "entry-0",
+						Status: &types.Status{
+							Code:    int32(codes.OK),
+							Message: "OK",
+						},
+					},
+					{
+						Id: "entry-1",
+						Status: &types.Status{
+							Code:    int32(codes.OK),
+							Message: "OK",
+						},
+					},
+				},
+			},
+			expOutPretty: "Deleted entry with ID: entry-0\nDeleted entry with ID: entry-1\n",
+			expOutJSON:   `{"results":[{"status":{"code":0,"message":"OK"},"id":"entry-0"},{"status":{"code":0,"message":"OK"},"id":"entry-1"}]}`,
+		},
+		{
+			name:   "Delete partially succeeded",
+			args:   []string{"-file", "../../../../test/fixture/registration/partially-good-for-delete.json"},
+			expReq: &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-0", "entry-1", "entry-2", "entry-3"}},
+			fakeResp: &entryv1.BatchDeleteEntryResponse{
+				Results: []*entryv1.BatchDeleteEntryResponse_Result{
+					{
+						Id: "entry-0",
+						Status: &types.Status{
+							Code:    int32(codes.NotFound),
+							Message: "entry not found",
+						},
+					},
+					{
+						Id: "entry-1",
+						Status: &types.Status{
+							Code:    int32(codes.OK),
+							Message: "OK",
+						},
+					},
+					{
+						Id: "entry-2",
+						Status: &types.Status{
+							Code:    int32(codes.NotFound),
+							Message: "entry not found",
+						},
+					},
+					{
+						Id: "entry-3",
+						Status: &types.Status{
+							Code:    int32(codes.OK),
+							Message: "OK",
+						},
+					},
+				},
+			},
+			expOutPretty: "Deleted entry with ID: entry-1\nDeleted entry with ID: entry-3\n",
+			expErrPretty: "Failed to delete entry with ID entry-0 (code: NotFound, msg: \"entry not found\")\n" +
+				"Failed to delete entry with ID entry-2 (code: NotFound, msg: \"entry not found\")\n" +
+				"Error: failed to delete one or more entries\n",
+			expOutJSON: `{"results":[` +
+				`{"status":{"code":5,"message":"entry not found"},"id":"entry-0"},` +
+				`{"status":{"code":0,"message":"OK"},"id":"entry-1"},` +
+				`{"status":{"code":5,"message":"entry not found"},"id":"entry-2"},` +
+				`{"status":{"code":0,"message":"OK"},"id":"entry-3"}]}`,
+		},
+		{
+			name:   "Delete failed",
+			args:   []string{"-entryID", "entry-0"},
+			expReq: &entryv1.BatchDeleteEntryRequest{Ids: []string{"entry-0"}},
+			fakeResp: &entryv1.BatchDeleteEntryResponse{
+				Results: []*entryv1.BatchDeleteEntryResponse_Result{
+					{
+						Id: "entry-0",
+						Status: &types.Status{
+							Code:    int32(codes.NotFound),
+							Message: "entry not found",
+						},
+					},
+				},
+			},
+			expErrPretty: "Failed to delete entry with ID entry-0 (code: NotFound, msg: \"entry not found\")\n" +
+				"Error: failed to delete one or more entries\n",
+			expOutJSON: `{"results":[` +
+				`{"status":{"code":5,"message":"entry not found"},"id":"entry-0"}]}`,
 		},
 	} {
 		for _, format := range availableFormats {
