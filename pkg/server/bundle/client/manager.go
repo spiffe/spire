@@ -26,6 +26,11 @@ const (
 	// configs from the source and reconciles it against the current bundle
 	// updaters.
 	configRefreshInterval = time.Second * 10
+
+	// defaultRefreshInterval is how often the manager reloads the trust bundle
+	// for a trust domain if that trust domain does not specify a refresh hint in
+	// its current trust bundle.
+	defaultRefreshInterval = time.Minute * 5
 )
 
 type TrustDomainConfig struct {
@@ -337,6 +342,9 @@ func (m *Manager) notifyBundleRefreshed(ctx context.Context, nextRefresh time.Du
 }
 
 func calculateNextUpdate(b *spiffebundle.Bundle) time.Duration {
+	if _, ok := b.RefreshHint(); !ok {
+		return defaultRefreshInterval
+	}
 	return bundleutil.CalculateRefreshHint(b) / attemptsPerRefreshHint
 }
 
