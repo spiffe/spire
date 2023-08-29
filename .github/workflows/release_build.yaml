@@ -206,6 +206,25 @@ jobs:
           name: images-windows
           path: images-windows.tar.gz
 
+  build-matrix:
+    name: Build matrix
+    runs-on: ubuntu-20.04
+    needs: [cache-deps]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+      - id: set-matrix
+        name: Collect versions
+        run: |
+          json_array=$(bash ./.github/workflows/scripts/find_k8s.sh)
+          echo "test=$json_array" >> $GITHUB_OUTPUT
+          echo "Collected tests: $json_array"
+
+    outputs:
+      test: ${{ steps.set-matrix.outputs.test }}
+
   integration:
     name: integration (linux)
     runs-on: ubuntu-20.04
@@ -271,6 +290,67 @@ jobs:
           # integration test will detect the annotated tag for version checking.
           # CICD_TARGET_BRANCH:
         run: ./.github/workflows/scripts/split.sh | xargs ./test/integration/test.sh
+
+  integration-k8s:
+    name: integration-k8s
+    runs-on: ubuntu-20.04
+    needs: [cache-deps, images, build-matrix]
+    timeout-minutes: 45
+
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+         num_runners: [1]
+         runner_id: [1]
+         #Test elements should be added as [KubeCTLVersion, K8s-image, KindVersion]
+         test: ${{ fromJson(needs.build-matrix.outputs.test) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+        with:
+          # The "upgrade" integration test needs the history to ensure
+          # that the version number in the source code has been bumped as
+          # expected. This action does not fetch tags unless we supply a
+          # fetch depth of zero.
+          fetch-depth: 0
+      - name: Setup go
+        uses: actions/setup-go@fac708d6674e30b6ba41289acaab6d4b75aa0753 # v4.0.1
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@b6614f5f56245066b533343a85f4109bdc38c8cc # main
+      - name: Load cached deps
+        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+      - name: Load cached build tools
+        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        with:
+          path: .build
+          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
+      - name: Download archived images
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
+        with:
+          name: images
+          path: .
+      - name: Load archived images
+        run: |
+          tar xvf images.tar.gz
+          make load-images
+      - name: Run k8s integration
+        env:
+          NUM_RUNNERS: ${{ matrix.num_runners }}
+          THIS_RUNNER: ${{ matrix.runner_id }}
+          KUBECTLVERSION: ${{ matrix.test[0] }}
+          K8SIMAGE: ${{ matrix.test[1] }}
+          KINDVERSION: ${{ matrix.test[2] }}
+          TERM: dumb
+          CICD_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: ./.github/workflows/scripts/split_k8s.sh | xargs ./test/integration/test-k8s.sh
 
   integration-windows:
     name: integration (windows)

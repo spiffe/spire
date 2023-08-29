@@ -6,6 +6,7 @@ package systemd
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/hashicorp/go-hclog"
@@ -37,8 +38,11 @@ type Plugin struct {
 
 	log hclog.Logger
 
+	dbusMutex sync.Mutex
+	dbusConn  *dbus.Conn
+
 	// hook for tests
-	getUnitInfo func(ctx context.Context, pid uint) (*DBusUnitInfo, error)
+	getUnitInfo func(ctx context.Context, p *Plugin, pid uint) (*DBusUnitInfo, error)
 }
 
 func New() *Plugin {
@@ -52,7 +56,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	uInfo, err := p.getUnitInfo(ctx, uint(req.Pid))
+	uInfo, err := p.getUnitInfo(ctx, p, uint(req.Pid))
 	if err != nil {
 		return nil, err
 	}
@@ -67,12 +71,39 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	}, nil
 }
 
-func getSystemdUnitInfo(ctx context.Context, pid uint) (*DBusUnitInfo, error) {
-	conn, err := dbus.SystemBus()
+func (p *Plugin) Close() error {
+	p.dbusMutex.Lock()
+	defer p.dbusMutex.Unlock()
+
+	if p.dbusConn != nil {
+		return p.dbusConn.Close()
+	}
+	return nil
+}
+
+func (p *Plugin) getDBusConn() (*dbus.Conn, error) {
+	p.dbusMutex.Lock()
+	defer p.dbusMutex.Unlock()
+
+	if p.dbusConn != nil &&
+		p.dbusConn.Connected() {
+		return p.dbusConn, nil
+	}
+
+	conn, err := dbus.ConnectSystemBus()
+	if err != nil {
+		return nil, err
+	}
+	p.dbusConn = conn
+	return p.dbusConn, nil
+}
+
+func getSystemdUnitInfo(ctx context.Context, p *Plugin, pid uint) (*DBusUnitInfo, error) {
+	// We are not closing the connection here because it's closed when the Close() function is called as part of unloading the plugin.
+	conn, err := p.getDBusConn()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to open dbus connection: %v", err)
 	}
-	defer conn.Close()
 
 	// Get the unit for the given PID from the systemd service.
 	call := conn.Object(systemdDBusInterface, systemdDBusPath).CallWithContext(ctx, systemdGetUnitByPIDMethod, 0, pid)
