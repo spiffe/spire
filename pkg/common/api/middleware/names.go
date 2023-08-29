@@ -13,23 +13,32 @@ import (
 const (
 	serverAPIPrefix = "spire.api.server."
 
-	WorkloadAPIServiceName      = "SpiffeWorkloadAPI"
-	WorkloadAPIServiceShortName = "WorkloadAPI"
-	EnvoySDSv2ServiceName       = "envoy.service.discovery.v2.SecretDiscoveryService"
-	EnvoySDSv2ServiceShortName  = "SDS.v2"
-	EnvoySDSv3ServiceName       = "envoy.service.secret.v3.SecretDiscoveryService"
-	EnvoySDSv3ServiceShortName  = "SDS.v3"
-	HealthServiceName           = "grpc.health.v1.Health"
-	HealthServiceShortName      = "Health"
+	WorkloadAPIServiceName            = "SpiffeWorkloadAPI"
+	WorkloadAPIServiceShortName       = "WorkloadAPI"
+	EnvoySDSv3ServiceName             = "envoy.service.secret.v3.SecretDiscoveryService"
+	EnvoySDSv3ServiceShortName        = "SDS.v3"
+	HealthServiceName                 = "grpc.health.v1.Health"
+	HealthServiceShortName            = "Health"
+	DelegatedIdentityServiceName      = "spire.api.agent.delegatedidentity.v1.DelegatedIdentity"
+	DelegatedIdentityServiceShortName = "DelegatedIdentity"
+	SubscribeToX509SVIDsMethodName    = "SubscribeToX509SVIDs"
+	SubscribeToX509SVIDsMetricKey     = "subscribe_to_x509_svids"
 )
 
 var (
 	serviceReplacer = strings.NewReplacer(
 		serverAPIPrefix, "",
 		WorkloadAPIServiceName, WorkloadAPIServiceShortName,
-		EnvoySDSv2ServiceName, EnvoySDSv2ServiceShortName,
 		EnvoySDSv3ServiceName, EnvoySDSv3ServiceShortName,
 		HealthServiceName, HealthServiceShortName,
+		DelegatedIdentityServiceName, DelegatedIdentityServiceShortName,
+	)
+
+	// methodMetricKeyReplacer allows adding replacement for method names that
+	// are not parsed correctly by metricKey func. Since changes to metricKey would
+	// be breaking, add a direct replacement here for the required metric key.
+	methodMetricKeyReplacer = strings.NewReplacer(
+		SubscribeToX509SVIDsMethodName, SubscribeToX509SVIDsMetricKey,
 	)
 
 	// namesCache caches parsed names
@@ -78,7 +87,7 @@ func makeNames(fullMethod string) (names api.Names) {
 
 	names.Service = serviceReplacer.Replace(names.RawService)
 	names.MetricKey = append(names.MetricKey, strings.Split(names.Service, ".")...)
-	names.MetricKey = append(names.MetricKey, names.Method)
+	names.MetricKey = append(names.MetricKey, methodMetricKeyReplacer.Replace(names.Method))
 	for i := range names.MetricKey {
 		names.MetricKey[i] = metricKey(names.MetricKey[i])
 	}

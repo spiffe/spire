@@ -105,6 +105,14 @@ $(error unsupported ARCH: $(arch1))
 endif
 
 ############################################################################
+# Docker TLS detection for buildx
+############################################################################
+dockertls=
+ifeq ($(DOCKER_TLS_VERIFY), 1)
+dockertls=spire-buildx-tls
+endif
+
+############################################################################
 # Vars
 ############################################################################
 
@@ -114,28 +122,27 @@ binaries := spire-server spire-agent oidc-discovery-provider
 
 build_dir := $(DIR)/.build/$(os1)-$(arch1)
 
-go_version_full := $(shell cat .go-version)
-go_version := $(go_version_full:.0=)
+go_version := $(shell cat .go-version)
 go_dir := $(build_dir)/go/$(go_version)
 
 ifeq ($(os1),windows)
 	go_bin_dir = $(go_dir)/go/bin
-	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).zip
+	go_url = https://go.dev/dl/go$(go_version).$(os1)-$(arch2).zip
 	exe=".exe"
 else
 	go_bin_dir = $(go_dir)/bin
-	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
+	go_url = https://go.dev/dl/go$(go_version).$(os1)-$(arch2).tar.gz
 	exe=
 endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.53.3
+golangci_lint_version = v1.54.1
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
-markdown_lint_version = v0.33.0
+markdown_lint_version = v0.35.0
 markdown_lint_image = ghcr.io/igorshubovych/markdownlint-cli:$(markdown_lint_version)
 
 protoc_version = 3.20.1
@@ -332,17 +339,22 @@ artifact: build
 # Docker Images
 #############################################################################
 
+.PHONY: spire-buildx-tls
+spire-buildx-tls:
+	$(E)docker context rm -f "$(dockertls)" > /dev/null
+	$(E)docker context create $(dockertls) --description "$(dockertls)" --docker "host=$(DOCKER_HOST),ca=$(DOCKER_CERT_PATH)/ca.pem,cert=$(DOCKER_CERT_PATH)/cert.pem,key=$(DOCKER_CERT_PATH)/key.pem" > /dev/null
+
 .PHONY: container-builder
-container-builder:
-	$(E)docker buildx create --platform $(PLATFORMS) --name container-builder --node container-builder0 --use
+container-builder: $(dockertls)
+	$(E)docker buildx create $(dockertls) --platform $(PLATFORMS) --name container-builder --node container-builder0 --use
 
 define image_rule
 .PHONY: $1
 $1: $3 container-builder
-	echo Building docker image $2 $(PLATFORM)…
+	@echo Building docker image $2 $(PLATFORM)…
 	$(E)docker buildx build \
 		--platform $(PLATFORMS) \
-		--build-arg goversion=$(go_version_full) \
+		--build-arg goversion=$(go_version) \
 		--target $2 \
 		-o type=oci,dest=$2-image.tar \
 		-f $3 \
@@ -371,9 +383,9 @@ load-images:
 define windows_image_rule
 .PHONY: $1
 $1: $3
-	echo Building docker image $2…
+	@echo Building docker image $2…
 	$(E)docker build \
-		--build-arg goversion=$(go_version_full) \
+		--build-arg goversion=$(go_version) \
 		--target $2 \
 		-t $2 -t $2:latest-local \
 		-f $3 \

@@ -3,14 +3,12 @@ package endpoints
 import (
 	"net"
 
-	discovery_v2 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/sirupsen/logrus"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
-	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv2"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -41,9 +39,6 @@ type Config struct {
 	// Disable custom Envoy SDS validator
 	DisableSPIFFECertValidation bool
 
-	// Enable deprecated envoy SDS v2 API
-	EnableDeprecatedSDSv2API bool
-
 	AllowUnauthenticatedVerifiers bool
 
 	AllowedForeignJWTClaims []string
@@ -53,7 +48,6 @@ type Config struct {
 	// Hooks used by the unit tests to assert that the configuration provided
 	// to each handler is correct and return fake handlers.
 	newWorkloadAPIServer func(workload.Config) workload_pb.SpiffeWorkloadAPIServer
-	newSDSv2Server       func(sdsv2.Config) discovery_v2.SecretDiscoveryServiceServer
 	newSDSv3Server       func(sdsv3.Config) secret_v3.SecretDiscoveryServiceServer
 	newHealthServer      func(healthv1.Config) grpc_health_v1.HealthServer
 }
