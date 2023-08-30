@@ -245,7 +245,7 @@ download-helm() {
 }
 
 download-kubectl() {
-    KUBECTLVERSION=${KUBECTLVERSION:-v1.21.1}
+    WANTVERSION=${KUBECTLVERSION:-v1.21.1}
     KUBECTLPATH=$(command -v kubectl || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
@@ -255,11 +255,19 @@ download-kubectl() {
         ARCH=arm64
     fi
 
-    KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$KUBECTLVERSION/bin/$UNAME/$ARCH/kubectl"
+    KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$WANTVERSION/bin/$UNAME/$ARCH/kubectl"
+
+    HAVEVERSION=""
+    if [ -x "${KUBECTLPATH}" ]; then
+        HAVEVERSION="$("${KUBECTLPATH}" version --client --output=json | jq -r .clientVersion.gitVersion)"
+    fi
+
+    echo "Want kubectl version: ${WANTVERSION}"
+    echo "Have kubectl version: ${HAVEVERSION}"
 
     local kubectl_path=$1
     # Ensure kubectl exists at the expected version
-    if [ -x "${KUBECTLPATH}" ] && "${KUBECTLPATH}" version --short --client=true | grep -q "${KUBECTLVERSION}"; then
+    if [ "${HAVEVERSION}" = "${WANTVERSION}" ]; then
         ln -s "${KUBECTLPATH}" "${kubectl_path}"
     else
         download-bin "${kubectl_path}" "${KUBECTLURL}"
