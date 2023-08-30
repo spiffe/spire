@@ -186,6 +186,24 @@ func (FederatedTrustDomain) TableName() string {
 	return "federated_trust_domains"
 }
 
+// CAJournal holds information about prepared, active, and old X509 and JWT
+// authorities of servers sharing this database. This information helps to
+// manage the rotation of the keys in each server.
+type CAJournal struct {
+	Model
+
+	// Information about X509 and JWT authorities of a single server.
+	Data []byte `gorm:"size:16777215"` // Make MySQL to use MEDIUMBLOB(max 16MB) - doesn't affect PostgreSQL/SQLite
+
+	// ActiveX509AuthorityID is the Subject Key ID of current active X509
+	// authority in a server.
+	ActiveX509AuthorityID string `gorm:"index:idx_ca_journals_active_x509_authority_id"`
+
+	// ActiveJWTAuthorityID is the JWT key ID (i.e. "kid" claim) of the current
+	// active JWT authority in a server.
+	ActiveJWTAuthorityID string `gorm:"index:idx_ca_journals_active_jwt_authority_id"`
+}
+
 // Migration holds database schema version number, and
 // the SPIRE Code version number
 type Migration struct {
