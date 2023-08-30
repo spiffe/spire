@@ -140,7 +140,7 @@ import (
 // | v1.3.5  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.3.6  |        |                                                                           |
-// |*********|        |                                                                           |
+// |*********|********|***************************************************************************|
 // | v1.4.0  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.4.1  |        |                                                                           |
@@ -156,7 +156,7 @@ import (
 // | v1.4.6  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.4.7  |        |                                                                           |
-// |*********|        |                                                                           |
+// |*********|********|***************************************************************************|
 // | v1.5.0  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.5.1  |        |                                                                           |
@@ -171,9 +171,9 @@ import (
 // |---------|        |                                                                           |
 // | v1.5.6  |        |                                                                           |
 // |*********|********|***************************************************************************|
-// | v1.6.0  | 20     | Removes x509_svid_ttl column from registered_entries                      |
+// | v1.6.0  | 20     | Removed x509_svid_ttl column from registered_entries                      |
 // |         |--------|---------------------------------------------------------------------------|
-// |         | 21     | Add index in hint column from registered_entries                          |
+// |         | 21     | Added index in hint column from registered_entries                        |
 // |---------|        |                                                                           |
 // | v1.6.1  |        |                                                                           |
 // |---------|        |                                                                           |
@@ -184,17 +184,19 @@ import (
 // | v1.6.4  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.6.5  |        |                                                                           |
-// |*********|        |                                                                           |
+// |*********|********|***************************************************************************|
 // | v1.7.0  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.7.1  |        |                                                                           |
 // |---------|--------|---------------------------------------------------------------------------|
-// | v1.7.2  | 22     | Add registered_entries_events and attested_node_entries_events tables     |
+// | v1.7.2  | 22     | Added registered_entries_events and attested_node_entries_events tables   |
+// |*********|********|***************************************************************************|
+// | v1.8.0  | 23     | Added ca_journals table                                                   |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 22
+	latestSchemaVersion = 23
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -358,6 +360,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		&Migration{},
 		&DNSName{},
 		&FederatedTrustDomain{},
+		CAJournal{},
 	}
 
 	if err := tableOptionsForDialect(tx, dbType).AutoMigrate(tables...).Error; err != nil {
@@ -414,7 +417,11 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// break things if it isn't.
 	switch currVersion {
 	case 21:
+		// TODO: remove this migration in 1.9.0
 		err = migrateToV22(tx)
+	case 22:
+		// TODO: remove this migration in 1.9.0
+		err = migrateToV23(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -427,6 +434,13 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 
 func migrateToV22(tx *gorm.DB) error {
 	if err := tx.AutoMigrate(&RegisteredEntryEvent{}, &AttestedNodeEvent{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
+func migrateToV23(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&CAJournal{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil

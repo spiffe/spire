@@ -4482,6 +4482,10 @@ func (s *PluginSuite) TestMigration() {
 				prepareDB(false)
 			case 21:
 				prepareDB(true)
+			case 22:
+				prepareDB(true)
+			case 23:
+				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}
