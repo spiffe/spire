@@ -102,7 +102,9 @@ const (
 `
 	deleteUsage = `Usage of entry delete:
   -entryID string
-    	The Registration Entry ID of the record to delete
+    	The Registration Entry ID of the record to delete.
+  -file string
+    	Path to a file containing a JSON structure for batch deletion (optional). If set to '-', read from stdin.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string

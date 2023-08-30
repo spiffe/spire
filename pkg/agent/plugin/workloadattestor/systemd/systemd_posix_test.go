@@ -80,7 +80,7 @@ func loadPlugin(t *testing.T, log logrus.FieldLogger) workloadattestor.WorkloadA
 
 func newPlugin() *Plugin {
 	p := New()
-	p.getUnitInfo = func(ctx context.Context, pid uint) (*DBusUnitInfo, error) {
+	p.getUnitInfo = func(ctx context.Context, p *Plugin, pid uint) (*DBusUnitInfo, error) {
 		switch pid {
 		case 1:
 			return &DBusUnitInfo{"fake.service", "/org/freedesktop/systemd1/unit/fake_2eservice"}, nil
