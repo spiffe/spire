@@ -131,7 +131,8 @@ func TestCache(t *testing.T) {
 	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString(rootID))
 
 	// The node alias (entry 3) is not expected
-	expected := append(entriesPb[:3], entriesPb[4])
+	expected := entriesPb[:3]
+	expected = append(expected, entriesPb[4])
 	spiretest.AssertProtoListEqual(t, expected, actual)
 }
 
