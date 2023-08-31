@@ -3747,12 +3747,41 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
 
 	// Check filtering events by id
-	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
-		GreaterThanEventID: 2,
-	})
-	s.Require().NoError(err)
-	s.Require().Equal(uint(3), resp.FirstEventID)
-	s.Require().Equal(expectedEntryIDs[2:], resp.EntryIDs)
+	tests := []struct {
+		name                 string
+		greaterThanEventID   uint
+		expectedEntryIDs     []string
+		expectedFirstEntryID uint
+	}{
+		{
+			name:                 "All Events",
+			greaterThanEventID:   0,
+			expectedFirstEntryID: 1,
+			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId, entry1.EntryId, entry2.EntryId},
+		},
+		{
+			name:                 "Half of the Events",
+			greaterThanEventID:   2,
+			expectedFirstEntryID: 3,
+			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId},
+		},
+		{
+			name:                 "None of the  Events",
+			greaterThanEventID:   4,
+			expectedFirstEntryID: 0,
+			expectedEntryIDs:     nil,
+		},
+	}
+	for _, test := range tests {
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+				GreaterThanEventID: test.greaterThanEventID,
+			})
+			s.Require().NoError(err)
+			s.Require().Equal(test.expectedFirstEntryID, resp.FirstEventID)
+			s.Require().Equal(test.expectedEntryIDs, resp.EntryIDs)
+		})
+	}
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
