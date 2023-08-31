@@ -16,6 +16,9 @@ updates:
     sigs.k8s.io:
       patterns:
         - "sig.k8s.io/*"
+    azure-sdk:
+      patterns:
+        - "github.com/Azure/azure-sdk-for-go/*"
   ignore:
   - dependency-name: "github.com/spiffe/spire-api-sdk"
   - dependency-name: "github.com/spiffe/spire-plugin-sdk"
