@@ -76,12 +76,12 @@ func (cc *clientsCache) getClient(ctx context.Context, region, accountID string)
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 
-	var asssumeRoleArn string
+	var assumeRoleArn string
 	if cc.config.AssumeRole != "" {
-		asssumeRoleArn = fmt.Sprintf("arn:aws:iam::%s:role/%s", accountID, cc.config.AssumeRole)
+		assumeRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", cc.config.Partition, accountID, cc.config.AssumeRole)
 	}
 
-	client, err := cc.newClient(ctx, cc.config, region, asssumeRoleArn)
+	client, err := cc.newClient(ctx, cc.config, region, assumeRoleArn)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}

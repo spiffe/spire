@@ -51,6 +51,15 @@ var (
 			},
 		},
 	}
+
+	defaultPartition = "aws"
+	// No constant was found in the sdk, using the list of paritions defined on
+	// the page https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
+	partitions = []string{
+		defaultPartition,
+		"aws-cn",
+		"aws-us-gov",
+	}
 )
 
 const (
@@ -108,6 +117,7 @@ type IIDAttestorConfig struct {
 	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation"`
 	AgentPathTemplate               string   `hcl:"agent_path_template"`
 	AssumeRole                      string   `hcl:"assume_role"`
+	Partition                       string   `hcl:"partition"`
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
 	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
@@ -253,6 +263,13 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", config.AgentPathTemplate)
 		}
 		config.pathTemplate = tmpl
+	}
+
+	if config.Partition == "" {
+		config.Partition = defaultPartition
+	}
+	if !isValidAWSPartition(config.Partition) {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid partition %q, must be one of: %v", config.Partition, partitions)
 	}
 
 	p.mtx.Lock()
@@ -531,4 +548,13 @@ func instanceProfileNameFromArn(profileArn string) (string, error) {
 	name := strings.Split(m[1], "/")
 	// only the last element is the profile name
 	return name[len(name)-1], nil
+}
+
+func isValidAWSPartition(partition string) bool {
+	for _, p := range partitions {
+		if p == partition {
+			return true
+		}
+	}
+	return false
 }
