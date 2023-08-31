@@ -81,7 +81,7 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 * Duke Energy describes securing the Microgrid using SPIFFE and SPIRE with TPMs:
 <https://www.distributech.com/distributech-international-2022-conference-sessions/achieving-the-promise-of-grid-security-with-openfmb-and-cybersecurity-zero-trust-best-practices>
 
-* Google announces standarization on SPIFFE across Google Cloud as the unified workload identity platform offered as a managed service:
+* Google announces standardization on SPIFFE across Google Cloud as the unified workload identity platform offered as a managed service:
 <https://www.youtube.com/watch?v=aaPvEUCXvvw>
 
 * NGINX/F5 on how NGINX service mesh leverages SPIFFE and SPIRE:
