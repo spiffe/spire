@@ -232,6 +232,49 @@ func TestRunRebuildCacheTask(t *testing.T) {
 	sendResult(req, entryMap, nil)
 }
 
+func TestRunPruneEventsTask(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	watchErr := make(chan error, 1)
+	defer func() {
+		cancel()
+		select {
+		case err := <-watchErr:
+			assert.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for watch to return")
+		}
+	}()
+
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+
+	buildCache := func(ctx context.Context) (entrycache.Cache, error) {
+		return nil, nil
+	}
+
+	pruneEventsCh := make(chan struct{})
+	pruneEventsFn := func(context.Context, time.Duration) error {
+		pruneEventsCh <- struct{}{}
+		return nil
+	}
+
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	go func() {
+		watchErr <- ef.PruneEventsTask(ctx)
+	}()
+
+	clk.WaitForAfter(5*time.Second, "waiting for watch timer")
+	clk.Add(defaultPruneEventsOlderThan)
+	select {
+	case <-pruneEventsCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for pruneEventsFn to return")
+	}
+}
+
 func setupExpectedEntriesData(t *testing.T, agentID spiffeid.ID) []*types.Entry {
 	const numEntries = 2
 	entryIDs := make([]spiffeid.ID, numEntries)
