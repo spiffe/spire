@@ -83,7 +83,7 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 
 * Google announces standarization on SPIFFE across Google Cloud as the unified workload identity platform offered as a managed service:
 <https://www.youtube.com/watch?v=aaPvEUCXvvw>
- 
+
 * NGINX/F5 on how NGINX service mesh leverages SPIFFE and SPIRE:
 <https://youtu.be/plRkDK5xFpM>
 
