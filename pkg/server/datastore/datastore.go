@@ -188,14 +188,12 @@ type ListRegistrationEntriesResponse struct {
 }
 
 type ListRegistrationEntriesEventsRequest struct {
-	Pagination         *Pagination
 	GreaterThanEventID uint
 }
 
 type ListRegistrationEntriesEventsResponse struct {
 	EntryIDs     []string
 	FirstEventID uint
-	Pagination   *Pagination
 }
 
 type ListFederationRelationshipsRequest struct {

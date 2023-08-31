@@ -3646,36 +3646,12 @@ func createRegistrationEntryEvent(tx *gorm.DB, entryID string) error {
 }
 
 func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
-	if req.Pagination != nil && req.Pagination.PageSize == 0 {
-		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
-	}
-
-	p := req.Pagination
-	var err error
-	if p != nil {
-		tx, err = applyPagination(p, tx)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	var events []RegisteredEntryEvent
 	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	if p != nil {
-		p.Token = ""
-		// Set token only if page size is the same as events len
-		if len(events) > 0 {
-			lastEntry := events[len(events)-1]
-			p.Token = fmt.Sprint(lastEntry.ID)
-		}
-	}
-
-	resp := &datastore.ListRegistrationEntriesEventsResponse{
-		Pagination: p,
-	}
+	resp := &datastore.ListRegistrationEntriesEventsResponse{}
 	for _, event := range events {
 		resp.EntryIDs = append(resp.EntryIDs, event.EntryID)
 	}
