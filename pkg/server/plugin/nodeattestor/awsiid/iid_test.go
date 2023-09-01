@@ -516,6 +516,20 @@ func TestConfigure(t *testing.T) {
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse agent svid template")
 	})
 
+	t.Run("invalid partitions specified ", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		partition = "invalid-aws-partition"
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "invalid partition \"invalid-aws-partition\", must be one of: [aws aws-cn aws-us-gov]")
+	})
+
+	t.Run("success when valid partitions specified ", func(t *testing.T) {
+		for _, partition := range partitions {
+			err := doConfig(t, coreConfig, fmt.Sprintf("partition = %q", partition))
+			require.NoError(t, err)
+		}
+	})
+
 	t.Run("success with envvars", func(t *testing.T) {
 		env[accessKeyIDVarName] = "ACCESSKEYID"
 		env[secretAccessKeyVarName] = "SECRETACCESSKEY"
