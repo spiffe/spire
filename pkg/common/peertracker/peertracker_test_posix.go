@@ -51,7 +51,7 @@ func listener(t *testing.T, log *logrus.Logger, addr net.Addr) *Listener {
 	return listener
 }
 
-func childExecCommand(t *testing.T, childPath string, addr net.Addr) *exec.Cmd {
+func childExecCommand(childPath string, addr net.Addr) *exec.Cmd {
 	// #nosec G204 test code
 	return exec.Command(childPath, "-socketPath", addr.(*net.UnixAddr).Name)
 }

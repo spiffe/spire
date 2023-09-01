@@ -78,7 +78,6 @@ The following environment variables are available to the teardown script:
 * [Datastore (Postgres)](suites/datastore-postgres/README.md)
 * [Debug Endpoints](suites/debug-endpoints/README.md)
 * [Downstream Endpoint](suites/downstream-endpoints/README.md)
-* [Envoy SDS (v2)](suites/envoy-sds-v2/README.md)
 * [Envoy SDS (v3)](suites/envoy-sds-v3/README.md)
 * [Ghostunnel + Federation](suites/ghostunnel-federation/README.md)
 * [Join Token](suites/join-token/README.md)

@@ -394,19 +394,19 @@ func (ds *fakeDataStore) SetBundle(context.Context, *common.Bundle) (*common.Bun
 	return &common.Bundle{}, ds.err
 }
 
-func (ds *fakeDataStore) TaintX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
+func (ds *fakeDataStore) TaintX509CA(context.Context, string, crypto.PublicKey) error {
 	return ds.err
 }
 
-func (ds *fakeDataStore) RevokeX509CA(ctx context.Context, trustDomainID string, publicKey crypto.PublicKey) error {
+func (ds *fakeDataStore) RevokeX509CA(context.Context, string, crypto.PublicKey) error {
 	return ds.err
 }
 
-func (ds *fakeDataStore) TaintJWTKey(ctx context.Context, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func (ds *fakeDataStore) TaintJWTKey(context.Context, string, string) (*common.PublicKey, error) {
 	return &common.PublicKey{}, ds.err
 }
 
-func (ds *fakeDataStore) RevokeJWTKey(ctx context.Context, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func (ds *fakeDataStore) RevokeJWTKey(context.Context, string, string) (*common.PublicKey, error) {
 	return &common.PublicKey{}, ds.err
 }
 

@@ -33,9 +33,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var (
-	sqlError = errs.Class("datastore-sql")
-)
+var sqlError = errs.Class("datastore-sql")
 
 const (
 	PluginName = "sql"
@@ -91,10 +89,11 @@ func (db *sqlDB) QueryContext(ctx context.Context, query string, args ...interfa
 
 // Plugin is a DataStore plugin implemented via a SQL database
 type Plugin struct {
-	mu   sync.Mutex
-	db   *sqlDB
-	roDb *sqlDB
-	log  logrus.FieldLogger
+	mu                  sync.Mutex
+	db                  *sqlDB
+	roDb                *sqlDB
+	log                 logrus.FieldLogger
+	useServerTimestamps bool
 }
 
 // New creates a new sql plugin struct. Configure must be called
@@ -202,30 +201,24 @@ func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expires
 }
 
 // TaintX509CAByKey taints an X.509 CA signed using the provided public key
-func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
-	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return taintX509CA(tx, trustDoaminID, publicKey)
-	}); err != nil {
-		return err
-	}
-	return nil
+func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKeyToTaint crypto.PublicKey) error {
+	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return taintX509CA(tx, trustDoaminID, publicKeyToTaint)
+	})
 }
 
 // RevokeX509CA removes a Root CA from the bundle
-func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKey crypto.PublicKey) error {
-	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return revokeX509CA(tx, trustDoaminID, publicKey)
-	}); err != nil {
-		return err
-	}
-	return nil
+func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKeyToRevoke crypto.PublicKey) error {
+	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return revokeX509CA(tx, trustDoaminID, publicKeyToRevoke)
+	})
 }
 
 // TaintJWTKey taints a JWT Authority key
-func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
+func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, authorityID string) (*common.PublicKey, error) {
 	var taintedKey *common.PublicKey
 	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		taintedKey, err = taintJWTKey(tx, trustDoaminID, keyID)
+		taintedKey, err = taintJWTKey(tx, trustDoaminID, authorityID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -234,10 +227,10 @@ func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, keyID s
 }
 
 // RevokeJWTAuthority removes JWT key from the bundle
-func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDoaminID string, keyID string) (*common.PublicKey, error) {
+func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDoaminID string, authorityID string) (*common.PublicKey, error) {
 	var revokedKey *common.PublicKey
 	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		revokedKey, err = revokeJWTKey(tx, trustDoaminID, keyID)
+		revokedKey, err = revokeJWTKey(tx, trustDoaminID, authorityID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -285,7 +278,8 @@ func (ds *Plugin) CountAttestedNodes(ctx context.Context) (count int32, err erro
 
 // ListAttestedNodes lists all attested nodes (pagination available)
 func (ds *Plugin) ListAttestedNodes(ctx context.Context,
-	req *datastore.ListAttestedNodesRequest) (resp *datastore.ListAttestedNodesResponse, err error) {
+	req *datastore.ListAttestedNodesRequest,
+) (resp *datastore.ListAttestedNodesResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = listAttestedNodes(ctx, ds.db, ds.log, req)
 		return err
@@ -327,7 +321,8 @@ func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selecto
 
 // GetNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *Plugin) GetNodeSelectors(ctx context.Context, spiffeID string,
-	dataConsistency datastore.DataConsistency) (selectors []*common.Selector, err error) {
+	dataConsistency datastore.DataConsistency,
+) (selectors []*common.Selector, err error) {
 	if dataConsistency == datastore.TolerateStale && ds.roDb != nil {
 		return getNodeSelectors(ctx, ds.roDb, spiffeID)
 	}
@@ -336,7 +331,8 @@ func (ds *Plugin) GetNodeSelectors(ctx context.Context, spiffeID string,
 
 // ListNodeSelectors gets node (agent) selectors by SPIFFE ID
 func (ds *Plugin) ListNodeSelectors(ctx context.Context,
-	req *datastore.ListNodeSelectorsRequest) (resp *datastore.ListNodeSelectorsResponse, err error) {
+	req *datastore.ListNodeSelectorsRequest,
+) (resp *datastore.ListNodeSelectorsResponse, err error) {
 	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
 		return listNodeSelectors(ctx, ds.roDb, req)
 	}
@@ -345,7 +341,8 @@ func (ds *Plugin) ListNodeSelectors(ctx context.Context,
 
 // CreateRegistrationEntry stores the given registration entry
 func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
-	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, err error) {
+	entry *common.RegistrationEntry,
+) (registrationEntry *common.RegistrationEntry, err error) {
 	out, _, err := ds.createOrReturnRegistrationEntry(ctx, entry)
 	return out, err
 }
@@ -354,12 +351,14 @@ func (ds *Plugin) CreateRegistrationEntry(ctx context.Context,
 // entry already exists with the same (parentID, spiffeID, selector) tuple,
 // that entry is returned instead.
 func (ds *Plugin) CreateOrReturnRegistrationEntry(ctx context.Context,
-	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
+	entry *common.RegistrationEntry,
+) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
 	return ds.createOrReturnRegistrationEntry(ctx, entry)
 }
 
 func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
-	entry *common.RegistrationEntry) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
+	entry *common.RegistrationEntry,
+) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
 	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
 	if err = validateRegistrationEntry(entry); err != nil {
 		return nil, false, err
@@ -384,7 +383,8 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 
 // FetchRegistrationEntry fetches an existing registration by entry ID
 func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
-	entryID string) (*common.RegistrationEntry, error) {
+	entryID string,
+) (*common.RegistrationEntry, error) {
 	return fetchRegistrationEntry(ctx, ds.db, entryID)
 }
 
@@ -402,7 +402,8 @@ func (ds *Plugin) CountRegistrationEntries(ctx context.Context) (count int32, er
 
 // ListRegistrationEntries lists all registrations (pagination available)
 func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
-	req *datastore.ListRegistrationEntriesRequest) (resp *datastore.ListRegistrationEntriesResponse, err error) {
+	req *datastore.ListRegistrationEntriesRequest,
+) (resp *datastore.ListRegistrationEntriesResponse, err error) {
 	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
 		return listRegistrationEntries(ctx, ds.roDb, ds.log, req)
 	}
@@ -422,7 +423,8 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.Registr
 
 // DeleteRegistrationEntry deletes the given registration
 func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
-	entryID string) (registrationEntry *common.RegistrationEntry, err error) {
+	entryID string,
+) (registrationEntry *common.RegistrationEntry, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		registrationEntry, err = deleteRegistrationEntry(tx, entryID)
 		return err
@@ -553,9 +555,16 @@ func (ds *Plugin) UpdateFederationRelationship(ctx context.Context, fr *datastor
 	})
 }
 
+// SetUseServerTimestamps controls whether server-generated timestamps should be used in the database.
+// This is only intended to be used by tests in order to produce deterministic timestamp data,
+// since some databases round off timestamp data with lower precision.
+func (ds *Plugin) SetUseServerTimestamps(useServerTimestamps bool) {
+	ds.useServerTimestamps = useServerTimestamps
+}
+
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
 // prunes all orphaned records
-func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
+func (ds *Plugin) Configure(_ context.Context, hclConfiguration string) error {
 	config := &configuration{}
 	if err := hcl.Decode(config, hclConfiguration); err != nil {
 		return err
@@ -565,11 +574,7 @@ func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error 
 		return err
 	}
 
-	if err := ds.openConnections(config); err != nil {
-		return err
-	}
-
-	return nil
+	return ds.openConnections(config)
 }
 
 func (ds *Plugin) openConnections(config *configuration) error {
@@ -780,34 +785,21 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 		}
 		db.DB().SetConnMaxLifetime(connMaxLifetime)
 	}
+	if ds.useServerTimestamps {
+		db.SetNowFuncOverride(func() time.Time {
+			// Round to nearest second to be consistent with how timestamps are rounded in CreateRegistrationEntry calls
+			return time.Now().Round(time.Second)
+		})
+	}
 
 	if !isReadOnly {
 		if err := migrateDB(db, cfg.DatabaseType, cfg.DisableMigration, ds.log); err != nil {
 			db.Close()
 			return nil, "", false, nil, err
 		}
-		// TODO: we should keep this logic for a minor release cycle to make sure stale entries are removed eventually.
-		// Remove in SPIRE 1.8.0
-		if err := cleanStaleNodeResolverEntries(db, ds.log); err != nil {
-			ds.log.WithError(err).Error("Failed to clean stale node resolver entries")
-		}
 	}
 
 	return db, version, supportsCTE, dialect, nil
-}
-
-func cleanStaleNodeResolverEntries(tx *gorm.DB, log logrus.FieldLogger) error {
-	result := tx.Delete(&NodeSelector{}, fmt.Sprintf("spiffe_id NOT IN (SELECT spiffe_id FROM %s)", AttestedNode{}.TableName()))
-
-	if result.Error != nil {
-		return sqlError.Wrap(result.Error)
-	}
-
-	if result.RowsAffected > 0 {
-		log.Infof("Deleted %d stale node resolver entries", result.RowsAffected)
-	}
-
-	return nil
 }
 
 type gormLogger struct {
@@ -878,6 +870,10 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 
 	if inputMask.SequenceNumber {
 		bundle.SequenceNumber = newBundle.SequenceNumber
+	}
+
+	if inputMask.X509TaintedKeys {
+		bundle.X509TaintedKeys = newBundle.X509TaintedKeys
 	}
 
 	newModel, err := bundleToModel(bundle)
@@ -1103,42 +1099,33 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	return changed, nil
 }
 
-func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.PublicKey) error {
+func taintX509CA(tx *gorm.DB, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
 
-	var found bool
-	for _, ca := range bundle.RootCas {
-		rootCACert, err := x509.ParseCertificate(ca.DerBytes)
+	for _, eachTaintedKey := range bundle.X509TaintedKeys {
+		taintedKey, err := x509.ParsePKIXPublicKey(eachTaintedKey.PublicKey)
 		if err != nil {
-			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
+			return status.Errorf(codes.Internal, "failed to parse tainted Key: %v", err)
 		}
 
-		ok, err := cryptoutil.PublicKeyEqual(rootCACert.PublicKey, taintedPublicKey)
+		ok, err := cryptoutil.PublicKeyEqual(taintedKey, publicKeyToTaint)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
 		}
 		if ok {
-			if ca.TaintedKey {
-				return status.Errorf(codes.InvalidArgument, "root CA is already tainted")
-			}
-
-			// Do not break the loop here so we can be sure
-			// that we taint all bundles associated with the
-			// given public key.
-			// We also check if there is at least one bundle
-			// signed by the provided key. If not, the function
-			// returns codes.NotFound status error.
-			found = true
-			ca.TaintedKey = true
+			return status.Errorf(codes.InvalidArgument, "root CA is already tainted")
 		}
 	}
 
-	if !found {
-		return status.Error(codes.NotFound, "no root CA found with provided public key")
+	pKey, err := x509.MarshalPKIXPublicKey(publicKeyToTaint)
+	if err != nil {
+		return status.Errorf(codes.InvalidArgument, "failed to marshal public key to taint: %v", err)
 	}
+
+	bundle.X509TaintedKeys = append(bundle.X509TaintedKeys, &common.X509TaintedKey{PublicKey: pKey})
 
 	_, err = updateBundle(tx, bundle, nil)
 	if err != nil {
@@ -1148,13 +1135,41 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, taintedPublicKey crypto.Publ
 	return nil
 }
 
-func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey) error {
+func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
 
-	found := false
+	var taintedKeyFound bool
+	var taintedKeys []*common.X509TaintedKey
+
+	for _, eachTaintedKey := range bundle.X509TaintedKeys {
+		taintedKey, err := x509.ParsePKIXPublicKey(eachTaintedKey.PublicKey)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to parse tainted Key: %v", err)
+		}
+
+		ok, err := cryptoutil.PublicKeyEqual(taintedKey, publicKeyToRevoke)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
+		}
+		if ok {
+			taintedKeyFound = true
+			continue
+		}
+
+		taintedKeys = append(taintedKeys, eachTaintedKey)
+	}
+
+	if !taintedKeyFound {
+		return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
+	}
+	bundle.X509TaintedKeys = taintedKeys
+
+	// It is possible to keep bundles on journal, when there is no upstream authority,
+	// this code will be used to remove a CA bundle that is persisted on datastore,
+	// only in case it is found
 	var rootCAs []*common.Certificate
 	for _, ca := range bundle.RootCas {
 		cert, err := x509.ParseCertificate(ca.DerBytes)
@@ -1162,25 +1177,17 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
 		}
 
-		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKey)
+		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKeyToRevoke)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
 		}
 
 		if ok {
-			if !ca.TaintedKey {
-				return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
-			}
-			found = true
 			continue
 		}
 		rootCAs = append(rootCAs, ca)
 	}
 	bundle.RootCas = rootCAs
-
-	if !found {
-		return status.Error(codes.NotFound, "no root CA found with provided public key")
-	}
 
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
 		return status.Errorf(codes.Internal, "failed to update bundle: %v", err)
@@ -1189,7 +1196,7 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKey crypto.PublicKey)
 	return nil
 }
 
-func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func taintJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return nil, err
@@ -1197,7 +1204,7 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publi
 
 	var taintedKey *common.PublicKey
 	for _, jwtKey := range bundle.JwtSigningKeys {
-		if jwtKey.Kid != keyID {
+		if jwtKey.Kid != authorityID {
 			continue
 		}
 
@@ -1226,7 +1233,7 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publi
 	return taintedKey, nil
 }
 
-func revokeJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.PublicKey, error) {
+func revokeJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return nil, err
@@ -1235,7 +1242,7 @@ func revokeJWTKey(tx *gorm.DB, trustDomainID string, keyID string) (*common.Publ
 	var publicKeys []*common.PublicKey
 	var revokedKey *common.PublicKey
 	for _, key := range bundle.JwtSigningKeys {
-		if key.Kid == keyID {
+		if key.Kid == authorityID {
 			// Check if a JWT Key with the provided keyID was already
 			// found in this loop. This is purely defensive since we do not
 			// allow to have repeated key IDs.
@@ -2065,7 +2072,8 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		newSelector := Selector{
 			RegisteredEntryID: newRegisteredEntry.ID,
 			Type:              registeredSelector.Type,
-			Value:             registeredSelector.Value}
+			Value:             registeredSelector.Value,
+		}
 
 		if err := tx.Create(&newSelector).Error; err != nil {
 			return nil, sqlError.Wrap(err)
@@ -3392,7 +3400,7 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		entry.Hint = r.Hint.String
 	}
 	if r.CreatedAt.Valid {
-		entry.CreatedAt = roundedCreatedAtInSeconds(r.CreatedAt.Time)
+		entry.CreatedAt = roundedInSecondsUnix(r.CreatedAt.Time)
 	}
 
 	return nil
@@ -3629,7 +3637,7 @@ func pruneJoinTokens(tx *gorm.DB, expiresBefore time.Time) error {
 
 func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
 	model := FederatedTrustDomain{
-		TrustDomain:           fr.TrustDomain.String(),
+		TrustDomain:           fr.TrustDomain.Name(),
 		BundleEndpointURL:     fr.BundleEndpointURL.String(),
 		BundleEndpointProfile: string(fr.BundleEndpointProfile),
 	}
@@ -3655,7 +3663,7 @@ func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 
 func deleteFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) error {
 	model := new(FederatedTrustDomain)
-	if err := tx.Find(model, "trust_domain = ?", trustDomain.String()).Error; err != nil {
+	if err := tx.Find(model, "trust_domain = ?", trustDomain.Name()).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	if err := tx.Delete(model).Error; err != nil {
@@ -3666,7 +3674,7 @@ func deleteFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain)
 
 func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
 	var model FederatedTrustDomain
-	err := tx.Find(&model, "trust_domain = ?", trustDomain.String()).Error
+	err := tx.Find(&model, "trust_domain = ?", trustDomain.Name()).Error
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		return nil, nil
@@ -3725,7 +3733,7 @@ func listFederationRelationships(tx *gorm.DB, req *datastore.ListFederationRelat
 
 func updateFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) (*datastore.FederationRelationship, error) {
 	var model FederatedTrustDomain
-	err := tx.Find(&model, "trust_domain = ?", fr.TrustDomain.String()).Error
+	err := tx.Find(&model, "trust_domain = ?", fr.TrustDomain.Name()).Error
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch federation relationship: %w", err)
 	}
@@ -3982,7 +3990,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		StoreSvid:      model.StoreSvid,
 		JwtSvidTtl:     model.JWTSvidTTL,
 		Hint:           model.Hint,
-		CreatedAt:      roundedCreatedAtInSeconds(model.CreatedAt),
+		CreatedAt:      roundedInSecondsUnix(model.CreatedAt),
 	}, nil
 }
 
@@ -4140,8 +4148,8 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *comm
 	return nil, nil
 }
 
-// roundCreatedAtInSeconds rounds the createdAt time to the nearest second, and return the time in seconds since the
+// roundedInSecondsUnix rounds the time to the nearest second, and return the time in seconds since the
 // unix epoch. This function is used to avoid issues with databases versions that do not support sub-second precision.
-func roundedCreatedAtInSeconds(createdAt time.Time) int64 {
-	return createdAt.Round(time.Second).Unix()
+func roundedInSecondsUnix(t time.Time) int64 {
+	return t.Round(time.Second).Unix()
 }

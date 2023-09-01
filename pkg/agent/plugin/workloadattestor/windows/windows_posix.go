@@ -29,6 +29,6 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(context.Context, *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "plugin not supported in this platform")
 }

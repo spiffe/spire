@@ -61,7 +61,7 @@ type fakePluginV1 struct {
 	selectorValues map[int][]string
 }
 
-func (plugin fakePluginV1) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
+func (plugin fakePluginV1) Attest(_ context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
 	selectorValues, ok := plugin.selectorValues[int(req.Pid)]
 	if !ok {
 		// Just return something to test the error wrapping. This is not

@@ -522,7 +522,7 @@ func createNode(nodeName, nodeUID string) *corev1.Node {
 	}
 }
 
-func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
 }
 
@@ -557,7 +557,7 @@ func (c *fakeAPIServerClient) SetTokenStatus(token string, status *authv1.TokenR
 	c.status[token] = status
 }
 
-func (c *fakeAPIServerClient) GetNode(ctx context.Context, nodeName string) (*corev1.Node, error) {
+func (c *fakeAPIServerClient) GetNode(_ context.Context, nodeName string) (*corev1.Node, error) {
 	node, ok := c.nodes[nodeName]
 	if !ok {
 		return nil, fmt.Errorf("node %s not found", nodeName)
@@ -565,7 +565,7 @@ func (c *fakeAPIServerClient) GetNode(ctx context.Context, nodeName string) (*co
 	return node, nil
 }
 
-func (c *fakeAPIServerClient) GetPod(ctx context.Context, namespace, podName string) (*corev1.Pod, error) {
+func (c *fakeAPIServerClient) GetPod(_ context.Context, namespace, podName string) (*corev1.Pod, error) {
 	pod, ok := c.pods[namespacedName{namespace: namespace, name: podName}]
 	if !ok {
 		return nil, fmt.Errorf("pod %s/%s not found", namespace, podName)
@@ -573,7 +573,7 @@ func (c *fakeAPIServerClient) GetPod(ctx context.Context, namespace, podName str
 	return pod, nil
 }
 
-func (c *fakeAPIServerClient) ValidateToken(ctx context.Context, token string, audiences []string) (*authv1.TokenReviewStatus, error) {
+func (c *fakeAPIServerClient) ValidateToken(_ context.Context, token string, audiences []string) (*authv1.TokenReviewStatus, error) {
 	status, ok := c.status[token]
 	if !ok {
 		return nil, errors.New("no status configured by test for token")

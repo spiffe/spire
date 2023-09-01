@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	legacyProto "github.com/golang/protobuf/proto" // nolint:staticcheck // deprecated library needed until WithDetails can take v2
+	legacyProto "github.com/golang/protobuf/proto" //nolint:staticcheck // deprecated library needed until WithDetails can take v2
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/proto/spire/common"

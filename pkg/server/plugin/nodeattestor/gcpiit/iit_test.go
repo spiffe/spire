@@ -377,7 +377,7 @@ func (r *recvFailStream) Recv() (*nodeattestorv1.AttestRequest, error) {
 
 type testKeyRetriever struct{}
 
-func (testKeyRetriever) retrieveJWKS(ctx context.Context) (*jose.JSONWebKeySet, error) {
+func (testKeyRetriever) retrieveJWKS(context.Context) (*jose.JSONWebKeySet, error) {
 	return &jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
@@ -423,7 +423,7 @@ func (c *fakeComputeEngineClient) setInstance(instance *compute.Instance) {
 	c.instance = instance
 }
 
-func (c *fakeComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
+func (c *fakeComputeEngineClient) fetchInstanceMetadata(_ context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch {
@@ -446,7 +446,7 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
 }
 

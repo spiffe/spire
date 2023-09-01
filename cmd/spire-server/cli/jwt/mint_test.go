@@ -398,7 +398,7 @@ func (f *fakeSVIDServer) setMintJWTSVIDResponse(resp *svidv1.MintJWTSVIDResponse
 	f.resp = resp
 }
 
-func (f *fakeSVIDServer) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
+func (f *fakeSVIDServer) MintJWTSVID(_ context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

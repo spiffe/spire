@@ -524,7 +524,7 @@ func createTokenStatus(namespace, serviceAccountName string, authenticated bool)
 	}
 }
 
-func expectNoChallenge(ctx context.Context, challenge []byte) ([]byte, error) {
+func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
 }
 
@@ -542,7 +542,7 @@ func (c *fakeAPIServerClient) SetTokenStatus(token string, status *authv1.TokenR
 	c.status[token] = status
 }
 
-func (c *fakeAPIServerClient) ValidateToken(ctx context.Context, token string, audiences []string) (*authv1.TokenReviewStatus, error) {
+func (c *fakeAPIServerClient) ValidateToken(_ context.Context, token string, audiences []string) (*authv1.TokenReviewStatus, error) {
 	if len(audiences) > 0 {
 		return nil, fmt.Errorf("unexpected audiences %q", audiences)
 	}

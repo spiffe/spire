@@ -43,7 +43,7 @@ func TestParseTrustDomain(t *testing.T) {
 			logger, hook := logtest.NewNullLogger()
 			td, err := ParseTrustDomain(testCase.domain, logger)
 			assert.NoError(t, err)
-			assert.Equal(t, testCase.expectedDomain, td.String())
+			assert.Equal(t, testCase.expectedDomain, td.Name())
 			spiretest.AssertLogs(t, hook.AllEntries(), testCase.expectedLogEntries)
 		})
 	}

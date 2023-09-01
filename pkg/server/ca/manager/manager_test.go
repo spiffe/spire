@@ -26,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -63,15 +64,22 @@ func TestGetCurrentJWTKeySlot(t *testing.T) {
 
 		require.True(t, slot.IsEmpty())
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
+		require.Empty(t, slot.notAfter)
 	})
 
 	t.Run("slot returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL)
+
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
 		currentSlot := test.m.GetCurrentJWTKeySlot()
 		slot := currentSlot.(*JwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
-		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
 	})
 }
 
@@ -87,15 +95,22 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 
 		require.Nil(t, slot.jwtKey)
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
+		require.Empty(t, slot.notAfter)
 	})
 
 	t.Run("next returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL)
+
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
 		nextSlot := test.m.GetNextJWTKeySlot()
 		slot := nextSlot.(*JwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
-		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
 	})
 }
 
@@ -110,16 +125,25 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 
 		slot := currentSlot.(*X509CASlot)
 		require.Nil(t, slot.x509CA)
+		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.publicKey)
+		require.Empty(t, slot.notAfter)
 	})
 
 	t.Run("slot returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL).UTC()
+
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
 		currentSlot := test.m.GetCurrentX509CASlot()
 		slot := currentSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
-		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
+		require.NotNil(t, slot.publicKey)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
 	})
 }
 
@@ -134,16 +158,25 @@ func TestGetNextX509CASlot(t *testing.T) {
 		slot := nextSlot.(*X509CASlot)
 
 		require.Nil(t, slot.x509CA)
+		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.publicKey)
+		require.Empty(t, slot.notAfter)
 	})
 
 	t.Run("next returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL).UTC()
+
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
 		nextSlot := test.m.GetNextX509CASlot()
 		slot := nextSlot.(*X509CASlot)
 		require.NotNil(t, slot.x509CA)
-		require.True(t, slot.issuedAt.Equal(test.clock.Now()))
+		require.NotEmpty(t, slot.authorityID)
+		require.NotNil(t, slot.publicKey)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
 	})
 }
 
@@ -363,7 +396,9 @@ func TestX509CARotation(t *testing.T) {
 
 	// after initialization, we should have a current X509CA but no next.
 	first := test.currentX509CA()
+	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	assert.Nil(t, test.nextX509CA(), "second X509CA should not be prepared yet")
+	require.Equal(t, journal.Status_UNKNOWN, test.nextX509CAStatus())
 	test.requireBundleRootCAs(ctx, t, first.Certificate)
 
 	// Prepare new X509CA. the current X509CA should stay
@@ -371,8 +406,11 @@ func TestX509CARotation(t *testing.T) {
 	// the trust bundle.
 	require.NoError(t, test.m.PrepareX509CA(ctx))
 	test.requireX509CAEqual(t, first, test.currentX509CA())
+	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
+
 	second := test.nextX509CA()
 	assert.NotNil(t, second, "second X509CA should have been prepared")
+	require.Equal(t, journal.Status_PREPARED, test.nextX509CAStatus())
 	test.requireBundleRootCAs(ctx, t, first.Certificate, second.Certificate)
 
 	// we should now have a bundle update notification due to the preparation
@@ -382,15 +420,19 @@ func TestX509CARotation(t *testing.T) {
 	// "next" should be reset.
 	test.m.RotateX509CA()
 	test.requireX509CAEqual(t, second, test.currentX509CA())
+	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	assert.Nil(t, test.nextX509CA())
+	require.Equal(t, journal.Status_OLD, test.nextX509CAStatus())
 
 	// Prepare new X509CA. the current X509CA should stay
 	// the same but the next X509CA should have been prepared and added to
 	// the trust bundle.
 	require.NoError(t, test.m.PrepareX509CA(ctx))
 	test.requireX509CAEqual(t, second, test.currentX509CA())
+	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	third := test.nextX509CA()
 	assert.NotNil(t, third, "third X509CA should have been prepared")
+	require.Equal(t, journal.Status_PREPARED, test.nextX509CAStatus())
 	test.requireBundleRootCAs(ctx, t, first.Certificate, second.Certificate, third.Certificate)
 
 	// we should now have another bundle update notification due to the preparation
@@ -400,7 +442,9 @@ func TestX509CARotation(t *testing.T) {
 	// "next" should be reset.
 	test.m.RotateX509CA()
 	test.requireX509CAEqual(t, third, test.currentX509CA())
+	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	assert.Nil(t, test.nextX509CA())
+	require.Equal(t, journal.Status_OLD, test.nextX509CAStatus())
 }
 
 func TestX509CARotationMetric(t *testing.T) {
@@ -420,7 +464,7 @@ func TestX509CARotationMetric(t *testing.T) {
 	expected := fakemetrics.New()
 	ttl := test.currentX509CA().Certificate.NotAfter.Sub(test.clock.Now())
 	telemetry_server.IncrActivateX509CAManagerCounter(expected)
-	telemetry_server.SetX509CARotateGauge(expected, test.m.c.TrustDomain.String(), float32(ttl.Seconds()))
+	telemetry_server.SetX509CARotateGauge(expected, test.m.c.TrustDomain.Name(), float32(ttl.Seconds()))
 
 	require.Equal(t, expected.AllMetrics(), test.metrics.AllMetrics())
 }
@@ -442,7 +486,9 @@ func TestJWTKeyRotation(t *testing.T) {
 
 	// after initialization, we should have a current JWTKey but no next.
 	first := test.currentJWTKey()
+	require.Equal(t, journal.Status_ACTIVE, test.currentJWTKeyStatus())
 	assert.Nil(t, test.nextJWTKey(), "second JWTKey should not be prepared yet")
+	require.Equal(t, journal.Status_UNKNOWN, test.nextJWTKeyStatus())
 	test.requireBundleJWTKeys(ctx, t, first)
 
 	// prepare next. the current JWTKey should stay
@@ -450,7 +496,9 @@ func TestJWTKeyRotation(t *testing.T) {
 	// the trust bundle.
 	require.NoError(t, test.m.PrepareJWTKey(ctx))
 	test.requireJWTKeyEqual(t, first, test.currentJWTKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentJWTKeyStatus())
 	second := test.nextJWTKey()
+	require.Equal(t, journal.Status_PREPARED, test.nextJWTKeyStatus())
 	assert.NotNil(t, second, "second JWTKey should have been prepared")
 	test.requireBundleJWTKeys(ctx, t, first, second)
 
@@ -461,15 +509,19 @@ func TestJWTKeyRotation(t *testing.T) {
 	// "next" should be reset.
 	test.m.RotateJWTKey()
 	test.requireJWTKeyEqual(t, second, test.currentJWTKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentJWTKeyStatus())
 	assert.Nil(t, test.nextJWTKey())
+	require.Equal(t, journal.Status_OLD, test.nextJWTKeyStatus())
 
 	// Prepare next, the current JWTKey should stay
 	// the same but the next JWTKey should have been prepared and added to
 	// the trust bundle.
 	require.NoError(t, test.m.PrepareJWTKey(ctx))
 	test.requireJWTKeyEqual(t, second, test.currentJWTKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentJWTKeyStatus())
 	third := test.nextJWTKey()
 	assert.NotNil(t, second, "third JWTKey should have been prepared")
+	require.Equal(t, journal.Status_PREPARED, test.nextJWTKeyStatus())
 	test.requireBundleJWTKeys(ctx, t, first, second, third)
 
 	// we should now have a bundle update notification due to the preparation
@@ -479,7 +531,9 @@ func TestJWTKeyRotation(t *testing.T) {
 	// "next" should be reset.
 	test.m.RotateJWTKey()
 	test.requireJWTKeyEqual(t, third, test.currentJWTKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentJWTKeyStatus())
 	assert.Nil(t, test.nextJWTKey())
+	require.Equal(t, journal.Status_OLD, test.nextJWTKeyStatus())
 }
 
 func TestPruneBundle(t *testing.T) {
@@ -537,19 +591,6 @@ func TestPruneBundle(t *testing.T) {
 	require.EqualError(t, test.m.PruneBundle(context.Background()), "unable to prune bundle: rpc error: code = Unknown desc = prune failed: would prune all certificates")
 	test.requireBundleRootCAs(ctx, t, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
-}
-
-func TestMigration(t *testing.T) {
-	test := setupTest(t)
-
-	// assert that we migrate on load by writing junk data to the old JSON file
-	// and making sure initialization fails. The journal tests exercise this
-	// code more carefully.
-	require.NoError(t, os.WriteFile(filepath.Join(test.dir, "certs.json"), []byte("NOTJSON"), 0600))
-	manager, err := NewManager(context.Background(), test.selfSignedConfig())
-
-	spiretest.RequireErrorContains(t, err, "failed to migrate old JSON data: unable to decode JSON")
-	require.Nil(t, manager)
 }
 
 func TestRunNotifiesBundleLoaded(t *testing.T) {
@@ -1007,17 +1048,33 @@ func (m *managerTest) currentX509CA() *ca.X509CA {
 	return m.m.currentX509CA.x509CA
 }
 
+func (m *managerTest) currentX509CAStatus() journal.Status {
+	return m.m.currentX509CA.status
+}
+
 func (m *managerTest) currentJWTKey() *ca.JWTKey {
 	m.requireJWTKeyEqual(m.t, m.m.currentJWTKey.jwtKey, m.ca.JWTKey(), "current JWTKey is not active")
 	return m.m.currentJWTKey.jwtKey
+}
+
+func (m *managerTest) currentJWTKeyStatus() journal.Status {
+	return m.m.currentJWTKey.status
 }
 
 func (m *managerTest) nextX509CA() *ca.X509CA {
 	return m.m.nextX509CA.x509CA
 }
 
+func (m *managerTest) nextX509CAStatus() journal.Status {
+	return m.m.nextX509CA.status
+}
+
 func (m *managerTest) nextJWTKey() *ca.JWTKey {
 	return m.m.nextJWTKey.jwtKey
+}
+
+func (m *managerTest) nextJWTKeyStatus() journal.Status {
+	return m.m.nextJWTKey.status
 }
 
 func (m *managerTest) setTimeAndPrune(t time.Time) {

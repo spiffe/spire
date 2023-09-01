@@ -387,11 +387,11 @@ type fakeProcessQuery struct {
 	getProcessExeErr     error
 }
 
-func (q *fakeProcessQuery) OpenProcess(pid int32) (handle windows.Handle, err error) {
+func (q *fakeProcessQuery) OpenProcess(int32) (handle windows.Handle, err error) {
 	return q.handle, q.openProcessErr
 }
 
-func (q *fakeProcessQuery) OpenProcessToken(h windows.Handle, token *windows.Token) (err error) {
+func (q *fakeProcessQuery) OpenProcessToken(windows.Handle, *windows.Token) (err error) {
 	return q.openProcessTokenErr
 }
 
@@ -414,27 +414,27 @@ func (q *fakeProcessQuery) LookupAccount(sid *windows.SID) (account, domain stri
 	return "", "", fmt.Errorf("sid not expected: %s", sid.String())
 }
 
-func (q *fakeProcessQuery) GetTokenUser(t *windows.Token) (*windows.Tokenuser, error) {
+func (q *fakeProcessQuery) GetTokenUser(*windows.Token) (*windows.Tokenuser, error) {
 	return q.tokenUser, q.getTokenUserErr
 }
 
-func (q *fakeProcessQuery) GetTokenGroups(t *windows.Token) (*windows.Tokengroups, error) {
+func (q *fakeProcessQuery) GetTokenGroups(*windows.Token) (*windows.Tokengroups, error) {
 	return q.tokenGroups, q.getTokenGroupsErr
 }
 
-func (q *fakeProcessQuery) AllGroups(t *windows.Tokengroups) []windows.SIDAndAttributes {
+func (q *fakeProcessQuery) AllGroups(*windows.Tokengroups) []windows.SIDAndAttributes {
 	return q.sidAndAttributes
 }
 
-func (q *fakeProcessQuery) CloseHandle(h windows.Handle) error {
+func (q *fakeProcessQuery) CloseHandle(windows.Handle) error {
 	return q.closeHandleErr
 }
 
-func (q *fakeProcessQuery) CloseProcessToken(t windows.Token) error {
+func (q *fakeProcessQuery) CloseProcessToken(windows.Token) error {
 	return q.closeProcessTokenErr
 }
 
-func (q *fakeProcessQuery) GetProcessExe(h windows.Handle) (string, error) {
+func (q *fakeProcessQuery) GetProcessExe(windows.Handle) (string, error) {
 	return q.exe, q.getProcessExeErr
 }
 

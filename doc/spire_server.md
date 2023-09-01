@@ -68,6 +68,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_file`              | File to write logs to                                                                                                                                                                                                                               |                                                                |
 | `log_level`             | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                                                                                                                                 | INFO                                                           |
 | `log_format`            | Format of logs, &lt;text&vert;json&gt;                                                                                                                                                                                                              | text                                                           |
+| `log_source_location`   | If true, logs include source file, line number, and method name fields (adds a bit of runtime cost)                                                                                                                                                 | false                                                          |
 | `profiling_enabled`     | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                                                                                                                                     | false                                                          |
 | `profiling_freq`        | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.                                                                                                                              |                                                                |
 | `profiling_names`       | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)                                                                                                                                   |                                                                |
@@ -162,6 +163,7 @@ server {
                 domain_name = "example.org"
                 email = "mail@example.org"
             }
+            refresh_hint = "10m"
         }
         federates_with "domain1.test" {
             bundle_endpoint_url = "https://1.2.3.4:8443"
@@ -184,11 +186,12 @@ The `federation.federates_with` section is also optional and is used to configur
 
 This optional section contains the configurables used by SPIRE Server to expose a bundle endpoint.
 
-| Configuration | Description                                                                    |
-|---------------|--------------------------------------------------------------------------------|
-| address       | IP address where this server will listen for HTTP requests                     |
-| port          | TCP port number where this server will listen for HTTP requests                |
-| acme          | Automated Certificate Management Environment configuration section (see below) |
+| Configuration | Description                                                                                                                                                                                                                                                                                                 |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| address       | IP address where this server will listen for HTTP requests                                                                                                                                                                                                                                                  |
+| port          | TCP port number where this server will listen for HTTP requests                                                                                                                                                                                                                                             |
+| acme          | Automated Certificate Management Environment configuration section (see below)                                                                                                                                                                                                                              |
+| refresh_hint  | Allow manually specifying a [refresh hint](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#412-refresh-hint). When not set, it is determined based on the lifetime of the keys in the bundle. Small values allow to retrieve trust bundle updates in a timely manner |
 
 ### Configuration options for `federation.bundle_endpoint.acme`
 

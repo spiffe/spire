@@ -20,7 +20,7 @@ func New() *IdentityProvider {
 	return &IdentityProvider{}
 }
 
-func (c *IdentityProvider) FetchX509Identity(ctx context.Context, req *identityproviderv1.FetchX509IdentityRequest) (*identityproviderv1.FetchX509IdentityResponse, error) {
+func (c *IdentityProvider) FetchX509Identity(context.Context, *identityproviderv1.FetchX509IdentityRequest) (*identityproviderv1.FetchX509IdentityResponse, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

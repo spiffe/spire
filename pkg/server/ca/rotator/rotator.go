@@ -175,7 +175,6 @@ func (r *Rotator) rotateX509CA(ctx context.Context) error {
 		if err := r.c.Manager.PrepareX509CA(ctx); err != nil {
 			return err
 		}
-		r.c.Manager.ActivateX509CA()
 	}
 
 	if currentX509CA.ShouldActivateNext(now) {

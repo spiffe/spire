@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -21,10 +22,12 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
+	"github.com/hashicorp/hcl/hcl/token"
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/fflag"
@@ -47,17 +50,15 @@ const (
 	defaultLogLevel   = "INFO"
 )
 
-var (
-	defaultRateLimit = true
-)
+var defaultRateLimit = true
 
 // Config contains all available configurables, arranged by section
 type Config struct {
-	Server       *serverConfig        `hcl:"server"`
-	Plugins      ast.Node             `hcl:"plugins"`
-	Telemetry    telemetry.FileConfig `hcl:"telemetry"`
-	HealthChecks health.Config        `hcl:"health_checks"`
-	UnusedKeys   []string             `hcl:",unusedKeys"`
+	Server             *serverConfig          `hcl:"server"`
+	Plugins            ast.Node               `hcl:"plugins"`
+	Telemetry          telemetry.FileConfig   `hcl:"telemetry"`
+	HealthChecks       health.Config          `hcl:"health_checks"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type serverConfig struct {
@@ -79,6 +80,7 @@ type serverConfig struct {
 	LogFile            string             `hcl:"log_file"`
 	LogLevel           string             `hcl:"log_level"`
 	LogFormat          string             `hcl:"log_format"`
+	LogSourceLocation  bool               `hcl:"log_source_location"`
 	RateLimit          rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath         string             `hcl:"socket_path"`
 	TrustDomain        string             `hcl:"trust_domain"`
@@ -92,7 +94,7 @@ type serverConfig struct {
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 
-	UnusedKeys []string `hcl:",unusedKeys"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type experimentalConfig struct {
@@ -103,61 +105,61 @@ type experimentalConfig struct {
 
 	NamedPipeName string `hcl:"named_pipe_name"`
 
-	UnusedKeys []string `hcl:",unusedKeys"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type caSubjectConfig struct {
-	Country      []string `hcl:"country"`
-	Organization []string `hcl:"organization"`
-	CommonName   string   `hcl:"common_name"`
-	UnusedKeys   []string `hcl:",unusedKeys"`
+	Country            []string               `hcl:"country"`
+	Organization       []string               `hcl:"organization"`
+	CommonName         string                 `hcl:"common_name"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type federationConfig struct {
-	BundleEndpoint *bundleEndpointConfig          `hcl:"bundle_endpoint"`
-	FederatesWith  map[string]federatesWithConfig `hcl:"federates_with"`
-	UnusedKeys     []string                       `hcl:",unusedKeys"`
+	BundleEndpoint     *bundleEndpointConfig          `hcl:"bundle_endpoint"`
+	FederatesWith      map[string]federatesWithConfig `hcl:"federates_with"`
+	UnusedKeyPositions map[string][]token.Pos         `hcl:",unusedKeyPositions"`
 }
 
 type bundleEndpointConfig struct {
-	Address    string                    `hcl:"address"`
-	Port       int                       `hcl:"port"`
-	ACME       *bundleEndpointACMEConfig `hcl:"acme"`
-	UnusedKeys []string                  `hcl:",unusedKeys"`
+	Address            string                    `hcl:"address"`
+	Port               int                       `hcl:"port"`
+	ACME               *bundleEndpointACMEConfig `hcl:"acme"`
+	RefreshHint        string                    `hcl:"refresh_hint"`
+	UnusedKeyPositions map[string][]token.Pos    `hcl:",unusedKeyPositions"`
 }
 
 type bundleEndpointACMEConfig struct {
-	DirectoryURL string   `hcl:"directory_url"`
-	DomainName   string   `hcl:"domain_name"`
-	Email        string   `hcl:"email"`
-	ToSAccepted  bool     `hcl:"tos_accepted"`
-	UnusedKeys   []string `hcl:",unusedKeys"`
+	DirectoryURL       string                 `hcl:"directory_url"`
+	DomainName         string                 `hcl:"domain_name"`
+	Email              string                 `hcl:"email"`
+	ToSAccepted        bool                   `hcl:"tos_accepted"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type federatesWithConfig struct {
-	BundleEndpointURL     string   `hcl:"bundle_endpoint_url"`
-	BundleEndpointProfile ast.Node `hcl:"bundle_endpoint_profile"`
-	UnusedKeys            []string `hcl:",unusedKeys"`
+	BundleEndpointURL     string                 `hcl:"bundle_endpoint_url"`
+	BundleEndpointProfile ast.Node               `hcl:"bundle_endpoint_profile"`
+	UnusedKeyPositions    map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type bundleEndpointProfileConfig struct {
-	HTTPSSPIFFE *httpsSPIFFEProfileConfig `hcl:"https_spiffe"`
-	HTTPSWeb    *httpsWebProfileConfig    `hcl:"https_web"`
-	UnusedKeys  []string                  `hcl:",unusedKeys"`
+	HTTPSSPIFFE        *httpsSPIFFEProfileConfig `hcl:"https_spiffe"`
+	HTTPSWeb           *httpsWebProfileConfig    `hcl:"https_web"`
+	UnusedKeyPositions map[string][]token.Pos    `hcl:",unusedKeyPositions"`
 }
 
 type httpsSPIFFEProfileConfig struct {
-	EndpointSPIFFEID string   `hcl:"endpoint_spiffe_id"`
-	UnusedKeys       []string `hcl:",unusedKeys"`
+	EndpointSPIFFEID   string                 `hcl:"endpoint_spiffe_id"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
-type httpsWebProfileConfig struct {
-}
+type httpsWebProfileConfig struct{}
 
 type rateLimitConfig struct {
-	Attestation *bool    `hcl:"attestation"`
-	Signing     *bool    `hcl:"signing"`
-	UnusedKeys  []string `hcl:",unusedKeys"`
+	Attestation        *bool                  `hcl:"attestation"`
+	Signing            *bool                  `hcl:"signing"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 func NewRunCommand(ctx context.Context, logOptions []log.Option, allowUnknownConfig bool) cli.Command {
@@ -304,6 +306,7 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.DataDir, "dataDir", "", "Directory to store runtime data to")
 	flags.StringVar(&c.LogFile, "logFile", "", "File to write logs to")
 	flags.StringVar(&c.LogFormat, "logFormat", "", "'text' or 'json'")
+	flags.BoolVar(&c.LogSourceLocation, "logSourceLocation", false, "Include source file, line number and function name in log lines")
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
@@ -350,6 +353,9 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		log.WithLevel(c.Server.LogLevel),
 		log.WithFormat(c.Server.LogFormat),
 	)
+	if c.Server.LogSourceLocation {
+		logOptions = append(logOptions, log.WithSourceLocation())
+	}
 	var reopenableFile *log.ReopenableFile
 	if c.Server.LogFile != "" {
 		reopenableFile, err := log.NewReopenableFile(c.Server.LogFile)
@@ -408,6 +414,30 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 					IP:   net.ParseIP(c.Server.Federation.BundleEndpoint.Address),
 					Port: c.Server.Federation.BundleEndpoint.Port,
 				},
+			}
+
+			if c.Server.Federation.BundleEndpoint.RefreshHint != "" {
+				refreshHint, err := time.ParseDuration(c.Server.Federation.BundleEndpoint.RefreshHint)
+				if err != nil {
+					return nil, fmt.Errorf("could not parse refresh_hint %q: %w", c.Server.Federation.BundleEndpoint.RefreshHint, err)
+				}
+
+				if refreshHint >= 24*time.Hour {
+					sc.Log.Warn("Bundle endpoint refresh hint set to a high value. To cover " +
+						"the case of unscheduled trust bundle updates, it's recommended to " +
+						"have a smaller value, e.g. 5m")
+				}
+
+				if refreshHint < bundleutil.MinimumRefreshHint {
+					sc.Log.Warn("Bundle endpoint refresh hint set too low. SPIRE will not " +
+						"refresh more often than 1 minute")
+				}
+
+				sc.Federation.BundleEndpoint.RefreshHint = &refreshHint
+			} else {
+				sc.Log.Warn("Bundle endpoint refresh_hint is not set. This configuration " +
+					"will default to 5 minutes in a future release; please check if you " +
+					"need to specify it")
 			}
 
 			if acme := c.Server.Federation.BundleEndpoint.ACME; acme != nil {
@@ -714,7 +744,13 @@ func validateConfig(c *Config) error {
 }
 
 func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
-	detectedUnknown := func(section string, keys []string) {
+	detectedUnknown := func(section string, keyPositions map[string][]token.Pos) {
+		var keys []string
+		for k := range keyPositions {
+			keys = append(keys, k)
+		}
+
+		sort.Strings(keys)
 		l.WithFields(logrus.Fields{
 			"section": section,
 			"keys":    strings.Join(keys, ","),
@@ -722,45 +758,45 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 		err = errors.New("unknown configuration detected")
 	}
 
-	if len(c.UnusedKeys) != 0 {
-		detectedUnknown("top-level", c.UnusedKeys)
+	if len(c.UnusedKeyPositions) != 0 {
+		detectedUnknown("top-level", c.UnusedKeyPositions)
 	}
 
 	if c.Server != nil {
-		if len(c.Server.UnusedKeys) != 0 {
-			detectedUnknown("server", c.Server.UnusedKeys)
+		if len(c.Server.UnusedKeyPositions) != 0 {
+			detectedUnknown("server", c.Server.UnusedKeyPositions)
 		}
 
-		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeys) != 0 {
-			detectedUnknown("ca_subject", cs.UnusedKeys)
+		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeyPositions) != 0 {
+			detectedUnknown("ca_subject", cs.UnusedKeyPositions)
 		}
 
-		if rl := c.Server.RateLimit; len(rl.UnusedKeys) != 0 {
-			detectedUnknown("ratelimit", rl.UnusedKeys)
+		if rl := c.Server.RateLimit; len(rl.UnusedKeyPositions) != 0 {
+			detectedUnknown("ratelimit", rl.UnusedKeyPositions)
 		}
 
 		// TODO: Re-enable unused key detection for experimental config. See
 		// https://github.com/spiffe/spire/issues/1101 for more information
 		//
-		// if len(c.Server.Experimental.UnusedKeys) != 0 {
-		//	detectedUnknown("experimental", c.Server.Experimental.UnusedKeys)
+		// if len(c.Server.Experimental.UnusedKeyPositions) != 0 {
+		//	detectedUnknown("experimental", c.Server.Experimental.UnusedKeyPositions)
 		// }
 
 		if c.Server.Federation != nil {
 			// TODO: Re-enable unused key detection for federation config. See
 			// https://github.com/spiffe/spire/issues/1101 for more information
 			//
-			// if len(c.Server.Federation.UnusedKeys) != 0 {
-			//	detectedUnknown("federation", c.Server.Federation.UnusedKeys)
+			// if len(c.Server.Federation.UnusedKeyPositions) != 0 {
+			//	detectedUnknown("federation", c.Server.Federation.UnusedKeyPositions)
 			// }
 
 			if c.Server.Federation.BundleEndpoint != nil {
-				if len(c.Server.Federation.BundleEndpoint.UnusedKeys) != 0 {
-					detectedUnknown("bundle endpoint", c.Server.Federation.BundleEndpoint.UnusedKeys)
+				if len(c.Server.Federation.BundleEndpoint.UnusedKeyPositions) != 0 {
+					detectedUnknown("bundle endpoint", c.Server.Federation.BundleEndpoint.UnusedKeyPositions)
 				}
 
-				if bea := c.Server.Federation.BundleEndpoint.ACME; bea != nil && len(bea.UnusedKeys) != 0 {
-					detectedUnknown("bundle endpoint ACME", bea.UnusedKeys)
+				if bea := c.Server.Federation.BundleEndpoint.ACME; bea != nil && len(bea.UnusedKeyPositions) != 0 {
+					detectedUnknown("bundle endpoint ACME", bea.UnusedKeyPositions)
 				}
 			}
 
@@ -768,8 +804,8 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 			// https://github.com/spiffe/spire/issues/1101 for more information
 			//
 			// for k, v := range c.Server.Federation.FederatesWith {
-			//	if len(v.UnusedKeys) != 0 {
-			//		detectedUnknown(fmt.Sprintf("federates_with %q", k), v.UnusedKeys)
+			//	if len(v.UnusedKeyPositions) != 0 {
+			//		detectedUnknown(fmt.Sprintf("federates_with %q", k), v.UnusedKeyPositions)
 			//	}
 			// }
 		}
@@ -778,38 +814,38 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 	// TODO: Re-enable unused key detection for telemetry. See
 	// https://github.com/spiffe/spire/issues/1101 for more information
 	//
-	// if len(c.Telemetry.UnusedKeys) != 0 {
-	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeys)
+	// if len(c.Telemetry.UnusedKeyPositions) != 0 {
+	//	detectedUnknown("telemetry", c.Telemetry.UnusedKeyPositions)
 	// }
 
-	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeys) != 0 {
-		detectedUnknown("Prometheus", p.UnusedKeys)
+	if p := c.Telemetry.Prometheus; p != nil && len(p.UnusedKeyPositions) != 0 {
+		detectedUnknown("Prometheus", p.UnusedKeyPositions)
 	}
 
 	for _, v := range c.Telemetry.DogStatsd {
-		if len(v.UnusedKeys) != 0 {
-			detectedUnknown("DogStatsd", v.UnusedKeys)
+		if len(v.UnusedKeyPositions) != 0 {
+			detectedUnknown("DogStatsd", v.UnusedKeyPositions)
 		}
 	}
 
 	for _, v := range c.Telemetry.Statsd {
-		if len(v.UnusedKeys) != 0 {
-			detectedUnknown("Statsd", v.UnusedKeys)
+		if len(v.UnusedKeyPositions) != 0 {
+			detectedUnknown("Statsd", v.UnusedKeyPositions)
 		}
 	}
 
 	for _, v := range c.Telemetry.M3 {
-		if len(v.UnusedKeys) != 0 {
-			detectedUnknown("M3", v.UnusedKeys)
+		if len(v.UnusedKeyPositions) != 0 {
+			detectedUnknown("M3", v.UnusedKeyPositions)
 		}
 	}
 
-	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeys) != 0 {
-		detectedUnknown("InMem", p.UnusedKeys)
+	if p := c.Telemetry.InMem; p != nil && len(p.UnusedKeyPositions) != 0 {
+		detectedUnknown("InMem", p.UnusedKeyPositions)
 	}
 
-	if len(c.HealthChecks.UnusedKeys) != 0 {
-		detectedUnknown("health check", c.HealthChecks.UnusedKeys)
+	if len(c.HealthChecks.UnusedKeyPositions) != 0 {
+		detectedUnknown("health check", c.HealthChecks.UnusedKeyPositions)
 	}
 
 	return err

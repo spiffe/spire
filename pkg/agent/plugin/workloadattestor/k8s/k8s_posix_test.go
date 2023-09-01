@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/sigstore/cosign/pkg/oci"
+	"github.com/sigstore/cosign/v2/pkg/oci"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
@@ -32,12 +32,13 @@ const (
 	crioPodListFilePath                     = "testdata/crio_pod_list.json"
 	crioPodListDuplicateContainerIDFilePath = "testdata/crio_pod_list_duplicate_containerId.json"
 
-	cgPidInPodFilePath        = "testdata/cgroups_pid_in_pod.txt"
-	cgPidInKindPodFilePath    = "testdata/cgroups_pid_in_kind_pod.txt"
-	cgPidInCrioPodFilePath    = "testdata/cgroups_pid_in_crio_pod.txt"
-	cgInitPidInPodFilePath    = "testdata/cgroups_init_pid_in_pod.txt"
-	cgPidNotInPodFilePath     = "testdata/cgroups_pid_not_in_pod.txt"
-	cgSystemdPidInPodFilePath = "testdata/systemd_cgroups_pid_in_pod.txt"
+	cgPidInPodFilePath            = "testdata/cgroups_pid_in_pod.txt"
+	cgPidInKindPodFilePath        = "testdata/cgroups_pid_in_kind_pod.txt"
+	cgPidInCrioPodFilePath        = "testdata/cgroups_pid_in_crio_pod.txt"
+	cgInitPidInPodFilePath        = "testdata/cgroups_init_pid_in_pod.txt"
+	cgPidNotInPodFilePath         = "testdata/cgroups_pid_not_in_pod.txt"
+	cgSystemdPidInPodFilePath     = "testdata/systemd_cgroups_pid_in_pod.txt"
+	cgSystemdCrioPidInPodFilePath = "testdata/systemd_crio_cgroups_pid_in_pod.txt"
 )
 
 var (
@@ -193,6 +194,13 @@ func (s *Suite) TestAttestWithPidInPodSystemdCgroups() {
 	p := s.loadInsecurePlugin()
 
 	s.requireAttestSuccessWithPodSystemdCgroups(p)
+}
+
+func (s *Suite) TestAttestWithPidInPodSystemdCrioCgroups() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.requireAttestSuccessWithPodSystemdCrioCgroups(p)
 }
 
 func (s *Suite) TestAttestAgainstNodeOverride() {
@@ -426,6 +434,12 @@ func (s *Suite) requireAttestSuccessWithPodSystemdCgroups(p workloadattestor.Wor
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgSystemdPidInPodFilePath)
 	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) requireAttestSuccessWithPodSystemdCrioCgroups(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(crioPodListFilePath)
+	s.addCgroupsResponse(cgSystemdCrioPidInPodFilePath)
+	s.requireAttestSuccess(p, testCrioPodSelectors)
 }
 
 func TestGetContainerIDFromCGroups(t *testing.T) {
@@ -697,25 +711,25 @@ func (s *sigstoreMock) SetEnforceSCT(enforceSCT bool) {
 	s.enforceSCT = enforceSCT
 }
 
-func (s *sigstoreMock) FetchImageSignatures(ctx context.Context, imageName string) ([]oci.Signature, error) {
+func (s *sigstoreMock) FetchImageSignatures(context.Context, string) ([]oci.Signature, error) {
 	if s.returnError != nil {
 		return nil, s.returnError
 	}
 	return s.sigs, nil
 }
 
-func (s *sigstoreMock) SelectorValuesFromSignature(signatures oci.Signature) (*sigstore.SelectorsFromSignatures, error) {
+func (s *sigstoreMock) SelectorValuesFromSignature(oci.Signature) (*sigstore.SelectorsFromSignatures, error) {
 	if len(s.selectors) != 0 {
 		return &s.selectors[0], nil
 	}
 	return nil, s.returnError
 }
 
-func (s *sigstoreMock) ExtractSelectorsFromSignatures(signatures []oci.Signature, containerID string) []sigstore.SelectorsFromSignatures {
+func (s *sigstoreMock) ExtractSelectorsFromSignatures([]oci.Signature, string) []sigstore.SelectorsFromSignatures {
 	return s.selectors
 }
 
-func (s *sigstoreMock) ShouldSkipImage(imageID string) (bool, error) {
+func (s *sigstoreMock) ShouldSkipImage(string) (bool, error) {
 	return s.skipSigs, s.returnError
 }
 
@@ -727,7 +741,7 @@ func (s *sigstoreMock) ClearAllowedSubjects() {
 	s.allowedSubjects = nil
 }
 
-func (s *sigstoreMock) AttestContainerSignatures(ctx context.Context, status *corev1.ContainerStatus) ([]string, error) {
+func (s *sigstoreMock) AttestContainerSignatures(_ context.Context, status *corev1.ContainerStatus) ([]string, error) {
 	if s.skipSigs {
 		return s.skippedSigSelectors, nil
 	}

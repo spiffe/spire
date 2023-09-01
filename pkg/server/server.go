@@ -94,7 +94,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	telemetry.EmitVersion(metrics)
+	telemetry.EmitStarted(metrics, s.config.TrustDomain)
 	uptime.ReportMetrics(ctx, metrics)
 
 	// Create the identity provider host service. It will not be functional
@@ -208,7 +208,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 		registrationManager.Run,
 		bundlePublishingManager.Run,
 		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
-		scanForBadEntries(s.config.Log, metrics, cat.GetDataStore()),
 	}
 
 	if s.config.LogReopener != nil {
@@ -399,6 +398,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
+		config.BundleEndpoint.RefreshHint = s.config.Federation.BundleEndpoint.RefreshHint
 		config.BundleEndpoint.ACME = s.config.Federation.BundleEndpoint.ACME
 	}
 	return endpoints.New(ctx, config)
@@ -428,7 +428,7 @@ func (s *Server) newBundlePublishingManager(bundlePublishers []bundlepublisher.B
 }
 
 func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore) error {
-	trustDomain := s.config.TrustDomain.String()
+	trustDomain := s.config.TrustDomain.Name()
 
 	// Get only first page with a single element
 	fetchResponse, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{

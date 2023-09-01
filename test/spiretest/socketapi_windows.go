@@ -21,7 +21,7 @@ import (
 
 var (
 	mtx sync.Mutex                                        // used to synchronize access of rnd
-	rnd = rand.New(rand.NewSource(time.Now().UnixNano())) // nolint: gosec // used for testing only
+	rnd = rand.New(rand.NewSource(time.Now().UnixNano())) //nolint: gosec // used for testing only
 )
 
 func StartWorkloadAPI(t *testing.T, server workload.SpiffeWorkloadAPIServer) net.Addr {

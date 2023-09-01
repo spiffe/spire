@@ -391,6 +391,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": true,
+			"PostStatus":      false,
 		})
 	})
 
@@ -404,6 +405,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": false,
+			"PostStatus":      false,
 		})
 	})
 
@@ -417,6 +419,8 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      true,
 			"CreateJoinToken": false,
+			// TODO: Must be true for agent (#3908)
+			"PostStatus": false,
 		})
 	})
 
@@ -430,6 +434,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": true,
+			"PostStatus":      false,
 		})
 	})
 
@@ -443,6 +448,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": true,
+			"PostStatus":      false,
 		})
 	})
 
@@ -456,6 +462,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, agentC
 			"AttestAgent":     true,
 			"RenewAgent":      false,
 			"CreateJoinToken": false,
+			"PostStatus":      false,
 		})
 	})
 }
@@ -920,7 +927,7 @@ func newBundleEndpointServer() *bundleEndpointServer {
 	return &bundleEndpointServer{}
 }
 
-func (s *bundleEndpointServer) ListenAndServe(ctx context.Context) error {
+func (s *bundleEndpointServer) ListenAndServe(context.Context) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 	s.used = true

@@ -19,6 +19,6 @@ func getTestAddr(t *testing.T) net.Addr {
 	}
 }
 
-func testRemoteCaller(ctx context.Context, t *testing.T, target string) {
+func testRemoteCaller(context.Context, *testing.T, string) {
 	// No testing for UDS endpoints
 }

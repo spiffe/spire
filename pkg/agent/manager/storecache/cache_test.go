@@ -1049,8 +1049,8 @@ func TestGetStaleEntries(t *testing.T) {
 			Entry: barEntry,
 		},
 		{
-			Entry:     fohEntry,
-			ExpiresAt: expiresAt,
+			Entry:         fohEntry,
+			SVIDExpiresAt: expiresAt,
 		},
 	}
 	require.Equal(t, expectedStaleEntries, c.GetStaleEntries())
@@ -1236,7 +1236,7 @@ func createTestEntry() *common.RegistrationEntry {
 			{Type: "a", Value: "c:2"},
 		},
 		SpiffeId:       fohID.String(),
-		FederatesWith:  []string{federatedTD.String()},
+		FederatesWith:  []string{federatedTD.Name()},
 		StoreSvid:      true,
 		RevisionNumber: 1,
 	}

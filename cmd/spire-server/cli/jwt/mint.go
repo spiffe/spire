@@ -64,7 +64,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 
 	client := serverClient.NewSVIDClient()
 	resp, err := client.MintJWTSVID(ctx, &svidv1.MintJWTSVIDRequest{Id: &types.SPIFFEID{
-		TrustDomain: spiffeID.TrustDomain().String(),
+		TrustDomain: spiffeID.TrustDomain().Name(),
 		Path:        spiffeID.Path(),
 	},
 		Ttl:      ttlToSeconds(c.ttl),

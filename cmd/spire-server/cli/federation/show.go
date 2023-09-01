@@ -42,7 +42,7 @@ func (c *showCommand) AppendFlags(f *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, c.prettyPrintShow)
 }
 
-func (c *showCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *showCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	if c.trustDomain == "" {
 		return errors.New("a trust domain name is required")
 	}

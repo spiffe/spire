@@ -1,7 +1,6 @@
 package azure
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -54,7 +53,7 @@ func (fn HTTPClientFunc) Do(req *http.Request) (*http.Response, error) {
 	return fn(req)
 }
 
-func FetchMSIToken(ctx context.Context, cl HTTPClient, resource string) (string, error) {
+func FetchMSIToken(cl HTTPClient, resource string) (string, error) {
 	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01", nil)
 	if err != nil {
 		return "", errs.Wrap(err)
@@ -89,7 +88,7 @@ func FetchMSIToken(ctx context.Context, cl HTTPClient, resource string) (string,
 	return r.AccessToken, nil
 }
 
-func FetchInstanceMetadata(ctx context.Context, cl HTTPClient) (*InstanceMetadata, error) {
+func FetchInstanceMetadata(cl HTTPClient) (*InstanceMetadata, error) {
 	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json", nil)
 	if err != nil {
 		return nil, errs.Wrap(err)

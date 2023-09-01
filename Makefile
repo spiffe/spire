@@ -96,8 +96,20 @@ else ifeq ($(arch1),aarch64)
 arch2=arm64
 else ifeq ($(arch1),arm64)
 arch2=arm64
+else ifeq ($(arch1),s390x)
+arch2=s390x
+else ifeq ($(arch1),ppc64le)
+arch2=ppc64le
 else
 $(error unsupported ARCH: $(arch1))
+endif
+
+############################################################################
+# Docker TLS detection for buildx
+############################################################################
+dockertls=
+ifeq ($(DOCKER_TLS_VERIFY), 1)
+dockertls=spire-buildx-tls
 endif
 
 ############################################################################
@@ -110,28 +122,27 @@ binaries := spire-server spire-agent oidc-discovery-provider
 
 build_dir := $(DIR)/.build/$(os1)-$(arch1)
 
-go_version_full := $(shell cat .go-version)
-go_version := $(go_version_full:.0=)
+go_version := $(shell cat .go-version)
 go_dir := $(build_dir)/go/$(go_version)
 
 ifeq ($(os1),windows)
 	go_bin_dir = $(go_dir)/go/bin
-	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).zip
+	go_url = https://go.dev/dl/go$(go_version).$(os1)-$(arch2).zip
 	exe=".exe"
 else
 	go_bin_dir = $(go_dir)/bin
-	go_url = https://storage.googleapis.com/golang/go$(go_version).$(os1)-$(arch2).tar.gz
+	go_url = https://go.dev/dl/go$(go_version).$(os1)-$(arch2).tar.gz
 	exe=
 endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.51.1
+golangci_lint_version = v1.54.1
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
-markdown_lint_version = v0.33.0
+markdown_lint_version = v0.35.0
 markdown_lint_image = ghcr.io/igorshubovych/markdownlint-cli:$(markdown_lint_version)
 
 protoc_version = 3.20.1
@@ -139,6 +150,10 @@ ifeq ($(os1),windows)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-win64.zip
 else ifeq ($(arch2),arm64)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-aarch_64.zip
+else ifeq ($(arch2),s390x)
+protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-s390_64.zip
+else ifeq ($(arch2),ppc64le)
+protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-ppcle_64.zip
 else
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-$(os2)-$(arch1).zip
 endif
@@ -208,8 +223,8 @@ endif
 # Flags passed to all invocations of go test
 go_test_flags :=
 ifeq ($(NIGHTLY),)
-	# Cap unit-test timout to 60s unless we're running nightlies.
-	go_test_flags += -timeout=60s
+	# Cap unit-test timout to 90s unless we're running nightlies.
+	go_test_flags += -timeout=90s
 endif
 
 go_flags :=
@@ -253,10 +268,6 @@ bin/%: support/% FORCE | go-check
 	@echo Building $@…
 	$(E)$(go_build) $@$(exe) ./$<
 
-bin/%: support/k8s/% FORCE | go-check
-	@echo Building $@…
-	$(E)$(go_build) $@$(exe) ./$<
-
 #############################################################################
 # Build static binaries for docker images
 #############################################################################
@@ -274,10 +285,6 @@ bin/static/%: cmd/% FORCE | go-check
 	$(E)$(go_build_static) $@$(exe) ./$<
 
 bin/static/%: support/% FORCE | go-check
-	@echo Building $@…
-	$(E)$(go_build_static) $@$(exe) ./$<
-
-bin/static/%: support/k8s/% FORCE | go-check
 	@echo Building $@…
 	$(E)$(go_build_static) $@$(exe) ./$<
 
@@ -304,9 +311,6 @@ endif
 integration:
 ifeq ($(os1), windows)
 	$(error Integration tests are not supported on windows)
-else ifeq (,$(filter $(arch2),arm64,aarch64))
-	# TODO: Remove this special handling of arm64 in 1.7.0
-	$(E)(export IGNORE_SUITES=suites/upgrade && $(go_path) ./test/integration/test.sh $(SUITES))
 else
 	$(E)$(go_path) ./test/integration/test.sh $(SUITES)
 endif
@@ -327,17 +331,22 @@ artifact: build
 # Docker Images
 #############################################################################
 
+.PHONY: spire-buildx-tls
+spire-buildx-tls:
+	$(E)docker context rm -f "$(dockertls)" > /dev/null
+	$(E)docker context create $(dockertls) --description "$(dockertls)" --docker "host=$(DOCKER_HOST),ca=$(DOCKER_CERT_PATH)/ca.pem,cert=$(DOCKER_CERT_PATH)/cert.pem,key=$(DOCKER_CERT_PATH)/key.pem" > /dev/null
+
 .PHONY: container-builder
-container-builder:
-	$(E)docker buildx create --platform $(PLATFORMS) --name container-builder --node container-builder0 --use
+container-builder: $(dockertls)
+	$(E)docker buildx create $(dockertls) --platform $(PLATFORMS) --name container-builder --node container-builder0 --use
 
 define image_rule
 .PHONY: $1
 $1: $3 container-builder
-	echo Building docker image $2 $(PLATFORM)…
+	@echo Building docker image $2 $(PLATFORM)…
 	$(E)docker buildx build \
 		--platform $(PLATFORMS) \
-		--build-arg goversion=$(go_version_full) \
+		--build-arg goversion=$(go_version) \
 		--target $2 \
 		-o type=oci,dest=$2-image.tar \
 		-f $3 \
@@ -366,9 +375,9 @@ load-images:
 define windows_image_rule
 .PHONY: $1
 $1: $3
-	echo Building docker image $2…
+	@echo Building docker image $2…
 	$(E)docker build \
-		--build-arg goversion=$(go_version_full) \
+		--build-arg goversion=$(go_version) \
 		--target $2 \
 		-t $2 -t $2:latest-local \
 		-f $3 \

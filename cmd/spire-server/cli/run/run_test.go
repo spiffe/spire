@@ -352,6 +352,42 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg:       "log_source_location should default to false if not set",
+			fileInput: func(c *Config) {},
+			cliFlags:  []string{},
+			test: func(t *testing.T, c *Config) {
+				require.False(t, c.Server.LogSourceLocation)
+			},
+		},
+		{
+			msg: "log_source_location should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.LogSourceLocation = true
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.LogSourceLocation)
+			},
+		},
+		{
+			msg:       "log_source_location should be configurable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliFlags:  []string{"-logSourceLocation"},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.LogSourceLocation)
+			},
+		},
+		{
+			msg: "log_source_location specified by CLI flag should take precedence over file",
+			fileInput: func(c *Config) {
+				c.Server.LogSourceLocation = false
+			},
+			cliFlags: []string{"-logSourceLocation"},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.LogSourceLocation)
+			},
+		},
+		{
 			msg: "default_x509_svid_ttl should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.DefaultX509SVIDTTL = "2h"
@@ -481,7 +517,7 @@ func TestNewServerConfig(t *testing.T) {
 			msg:         "invalid bind_address should return an error",
 			expectError: true,
 			input: func(c *Config) {
-				c.Server.BindAddress = "this-is-not-an-ip-address"
+				c.Server.BindAddress = "^[notavalidhostname*!"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
@@ -588,6 +624,24 @@ func TestNewServerConfig(t *testing.T) {
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
 					BundleEndpoint: &bundleEndpointConfig{
+						Address:     "192.168.1.1",
+						Port:        1337,
+						RefreshHint: "10m",
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "192.168.1.1", c.Federation.BundleEndpoint.Address.IP.String())
+				require.Equal(t, 1337, c.Federation.BundleEndpoint.Address.Port)
+				require.NotNil(t, c.Federation.BundleEndpoint.RefreshHint)
+				require.Equal(t, 10*time.Minute, *c.Federation.BundleEndpoint.RefreshHint)
+			},
+		},
+		{
+			msg: "bundle endpoint does not have a default refresh hint",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: &bundleEndpointConfig{
 						Address: "192.168.1.1",
 						Port:    1337,
 					},
@@ -596,6 +650,7 @@ func TestNewServerConfig(t *testing.T) {
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "192.168.1.1", c.Federation.BundleEndpoint.Address.IP.String())
 				require.Equal(t, 1337, c.Federation.BundleEndpoint.Address.Port)
+				require.Nil(t, c.Federation.BundleEndpoint.RefreshHint)
 			},
 		},
 		{

@@ -125,14 +125,14 @@ type v1Plugin struct {
 	err         error
 }
 
-func (v1 v1Plugin) Notify(ctx context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
+func (v1 v1Plugin) Notify(_ context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
 	if diff := cmp.Diff(v1.expectedReq, req, protocmp.Transform()); diff != "" {
 		return nil, fmt.Errorf("v1 shim issued an unexpected request:\n%s", diff)
 	}
 	return &notifierv1.NotifyResponse{}, v1.err
 }
 
-func (v1 v1Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
+func (v1 v1Plugin) NotifyAndAdvise(_ context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
 	if diff := cmp.Diff(v1.expectedReq, req, protocmp.Transform()); diff != "" {
 		return nil, fmt.Errorf("v1 shim issued an unexpected request:\n%s", diff)
 	}

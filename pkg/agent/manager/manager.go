@@ -22,7 +22,16 @@ import (
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/proto/spire/common"
+)
+
+const (
+	maxSVIDSyncInterval = 4 * time.Minute
+	// for sync interval of 5 sec this will result in max of 4 mins of backoff
+	synchronizeMaxIntervalMultiple = 48
+	// for larger sync interval set max interval as 8 mins
+	synchronizeMaxInterval = 8 * time.Minute
 )
 
 // Manager provides cache management functionalities for agents.
@@ -64,7 +73,7 @@ type Manager interface {
 
 	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
 	// is no JWT cached, the manager will get one signed upstream.
-	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
+	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
 
 	// CountSVIDs returns the amount of X509 SVIDs on memory
 	CountSVIDs() int
@@ -132,6 +141,8 @@ type manager struct {
 	// fetch attempt
 	synchronizeBackoff backoff.BackOff
 	svidSyncBackoff    backoff.BackOff
+	// csrSizeLimitedBackoff backs off the number of csrs if error is returned on fetch svid attempt
+	csrSizeLimitedBackoff backoff.SizeLimitedBackOff
 
 	client client.Client
 
@@ -148,8 +159,13 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
 	m.storeBundle(m.cache.Bundle())
 
-	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval)
-	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval)
+	synchronizeBackoffMaxInterval := synchronizeMaxIntervalMultiple * m.c.SyncInterval
+	if synchronizeBackoffMaxInterval > synchronizeMaxInterval {
+		synchronizeBackoffMaxInterval = synchronizeMaxInterval
+	}
+	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval, backoff.WithMaxInterval(synchronizeBackoffMaxInterval))
+	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
+	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
 
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {
@@ -228,7 +244,12 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 	return m.cache.FetchWorkloadUpdate(selectors)
 }
 
-func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
+func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {
+	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
+	if err != nil {
+		return nil, errors.New("Invalid SPIFFE ID: " + err.Error())
+	}
+
 	now := m.clk.Now()
 
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
@@ -236,12 +257,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audien
 		return cachedSVID, nil
 	}
 
-	entryID := m.getEntryID(spiffeID.String())
-	if entryID == "" {
-		return nil, errors.New("no entry found")
-	}
-
-	newSVID, err := m.client.NewJWTSVID(ctx, entryID, audience)
+	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
@@ -255,15 +271,6 @@ func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audien
 
 	m.cache.SetJWTSVID(spiffeID, audience, newSVID)
 	return newSVID, nil
-}
-
-func (m *manager) getEntryID(spiffeID string) string {
-	for _, entry := range m.cache.Entries() {
-		if entry.SpiffeId == spiffeID {
-			return entry.EntryId
-		}
-	}
-	return ""
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {

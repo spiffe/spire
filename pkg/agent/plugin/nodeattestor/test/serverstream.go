@@ -95,7 +95,7 @@ type serverStream struct {
 	handlers   []ServerStreamHandler
 }
 
-func (ss *serverStream) SendAttestationData(ctx context.Context, attestationData nodeattestor.AttestationData) ([]byte, error) {
+func (ss *serverStream) SendAttestationData(_ context.Context, attestationData nodeattestor.AttestationData) ([]byte, error) {
 	if attestationData.Type != ss.pluginName {
 		return nil, fmt.Errorf("expected attestation type %q; got %q", ss.pluginName, attestationData.Type)
 	}
@@ -105,7 +105,7 @@ func (ss *serverStream) SendAttestationData(ctx context.Context, attestationData
 	return ss.handle(attestationData.Payload)
 }
 
-func (ss *serverStream) SendChallengeResponse(ctx context.Context, challengeResponse []byte) ([]byte, error) {
+func (ss *serverStream) SendChallengeResponse(_ context.Context, challengeResponse []byte) ([]byte, error) {
 	if len(ss.handlers) == 0 {
 		return nil, errors.New("stream received unexpected challenge response")
 	}

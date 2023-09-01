@@ -69,7 +69,7 @@ type fakeProcessHelper struct {
 	containerID string
 }
 
-func (f *fakeProcessHelper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, error) {
+func (f *fakeProcessHelper) GetContainerIDByProcess(int32, hclog.Logger) (string, error) {
 	if f.err != nil {
 		return "", f.err
 	}

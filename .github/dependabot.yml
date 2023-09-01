@@ -6,6 +6,19 @@ updates:
     interval: "daily"
     time: "09:00"
     timezone: "America/Los_Angeles"
+  groups:
+    aws-sdk:
+      patterns:
+        - "github.com/aws/aws-sdk-go-v2/*"
+    google-cloud-sdk:
+      patterns:
+        - "cloud.google.com/go/*"
+    sigs.k8s.io:
+      patterns:
+        - "sig.k8s.io/*"
+    azure-sdk:
+      patterns:
+        - "github.com/Azure/azure-sdk-for-go/*"
   ignore:
   - dependency-name: "github.com/spiffe/spire-api-sdk"
   - dependency-name: "github.com/spiffe/spire-plugin-sdk"
@@ -13,6 +26,8 @@ updates:
   - dependency-name: "github.com/mattn/go-sqlite3"
     versions: ["2.x"]
   - dependency-name: "github.com/aws/aws-sdk-go-v2*"
+    update-types: ["version-update:semver-patch"]
+  - dependency-name: "cloud.google.com/go/*"
     update-types: ["version-update:semver-patch"]
   open-pull-requests-limit: 5
 - package-ecosystem: "github-actions"

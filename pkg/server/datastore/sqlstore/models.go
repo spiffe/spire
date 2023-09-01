@@ -42,6 +42,18 @@ func (AttestedNode) TableName() string {
 	return "attested_node_entries"
 }
 
+// AttestedNodeEvent holds the SPIFFE ID of nodes that had an event
+type AttestedNodeEvent struct {
+	Model
+
+	SpiffeID string
+}
+
+// TableName gets table name for AttestedNodeEvent
+func (AttestedNodeEvent) TableName() string {
+	return "attested_node_entries_events"
+}
+
 type V3AttestedNode struct {
 	Model
 
@@ -102,6 +114,18 @@ type RegisteredEntry struct {
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
 }
 
+// RegisteredEntryEvent holds the entry id of a registered entry that had an event
+type RegisteredEntryEvent struct {
+	Model
+
+	EntryID string
+}
+
+// TableName gets table name for RegisteredEntryEvent
+func (RegisteredEntryEvent) TableName() string {
+	return "registered_entries_events"
+}
+
 // JoinToken holds a join token
 type JoinToken struct {
 	Model
@@ -160,6 +184,24 @@ type FederatedTrustDomain struct {
 // TableName gets table name of FederatedTrustDomain
 func (FederatedTrustDomain) TableName() string {
 	return "federated_trust_domains"
+}
+
+// CAJournal holds information about prepared, active, and old X509 and JWT
+// authorities of servers sharing this database. This information helps to
+// manage the rotation of the keys in each server.
+type CAJournal struct {
+	Model
+
+	// Information about X509 and JWT authorities of a single server.
+	Data []byte `gorm:"size:16777215"` // Make MySQL to use MEDIUMBLOB(max 16MB) - doesn't affect PostgreSQL/SQLite
+
+	// ActiveX509AuthorityID is the Subject Key ID of current active X509
+	// authority in a server.
+	ActiveX509AuthorityID string `gorm:"index:idx_ca_journals_active_x509_authority_id"`
+
+	// ActiveJWTAuthorityID is the JWT key ID (i.e. "kid" claim) of the current
+	// active JWT authority in a server.
+	ActiveJWTAuthorityID string `gorm:"index:idx_ca_journals_active_jwt_authority_id"`
 }
 
 // Migration holds database schema version number, and

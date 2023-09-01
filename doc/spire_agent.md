@@ -28,6 +28,7 @@ This document is a configuration reference for SPIRE Agent. It includes informat
 | WorkloadAttestor | [docker](/doc/plugin_agent_workloadattestor_docker.md)                  | A workload attestor which allows selectors based on docker constructs such `label` and `image_id`                                                |
 | WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md)                        | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)                       |
 | WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md)                      | A workload attestor which generates unix-based selectors like `uid` and `gid`                                                                    |
+| WorkloadAttestor | [systemd](/doc/plugin_agent_workloadattestor_systemd.md)                | A workload attestor which generates selectors based on systemd unit properties such as `Id` and `FragmentPath`                                   |
 | SVIDStore        | [aws_secretsmanager](/doc/plugin_agent_svidstore_aws_secretsmanager.md) | An SVIDstore which stores secrets in the AWS secrets manager with the resulting X509-SVIDs of the entries that the agent is entitled to.         |
 | SVIDStore        | [gcp_secretmanager](/doc/plugin_agent_svidstore_gcp_secretmanager.md)   | An SVIDStore which stores secrets in the Google Cloud Secret Manager with the resulting X509-SVIDs of the entries that the agent is entitled to. |
 
@@ -53,6 +54,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_file`                        | File to write logs to                                                                                                          |                                  |
 | `log_level`                       | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                            | INFO                             |
 | `log_format`                      | Format of logs, &lt;text&vert;json&gt;                                                                                         | Text                             |
+| `log_source_location`             | If true, logs include source file, line number, and method name fields (adds a bit of runtime cost)                            | false                                          |
 | `profiling_enabled`               | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                | false                            |
 | `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.         |                                  |
 | `profiling_names`                 | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)              |                                  |
@@ -70,6 +72,7 @@ This may be useful for templating configuration files, for example across differ
 | experimental      | Description                                                     | Default                 |
 |:------------------|-----------------------------------------------------------------|-------------------------|
 | `named_pipe_name` | Pipe name to bind the SPIRE Agent API named pipe (Windows only) | \spire-agent\public\api |
+| `sync_interval`   | Sync interval with SPIRE server with exponential backoff        | 5 sec                   |
 
 ### Initial trust bundle configuration
 
@@ -83,12 +86,12 @@ Only one of these three options may be set at a time.
 
 ### SDS Configuration
 
-| Configuration                    | Description                                                                                      | Default |
-|----------------------------------|--------------------------------------------------------------------------------------------------|---------|
-| `default_svid_name`              | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS                | default |
-| `default_bundle_name`            | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS          | ROOTCA  |
-| `default_all_bundles_name`       | The Validation Context resource name to use for all bundles (including federated) with Envoy SDS | ALL     |
-| `disable_spiffe_cert_validation` | Disable Envoy SDS custom validation                                                              | false   |
+| Configuration                    | Description                                                                                                                                                                         | Default |
+|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `default_svid_name`              | The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS                                                                                                   | default |
+| `default_bundle_name`            | The Validation Context resource name to use for the default X.509 bundle with Envoy SDS                                                                                             | ROOTCA  |
+| `default_all_bundles_name`       | The Validation Context resource name to use for all bundles (including federated) with Envoy SDS                                                                                    | ALL     |
+| `disable_spiffe_cert_validation` | Disable Envoy SDS custom validation                                                                                                                                                 | false   |
 
 ### Profiling Names
 

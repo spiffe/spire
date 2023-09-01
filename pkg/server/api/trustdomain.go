@@ -93,12 +93,12 @@ func FederationRelationshipToProto(f *datastore.FederationRelationship, mask *ty
 	if mask == nil {
 		mask = protoutil.AllTrueFederationRelationshipMask
 	}
-	if f.TrustDomain.String() == "" {
+	if f.TrustDomain.Name() == "" {
 		return nil, errors.New("trust domain is required")
 	}
 
 	resp := &types.FederationRelationship{
-		TrustDomain: f.TrustDomain.String(),
+		TrustDomain: f.TrustDomain.Name(),
 	}
 
 	if mask.BundleEndpointUrl {

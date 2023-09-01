@@ -904,7 +904,7 @@ func (c *fakeClient) newClient(context.Context, string) (secretManagerClient, er
 	return c, nil
 }
 
-func (c *fakeClient) AddSecretVersion(ctx context.Context, req *secretmanagerpb.AddSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error) {
+func (c *fakeClient) AddSecretVersion(_ context.Context, req *secretmanagerpb.AddSecretVersionRequest, _ ...gax.CallOption) (*secretmanagerpb.SecretVersion, error) {
 	if c.c.addSecretVersionErr != nil {
 		return nil, c.c.addSecretVersionErr
 	}
@@ -917,7 +917,7 @@ func (c *fakeClient) AddSecretVersion(ctx context.Context, req *secretmanagerpb.
 	}, nil
 }
 
-func (c *fakeClient) CreateSecret(ctx context.Context, req *secretmanagerpb.CreateSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error) {
+func (c *fakeClient) CreateSecret(_ context.Context, req *secretmanagerpb.CreateSecretRequest, _ ...gax.CallOption) (*secretmanagerpb.Secret, error) {
 	if c.c.createSecretErr != nil {
 		return nil, c.c.createSecretErr
 	}
@@ -929,7 +929,7 @@ func (c *fakeClient) CreateSecret(ctx context.Context, req *secretmanagerpb.Crea
 	}, nil
 }
 
-func (c *fakeClient) GetSecret(ctx context.Context, req *secretmanagerpb.GetSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error) {
+func (c *fakeClient) GetSecret(_ context.Context, req *secretmanagerpb.GetSecretRequest, _ ...gax.CallOption) (*secretmanagerpb.Secret, error) {
 	c.getSecretReq = req
 
 	if c.c.getSecretErr != nil {
@@ -950,7 +950,7 @@ func (c *fakeClient) GetSecret(ctx context.Context, req *secretmanagerpb.GetSecr
 	return resp, nil
 }
 
-func (c *fakeClient) DeleteSecret(ctx context.Context, req *secretmanagerpb.DeleteSecretRequest, opts ...gax.CallOption) error {
+func (c *fakeClient) DeleteSecret(_ context.Context, req *secretmanagerpb.DeleteSecretRequest, _ ...gax.CallOption) error {
 	c.deleteSecretReq = req
 
 	return c.c.deleteSecretErr
@@ -960,7 +960,7 @@ func (c *fakeClient) Close() error {
 	return nil
 }
 
-func (c *fakeClient) GetIamPolicy(ctx context.Context, req *iampb.GetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
+func (c *fakeClient) GetIamPolicy(_ context.Context, req *iampb.GetIamPolicyRequest, _ ...gax.CallOption) (*iampb.Policy, error) {
 	if c.c.getIamPolicyErr != nil {
 		return nil, c.c.getIamPolicyErr
 	}
@@ -979,7 +979,7 @@ func (c *fakeClient) GetIamPolicy(ctx context.Context, req *iampb.GetIamPolicyRe
 	}, nil
 }
 
-func (c *fakeClient) SetIamPolicy(ctx context.Context, req *iampb.SetIamPolicyRequest, opts ...gax.CallOption) (*iampb.Policy, error) {
+func (c *fakeClient) SetIamPolicy(_ context.Context, req *iampb.SetIamPolicyRequest, _ ...gax.CallOption) (*iampb.Policy, error) {
 	if c.c.setIamPolicyErr != nil {
 		return nil, c.c.setIamPolicyErr
 	}
