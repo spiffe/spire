@@ -32,12 +32,13 @@ const (
 	crioPodListFilePath                     = "testdata/crio_pod_list.json"
 	crioPodListDuplicateContainerIDFilePath = "testdata/crio_pod_list_duplicate_containerId.json"
 
-	cgPidInPodFilePath        = "testdata/cgroups_pid_in_pod.txt"
-	cgPidInKindPodFilePath    = "testdata/cgroups_pid_in_kind_pod.txt"
-	cgPidInCrioPodFilePath    = "testdata/cgroups_pid_in_crio_pod.txt"
-	cgInitPidInPodFilePath    = "testdata/cgroups_init_pid_in_pod.txt"
-	cgPidNotInPodFilePath     = "testdata/cgroups_pid_not_in_pod.txt"
-	cgSystemdPidInPodFilePath = "testdata/systemd_cgroups_pid_in_pod.txt"
+	cgPidInPodFilePath            = "testdata/cgroups_pid_in_pod.txt"
+	cgPidInKindPodFilePath        = "testdata/cgroups_pid_in_kind_pod.txt"
+	cgPidInCrioPodFilePath        = "testdata/cgroups_pid_in_crio_pod.txt"
+	cgInitPidInPodFilePath        = "testdata/cgroups_init_pid_in_pod.txt"
+	cgPidNotInPodFilePath         = "testdata/cgroups_pid_not_in_pod.txt"
+	cgSystemdPidInPodFilePath     = "testdata/systemd_cgroups_pid_in_pod.txt"
+	cgSystemdCrioPidInPodFilePath = "testdata/systemd_crio_cgroups_pid_in_pod.txt"
 )
 
 var (
@@ -193,6 +194,13 @@ func (s *Suite) TestAttestWithPidInPodSystemdCgroups() {
 	p := s.loadInsecurePlugin()
 
 	s.requireAttestSuccessWithPodSystemdCgroups(p)
+}
+
+func (s *Suite) TestAttestWithPidInPodSystemdCrioCgroups() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.requireAttestSuccessWithPodSystemdCrioCgroups(p)
 }
 
 func (s *Suite) TestAttestAgainstNodeOverride() {
@@ -426,6 +434,12 @@ func (s *Suite) requireAttestSuccessWithPodSystemdCgroups(p workloadattestor.Wor
 	s.addPodListResponse(podListFilePath)
 	s.addCgroupsResponse(cgSystemdPidInPodFilePath)
 	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) requireAttestSuccessWithPodSystemdCrioCgroups(p workloadattestor.WorkloadAttestor) {
+	s.addPodListResponse(crioPodListFilePath)
+	s.addCgroupsResponse(cgSystemdCrioPidInPodFilePath)
+	s.requireAttestSuccess(p, testCrioPodSelectors)
 }
 
 func TestGetContainerIDFromCGroups(t *testing.T) {
