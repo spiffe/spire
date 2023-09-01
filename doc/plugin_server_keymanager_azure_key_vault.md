@@ -12,13 +12,13 @@ The plugin accepts the following configuration options:
 
 | Key               | Type    | Required                                    | Description                                                                                                                                         | Default |
 |-------------------|---------|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| key_vault_uri     | string  | Yes                                         | The Key Vault URI where the keys managed by this plugin reside.                                                                                     | ""      |
 | key_metadata_file | string  | yes                                         | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information. | ""      |
+| key_vault_uri     | string  | Yes                                         | The Key Vault URI where the keys managed by this plugin reside.                                                                                     | ""      |
 | use_msi           | boolean | [Optional](#authenticating-to-azure)        | Whether or not to use MSI to authenticate to Azure Key Vault.                                                                                       | false   |
-| tenant_id         | string  | [Optional](#authenticating-to-azure)        | The tenant id.                                                                                                                                      | ""      |
 | subscription_id   | string  | [Optional](#authenticating-to-azure)        | The subscription id.                                                                                                                                | ""      |
 | app_id            | string  | [Optional](#authenticating-to-azure)        | The application id.                                                                                                                                 | ""      |
 | app_secret        | string  | [Optional](#authenticating-to-azure)        | The application secret.                                                                                                                             | ""      |
+| tenant_id         | string  | [Optional](#authenticating-to-azure)        | The tenant id.                                                                                                                                      | ""      |
 
 ### Authenticating to Azure
 

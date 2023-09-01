@@ -327,7 +327,9 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 				continue
 			}
 
-			// Skip keys that belong to this server
+			// Keys are enqueued for deletion when they are rotated, so we skip
+			// here the keys that belong to this server. Stale keys from other
+			// servers in the trust domain are enqueued for deletion.
 			if p.serverID == *key.Tags[tagNameServerID] {
 				continue
 			}
