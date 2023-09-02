@@ -122,7 +122,7 @@ func TestCache(t *testing.T) {
 	createAttestedNode(t, ds, node)
 	setNodeSelectors(ctx, t, ds, entryIDs[1], a1, b2)
 
-	expected, err := api.RegistrationEntriesToProto(entries)
+	entriesPb, err := api.RegistrationEntriesToProto(entries)
 	require.NoError(t, err)
 
 	cache, err := BuildFromDataStore(context.Background(), ds)
@@ -130,6 +130,9 @@ func TestCache(t *testing.T) {
 
 	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString(rootID))
 
+	// The node alias (entry 3) is not expected
+	expected := entriesPb[:3]
+	expected = append(expected, entriesPb[4])
 	spiretest.AssertProtoListEqual(t, expected, actual)
 }
 
@@ -241,6 +244,7 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 	}
 
 	assertAuthorizedEntries := func(agentID spiffeid.ID, entries ...*common.RegistrationEntry) {
+		t.Helper()
 		expected, err := api.RegistrationEntriesToProto(entries)
 		require.NoError(t, err)
 
@@ -252,8 +256,8 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 		spiretest.AssertProtoListEqual(t, expected, authorizedEntries)
 	}
 
-	assertAuthorizedEntries(agentIDs[0], append(nodeAliasEntries, workloadEntries[:2]...)...)
-	assertAuthorizedEntries(agentIDs[1], nodeAliasEntries[1], workloadEntries[1])
+	assertAuthorizedEntries(agentIDs[0], workloadEntries[:2]...)
+	assertAuthorizedEntries(agentIDs[1], workloadEntries[1])
 	assertAuthorizedEntries(agentIDs[2], workloadEntries[2])
 }
 
