@@ -470,16 +470,8 @@ func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datast
 // PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
 func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		switch ds.db.databaseType {
-		case MySQL:
-			return pruneRegistrationEntriesEventsMySQL(tx, olderThan)
-		case PostgreSQL:
-			return pruneRegistrationEntriesEventsPostgreSQL(tx, olderThan)
-		case SQLite:
-			return pruneRegistrationEntriesEventsSQLite(tx, olderThan)
-		default:
-			return sqlError.New("unsupported database_type: %v", ds.db.databaseType)
-		}
+		err = pruneRegistrationEntriesEvents(tx, olderThan)
+		return err
 	})
 }
 
@@ -3662,24 +3654,8 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	return resp, nil
 }
 
-func pruneRegistrationEntriesEventsMySQL(tx *gorm.DB, olderThan time.Duration) error {
-	if err := tx.Where("created_at < NOW() - INTERVAL ? SECOND", olderThan.Seconds()).Delete(&RegisteredEntryEvent{}).Error; err != nil {
-		return sqlError.Wrap(err)
-	}
-
-	return nil
-}
-
-func pruneRegistrationEntriesEventsPostgreSQL(tx *gorm.DB, olderThan time.Duration) error {
-	if err := tx.Where("created_at < NOW() - (? || 'SECOND')::INTERVAL", olderThan.Seconds()).Delete(&RegisteredEntryEvent{}).Error; err != nil {
-		return sqlError.Wrap(err)
-	}
-
-	return nil
-}
-
-func pruneRegistrationEntriesEventsSQLite(tx *gorm.DB, olderThan time.Duration) error {
-	if err := tx.Where(fmt.Sprintf("created_at < datetime('now', 'localtime', '-%d seconds')", int64(olderThan.Seconds()))).Delete(&RegisteredEntryEvent{}).Error; err != nil {
+func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
+	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
