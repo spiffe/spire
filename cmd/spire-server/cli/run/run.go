@@ -122,12 +122,27 @@ type federationConfig struct {
 }
 
 type bundleEndpointConfig struct {
-	Address            string                    `hcl:"address"`
-	Port               int                       `hcl:"port"`
-	ACME               *bundleEndpointACMEConfig `hcl:"acme"`
-	RefreshHint        string                    `hcl:"refresh_hint"`
-	UnusedKeyPositions map[string][]token.Pos    `hcl:",unusedKeyPositions"`
+	Address     string `hcl:"address"`
+	Port        int    `hcl:"port"`
+	RefreshHint string `hcl:"refresh_hint"`
+
+	ACME    *bundleEndpointACMEConfig `hcl:"acme"`
+	Profile ast.Node                  `hcl:"profile"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
+
+type bundleEndpointConfigProfile struct {
+	HTTPSSPIFFE        *bundleEndpointProfileHTTPSSPIFFEConfig `hcl:"https_spiffe"`
+	HTTPSWeb           *bundleEndpointProfileHTTPSWebConfig    `hcl:"https_web"`
+	UnusedKeyPositions map[string][]token.Pos                  `hcl:",unusedKeyPositions"`
+}
+
+type bundleEndpointProfileHTTPSWebConfig struct {
+	ACME *bundleEndpointACMEConfig `hcl:"acme"`
+}
+
+type bundleEndpointProfileHTTPSSPIFFEConfig struct{}
 
 type bundleEndpointACMEConfig struct {
 	DirectoryURL       string                 `hcl:"directory_url"`
@@ -440,14 +455,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 					"need to specify it")
 			}
 
-			if acme := c.Server.Federation.BundleEndpoint.ACME; acme != nil {
-				sc.Federation.BundleEndpoint.ACME = &bundle.ACMEConfig{
-					DirectoryURL: acme.DirectoryURL,
-					DomainName:   acme.DomainName,
-					CacheDir:     filepath.Join(sc.DataDir, "bundle-acme"),
-					Email:        acme.Email,
-					ToSAccepted:  acme.ToSAccepted,
+			if c.Server.Federation.BundleEndpoint != nil {
+				acmeConfig, err := parseBundleEndpointConfigProfile(c.Server.Federation.BundleEndpoint, sc.DataDir, sc.Log)
+				if err != nil {
+					return nil, err
 				}
+				sc.Federation.BundleEndpoint.ACME = acmeConfig
 			}
 		}
 
@@ -654,22 +667,65 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	return sc, nil
 }
 
-func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
-	// First check the number of bundle endpoint profiles in the config
-	objectList, ok := config.BundleEndpointProfile.(*ast.ObjectList)
-	if !ok {
-		return nil, errors.New("malformed configuration")
-	}
-	if len(objectList.Items) != 1 {
-		return nil, errors.New("exactly one bundle endpoint profile is expected")
+func parseBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string, log logrus.FieldLogger) (*bundle.ACMEConfig, error) {
+	switch {
+	case config.ACME != nil && config.Profile != nil:
+		return nil, errors.New("bundle endpoint 'acme' or 'profile' can be set")
+
+	case config.ACME != nil:
+		return configToACMEConfig(config.ACME, dataDir), nil
+
+	case config.Profile == nil:
+		log.Warn("bundle endpoint has no profile set, using https_spiffe as default, please choose a profile.")
+		return nil, nil
 	}
 
-	// Parse the configuration
-	var data bytes.Buffer
-	if err := printer.DefaultConfig.Fprint(&data, config.BundleEndpointProfile); err != nil {
+	// Profile is set, parse it
+	configString, err := parseSingleAstNode(config.Profile)
+	if err != nil {
 		return nil, err
 	}
-	configString := data.String()
+
+	profileConfig := new(bundleEndpointConfigProfile)
+	if err := hcl.Decode(profileConfig, configString); err != nil {
+		return nil, fmt.Errorf("failed to decode configuration: %w", err)
+	}
+
+	switch {
+	case profileConfig.HTTPSWeb != nil:
+		var acmeConfig *bundle.ACMEConfig
+
+		acme := profileConfig.HTTPSWeb.ACME
+		if acme != nil {
+			acmeConfig = configToACMEConfig(acme, dataDir)
+		}
+		return acmeConfig, nil
+
+	// For now ignore SPIFFE configuration
+	case profileConfig.HTTPSSPIFFE != nil:
+		return nil, nil
+
+	default:
+		return nil, errors.New(`no bundle endpoint profile defined; current supported profiles are "https_spiffe" and 'https_web"`)
+	}
+}
+
+func configToACMEConfig(acme *bundleEndpointACMEConfig, dataDir string) *bundle.ACMEConfig {
+	return &bundle.ACMEConfig{
+		DirectoryURL: acme.DirectoryURL,
+		DomainName:   acme.DomainName,
+		CacheDir:     filepath.Join(dataDir, "bundle-acme"),
+		Email:        acme.Email,
+		ToSAccepted:  acme.ToSAccepted,
+	}
+}
+
+func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
+	configString, err := parseSingleAstNode(config.BundleEndpointProfile)
+	if err != nil {
+		return nil, err
+	}
+
 	profileConfig := new(bundleEndpointProfileConfig)
 	if err := hcl.Decode(profileConfig, configString); err != nil {
 		return nil, fmt.Errorf("failed to decode configuration: %w", err)
@@ -693,6 +749,23 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 		EndpointURL:     config.BundleEndpointURL,
 		EndpointProfile: endpointProfile,
 	}, nil
+}
+
+func parseSingleAstNode(node ast.Node) (string, error) {
+	// First check the number of bundle endpoint profiles in the config
+	objectList, ok := node.(*ast.ObjectList)
+	if !ok {
+		return "", errors.New("malformed configuration")
+	}
+	if len(objectList.Items) != 1 {
+		return "", errors.New("exactly one bundle endpoint profile is expected")
+	}
+
+	var data bytes.Buffer
+	if err := printer.DefaultConfig.Fprint(&data, node); err != nil {
+		return "", err
+	}
+	return data.String(), nil
 }
 
 func validateConfig(c *Config) error {
