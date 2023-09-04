@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/hcl"
@@ -34,6 +35,16 @@ import (
 )
 
 var sqlError = errs.Class("datastore-sql")
+var validEntryIdChars = &unicode.RangeTable{
+	R16: []unicode.Range16{
+		{0x002d, 0x002e, 1}, // - | .
+		{0x0030, 0x0039, 1}, // [0-9]
+		{0x0041, 0x005a, 1}, // [A-Z]
+		{0x005f, 0x005f, 1}, // _
+		{0x0061, 0x007a, 1}, // [a-z]
+	},
+	LatinOffset: 5,
+}
 
 const (
 	PluginName = "sql"
@@ -3861,6 +3872,16 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 			if tpe != t.Type {
 				return sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 			}
+		}
+	}
+
+	if len(entry.EntryId) > 255 {
+		return sqlError.New("invalid registration entry: entry ID too long")
+	}
+
+	for _, e := range entry.EntryId {
+		if !unicode.In(e, validEntryIdChars) {
+			return sqlError.New("invalid registration entry: entry ID contains invalid characters")
 		}
 	}
 

@@ -4671,6 +4671,7 @@ func (s *PluginSuite) TestConfigure() {
 
 func (s *PluginSuite) assertEntryEqual(t *testing.T, expectEntry, createdEntry *common.RegistrationEntry, now int64) {
 	require.NotEmpty(t, createdEntry.EntryId)
+	expectEntry.EntryId = ""
 	createdEntry.EntryId = ""
 	s.assertCreatedAtField(createdEntry, now)
 	createdEntry.CreatedAt = expectEntry.CreatedAt
