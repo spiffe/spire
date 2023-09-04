@@ -2048,7 +2048,7 @@ func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query
 }
 
 func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	entryID, err := newRegistrationEntryID()
+	entryID, err := createOrReturnEntryID(entry)
 	if err != nil {
 		return nil, err
 	}
@@ -4013,6 +4013,14 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		Hint:           model.Hint,
 		CreatedAt:      roundedInSecondsUnix(model.CreatedAt),
 	}, nil
+}
+
+func createOrReturnEntryID(entry *common.RegistrationEntry) (string, error) {
+	if entry.EntryId != "" {
+		return entry.EntryId, nil
+	} else {
+		return newRegistrationEntryID()
+	}
 }
 
 func newRegistrationEntryID() (string, error) {
