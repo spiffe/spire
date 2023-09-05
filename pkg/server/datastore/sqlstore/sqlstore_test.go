@@ -1643,7 +1643,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 		modifyEntry   func(*common.RegistrationEntry) *common.RegistrationEntry
 		expectError   string
 		expectSimilar bool
-		matchEntryId  bool
+		matchEntryID  bool
 	}{
 		{
 			name: "no entry provided",
@@ -1725,7 +1725,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.SpiffeId = "spiffe://example.org/bar"
 				return e
 			},
-			matchEntryId: true,
+			matchEntryID: true,
 		},
 		{
 			name: "failed to create similar entry",
@@ -1786,7 +1786,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			}
 			require.NoError(t, err)
 			require.NotNil(t, createdEntry)
-			if tt.matchEntryId {
+			if tt.matchEntryID {
 				require.Equal(t, entry.EntryId, createdEntry.EntryId)
 			} else {
 				require.NotEqual(t, entry.EntryId, createdEntry.EntryId)

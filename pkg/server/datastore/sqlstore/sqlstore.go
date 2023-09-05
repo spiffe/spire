@@ -35,7 +35,7 @@ import (
 )
 
 var sqlError = errs.Class("datastore-sql")
-var validEntryIdChars = &unicode.RangeTable{
+var validEntryIDChars = &unicode.RangeTable{
 	R16: []unicode.Range16{
 		{0x002d, 0x002e, 1}, // - | .
 		{0x0030, 0x0039, 1}, // [0-9]
@@ -3880,7 +3880,7 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	}
 
 	for _, e := range entry.EntryId {
-		if !unicode.In(e, validEntryIdChars) {
+		if !unicode.In(e, validEntryIDChars) {
 			return sqlError.New("invalid registration entry: entry ID contains invalid characters")
 		}
 	}
@@ -4018,9 +4018,9 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 func createOrReturnEntryID(entry *common.RegistrationEntry) (string, error) {
 	if entry.EntryId != "" {
 		return entry.EntryId, nil
-	} else {
-		return newRegistrationEntryID()
 	}
+
+	return newRegistrationEntryID()
 }
 
 func newRegistrationEntryID() (string, error) {
