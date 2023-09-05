@@ -5,7 +5,7 @@ import (
 )
 
 // StartListRegistrationEntriesEventsCall return metric
-// for server's datastore, on listing registration entry vents.
+// for server's datastore, on listing registration entry events.
 func StartListRegistrationEntriesEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntryEvent, telemetry.List)
 }
