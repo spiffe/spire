@@ -32,6 +32,11 @@ const (
 	synchronizeMaxIntervalMultiple = 48
 	// for larger sync interval set max interval as 8 mins
 	synchronizeMaxInterval = 8 * time.Minute
+
+	// retry this many times to get SVIDs on startup (12*5s = 1 min)
+	initSyncRetries = 12
+	// default sync interval is used between retries of initial sync
+	defaultSyncInterval = 5 * time.Second
 )
 
 // Manager provides cache management functionalities for agents.
@@ -159,24 +164,54 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
 	m.storeBundle(m.cache.Bundle())
 
-	synchronizeBackoffMaxInterval := synchronizeMaxIntervalMultiple * m.c.SyncInterval
-	if synchronizeBackoffMaxInterval > synchronizeMaxInterval {
-		synchronizeBackoffMaxInterval = synchronizeMaxInterval
-	}
+	// upper limit of backoff is 8 mins
+	synchronizeBackoffMaxInterval := min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*m.c.SyncInterval)
+
 	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval, backoff.WithMaxInterval(synchronizeBackoffMaxInterval))
 	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
 	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
 
-	err := m.synchronize(ctx)
-	if nodeutil.ShouldAgentReattest(err) {
+	err := m.handleSyncError(m.synchronize(ctx))
+	if err != nil {
+		return err
+	}
+
+	if m.cache.CountSVIDs() == 0 {
+		return m.retryInitialSync(ctx)
+	}
+
+	return nil
+}
+
+func (m *manager) handleSyncError(err error) error {
+	switch {
+	case nodeutil.ShouldAgentReattest(err):
 		m.c.Log.WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
 		m.deleteSVID()
-	}
-	if nodeutil.ShouldAgentShutdown(err) {
+	case nodeutil.ShouldAgentShutdown(err):
 		m.c.Log.WithError(err).Error("Agent is banned: removing SVID and shutting down")
 		m.deleteSVID()
+	case err != nil:
+		m.c.Log.WithError(err).Error("Synchronize failed")
 	}
 	return err
+}
+
+func (m *manager) retryInitialSync(ctx context.Context) error {
+	for retries := 0; m.cache.CountSVIDs() == 0 && retries < initSyncRetries; retries++ {
+		m.c.Log.Debug("no SVIDs were received from the server, retrying initial sync")
+		select {
+		case <-m.clk.After(defaultSyncInterval):
+		case <-ctx.Done():
+			return nil
+		}
+
+		err := m.handleSyncError(m.synchronize(ctx))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *manager) Run(ctx context.Context) error {
