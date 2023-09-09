@@ -252,7 +252,7 @@ func TestRunPruneEventsTask(t *testing.T) {
 		return nil, nil
 	}
 
-	pruneEventsCh := make(chan struct{})
+	pruneEventsCh := make(chan struct{}, 1)
 	pruneEventsFn := func(context.Context, time.Duration) error {
 		pruneEventsCh <- struct{}{}
 		return nil
