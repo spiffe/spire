@@ -270,7 +270,7 @@ func TestRunPruneEventsTask(t *testing.T) {
 	clk.Add(defaultPruneEventsOlderThan)
 	select {
 	case <-pruneEventsCh:
-	case <-time.After(5 * time.Second):
+	case <-ctx.Done():
 		t.Fatal("timed out waiting for pruneEventsFn to return")
 	}
 }
