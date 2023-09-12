@@ -670,18 +670,19 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 func parseBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string, log logrus.FieldLogger) (*bundle.ACMEConfig, error) {
 	switch {
 	case config.ACME != nil && config.Profile != nil:
-		return nil, errors.New("bundle endpoint 'acme' or 'profile' can be set")
+		return nil, errors.New("either bundle endpoint 'acme' or 'profile' can be set, but not both")
 
 	case config.ACME != nil:
+		log.Warn("ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.")
 		return configToACMEConfig(config.ACME, dataDir), nil
 
 	case config.Profile == nil:
-		log.Warn("bundle endpoint has no profile set, using https_spiffe as default, please choose a profile.")
+		log.Warn("Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.")
 		return nil, nil
 	}
 
 	// Profile is set, parse it
-	configString, err := parseSingleAstNode(config.Profile)
+	configString, err := parseBundleEndpointProfileASTNode(config.Profile)
 	if err != nil {
 		return nil, err
 	}
@@ -693,12 +694,11 @@ func parseBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir stri
 
 	switch {
 	case profileConfig.HTTPSWeb != nil:
-		var acmeConfig *bundle.ACMEConfig
-
 		acme := profileConfig.HTTPSWeb.ACME
-		if acme != nil {
-			acmeConfig = configToACMEConfig(acme, dataDir)
+		if acme == nil {
+			return nil, fmt.Errorf("falformed https_web: ACME is required")
 		}
+		acmeConfig := configToACMEConfig(acme, dataDir)
 		return acmeConfig, nil
 
 	// For now ignore SPIFFE configuration
@@ -706,7 +706,7 @@ func parseBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir stri
 		return nil, nil
 
 	default:
-		return nil, errors.New(`no bundle endpoint profile defined; current supported profiles are "https_spiffe" and 'https_web"`)
+		return nil, errors.New(`unknown bundle endpoint profile configured; current supported profiles are "https_spiffe" and 'https_web"`)
 	}
 }
 
@@ -721,7 +721,7 @@ func configToACMEConfig(acme *bundleEndpointACMEConfig, dataDir string) *bundle.
 }
 
 func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
-	configString, err := parseSingleAstNode(config.BundleEndpointProfile)
+	configString, err := parseBundleEndpointProfileASTNode(config.BundleEndpointProfile)
 	if err != nil {
 		return nil, err
 	}
@@ -751,7 +751,7 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 	}, nil
 }
 
-func parseSingleAstNode(node ast.Node) (string, error) {
+func parseBundleEndpointProfileASTNode(node ast.Node) (string, error) {
 	// First check the number of bundle endpoint profiles in the config
 	objectList, ok := node.(*ast.ObjectList)
 	if !ok {

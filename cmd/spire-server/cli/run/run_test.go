@@ -700,6 +700,18 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "bundle endpoint has empty web profile",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: bundleEndpointProfileEmptyHTTPSWebTest(t),
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "bundle endpoint has acme and profile",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
@@ -1887,6 +1899,16 @@ func bundleEndpointProfileHTTPSWebTest(t *testing.T) *bundleEndpointConfig {
 	return config
 }
 
+func bundleEndpointProfileEmptyHTTPSWebTest(t *testing.T) *bundleEndpointConfig {
+	configString := `address = "0.0.0.0"
+        port = 8443
+        refresh_hint = "10m"
+        profile "https_web" {}`
+	config := new(bundleEndpointConfig)
+	require.NoError(t, hcl.Decode(config, configString))
+
+	return config
+}
 func bundleEndpointProfileHTTPSSPIFFETest(t *testing.T) *bundleEndpointConfig {
 	configString := `address = "0.0.0.0"
         port = 8443
