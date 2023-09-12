@@ -696,7 +696,7 @@ func parseBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir stri
 	case profileConfig.HTTPSWeb != nil:
 		acme := profileConfig.HTTPSWeb.ACME
 		if acme == nil {
-			return nil, fmt.Errorf("falformed https_web: ACME is required")
+			return nil, fmt.Errorf("malformed https_web profile configuration: ACME is required")
 		}
 		acmeConfig := configToACMEConfig(acme, dataDir)
 		return acmeConfig, nil

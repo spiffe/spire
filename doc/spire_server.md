@@ -195,6 +195,14 @@ This optional section contains the configurables used by SPIRE Server to expose 
 | refresh_hint                                  | Allow manually specifying a [refresh hint](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#412-refresh-hint). When not set, it is determined based on the lifetime of the keys in the bundle. Small values allow to retrieve trust bundle updates in a timely manner |
 | profile "&lt;https_web&vert;https_spiffe&gt;" | Allow to configure bundle profile                                                                                                                                                                                                                                                                           |
 
+### Configuration options for `federation.bundle_endpoint.profile`
+
+When setting a bundle_endpoint it is `required` to set the bundle profile.
+
+Allowed profiles:
+- `https_web` allow to set [Automated Certificate Management Environment](#Configuration options for `federation.bundle_endpoint.profile "https_web".acme`) configuration section
+- `https_spiffe`
+
 ### Configuration options for `federation.bundle_endpoint.profile "https_web".acme`
 
 | Configuration | Description                                                                                                               | Default                                        |
@@ -203,6 +211,10 @@ This optional section contains the configurables used by SPIRE Server to expose 
 | domain_name   | Domain for which the certificate manager tries to retrieve new certificates                                               |                                                |
 | email         | Contact email address. This is used by CAs, such as Let's Encrypt, to notify about problems with issued certificates      |                                                |
 | tos_accepted  | ACME Terms of Service acceptance. If not true, and the provider requires acceptance, then certificate retrieval will fail | false                                          |
+
+### Configuration options for `federation.bundle_endpoint.profile "https_spiffe"`
+
+Default bundle profile configuration.
 
 ### Configuration options for `federation.federates_with["<trust domain>"].bundle_endpoint`
 
