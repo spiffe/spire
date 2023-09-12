@@ -160,12 +160,12 @@ server {
             address = "0.0.0.0"
             port = 8443
             refresh_hint = "10m"
-	    profile "https_web" {
+            profile "https_web" {
                 acme {
                     domain_name = "example.org"
                     email = "mail@example.org"
                 }
-	    }
+            }
         }
         federates_with "domain1.test" {
             bundle_endpoint_url = "https://1.2.3.4:8443"
