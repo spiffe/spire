@@ -1648,6 +1648,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 		modifyEntry   func(*common.RegistrationEntry) *common.RegistrationEntry
 		expectError   string
 		expectSimilar bool
+		matchEntryID  bool
 	}{
 		{
 			name: "no entry provided",
@@ -1722,11 +1723,45 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			},
 		},
 		{
+			name: "with custom entry ID",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.EntryId = "some_ID_1"
+				// need to change at least one of (parentID, spiffeID, selector)
+				e.SpiffeId = "spiffe://example.org/bar"
+				return e
+			},
+			matchEntryID: true,
+		},
+		{
 			name: "failed to create similar entry",
 			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				return e
 			},
 			expectSimilar: true,
+		},
+		{
+			name: "failed to create similar entry with different entry ID",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.EntryId = "some_ID_2"
+				return e
+			},
+			expectSimilar: true,
+		},
+		{
+			name: "entry ID too long",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.EntryId = strings.Repeat("e", 256)
+				return e
+			},
+			expectError: "datastore-sql: invalid registration entry: entry ID too long",
+		},
+		{
+			name: "entry ID contains invalid characters",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.EntryId = "éntry😊"
+				return e
+			},
+			expectError: "datastore-sql: invalid registration entry: entry ID contains invalid characters",
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -1756,6 +1791,11 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			}
 			require.NoError(t, err)
 			require.NotNil(t, createdEntry)
+			if tt.matchEntryID {
+				require.Equal(t, entry.EntryId, createdEntry.EntryId)
+			} else {
+				require.NotEqual(t, entry.EntryId, createdEntry.EntryId)
+			}
 			s.assertEntryEqual(t, entry, createdEntry, now)
 		})
 	}
@@ -4615,6 +4655,10 @@ func (s *PluginSuite) TestMigration() {
 				prepareDB(false)
 			case 21:
 				prepareDB(true)
+			case 22:
+				prepareDB(true)
+			case 23:
+				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}
@@ -4800,6 +4844,7 @@ func (s *PluginSuite) TestConfigure() {
 
 func (s *PluginSuite) assertEntryEqual(t *testing.T, expectEntry, createdEntry *common.RegistrationEntry, now int64) {
 	require.NotEmpty(t, createdEntry.EntryId)
+	expectEntry.EntryId = ""
 	createdEntry.EntryId = ""
 	s.assertCreatedAtField(createdEntry, now)
 	createdEntry.CreatedAt = expectEntry.CreatedAt

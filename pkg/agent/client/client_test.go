@@ -5,11 +5,13 @@ import (
 	"crypto"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -17,6 +19,7 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -241,6 +244,12 @@ func TestRenewSVID(t *testing.T) {
 			agentErr: errors.New("renew fails"),
 			err:      "failed to renew agent: renew fails",
 		},
+		{
+			name:     "call to RenewAgent fails",
+			csr:      []byte{0, 1, 2},
+			agentErr: status.Error(codes.Internal, "renew fails"),
+			err:      "failed to renew agent: rpc error: code = Internal desc = renew fails",
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -263,9 +272,9 @@ func TestRenewSVID(t *testing.T) {
 }
 
 func TestNewX509SVIDs(t *testing.T) {
-	client, tc := createClient()
+	sClient, tc := createClient()
 
-	tc.entryClient.entries = []*types.Entry{
+	entries := []*types.Entry{
 		{
 			Id:       "ENTRYID1",
 			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
@@ -309,39 +318,76 @@ func TestNewX509SVIDs(t *testing.T) {
 			},
 		},
 	}
-
-	tc.svidClient.x509SVIDs = map[string]*types.X509SVID{
+	x509SVIDs := map[string]*types.X509SVID{
 		"entry-id": {
 			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
 			CertChain: [][]byte{{11, 22, 33}},
 		},
 	}
 
-	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
-	client.c.RotMtx.Lock()
+	tests := []struct {
+		name           string
+		entries        []*types.Entry
+		x509SVIDs      map[string]*types.X509SVID
+		batchSVIDErr   error
+		wantError      assert.ErrorAssertionFunc
+		assertFuncConn func(t *testing.T, client *client)
+		testSvids      map[string]*X509SVID
+	}{
+		{
+			name:           "success",
+			entries:        entries,
+			x509SVIDs:      x509SVIDs,
+			batchSVIDErr:   nil,
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      testSvids,
+		},
+		{
+			name:           "failed",
+			entries:        entries,
+			x509SVIDs:      x509SVIDs,
+			batchSVIDErr:   status.Error(codes.NotFound, "not found when executing BatchNewX509SVID"),
+			wantError:      assert.Error,
+			assertFuncConn: assertConnectionIsNil,
+			testSvids:      nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc.entryClient.entries = tt.entries
+			tc.svidClient.x509SVIDs = tt.x509SVIDs
+			tc.svidClient.batchSVIDErr = tt.batchSVIDErr
 
-	// Do the request in a different go routine
-	var wg sync.WaitGroup
-	var svids map[string]*X509SVID
-	err := errors.New("a not nil error")
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		svids, err = client.NewX509SVIDs(context.Background(), newTestCSRs())
-	}()
+			// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
+			sClient.c.RotMtx.Lock()
 
-	// The request should wait until the SVID rotation finishes
-	require.Contains(t, "a not nil error", err.Error())
-	require.Nil(t, svids)
+			// Do the request in a different go routine
+			var wg sync.WaitGroup
+			var svids map[string]*X509SVID
+			err := errors.New("a not nil error")
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				svids, err = sClient.NewX509SVIDs(context.Background(), newTestCSRs())
+			}()
 
-	// Simulate the end of the SVID rotation
-	client.c.RotMtx.Unlock()
-	wg.Wait()
+			// The request should wait until the SVID rotation finishes
+			require.Contains(t, "a not nil error", err.Error())
+			require.Nil(t, svids)
 
-	// Assert results
-	require.Nil(t, err)
-	assert.Equal(t, testSvids, svids)
-	assertConnectionIsNotNil(t, client)
+			// Simulate the end of the SVID rotation
+			sClient.c.RotMtx.Unlock()
+			wg.Wait()
+
+			// Assert results
+			tt.assertFuncConn(t, sClient)
+			if !tt.wantError(t, err, fmt.Sprintf("error was not expected for test case %s", tt.name)) {
+				return
+			}
+			assert.Equal(t, tt.testSvids, svids)
+		})
+	}
 }
 
 func newTestCSRs() map[string][]byte {
@@ -569,6 +615,41 @@ func TestFetchUpdatesReleaseConnectionIfItFails(t *testing.T) {
 	assertConnectionIsNil(t, client)
 }
 
+func TestFetchUpdatesAddStructuredLoggingIfCallToFetchEntriesFails(t *testing.T) {
+	client, tc := createClient()
+
+	tc.entryClient.err = status.Error(codes.Internal, "call to grpc method fetchEntries has failed")
+
+	update, err := client.FetchUpdates(context.Background())
+	assert.Nil(t, update)
+	assert.Error(t, err)
+	assertConnectionIsNil(t, client)
+
+	expectedLog := log.WithFields(
+		logrus.Fields{
+			telemetry.StatusCode:    codes.Internal,
+			telemetry.StatusMessage: "call to grpc method fetchEntries has failed",
+		}).WithError(tc.entryClient.err)
+	assert.Equal(t, expectedLog.Logger, client.c.Log)
+}
+
+func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T) {
+	client, tc := createClient()
+
+	tc.bundleClient.bundleErr = status.Error(codes.Internal, "call to grpc method fetchBundles has failed")
+	update, err := client.FetchUpdates(context.Background())
+	assert.Nil(t, update)
+	assert.Error(t, err)
+	assertConnectionIsNil(t, client)
+
+	expectedLog := log.WithFields(
+		logrus.Fields{
+			telemetry.StatusCode:    codes.Internal,
+			telemetry.StatusMessage: "call to grpc method fetchBundles has failed",
+		})
+	assert.Equal(t, expectedLog.Logger, client.c.Log)
+}
+
 func TestNewAgentClientFailsDial(t *testing.T) {
 	client := newClient(&Config{
 		KeysAndBundle: keysAndBundle,
@@ -695,6 +776,19 @@ func TestFetchJWTSVID(t *testing.T) {
 				tc.svidClient.newJWTSVID = err
 			},
 			err: "JWTSVID issued after it has expired",
+		},
+		{
+			name: "grpc call to NewJWTSVID fails",
+			setupTest: func(err error) {
+				tc.svidClient.jwtSVID = &types.JWTSVID{
+					Token:     "token",
+					ExpiresAt: expiresAt,
+					IssuedAt:  issuedAt,
+				}
+				tc.svidClient.newJWTSVID = err
+			},
+			err:      "failed to fetch JWT SVID: rpc error: code = Internal desc = NewJWTSVID fails",
+			fetchErr: status.Error(codes.Internal, "NewJWTSVID fails"),
 		},
 	} {
 		tt := tt

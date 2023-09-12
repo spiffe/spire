@@ -188,7 +188,6 @@ func (c *FullEntryCache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]str
 	}
 
 	for _, alias := range c.aliases[id] {
-		entries = append(entries, alias.entry)
 		entries = append(entries, c.getAuthorizedEntries(alias.id, seen)...)
 	}
 	return entries

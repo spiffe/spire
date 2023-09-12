@@ -15,6 +15,8 @@ const (
     	A boolean value that, when set, indicates that the entry describes a downstream SPIRE server
   -entryExpiry int
     	An expiry, from epoch in seconds, for the resulting registration entry to be pruned
+  -entryID string
+    	A custom ID for this registration entry (optional). If not set, a new entry ID will be generated
   -federatesWith value
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
@@ -102,7 +104,9 @@ const (
 `
 	deleteUsage = `Usage of entry delete:
   -entryID string
-    	The Registration Entry ID of the record to delete
+    	The Registration Entry ID of the record to delete.
+  -file string
+    	Path to a file containing a JSON structure for batch deletion (optional). If set to '-', read from stdin.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
