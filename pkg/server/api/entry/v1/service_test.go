@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -1982,8 +1983,64 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 		},
 		{
+			name: "create with custom entry ID",
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id:       "entry1",
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					},
+				},
+			},
+			outputMask: &types.EntryMask{
+				ParentId: true,
+				SpiffeId: true,
+			},
+			reqEntries:      []*types.Entry{testEntry},
+			expectDsEntries: map[string]*common.RegistrationEntry{"entry1": testDSEntry},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "true",
+						telemetry.DNSName:        "dns1",
+						telemetry.Downstream:     "true",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      strconv.FormatInt(testEntry.ExpiresAt, 10),
+						telemetry.FederatesWith:  "domain1.org",
+						telemetry.ParentID:       "spiffe://example.org/host",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1,type:value2",
+						telemetry.SPIFFEID:       "spiffe://example.org/workload",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
+						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "external",
+						telemetry.CreatedAt:      "0",
+					},
+				},
+			},
+			noCustomCreate: true,
+		},
+		{
 			name: "returns existing similar entry",
 			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.AlreadyExists),
+						Message: "similar entry already exists",
+					},
+					Entry: &types.Entry{
+						Id:       useDefaultEntryID,
+						ParentId: api.ProtoFromID(entryParentID),
+						SpiffeId: api.ProtoFromID(entrySpiffeID),
+					},
+				},
 				{
 					Status: &types.Status{
 						Code:    int32(codes.AlreadyExists),
@@ -2012,6 +2069,19 @@ func TestBatchCreateEntry(t *testing.T) {
 						{Type: "unix", Value: "uid:1000"},
 					},
 				},
+				{
+					// similar entry but with custom entry ID
+					Id:          "some_other_ID",
+					ParentId:    api.ProtoFromID(entryParentID),
+					SpiffeId:    api.ProtoFromID(entrySpiffeID),
+					X509SvidTtl: 45,
+					JwtSvidTtl:  30,
+					Admin:       false,
+					Selectors: []*types.Selector{
+						{Type: "unix", Value: "gid:1000"},
+						{Type: "unix", Value: "uid:1000"},
+					},
+				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -2022,6 +2092,29 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Type:           "audit",
 						telemetry.Admin:          "false",
 						telemetry.Downstream:     "false",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/foo",
+						telemetry.Selectors:      "unix:gid:1000,unix:uid:1000",
+						telemetry.RevisionNumber: "0",
+						telemetry.SPIFFEID:       "spiffe://example.org/bar",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
+						telemetry.StatusCode:     "AlreadyExists",
+						telemetry.StatusMessage:  "similar entry already exists",
+						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "some_other_ID",
 						telemetry.ExpiresAt:      "0",
 						telemetry.ParentID:       "spiffe://example.org/foo",
 						telemetry.Selectors:      "unix:gid:1000,unix:uid:1000",
@@ -2082,6 +2175,110 @@ func TestBatchCreateEntry(t *testing.T) {
 					ParentId: &types.SPIFFEID{TrustDomain: "", Path: "/path"},
 				},
 			},
+		},
+		{
+			name: "invalid entry ID",
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "failed to create entry: datastore-sql: invalid registration entry: entry ID contains invalid characters",
+					},
+				},
+				{
+					Status: &types.Status{
+						Code:    int32(codes.Internal),
+						Message: "failed to create entry: datastore-sql: invalid registration entry: entry ID too long",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to create entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "datastore-sql: invalid registration entry: entry ID contains invalid characters",
+						telemetry.SPIFFEID: "spiffe://example.org/bar",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "🙈🙉🙊",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/foo",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1",
+						telemetry.SPIFFEID:       "spiffe://example.org/bar",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
+						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
+						telemetry.StoreSvid:      "false",
+						telemetry.StatusCode:     "Internal",
+						telemetry.StatusMessage:  "failed to create entry: datastore-sql: invalid registration entry: entry ID contains invalid characters",
+					},
+				},
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to create entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "datastore-sql: invalid registration entry: entry ID too long",
+						telemetry.SPIFFEID: "spiffe://example.org/bar",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: strings.Repeat("y", 256),
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/foo",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1",
+						telemetry.SPIFFEID:       "spiffe://example.org/bar",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
+						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
+						telemetry.StoreSvid:      "false",
+						telemetry.StatusCode:     "Internal",
+						telemetry.StatusMessage:  "failed to create entry: datastore-sql: invalid registration entry: entry ID too long",
+					},
+				},
+			},
+			reqEntries: []*types.Entry{
+				{
+					Id:          "🙈🙉🙊",
+					ParentId:    api.ProtoFromID(entryParentID),
+					SpiffeId:    api.ProtoFromID(entrySpiffeID),
+					X509SvidTtl: 45,
+					JwtSvidTtl:  30,
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "value1"},
+					},
+				},
+				{
+					Id:          strings.Repeat("y", 256),
+					ParentId:    api.ProtoFromID(entryParentID),
+					SpiffeId:    api.ProtoFromID(entrySpiffeID),
+					X509SvidTtl: 45,
+					JwtSvidTtl:  30,
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "value1"},
+					},
+				},
+			},
+			noCustomCreate: true,
 		},
 		{
 			name: "fail creating entry",

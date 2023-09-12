@@ -35,5 +35,33 @@
     "x509_svid_ttl": 2,
     "store_svid": true
   },
+  {
+    "entry_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeentry",
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value1"
+      },
+      {
+        "type": "Type2",
+        "value": "Value2"
+      }
+    ],
+    "spiffe_id": "SpiffeId4"
+  },
+  {
+    "entry_id": "entry四",
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value1"
+      },
+      {
+        "type": "Type2",
+        "value": "Value2"
+      }
+    ],
+    "spiffe_id": "SpiffeId5"
+  },
   null
 ]
