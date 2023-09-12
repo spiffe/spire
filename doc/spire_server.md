@@ -200,6 +200,7 @@ This optional section contains the configurables used by SPIRE Server to expose 
 When setting a `bundle_endpoint`, it is `required` to specify the bundle profile.
 
 Allowed profiles:
+
 - `https_web` allow to configure the [Automated Certificate Management Environment](#Configuration options for `federation.bundle_endpoint.profile "https_web".acme`) section.
 - `https_spiffe`
 
