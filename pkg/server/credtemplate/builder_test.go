@@ -14,12 +14,14 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	credentialcomposerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/credentialcomposer/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -185,6 +187,12 @@ func TestBuildSelfSignedX509CATemplate(t *testing.T) {
 			},
 			expectErr: "oh no",
 		},
+		{
+			desc: "real no-op composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadNoopV1Plugin(t)}
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			testBuilder(t, tc.overrideConfig, func(t *testing.T, credBuilder *credtemplate.Builder) {
@@ -282,6 +290,12 @@ func TestBuildUpstreamSignedX509CACSR(t *testing.T) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{badCC{}}
 			},
 			expectErr: "oh no",
+		},
+		{
+			desc: "real no-op composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadNoopV1Plugin(t)}
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -409,6 +423,12 @@ func TestBuildDownstreamX509CATemplate(t *testing.T) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{badCC{}}
 			},
 			expectErr: "oh no",
+		},
+		{
+			desc: "real no-op composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadNoopV1Plugin(t)}
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -540,6 +560,12 @@ func TestBuildServerX509SVIDTemplate(t *testing.T) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{badCC{}}
 			},
 			expectErr: "oh no",
+		},
+		{
+			desc: "real no-op composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadNoopV1Plugin(t)}
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -699,6 +725,12 @@ func TestBuildAgentX509SVIDTemplate(t *testing.T) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{badCC{}}
 			},
 			expectErr: "oh no",
+		},
+		{
+			desc: "real no-op composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadNoopV1Plugin(t)}
+			},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -923,6 +955,12 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 			},
 			expectErr: "oh no",
 		},
+		{
+			desc: "real no-op composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadNoopV1Plugin(t)}
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			testBuilder(t, tc.overrideConfig, func(t *testing.T, credBuilder *credtemplate.Builder) {
@@ -1089,6 +1127,12 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 			},
 			expectErr: "oh no",
 		},
+		{
+			desc: "real no-op composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadNoopV1Plugin(t)}
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			testBuilder(t, tc.overrideConfig, func(t *testing.T, credBuilder *credtemplate.Builder) {
@@ -1217,4 +1261,11 @@ func makeOID(id byte) []int {
 
 func idURIs(id spiffeid.ID) []*url.URL {
 	return []*url.URL{id.URL()}
+}
+
+func loadNoopV1Plugin(t *testing.T) credentialcomposer.CredentialComposer {
+	server := credentialcomposerv1.CredentialComposerPluginServer(credentialcomposerv1.UnimplementedCredentialComposerServer{})
+	cc := new(credentialcomposer.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn("noop", server), cc)
+	return cc
 }
