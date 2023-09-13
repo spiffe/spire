@@ -1081,6 +1081,25 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "prune_events_older_than is correctly parsed",
+			input: func(c *Config) {
+				c.Server.Experimental.PruneEventsOlderThan = "1m"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, time.Minute, c.PruneEventsOlderThan)
+			},
+		},
+		{
+			msg:         "invalid prune_events_older_than returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.Experimental.PruneEventsOlderThan = "b"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "audit_log_enabled is enabled",
 			input: func(c *Config) {
 				c.Server.AuditLogEnabled = true

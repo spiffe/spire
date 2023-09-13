@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"sort"
 	"strconv"
@@ -23,6 +24,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -112,6 +114,9 @@ func (s *PluginSuite) SetupSuite() {
 		s.Require().NoError(err, "failed to parse read-only delay")
 		s.readOnlyDelay = delay
 	}
+
+	err = fflag.Load(fflag.RawConfig{"events_based_cache"})
+	s.Require().NoError(err)
 }
 
 func (s *PluginSuite) SetupTest() {
@@ -3731,6 +3736,134 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 	// make sure the entry still exists, albeit without an associated bundle
 	entry = s.fetchRegistrationEntry(entry.EntryId)
 	s.Require().Empty(entry.FederatesWith)
+}
+
+func (s *PluginSuite) TestListRegistrationEntriesEvents() {
+	var expectedEntryIDs []string
+
+	// Create an entry
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+		},
+		SpiffeId: "spiffe://example.org/foo1",
+		ParentId: "spiffe://example.org/bar",
+	})
+	expectedEntryIDs = append(expectedEntryIDs, entry1.EntryId)
+
+	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
+
+	// Create second entry
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type2", Value: "Value2"},
+		},
+		SpiffeId: "spiffe://example.org/foo2",
+		ParentId: "spiffe://example.org/bar",
+	})
+	expectedEntryIDs = append(expectedEntryIDs, entry2.EntryId)
+
+	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
+
+	// Update first entry
+	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry1, nil)
+	s.Require().NoError(err)
+	expectedEntryIDs = append(expectedEntryIDs, updatedRegistrationEntry.EntryId)
+
+	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
+
+	// Delete second entry
+	s.deleteRegistrationEntry(entry2.EntryId)
+	expectedEntryIDs = append(expectedEntryIDs, entry2.EntryId)
+
+	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
+
+	// Check filtering events by id
+	tests := []struct {
+		name                 string
+		greaterThanEventID   uint
+		expectedEntryIDs     []string
+		expectedFirstEntryID uint
+	}{
+		{
+			name:                 "All Events",
+			greaterThanEventID:   0,
+			expectedFirstEntryID: 1,
+			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId, entry1.EntryId, entry2.EntryId},
+		},
+		{
+			name:                 "Half of the Events",
+			greaterThanEventID:   2,
+			expectedFirstEntryID: 3,
+			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId},
+		},
+		{
+			name:                 "None of the  Events",
+			greaterThanEventID:   4,
+			expectedFirstEntryID: 0,
+			expectedEntryIDs:     nil,
+		},
+	}
+	for _, test := range tests {
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+				GreaterThanEventID: test.greaterThanEventID,
+			})
+			s.Require().NoError(err)
+			s.Require().Equal(test.expectedFirstEntryID, resp.FirstEventID)
+			s.Require().Equal(test.expectedEntryIDs, resp.EntryIDs)
+		})
+	}
+}
+
+func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
+	entry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+		},
+		SpiffeId: "SpiffeId",
+		ParentId: "ParentId",
+	}
+
+	createdRegistrationEntry := s.createRegistrationEntry(entry)
+	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(createdRegistrationEntry.EntryId, resp.EntryIDs[0])
+
+	for _, tt := range []struct {
+		name             string
+		olderThan        time.Duration
+		expectedEntryIDs []string
+	}{
+		{
+			name:             "Don't prune valid events",
+			olderThan:        1 * time.Hour,
+			expectedEntryIDs: []string{createdRegistrationEntry.EntryId},
+		},
+		{
+			name:             "Prune old events",
+			olderThan:        0 * time.Second,
+			expectedEntryIDs: nil,
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			s.Require().Eventuallyf(func() bool {
+				err = s.ds.PruneRegistrationEntriesEvents(ctx, tt.olderThan)
+				s.Require().NoError(err)
+				resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+				s.Require().NoError(err)
+				return reflect.DeepEqual(tt.expectedEntryIDs, resp.EntryIDs)
+			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
+		})
+	}
 }
 
 func (s *PluginSuite) TestCreateJoinToken() {

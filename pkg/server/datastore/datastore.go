@@ -40,6 +40,10 @@ type DataStore interface {
 	PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) error
 	UpdateRegistrationEntry(context.Context, *common.RegistrationEntry, *common.RegistrationEntryMask) (*common.RegistrationEntry, error)
 
+	// Entries Events
+	ListRegistrationEntriesEvents(ctx context.Context, req *ListRegistrationEntriesEventsRequest) (*ListRegistrationEntriesEventsResponse, error)
+	PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) error
+
 	// Nodes
 	CountAttestedNodes(context.Context) (int32, error)
 	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
@@ -181,6 +185,15 @@ type ListRegistrationEntriesRequest struct {
 type ListRegistrationEntriesResponse struct {
 	Entries    []*common.RegistrationEntry
 	Pagination *Pagination
+}
+
+type ListRegistrationEntriesEventsRequest struct {
+	GreaterThanEventID uint
+}
+
+type ListRegistrationEntriesEventsResponse struct {
+	EntryIDs     []string
+	FirstEventID uint
 }
 
 type ListFederationRelationshipsRequest struct {

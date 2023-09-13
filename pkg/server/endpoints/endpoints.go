@@ -28,6 +28,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -46,6 +47,9 @@ const (
 	// This is the default amount of time between two reloads of the in-memory
 	// entry cache.
 	defaultCacheReloadInterval = 5 * time.Second
+
+	// This is the default amoount of time events live before they are pruned
+	defaultPruneEventsOlderThan = 12 * time.Hour
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -70,6 +74,7 @@ type Endpoints struct {
 	Metrics                      telemetry.Metrics
 	RateLimit                    RateLimitConfig
 	EntryFetcherCacheRebuildTask func(context.Context) error
+	EntryFetcherPruneEventsTask  func(context.Context) error
 	AuditLogEnabled              bool
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
@@ -110,11 +115,19 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
 	}
 
+	pruneEventsFn := func(ctx context.Context, olderThan time.Duration) error {
+		ds := c.Catalog.GetDataStore()
+		return ds.PruneRegistrationEntriesEvents(ctx, olderThan)
+	}
+
 	if c.CacheReloadInterval == 0 {
 		c.CacheReloadInterval = defaultCacheReloadInterval
 	}
+	if c.PruneEventsOlderThan == 0 {
+		c.PruneEventsOlderThan = defaultPruneEventsOlderThan
+	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, c.CacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, pruneEventsFn, c.Log, c.Clock, c.CacheReloadInterval, c.PruneEventsOlderThan)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +147,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		Metrics:                      c.Metrics,
 		RateLimit:                    c.RateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
+		EntryFetcherPruneEventsTask:  ef.PruneEventsTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
@@ -179,6 +193,10 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 
 	if e.BundleEndpointServer != nil {
 		tasks = append(tasks, e.BundleEndpointServer.ListenAndServe)
+	}
+
+	if fflag.IsSet(fflag.FlagEventsBasedCache) {
+		tasks = append(tasks, e.EntryFetcherPruneEventsTask)
 	}
 
 	err := util.RunTasks(ctx, tasks...)

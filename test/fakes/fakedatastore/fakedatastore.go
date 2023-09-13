@@ -278,6 +278,20 @@ func (s *DataStore) PruneRegistrationEntries(ctx context.Context, expiresBefore 
 	return s.ds.PruneRegistrationEntries(ctx, expiresBefore)
 }
 
+func (s *DataStore) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.ListRegistrationEntriesEvents(ctx, req)
+}
+
+func (s *DataStore) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
+}
+
 func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {
 	if err := s.getNextError(); err != nil {
 		return err

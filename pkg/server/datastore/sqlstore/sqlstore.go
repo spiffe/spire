@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -385,7 +386,11 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 			return nil
 		}
 		registrationEntry, err = createRegistrationEntry(tx, entry)
-		return err
+		if err != nil {
+			return err
+		}
+
+		return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
 	}); err != nil {
 		return nil, false, err
 	}
@@ -425,7 +430,11 @@ func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.RegistrationEntry, mask *common.RegistrationEntryMask) (entry *common.RegistrationEntry, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		entry, err = updateRegistrationEntry(tx, e, mask)
-		return err
+		if err != nil {
+			return err
+		}
+
+		return createRegistrationEntryEvent(tx, entry.EntryId)
 	}); err != nil {
 		return nil, err
 	}
@@ -438,7 +447,11 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 ) (registrationEntry *common.RegistrationEntry, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		registrationEntry, err = deleteRegistrationEntry(tx, entryID)
-		return err
+		if err != nil {
+			return err
+		}
+
+		return createRegistrationEntryEvent(tx, entryID)
 	}); err != nil {
 		return nil, err
 	}
@@ -450,6 +463,25 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = pruneRegistrationEntries(tx, expiresBefore, ds.log)
+		return err
+	})
+}
+
+// ListRegistrationEntriesEvents lists all registration entry events
+func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (resp *datastore.ListRegistrationEntriesEventsResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = listRegistrationEntriesEvents(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
+func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		err = pruneRegistrationEntriesEvents(tx, olderThan)
 		return err
 	})
 }
@@ -3595,6 +3627,55 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 			telemetry.ParentID:       entry.ParentID,
 			telemetry.RegistrationID: entry.EntryID,
 		}).Info("Pruned an expired registration")
+	}
+
+	return nil
+}
+
+func createRegistrationEntryEvent(tx *gorm.DB, entryID string) error {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return nil
+	}
+
+	newRegisteredEntryEvent := RegisteredEntryEvent{
+		EntryID: entryID,
+	}
+
+	if err := tx.Create(&newRegisteredEntryEvent).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
+}
+
+func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return &datastore.ListRegistrationEntriesEventsResponse{}, nil
+	}
+
+	var events []RegisteredEntryEvent
+	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.ListRegistrationEntriesEventsResponse{}
+	for _, event := range events {
+		resp.EntryIDs = append(resp.EntryIDs, event.EntryID)
+	}
+	if len(events) > 0 {
+		resp.FirstEventID = events[0].ID
+	}
+
+	return resp, nil
+}
+
+func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return nil
+	}
+
+	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&RegisteredEntryEvent{}).Error; err != nil {
+		return sqlError.Wrap(err)
 	}
 
 	return nil
