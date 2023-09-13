@@ -119,7 +119,7 @@ jobs:
   artifacts:
     name: artifacts (linux)
     runs-on: ubuntu-20.04
-    needs: [cache-deps]
+    needs: [cache-deps, images]
     timeout-minutes: 30
 
     permissions:
@@ -132,16 +132,16 @@ jobs:
         uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
         with:
           go-version: ${{ env.GO_VERSION }}
-      - name: Load cached deps
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@b6614f5f56245066b533343a85f4109bdc38c8cc # main
+      - name: Download archived images
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
         with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      - name: Load cached build tools
-        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
-        with:
-          path: .build
-          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
+          name: images
+          path: .
+      - name: Expand archived images
+        run: |
+          tar xvf images.tar.gz
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive artifacts
@@ -543,6 +543,8 @@ jobs:
           update: true
           install: >-
             git base-devel mingw-w64-x86_64-toolchain zip unzip
+      - name: Build binaries
+        run: make build
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive binaries
