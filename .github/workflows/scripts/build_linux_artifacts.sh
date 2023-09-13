@@ -49,7 +49,6 @@ build_artifact() {
     local staging="${tardir}"/spire/spire-${TAG}
     local extras_staging="${tardir}"/spire-extras/spire-extras-${TAG}
 
-    mkdir -p "${tardir}"
     mkdir -p "${staging}"/bin 
     mkdir -p "${extras_staging}"/bin
     mkdir -p "${OUTDIR}"
