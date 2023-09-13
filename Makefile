@@ -26,7 +26,6 @@ help:
 	@echo
 	@echo "$(bold)Build:$(reset)"
 	@echo "  $(cyan)build$(reset)                                 - build all SPIRE binaries (default)"
-	@echo "  $(cyan)artifact$(reset)                              - build SPIRE tarball artifact"
 	@echo
 	@echo "$(bold)Test:$(reset)"
 	@echo "  $(cyan)test$(reset)                                  - run unit tests"
@@ -317,15 +316,6 @@ endif
 
 integration-windows:
 	$(E)./test/integration/test-windows.sh $(SUITES)
-
-#############################################################################
-# Build Artifact
-#############################################################################
-
-.PHONY: artifact
-
-artifact: build
-	$(E)OUTDIR="$(OUTDIR)" TAG="$(TAG)" ./script/build-artifact.sh
 
 #############################################################################
 # Docker Images
