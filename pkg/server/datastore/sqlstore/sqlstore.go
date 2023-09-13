@@ -3649,6 +3649,10 @@ func createRegistrationEntryEvent(tx *gorm.DB, entryID string) error {
 }
 
 func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return &datastore.ListRegistrationEntriesEventsResponse{}, nil
+	}
+
 	var events []RegisteredEntryEvent
 	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -3666,6 +3670,10 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 }
 
 func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return nil
+	}
+
 	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
