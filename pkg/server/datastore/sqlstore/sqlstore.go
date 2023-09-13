@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/hcl"
@@ -34,6 +35,16 @@ import (
 )
 
 var sqlError = errs.Class("datastore-sql")
+var validEntryIDChars = &unicode.RangeTable{
+	R16: []unicode.Range16{
+		{0x002d, 0x002e, 1}, // - | .
+		{0x0030, 0x0039, 1}, // [0-9]
+		{0x0041, 0x005a, 1}, // [A-Z]
+		{0x005f, 0x005f, 1}, // _
+		{0x0061, 0x007a, 1}, // [a-z]
+	},
+	LatinOffset: 5,
+}
 
 const (
 	PluginName = "sql"
@@ -2037,7 +2048,7 @@ func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query
 }
 
 func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	entryID, err := newRegistrationEntryID()
+	entryID, err := createOrReturnEntryID(entry)
 	if err != nil {
 		return nil, err
 	}
@@ -3864,6 +3875,16 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		}
 	}
 
+	if len(entry.EntryId) > 255 {
+		return sqlError.New("invalid registration entry: entry ID too long")
+	}
+
+	for _, e := range entry.EntryId {
+		if !unicode.In(e, validEntryIDChars) {
+			return sqlError.New("invalid registration entry: entry ID contains invalid characters")
+		}
+	}
+
 	if len(entry.SpiffeId) == 0 {
 		return sqlError.New("invalid registration entry: missing SPIFFE ID")
 	}
@@ -3992,6 +4013,14 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		Hint:           model.Hint,
 		CreatedAt:      roundedInSecondsUnix(model.CreatedAt),
 	}, nil
+}
+
+func createOrReturnEntryID(entry *common.RegistrationEntry) (string, error) {
+	if entry.EntryId != "" {
+		return entry.EntryId, nil
+	}
+
+	return newRegistrationEntryID()
 }
 
 func newRegistrationEntryID() (string, error) {

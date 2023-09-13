@@ -34,6 +34,9 @@ type createCommand struct {
 	// ex. "unix:uid:1000" or "spiffe_id:spiffe://example.org/foo"
 	selectors StringsFlag
 
+	// Registration entry ID
+	entryID string
+
 	// Workload parent spiffeID
 	parentID string
 
@@ -89,6 +92,7 @@ func (*createCommand) Synopsis() string {
 }
 
 func (c *createCommand) AppendFlags(f *flag.FlagSet) {
+	f.StringVar(&c.entryID, "entryID", "", "A custom ID for this registration entry (optional). If not set, a new entry ID will be generated")
 	f.StringVar(&c.parentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
 	f.IntVar(&c.ttl, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry. This flag is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version")
@@ -187,6 +191,7 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 	}
 
 	e := &types.Entry{
+		Id:          c.entryID,
 		ParentId:    parentID,
 		SpiffeId:    spiffeID,
 		Downstream:  c.downstream,

@@ -29,6 +29,7 @@ var sampleInputs = []string{
 	createJoinTokenInput,
 	attestAgentInput,
 	batchCreateEntryInput,
+	batchCreateEntryInputWithEntryID,
 	listEntriesInput,
 	createEntriesInputWithCaller,
 	listEntriesInputWithCaller,
@@ -89,6 +90,33 @@ const (
               {
                 "type": "unix",
                 "value": "uid:     1000"
+              }
+            ]
+          }
+        ]
+      }
+    }`
+
+	batchCreateEntryInputWithEntryID = `
+    {
+      "caller": "",
+      "full_method": "/spire.api.server.entry.v1.Entry/BatchCreateEntry",
+      "req": {
+        "entries": [
+          {
+            "id": "entry1",
+            "spiffe_id": {
+              "trust_domain": "example.org",
+              "path": "/workload"
+            },
+            "parent_id": {
+              "trust_domain": "example.org",
+              "path": "/host"
+            },
+            "selectors": [
+              {
+                "type": "unix",
+                "value": "uid:1000"
               }
             ]
           }

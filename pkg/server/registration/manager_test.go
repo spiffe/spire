@@ -46,7 +46,7 @@ func (s *ManagerSuite) TestPruning() {
 
 	// expires right on the pruning time
 	entry1 := &common.RegistrationEntry{
-		EntryId:  "some ID 1",
+		EntryId:  "some_ID_1",
 		ParentId: "spiffe://test.test/testA",
 		SpiffeId: "spiffe://test.test/testA/test1",
 		Selectors: []*common.Selector{
@@ -64,7 +64,7 @@ func (s *ManagerSuite) TestPruning() {
 
 	// expires in pruning time + one minute
 	entry2 := &common.RegistrationEntry{
-		EntryId:  "some ID 1",
+		EntryId:  "some_ID_2",
 		ParentId: "spiffe://test.test/testA",
 		SpiffeId: "spiffe://test.test/testA/test2",
 		Selectors: []*common.Selector{
@@ -82,7 +82,7 @@ func (s *ManagerSuite) TestPruning() {
 
 	// expires in pruning time + two minutes
 	entry3 := &common.RegistrationEntry{
-		EntryId:  "some ID 1",
+		EntryId:  "some_ID_3",
 		ParentId: "spiffe://test.test/testA",
 		SpiffeId: "spiffe://test.test/testA/test3",
 		Selectors: []*common.Selector{
