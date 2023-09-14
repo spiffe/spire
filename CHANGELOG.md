@@ -7,16 +7,14 @@
 - `azure_key_vault` KeyManager plugin (#4458)
 - Server configuration to set refresh hint of local bundle (#4400)
 - Support for batch entry deletion in `spire-server` CLI (#4371)
-- `ca_journals` database table (#4371)
 - `aws_iid` NodeAttestor can now be used in AWS Gov Cloud and China regions (#4427)
 - `status_code` and `status_message` fields in SPIRE Agent logs on gRPC errors (#4262)
-- Experimental support for tracking entry events in the database (#4411)
 
 ### Changed
 
 - Bundle server configuration is now organized by endpoint profiles (#4476)
 - Release artifacts are now statically linked with musl rather than glibc (#4491)
-- Agent no longer serves identities for SPIFFE IDs of node alias entries (#4467)
+- Agent no longer requests unused SVIDs for node aliases they belong to, reducing server signing load (#4467)
 - Entry IDs can now be optionally set by the client for BatchCreateEntry requests (#4477)
 
 ### Fixed
@@ -27,7 +25,7 @@
 
 ### Removed
 
-- Envoy SDS v2 API (#4444)
+- Support for Envoy SDS v2 API (#4444)
 - Server no longer cleans up stale data in the database on startup (#4443)
 - Server no longer deletes entries with invalid SPIFFE IDs on startup (#4449)
 
