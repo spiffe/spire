@@ -63,13 +63,13 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 
 ## Case Studies/User Stories
 
-* Amazon Web Services blogs about using mTLS with SPIFFE/SPIRE in AWS App Mesh on Amazon EKS
+* Amazon Web Services blogs about using mTLS with SPIFFE/SPIRE in AWS App Mesh on Amazon EKS:
 <https://aws.amazon.com/blogs/containers/using-mtls-with-spiffe-spire-in-app-mesh-on-eks/>
 
 * Anthem writes about developing a zero trust framework at Anthem Using SPIFFE and SPIRE:
 <https://upshotstories.com/stories/developing-a-zero-trust-framework-at-anthem-using-spiffe-and-spire>
 
-* ARM and VMware showcase hardware backed security for multi-tenancy at the Edge with SPIFFE & PARSEC
+* ARM and VMware showcase hardware backed security for multi-tenancy at the Edge with SPIFFE & PARSEC:
 <https://www.youtube.com/watch?v=-I_rCKMyY7Y>
 
 * Bloomberg talks about TPM node attestation with SPIRE:
@@ -78,19 +78,22 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 * Coinbase details Container Technologies part of their stack:
 <https://blog.coinbase.com/container-technologies-at-coinbase-d4ae118dcb6c>
 
-* Duke Energy describes securing the Microgrid using SPIFFE and SPIRE with TPMs
+* Duke Energy describes securing the Microgrid using SPIFFE and SPIRE with TPMs:
 <https://www.distributech.com/distributech-international-2022-conference-sessions/achieving-the-promise-of-grid-security-with-openfmb-and-cybersecurity-zero-trust-best-practices>
 
-* NGINX/F5 on how NGINX service mesh leverages SPIFFE and SPIRE
+* Google announces standardization on SPIFFE across Google Cloud as the unified workload identity platform offered as a managed service:
+<https://www.youtube.com/watch?v=aaPvEUCXvvw>
+
+* NGINX/F5 on how NGINX service mesh leverages SPIFFE and SPIRE:
 <https://youtu.be/plRkDK5xFpM>
 
-* Styra demonstrates fortifying microservices with SPIRE and OPA
+* Styra demonstrates fortifying microservices with SPIRE and OPA:
 <https://www.youtube.com/watch?v=iQ5ctLQswUc>
 
 * Square talks about how Square uses SPIFFE and SPIRE to secure communications across hybrid infrastructure services:
 <https://youtu.be/H5IlmYmEDKk?t=2585>
 
-* Square describes how they provide mTLS identities to Lambdas using SPIFFE and SPIRE
+* Square describes how they provide mTLS identities to Lambdas using SPIFFE and SPIRE:
 <https://developer.squareup.com/blog/providing-mtls-identities-to-lambdas/>
 
 * Tigera demonstrates how Calico, Envoy and SPIRE are used to deliver unified Layer 4 and Layer 7 authorization policies:

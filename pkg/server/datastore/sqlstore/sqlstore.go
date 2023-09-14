@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/hcl"
@@ -23,6 +24,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -34,6 +36,16 @@ import (
 )
 
 var sqlError = errs.Class("datastore-sql")
+var validEntryIDChars = &unicode.RangeTable{
+	R16: []unicode.Range16{
+		{0x002d, 0x002e, 1}, // - | .
+		{0x0030, 0x0039, 1}, // [0-9]
+		{0x0041, 0x005a, 1}, // [A-Z]
+		{0x005f, 0x005f, 1}, // _
+		{0x0061, 0x007a, 1}, // [a-z]
+	},
+	LatinOffset: 5,
+}
 
 const (
 	PluginName = "sql"
@@ -374,7 +386,11 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 			return nil
 		}
 		registrationEntry, err = createRegistrationEntry(tx, entry)
-		return err
+		if err != nil {
+			return err
+		}
+
+		return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
 	}); err != nil {
 		return nil, false, err
 	}
@@ -414,7 +430,11 @@ func (ds *Plugin) ListRegistrationEntries(ctx context.Context,
 func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.RegistrationEntry, mask *common.RegistrationEntryMask) (entry *common.RegistrationEntry, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		entry, err = updateRegistrationEntry(tx, e, mask)
-		return err
+		if err != nil {
+			return err
+		}
+
+		return createRegistrationEntryEvent(tx, entry.EntryId)
 	}); err != nil {
 		return nil, err
 	}
@@ -427,7 +447,11 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 ) (registrationEntry *common.RegistrationEntry, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		registrationEntry, err = deleteRegistrationEntry(tx, entryID)
-		return err
+		if err != nil {
+			return err
+		}
+
+		return createRegistrationEntryEvent(tx, entryID)
 	}); err != nil {
 		return nil, err
 	}
@@ -439,6 +463,25 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = pruneRegistrationEntries(tx, expiresBefore, ds.log)
+		return err
+	})
+}
+
+// ListRegistrationEntriesEvents lists all registration entry events
+func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (resp *datastore.ListRegistrationEntriesEventsResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = listRegistrationEntriesEvents(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
+func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		err = pruneRegistrationEntriesEvents(tx, olderThan)
 		return err
 	})
 }
@@ -2037,7 +2080,7 @@ func buildListNodeSelectorsQuery(req *datastore.ListNodeSelectorsRequest) (query
 }
 
 func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	entryID, err := newRegistrationEntryID()
+	entryID, err := createOrReturnEntryID(entry)
 	if err != nil {
 		return nil, err
 	}
@@ -3589,6 +3632,55 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 	return nil
 }
 
+func createRegistrationEntryEvent(tx *gorm.DB, entryID string) error {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return nil
+	}
+
+	newRegisteredEntryEvent := RegisteredEntryEvent{
+		EntryID: entryID,
+	}
+
+	if err := tx.Create(&newRegisteredEntryEvent).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
+}
+
+func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return &datastore.ListRegistrationEntriesEventsResponse{}, nil
+	}
+
+	var events []RegisteredEntryEvent
+	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.ListRegistrationEntriesEventsResponse{}
+	for _, event := range events {
+		resp.EntryIDs = append(resp.EntryIDs, event.EntryID)
+	}
+	if len(events) > 0 {
+		resp.FirstEventID = events[0].ID
+	}
+
+	return resp, nil
+}
+
+func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return nil
+	}
+
+	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&RegisteredEntryEvent{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
+}
+
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {
 	t := JoinToken{
 		Token:  token.Token,
@@ -3864,6 +3956,16 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		}
 	}
 
+	if len(entry.EntryId) > 255 {
+		return sqlError.New("invalid registration entry: entry ID too long")
+	}
+
+	for _, e := range entry.EntryId {
+		if !unicode.In(e, validEntryIDChars) {
+			return sqlError.New("invalid registration entry: entry ID contains invalid characters")
+		}
+	}
+
 	if len(entry.SpiffeId) == 0 {
 		return sqlError.New("invalid registration entry: missing SPIFFE ID")
 	}
@@ -3992,6 +4094,14 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		Hint:           model.Hint,
 		CreatedAt:      roundedInSecondsUnix(model.CreatedAt),
 	}, nil
+}
+
+func createOrReturnEntryID(entry *common.RegistrationEntry) (string, error) {
+	if entry.EntryId != "" {
+		return entry.EntryId, nil
+	}
+
+	return newRegistrationEntryID()
 }
 
 func newRegistrationEntryID() (string, error) {

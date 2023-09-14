@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -638,6 +639,103 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "bundle endpoint has acme",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: &bundleEndpointConfig{
+						ACME: &bundleEndpointACMEConfig{
+							DirectoryURL: "somepath.tt",
+							DomainName:   "example.org",
+							Email:        "mail@example.org",
+							ToSAccepted:  true,
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				expectACME := &bundle.ACMEConfig{
+					DirectoryURL: "somepath.tt",
+					DomainName:   "example.org",
+					Email:        "mail@example.org",
+					ToSAccepted:  true,
+					CacheDir:     "bundle-acme",
+				}
+				require.Equal(t, expectACME, c.Federation.BundleEndpoint.ACME)
+			},
+		},
+		{
+			msg: "bundle endpoint has spiffe profile",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: bundleEndpointProfileHTTPSSPIFFETest(t),
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "0.0.0.0", c.Federation.BundleEndpoint.Address.IP.String())
+				require.Equal(t, 8443, c.Federation.BundleEndpoint.Address.Port)
+				require.NotNil(t, c.Federation.BundleEndpoint.RefreshHint)
+				require.Equal(t, 10*time.Minute, *c.Federation.BundleEndpoint.RefreshHint)
+				require.Nil(t, c.Federation.BundleEndpoint.ACME)
+			},
+		},
+		{
+			msg: "bundle endpoint has web profile",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: bundleEndpointProfileHTTPSWebTest(t),
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "0.0.0.0", c.Federation.BundleEndpoint.Address.IP.String())
+				require.Equal(t, 8443, c.Federation.BundleEndpoint.Address.Port)
+				require.NotNil(t, c.Federation.BundleEndpoint.RefreshHint)
+				require.Equal(t, 10*time.Minute, *c.Federation.BundleEndpoint.RefreshHint)
+
+				expectACME := &bundle.ACMEConfig{
+					DomainName: "example.org",
+					Email:      "mail@example.org",
+					CacheDir:   "bundle-acme",
+				}
+				require.Equal(t, expectACME, c.Federation.BundleEndpoint.ACME)
+			},
+		},
+		{
+			msg: "bundle endpoint has empty web profile",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: bundleEndpointProfileEmptyHTTPSWebTest(t),
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "bundle endpoint has acme and profile",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: bundleEndpointProfileACMEAndProfileTest(t),
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "bundle endpoint has unknown profile",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: bundleEndpointProfileUnknownTest(t),
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "bundle endpoint does not have a default refresh hint",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
@@ -977,6 +1075,25 @@ func TestNewServerConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *Config) {
 				c.Server.Experimental.CacheReloadInterval = "b"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "prune_events_older_than is correctly parsed",
+			input: func(c *Config) {
+				c.Server.Experimental.PruneEventsOlderThan = "1m"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, time.Minute, c.PruneEventsOlderThan)
+			},
+		},
+		{
+			msg:         "invalid prune_events_older_than returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.Experimental.PruneEventsOlderThan = "b"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
@@ -1763,6 +1880,76 @@ func TestAgentTTL(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, c.expectedDuration, sconfig.AgentTTL)
 	}
+}
+
+func bundleEndpointProfileACMEAndProfileTest(t *testing.T) *bundleEndpointConfig {
+	configString := `address = "0.0.0.0"
+        port = 8443
+        refresh_hint = "10m"
+	acme {
+             domain_name = "example.org"
+             email = "mail@example.org"
+	}
+        profile "https_web" {
+	     acme {
+                domain_name = "example.org"
+                email = "mail@example.org"
+	     }
+        }`
+	config := new(bundleEndpointConfig)
+	require.NoError(t, hcl.Decode(config, configString))
+
+	return config
+}
+
+func bundleEndpointProfileHTTPSWebTest(t *testing.T) *bundleEndpointConfig {
+	configString := `address = "0.0.0.0"
+        port = 8443
+        refresh_hint = "10m"
+        profile "https_web" {
+	     acme {
+                domain_name = "example.org"
+                email = "mail@example.org"
+	     }
+        }`
+	config := new(bundleEndpointConfig)
+	require.NoError(t, hcl.Decode(config, configString))
+
+	return config
+}
+
+func bundleEndpointProfileEmptyHTTPSWebTest(t *testing.T) *bundleEndpointConfig {
+	configString := `address = "0.0.0.0"
+        port = 8443
+        refresh_hint = "10m"
+        profile "https_web" {}`
+	config := new(bundleEndpointConfig)
+	require.NoError(t, hcl.Decode(config, configString))
+
+	return config
+}
+func bundleEndpointProfileHTTPSSPIFFETest(t *testing.T) *bundleEndpointConfig {
+	configString := `address = "0.0.0.0"
+        port = 8443
+        refresh_hint = "10m"
+        profile "https_spiffe" {}`
+
+	config := new(bundleEndpointConfig)
+	require.NoError(t, hcl.Decode(config, configString))
+
+	return config
+}
+
+func bundleEndpointProfileUnknownTest(t *testing.T) *bundleEndpointConfig {
+	configString := `address = "0.0.0.0"
+        port = 8443
+        refresh_hint = "10m"
+        profile "some_name" {}`
+
+	config := new(bundleEndpointConfig)
+	require.NoError(t, hcl.Decode(config, configString))
+
+	return config
 }
 
 func httpsSPIFFEConfigTest(t *testing.T) federatesWithConfig {

@@ -39,5 +39,19 @@
     "spiffe_id": "SpiffeId3",
     "ttl": 2,
     "store_svid": true
+  },
+  {
+    "entry_id": "entry1",
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value1"
+      },
+      {
+        "type": "Type1",
+        "value": "Value2"
+      }
+    ],
+    "spiffe_id": "SpiffeId4"
   }
 ]

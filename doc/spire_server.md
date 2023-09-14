@@ -159,11 +159,13 @@ server {
         bundle_endpoint {
             address = "0.0.0.0"
             port = 8443
-            acme {
-                domain_name = "example.org"
-                email = "mail@example.org"
-            }
             refresh_hint = "10m"
+            profile "https_web" {
+                acme {
+                    domain_name = "example.org"
+                    email = "mail@example.org"
+                }
+            }
         }
         federates_with "domain1.test" {
             bundle_endpoint_url = "https://1.2.3.4:8443"
@@ -186,14 +188,23 @@ The `federation.federates_with` section is also optional and is used to configur
 
 This optional section contains the configurables used by SPIRE Server to expose a bundle endpoint.
 
-| Configuration | Description                                                                                                                                                                                                                                                                                                 |
-|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| address       | IP address where this server will listen for HTTP requests                                                                                                                                                                                                                                                  |
-| port          | TCP port number where this server will listen for HTTP requests                                                                                                                                                                                                                                             |
-| acme          | Automated Certificate Management Environment configuration section (see below)                                                                                                                                                                                                                              |
-| refresh_hint  | Allow manually specifying a [refresh hint](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#412-refresh-hint). When not set, it is determined based on the lifetime of the keys in the bundle. Small values allow to retrieve trust bundle updates in a timely manner |
+| Configuration                                 | Description                                                                                                                                                                                                                                                                                                 |
+|-----------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| address                                       | IP address where this server will listen for HTTP requests                                                                                                                                                                                                                                                  |
+| port                                          | TCP port number where this server will listen for HTTP requests                                                                                                                                                                                                                                             |
+| refresh_hint                                  | Allow manually specifying a [refresh hint](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#412-refresh-hint). When not set, it is determined based on the lifetime of the keys in the bundle. Small values allow to retrieve trust bundle updates in a timely manner |
+| profile "&lt;https_web&vert;https_spiffe&gt;" | Allow to configure bundle profile                                                                                                                                                                                                                                                                           |
 
-### Configuration options for `federation.bundle_endpoint.acme`
+### Configuration options for `federation.bundle_endpoint.profile`
+
+When setting a `bundle_endpoint`, it is `required` to specify the bundle profile.
+
+Allowed profiles:
+
+- `https_web` allow to configure the [Automated Certificate Management Environment](#Configuration options for `federation.bundle_endpoint.profile "https_web".acme`) section.
+- `https_spiffe`
+
+### Configuration options for `federation.bundle_endpoint.profile "https_web".acme`
 
 | Configuration | Description                                                                                                               | Default                                        |
 |---------------|---------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|
@@ -201,6 +212,10 @@ This optional section contains the configurables used by SPIRE Server to expose 
 | domain_name   | Domain for which the certificate manager tries to retrieve new certificates                                               |                                                |
 | email         | Contact email address. This is used by CAs, such as Let's Encrypt, to notify about problems with issued certificates      |                                                |
 | tos_accepted  | ACME Terms of Service acceptance. If not true, and the provider requires acceptance, then certificate retrieval will fail | false                                          |
+
+### Configuration options for `federation.bundle_endpoint.profile "https_spiffe"`
+
+Default bundle profile configuration.
 
 ### Configuration options for `federation.federates_with["<trust domain>"].bundle_endpoint`
 
@@ -298,6 +313,7 @@ Creates registration entries.
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once                                                                               |                                                 |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server                                                                                                      |                                                 |
 | `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned from the datastore. Please note that this is a data management feature and not a security feature (optional). |                                                 |
+| `-entryID`       | A user-specified ID for the newly created registration entry (optional). If no entry ID is provided, one will be generated during creation                                                        |                                                 |
 | `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist                                        |                                                 |
 | `-node`          | If set, this entry will be applied to matching nodes rather than workloads                                                                                                                        |                                                 |
 | `-parentID`      | The SPIFFE ID of this record's parent.                                                                                                                                                            |                                                 |

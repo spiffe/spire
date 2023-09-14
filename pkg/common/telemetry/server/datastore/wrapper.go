@@ -162,6 +162,12 @@ func (w metricsWrapper) ListRegistrationEntries(ctx context.Context, req *datast
 	return w.ds.ListRegistrationEntries(ctx, req)
 }
 
+func (w metricsWrapper) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (_ *datastore.ListRegistrationEntriesEventsResponse, err error) {
+	callCounter := StartListRegistrationEntriesEventsCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.ListRegistrationEntriesEvents(ctx, req)
+}
+
 func (w metricsWrapper) CountAttestedNodes(ctx context.Context) (_ int32, err error) {
 	callCounter := StartCountNodeCall(w.m)
 	defer callCounter.Done(&err)
@@ -196,6 +202,12 @@ func (w metricsWrapper) PruneRegistrationEntries(ctx context.Context, expiresBef
 	callCounter := StartPruneRegistrationCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.PruneRegistrationEntries(ctx, expiresBefore)
+}
+
+func (w metricsWrapper) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
+	callCounter := StartPruneRegistrationEntriesEventsCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
 }
 
 func (w metricsWrapper) SetBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {

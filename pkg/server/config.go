@@ -98,6 +98,9 @@ type Config struct {
 	// CacheReloadInterval controls how often the in-memory entry cache reloads
 	CacheReloadInterval time.Duration
 
+	// PruneEventsOlderThan controls how long events can live before they are pruned
+	PruneEventsOlderThan time.Duration
+
 	// AuthPolicyEngineConfig determines the config for authz policy
 	AuthOpaPolicyEngineConfig *authpolicy.OpaEngineConfig
 
