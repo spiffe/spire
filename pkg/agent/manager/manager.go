@@ -32,9 +32,6 @@ const (
 	synchronizeMaxIntervalMultiple = 48
 	// for larger sync interval set max interval as 8 mins
 	synchronizeMaxInterval = 8 * time.Minute
-
-	// retry this many times to get SVIDs on startup (12*5s = 1 min)
-	initSyncRetries = 12
 	// default sync interval is used between retries of initial sync
 	defaultSyncInterval = 5 * time.Second
 )
@@ -176,10 +173,6 @@ func (m *manager) Initialize(ctx context.Context) error {
 		return err
 	}
 
-	if m.cache.CountSVIDs() == 0 {
-		return m.retryInitialSync(ctx)
-	}
-
 	return nil
 }
 
@@ -195,23 +188,6 @@ func (m *manager) handleSyncError(err error) error {
 		m.c.Log.WithError(err).Error("Synchronize failed")
 	}
 	return err
-}
-
-func (m *manager) retryInitialSync(ctx context.Context) error {
-	for retries := 0; m.cache.CountSVIDs() == 0 && retries < initSyncRetries; retries++ {
-		m.c.Log.Debug("no SVIDs were received from the server, retrying initial sync")
-		select {
-		case <-m.clk.After(defaultSyncInterval):
-		case <-ctx.Done():
-			return nil
-		}
-
-		err := m.handleSyncError(m.synchronize(ctx))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (m *manager) Run(ctx context.Context) error {
@@ -309,9 +285,10 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
+	syncInterval := min(m.synchronizeBackoff.NextBackOff(), defaultSyncInterval)
 	for {
 		select {
-		case <-m.clk.After(m.synchronizeBackoff.NextBackOff()):
+		case <-m.clk.After(syncInterval):
 		case <-ctx.Done():
 			return nil
 		}
@@ -329,6 +306,12 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			m.c.Log.WithError(err).Error("Synchronize failed")
 		default:
 			m.synchronizeBackoff.Reset()
+		}
+
+		if m.cache.CountSVIDs() == 0 {
+			syncInterval = min(m.synchronizeBackoff.NextBackOff(), defaultSyncInterval)
+		} else {
+			syncInterval = m.synchronizeBackoff.NextBackOff()
 		}
 	}
 }

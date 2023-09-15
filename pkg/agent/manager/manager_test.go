@@ -135,115 +135,6 @@ func TestStoreBundleOnStartup(t *testing.T) {
 	}
 }
 
-func TestInitializationRetriesSync(t *testing.T) {
-	dir := spiretest.TempDir(t)
-	km := fakeagentkeymanager.New(t, dir)
-
-	clk := clock.NewMock(t)
-	ttl := 10
-
-	firstGetAuthorizedEntries := true
-	firstBatchNewX509SVIDEntries := true
-
-	api := newMockAPI(t, &mockAPIConfig{
-		km: km,
-		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
-			// simulate cache miss in server
-			if firstGetAuthorizedEntries {
-				firstGetAuthorizedEntries = false
-				return &entryv1.GetAuthorizedEntriesResponse{
-					Entries: []*types.Entry{},
-				}, nil
-			}
-			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
-		},
-		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
-			// simulate cache miss in server
-			if firstBatchNewX509SVIDEntries {
-				firstBatchNewX509SVIDEntries = false
-				return []*common.RegistrationEntry{}
-			}
-			return makeBatchNewX509SVIDEntries("resp1", "resp2")
-		},
-		svidTTL: ttl,
-		clk:     clk,
-	})
-
-	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
-	cat := fakeagentcatalog.New()
-	cat.SetKeyManager(km)
-
-	c := &Config{
-		ServerAddr:       api.addr,
-		SVID:             baseSVID,
-		SVIDKey:          baseSVIDKey,
-		Log:              testLogger,
-		TrustDomain:      trustDomain,
-		Storage:          openStorage(t, dir),
-		Bundle:           api.bundle,
-		Metrics:          &telemetry.Blackhole{},
-		RotationInterval: time.Hour,
-		SyncInterval:     time.Hour,
-		Clk:              clk,
-		Catalog:          cat,
-		WorkloadKeyType:  workloadkey.ECP256,
-		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-	}
-
-	m := newManager(c)
-
-	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{
-		{Type: "unix", Value: "uid:1111"},
-		{Type: "spiffe_id", Value: joinTokenID.String()},
-	})
-	require.NoError(t, err)
-	defer sub.Finish()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	// keep clk moving so that init retries sync
-	go func(ctx context.Context) {
-		for {
-			clk.Add(defaultSyncInterval)
-			if ctx.Err() != nil {
-				return
-			}
-		}
-	}(ctx)
-
-	if err := m.Initialize(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	// initial synchronization
-	initialIdentities := identitiesByEntryID(m.cache.Identities())
-	if len(initialIdentities) != 3 {
-		t.Fatalf("3 cached identities were expected; got %d", len(initialIdentities))
-	}
-
-	// This is the initial update based on the selector set
-	u := <-sub.Updates()
-	if len(u.Identities) != 3 {
-		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
-	}
-
-	if len(u.Bundle.X509Authorities()) != 1 {
-		t.Fatal("expected 1 bundle root CA")
-	}
-
-	if !u.Bundle.Equal(api.bundle) {
-		t.Fatal("received bundle should be equals to the server bundle")
-	}
-
-	for key, eu := range identitiesByEntryID(u.Identities) {
-		eb, ok := initialIdentities[key]
-		if !ok {
-			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
-		}
-		require.Equal(t, eb, eu, "identity received does not match identity on cache")
-	}
-}
-
 func TestStoreSVIDOnStartup(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
@@ -1070,6 +961,98 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 	}
 
 	require.Equal(t, clk.Now(), m.GetLastSync())
+}
+
+func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	ttl := 100
+
+	getAuthorizedEntriesAttempts := 0
+	entriesHaveBeenFetched := false
+
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			// simulate 3 consecutive cache misses in server
+			if getAuthorizedEntriesAttempts < 3 {
+				getAuthorizedEntriesAttempts++
+				return &entryv1.GetAuthorizedEntriesResponse{
+					Entries: []*types.Entry{},
+				}, nil
+			}
+			entriesHaveBeenFetched = true
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		svidTTL: ttl,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		RotationInterval: time.Hour,
+		SyncInterval:     time.Hour,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+	}
+
+	m := newManager(c)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// set sync interval to a high value to proof that synchronizer retries sync
+	// with the lower default interval in case 0 entries are returned
+	m.c.SyncInterval = 100 * defaultSyncInterval
+
+	// initialize will generate the first attempt at fetching entries
+	if err := m.Initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+	initTime := clk.Now()
+	require.Equal(t, initTime, m.GetLastSync())
+
+	// keep clk moving so that synchronizer retries sync
+	go func(ctx context.Context) {
+		for !entriesHaveBeenFetched {
+			clk.Add(defaultSyncInterval)
+			if ctx.Err() != nil {
+				return
+			}
+		}
+		// cancel context to stop synchronizer after the entries have been fetched
+		cancel()
+	}(ctx)
+
+	if err := m.runSynchronizer(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	// m.runSynchronizer succeeded fetching the entries after retrying 3 times
+	require.Equal(t, initTime.Add(3*defaultSyncInterval), m.GetLastSync())
+
+	identities := identitiesByEntryID(m.cache.Identities())
+	if len(identities) != 3 {
+		t.Fatalf("3 cached identities were expected; got %d", len(identities))
+	}
 }
 
 func TestSyncSVIDsWithLRUCache(t *testing.T) {
