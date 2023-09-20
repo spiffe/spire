@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.8.0] - 2023-09-20
+
+### Added
+
+- `azure_key_vault` KeyManager plugin (#4458)
+- Server configuration to set refresh hint of local bundle (#4400)
+- Support for batch entry deletion in `spire-server` CLI (#4371)
+- `aws_iid` NodeAttestor can now be used in AWS Gov Cloud and China regions (#4427)
+- `status_code` and `status_message` fields in SPIRE Agent logs on gRPC errors (#4262)
+
+### Changed
+
+- Bundle server configuration is now organized by endpoint profiles (#4476)
+- Release artifacts are now statically linked with musl rather than glibc (#4491)
+- Agent no longer requests unused SVIDs for node aliases they belong to, reducing server signing load (#4467)
+- Entry IDs can now be optionally set by the client for BatchCreateEntry requests (#4477)
+
+### Fixed
+
+- Concurrent workload attestation using `systemd` plugin (#4360)
+- Bug in `k8s` WorkloadAttestor plugin that failed attestation in some scenarios (#4468)
+- Server can now be run on Linux arm64 when using SQLite (#4491)
+
+### Removed
+
+- Support for Envoy SDS v2 API (#4444)
+- Server no longer cleans up stale data in the database on startup (#4443)
+- Server no longer deletes entries with invalid SPIFFE IDs on startup (#4449)
+
 ## [1.7.2] - 2023-08-16
 
 ### Added
