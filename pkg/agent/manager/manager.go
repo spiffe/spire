@@ -168,24 +168,14 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
 	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
 
-	err := m.handleSyncError(m.synchronize(ctx))
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (m *manager) handleSyncError(err error) error {
-	switch {
-	case nodeutil.ShouldAgentReattest(err):
+	err := m.synchronize(ctx)
+	if nodeutil.ShouldAgentReattest(err) {
 		m.c.Log.WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
 		m.deleteSVID()
-	case nodeutil.ShouldAgentShutdown(err):
+	}
+	if nodeutil.ShouldAgentShutdown(err) {
 		m.c.Log.WithError(err).Error("Agent is banned: removing SVID and shutting down")
 		m.deleteSVID()
-	case err != nil:
-		m.c.Log.WithError(err).Error("Synchronize failed")
 	}
 	return err
 }
@@ -306,12 +296,13 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			m.c.Log.WithError(err).Error("Synchronize failed")
 		default:
 			m.synchronizeBackoff.Reset()
-		}
-
-		if m.cache.CountSVIDs() == 0 {
-			syncInterval = min(m.synchronizeBackoff.NextBackOff(), defaultSyncInterval)
-		} else {
 			syncInterval = m.synchronizeBackoff.NextBackOff()
+
+			// Clamp the sync interval to the default value when the agent doesn't have any SVIDs cached
+			// AND the previous sync request succeeded
+			if m.cache.CountSVIDs() == 0 {
+				syncInterval = min(syncInterval, defaultSyncInterval)
+			}
 		}
 	}
 }

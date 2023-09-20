@@ -1007,21 +1007,19 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 		Bundle:           api.bundle,
 		Metrics:          &telemetry.Blackhole{},
 		RotationInterval: time.Hour,
-		SyncInterval:     time.Hour,
-		Clk:              clk,
-		Catalog:          cat,
-		WorkloadKeyType:  workloadkey.ECP256,
-		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		// set sync interval to a high value to proof that synchronizer retries sync
+		// with the lower default interval in case 0 entries are returned
+		SyncInterval:    100 * defaultSyncInterval,
+		Clk:             clk,
+		Catalog:         cat,
+		WorkloadKeyType: workloadkey.ECP256,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 
 	m := newManager(c)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	// set sync interval to a high value to proof that synchronizer retries sync
-	// with the lower default interval in case 0 entries are returned
-	m.c.SyncInterval = 100 * defaultSyncInterval
 
 	// initialize will generate the first attempt at fetching entries
 	if err := m.Initialize(ctx); err != nil {
