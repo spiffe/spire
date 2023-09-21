@@ -60,7 +60,7 @@ require (
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.55.0
 	github.com/prometheus/client_golang v1.16.0
-	github.com/shirou/gopsutil/v3 v3.23.7
+	github.com/shirou/gopsutil/v3 v3.23.8
 	github.com/sigstore/cosign/v2 v2.1.1
 	github.com/sigstore/rekor v1.2.2
 	github.com/sigstore/sigstore v1.7.2
@@ -301,8 +301,8 @@ require (
 	github.com/theupdateframework/go-tuf v0.5.2 // indirect
 	github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 // indirect
 	github.com/tjfoc/gmsm v1.3.2 // indirect
-	github.com/tklauser/go-sysconf v0.3.11 // indirect
-	github.com/tklauser/numcpus v0.6.0 // indirect
+	github.com/tklauser/go-sysconf v0.3.12 // indirect
+	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/transparency-dev/merkle v0.0.2 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
 	github.com/vbatts/tar-split v0.11.3 // indirect
