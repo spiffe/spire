@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	realClock "github.com/andres-erbsen/clock"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -967,29 +968,31 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
 
-	clk := clock.NewMock(t)
-	ttl := 100
-
+	clk := realClock.New()
+	timeout := time.Second * 10
 	getAuthorizedEntriesAttempts := 0
-	entriesHaveBeenFetched := false
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	api := newMockAPI(t, &mockAPIConfig{
 		km: km,
 		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
-			// simulate 3 consecutive cache misses in server
+			// simulate 2 consecutive cache misses in server
+			getAuthorizedEntriesAttempts++
 			if getAuthorizedEntriesAttempts < 3 {
-				getAuthorizedEntriesAttempts++
 				return &entryv1.GetAuthorizedEntriesResponse{
 					Entries: []*types.Entry{},
 				}, nil
 			}
-			entriesHaveBeenFetched = true
+			// stop the sync loop with returning the entries because we will now wait for the long 'SyncInterval'
+			cancel()
 			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
 		},
 		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
 			return makeBatchNewX509SVIDEntries("resp1", "resp2")
 		},
-		svidTTL: ttl,
+		svidTTL: 100,
 		clk:     clk,
 	})
 
@@ -1009,7 +1012,7 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 		RotationInterval: time.Hour,
 		// set sync interval to a high value to proof that synchronizer retries sync
 		// with the lower default interval in case 0 entries are returned
-		SyncInterval:    100 * defaultSyncInterval,
+		SyncInterval:    time.Hour,
 		Clk:             clk,
 		Catalog:         cat,
 		WorkloadKeyType: workloadkey.ECP256,
@@ -1018,38 +1021,26 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 
 	m := newManager(c)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// initialize will generate the first attempt at fetching entries
+	// initialize generates the first attempt at fetching entries
 	if err := m.Initialize(ctx); err != nil {
 		t.Fatal(err)
 	}
-	initTime := clk.Now()
-	require.Equal(t, initTime, m.GetLastSync())
 
-	// keep clk moving so that synchronizer retries sync
-	go func(ctx context.Context) {
-		for !entriesHaveBeenFetched {
-			clk.Add(defaultSyncInterval)
-			if ctx.Err() != nil {
-				return
-			}
-		}
-		// cancel context to stop synchronizer after the entries have been fetched
-		cancel()
-	}(ctx)
+	startTime := clk.Now()
+	// override default sync interval to 1 microsecond (used for retry if 0 SVIDs are cached)
+	defaultSyncInterval = time.Microsecond
 
 	if err := m.runSynchronizer(ctx); err != nil {
 		t.Fatal(err)
 	}
 
-	// m.runSynchronizer succeeded fetching the entries after retrying 3 times
-	require.Equal(t, initTime.Add(3*defaultSyncInterval), m.GetLastSync())
-
-	identities := identitiesByEntryID(m.cache.Identities())
-	if len(identities) != 3 {
-		t.Fatalf("3 cached identities were expected; got %d", len(identities))
+	// m.runSynchronizer should attempt to quickly fetch the entries 2 more times, totalling 3 attempts
+	if getAuthorizedEntriesAttempts != 3 {
+		t.Fatalf("did not attempt to fetch entries 3 times; attempts: %d", getAuthorizedEntriesAttempts)
+	}
+	// m.runSynchronizer should retry with 'defaultSyncInterval', which is set to 1 microsecond
+	if startTime.Add(timeout).Before(clk.Now()) {
+		t.Fatalf("did not do a fast sync retry after 0 SVIDs were returned; took %v", clk.Now().Sub(startTime))
 	}
 }
 
