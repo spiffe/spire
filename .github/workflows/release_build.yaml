@@ -21,7 +21,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup dep cache
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -44,12 +44,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Setup build tool cache
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
@@ -80,7 +80,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -103,7 +103,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -113,7 +113,8 @@ jobs:
   artifacts:
     name: artifacts (linux)
     runs-on: ubuntu-20.04
-    needs: [cache-deps]
+    needs: [cache-deps, images]
+    timeout-minutes: 30
 
     permissions:
       contents: read
@@ -125,16 +126,16 @@ jobs:
         uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
         with:
           go-version: ${{ env.GO_VERSION }}
-      - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+      - name: Install regctl
+        uses: regclient/actions/regctl-installer@b6614f5f56245066b533343a85f4109bdc38c8cc # main
+      - name: Download archived images
+        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
         with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      - name: Load cached build tools
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
-        with:
-          path: .build
-          key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
+          name: images
+          path: .
+      - name: Expand archived images
+        run: |
+          tar xvf images.tar.gz
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive artifacts
@@ -159,12 +160,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
@@ -263,12 +264,12 @@ jobs:
       - name: Install regctl
         uses: regclient/actions/regctl-installer@b6614f5f56245066b533343a85f4109bdc38c8cc # main
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
@@ -323,12 +324,12 @@ jobs:
       - name: Install regctl
         uses: regclient/actions/regctl-installer@b6614f5f56245066b533343a85f4109bdc38c8cc # main
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
@@ -371,12 +372,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
@@ -414,7 +415,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Setup dep cache
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -440,12 +441,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Setup build tool cache
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
@@ -482,7 +483,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
@@ -515,12 +516,12 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Load cached deps
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
       - name: Load cached build tools
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
@@ -531,6 +532,8 @@ jobs:
           update: true
           install: >-
             git base-devel mingw-w64-x86_64-toolchain zip unzip
+      - name: Build binaries
+        run: make build
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive binaries
@@ -596,7 +599,7 @@ jobs:
           name: images
           path: .
       - name: Log in to GHCR
-        uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
