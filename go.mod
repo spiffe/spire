@@ -208,7 +208,7 @@ require (
 	github.com/google/go-github/v53 v53.2.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/go-sev-guest v0.7.0 // indirect
-	github.com/google/go-tdx-guest v0.2.1-0.20230907045450-944015509c84 // indirect
+	github.com/google/go-tdx-guest v0.2.2 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/logger v1.1.1 // indirect
 	github.com/google/pprof v0.0.0-20221103000818-d260c55eee4c // indirect
