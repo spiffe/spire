@@ -42,7 +42,11 @@ func cloneEntriesFromRecords(entryRecords []entryRecord) []*types.Entry {
 	}
 	cloned := make([]*types.Entry, 0, len(entryRecords))
 	for _, entryRecord := range entryRecords {
-		cloned = append(cloned, proto.Clone(entryRecord.EntryCloneOnly).(*types.Entry))
+		cloned = append(cloned, cloneEntry(entryRecord.EntryCloneOnly))
 	}
 	return cloned
+}
+
+func cloneEntry(entry *types.Entry) *types.Entry {
+	return proto.Clone(entry).(*types.Entry)
 }

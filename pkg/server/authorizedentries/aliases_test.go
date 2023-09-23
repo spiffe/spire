@@ -2,15 +2,24 @@ package authorizedentries
 
 import (
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestAliasRecordSize(t *testing.T) {
+	// The motivation for this test is to bring awareness and visibility into
+	// how much size the record occupies. We want to minimize the size to
+	// increase cache locality in the btree.
+	require.Equal(t, uintptr(72), unsafe.Sizeof(aliasRecord{}))
+}
 
 func TestAliasRecordByEntryID(t *testing.T) {
 	assertLess := func(lesser, greater aliasRecord) {
 		t.Helper()
-		assert.True(t, aliasRecordByEntryID(lesser, greater), "expected E%sP%s<E%sP%s", lesser.EntryID, lesser.Selector, greater.EntryID, greater.Selector)
-		assert.False(t, aliasRecordByEntryID(greater, lesser), "expected E%sP%s>E%sP%s", greater.EntryID, greater.Selector, lesser.EntryID, lesser.Selector)
+		assert.Truef(t, aliasRecordByEntryID(lesser, greater), "expected E%sP%s<E%sP%s", lesser.EntryID, lesser.Selector, greater.EntryID, greater.Selector)
+		assert.Falsef(t, aliasRecordByEntryID(greater, lesser), "expected E%sP%s>E%sP%s", greater.EntryID, greater.Selector, lesser.EntryID, lesser.Selector)
 	}
 
 	records := []aliasRecord{

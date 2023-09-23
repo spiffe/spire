@@ -2,15 +2,24 @@ package authorizedentries
 
 import (
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestEntryRecordSize(t *testing.T) {
+	// The motivation for this test is to bring awareness and visibility into
+	// how much size the record occupies. We want to minimize the size to
+	// increase cache locality in the btree.
+	require.Equal(t, uintptr(56), unsafe.Sizeof(entryRecord{}))
+}
 
 func TestEntryRecordByEntryID(t *testing.T) {
 	assertLess := func(lesser, greater entryRecord) {
 		t.Helper()
-		assert.True(t, entryRecordByEntryID(lesser, greater), "expected E%sP%s<E%sP%s", lesser.EntryID, lesser.ParentID, greater.EntryID, greater.ParentID)
-		assert.False(t, entryRecordByEntryID(greater, lesser), "expected E%sP%s>E%sP%s", greater.EntryID, greater.ParentID, lesser.EntryID, lesser.ParentID)
+		assert.Truef(t, entryRecordByEntryID(lesser, greater), "expected E%sP%s<E%sP%s", lesser.EntryID, lesser.ParentID, greater.EntryID, greater.ParentID)
+		assert.Falsef(t, entryRecordByEntryID(greater, lesser), "expected E%sP%s>E%sP%s", greater.EntryID, greater.ParentID, lesser.EntryID, lesser.ParentID)
 	}
 
 	records := []entryRecord{

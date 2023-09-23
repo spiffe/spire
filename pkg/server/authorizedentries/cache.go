@@ -3,6 +3,7 @@ package authorizedentries
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/btree"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -10,6 +11,8 @@ import (
 )
 
 const (
+	// TODO: tweak these degrees for optimal L1 cache use
+	agentRecordDegree = 32
 	aliasRecordDegree = 32
 	entryDegree       = 32
 )
@@ -26,7 +29,8 @@ func (s Selector) String() string {
 type Cache struct {
 	mu sync.RWMutex
 
-	agents map[string]selectorSet
+	agentsByID        *btree.BTreeG[agentRecord]
+	agentsByExpiresAt *btree.BTreeG[agentRecord]
 
 	aliasesByEntryID  *btree.BTreeG[aliasRecord]
 	aliasesBySelector *btree.BTreeG[aliasRecord]
@@ -37,7 +41,8 @@ type Cache struct {
 
 func NewCache() *Cache {
 	return &Cache{
-		agents:            make(map[string]selectorSet),
+		agentsByID:        btree.NewG(agentRecordDegree, agentRecordByID),
+		agentsByExpiresAt: btree.NewG(agentRecordDegree, agentRecordByExpiresAt),
 		aliasesByEntryID:  btree.NewG(aliasRecordDegree, aliasRecordByEntryID),
 		aliasesBySelector: btree.NewG(aliasRecordDegree, aliasRecordBySelector),
 		entriesByEntryID:  btree.NewG(entryDegree, entryRecordByEntryID),
@@ -49,11 +54,14 @@ func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	agentSelectors, ok := c.getAgentSelectors(agentID.String())
-	if !ok {
-		// agent is not attested or has expired
-		return nil
-	}
+	// Load up the agent selectors. If the agent info does not exist, it is
+	// likely that the cache is still catching up to a recent attestation.
+	// Since the calling agent has already been authorized and authenticated,
+	// it is safe to continue with the authorized entry crawl to obtain entries
+	// that are directly parented against the agent. Any entries that would be
+	// obtained via node aliasing will not be returned until the cache is
+	// updated with the node selectors for the agent.
+	agent, _ := c.agentsByID.Get(agentRecord{ID: agentID.String()})
 
 	parentSeen := allocStringSet()
 	defer freeStringSet(parentSeen)
@@ -63,7 +71,7 @@ func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
 
 	records = c.appendDescendents(records, agentID.String(), parentSeen)
 
-	agentAliases := c.getAgentAliases(agentSelectors)
+	agentAliases := c.getAgentAliases(agent.Selectors)
 	for _, alias := range agentAliases {
 		records = c.appendDescendents(records, alias.AliasID, parentSeen)
 	}
@@ -86,14 +94,49 @@ func (c *Cache) RemoveEntry(entryID string) {
 	c.removeEntry(entryID)
 }
 
-func (c *Cache) SetNodeSelectors(agentID string, selectors []*types.Selector) {
+func (c *Cache) UpdateAgent(agentID string, expiresAt time.Time, selectors []*types.Selector) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if len(selectors) > 0 {
-		c.agents[agentID] = selectorSetFromProto(selectors)
-	} else {
-		delete(c.agents, agentID)
+	agent := agentRecord{
+		ID:        agentID,
+		ExpiresAt: expiresAt.Unix(),
+		Selectors: selectorSetFromProto(selectors),
+	}
+
+	// Need to delete existing reord from the ExpiresAt index first. Use
+	// the ID index to locate the existing record.
+	if existing, exists := c.agentsByID.Get(agent); exists {
+		c.agentsByExpiresAt.Delete(existing)
+	}
+
+	c.agentsByID.ReplaceOrInsert(agent)
+	c.agentsByExpiresAt.ReplaceOrInsert(agent)
+}
+
+func (c *Cache) RemoveAgent(agentID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if agent, exists := c.agentsByID.Get(agentRecord{ID: agentID}); exists {
+		c.agentsByID.Delete(agent)
+		c.agentsByExpiresAt.Delete(agent)
+	}
+}
+
+func (c *Cache) PruneExpiredAgents() int {
+	now := time.Now().Unix()
+	pruned := 0
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for {
+		record, ok := c.agentsByExpiresAt.Min()
+		if !ok || record.ExpiresAt > now {
+			return pruned
+		}
+		c.agentsByID.Delete(record)
+		c.agentsByExpiresAt.DeleteMin()
+		pruned++
 	}
 }
 
@@ -110,11 +153,6 @@ func (c *Cache) appendDescendents(records []entryRecord, parentID string, parent
 		records = c.appendDescendents(records, entry.SPIFFEID, parentSeen)
 	}
 	return records
-}
-
-func (c *Cache) getAgentSelectors(agentID string) (selectorSet, bool) {
-	selectors, ok := c.agents[agentID]
-	return selectors, ok
 }
 
 func (c *Cache) getAgentAliases(agentSelectors selectorSet) []aliasRecord {
@@ -214,10 +252,30 @@ func (c *Cache) removeEntry(entryID string) {
 	}
 }
 
+func (c *Cache) stats() cacheStats {
+	return cacheStats{
+		AgentsByID:        c.agentsByID.Len(),
+		AgentsByExpiresAt: c.agentsByExpiresAt.Len(),
+		AliasesByEntryID:  c.aliasesByEntryID.Len(),
+		AliasesBySelector: c.aliasesBySelector.Len(),
+		EntriesByEntryID:  c.entriesByEntryID.Len(),
+		EntriesByParentID: c.entriesByParentID.Len(),
+	}
+}
+
 func spiffeIDFromProto(id *types.SPIFFEID) string {
 	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }
 
 func isNodeAlias(e *types.Entry) bool {
 	return e.ParentId.Path == "/spire/server"
+}
+
+type cacheStats struct {
+	AgentsByID        int
+	AgentsByExpiresAt int
+	AliasesByEntryID  int
+	AliasesBySelector int
+	EntriesByEntryID  int
+	EntriesByParentID int
 }

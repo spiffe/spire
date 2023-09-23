@@ -1,25 +1,20 @@
-package authorizedentries_test
+package authorizedentries
 
 import (
-	"context"
 	"fmt"
-	"maps"
-	"sort"
+	"sync/atomic"
 	"testing"
+	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
+	"github.com/stretchr/testify/require"
 )
 
 var (
-	ctx       = context.Background()
 	td        = spiffeid.RequireTrustDomainFromString("domain.test")
 	server    = spiffeid.RequireFromPath(td, "/spire/server")
 	agent1    = spiffeid.RequireFromPath(td, "/spire/agent/1")
@@ -31,6 +26,7 @@ var (
 	sel1      = &types.Selector{Type: "S", Value: "1"}
 	sel2      = &types.Selector{Type: "S", Value: "2"}
 	sel3      = &types.Selector{Type: "S", Value: "3"}
+	now       = time.Now().Truncate(time.Second)
 )
 
 func TestGetAuthorizedEntries(t *testing.T) {
@@ -38,10 +34,13 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		testCache().assertAuthorizedEntries(t, agent1)
 	})
 
-	t.Run("agent not attested", func(t *testing.T) {
+	t.Run("agent not attested still returns direct children", func(t *testing.T) {
+		var (
+			directChild = makeWorkload(agent1)
+		)
 		testCache().
-			withEntries(makeWorkload(agent1)).
-			assertAuthorizedEntries(t, agent1)
+			withEntries(directChild).
+			assertAuthorizedEntries(t, agent1, directChild)
 	})
 
 	t.Run("directly via agent", func(t *testing.T) {
@@ -121,7 +120,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		assertAuthorizedEntries(t, cache, agent1)
 	})
 
-	t.Run("agent expired", func(t *testing.T) {
+	t.Run("agent removed", func(t *testing.T) {
 		var (
 			aliasEntry    = makeAlias(alias1, sel1, sel2)
 			workloadEntry = makeWorkload(alias1)
@@ -132,21 +131,123 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			withAgent(agent1, sel1, sel2).
 			hydrate()
 
-		cache.SetNodeSelectors(agent1.String(), nil)
+		cache.RemoveAgent(agent1.String())
 		assertAuthorizedEntries(t, cache, agent1)
+	})
+
+	t.Run("agent pruned after expiry", func(t *testing.T) {
+		var (
+			aliasEntry    = makeAlias(alias1, sel1, sel2)
+			workloadEntry = makeWorkload(alias1)
+		)
+
+		cache := testCache().
+			withEntries(workloadEntry, aliasEntry).
+			withExpiredAgent(agent1, sel1, sel2).
+			hydrate()
+		assertAuthorizedEntries(t, cache, agent1, workloadEntry)
+
+		assert.Equal(t, 1, cache.PruneExpiredAgents())
+
+		assertAuthorizedEntries(t, cache, agent1)
+	})
+}
+
+func TestCacheInternalStats(t *testing.T) {
+	// This test asserts that the internal indexes are properly maintained
+	// across various operations. The motivation is to ensure that as the cache
+	// is updated that we are appropriately inserting and removing records from
+	// the indexees.
+	t.Run("pristine", func(t *testing.T) {
+		cache := NewCache()
+		require.Zero(t, cache.stats())
+	})
+
+	t.Run("entries and aliases", func(t *testing.T) {
+		entry1 := makeWorkload(agent1)
+		entry2a := makeWorkload(agent2)
+
+		// Version b will change to an alias instead
+		entry2b := makeAlias(alias1, sel1, sel2)
+		entry2b.Id = entry2a.Id
+
+		cache := NewCache()
+		cache.UpdateEntry(entry1)
+		require.Equal(t, cacheStats{
+			EntriesByEntryID:  1,
+			EntriesByParentID: 1,
+		}, cache.stats())
+
+		cache.UpdateEntry(entry2a)
+		require.Equal(t, cacheStats{
+			EntriesByEntryID:  2,
+			EntriesByParentID: 2,
+		}, cache.stats())
+
+		cache.UpdateEntry(entry2b)
+		require.Equal(t, cacheStats{
+			EntriesByEntryID:  1,
+			EntriesByParentID: 1,
+			AliasesByEntryID:  2, // one for each selector
+			AliasesBySelector: 2, // one for each selector
+		}, cache.stats())
+
+		cache.RemoveEntry(entry1.Id)
+		require.Equal(t, cacheStats{
+			AliasesByEntryID:  2, // one for each selector
+			AliasesBySelector: 2, // one for each selector
+		}, cache.stats())
+
+		cache.RemoveEntry(entry2b.Id)
+		require.Zero(t, cache.stats())
+	})
+
+	t.Run("agents", func(t *testing.T) {
+		cache := NewCache()
+		cache.UpdateAgent(agent1.String(), now.Add(time.Hour), []*types.Selector{sel1})
+		require.Equal(t, cacheStats{
+			AgentsByID:        1,
+			AgentsByExpiresAt: 1,
+		}, cache.stats())
+
+		cache.UpdateAgent(agent2.String(), now.Add(time.Hour*2), []*types.Selector{sel2})
+		require.Equal(t, cacheStats{
+			AgentsByID:        2,
+			AgentsByExpiresAt: 2,
+		}, cache.stats())
+
+		cache.UpdateAgent(agent2.String(), now.Add(time.Hour*3), []*types.Selector{sel2})
+		require.Equal(t, cacheStats{
+			AgentsByID:        2,
+			AgentsByExpiresAt: 2,
+		}, cache.stats())
+
+		cache.RemoveAgent(agent1.String())
+		require.Equal(t, cacheStats{
+			AgentsByID:        1,
+			AgentsByExpiresAt: 1,
+		}, cache.stats())
+
+		cache.RemoveAgent(agent2.String())
+		require.Zero(t, cache.stats())
 	})
 }
 
 func testCache() *cacheTest {
 	return &cacheTest{
 		entries: make(map[string]*types.Entry),
-		agents:  make(map[spiffeid.ID][]*types.Selector),
+		agents:  make(map[spiffeid.ID]agentInfo),
 	}
 }
 
 type cacheTest struct {
 	entries map[string]*types.Entry
-	agents  map[spiffeid.ID][]*types.Selector
+	agents  map[spiffeid.ID]agentInfo
+}
+
+type agentInfo struct {
+	ExpiresAt time.Time
+	Selectors []*types.Selector
 }
 
 func (a *cacheTest) pickAgent() spiffeid.ID {
@@ -164,24 +265,30 @@ func (a *cacheTest) withEntries(entries ...*types.Entry) *cacheTest {
 }
 
 func (a *cacheTest) withAgent(node spiffeid.ID, selectors ...*types.Selector) *cacheTest {
-	a.agents[node] = append(a.agents[node], selectors...)
+	expiresAt := now.Add(time.Hour * time.Duration(1+len(a.agents)))
+	a.agents[node] = agentInfo{
+		ExpiresAt: expiresAt,
+		Selectors: append([]*types.Selector(nil), selectors...),
+	}
 	return a
 }
 
-func (a *cacheTest) clone() *cacheTest {
-	return &cacheTest{
-		entries: maps.Clone(a.entries),
-		agents:  maps.Clone(a.agents),
+func (a *cacheTest) withExpiredAgent(node spiffeid.ID, selectors ...*types.Selector) *cacheTest {
+	expiresAt := now.Add(-time.Hour * time.Duration(1+len(a.agents)))
+	a.agents[node] = agentInfo{
+		ExpiresAt: expiresAt,
+		Selectors: append([]*types.Selector(nil), selectors...),
 	}
+	return a
 }
 
-func (a *cacheTest) hydrate() *authorizedentries.Cache {
-	cache := authorizedentries.NewCache()
+func (a *cacheTest) hydrate() *Cache {
+	cache := NewCache()
 	for _, entry := range a.entries {
 		cache.UpdateEntry(entry)
 	}
-	for agent, selectors := range a.agents {
-		cache.SetNodeSelectors(agent.String(), selectors)
+	for agent, info := range a.agents {
+		cache.UpdateAgent(agent.String(), info.ExpiresAt, info.Selectors)
 	}
 	return cache
 }
@@ -193,7 +300,7 @@ func (a *cacheTest) assertAuthorizedEntries(t *testing.T, agent spiffeid.ID, exp
 
 func makeAlias(alias spiffeid.ID, selectors ...*types.Selector) *types.Entry {
 	return &types.Entry{
-		Id:        fmt.Sprintf("alias(spiffeid=%s)", alias),
+		Id:        fmt.Sprintf("alias-%d(spiffeid=%s)", makeEntryIDPrefix(), alias),
 		ParentId:  api.ProtoFromID(server),
 		SpiffeId:  api.ProtoFromID(alias),
 		Selectors: selectors,
@@ -202,7 +309,7 @@ func makeAlias(alias spiffeid.ID, selectors ...*types.Selector) *types.Entry {
 
 func makeDelegatee(parent, delegatee spiffeid.ID) *types.Entry {
 	return &types.Entry{
-		Id:        fmt.Sprintf("delegatee(parent=%s,spiffeid=%s)", parent, delegatee),
+		Id:        fmt.Sprintf("delegatee-%d(parent=%s,spiffeid=%s)", makeEntryIDPrefix(), parent, delegatee),
 		ParentId:  api.ProtoFromID(parent),
 		SpiffeId:  api.ProtoFromID(delegatee),
 		Selectors: []*types.Selector{{Type: "not", Value: "relevant"}},
@@ -211,11 +318,17 @@ func makeDelegatee(parent, delegatee spiffeid.ID) *types.Entry {
 
 func makeWorkload(parent spiffeid.ID) *types.Entry {
 	return &types.Entry{
-		Id:        fmt.Sprintf("workload(parent=%s)", parent),
+		Id:        fmt.Sprintf("workload-%d(parent=%s)", makeEntryIDPrefix(), parent),
 		ParentId:  api.ProtoFromID(parent),
 		SpiffeId:  &types.SPIFFEID{TrustDomain: "domain.test", Path: "/workload"},
 		Selectors: []*types.Selector{{Type: "not", Value: "relevant"}},
 	}
+}
+
+var nextEntryIDPrefix int32
+
+func makeEntryIDPrefix() int32 {
+	return atomic.AddInt32(&nextEntryIDPrefix, 1)
 }
 
 // BenchmarkGetAuthorizedEntriesInMemory was ported from the old full entry
@@ -286,7 +399,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	}
 }
 
-func assertAuthorizedEntries(tb testing.TB, cache *authorizedentries.Cache, agentID spiffeid.ID, wantEntries ...*types.Entry) {
+func assertAuthorizedEntries(tb testing.TB, cache *Cache, agentID spiffeid.ID, wantEntries ...*types.Entry) {
 	tb.Helper()
 
 	entriesMap := func(entries []*types.Entry) map[string]*types.Entry {
@@ -313,7 +426,7 @@ func assertAuthorizedEntries(tb testing.TB, cache *authorizedentries.Cache, agen
 		// The pointer should not be equivalent. The cache should be cloning
 		// the entries before returning.
 		if want == got {
-			//assert.Fail(tb, "entry proto was not cloned before return")
+			assert.Fail(tb, "entry proto was not cloned before return")
 			continue
 		}
 	}
@@ -325,22 +438,4 @@ func assertAuthorizedEntries(tb testing.TB, cache *authorizedentries.Cache, agen
 			continue
 		}
 	}
-}
-
-func sortEntries(es []*types.Entry) {
-	sort.Slice(es, func(a, b int) bool {
-		return es[a].Id < es[b].Id
-	})
-}
-
-func assertSliceEqual[M proto.Message](tb testing.TB, expected, actual []M, opts ...cmp.Option) bool {
-	tb.Helper()
-	return assertEqual(tb, expected, actual, opts, "%T proto slice not equal", *new(M))
-}
-
-func assertEqual(tb testing.TB, expected, actual interface{}, opts []cmp.Option, msgAndArgs ...interface{}) bool {
-	tb.Helper()
-	opts = append(opts, protocmp.Transform())
-	diff := cmp.Diff(expected, actual, opts...)
-	return assert.Empty(tb, diff, msgAndArgs...)
 }
