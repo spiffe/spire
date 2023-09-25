@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -221,8 +222,13 @@ func jwtSVIDAttributesToV1(attributes JWTSVIDAttributes) (*credentialcomposerv1.
 	if len(attributes.Claims) == 0 {
 		return nil, errors.New("invalid claims: cannot be empty")
 	}
-	claims, err := structpb.NewStruct(attributes.Claims)
+	// structpb.NewValue cannot handle Go types such as jwt.NumericDate so we marshal them into their JSON representation first
+	jsonClaims, err := json.Marshal(attributes.Claims)
 	if err != nil {
+		return nil, fmt.Errorf("failed to marshal claims: %w", err)
+	}
+	claims := &structpb.Struct{}
+	if err := claims.UnmarshalJSON(jsonClaims); err != nil {
 		return nil, fmt.Errorf("failed to encode claims: %w", err)
 	}
 	return &credentialcomposerv1.JWTSVIDAttributes{
