@@ -47,7 +47,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.12.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/hashicorp/go-hclog v1.5.0
-	github.com/hashicorp/go-plugin v1.4.10
+	github.com/hashicorp/go-plugin v1.5.2
 	github.com/hashicorp/hcl v1.0.1-vault-5
 	github.com/hashicorp/vault/api v1.10.0
 	github.com/hashicorp/vault/sdk v0.9.2
@@ -230,7 +230,6 @@ require (
 	github.com/in-toto/in-toto-golang v0.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jedisct1/go-minisign v0.0.0-20211028175153-1c139d1cc84b // indirect
-	github.com/jhump/protoreflect v1.14.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
