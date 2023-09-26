@@ -3919,24 +3919,24 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 		name                 string
 		greaterThanEventID   uint
 		expectedEntryIDs     []string
-		expectedFirstEntryID uint
+		expectedFirstEventID uint
 	}{
 		{
 			name:                 "All Events",
 			greaterThanEventID:   0,
-			expectedFirstEntryID: 1,
+			expectedFirstEventID: 1,
 			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId, entry1.EntryId, entry2.EntryId},
 		},
 		{
 			name:                 "Half of the Events",
 			greaterThanEventID:   2,
-			expectedFirstEntryID: 3,
+			expectedFirstEventID: 3,
 			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId},
 		},
 		{
 			name:                 "None of the  Events",
 			greaterThanEventID:   4,
-			expectedFirstEntryID: 0,
+			expectedFirstEventID: 0,
 			expectedEntryIDs:     nil,
 		},
 	}
@@ -3946,7 +3946,7 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 				GreaterThanEventID: test.greaterThanEventID,
 			})
 			s.Require().NoError(err)
-			s.Require().Equal(test.expectedFirstEntryID, resp.FirstEventID)
+			s.Require().Equal(test.expectedFirstEventID, resp.FirstEventID)
 			s.Require().Equal(test.expectedEntryIDs, resp.EntryIDs)
 		})
 	}
