@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.31
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.7
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.22.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.119.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.120.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.22.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.24.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.39.0
@@ -58,7 +58,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/mitchellh/cli v1.1.5
-	github.com/open-policy-agent/opa v0.55.0
+	github.com/open-policy-agent/opa v0.56.0
 	github.com/prometheus/client_golang v1.16.0
 	github.com/shirou/gopsutil/v3 v3.23.8
 	github.com/sigstore/cosign/v2 v2.2.0
@@ -77,9 +77,9 @@ require (
 	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.12.0
 	golang.org/x/time v0.3.0
-	google.golang.org/api v0.141.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230911183012-2d3300fd4832
-	google.golang.org/grpc v1.57.0
+	google.golang.org/api v0.142.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230913181813-007df8e322eb
+	google.golang.org/grpc v1.58.2
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 	k8s.io/api v0.28.2
@@ -167,14 +167,13 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.10.2 // indirect
-	github.com/envoyproxy/protoc-gen-validate v1.0.1 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.0.2 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
-	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.0 // indirect
@@ -327,7 +326,7 @@ require (
 	golang.org/x/oauth2 v0.12.0 // indirect
 	golang.org/x/term v0.12.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
-	golang.org/x/tools v0.9.3 // indirect
+	golang.org/x/tools v0.10.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230803162519-f966b187b2e5 // indirect
