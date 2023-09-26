@@ -15,3 +15,15 @@ func StartListRegistrationEntriesEventsCall(m telemetry.Metrics) *telemetry.Call
 func StartPruneRegistrationEntriesEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntryEvent, telemetry.Prune)
 }
+
+// StartListAttestedNodesEventsCall return metric
+// for server's datastore, on listing attested node events.
+func StartListAttestedNodesEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.NodeEvent, telemetry.List)
+}
+
+// StartPruneAttestedNodesEventsCall return metric
+// for server's datastore, on pruning attested node events.
+func StartPruneAttestedNodesEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.NodeEvent, telemetry.Prune)
+}
