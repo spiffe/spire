@@ -84,6 +84,7 @@ func TestExternalPlugin(t *testing.T) {
 		testLoad(t, pluginPath, loadTest{
 			pluginMode: "bad",
 			expectErr: `failed to load plugin "test": failed to launch plugin: Unrecognized remote plugin message: 
+Failed to read any lines from plugin's stdout
 This usually means
   the plugin was not compiled for this architecture,
   the plugin is missing dynamic-link libraries necessary to run,
