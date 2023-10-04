@@ -48,7 +48,8 @@ func TestCache(t *testing.T) {
 	ds := fakedatastore.New(t)
 	ctx := context.Background()
 
-	const rootID = "spiffe://example.org/root"
+	rootID := spiffeid.RequireFromString("spiffe://example.org/root")
+
 	const serverID = "spiffe://example.org/spire/server"
 	const numEntries = 5
 	entryIDs := make([]string, numEntries)
@@ -56,7 +57,7 @@ func TestCache(t *testing.T) {
 		entryIDURI := url.URL{
 			Scheme: spiffeScheme,
 			Host:   trustDomain,
-			Path:   strconv.Itoa(i),
+			Path:   "/" + strconv.Itoa(i),
 		}
 
 		entryIDs[i] = entryIDURI.String()
@@ -80,12 +81,12 @@ func TestCache(t *testing.T) {
 
 	entriesToCreate := []*common.RegistrationEntry{
 		{
-			ParentId:  rootID,
+			ParentId:  rootID.String(),
 			SpiffeId:  entryIDs[0],
 			Selectors: irrelevantSelectors,
 		},
 		{
-			ParentId:  rootID,
+			ParentId:  rootID.String(),
 			SpiffeId:  entryIDs[1],
 			Selectors: irrelevantSelectors,
 		},
@@ -122,18 +123,12 @@ func TestCache(t *testing.T) {
 	createAttestedNode(t, ds, node)
 	setNodeSelectors(ctx, t, ds, entryIDs[1], a1, b2)
 
-	entriesPb, err := api.RegistrationEntriesToProto(entries)
-	require.NoError(t, err)
-
 	cache, err := BuildFromDataStore(context.Background(), ds)
 	assert.NoError(t, err)
 
-	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString(rootID))
-
-	// The node alias (entry 3) is not expected
-	expected := entriesPb[:3]
-	expected = append(expected, entriesPb[4])
-	spiretest.AssertProtoListEqual(t, expected, actual)
+	expected := entries[:3]
+	expected = append(expected, entries[4])
+	assertAuthorizedEntries(t, cache, rootID, expected...)
 }
 
 func TestCacheReturnsClonedEntries(t *testing.T) {
@@ -237,28 +232,9 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 	cache, err := BuildFromDataStore(context.Background(), ds)
 	assert.NoError(t, err)
 
-	sortEntries := func(es []*types.Entry) {
-		sort.Slice(es, func(a, b int) bool {
-			return es[a].Id < es[b].Id
-		})
-	}
-
-	assertAuthorizedEntries := func(agentID spiffeid.ID, entries ...*common.RegistrationEntry) {
-		t.Helper()
-		expected, err := api.RegistrationEntriesToProto(entries)
-		require.NoError(t, err)
-
-		authorizedEntries := cache.GetAuthorizedEntries(agentID)
-
-		sortEntries(expected)
-		sortEntries(authorizedEntries)
-
-		spiretest.AssertProtoListEqual(t, expected, authorizedEntries)
-	}
-
-	assertAuthorizedEntries(agentIDs[0], workloadEntries[:2]...)
-	assertAuthorizedEntries(agentIDs[1], workloadEntries[1])
-	assertAuthorizedEntries(agentIDs[2], workloadEntries[2])
+	assertAuthorizedEntries(t, cache, agentIDs[0], workloadEntries[:2]...)
+	assertAuthorizedEntries(t, cache, agentIDs[1], workloadEntries[1])
+	assertAuthorizedEntries(t, cache, agentIDs[2], workloadEntries[2])
 }
 
 func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T) {
@@ -521,7 +497,8 @@ func BenchmarkBuildSQL(b *testing.B) {
 	ds := newSQLPlugin(ctx, b)
 
 	for _, entry := range allEntries {
-		e, _ := api.ProtoToRegistrationEntry(context.Background(), td, entry)
+		e, err := api.ProtoToRegistrationEntry(context.Background(), td, entry)
+		require.NoError(b, err)
 		createRegistrationEntry(ctx, b, ds, e)
 	}
 
@@ -535,7 +512,8 @@ func BenchmarkBuildSQL(b *testing.B) {
 		}
 
 		createAttestedNode(b, ds, node)
-		ss, _ := api.SelectorsFromProto(agent.Selectors)
+		ss, err := api.SelectorsFromProto(agent.Selectors)
+		require.NoError(b, err)
 		setNodeSelectors(ctx, b, ds, agentIDStr, ss...)
 	}
 
@@ -744,7 +722,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 			Id: fmt.Sprintf("workload%d", i),
 			SpiffeId: &types.SPIFFEID{
 				TrustDomain: "domain.test",
-				Path:        fmt.Sprintf("workload%d", i),
+				Path:        fmt.Sprintf("/workload%d", i),
 			},
 			ParentId: aliasID1,
 			Selectors: []*types.Selector{
@@ -759,7 +737,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 			Id: fmt.Sprintf("workload%d", i),
 			SpiffeId: &types.SPIFFEID{
 				TrustDomain: "domain.test",
-				Path:        fmt.Sprintf("workload%d", i),
+				Path:        fmt.Sprintf("/workload%d", i),
 			},
 			ParentId: aliasID2,
 			Selectors: []*types.Selector{
@@ -815,4 +793,23 @@ func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.DataStore {
 	require.NoError(tb, err)
 
 	return p
+}
+
+func assertAuthorizedEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, entries ...*common.RegistrationEntry) {
+	tb.Helper()
+	expected, err := api.RegistrationEntriesToProto(entries)
+	require.NoError(tb, err)
+
+	authorizedEntries := cache.GetAuthorizedEntries(agentID)
+
+	sortEntries(expected)
+	sortEntries(authorizedEntries)
+
+	spiretest.AssertProtoListEqual(tb, expected, authorizedEntries)
+}
+
+func sortEntries(es []*types.Entry) {
+	sort.Slice(es, func(a, b int) bool {
+		return es[a].Id < es[b].Id
+	})
 }
