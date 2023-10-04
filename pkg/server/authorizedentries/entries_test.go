@@ -22,13 +22,10 @@ func TestEntryRecordByEntryID(t *testing.T) {
 		assert.Falsef(t, entryRecordByEntryID(greater, lesser), "expected E%sP%s>E%sP%s", greater.EntryID, greater.ParentID, lesser.EntryID, lesser.ParentID)
 	}
 
+	// ParentID is irrelevant.
 	records := []entryRecord{
-		entryRecord{EntryID: "1"},
-		entryRecord{EntryID: "1", ParentID: "1"},
 		entryRecord{EntryID: "1", ParentID: "2"},
-		entryRecord{EntryID: "2"},
 		entryRecord{EntryID: "2", ParentID: "1"},
-		entryRecord{EntryID: "2", ParentID: "2"},
 	}
 
 	lesser := entryRecord{}

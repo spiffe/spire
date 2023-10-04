@@ -8,6 +8,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -16,10 +17,11 @@ import (
 
 var (
 	td        = spiffeid.RequireTrustDomainFromString("domain.test")
-	server    = spiffeid.RequireFromPath(td, "/spire/server")
+	server    = spiffeid.RequireFromPath(td, idutil.ServerIDPath)
 	agent1    = spiffeid.RequireFromPath(td, "/spire/agent/1")
 	agent2    = spiffeid.RequireFromPath(td, "/spire/agent/2")
 	agent3    = spiffeid.RequireFromPath(td, "/spire/agent/3")
+	agent4    = spiffeid.RequireFromPath(td, "/spire/agent/4")
 	delegatee = spiffeid.RequireFromPath(td, "/delegatee")
 	alias1    = spiffeid.RequireFromPath(td, "/alias/1")
 	alias2    = spiffeid.RequireFromPath(td, "/alias/2")
@@ -143,13 +145,22 @@ func TestGetAuthorizedEntries(t *testing.T) {
 
 		cache := testCache().
 			withEntries(workloadEntry, aliasEntry).
-			withExpiredAgent(agent1, sel1, sel2).
+			withExpiredAgent(agent1, time.Hour, sel1, sel2).
+			withExpiredAgent(agent2, time.Hour, sel1, sel2).
+			withExpiredAgent(agent3, time.Hour*2, sel1, sel2).
+			withAgent(agent4, sel1, sel2).
 			hydrate()
 		assertAuthorizedEntries(t, cache, agent1, workloadEntry)
+		assertAuthorizedEntries(t, cache, agent2, workloadEntry)
+		assertAuthorizedEntries(t, cache, agent3, workloadEntry)
+		assertAuthorizedEntries(t, cache, agent4, workloadEntry)
 
-		assert.Equal(t, 1, cache.PruneExpiredAgents())
+		assert.Equal(t, 3, cache.PruneExpiredAgents())
 
 		assertAuthorizedEntries(t, cache, agent1)
+		assertAuthorizedEntries(t, cache, agent2)
+		assertAuthorizedEntries(t, cache, agent3)
+		assertAuthorizedEntries(t, cache, agent4, workloadEntry)
 	})
 }
 
@@ -198,6 +209,10 @@ func TestCacheInternalStats(t *testing.T) {
 			AliasesBySelector: 2, // one for each selector
 		}, cache.stats())
 
+		cache.RemoveEntry(entry2b.Id)
+		require.Zero(t, cache.stats())
+
+		// Remove again and make sure nothing happens.
 		cache.RemoveEntry(entry2b.Id)
 		require.Zero(t, cache.stats())
 	})
@@ -273,8 +288,8 @@ func (a *cacheTest) withAgent(node spiffeid.ID, selectors ...*types.Selector) *c
 	return a
 }
 
-func (a *cacheTest) withExpiredAgent(node spiffeid.ID, selectors ...*types.Selector) *cacheTest {
-	expiresAt := now.Add(-time.Hour * time.Duration(1+len(a.agents)))
+func (a *cacheTest) withExpiredAgent(node spiffeid.ID, expiredBy time.Duration, selectors ...*types.Selector) *cacheTest {
+	expiresAt := now.Add(-expiredBy)
 	a.agents[node] = agentInfo{
 		ExpiresAt: expiresAt,
 		Selectors: append([]*types.Selector(nil), selectors...),
@@ -352,14 +367,14 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 		&types.Entry{
 			Id:        "alias1",
 			SpiffeId:  aliasID1,
-			ParentId:  &types.SPIFFEID{TrustDomain: "domain.test", Path: "/spire/server"},
+			ParentId:  &types.SPIFFEID{TrustDomain: "domain.test", Path: idutil.ServerIDPath},
 			Selectors: []*types.Selector{staticSelector1},
 		},
 		// False alias
 		&types.Entry{
 			Id:        "alias2",
 			SpiffeId:  aliasID2,
-			ParentId:  &types.SPIFFEID{TrustDomain: "domain.test", Path: "/spire/server"},
+			ParentId:  &types.SPIFFEID{TrustDomain: "domain.test", Path: idutil.ServerIDPath},
 			Selectors: []*types.Selector{staticSelector2},
 		},
 	)

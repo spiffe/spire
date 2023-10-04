@@ -15,14 +15,7 @@ type entryRecord struct {
 }
 
 func entryRecordByEntryID(a, b entryRecord) bool {
-	switch {
-	case a.EntryID < b.EntryID:
-		return true
-	case a.EntryID > b.EntryID:
-		return false
-	default:
-		return a.ParentID < b.ParentID
-	}
+	return a.EntryID < b.EntryID
 }
 
 func entryRecordByParentID(a, b entryRecord) bool {

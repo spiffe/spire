@@ -8,10 +8,16 @@ import (
 	"github.com/google/btree"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 )
 
 const (
-	// TODO: tweak these degrees for optimal L1 cache use
+	// We can tweak these degrees to try and get optimal L1 cache use but
+	// it's probably not worth it unless we have benchmarks showing that it
+	// is a problem at scale in production. Initial benchmarking by myself
+	// at similar scale to some of our bigger, existing deployments didn't
+	// seem to yield much difference. As such, these values are probably an
+	// ok jumping off point.
 	agentRecordDegree = 32
 	aliasRecordDegree = 32
 	entryDegree       = 32
@@ -104,7 +110,7 @@ func (c *Cache) UpdateAgent(agentID string, expiresAt time.Time, selectors []*ty
 		Selectors: selectorSetFromProto(selectors),
 	}
 
-	// Need to delete existing reord from the ExpiresAt index first. Use
+	// Need to delete existing record from the ExpiresAt index first. Use
 	// the ID index to locate the existing record.
 	if existing, exists := c.agentsByID.Get(agent); exists {
 		c.agentsByExpiresAt.Delete(existing)
@@ -135,7 +141,7 @@ func (c *Cache) PruneExpiredAgents() int {
 			return pruned
 		}
 		c.agentsByID.Delete(record)
-		c.agentsByExpiresAt.DeleteMin()
+		c.agentsByExpiresAt.Delete(record)
 		pruned++
 	}
 }
@@ -146,12 +152,24 @@ func (c *Cache) appendDescendents(records []entryRecord, parentID string, parent
 	}
 	parentSeen[parentID] = struct{}{}
 
-	before := records
+	lenBefore := len(records)
 	records = c.appendEntryRecordsForParentID(records, parentID)
 	// Crawl the children that were appended to get their descendents
-	for _, entry := range records[len(before):] {
+	for _, entry := range records[lenBefore:] {
 		records = c.appendDescendents(records, entry.SPIFFEID, parentSeen)
 	}
+	return records
+}
+
+func (c *Cache) appendEntryRecordsForParentID(records []entryRecord, parentID string) []entryRecord {
+	pivot := entryRecord{ParentID: parentID}
+	c.entriesByParentID.AscendGreaterOrEqual(pivot, func(record entryRecord) bool {
+		if record.ParentID != parentID {
+			return false
+		}
+		records = append(records, record)
+		return true
+	})
 	return records
 }
 
@@ -181,18 +199,6 @@ func (c *Cache) getAgentAliases(agentSelectors selectorSet) []aliasRecord {
 	return aliasIDs
 }
 
-func (c *Cache) appendEntryRecordsForParentID(records []entryRecord, parentID string) []entryRecord {
-	pivot := entryRecord{ParentID: parentID}
-	c.entriesByParentID.AscendGreaterOrEqual(pivot, func(record entryRecord) bool {
-		if record.ParentID != parentID {
-			return false
-		}
-		records = append(records, record)
-		return true
-	})
-	return records
-}
-
 func (c *Cache) updateEntry(entry *types.Entry) {
 	if isNodeAlias(entry) {
 		ar := aliasRecord{
@@ -205,18 +211,19 @@ func (c *Cache) updateEntry(entry *types.Entry) {
 			c.aliasesByEntryID.ReplaceOrInsert(ar)
 			c.aliasesBySelector.ReplaceOrInsert(ar)
 		}
-	} else {
-		er := entryRecord{
-			EntryID:  entry.Id,
-			SPIFFEID: spiffeIDFromProto(entry.SpiffeId),
-			ParentID: spiffeIDFromProto(entry.ParentId),
-			// For quick cloning at the end of the crawl so we don't have to have
-			// a separate data structure for looking up entries by id.
-			EntryCloneOnly: entry,
-		}
-		c.entriesByParentID.ReplaceOrInsert(er)
-		c.entriesByEntryID.ReplaceOrInsert(er)
+		return
 	}
+
+	er := entryRecord{
+		EntryID:  entry.Id,
+		SPIFFEID: spiffeIDFromProto(entry.SpiffeId),
+		ParentID: spiffeIDFromProto(entry.ParentId),
+		// For quick cloning at the end of the crawl so we don't have to have
+		// a separate data structure for looking up entries by id.
+		EntryCloneOnly: entry,
+	}
+	c.entriesByParentID.ReplaceOrInsert(er)
+	c.entriesByEntryID.ReplaceOrInsert(er)
 }
 
 func (c *Cache) removeEntry(entryID string) {
@@ -234,6 +241,11 @@ func (c *Cache) removeEntry(entryID string) {
 	for _, record := range entryRecordsToDelete {
 		c.entriesByEntryID.Delete(record)
 		c.entriesByParentID.Delete(record)
+	}
+
+	if len(entryRecordsToDelete) > 0 {
+		// entry was a normal workload registration. No need to search the aliases.
+		return
 	}
 
 	var aliasRecordsToDelete []aliasRecord
@@ -268,7 +280,7 @@ func spiffeIDFromProto(id *types.SPIFFEID) string {
 }
 
 func isNodeAlias(e *types.Entry) bool {
-	return e.ParentId.Path == "/spire/server"
+	return e.ParentId.Path == idutil.ServerIDPath
 }
 
 type cacheStats struct {
