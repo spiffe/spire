@@ -71,7 +71,12 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 		fanout := metrics.FanoutSink{}
 		fanout = append(fanout, runner.sinks()...)
 
-		conf := metrics.DefaultConfig(c.ServiceName)
+		metricsPrefix := c.ServiceName
+		if c.FileConfig.MetricPrefix != "" {
+			metricsPrefix = c.FileConfig.MetricPrefix
+		}
+
+		conf := metrics.DefaultConfig(metricsPrefix)
 		conf.EnableHostname = false
 		conf.EnableHostnameLabel = true
 		conf.EnableTypePrefix = runner.requiresTypePrefix()

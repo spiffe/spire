@@ -19,6 +19,7 @@ type FileConfig struct {
 	M3         []M3Config        `hcl:"M3"`
 	InMem      *InMem            `hcl:"InMem"`
 
+	MetricPrefix    string   `hcl:"MetricPrefix"`
 	AllowedPrefixes []string `hcl:"AllowedPrefixes"` // A list of metric prefixes to allow, with '.' as the separator
 	BlockedPrefixes []string `hcl:"BlockedPrefixes"` // A list of metric prefixes to block, with '.' as the separator
 	AllowedLabels   []string `hcl:"AllowedLabels"`   // A list of metric labels to allow, with '.' as the separator
