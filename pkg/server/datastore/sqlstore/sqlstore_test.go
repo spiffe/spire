@@ -1523,7 +1523,7 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 			name:                 "None of the  Events",
 			greaterThanEventID:   4,
 			expectedFirstEventID: 0,
-			expectedSpiffeIDs:    nil,
+			expectedSpiffeIDs:    []string{},
 		},
 	}
 	for _, test := range tests {
@@ -1564,7 +1564,7 @@ func (s *PluginSuite) TestPruneAttestedNodesEvents() {
 		{
 			name:              "Prune old events",
 			olderThan:         0 * time.Second,
-			expectedSpiffeIDs: nil,
+			expectedSpiffeIDs: []string{},
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -3937,7 +3937,7 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 			name:                 "None of the  Events",
 			greaterThanEventID:   4,
 			expectedFirstEventID: 0,
-			expectedEntryIDs:     nil,
+			expectedEntryIDs:     []string{},
 		},
 	}
 	for _, test := range tests {
@@ -3979,7 +3979,7 @@ func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
 		{
 			name:             "Prune old events",
 			olderThan:        0 * time.Second,
-			expectedEntryIDs: nil,
+			expectedEntryIDs: []string{},
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
