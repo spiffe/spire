@@ -1472,8 +1472,9 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 		return nil, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.ListAttestedNodesEventsResponse{}
-	resp.SpiffeIDs = make([]string, 0, len(events))
+	resp := &datastore.ListAttestedNodesEventsResponse{
+		SpiffeIDs: make([]string, 0, len(events)),
+	}
 	for _, event := range events {
 		resp.SpiffeIDs = append(resp.SpiffeIDs, event.SpiffeID)
 	}
@@ -3736,8 +3737,9 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 		return nil, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.ListRegistrationEntriesEventsResponse{}
-	resp.EntryIDs = make([]string, 0, len(events))
+	resp := &datastore.ListRegistrationEntriesEventsResponse{
+		EntryIDs: make([]string, 0, len(events)),
+	}
 	for _, event := range events {
 		resp.EntryIDs = append(resp.EntryIDs, event.EntryID)
 	}
