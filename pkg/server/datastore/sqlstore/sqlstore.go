@@ -1468,7 +1468,7 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 	}
 
 	var events []AttestedNodeEvent
-	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Error; err != nil {
+	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Order("id asc").Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
@@ -3731,7 +3731,7 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	}
 
 	var events []RegisteredEntryEvent
-	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Error; err != nil {
+	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Order("id asc").Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
