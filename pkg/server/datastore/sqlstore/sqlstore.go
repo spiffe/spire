@@ -257,7 +257,7 @@ func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedN
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		attestedNode, err = ds.createAttestedNode(tx, node)
+		attestedNode, err = createAttestedNode(tx, node)
 		if err != nil {
 			return err
 		}
@@ -1357,7 +1357,7 @@ func getBundle(tx *gorm.DB, trustDomainID string) (*common.Bundle, error) {
 	return bundle, nil
 }
 
-func (ds *Plugin) createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.AttestedNode, error) {
+func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.AttestedNode, error) {
 	model := AttestedNode{
 		SpiffeID:        node.SpiffeId,
 		DataType:        node.AttestationDataType,
