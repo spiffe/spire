@@ -40,6 +40,7 @@ require (
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/golang/protobuf v1.5.3
+	github.com/google/btree v1.1.2
 	github.com/google/go-cmp v0.5.9
 	github.com/google/go-containerregistry v0.16.1
 	github.com/google/go-tpm v0.9.0
@@ -50,7 +51,7 @@ require (
 	github.com/hashicorp/go-plugin v1.5.2
 	github.com/hashicorp/hcl v1.0.1-vault-5
 	github.com/hashicorp/vault/api v1.10.0
-	github.com/hashicorp/vault/sdk v0.9.2
+	github.com/hashicorp/vault/sdk v0.10.0
 	github.com/imdario/mergo v0.3.15
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
@@ -86,7 +87,7 @@ require (
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
 	k8s.io/kube-aggregator v0.28.2
-	sigs.k8s.io/controller-runtime v0.16.0
+	sigs.k8s.io/controller-runtime v0.16.2
 )
 
 require (
