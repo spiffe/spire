@@ -287,14 +287,14 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		err := m.synchronize(ctx)
 		switch {
 		case err != nil && nodeutil.ShouldAgentReattest(err):
-			m.c.Log.WithError(err).Error("Synchronize failed")
-			return err
+			fallthrough
 		case nodeutil.ShouldAgentShutdown(err):
 			m.c.Log.WithError(err).Error("Synchronize failed")
 			return err
 		case err != nil:
-			// Just log the error and wait for next synchronization
 			m.c.Log.WithError(err).Error("Synchronize failed")
+			// Increase sync interval and wait for next synchronization
+			syncInterval = m.synchronizeBackoff.NextBackOff()
 		default:
 			m.synchronizeBackoff.Reset()
 			syncInterval = m.synchronizeBackoff.NextBackOff()
