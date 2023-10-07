@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/sirupsen/logrus/hooks/test"
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ func TestServerEnabled(t *testing.T) {
 }
 
 func TestCheckerListeners(t *testing.T) {
-	log, _ := test.NewNullLogger()
+	log, _ := logtest.NewNullLogger()
 	config := Config{
 		ListenerEnabled: true,
 		BindAddress:     "localhost",
