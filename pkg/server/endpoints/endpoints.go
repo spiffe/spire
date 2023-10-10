@@ -117,7 +117,10 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 
 	pruneEventsFn := func(ctx context.Context, olderThan time.Duration) error {
 		ds := c.Catalog.GetDataStore()
-		return ds.PruneRegistrationEntriesEvents(ctx, olderThan)
+		if err := ds.PruneRegistrationEntriesEvents(ctx, olderThan); err != nil {
+			return err
+		}
+		return ds.PruneAttestedNodesEvents(ctx, olderThan)
 	}
 
 	if c.CacheReloadInterval == 0 {

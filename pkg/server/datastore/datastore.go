@@ -52,6 +52,10 @@ type DataStore interface {
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
+	// Nodes Events
+	ListAttestedNodesEvents(ctx context.Context, req *ListAttestedNodesEventsRequest) (*ListAttestedNodesEventsResponse, error)
+	PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) error
+
 	// Node selectors
 	GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency DataConsistency) ([]*common.Selector, error)
 	ListNodeSelectors(context.Context, *ListNodeSelectorsRequest) (*ListNodeSelectorsResponse, error)
@@ -152,6 +156,15 @@ type ListAttestedNodesRequest struct {
 type ListAttestedNodesResponse struct {
 	Nodes      []*common.AttestedNode
 	Pagination *Pagination
+}
+
+type ListAttestedNodesEventsRequest struct {
+	GreaterThanEventID uint
+}
+
+type ListAttestedNodesEventsResponse struct {
+	SpiffeIDs    []string
+	FirstEventID uint
 }
 
 type ListBundlesRequest struct {

@@ -672,6 +672,9 @@ const (
 	// to add clarity
 	Node = "node"
 
+	// NodeEvent functionality related to a node entity or type being created, updated, or deleted
+	NodeEvent = "node_event"
+
 	// Notifier functionality related to some notifying entity; should be used with other tags
 	// to add clarity
 	Notifier = "notifier"

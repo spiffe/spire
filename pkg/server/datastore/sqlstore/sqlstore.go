@@ -258,7 +258,10 @@ func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedN
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		attestedNode, err = createAttestedNode(tx, node)
-		return err
+		if err != nil {
+			return err
+		}
+		return createAttestedNodeEvent(tx, node.SpiffeId)
 	}); err != nil {
 		return nil, err
 	}
@@ -305,7 +308,10 @@ func (ds *Plugin) ListAttestedNodes(ctx context.Context,
 func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode, mask *common.AttestedNodeMask) (node *common.AttestedNode, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		node, err = updateAttestedNode(tx, n, mask)
-		return err
+		if err != nil {
+			return err
+		}
+		return createAttestedNodeEvent(tx, n.SpiffeId)
 	}); err != nil {
 		return nil, err
 	}
@@ -316,11 +322,33 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		attestedNode, err = deleteAttestedNodeAndSelectors(tx, spiffeID)
-		return err
+		if err != nil {
+			return err
+		}
+		return createAttestedNodeEvent(tx, spiffeID)
 	}); err != nil {
 		return nil, err
 	}
 	return attestedNode, nil
+}
+
+// ListAttestedNodesEvents lists all attested node events
+func (ds *Plugin) ListAttestedNodesEvents(ctx context.Context, req *datastore.ListAttestedNodesEventsRequest) (resp *datastore.ListAttestedNodesEventsResponse, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = listAttestedNodesEvents(tx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// PruneAttestedNodesEvents deletes all attested node events older than a specified duration (i.e. more than 24 hours old)
+func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) (err error) {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		err = pruneAttestedNodesEvents(tx, olderThan)
+		return err
+	})
 }
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
@@ -1416,6 +1444,57 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, r
 
 		req.Pagination = resp.Pagination
 	}
+}
+
+func createAttestedNodeEvent(tx *gorm.DB, spiffeID string) error {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return nil
+	}
+
+	newAttestedNodeEvent := AttestedNodeEvent{
+		SpiffeID: spiffeID,
+	}
+
+	if err := tx.Create(&newAttestedNodeEvent).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
+}
+
+func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEventsRequest) (*datastore.ListAttestedNodesEventsResponse, error) {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return &datastore.ListAttestedNodesEventsResponse{}, nil
+	}
+
+	var events []AttestedNodeEvent
+	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Order("id asc").Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	resp := &datastore.ListAttestedNodesEventsResponse{
+		SpiffeIDs: make([]string, 0, len(events)),
+	}
+	for _, event := range events {
+		resp.SpiffeIDs = append(resp.SpiffeIDs, event.SpiffeID)
+	}
+	if len(events) > 0 {
+		resp.FirstEventID = events[0].ID
+	}
+
+	return resp, nil
+}
+
+func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration) error {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return nil
+	}
+
+	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&AttestedNodeEvent{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
 }
 
 // filterNodesBySelectorSet filters nodes based on provided selectors
@@ -3654,11 +3733,13 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	}
 
 	var events []RegisteredEntryEvent
-	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Error; err != nil {
+	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Order("id asc").Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
-	resp := &datastore.ListRegistrationEntriesEventsResponse{}
+	resp := &datastore.ListRegistrationEntriesEventsResponse{
+		EntryIDs: make([]string, 0, len(events)),
+	}
 	for _, event := range events {
 		resp.EntryIDs = append(resp.EntryIDs, event.EntryID)
 	}
