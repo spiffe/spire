@@ -163,6 +163,20 @@ func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*c
 	return s.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
+func (s *DataStore) ListAttestedNodesEvents(ctx context.Context, req *datastore.ListAttestedNodesEventsRequest) (*datastore.ListAttestedNodesEventsResponse, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.ListAttestedNodesEvents(ctx, req)
+}
+
+func (s *DataStore) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.PruneAttestedNodesEvents(ctx, olderThan)
+}
+
 func (s *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
 	if err := s.getNextError(); err != nil {
 		return err
