@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.3] - 2023-10-10
+
+### Security
+
+- Updated to Go 1.20.10 to address CVE-2023-39325, CVE-2023-44487
+
 ## [1.7.2] - 2023-08-16
 
 ### Added
