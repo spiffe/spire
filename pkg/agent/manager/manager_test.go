@@ -963,6 +963,91 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 	require.Equal(t, clk.Now(), m.GetLastSync())
 }
 
+func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	startAt := time.Now()
+	clk := clock.NewMockAt(t, startAt)
+	actualSyncIntervals := []time.Duration{}
+	clk.SetAfterHook(func(d time.Duration) <-chan time.Time {
+		actualSyncIntervals = append(actualSyncIntervals, d)
+		c := make(chan time.Time, 1)
+		c <- startAt.Add(time.Second)
+		return c
+	})
+	timeout := time.Second * 10
+	getAuthorizedEntriesAttempts := 0
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			// simulate 2 consecutive cache misses in server
+			getAuthorizedEntriesAttempts++
+			if getAuthorizedEntriesAttempts < 3 {
+				return &entryv1.GetAuthorizedEntriesResponse{
+					Entries: []*types.Entry{},
+				}, nil
+			}
+			// stop the sync loop with returning the entries because we will now wait for the long 'SyncInterval'
+			cancel()
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		svidTTL: 100,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		RotationInterval: time.Hour,
+		// set sync interval to a high value to proof that synchronizer retries sync
+		// with the lower default interval in case 0 entries are returned
+		SyncInterval:    time.Hour,
+		Clk:             clk,
+		Catalog:         cat,
+		WorkloadKeyType: workloadkey.ECP256,
+		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+	}
+
+	m := newManager(c)
+
+	// initialize generates the first attempt at fetching entries
+	if err := m.Initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := m.runSynchronizer(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	// m.runSynchronizer should fetch the entries 2 more times, totalling 3 attempts
+	if getAuthorizedEntriesAttempts != 3 {
+		t.Fatalf("did not attempt to fetch entries 3 times; attempts: %d", getAuthorizedEntriesAttempts)
+	}
+
+	// m.runSynchronizer should sync 2 times with the faster "defaultSyncInterval" after no entries are returned
+	if (actualSyncIntervals[0] != defaultSyncInterval) || (actualSyncIntervals[1] != defaultSyncInterval) {
+		t.Fatalf("did not do a fast sync retry after 0 SVIDs were returned; sync intervals: %v", actualSyncIntervals)
+	}
+}
+
 func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
