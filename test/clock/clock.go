@@ -20,6 +20,7 @@ type Mock struct {
 	tickerC     chan time.Duration
 	tickerCount atomic.Int32
 	sleepC      chan time.Duration
+	afterHook   func(time.Duration) <-chan time.Time
 }
 
 // NewMock creates a mock clock which can be precisely controlled
@@ -47,6 +48,10 @@ func NewMockAt(t testing.TB, now time.Time) *Mock {
 	// and then this can be removed as a clock could be use with a zero value at that point.
 	m.Set(now.Truncate(time.Second))
 	return m
+}
+
+func (m *Mock) SetAfterHook(h func(time.Duration) <-chan time.Time) {
+	m.afterHook = h
 }
 
 func (m *Mock) TimerCh() <-chan time.Duration {
@@ -117,6 +122,9 @@ func (m *Mock) Timer(d time.Duration) *clock.Timer {
 
 // After waits for the duration to elapse and then sends the current time on the returned channel.
 func (m *Mock) After(d time.Duration) <-chan time.Time {
+	if m.afterHook != nil {
+		return m.afterHook(d)
+	}
 	c := m.Mock.After(d)
 	select {
 	case m.afterC <- d:
