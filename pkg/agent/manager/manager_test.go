@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	realClock "github.com/andres-erbsen/clock"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -968,7 +967,15 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
 
-	clk := realClock.New()
+	startAt := time.Now()
+	clk := clock.NewMockAt(t, startAt)
+	actualSyncIntervals := []time.Duration{}
+	clk.SetAfterHook(func(d time.Duration) <-chan time.Time {
+		actualSyncIntervals = append(actualSyncIntervals, d)
+		c := make(chan time.Time, 1)
+		c <- startAt.Add(time.Second)
+		return c
+	})
 	timeout := time.Second * 10
 	getAuthorizedEntriesAttempts := 0
 
@@ -1026,21 +1033,18 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	startTime := clk.Now()
-	// override default sync interval to 1 microsecond (used for retry if 0 SVIDs are cached)
-	defaultSyncInterval = time.Microsecond
-
 	if err := m.runSynchronizer(ctx); err != nil {
 		t.Fatal(err)
 	}
 
-	// m.runSynchronizer should attempt to quickly fetch the entries 2 more times, totalling 3 attempts
+	// m.runSynchronizer should fetch the entries 2 more times, totalling 3 attempts
 	if getAuthorizedEntriesAttempts != 3 {
 		t.Fatalf("did not attempt to fetch entries 3 times; attempts: %d", getAuthorizedEntriesAttempts)
 	}
-	// m.runSynchronizer should retry with 'defaultSyncInterval', which is set to 1 microsecond
-	if startTime.Add(timeout).Before(clk.Now()) {
-		t.Fatalf("did not do a fast sync retry after 0 SVIDs were returned; took %v", clk.Now().Sub(startTime))
+
+	// m.runSynchronizer should sync 2 times with the faster "defaultSyncInterval" after no entries are returned
+	if (actualSyncIntervals[0] != defaultSyncInterval) || (actualSyncIntervals[1] != defaultSyncInterval) {
+		t.Fatalf("did not do a fast sync retry after 0 SVIDs were returned; sync intervals: %v", actualSyncIntervals)
 	}
 }
 

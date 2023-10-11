@@ -32,10 +32,9 @@ const (
 	synchronizeMaxIntervalMultiple = 48
 	// for larger sync interval set max interval as 8 mins
 	synchronizeMaxInterval = 8 * time.Minute
+	// default sync interval is used between retries of initial sync
+	defaultSyncInterval = 5 * time.Second
 )
-
-// default sync interval is used between retries of initial sync
-var defaultSyncInterval = 5 * time.Second
 
 // Manager provides cache management functionalities for agents.
 type Manager interface {
