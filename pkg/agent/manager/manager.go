@@ -32,6 +32,8 @@ const (
 	synchronizeMaxIntervalMultiple = 48
 	// for larger sync interval set max interval as 8 mins
 	synchronizeMaxInterval = 8 * time.Minute
+	// default sync interval is used between retries of initial sync
+	defaultSyncInterval = 5 * time.Second
 )
 
 // Manager provides cache management functionalities for agents.
@@ -159,10 +161,9 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
 	m.storeBundle(m.cache.Bundle())
 
-	synchronizeBackoffMaxInterval := synchronizeMaxIntervalMultiple * m.c.SyncInterval
-	if synchronizeBackoffMaxInterval > synchronizeMaxInterval {
-		synchronizeBackoffMaxInterval = synchronizeMaxInterval
-	}
+	// upper limit of backoff is 8 mins
+	synchronizeBackoffMaxInterval := min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*m.c.SyncInterval)
+
 	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval, backoff.WithMaxInterval(synchronizeBackoffMaxInterval))
 	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
 	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
@@ -274,9 +275,10 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
+	syncInterval := min(m.synchronizeBackoff.NextBackOff(), defaultSyncInterval)
 	for {
 		select {
-		case <-m.clk.After(m.synchronizeBackoff.NextBackOff()):
+		case <-m.clk.After(syncInterval):
 		case <-ctx.Done():
 			return nil
 		}
@@ -284,16 +286,23 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		err := m.synchronize(ctx)
 		switch {
 		case err != nil && nodeutil.ShouldAgentReattest(err):
-			m.c.Log.WithError(err).Error("Synchronize failed")
-			return err
+			fallthrough
 		case nodeutil.ShouldAgentShutdown(err):
 			m.c.Log.WithError(err).Error("Synchronize failed")
 			return err
 		case err != nil:
-			// Just log the error and wait for next synchronization
 			m.c.Log.WithError(err).Error("Synchronize failed")
+			// Increase sync interval and wait for next synchronization
+			syncInterval = m.synchronizeBackoff.NextBackOff()
 		default:
 			m.synchronizeBackoff.Reset()
+			syncInterval = m.synchronizeBackoff.NextBackOff()
+
+			// Clamp the sync interval to the default value when the agent doesn't have any SVIDs cached
+			// AND the previous sync request succeeded
+			if m.cache.CountSVIDs() == 0 {
+				syncInterval = min(syncInterval, defaultSyncInterval)
+			}
 		}
 	}
 }

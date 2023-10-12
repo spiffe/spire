@@ -1451,6 +1451,134 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	})
 }
 
+func (s *PluginSuite) TestListAttestedNodesEvents() {
+	var expectedSpiffeIDs []string
+
+	// Create an attested node
+	node1, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+	expectedSpiffeIDs = append(expectedSpiffeIDs, node1.SpiffeId)
+
+	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedSpiffeIDs, resp.SpiffeIDs)
+
+	// Create second attested node
+	node2, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            "bar",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+	expectedSpiffeIDs = append(expectedSpiffeIDs, node2.SpiffeId)
+
+	resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedSpiffeIDs, resp.SpiffeIDs)
+
+	// Update first attested node
+	updatedNode, err := s.ds.UpdateAttestedNode(ctx, node1, nil)
+	s.Require().NoError(err)
+	expectedSpiffeIDs = append(expectedSpiffeIDs, updatedNode.SpiffeId)
+
+	resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedSpiffeIDs, resp.SpiffeIDs)
+
+	// Delete second atttested node
+	deletedNode, err := s.ds.DeleteAttestedNode(ctx, node2.SpiffeId)
+	s.Require().NoError(err)
+	expectedSpiffeIDs = append(expectedSpiffeIDs, deletedNode.SpiffeId)
+
+	resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedSpiffeIDs, resp.SpiffeIDs)
+
+	// Check filtering events by id
+	tests := []struct {
+		name                 string
+		greaterThanEventID   uint
+		expectedSpiffeIDs    []string
+		expectedFirstEventID uint
+	}{
+		{
+			name:                 "All Events",
+			greaterThanEventID:   0,
+			expectedFirstEventID: 1,
+			expectedSpiffeIDs:    []string{node1.SpiffeId, node2.SpiffeId, node1.SpiffeId, node2.SpiffeId},
+		},
+		{
+			name:                 "Half of the Events",
+			greaterThanEventID:   2,
+			expectedFirstEventID: 3,
+			expectedSpiffeIDs:    []string{node1.SpiffeId, node2.SpiffeId},
+		},
+		{
+			name:                 "None of the  Events",
+			greaterThanEventID:   4,
+			expectedFirstEventID: 0,
+			expectedSpiffeIDs:    []string{},
+		},
+	}
+	for _, test := range tests {
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{
+				GreaterThanEventID: test.greaterThanEventID,
+			})
+			s.Require().NoError(err)
+			s.Require().Equal(test.expectedFirstEventID, resp.FirstEventID)
+			s.Require().Equal(test.expectedSpiffeIDs, resp.SpiffeIDs)
+		})
+	}
+}
+
+func (s *PluginSuite) TestPruneAttestedNodesEvents() {
+	node, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+
+	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(node.SpiffeId, resp.SpiffeIDs[0])
+
+	for _, tt := range []struct {
+		name              string
+		olderThan         time.Duration
+		expectedSpiffeIDs []string
+	}{
+		{
+			name:              "Don't prune valid events",
+			olderThan:         1 * time.Hour,
+			expectedSpiffeIDs: []string{node.SpiffeId},
+		},
+		{
+			name:              "Prune old events",
+			olderThan:         0 * time.Second,
+			expectedSpiffeIDs: []string{},
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			s.Require().Eventuallyf(func() bool {
+				err = s.ds.PruneAttestedNodesEvents(ctx, tt.olderThan)
+				s.Require().NoError(err)
+				resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+				s.Require().NoError(err)
+				return reflect.DeepEqual(tt.expectedSpiffeIDs, resp.SpiffeIDs)
+			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
+		})
+	}
+}
+
 func (s *PluginSuite) TestNodeSelectors() {
 	foo1 := []*common.Selector{
 		{Type: "FOO1", Value: "1"},
@@ -3791,25 +3919,25 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 		name                 string
 		greaterThanEventID   uint
 		expectedEntryIDs     []string
-		expectedFirstEntryID uint
+		expectedFirstEventID uint
 	}{
 		{
 			name:                 "All Events",
 			greaterThanEventID:   0,
-			expectedFirstEntryID: 1,
+			expectedFirstEventID: 1,
 			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId, entry1.EntryId, entry2.EntryId},
 		},
 		{
 			name:                 "Half of the Events",
 			greaterThanEventID:   2,
-			expectedFirstEntryID: 3,
+			expectedFirstEventID: 3,
 			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId},
 		},
 		{
 			name:                 "None of the  Events",
 			greaterThanEventID:   4,
-			expectedFirstEntryID: 0,
-			expectedEntryIDs:     nil,
+			expectedFirstEventID: 0,
+			expectedEntryIDs:     []string{},
 		},
 	}
 	for _, test := range tests {
@@ -3818,7 +3946,7 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 				GreaterThanEventID: test.greaterThanEventID,
 			})
 			s.Require().NoError(err)
-			s.Require().Equal(test.expectedFirstEntryID, resp.FirstEventID)
+			s.Require().Equal(test.expectedFirstEventID, resp.FirstEventID)
 			s.Require().Equal(test.expectedEntryIDs, resp.EntryIDs)
 		})
 	}
@@ -3851,7 +3979,7 @@ func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
 		{
 			name:             "Prune old events",
 			olderThan:        0 * time.Second,
-			expectedEntryIDs: nil,
+			expectedEntryIDs: []string{},
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
