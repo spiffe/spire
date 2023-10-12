@@ -6,7 +6,6 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	prototypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 
@@ -59,7 +58,7 @@ func (g *generateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClien
 	return g.printer.PrintProto(resp)
 }
 
-func getID(spiffeID string) (*types.SPIFFEID, error) {
+func getID(spiffeID string) (*prototypes.SPIFFEID, error) {
 	if spiffeID == "" {
 		return nil, nil
 	}
@@ -68,7 +67,7 @@ func getID(spiffeID string) (*types.SPIFFEID, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &types.SPIFFEID{
+	return &prototypes.SPIFFEID{
 		TrustDomain: id.TrustDomain().Name(),
 		Path:        id.Path(),
 	}, nil
