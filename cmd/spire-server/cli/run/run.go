@@ -101,6 +101,8 @@ type experimentalConfig struct {
 	AuthOpaPolicyEngine  *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 	CacheReloadInterval  string                      `hcl:"cache_reload_interval"`
 	PruneEventsOlderThan string                      `hcl:"prune_events_older_than"`
+	// Temporary flag to allow disabling the inclusion of serial number in X509 CAs Subject field
+	ExcludeSNFromCASubject bool `hcl:"exclude_sn_from_ca_subject"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -668,6 +670,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
+	sc.ExcludeSNFromCASubject = c.Server.Experimental.ExcludeSNFromCASubject
 
 	for _, f := range c.Server.Experimental.Flags {
 		sc.Log.Warnf("Developer feature flag %q has been enabled", f)
