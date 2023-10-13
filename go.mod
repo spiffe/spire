@@ -51,7 +51,7 @@ require (
 	github.com/hashicorp/go-plugin v1.5.2
 	github.com/hashicorp/hcl v1.0.1-vault-5
 	github.com/hashicorp/vault/api v1.10.0
-	github.com/hashicorp/vault/sdk v0.10.0
+	github.com/hashicorp/vault/sdk v0.10.2
 	github.com/imdario/mergo v0.3.15
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
