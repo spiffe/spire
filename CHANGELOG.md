@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.2] - 2023-10-12
+
+### Security
+
+- Updated to google.golang.org/grpc v1.58.3 and golang.org/x/net v0.17.0 to address CVE-2023-39325, CVE-2023-44487
+
 ## [1.8.1] - 2023-10-10
 
 ### Security
@@ -34,6 +40,12 @@
 - Support for Envoy SDS v2 API (#4444)
 - Server no longer cleans up stale data in the database on startup (#4443)
 - Server no longer deletes entries with invalid SPIFFE IDs on startup (#4449)
+
+## [1.7.4] - 2023-10-12
+
+### Security
+
+- Updated to google.golang.org/grpc v1.58.3 and golang.org/x/net v0.17.0 to address CVE-2023-39325, CVE-2023-44487
 
 ## [1.7.3] - 2023-10-10
 
