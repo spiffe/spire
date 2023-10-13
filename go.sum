@@ -896,8 +896,8 @@ github.com/go-playground/universal-translator v0.18.1 h1:Bcnm0ZwsGyWbCzImXv+pAJn
 github.com/go-playground/universal-translator v0.18.1/go.mod h1:xekY+UJKNuX9WP91TpwSH2VMlDf28Uj24BCp08ZFTUY=
 github.com/go-playground/validator/v10 v10.15.5 h1:LEBecTWb/1j5TNY1YYG2RcOUN3R7NLylN+x8TTueE24=
 github.com/go-playground/validator/v10 v10.15.5/go.mod h1:9iXMNT7sEkjXb0I+enO7QXmzG6QCsPWY4zveKFVRSyU=
-github.com/go-rod/rod v0.114.3 h1:gAUT2Bc2wy0tQL5KEet05HNDvmndaHAGCjQ01TB2efA=
-github.com/go-rod/rod v0.114.3/go.mod h1:aiedSEFg5DwG/fnNbUOTPMTTWX3MRj6vIs/a684Mthw=
+github.com/go-rod/rod v0.114.4 h1:FpkNFukjCuZLwnoLs+S9aCL95o/EMec6M+41UmvQay8=
+github.com/go-rod/rod v0.114.4/go.mod h1:aiedSEFg5DwG/fnNbUOTPMTTWX3MRj6vIs/a684Mthw=
 github.com/go-sql-driver/mysql v1.5.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
 github.com/go-sql-driver/mysql v1.7.1 h1:lUIinVbN1DY0xBg0eMOzmmtGoHwWBbvnWubQUrtU8EI=
 github.com/go-sql-driver/mysql v1.7.1/go.mod h1:OXbVy3sEdcQ2Doequ6Z5BW6fXNQTmx+9S1MCJN5yJMI=
@@ -1509,8 +1509,8 @@ github.com/sigstore/fulcio v1.4.0 h1:05+k8BFvwTQzfCkVxESWzCN4b70KIRliGYz0Upmdrs8
 github.com/sigstore/fulcio v1.4.0/go.mod h1:wcjlktbhoy6+ZTxO3yXpvqUxsLV+JEH4FF3a5Jz4VPI=
 github.com/sigstore/rekor v1.3.2 h1:o0M/hGYpYhleenrYaMQbJha/w8Zj0Z7vEuND2eZq/Zo=
 github.com/sigstore/rekor v1.3.2/go.mod h1:FYtgwFhBzcmvszqQ24yHVRAPweKoq2BXyGNiB3UT6jM=
-github.com/sigstore/sigstore v1.7.3 h1:HVVTfrMezJeLyl2xhJ8edzkrEGBa4KxjQZB4FlQ4JLU=
-github.com/sigstore/sigstore v1.7.3/go.mod h1:cl0c7Dtg3MM3c13L8pqqrfrmBa0eM3POcdtBepjylmw=
+github.com/sigstore/sigstore v1.7.4 h1:Fyqn6OKOVsYnV0Vs6JhG5t+q0u7Gj6R5dJ52kUVteLs=
+github.com/sigstore/sigstore v1.7.4/go.mod h1:5MxR9PrWYGk5I3sXgdnrMUOLbwFPuAUNtWPm3VwOjkc=
 github.com/sigstore/sigstore/pkg/signature/kms/aws v1.7.3 h1:HbtK8W1bl+BhUPPtpfh4bgkm5oXrtzqd6FTvFg+oor8=
 github.com/sigstore/sigstore/pkg/signature/kms/aws v1.7.3/go.mod h1:JPLKxAUNNsuUQZUy9G3TGhfZCrUaGWa18dxJUQb2E/s=
 github.com/sigstore/sigstore/pkg/signature/kms/azure v1.7.3 h1:dS0f3vtSfgJClJrIFKzfettFfSfygEWDd/yecLcH1uc=
