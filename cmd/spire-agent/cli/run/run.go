@@ -233,11 +233,21 @@ func (c *agentConfig) validate() error {
 		return errors.New("trust_domain must be configured")
 	}
 
+	// If insecure_bootstrap is set, trust_bundle_path or trust_bundle_url cannot be set
 	// If trust_bundle_url is set, download the trust bundle using HTTP and parse it from memory
 	// If trust_bundle_path is set, parse the trust bundle file on disk
 	// Both cannot be set
 	// The trust bundle URL must start with HTTPS
-	if c.TrustBundlePath == "" && c.TrustBundleURL == "" && !c.InsecureBootstrap {
+	if c.InsecureBootstrap {
+		switch {
+		case c.TrustBundleURL != "" && c.TrustBundlePath != "":
+			return errors.New("only one of insecure_bootstrap, trust_bundle_url, or trust_bundle_path can be specified, not the three options")
+		case c.TrustBundleURL != "":
+			return errors.New("only one of insecure_bootstrap or trust_bundle_url can be specified, not both")
+		case c.TrustBundlePath != "":
+			return errors.New("only one of insecure_bootstrap or trust_bundle_path can be specified, not both")
+		}
+	} else if c.TrustBundlePath == "" && c.TrustBundleURL == "" {
 		return errors.New("trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set")
 	}
 

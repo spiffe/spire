@@ -30,11 +30,12 @@ type mergeInputCase struct {
 }
 
 type newAgentConfigCase struct {
-	msg         string
-	expectError bool
-	input       func(*Config)
-	logOptions  func(t *testing.T) []log.Option
-	test        func(*testing.T, *agent.Config)
+	msg                string
+	expectError        bool
+	requireErrorPrefix string
+	input              func(*Config)
+	logOptions         func(t *testing.T) []log.Option
+	test               func(*testing.T, *agent.Config)
 }
 
 func TestDownloadTrustBundle(t *testing.T) {
@@ -677,6 +678,9 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "insecure_bootstrap should be correctly set to true",
 			input: func(c *Config) {
+				// in this case, remove trust_bundle_path provided by defaultValidConfig()
+				// because trust_bundle_path and insecure_bootstrap cannot be set at the same time
+				c.Agent.TrustBundlePath = ""
 				c.Agent.InsecureBootstrap = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -730,8 +734,9 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:         "trust_bundle_path and trust_bundle_url cannot both be set",
-			expectError: true,
+			msg:                "trust_bundle_path and trust_bundle_url cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of trust_bundle_url or trust_bundle_path can be specified, not both",
 			input: func(c *Config) {
 				c.Agent.TrustBundlePath = "foo"
 				c.Agent.TrustBundleURL = "foo2"
@@ -741,10 +746,66 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:         "insecure_bootstrap and trust_bundle_url cannot both be set",
-			expectError: true,
+			msg:                "insecure_bootstrap and trust_bundle_path cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of insecure_bootstrap or trust_bundle_path can be specified, not both",
 			input: func(c *Config) {
+				c.Agent.TrustBundlePath = "foo"
+				c.Agent.InsecureBootstrap = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "insecure_bootstrap and trust_bundle_url cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of insecure_bootstrap or trust_bundle_url can be specified, not both",
+			input: func(c *Config) {
+				// in this case, remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
 				c.Agent.TrustBundleURL = "foo"
+				c.Agent.InsecureBootstrap = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "insecure_bootstrap, trust_bundle_url, trust_bundle_path cannot be set at the same time",
+			expectError:        true,
+			requireErrorPrefix: "only one of insecure_bootstrap, trust_bundle_url, or trust_bundle_path can be specified, not the three options",
+			input: func(c *Config) {
+				c.Agent.TrustBundlePath = "bar"
+				c.Agent.TrustBundleURL = "foo"
+				c.Agent.InsecureBootstrap = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set",
+			input: func(c *Config) {
+				// in this case, remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = ""
+				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_url must start with https://",
+			expectError:        true,
+			requireErrorPrefix: "trust bundle URL must start with https://",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "foo.bar"
 				c.Agent.InsecureBootstrap = false
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -931,6 +992,9 @@ func TestNewAgentConfig(t *testing.T) {
 			ac, err := NewAgentConfig(input, logOpts, false)
 			if testCase.expectError {
 				require.Error(t, err)
+				if testCase.requireErrorPrefix != "" {
+					spiretest.RequireErrorPrefix(t, err, testCase.requireErrorPrefix)
+				}
 			} else {
 				require.NoError(t, err)
 			}
