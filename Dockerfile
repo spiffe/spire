@@ -17,6 +17,7 @@ COPY . .
 FROM --platform=$BUILDPLATFORM tonistiigi/xx@sha256:9dde7edeb9e4a957ce78be9f8c0fbabe0129bf5126933cd3574888f443731cda AS xx
 
 FROM --platform=${BUILDPLATFORM} base as builder
+ARG TAG
 ARG TARGETPLATFORM
 ARG TARGETARCH
 COPY --link --from=xx / /
@@ -59,7 +60,7 @@ ENV CGO_ENABLED=1
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     if [ "$TARGETARCH" = "arm64" ]; then CC=aarch64-alpine-linux-musl; elif [ "$TARGETARCH" = "s390x" ]; then CC=s390x-alpine-linux-musl; fi && \
-    make build-static && \
+    make build-static git_tag=$TAG git_dirty="" && \
     for f in $(find bin -executable -type f); do xx-verify $f; done
 
 FROM --platform=${BUILDPLATFORM} scratch AS spire-base

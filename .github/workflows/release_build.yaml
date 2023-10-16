@@ -170,7 +170,7 @@ jobs:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Build images
-        run: make images-no-load
+        run: TAG=${GITHUB_REF##refs/tags/v} make images-no-load
       - name: Export images
         run: tar -czvf images.tar.gz *-image.tar
       - name: Archive images
