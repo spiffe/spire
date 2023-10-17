@@ -13,7 +13,7 @@ A sample configuration:
 ```hcl
     KeyManager "disk" {
         plugin_data = {
-            keys_path = "/opt/spire/data/server/keys.json"
+            directory = "/opt/spire/data/agent"
         }
     }
 ```
