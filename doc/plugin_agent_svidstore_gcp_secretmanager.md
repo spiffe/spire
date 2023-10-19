@@ -10,7 +10,7 @@ The format that is used to store in a secret the issued identity is the followin
 {
     "spiffeId": "spiffe://example.org",
     "x509Svid": "X509_CERT_CHAIN_PEM",
-    "x509SvidKey": "PRIVATE_KET_PEM",
+    "x509SvidKey": "PRIVATE_KEY_PEM",
     "bundle": "X509_BUNDLE_PEM",
     "federatedBundles": {
         "spiffe://federated.org": "X509_FEDERATED_BUNDLE_PEM"
