@@ -284,7 +284,6 @@ bin/static/%: cmd/% FORCE | go-check
 	$(E)$(go_build_static) $@$(exe) ./$<
 
 bin/static/%: support/% FORCE | go-check
-	@echo Building $@…
 	$(E)$(go_build_static) $@$(exe) ./$<
 
 #############################################################################
@@ -337,6 +336,7 @@ $1: $3 container-builder
 	$(E)docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg goversion=$(go_version) \
+		--build-arg TAG=$(TAG) \
 		--target $2 \
 		-o type=oci,dest=$2-image.tar \
 		-f $3 \
