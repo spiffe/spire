@@ -6,6 +6,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/awskms"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/azurekeyvault"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager/ciphertrustkms"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/disk"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/gcpkms"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/memory"
@@ -33,6 +34,7 @@ func (repo *keyManagerRepository) BuiltIns() []catalog.BuiltIn {
 		disk.BuiltIn(),
 		gcpkms.BuiltIn(),
 		azurekeyvault.BuiltIn(),
+		ciphertrustkms.BuiltIn(),
 		memory.BuiltIn(),
 	}
 }
