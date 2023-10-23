@@ -162,8 +162,8 @@ func addAgents(ctx context.Context, ds datastore.DataStore, cache *authorizedent
 	}
 
 	for _, node := range resp.Nodes {
-		AgentExpiresAt := time.Unix(node.CertNotAfter, 0)
-		if AgentExpiresAt.Before(now) {
+		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
+		if agentExpiresAt.Before(now) {
 			continue
 		}
 		cache.UpdateAgent(node.SpiffeId, AgentExpiresAt, api.ProtoFromSelectors(node.Selectors))
