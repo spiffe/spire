@@ -442,7 +442,7 @@ func TestSVIDRotation(t *testing.T) {
 	// Now advance time enough that the cert is expiring soon enough that the
 	// manager will attempt to rotate, but be unable to since the read lock is
 	// held.
-	clk.Add(baseTTLSeconds / 2)
+	clk.Add(baseTTLSeconds)
 
 	closer := runManager(t, m)
 	defer closer()
@@ -1292,7 +1292,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.Equal(t, expiresAtA, svid.ExpiresAt.Unix())
 
 	// expire the cached JWT soon and make sure new JWT is fetched
-	clk.Add(time.Second * 30)
+	clk.Add(time.Second * 45)
 	now = clk.Now()
 	tokenC := "C"
 	issuedAtC := now.Unix()
