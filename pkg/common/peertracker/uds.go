@@ -2,18 +2,17 @@ package peertracker
 
 import (
 	"net"
-	"syscall"
 )
 
 func CallerFromUDSConn(conn net.Conn) (CallerInfo, error) {
 	var info CallerInfo
 
-	sysconn, ok := conn.(syscall.Conn)
+	unixConn, ok := conn.(*net.UnixConn)
 	if !ok {
 		return info, ErrInvalidConnection
 	}
 
-	rawconn, err := sysconn.SyscallConn()
+	rawconn, err := unixConn.SyscallConn()
 	if err != nil {
 		return info, err
 	}

@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -52,7 +51,7 @@ func run(configPath string) error {
 	}
 	defer log.Close()
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), SIGINT, SIGTERM)
 	defer stop()
 
 	source, err := newSource(log, config)

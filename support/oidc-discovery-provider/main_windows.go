@@ -12,6 +12,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/namedpipe"
 	"github.com/spiffe/spire/pkg/common/sddl"
 	"github.com/zeebo/errs"
+	"golang.org/x/sys/windows"
+)
+
+const (
+	SIGINT  = windows.SIGINT
+	SIGTERM = windows.SIGTERM
 )
 
 func (c *Config) getWorkloadAPIAddr() (net.Addr, error) {

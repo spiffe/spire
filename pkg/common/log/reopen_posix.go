@@ -6,11 +6,12 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 const (
-	reopenSignal      = syscall.SIGUSR2
+	reopenSignal      = unix.SIGUSR2
 	failedToReopenMsg = "failed to rotate log after signal"
 )
 

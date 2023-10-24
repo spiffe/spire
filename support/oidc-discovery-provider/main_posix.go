@@ -10,6 +10,12 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/zeebo/errs"
+	"golang.org/x/sys/unix"
+)
+
+const (
+	SIGINT  = unix.SIGINT
+	SIGTERM = unix.SIGTERM
 )
 
 func (c *Config) getWorkloadAPIAddr() (net.Addr, error) {

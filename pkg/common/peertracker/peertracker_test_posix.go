@@ -7,11 +7,11 @@ import (
 	"net"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"testing"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -29,7 +29,7 @@ func (f *fakePeer) killGrandchild() {
 		f.t.Fatal("no known grandchild")
 	}
 
-	err := syscall.Kill(f.grandchildPID, syscall.SIGKILL)
+	err := unix.Kill(f.grandchildPID, unix.SIGKILL)
 	if err != nil {
 		f.t.Fatalf("unable to kill grandchild: %v", err)
 	}
