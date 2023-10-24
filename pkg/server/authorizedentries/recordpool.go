@@ -5,7 +5,7 @@ import "sync"
 var (
 	// Stores pointers to record slices. See https://staticcheck.io/docs/checks#SA6002.
 	recordPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			p := []entryRecord(nil)
 			return &p
 		},

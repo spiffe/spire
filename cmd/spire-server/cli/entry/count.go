@@ -53,7 +53,7 @@ func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintCount)
 }
 
-func (c *countCommand) prettyPrintCount(env *commoncli.Env, results ...interface{}) error {
+func (c *countCommand) prettyPrintCount(env *commoncli.Env, results ...any) error {
 	countResp, ok := results[0].(*entryv1.CountEntriesResponse)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

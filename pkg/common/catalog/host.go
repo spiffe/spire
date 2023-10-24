@@ -27,18 +27,18 @@ func newHostServer(pluginName string, hostServices []pluginsdk.ServiceServer) *g
 }
 
 func streamPluginInterceptor(name string) grpc.StreamServerInterceptor {
-	return func(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		return handler(srv, streamWrapper{ctx: WithPluginName(ss.Context(), name), ServerStream: ss})
 	}
 }
 
 func unaryPluginInterceptor(name string) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		return handler(WithPluginName(ctx, name), req)
 	}
 }
 
-func streamPanicInterceptor(srv interface{}, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
+func streamPanicInterceptor(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = status.Errorf(codes.Internal, "%s", r)
@@ -47,7 +47,7 @@ func streamPanicInterceptor(srv interface{}, ss grpc.ServerStream, _ *grpc.Strea
 	return handler(srv, ss)
 }
 
-func unaryPanicInterceptor(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (_ interface{}, err error) {
+func unaryPanicInterceptor(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (_ any, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = status.Errorf(codes.Internal, "%s", r)

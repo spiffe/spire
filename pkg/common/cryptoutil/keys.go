@@ -52,7 +52,7 @@ func KeyMatches(privateKey crypto.PrivateKey, publicKey crypto.PublicKey) (bool,
 	}
 }
 
-func JoseAlgFromPublicKey(publicKey interface{}) (jose.SignatureAlgorithm, error) {
+func JoseAlgFromPublicKey(publicKey any) (jose.SignatureAlgorithm, error) {
 	var alg jose.SignatureAlgorithm
 	switch publicKey := publicKey.(type) {
 	case *rsa.PublicKey:

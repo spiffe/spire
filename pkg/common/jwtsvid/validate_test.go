@@ -185,7 +185,7 @@ func (s *TokenSuite) TestValidateKeyNotFound() {
 	s.Require().Nil(claims)
 }
 
-func (s *TokenSuite) signToken(alg jose.SignatureAlgorithm, key interface{}, claims jwt.Claims) string {
+func (s *TokenSuite) signToken(alg jose.SignatureAlgorithm, key any, claims jwt.Claims) string {
 	signer, err := jose.NewSigner(
 		jose.SigningKey{
 			Algorithm: alg,

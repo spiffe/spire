@@ -109,7 +109,7 @@ func (c *deleteCommand) validate() error {
 	return nil
 }
 
-func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...interface{}) error {
+func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...any) error {
 	deleteResp, ok := results[0].(*entryv1.BatchDeleteEntryResponse)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

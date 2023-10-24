@@ -13,7 +13,7 @@ import (
 // It will print only easily printable types, and only to one
 // level of depth. It will print arrays, slices, and maps if
 // their keys and elements are also easily printable types.
-func Print(msgs []interface{}, stdout, stderr io.Writer) error {
+func Print(msgs []any, stdout, stderr io.Writer) error {
 	if len(msgs) == 0 {
 		return nil
 	}
@@ -32,7 +32,7 @@ func Print(msgs []interface{}, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func printStruct(msg interface{}, stdout, stderr io.Writer) error {
+func printStruct(msg any, stdout, stderr io.Writer) error {
 	msgType := reflect.TypeOf(msg)
 	msgValue := reflect.ValueOf(msg)
 

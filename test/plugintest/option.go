@@ -58,13 +58,13 @@ func Configure(plainConfig string) Option {
 }
 
 // Configuref provides a formatted string to the plugin for configuration.
-func Configuref(format string, args ...interface{}) Option {
+func Configuref(format string, args ...any) Option {
 	return Configure(fmt.Sprintf(format, args...))
 }
 
 // ConfigureJSON marshals the given object and passes the resulting JSON to
 // the plugin for configuration.
-func ConfigureJSON(jsonConfig interface{}) Option {
+func ConfigureJSON(jsonConfig any) Option {
 	return optionFunc(func(conf *config) {
 		conf.doConfigure = true
 		conf.jsonConfig = jsonConfig

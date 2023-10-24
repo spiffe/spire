@@ -220,7 +220,7 @@ func TestWithMetrics(t *testing.T) {
 		// will fail the test below.
 		delete(methodNames, methodType.Name)
 
-		doCall := func(err error) interface{} {
+		doCall := func(err error) any {
 			m.Reset()
 			ds.SetError(err)
 			numIn := methodValue.Type().NumIn()
