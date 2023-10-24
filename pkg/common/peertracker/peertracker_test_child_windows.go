@@ -43,11 +43,12 @@ func main() {
 		os.Exit(6)
 	}
 
+	f := os.NewFile(fder.Fd(), "pipe")
 	procattr := &os.ProcAttr{
 		Env: os.Environ(),
 		Files: []*os.File{
 			os.Stdin, // Do not block on stdin
-			fder,
+			f,
 			os.Stderr, // Do not block on stderr
 		},
 	}
