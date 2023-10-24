@@ -6,6 +6,6 @@ import (
 	"testing"
 )
 
-func requireCallerExitFailedDirent(tb testing.TB, actual any) {
+func requireCallerExitFailedDirent(_ testing.TB, _ any) {
 	// No-op on Windows, only relevant for Unix systems
 }
