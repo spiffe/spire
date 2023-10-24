@@ -144,7 +144,7 @@ golangci_lint_cache = $(golangci_lint_dir)/cache
 markdown_lint_version = v0.35.0
 markdown_lint_image = ghcr.io/igorshubovych/markdownlint-cli:$(markdown_lint_version)
 
-protoc_version = 21.12
+protoc_version = 24.4
 ifeq ($(os1),windows)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-win64.zip
 else ifeq ($(arch2),arm64)
