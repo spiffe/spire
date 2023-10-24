@@ -562,10 +562,10 @@ func (v badVersion) Deprecated() bool { return false }
 
 type badFacade struct{}
 
-func (badFacade) GRPCServiceName() string                         { return "bad" }
+func (badFacade) GRPCServiceName() string                 { return "bad" }
 func (badFacade) InitClient(grpc.ClientConnInterface) any { return nil }
-func (badFacade) InitInfo(catalog.PluginInfo)                     {}
-func (badFacade) InitLog(logrus.FieldLogger)                      {}
+func (badFacade) InitInfo(catalog.PluginInfo)             {}
+func (badFacade) InitLog(logrus.FieldLogger)              {}
 
 func assertContainsLogMessage(t *testing.T, entries []*logrus.Entry, message string) {
 	messages := make([]string, 0, len(entries))
