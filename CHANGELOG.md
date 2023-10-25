@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.8.2] - 2023-10-25
+
+### Added
+
+- The spire-agent has a more uniform distribution of SVID renewal requests to spire-server (#4534)
+- Documentation improvements (#4579, #4569)
+
+### Changed
+
+- The Spire agent now retries to sync on startup (#4479)
+
+### Fixed
+
+- Release artifacts have the correct version information (#4564)
+- The spire agent to prevent to use `insecureBootstrap` and `trustBundleUrl` at the same time (#4532)
+- Credential composer can parse claims (#4489)
+
 ## [1.8.2] - 2023-10-12
 
 ### Security
