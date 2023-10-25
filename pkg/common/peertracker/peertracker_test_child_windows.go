@@ -49,7 +49,7 @@ func main() {
 		Files: []*os.File{
 			os.Stdin, // Do not block on stdin
 			f,
-			os.Stderr, // Do not block on stderr
+			os.Stdin, // Do not block on stderr
 		},
 	}
 
