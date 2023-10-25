@@ -1,4 +1,4 @@
-# syntax = docker/dockerfile:1.4.2@sha256:443aab4ca21183e069e7d8b2dc68006594f40bddf1b15bbd83f5137bd93e80e2
+# syntax = docker/dockerfile:1.6.0@sha256:657fcc512c7369f4cb3d94ea329150f8daf626bc838b1a1e81f1834c73ecc77e
 
 # Build stage
 ARG goversion
