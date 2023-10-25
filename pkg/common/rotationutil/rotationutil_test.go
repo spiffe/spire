@@ -29,6 +29,14 @@ func TestShouldRotateX509(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, ShouldRotateX509(mockClk.Now(), badCert))
+
+	// Cert that's already expired
+	temp.NotBefore = mockClk.Now().Add(-1 * time.Hour)
+	temp.NotAfter = mockClk.Now().Add(-1 * time.Minute)
+	badCert, _, err = util.SelfSign(temp)
+	require.NoError(t, err)
+
+	assert.True(t, ShouldRotateX509(mockClk.Now(), badCert))
 }
 
 func TestX509Expired(t *testing.T) {

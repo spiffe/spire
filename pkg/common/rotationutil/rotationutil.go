@@ -2,6 +2,7 @@ package rotationutil
 
 import (
 	"crypto/x509"
+	"math/rand"
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/client"
@@ -38,6 +39,31 @@ func JWTSVIDExpired(svid *client.JWTSVID, now time.Time) bool {
 
 func shouldRotate(now, beginTime, expiryTime time.Time) bool {
 	ttl := expiryTime.Sub(now)
+	// return true quickly if the expiry is already met.
+	if ttl <= 0 {
+		return true
+	}
+
+	halfLife := halfLife(beginTime, expiryTime)
+
+	// calculate a jitter delta to spread out rotations
+	delta := jitterDelta(halfLife)
+	min := halfLife - delta
+
+	jitteredHalfLife := time.Duration(rand.Int63n(int64(delta)*2) + int64(min)) //nolint // gosec: no need for cryptographic randomness here
+
+	return ttl <= jitteredHalfLife
+}
+
+// jitterDelta is a calculated delta centered to the half-life of the SVID.
+// It's to spread out the renewal of SVID rotations to avoid spiky renewal requests.
+// The jitter is calculated as ± 10% of the half-life of the SVID.
+func jitterDelta(halfLife time.Duration) time.Duration {
+	// ± 10% of the half-life
+	return halfLife / 10
+}
+
+func halfLife(beginTime, expiryTime time.Time) time.Duration {
 	lifetime := expiryTime.Sub(beginTime)
-	return ttl <= lifetime/2
+	return lifetime / 2
 }
