@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"context"
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -29,7 +30,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"golang.org/x/net/context"
 )
 
 // Config is a configuration for endpoints

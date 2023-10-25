@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 
+	"context"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -11,7 +12,6 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/server/api"
-	"golang.org/x/net/context"
 )
 
 type evictCommand struct {

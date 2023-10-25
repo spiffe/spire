@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"context"
 	"github.com/mitchellh/cli"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -13,7 +14,6 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"golang.org/x/net/context"
 )
 
 type listCommand struct {

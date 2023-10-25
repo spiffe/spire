@@ -11,7 +11,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 type countCommand struct {

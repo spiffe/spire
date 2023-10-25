@@ -12,7 +12,7 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 func NewGenerateCommand() cli.Command {

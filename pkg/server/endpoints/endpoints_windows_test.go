@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package endpoints
 
@@ -10,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"context"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 	"golang.org/x/sys/windows"
 	"google.golang.org/grpc"
 )

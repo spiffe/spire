@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"google.golang.org/grpc/codes"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 // NewUpdateCommand creates a new "update" subcommand for "entry" command.

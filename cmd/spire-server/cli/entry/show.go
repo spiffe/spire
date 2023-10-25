@@ -14,7 +14,7 @@ import (
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"golang.org/x/net/context"
+	"context"
 )
 
 const listEntriesRequestPageSize = 500

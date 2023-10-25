@@ -5,12 +5,12 @@ import (
 	"flag"
 	"fmt"
 
+	"context"
 	"github.com/mitchellh/cli"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
-	"golang.org/x/net/context"
 )
 
 type countCommand struct {
