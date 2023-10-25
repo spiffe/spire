@@ -4,18 +4,18 @@
 
 ### Added
 
-- The spire-agent has a more uniform distribution of SVID renewal requests to spire-server (#4534)
+- SPIRE Agent distributes sync requests to the SPIRE server to mitigate thundering herd situations (#4534)
 - Documentation improvements (#4579, #4569)
 
 ### Changed
 
-- The Spire agent now retries to sync on startup (#4479)
+- SPIRE Agent performs the initial sync more aggressively when tuned with a longer sync interval (#4479)
 
 ### Fixed
 
 - Release artifacts have the correct version information (#4564)
-- The spire agent to prevent to use `insecureBootstrap` and `trustBundleUrl` at the same time (#4532)
-- Credential composer can parse claims (#4489)
+- The SPIRE Agent `insecureBootstrap` and `trustBundleUrl` configurables are now mutually exclusive (#4532)
+- Bug preventing JWT-SVIDs from being minted when a Credential Composer plugin is configured (#4489)
 
 ## [1.8.2] - 2023-10-12
 
