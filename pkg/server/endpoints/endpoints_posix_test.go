@@ -3,11 +3,11 @@
 package endpoints
 
 import (
+	"context"
 	"net"
 	"path/filepath"
 	"testing"
 
-	"context"
 	"github.com/spiffe/spire/test/spiretest"
 )
 

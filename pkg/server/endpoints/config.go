@@ -1,13 +1,13 @@
 package endpoints
 
 import (
+	"context"
 	"crypto"
 	"crypto/x509"
 	"errors"
 	"net"
 	"time"
 
-	"context"
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"

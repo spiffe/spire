@@ -1,12 +1,12 @@
 package dscache
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"testing"
 	"time"
 
-	"context"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"

@@ -1,10 +1,10 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"flag"
 
-	"context"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"

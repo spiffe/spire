@@ -2,11 +2,11 @@ package entry
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path"
 	"testing"
 
-	"context"
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"

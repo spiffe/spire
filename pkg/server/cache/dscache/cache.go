@@ -1,11 +1,11 @@
 package dscache
 
 import (
+	"context"
 	"crypto"
 	"sync"
 	"time"
 
-	"context"
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"

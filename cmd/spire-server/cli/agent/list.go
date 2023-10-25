@@ -1,12 +1,12 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"time"
 
-	"context"
 	"github.com/mitchellh/cli"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"

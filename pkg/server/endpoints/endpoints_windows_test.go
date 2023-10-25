@@ -3,13 +3,13 @@
 package endpoints
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"strings"
 	"testing"
 
-	"context"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
