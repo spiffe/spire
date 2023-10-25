@@ -5,6 +5,7 @@
 ### Added
 
 - SPIRE Agent distributes sync requests to the SPIRE server to mitigate thundering herd situations (#4534)
+- Allow configuring prefixes for all metrics (#4535)
 - Documentation improvements (#4579, #4569)
 
 ### Changed
