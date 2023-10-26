@@ -102,6 +102,7 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 	var versionCounter int64
 	var versionInfo = strconv.FormatInt(versionCounter, 10)
 	var lastNonce string
+	var lastNode *core_v3.Node
 	var upd *cache.WorkloadUpdate
 	var lastReq *discovery_v3.DiscoveryRequest
 	for {
@@ -141,6 +142,10 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 						telemetry.VersionInfo: newReq.VersionInfo,
 						telemetry.Expect:      versionInfo,
 					}).Error("Client rejected expected version and rolled back")
+				}
+				// If Envoy doesn't return Node, use the Node from a previous stream
+				if newReq.Node == nil && lastNode != nil {
+					newReq.Node = lastNode
 				}
 			}
 
@@ -190,6 +195,11 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 
 		// remember the last nonce
 		lastNonce = resp.Nonce
+
+		// Remember Node info if it exists
+		if lastReq.Node != nil {
+			lastNode = lastReq.Node
+		}
 	}
 }
 
