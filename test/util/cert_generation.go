@@ -94,7 +94,7 @@ func SelfSign(req *x509.Certificate) (*x509.Certificate, *ecdsa.PrivateKey, erro
 
 // Sign creates a new certificate based on the provided template and signed using parent
 // certificate and signerPrivateKey.
-func Sign(req, parent *x509.Certificate, signerPrivateKey interface{}) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+func Sign(req, parent *x509.Certificate, signerPrivateKey any) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	var err error
 	var key *ecdsa.PrivateKey
 

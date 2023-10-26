@@ -52,7 +52,7 @@ func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintCount)
 }
 
-func prettyPrintCount(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintCount(env *commoncli.Env, results ...any) error {
 	countResp, ok := results[0].(*agentv1.CountAgentsResponse)
 	if !ok {
 		return errors.New("internal error: cli printer; please report this bug")

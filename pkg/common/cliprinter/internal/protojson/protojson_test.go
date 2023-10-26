@@ -101,7 +101,7 @@ func TestRemoveNulls(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			var input, output map[string]interface{}
+			var input, output map[string]any
 			err := json.Unmarshal(c.input, &input)
 			require.NoError(t, err)
 			err = json.Unmarshal(c.output, &output)

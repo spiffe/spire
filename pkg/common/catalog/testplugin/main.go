@@ -57,6 +57,6 @@ func (p *badHCServerPlugin) GRPCServer(b *goplugin.GRPCBroker, s *grpc.Server) (
 	return nil
 }
 
-func (p *badHCServerPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+func (p *badHCServerPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker, c *grpc.ClientConn) (any, error) {
 	return nil, errors.New("unimplemented")
 }

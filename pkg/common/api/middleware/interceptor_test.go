@@ -44,7 +44,7 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 		m := new(fakeMiddleware)
 		unary := makeInterceptor(m)
 		resp, err := unary(context.Background(), "request", fakeUnaryServerInfo,
-			func(ctx context.Context, req interface{}) (interface{}, error) {
+			func(ctx context.Context, req any) (any, error) {
 				// Assert that parameters were threaded correctly through
 				// the interceptor.
 				assert.Equal(t, 1, wrapCount(ctx))
@@ -69,7 +69,7 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 
 		unary := makeInterceptor(m)
 		resp, err := unary(context.Background(), "request", fakeUnaryServerInfo,
-			func(ctx context.Context, req interface{}) (interface{}, error) {
+			func(ctx context.Context, req any) (any, error) {
 				// Since preprocess fails, the handler should not be invoked.
 				require.FailNow(t, "handler should not have been called")
 				return nil, errors.New("unreachable")
@@ -91,7 +91,7 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 
 		unary := makeInterceptor(m)
 		resp, err := unary(context.Background(), "request", fakeUnaryServerInfo,
-			func(ctx context.Context, req interface{}) (interface{}, error) {
+			func(ctx context.Context, req any) (any, error) {
 				// Assert that parameters were threaded correctly through
 				// the interceptor.
 				assert.Equal(t, 1, wrapCount(ctx))
@@ -117,7 +117,7 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 
 		stream := makeInterceptor(m)
 		err := stream("server", fakeServerStream{}, fakeStreamServerInfo,
-			func(srv interface{}, stream grpc.ServerStream) error {
+			func(srv any, stream grpc.ServerStream) error {
 				// Assert that parameters were threaded correctly through
 				// the interceptor.
 				assert.Equal(t, "server", srv)
@@ -141,7 +141,7 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 
 		stream := makeInterceptor(m)
 		err := stream("server", fakeServerStream{}, fakeStreamServerInfo,
-			func(srv interface{}, stream grpc.ServerStream) error {
+			func(srv any, stream grpc.ServerStream) error {
 				// Since preprocess fails, the handler should not be invoked.
 				require.FailNow(t, "handler should not have been called")
 				return errors.New("unreachable")
@@ -162,7 +162,7 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 
 		stream := makeInterceptor(m)
 		err := stream("server", fakeServerStream{}, fakeStreamServerInfo,
-			func(srv interface{}, stream grpc.ServerStream) error {
+			func(srv any, stream grpc.ServerStream) error {
 				// Assert that parameters were threaded correctly through
 				// the interceptor.
 				assert.Equal(t, "server", srv)

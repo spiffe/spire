@@ -9,7 +9,7 @@ type credentialComposerRepository struct {
 	credentialcomposer.Repository
 }
 
-func (repo *credentialComposerRepository) Binder() interface{} {
+func (repo *credentialComposerRepository) Binder() any {
 	return repo.AddCredentialComposer
 }
 

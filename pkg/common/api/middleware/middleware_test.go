@@ -16,7 +16,7 @@ func TestChain(t *testing.T) {
 	// was called and in what order.
 	wrap := func(id string, m middleware.Middleware) middleware.Middleware {
 		return middleware.Funcs(
-			func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+			func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 				preprocessCalls = append(preprocessCalls, id)
 				return m.Preprocess(ctx, fullMethod, req)
 			},

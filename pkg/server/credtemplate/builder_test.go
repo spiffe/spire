@@ -1011,7 +1011,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 		desc             string
 		overrideConfig   func(config *credtemplate.Config)
 		overrideParams   func(params *credtemplate.WorkloadJWTSVIDParams)
-		overrideExpected func(expected map[string]interface{})
+		overrideExpected func(expected map[string]any)
 		expectErr        string
 	}{
 		{
@@ -1056,7 +1056,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 			overrideParams: func(params *credtemplate.WorkloadJWTSVIDParams) {
 				params.Audience = []string{"AUDIENCE1", "AUDIENCE2"}
 			},
-			overrideExpected: func(expected map[string]interface{}) {
+			overrideExpected: func(expected map[string]any) {
 				expected["aud"] = []string{"AUDIENCE1", "AUDIENCE2"}
 			},
 		},
@@ -1065,7 +1065,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 			overrideConfig: func(config *credtemplate.Config) {
 				config.JWTSVIDTTL = credtemplate.DefaultJWTSVIDTTL * 2
 			},
-			overrideExpected: func(expected map[string]interface{}) {
+			overrideExpected: func(expected map[string]any) {
 				expected["exp"] = jwt.NewNumericDate(now.Add(credtemplate.DefaultJWTSVIDTTL * 2))
 			},
 		},
@@ -1077,7 +1077,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 			overrideParams: func(params *credtemplate.WorkloadJWTSVIDParams) {
 				params.ExpirationCap = now.Add(parentTTL)
 			},
-			overrideExpected: func(expected map[string]interface{}) {
+			overrideExpected: func(expected map[string]any) {
 				expected["exp"] = jwt.NewNumericDate(now.Add(parentTTL))
 			},
 		},
@@ -1086,7 +1086,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 			overrideParams: func(params *credtemplate.WorkloadJWTSVIDParams) {
 				params.TTL = credtemplate.DefaultJWTSVIDTTL / 2
 			},
-			overrideExpected: func(expected map[string]interface{}) {
+			overrideExpected: func(expected map[string]any) {
 				expected["exp"] = jwt.NewNumericDate(now.Add(credtemplate.DefaultJWTSVIDTTL / 2))
 			},
 		},
@@ -1095,7 +1095,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 			overrideConfig: func(config *credtemplate.Config) {
 				config.JWTIssuer = "ISSUER"
 			},
-			overrideExpected: func(expected map[string]interface{}) {
+			overrideExpected: func(expected map[string]any) {
 				expected["iss"] = "ISSUER"
 			},
 		},
@@ -1105,7 +1105,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 			overrideConfig: func(config *credtemplate.Config) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}}
 			},
-			overrideExpected: func(expected map[string]interface{}) {
+			overrideExpected: func(expected map[string]any) {
 				expected["foo"] = "VALUE-1"
 				expected["bar"] = "VALUE-1"
 			},
@@ -1115,7 +1115,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 			overrideConfig: func(config *credtemplate.Config) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}, fakeCC{id: 2, onlyFoo: true}}
 			},
-			overrideExpected: func(expected map[string]interface{}) {
+			overrideExpected: func(expected map[string]any) {
 				expected["foo"] = "VALUE-2"
 				expected["bar"] = "VALUE-1"
 			},
@@ -1150,7 +1150,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 				}
 				require.NoError(t, err)
 
-				expected := map[string]interface{}{
+				expected := map[string]any{
 					"aud": []string{"AUDIENCE"},
 					"iat": jwt.NewNumericDate(now),
 					"exp": jwt.NewNumericDate(jwtSVIDNotAfter),

@@ -105,7 +105,7 @@ Packages should be exported through interfaces. Interaction with packages must b
 interfaces
 
 Interfaces should be defined in their own file, named (in lowercase) after the name of the
-interface. eg. `foodata.go` implements `type FooData interface{}`
+interface. eg. `foodata.go` implements `type FooData any`
 
 ### Metrics
 

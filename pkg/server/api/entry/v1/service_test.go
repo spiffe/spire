@@ -4215,7 +4215,7 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 		ef:      ef,
 	}
 
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 		ctx = rpccontext.WithLogger(ctx, log)
 		if test.withCallerID {
 			ctx = rpccontext.WithCallerID(ctx, agentID)

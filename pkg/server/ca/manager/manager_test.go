@@ -953,11 +953,11 @@ func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType key
 	}
 }
 
-func (m *managerTest) requireX509CAEqual(t *testing.T, expected, actual *ca.X509CA, msgAndArgs ...interface{}) {
+func (m *managerTest) requireX509CAEqual(t *testing.T, expected, actual *ca.X509CA, msgAndArgs ...any) {
 	require.Equal(t, m.getX509CAInfo(expected), m.getX509CAInfo(actual), msgAndArgs...)
 }
 
-func (m *managerTest) requireJWTKeyEqual(t *testing.T, expected, actual *ca.JWTKey, msgAndArgs ...interface{}) {
+func (m *managerTest) requireJWTKeyEqual(t *testing.T, expected, actual *ca.JWTKey, msgAndArgs ...any) {
 	require.Equal(t, m.getJWTKeyInfo(expected), m.getJWTKeyInfo(actual), msgAndArgs...)
 }
 

@@ -151,7 +151,7 @@ func assertNoError(err error, format string, v ...any) {
 	}
 }
 
-func assertEqual(expected, actual interface{}, format string, v ...any) {
+func assertEqual(expected, actual any, format string, v ...any) {
 	if !reflect.DeepEqual(expected, actual) {
 		log.Fatalf(format, v...)
 	}

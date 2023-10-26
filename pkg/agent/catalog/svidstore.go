@@ -11,7 +11,7 @@ type svidStoreRepository struct {
 	svidstore.Repository
 }
 
-func (repo *svidStoreRepository) Binder() interface{} {
+func (repo *svidStoreRepository) Binder() any {
 	return repo.SetSVIDStore
 }
 

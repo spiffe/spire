@@ -259,7 +259,7 @@ func getParentID(config *createCommand, td string) (*types.SPIFFEID, error) {
 	return idStringToProto(config.parentID)
 }
 
-func prettyPrintCreate(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintCreate(env *commoncli.Env, results ...any) error {
 	var succeeded, failed []*entryv1.BatchCreateEntryResponse_Result
 	createResp, ok := results[0].(*entryv1.BatchCreateEntryResponse)
 	if !ok {
