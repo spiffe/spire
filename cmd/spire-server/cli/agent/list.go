@@ -96,7 +96,7 @@ func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintAgents)
 }
 
-func prettyPrintAgents(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintAgents(env *commoncli.Env, results ...any) error {
 	listResp, ok := results[0].(*agentv1.ListAgentsResponse)
 	if !ok {
 		return errors.New("internal error: cli printer; please report this bug")

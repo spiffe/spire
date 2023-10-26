@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func (m *authorizationMiddleware) opaAuth(ctx context.Context, req interface{}, fullMethod string) (context.Context, bool, error) {
+func (m *authorizationMiddleware) opaAuth(ctx context.Context, req any, fullMethod string) (context.Context, bool, error) {
 	if m.authPolicyEngine == nil {
 		return ctx, false, errors.New("no policy engine object found")
 	}

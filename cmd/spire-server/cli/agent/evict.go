@@ -65,7 +65,7 @@ func (c *evictCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintEvictResult)
 }
 
-func prettyPrintEvictResult(env *commoncli.Env, _ ...interface{}) error {
+func prettyPrintEvictResult(env *commoncli.Env, _ ...any) error {
 	env.Println("Agent evicted successfully")
 	return nil
 }

@@ -16,7 +16,7 @@ type upstreamAuthorityRepository struct {
 	upstreamauthority.Repository
 }
 
-func (repo *upstreamAuthorityRepository) Binder() interface{} {
+func (repo *upstreamAuthorityRepository) Binder() any {
 	return repo.SetUpstreamAuthority
 }
 

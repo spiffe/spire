@@ -63,6 +63,6 @@ func (c *refreshCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient
 	}
 }
 
-func prettyPrintRefresh(env *commoncli.Env, _ ...interface{}) error {
+func prettyPrintRefresh(env *commoncli.Env, _ ...any) error {
 	return env.Println("Bundle refreshed")
 }

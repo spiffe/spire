@@ -132,7 +132,7 @@ func ttlToSeconds(ttl time.Duration) int32 {
 	return int32((ttl + time.Second - 1) / time.Second)
 }
 
-func prettyPrintMint(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintMint(env *commoncli.Env, results ...any) error {
 	if resp, ok := results[0].(*svidv1.MintJWTSVIDResponse); ok {
 		return env.Println(resp.Svid.Token)
 	}

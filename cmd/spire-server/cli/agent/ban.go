@@ -67,7 +67,7 @@ func (c *banCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintBanResult)
 }
 
-func prettyPrintBanResult(env *commoncli.Env, _ ...interface{}) error {
+func prettyPrintBanResult(env *commoncli.Env, _ ...any) error {
 	env.Println("Agent banned successfully")
 	return nil
 }

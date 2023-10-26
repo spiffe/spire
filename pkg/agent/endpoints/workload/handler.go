@@ -499,7 +499,7 @@ func keyStoreFromBundles(bundles []*spiffebundle.Bundle) (jwtsvid.KeyStore, erro
 	return jwtsvid.NewKeyStore(trustDomainKeys), nil
 }
 
-func structFromValues(values map[string]interface{}) (*structpb.Struct, error) {
+func structFromValues(values map[string]any) (*structpb.Struct, error) {
 	valuesJSON, err := json.Marshal(values)
 	if err != nil {
 		return nil, errs.Wrap(err)

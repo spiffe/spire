@@ -74,7 +74,7 @@ func generateRSAKey() *rsa.PrivateKey {
 	return key
 }
 
-func writeKey(path string, key interface{}) {
+func writeKey(path string, key any) {
 	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
 	panice(err)
 	pemBytes := pem.EncodeToMemory(&pem.Block{

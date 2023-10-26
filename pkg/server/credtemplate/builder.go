@@ -304,7 +304,7 @@ func (b *Builder) BuildWorkloadX509SVIDTemplate(ctx context.Context, params Work
 	return tmpl, nil
 }
 
-func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params WorkloadJWTSVIDParams) (map[string]interface{}, error) {
+func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params WorkloadJWTSVIDParams) (map[string]any, error) {
 	params.Audience = dropEmptyValues(params.Audience)
 
 	if params.SPIFFEID.IsZero() {
@@ -326,7 +326,7 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 	_, expiresAt := computeCappedLifetime(b.config.Clock, ttl, params.ExpirationCap)
 
 	attributes := credentialcomposer.JWTSVIDAttributes{
-		Claims: map[string]interface{}{
+		Claims: map[string]any{
 			"sub": params.SPIFFEID.String(),
 			"exp": jwt.NewNumericDate(expiresAt),
 			"aud": params.Audience,

@@ -17,5 +17,5 @@ func Print(err error, stdout, stderr io.Writer) error {
 		E: err.Error(),
 	}
 
-	return structjson.Print([]interface{}{s}, stdout, stderr)
+	return structjson.Print([]any{s}, stdout, stderr)
 }

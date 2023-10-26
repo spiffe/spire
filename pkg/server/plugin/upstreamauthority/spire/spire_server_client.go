@@ -157,18 +157,18 @@ type logAdapter struct {
 	log hclog.Logger
 }
 
-func (l *logAdapter) Debugf(format string, args ...interface{}) {
+func (l *logAdapter) Debugf(format string, args ...any) {
 	l.log.Debug(fmt.Sprintf(format, args...))
 }
 
-func (l *logAdapter) Infof(format string, args ...interface{}) {
+func (l *logAdapter) Infof(format string, args ...any) {
 	l.log.Info(fmt.Sprintf(format, args...))
 }
 
-func (l *logAdapter) Warnf(format string, args ...interface{}) {
+func (l *logAdapter) Warnf(format string, args ...any) {
 	l.log.Warn(fmt.Sprintf(format, args...))
 }
 
-func (l *logAdapter) Errorf(format string, args ...interface{}) {
+func (l *logAdapter) Errorf(format string, args ...any) {
 	l.log.Error(fmt.Sprintf(format, args...))
 }

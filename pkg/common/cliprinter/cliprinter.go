@@ -19,7 +19,7 @@ import (
 type Printer interface {
 	PrintError(error) error
 	PrintProto(...proto.Message) error
-	PrintStruct(...interface{}) error
+	PrintStruct(...any) error
 }
 
 // CustomPrettyFunc is used to provide a custom function for pretty
@@ -27,7 +27,7 @@ type Printer interface {
 // for pre-existing CLI code, such that this code can supply a
 // custom pretty printer that mirrors its current behavior, but
 // still be able to gain formatter functionality for other outputs.
-type CustomPrettyFunc func(*commoncli.Env, ...interface{}) error
+type CustomPrettyFunc func(*commoncli.Env, ...any) error
 
 // ErrInternalCustomPrettyFunc should be returned by a CustomPrettyFunc when some internal error occurs.
 var ErrInternalCustomPrettyFunc = errors.New("internal error: cli printer; please report this bug")
@@ -59,7 +59,7 @@ func (p *printer) PrintProto(msg ...proto.Message) error {
 }
 
 // PrintStruct prints a struct and applies the configured formatting.
-func (p *printer) PrintStruct(msg ...interface{}) error {
+func (p *printer) PrintStruct(msg ...any) error {
 	return p.printStruct(msg)
 }
 
@@ -81,7 +81,7 @@ func (p *printer) printProto(msg ...proto.Message) error {
 	}
 }
 
-func (p *printer) printStruct(msg ...interface{}) error {
+func (p *printer) printStruct(msg ...any) error {
 	switch p.format {
 	case json:
 		return structjson.Print(msg, p.env.Stdout, p.env.Stderr)
@@ -107,9 +107,9 @@ func (p *printer) printPrettyError(err error, stdout, stderr io.Writer) error {
 }
 func (p *printer) printPrettyProto(msgs []proto.Message, stdout, stderr io.Writer) error {
 	if p.cp != nil {
-		m := []interface{}{}
+		m := []any{}
 		for _, msg := range msgs {
-			m = append(m, msg.(interface{}))
+			m = append(m, msg.(any))
 		}
 
 		return p.cp(p.env, m...)
@@ -117,7 +117,7 @@ func (p *printer) printPrettyProto(msgs []proto.Message, stdout, stderr io.Write
 
 	return protopretty.Print(msgs, stdout, stderr)
 }
-func (p *printer) printPrettyStruct(msg []interface{}, stdout, stderr io.Writer) error {
+func (p *printer) printPrettyStruct(msg []any, stdout, stderr io.Writer) error {
 	if p.cp != nil {
 		return p.cp(p.env, msg...)
 	}

@@ -13,7 +13,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
-func printEntry(e *types.Entry, printf func(string, ...interface{}) error) {
+func printEntry(e *types.Entry, printf func(string, ...any) error) {
 	_ = printf("Entry ID         : %s\n", printableEntryID(e.Id))
 	_ = printf("SPIFFE ID        : %s\n", protoToIDString(e.SpiffeId))
 	_ = printf("Parent ID        : %s\n", protoToIDString(e.ParentId))
