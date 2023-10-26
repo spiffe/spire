@@ -59,7 +59,7 @@ func (c *showCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient ut
 	return c.printer.PrintProto(fr)
 }
 
-func (c *showCommand) prettyPrintShow(env *commoncli.Env, results ...interface{}) error {
+func (c *showCommand) prettyPrintShow(env *commoncli.Env, results ...any) error {
 	fr, ok := results[0].(*prototypes.FederationRelationship)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

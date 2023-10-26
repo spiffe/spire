@@ -854,7 +854,7 @@ func testTrustDomainAPI(ctx context.Context, t *testing.T, udsConn, noauthConn, 
 // asserts that the RPC was authorized or not. If a method is not represented
 // in the expectedAuthResults, or a method in expectedAuthResults does not
 // belong to the client interface, the test will fail.
-func testAuthorization(ctx context.Context, t *testing.T, client interface{}, expectedAuthResults map[string]bool) {
+func testAuthorization(ctx context.Context, t *testing.T, client any, expectedAuthResults map[string]bool) {
 	cv := reflect.ValueOf(client)
 	ct := cv.Type()
 

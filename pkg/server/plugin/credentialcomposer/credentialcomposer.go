@@ -33,5 +33,5 @@ type X509SVIDAttributes struct {
 }
 
 type JWTSVIDAttributes struct {
-	Claims map[string]interface{}
+	Claims map[string]any
 }

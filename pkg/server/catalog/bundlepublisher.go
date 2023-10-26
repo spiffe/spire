@@ -10,7 +10,7 @@ type bundlePublisherRepository struct {
 	bundlepublisher.Repository
 }
 
-func (repo *bundlePublisherRepository) Binder() interface{} {
+func (repo *bundlePublisherRepository) Binder() any {
 	return repo.AddBundlePublisher
 }
 

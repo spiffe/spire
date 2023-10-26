@@ -95,8 +95,8 @@ type expiredAgent struct {
 	Error   string      `json:"error,omitempty"`
 }
 
-func (c *purgeCommand) prettyPrintPurgeResult(env *commoncli.Env, results ...interface{}) error {
-	if expAgents, ok := results[0].([]interface{})[0].(*expiredAgents); ok {
+func (c *purgeCommand) prettyPrintPurgeResult(env *commoncli.Env, results ...any) error {
+	if expAgents, ok := results[0].([]any)[0].(*expiredAgents); ok {
 		if len(expAgents.Agents) == 0 {
 			env.Println("No agents to purge.")
 			return nil

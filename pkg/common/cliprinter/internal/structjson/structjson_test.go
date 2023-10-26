@@ -10,13 +10,13 @@ import (
 func TestPrint(t *testing.T) {
 	cases := []struct {
 		name   string
-		s      []interface{}
+		s      []any
 		stdout string
 		stderr string
 	}{
 		{
 			name: "friendly_struct",
-			s: []interface{}{
+			s: []any{
 				&friendlyStruct{Friendly: true},
 			},
 			stdout: "{\"friendly\":true}\n",
@@ -24,7 +24,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "double_friendly_struct",
-			s: []interface{}{
+			s: []any{
 				&friendlyStruct{Friendly: true},
 				&friendlyStruct{Friendly: true},
 			},
@@ -39,13 +39,13 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name:   "nil_struct",
-			s:      []interface{}{nil},
+			s:      []any{nil},
 			stdout: "null\n",
 			stderr: "",
 		},
 		{
 			name: "empty_struct",
-			s: []interface{}{
+			s: []any{
 				struct{}{},
 			},
 			stdout: "{}\n",

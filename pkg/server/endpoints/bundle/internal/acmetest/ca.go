@@ -87,7 +87,7 @@ type CAServer struct {
 	errors         []error                   //nolint:structcheck,unused
 
 	accountKeysMu sync.Mutex
-	accountKeys   map[string]interface{}
+	accountKeys   map[string]any
 }
 
 // NewCAServer creates a new ACME test server and starts serving requests.
@@ -109,7 +109,7 @@ func NewCAServer(challengeTypes []string, domainsWhitelist []string) *CAServer {
 		domainsWhitelist: whitelist,
 		domainAddr:       make(map[string]string),
 		authorizations:   make(map[string]*authorization),
-		accountKeys:      make(map[string]interface{}),
+		accountKeys:      make(map[string]any),
 	}
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -153,7 +153,7 @@ func (ca *CAServer) Close() {
 	ca.server.Close()
 }
 
-func (ca *CAServer) serverURL(format string, arg ...interface{}) string {
+func (ca *CAServer) serverURL(format string, arg ...any) string {
 	return ca.server.URL + fmt.Sprintf(format, arg...)
 }
 
@@ -167,7 +167,7 @@ func (ca *CAServer) addr(domain string) (string, error) {
 	return addr, nil
 }
 
-func (ca *CAServer) httpErrorf(w http.ResponseWriter, code int, format string, a ...interface{}) {
+func (ca *CAServer) httpErrorf(w http.ResponseWriter, code int, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	log.Println(s)
 	http.Error(w, s, code)
@@ -580,7 +580,7 @@ func (ca *CAServer) verifyALPNChallenge(domain string) error {
 	return nil
 }
 
-func (ca *CAServer) decodePayload(v interface{}, r io.Reader) error {
+func (ca *CAServer) decodePayload(v any, r io.Reader) error {
 	buf := new(bytes.Buffer)
 	if _, err := buf.ReadFrom(r); err != nil {
 		return errors.New("unable to read JOSE body")
@@ -595,7 +595,7 @@ func (ca *CAServer) decodePayload(v interface{}, r io.Reader) error {
 	sig := jws.Signatures[0]
 	jwk := sig.Protected.JSONWebKey
 	kid := sig.Protected.KeyID
-	var key interface{}
+	var key any
 	switch {
 	case jwk == nil && kid == "":
 		return errors.New("invalid JOSE body; missing jwk or keyid in header")
@@ -630,13 +630,13 @@ func (ca *CAServer) decodePayload(v interface{}, r io.Reader) error {
 	return nil
 }
 
-func (ca *CAServer) lookupAccountKey(kid string) interface{} {
+func (ca *CAServer) lookupAccountKey(kid string) any {
 	ca.accountKeysMu.Lock()
 	defer ca.accountKeysMu.Unlock()
 	return ca.accountKeys[kid]
 }
 
-func (ca *CAServer) setAccountKey(kid string, key interface{}) {
+func (ca *CAServer) setAccountKey(kid string, key any) {
 	ca.accountKeysMu.Lock()
 	defer ca.accountKeysMu.Unlock()
 	ca.accountKeys[kid] = key

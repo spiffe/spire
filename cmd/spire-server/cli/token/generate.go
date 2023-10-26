@@ -79,7 +79,7 @@ func (g *generateCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&g.printer, fs, g.env, g.prettyPrintGenerate)
 }
 
-func (g *generateCommand) prettyPrintGenerate(env *commoncli.Env, results ...interface{}) error {
+func (g *generateCommand) prettyPrintGenerate(env *commoncli.Env, results ...any) error {
 	generateResp, ok := results[0].(*prototypes.JoinToken)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

@@ -66,7 +66,7 @@ func (c *updateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 	return c.printer.PrintProto(resp)
 }
 
-func (c *updateCommand) prettyPrintUpdate(env *commoncli.Env, results ...interface{}) error {
+func (c *updateCommand) prettyPrintUpdate(env *commoncli.Env, results ...any) error {
 	updateResp, ok := results[0].(*trustdomainv1.BatchUpdateFederationRelationshipResponse)
 	if !ok || len(c.federationRelationships) < len(updateResp.Results) {
 		return cliprinter.ErrInternalCustomPrettyFunc

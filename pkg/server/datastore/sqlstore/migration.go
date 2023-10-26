@@ -358,7 +358,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		return sqlError.Wrap(err)
 	}
 
-	tables := []interface{}{
+	tables := []any{
 		&Bundle{},
 		&AttestedNode{},
 		&AttestedNodeEvent{},

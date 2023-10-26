@@ -12,11 +12,11 @@ func TestHCLogAdapterImpliedArgs(t *testing.T) {
 	require.NoError(t, err)
 
 	adapter := NewHCLogAdapter(logger, "test")
-	assert.Equal(t, ([]interface{})(nil), adapter.ImpliedArgs())
+	assert.Equal(t, ([]any)(nil), adapter.ImpliedArgs())
 
 	adapter2 := adapter.With("a", "b", "c", "d")
-	assert.Equal(t, []interface{}{"a", "b", "c", "d"}, adapter2.ImpliedArgs())
+	assert.Equal(t, []any{"a", "b", "c", "d"}, adapter2.ImpliedArgs())
 
 	adapter3 := adapter2.With("x", "y", "z", "w")
-	assert.Equal(t, []interface{}{"a", "b", "c", "d", "x", "y", "z", "w"}, adapter3.ImpliedArgs())
+	assert.Equal(t, []any{"a", "b", "c", "d", "x", "y", "z", "w"}, adapter3.ImpliedArgs())
 }

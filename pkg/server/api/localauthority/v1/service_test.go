@@ -1806,7 +1806,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		ca:      m,
 	}
 
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 		ctx = rpccontext.WithLogger(ctx, log)
 		return ctx, nil
 	})

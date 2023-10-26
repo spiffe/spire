@@ -4828,7 +4828,7 @@ func (s *PluginSuite) TestBindVar() {
 	s.Require().Equal("SELECT whatever FROM foo WHERE x = $1 AND y = $2", bound)
 }
 
-func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interface{}) {
+func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue any) {
 	entriesJSON, err := os.ReadFile(filePath)
 	s.Require().NoError(err)
 
@@ -5069,7 +5069,7 @@ func dropTables(t *testing.T, db *sql.DB, tableNames []string) {
 // TODO: replace this with calls to Equal when we replace common.Selector with
 // a normal struct that doesn't require special comparison (i.e. not a
 // protobuf)
-func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Selector, msgAndArgs ...interface{}) {
+func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Selector, msgAndArgs ...any) {
 	type selector struct {
 		Type  string
 		Value string
