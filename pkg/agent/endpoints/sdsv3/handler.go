@@ -143,8 +143,8 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 						telemetry.Expect:      versionInfo,
 					}).Error("Client rejected expected version and rolled back")
 				}
-				// If Envoy doesn't return Node, use the Node from a previous stream
-				if newReq.Node == nil && lastNode != nil {
+				// If the current request does not contain node information, use the information from a previous request (if any)
+				if newReq.Node == nil {
 					newReq.Node = lastNode
 				}
 			}
