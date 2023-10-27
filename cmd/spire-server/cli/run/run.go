@@ -84,6 +84,8 @@ type serverConfig struct {
 	RateLimit          rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath         string             `hcl:"socket_path"`
 	TrustDomain        string             `hcl:"trust_domain"`
+	// Temporary flag to allow disabling the inclusion of serial number in X509 CAs Subject field
+	ExcludeSNFromCASubject bool `hcl:"exclude_sn_from_ca_subject"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -101,8 +103,6 @@ type experimentalConfig struct {
 	AuthOpaPolicyEngine  *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 	CacheReloadInterval  string                      `hcl:"cache_reload_interval"`
 	PruneEventsOlderThan string                      `hcl:"prune_events_older_than"`
-	// Temporary flag to allow disabling the inclusion of serial number in X509 CAs Subject field
-	ExcludeSNFromCASubject bool `hcl:"exclude_sn_from_ca_subject"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -636,6 +636,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CASubject = credtemplate.DefaultX509CASubject()
 	}
 
+	sc.ExcludeSNFromCASubject = c.Server.ExcludeSNFromCASubject
+	// TODO: remove exclude_sn_from_ca_subject in SPIRE v1.10.0
+	if sc.ExcludeSNFromCASubject {
+		sc.Log.Warn("The deprecated exclude_sn_from_ca_subject configurable will be removed in a future release")
+	}
+
 	sc.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
 	if err != nil {
 		return nil, err
@@ -670,7 +676,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
-	sc.ExcludeSNFromCASubject = c.Server.Experimental.ExcludeSNFromCASubject
 
 	for _, f := range c.Server.Experimental.Flags {
 		sc.Log.Warnf("Developer feature flag %q has been enabled", f)
