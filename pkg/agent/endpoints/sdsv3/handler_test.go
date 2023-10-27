@@ -74,19 +74,6 @@ var (
 			},
 		},
 	}
-
-	tdValidationContext2 = &tls_v3.Secret{
-		Name: "ROOTCA",
-		Type: &tls_v3.Secret_ValidationContext{
-			ValidationContext: &tls_v3.CertificateValidationContext{
-				TrustedCa: &core_v3.DataSource{
-					Specifier: &core_v3.DataSource_InlineBytes{
-						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nQlVORExF\n-----END CERTIFICATE-----\n"),
-					},
-				},
-			},
-		},
-	}
 	tdValidationContext2SpiffeValidator = &tls_v3.Secret{
 		Name: "ROOTCA",
 		Type: &tls_v3.Secret_ValidationContext{
