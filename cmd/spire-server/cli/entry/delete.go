@@ -1,6 +1,7 @@
 package entry
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -13,8 +14,6 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"google.golang.org/grpc/codes"
-
-	"golang.org/x/net/context"
 )
 
 // NewDeleteCommand creates a new "delete" subcommand for "entry" command.

@@ -1,6 +1,7 @@
 package token
 
 import (
+	"context"
 	"flag"
 
 	"github.com/mitchellh/cli"
@@ -8,11 +9,8 @@ import (
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	prototypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
-
-	"golang.org/x/net/context"
 )
 
 func NewGenerateCommand() cli.Command {

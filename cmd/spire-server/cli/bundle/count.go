@@ -1,6 +1,7 @@
 package bundle
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
@@ -10,8 +11,6 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
-
-	"golang.org/x/net/context"
 )
 
 type countCommand struct {
