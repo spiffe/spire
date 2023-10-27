@@ -2,6 +2,7 @@ package entry
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path"
 	"testing"
@@ -15,7 +16,6 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 

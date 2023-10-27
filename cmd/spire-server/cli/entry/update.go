@@ -1,6 +1,7 @@
 package entry
 
 import (
+	"context"
 	"errors"
 	"flag"
 
@@ -11,8 +12,6 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"google.golang.org/grpc/codes"
-
-	"golang.org/x/net/context"
 )
 
 // NewUpdateCommand creates a new "update" subcommand for "entry" command.

@@ -1,6 +1,7 @@
 package entry
 
 import (
+	"context"
 	"errors"
 	"flag"
 
@@ -12,8 +13,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc/codes"
-
-	"golang.org/x/net/context"
 )
 
 // NewCreateCommand creates a new "create" subcommand for "entry" command.
