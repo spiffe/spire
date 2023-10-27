@@ -162,7 +162,7 @@ func (s *Suite) testAttestSuccess(p nodeattestor.NodeAttestor, expectBundle [][]
 	s.Require().NoError(err)
 }
 
-func (s *Suite) marshal(obj interface{}) []byte {
+func (s *Suite) marshal(obj any) []byte {
 	data, err := json.Marshal(obj)
 	s.Require().NoError(err)
 	return data

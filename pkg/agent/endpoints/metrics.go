@@ -25,7 +25,7 @@ type connectionMetrics struct {
 	delegatedIdentityAPIConns int32
 }
 
-func (m *connectionMetrics) Preprocess(ctx context.Context, _ string, _ interface{}) (context.Context, error) {
+func (m *connectionMetrics) Preprocess(ctx context.Context, _ string, _ any) (context.Context, error) {
 	if names, ok := rpccontext.Names(ctx); ok {
 		switch names.RawService {
 		case middleware.WorkloadAPIServiceName:

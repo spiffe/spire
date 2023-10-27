@@ -339,7 +339,7 @@ func (p *AttestorPlugin) setConfig(config *attestorConfig) {
 	p.config = config
 }
 
-func verifyTokenSignature(keys []crypto.PublicKey, token *jwt.JSONWebToken, claims interface{}) (err error) {
+func verifyTokenSignature(keys []crypto.PublicKey, token *jwt.JSONWebToken, claims any) (err error) {
 	var lastErr error
 	for _, key := range keys {
 		if err := token.Claims(key, claims); err != nil {

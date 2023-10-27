@@ -45,7 +45,7 @@ type Input struct {
 	// Req represents data received from the request body. It MUST be a
 	// protobuf request object with fields that are serializable as JSON,
 	// since they will be used in policy definitions.
-	Req interface{} `json:"req"`
+	Req any `json:"req"`
 }
 
 type Result struct {
@@ -90,13 +90,13 @@ func newEngine(ctx context.Context, cfg *OpaEngineConfig) (*Engine, error) {
 		defer storefile.Close()
 
 		d := util.NewJSONDecoder(storefile)
-		var data map[string]interface{}
+		var data map[string]any
 		if err := d.Decode(&data); err != nil {
 			return nil, fmt.Errorf("error decoding JSON databindings: %w", err)
 		}
 		store = inmem.NewFromObject(data)
 	} else {
-		store = inmem.NewFromObject(map[string]interface{}{})
+		store = inmem.NewFromObject(map[string]any{})
 	}
 
 	return NewEngineFromRego(ctx, string(module), store)
@@ -140,7 +140,7 @@ func (e *Engine) Eval(ctx context.Context, input Input) (result Result, err erro
 	}
 
 	exp := rs[0].Expressions[0]
-	resultMap, ok := exp.Value.(map[string]interface{})
+	resultMap, ok := exp.Value.(map[string]any)
 	if !ok {
 		return Result{}, errors.New("unexpected type in evaluating policy result expression")
 	}

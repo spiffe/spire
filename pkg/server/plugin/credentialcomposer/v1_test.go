@@ -790,7 +790,7 @@ func TestV1ComposeWorkloadJWTSVID(t *testing.T) {
 		{
 			test:          "plugin fails",
 			idIn:          id,
-			attributesIn:  credentialcomposer.JWTSVIDAttributes{Claims: map[string]interface{}{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
+			attributesIn:  credentialcomposer.JWTSVIDAttributes{Claims: map[string]any{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
 			pluginErr:     status.Error(codes.Internal, "oh no"),
 			expectCode:    codes.Internal,
 			expectMessage: "credentialcomposer(test): oh no",
@@ -806,7 +806,7 @@ func TestV1ComposeWorkloadJWTSVID(t *testing.T) {
 			test:         "attributes unchanged if unimplemented",
 			pluginErr:    status.Error(codes.Unimplemented, "not implemented"),
 			idIn:         id,
-			attributesIn: credentialcomposer.JWTSVIDAttributes{Claims: map[string]interface{}{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
+			attributesIn: credentialcomposer.JWTSVIDAttributes{Claims: map[string]any{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
 			expectRequestIn: &credentialcomposerv1.ComposeWorkloadJWTSVIDRequest{
 				SpiffeId: id.String(),
 				Attributes: &credentialcomposerv1.JWTSVIDAttributes{
@@ -814,12 +814,12 @@ func TestV1ComposeWorkloadJWTSVID(t *testing.T) {
 				},
 			},
 			responseOut:         &credentialcomposerv1.ComposeWorkloadJWTSVIDResponse{},
-			expectAttributesOut: credentialcomposer.JWTSVIDAttributes{Claims: map[string]interface{}{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
+			expectAttributesOut: credentialcomposer.JWTSVIDAttributes{Claims: map[string]any{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
 		},
 		{
 			test:         "attributes unchanged if plugin does not respond with attributes",
 			idIn:         id,
-			attributesIn: credentialcomposer.JWTSVIDAttributes{Claims: map[string]interface{}{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
+			attributesIn: credentialcomposer.JWTSVIDAttributes{Claims: map[string]any{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
 			expectRequestIn: &credentialcomposerv1.ComposeWorkloadJWTSVIDRequest{
 				SpiffeId: id.String(),
 				Attributes: &credentialcomposerv1.JWTSVIDAttributes{
@@ -827,12 +827,12 @@ func TestV1ComposeWorkloadJWTSVID(t *testing.T) {
 				},
 			},
 			responseOut:         &credentialcomposerv1.ComposeWorkloadJWTSVIDResponse{},
-			expectAttributesOut: credentialcomposer.JWTSVIDAttributes{Claims: map[string]interface{}{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
+			expectAttributesOut: credentialcomposer.JWTSVIDAttributes{Claims: map[string]any{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
 		},
 		{
 			test:         "attributes overridden by plugin",
 			idIn:         id,
-			attributesIn: credentialcomposer.JWTSVIDAttributes{Claims: map[string]interface{}{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
+			attributesIn: credentialcomposer.JWTSVIDAttributes{Claims: map[string]any{"ORIGINAL_KEY": "ORIGINAL_VALUE"}},
 			expectRequestIn: &credentialcomposerv1.ComposeWorkloadJWTSVIDRequest{
 				SpiffeId: id.String(),
 				Attributes: &credentialcomposerv1.JWTSVIDAttributes{
@@ -844,7 +844,7 @@ func TestV1ComposeWorkloadJWTSVID(t *testing.T) {
 					Claims: &structpb.Struct{Fields: map[string]*structpb.Value{"NEW_KEY": structpb.NewStringValue("NEW_VALUE")}},
 				},
 			},
-			expectAttributesOut: credentialcomposer.JWTSVIDAttributes{Claims: map[string]interface{}{"NEW_KEY": "NEW_VALUE"}},
+			expectAttributesOut: credentialcomposer.JWTSVIDAttributes{Claims: map[string]any{"NEW_KEY": "NEW_VALUE"}},
 		},
 	} {
 		tt := tt

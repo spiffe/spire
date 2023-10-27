@@ -1,6 +1,7 @@
 package dscache
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"testing"
@@ -14,7 +15,6 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 	"google.golang.org/protobuf/proto"
 )
 

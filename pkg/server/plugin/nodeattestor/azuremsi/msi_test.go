@@ -152,7 +152,7 @@ func (s *MSIAttestorSuite) TestAttestFailsWithAlgorithmMismatch() {
 		Algorithm: jose.HS256,
 		Key:       []byte("0123456789ABCDEF"),
 	}, &jose.SignerOptions{
-		ExtraHeaders: map[jose.HeaderKey]interface{}{
+		ExtraHeaders: map[jose.HeaderKey]any{
 			"kid": "KEYID",
 		},
 	})
@@ -609,7 +609,7 @@ func (s *MSIAttestorSuite) signToken(keyID, audience, tenantID, principalID stri
 
 	// add the tenant id claim
 	if tenantID != "" {
-		builder = builder.Claims(map[string]interface{}{
+		builder = builder.Claims(map[string]any{
 			"tid": tenantID,
 		})
 	}

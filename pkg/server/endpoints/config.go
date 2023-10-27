@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"context"
 	"crypto"
 	"crypto/x509"
 	"errors"
@@ -29,7 +30,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"golang.org/x/net/context"
 )
 
 // Config is a configuration for endpoints

@@ -273,7 +273,7 @@ func TestRateLimits(t *testing.T) {
 			}
 			serverInfo := &grpc.UnaryServerInfo{FullMethod: tt.method}
 
-			handler := func(ctx context.Context, _ interface{}) (interface{}, error) {
+			handler := func(ctx context.Context, _ any) (any, error) {
 				if tt.rateLimitCount > 0 {
 					if err := rpccontext.RateLimit(ctx, tt.rateLimitCount); err != nil {
 						return nil, err
@@ -297,7 +297,7 @@ func TestRateLimits(t *testing.T) {
 				),
 				// Install a middleware downstream so that we can test what
 				// happens in postprocess if the handler is never invoked.
-				middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+				middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 					return ctx, tt.downstreamErr
 				}),
 			))

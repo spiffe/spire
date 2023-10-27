@@ -71,7 +71,7 @@ func (c *createCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 	return c.printer.PrintProto(resp)
 }
 
-func (c *createCommand) prettyPrintCreate(env *commoncli.Env, results ...interface{}) error {
+func (c *createCommand) prettyPrintCreate(env *commoncli.Env, results ...any) error {
 	createResp, ok := results[0].(*trustdomainv1.BatchCreateFederationRelationshipResponse)
 	if !ok || len(c.federationRelationships) < len(createResp.Results) {
 		return cliprinter.ErrInternalCustomPrettyFunc

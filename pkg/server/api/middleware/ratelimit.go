@@ -201,7 +201,7 @@ type rateLimitsMiddleware struct {
 	metrics  telemetry.Metrics
 }
 
-func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string, _ interface{}) (context.Context, error) {
+func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string, _ any) (context.Context, error) {
 	rateLimiter, ok := i.limiters[fullMethod]
 	if !ok {
 		middleware.LogMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")

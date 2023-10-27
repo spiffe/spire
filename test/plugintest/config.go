@@ -19,7 +19,7 @@ type config struct {
 	configureErr *error
 	coreConfig   catalog.CoreConfig
 	plainConfig  *string
-	jsonConfig   interface{}
+	jsonConfig   any
 }
 
 func (conf *config) makeConfigData(t *testing.T) string {

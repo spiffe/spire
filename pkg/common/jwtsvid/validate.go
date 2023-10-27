@@ -39,7 +39,7 @@ func (t *keyStore) FindPublicKey(_ context.Context, td spiffeid.TrustDomain, key
 	return publicKey, nil
 }
 
-func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (spiffeid.ID, map[string]interface{}, error) {
+func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (spiffeid.ID, map[string]any, error) {
 	tok, err := jwt.ParseSigned(token)
 	if err != nil {
 		return spiffeid.ID{}, nil, errs.New("unable to parse JWT token")
@@ -87,7 +87,7 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 	}
 
 	// Now obtain the generic claims map verified using the obtained key
-	claimsMap := make(map[string]interface{})
+	claimsMap := make(map[string]any)
 	if err := tok.Claims(key, &claimsMap); err != nil {
 		return spiffeid.ID{}, nil, errs.Wrap(err)
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 )
 
-func CreateCertificate(template, parent *x509.Certificate, pub, priv interface{}) (*x509.Certificate, error) {
+func CreateCertificate(template, parent *x509.Certificate, pub, priv any) (*x509.Certificate, error) {
 	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, priv)
 	if err != nil {
 		return nil, err

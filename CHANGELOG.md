@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.8.3] - 2023-10-25
+
+### Added
+
+- SPIRE Agent distributes sync requests to the SPIRE server to mitigate thundering herd situations (#4534)
+- Allow configuring prefixes for all metrics (#4535)
+- Documentation improvements (#4579, #4569)
+
+### Changed
+
+- SPIRE Agent performs the initial sync more aggressively when tuned with a longer sync interval (#4479)
+
+### Fixed
+
+- Release artifacts have the correct version information (#4564)
+- The SPIRE Agent `insecureBootstrap` and `trustBundleUrl` configurables are now mutually exclusive (#4532)
+- Bug preventing JWT-SVIDs from being minted when a Credential Composer plugin is configured (#4489)
+
 ## [1.8.2] - 2023-10-12
 
 ### Security

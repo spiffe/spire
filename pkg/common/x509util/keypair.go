@@ -13,7 +13,7 @@ type Keypair interface {
 	GetCertificate(ctx context.Context) (*x509.Certificate, error)
 
 	// CreateCertificate signs a certificate with the keypair.
-	CreateCertificate(ctx context.Context, template *x509.Certificate, publicKey interface{}) (certDER []byte, err error)
+	CreateCertificate(ctx context.Context, template *x509.Certificate, publicKey any) (certDER []byte, err error)
 }
 
 type MemoryKeypair struct {
@@ -32,6 +32,6 @@ func (m *MemoryKeypair) GetCertificate(_ context.Context) (*x509.Certificate, er
 	return m.cert, nil
 }
 
-func (m *MemoryKeypair) CreateCertificate(_ context.Context, template *x509.Certificate, publicKey interface{}) ([]byte, error) {
+func (m *MemoryKeypair) CreateCertificate(_ context.Context, template *x509.Certificate, publicKey any) ([]byte, error) {
 	return x509.CreateCertificate(rand.Reader, template, m.cert, publicKey, m.key)
 }

@@ -12,7 +12,7 @@ type keyManagerRepository struct {
 	keymanager.Repository
 }
 
-func (repo *keyManagerRepository) Binder() interface{} {
+func (repo *keyManagerRepository) Binder() any {
 	return repo.SetKeyManager
 }
 
