@@ -200,6 +200,8 @@ import (
 // | v1.8.1  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.8.2  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.8.3  |        |                                                                           |
 // ================================================================================================
 
 const (
@@ -356,7 +358,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		return sqlError.Wrap(err)
 	}
 
-	tables := []interface{}{
+	tables := []any{
 		&Bundle{},
 		&AttestedNode{},
 		&AttestedNodeEvent{},

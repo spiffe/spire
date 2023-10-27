@@ -90,7 +90,7 @@ type binder struct {
 	fnv reflect.Value
 }
 
-func makeBinder(fn interface{}) (binder, error) {
+func makeBinder(fn any) (binder, error) {
 	fnv := reflect.ValueOf(fn)
 	if fnv == (reflect.Value{}) {
 		return binder{}, errors.New("binder cannot be nil")

@@ -21,7 +21,7 @@ func LoadCertificateRequest(path string) (*x509.CertificateRequest, error) {
 	return csrFromObject(block.Object)
 }
 
-func csrFromObject(object interface{}) (*x509.CertificateRequest, error) {
+func csrFromObject(object any) (*x509.CertificateRequest, error) {
 	csr, ok := object.(*x509.CertificateRequest)
 	if !ok {
 		return nil, fmt.Errorf("expected %T; got %T", csr, object)

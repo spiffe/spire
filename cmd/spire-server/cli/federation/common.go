@@ -170,7 +170,7 @@ func bundleFromRawMessage(raw json.RawMessage, bundleFormat string, endpointTrus
 	return util.ParseBundle(bundle, bundleFormat, endpointTrustDomain)
 }
 
-func printFederationRelationship(fr *types.FederationRelationship, printf func(format string, args ...interface{}) error) {
+func printFederationRelationship(fr *types.FederationRelationship, printf func(format string, args ...any) error) {
 	_ = printf("Trust domain              : %s\n", fr.TrustDomain)
 	_ = printf("Bundle endpoint URL       : %s\n", fr.BundleEndpointUrl)
 

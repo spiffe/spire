@@ -2,6 +2,7 @@ package token
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"testing"
 
@@ -12,7 +13,6 @@ import (
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

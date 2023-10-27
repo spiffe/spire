@@ -501,7 +501,7 @@ func keyVaultSignatureToASN1Encoded(keyVaultSigResult []byte, keyType keymanager
 
 // keyVaultKeyToRawKey takes a *azkeys.JSONWebKey and returns the corresponding raw public key
 // For example *ecdsa.PublicKey or *rsa.PublicKey etc
-func keyVaultKeyToRawKey(keyVaultKey *azkeys.JSONWebKey) (interface{}, error) {
+func keyVaultKeyToRawKey(keyVaultKey *azkeys.JSONWebKey) (any, error) {
 	// Marshal the key to JSON
 	jwkJSON, err := keyVaultKey.MarshalJSON()
 	if err != nil {
@@ -514,7 +514,7 @@ func keyVaultKeyToRawKey(keyVaultKey *azkeys.JSONWebKey) (interface{}, error) {
 		return nil, status.Errorf(codes.Internal, "failed to parse key: %v", err)
 	}
 
-	var rawkey interface{}
+	var rawkey any
 	// Raw returns the public key represented by this JWK (in this case, *rsa.PublicKey or *ecdsa.PublicKey)
 	if err := key.Raw(&rawkey); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to convert Key Vault key to raw key: %v", err)
@@ -745,7 +745,7 @@ func makeFingerprint(pkixData []byte) string {
 	return hex.EncodeToString(s[:])
 }
 
-func signingAlgorithmForKeyVault(keyType keymanagerv1.KeyType, signerOpts interface{}) (azkeys.JSONWebKeySignatureAlgorithm, error) {
+func signingAlgorithmForKeyVault(keyType keymanagerv1.KeyType, signerOpts any) (azkeys.JSONWebKeySignatureAlgorithm, error) {
 	var (
 		hashAlgo keymanagerv1.HashAlgorithm
 		isPSS    bool

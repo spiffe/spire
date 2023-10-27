@@ -457,14 +457,14 @@ func (r *Repo) Services() []catalog.ServiceRepo {
 }
 
 type PluginRepo struct {
-	binder      interface{}
+	binder      any
 	versions    []catalog.Version
 	clear       func()
 	constraints catalog.Constraints
 	builtIns    []catalog.BuiltIn
 }
 
-func (r *PluginRepo) Binder() interface{} {
+func (r *PluginRepo) Binder() any {
 	return r.binder
 }
 
@@ -485,12 +485,12 @@ func (r *PluginRepo) BuiltIns() []catalog.BuiltIn {
 }
 
 type ServiceRepo struct {
-	binder   interface{}
+	binder   any
 	versions []catalog.Version
 	clear    func()
 }
 
-func (r *ServiceRepo) Binder() interface{} {
+func (r *ServiceRepo) Binder() any {
 	return r.binder
 }
 
@@ -562,10 +562,10 @@ func (v badVersion) Deprecated() bool { return false }
 
 type badFacade struct{}
 
-func (badFacade) GRPCServiceName() string                         { return "bad" }
-func (badFacade) InitClient(grpc.ClientConnInterface) interface{} { return nil }
-func (badFacade) InitInfo(catalog.PluginInfo)                     {}
-func (badFacade) InitLog(logrus.FieldLogger)                      {}
+func (badFacade) GRPCServiceName() string                 { return "bad" }
+func (badFacade) InitClient(grpc.ClientConnInterface) any { return nil }
+func (badFacade) InitInfo(catalog.PluginInfo)             {}
+func (badFacade) InitLog(logrus.FieldLogger)              {}
 
 func assertContainsLogMessage(t *testing.T, entries []*logrus.Entry, message string) {
 	messages := make([]string, 0, len(entries))

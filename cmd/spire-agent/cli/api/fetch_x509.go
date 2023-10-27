@@ -151,7 +151,7 @@ func (c *fetchX509Command) writeFile(filename string, data []byte) error {
 	return diskutil.WritePubliclyReadableFile(filename, data)
 }
 
-func (c *fetchX509Command) prettyPrintFetchX509(env *commoncli.Env, results ...interface{}) error {
+func (c *fetchX509Command) prettyPrintFetchX509(env *commoncli.Env, results ...any) error {
 	resp, ok := results[0].(*workload.X509SVIDResponse)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

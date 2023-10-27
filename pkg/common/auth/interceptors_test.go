@@ -36,7 +36,7 @@ func TestUnaryAuthorizeCall(t *testing.T) {
 		require.Equal(t, "FOO", fullMethod)
 		return context.WithValue(ctx, testKey{}, "value"), nil
 	})
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req any) (any, error) {
 		require.Equal(t, "value", ctx.Value(testKey{}))
 		require.Equal(t, "req", req)
 		return "resp", errors.New("error")
@@ -69,7 +69,7 @@ func TestStreamAuthorizeCall(t *testing.T) {
 		require.Equal(t, "FOO", fullMethod)
 		return context.WithValue(ctx, testKey{}, "value"), nil
 	})
-	handler := func(server interface{}, stream grpc.ServerStream) error {
+	handler := func(server any, stream grpc.ServerStream) error {
 		require.NotNil(t, server)
 		require.Equal(t, "value", stream.Context().Value(testKey{}))
 		return errors.New("error")

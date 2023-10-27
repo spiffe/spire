@@ -42,7 +42,7 @@ type ServiceRepo interface {
 	// return void and take a single argument of type X, where X can be
 	// assigned to by any of the facade implementation types returned by the
 	// provided versions (see Versions).
-	Binder() interface{}
+	Binder() any
 
 	// Versions returns the versions supported by the repository, ordered by
 	// most to least preferred. The first version supported by the plugin will

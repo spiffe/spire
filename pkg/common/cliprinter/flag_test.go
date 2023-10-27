@@ -113,7 +113,7 @@ func TestAppendFlagWithCustomPretty(t *testing.T) {
 	p = nil
 	fs = flag.NewFlagSet("testy", flag.ContinueOnError)
 	invoked := make(chan struct{}, 1)
-	cp := func(_ *commoncli.Env, _ ...interface{}) error {
+	cp := func(_ *commoncli.Env, _ ...any) error {
 		invoked <- struct{}{}
 		return nil
 	}

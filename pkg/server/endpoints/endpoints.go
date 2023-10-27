@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -11,7 +12,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
-	"golang.org/x/net/context"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -248,7 +248,8 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 	defer l.Close()
 	log := e.Log.WithFields(logrus.Fields{
 		telemetry.Network: l.Addr().Network(),
-		telemetry.Address: l.Addr().String()})
+		telemetry.Address: l.Addr().String(),
+	})
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
 	log.Info("Starting Server APIs")
@@ -291,7 +292,8 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 
 	log := e.Log.WithFields(logrus.Fields{
 		telemetry.Network: l.Addr().Network(),
-		telemetry.Address: l.Addr().String()})
+		telemetry.Address: l.Addr().String(),
+	})
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
 	log.Info("Starting Server APIs")

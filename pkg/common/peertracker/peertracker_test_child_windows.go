@@ -1,5 +1,4 @@
 //go:build ignore
-// +build ignore
 
 // This file is used during testing. It is built as an external binary
 // and called from the test suite in order to exercise various peer

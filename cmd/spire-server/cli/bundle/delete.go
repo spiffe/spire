@@ -77,7 +77,7 @@ func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 	return c.printer.PrintProto(resp)
 }
 
-func prettyPrintDelete(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintDelete(env *commoncli.Env, results ...any) error {
 	deleteResp, ok := results[0].(*bundlev1.BatchDeleteFederatedBundleResponse)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

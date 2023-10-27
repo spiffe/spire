@@ -141,7 +141,7 @@ golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
-markdown_lint_version = v0.35.0
+markdown_lint_version = v0.37.0
 markdown_lint_image = ghcr.io/igorshubovych/markdownlint-cli:$(markdown_lint_version)
 
 protoc_version = 3.20.1
@@ -284,7 +284,6 @@ bin/static/%: cmd/% FORCE | go-check
 	$(E)$(go_build_static) $@$(exe) ./$<
 
 bin/static/%: support/% FORCE | go-check
-	@echo Building $@…
 	$(E)$(go_build_static) $@$(exe) ./$<
 
 #############################################################################
@@ -337,6 +336,7 @@ $1: $3 container-builder
 	$(E)docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg goversion=$(go_version) \
+		--build-arg TAG=$(TAG) \
 		--target $2 \
 		-o type=oci,dest=$2-image.tar \
 		-f $3 \

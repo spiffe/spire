@@ -26,7 +26,7 @@ func newPCAClient(ctx context.Context, cfg *Configuration) (PCAClient, error) {
 	}
 
 	if cfg.Endpoint != "" {
-		endpointResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+		endpointResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...any) (aws.Endpoint, error) {
 			if service == acmpca.ServiceID && region == cfg.Region {
 				return aws.Endpoint{
 					PartitionID:   "aws",

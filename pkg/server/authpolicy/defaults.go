@@ -17,7 +17,7 @@ var (
 
 // DefaultAuthPolicy returns the default policy engine
 func DefaultAuthPolicy(ctx context.Context) (*Engine, error) {
-	var json map[string]interface{}
+	var json map[string]any
 	if err := util.UnmarshalJSON(defaultPolicyData, &json); err != nil {
 		return nil, err
 	}

@@ -837,7 +837,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	return config, nil
 }
 
-func signingAlgorithmForKMS(keyType keymanagerv1.KeyType, signerOpts interface{}) (types.SigningAlgorithmSpec, error) {
+func signingAlgorithmForKMS(keyType keymanagerv1.KeyType, signerOpts any) (types.SigningAlgorithmSpec, error) {
 	var (
 		hashAlgo keymanagerv1.HashAlgorithm
 		isPSS    bool

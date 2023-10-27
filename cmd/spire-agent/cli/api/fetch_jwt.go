@@ -78,7 +78,7 @@ func (c *fetchJWTCommand) fetchJWTBundles(ctx context.Context, client *workloadC
 	return stream.Recv()
 }
 
-func printPrettyResult(env *commoncli.Env, results ...interface{}) error {
+func printPrettyResult(env *commoncli.Env, results ...any) error {
 	svidResp, ok := results[0].(*workload.JWTSVIDResponse)
 	if !ok {
 		env.Println(cliprinter.ErrInternalCustomPrettyFunc.Error())

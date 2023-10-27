@@ -4,7 +4,7 @@ import "sync"
 
 var (
 	stringSetPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make(stringSet)
 		},
 	}

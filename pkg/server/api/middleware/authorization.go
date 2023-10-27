@@ -31,7 +31,7 @@ type authorizationMiddleware struct {
 	adminIDs         map[spiffeid.ID]struct{}
 }
 
-func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName string, req interface{}) (context.Context, error) {
+func (m *authorizationMiddleware) Preprocess(ctx context.Context, methodName string, req any) (context.Context, error) {
 	ctx, err := callerContextFromContext(ctx)
 	if err != nil {
 		return nil, err

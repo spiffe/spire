@@ -177,8 +177,8 @@ type mintResult struct {
 	RootCAs    [][]byte `json:"root_cas"`
 }
 
-func (c *mintCommand) prettyPrintMint(env *commoncli.Env, results ...interface{}) error {
-	if resultInterface, ok := results[0].([]interface{}); ok {
+func (c *mintCommand) prettyPrintMint(env *commoncli.Env, results ...any) error {
+	if resultInterface, ok := results[0].([]any); ok {
 		result, ok := resultInterface[0].(*mintResult)
 		if !ok {
 			return errors.New("unexpected type")
