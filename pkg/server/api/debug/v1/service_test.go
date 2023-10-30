@@ -139,13 +139,13 @@ func TestGetInfo(t *testing.T) {
 	}
 
 	// Parse federated  bundle into DER raw
-	federatedBudle, err := pemutil.ParseCertificate([]byte(federatedBundle))
+	federatedBundle, err := pemutil.ParseCertificate([]byte(federatedBundle))
 	require.NoError(t, err)
 	commonFederatedBundle := &common.Bundle{
 		TrustDomainId: "spiffe://domain.io",
 		RootCas: []*common.Certificate{
 			{
-				DerBytes: federatedBudle.Raw,
+				DerBytes: federatedBundle.Raw,
 			},
 		},
 	}
@@ -368,7 +368,7 @@ func TestGetInfo(t *testing.T) {
 			bundles: []*common.Bundle{
 				{
 					TrustDomainId: td.IDString(),
-					RootCas:       []*common.Certificate{{DerBytes: federatedBudle.Raw}},
+					RootCas:       []*common.Certificate{{DerBytes: federatedBundle.Raw}},
 				},
 			},
 			code:  codes.Internal,

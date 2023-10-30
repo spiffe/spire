@@ -962,7 +962,7 @@ func keyTypeFromString(s string) (keymanager.KeyType, error) {
 }
 
 // hasCompatibleTTL checks if we can guarantee the configured SVID TTL given the
-// configurd CA TTL. If we detect that a new SVID TTL may be cut short due to
+// configured CA TTL. If we detect that a new SVID TTL may be cut short due to
 // a scheduled CA rotation, this function will return false. This method should
 // be called for each SVID TTL we may use
 func hasCompatibleTTL(caTTL time.Duration, svidTTL time.Duration) bool {

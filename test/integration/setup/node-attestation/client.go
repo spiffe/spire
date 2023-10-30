@@ -35,7 +35,7 @@ F21JuznwCuYKNV5LnzhUA3nt2+6e18ZIXUDxl+CpkvCYc10MO6SYg6AE
 	testStep    = flag.String("testStep", "", "jointoken, attest, ban, renew")
 	tokenName   = flag.String("tokenName", "tokenName", "token for attestation")
 	certificate = flag.String("certificate", "", "certificate for api connection")
-	popCert     = flag.String("popCertficate", "/opt/spire/conf/agent/test.crt.pem", "certificate for x509pop attestation")
+	popCert     = flag.String("popCertificate", "/opt/spire/conf/agent/test.crt.pem", "certificate for x509pop attestation")
 	popKey      = flag.String("popKey", "/opt/spire/conf/agent/test.key.pem", "key for x509pop attestation")
 )
 

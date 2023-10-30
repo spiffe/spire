@@ -27,7 +27,7 @@ func (v1 *V1) MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Dura
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		// Only cancel the context if the function fails. Otherwise the
-		// returned stream will be in charge of cancelation.
+		// returned stream will be in charge of cancellation.
 		if err != nil {
 			defer cancel()
 		}
@@ -60,7 +60,7 @@ func (v1 *V1) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (_ []
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		// Only cancel the context if the function fails. Otherwise the
-		// returned stream will be in charge of cancelation.
+		// returned stream will be in charge of cancellation.
 		if err != nil {
 			defer cancel()
 		}

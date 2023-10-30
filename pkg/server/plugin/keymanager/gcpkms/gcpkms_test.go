@@ -1559,7 +1559,7 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name:       "usupported hash algorithm",
+			name:       "unsupported hash algorithm",
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "hash algorithm not supported",
 			generateKeyReq: &keymanagerv1.GenerateKeyRequest{

@@ -58,7 +58,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 // HCLConfig holds the configuration parsed from HCL
 type HCLConfig struct {
 	// KubeletReadOnlyPort defines the read only port for the kubelet
-	// (typically 10255). This option is mutally exclusive with
+	// (typically 10255). This option is mutually exclusive with
 	// KubeletSecurePort.
 	KubeletReadOnlyPort int `hcl:"kubelet_read_only_port"`
 
