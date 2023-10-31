@@ -63,10 +63,13 @@ func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
 
 type TenantConfig struct {
 	ResourceID     string `hcl:"resource_id" json:"resource_id"`
-	UseMSI         bool   `hcl:"use_msi" json:"use_msi"`
 	SubscriptionID string `hcl:"subscription_id" json:"subscription_id"`
 	AppID          string `hcl:"app_id" json:"app_id"`
 	AppSecret      string `hcl:"app_secret" json:"app_secret"`
+
+	// Deprecated: use_msi is deprecated and will be removed in a future release.
+	// Will be used implicitly if other mechanisms to authenticate fail.
+	UseMSI bool `hcl:"use_msi" json:"use_msi"`
 }
 
 type MSIAttestorConfig struct {

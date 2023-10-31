@@ -79,11 +79,14 @@ type pluginHooks struct {
 type Config struct {
 	KeyMetadataFile string `hcl:"key_metadata_file" json:"key_metadata_file"`
 	KeyVaultURI     string `hcl:"key_vault_uri" json:"key_vault_uri"`
-	UseMSI          bool   `hcl:"use_msi" json:"use_msi"`
 	TenantID        string `hcl:"tenant_id" json:"tenant_id"`
 	SubscriptionID  string `hcl:"subscription_id" json:"subscription_id"`
 	AppID           string `hcl:"app_id" json:"app_id"`
 	AppSecret       string `hcl:"app_secret" json:"app_secret"`
+
+	// Deprecated: use_msi is deprecated and will be removed in a future release.
+	// Will be used implicitly if other mechanisms to authenticate fail.
+	UseMSI bool `hcl:"use_msi" json:"use_msi"`
 }
 
 // Plugin is the main representation of this keymanager plugin
