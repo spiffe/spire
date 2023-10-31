@@ -63,7 +63,7 @@ func (c *listCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient ut
 	return c.printer.PrintProto(resp)
 }
 
-func (c *listCommand) prettyPrintList(env *commoncli.Env, results ...interface{}) error {
+func (c *listCommand) prettyPrintList(env *commoncli.Env, results ...any) error {
 	if listResp, ok := results[0].(*bundlev1.ListFederatedBundlesResponse); ok {
 		for i, bundle := range listResp.Bundles {
 			if i != 0 {

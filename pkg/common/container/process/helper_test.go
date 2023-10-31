@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package process
 
@@ -452,6 +451,6 @@ type fakeLogger struct {
 	debugMsj []string
 }
 
-func (l *fakeLogger) Debug(msg string, args ...interface{}) {
+func (l *fakeLogger) Debug(msg string, args ...any) {
 	l.debugMsj = append(l.debugMsj, fmt.Sprintf("%s: %v", msg, args))
 }

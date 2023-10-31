@@ -1,17 +1,15 @@
 package entry
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/pkg/common/cliprinter"
-
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
-
-	"golang.org/x/net/context"
+	"github.com/spiffe/spire/pkg/common/cliprinter"
 )
 
 type countCommand struct {
@@ -53,7 +51,7 @@ func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintCount)
 }
 
-func (c *countCommand) prettyPrintCount(env *commoncli.Env, results ...interface{}) error {
+func (c *countCommand) prettyPrintCount(env *commoncli.Env, results ...any) error {
 	countResp, ok := results[0].(*entryv1.CountEntriesResponse)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

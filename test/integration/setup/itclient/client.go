@@ -173,18 +173,18 @@ func NewLocalServerClient(ctx context.Context) *LocalServerClient {
 
 type logger struct{}
 
-func (l *logger) Debugf(format string, args ...interface{}) {
+func (l *logger) Debugf(format string, args ...any) {
 	log.Printf(format, args...)
 }
 
-func (l *logger) Infof(format string, args ...interface{}) {
+func (l *logger) Infof(format string, args ...any) {
 	log.Printf(format, args...)
 }
 
-func (l *logger) Warnf(format string, args ...interface{}) {
+func (l *logger) Warnf(format string, args ...any) {
 	log.Printf(format, args...)
 }
 
-func (l *logger) Errorf(format string, args ...interface{}) {
+func (l *logger) Errorf(format string, args ...any) {
 	log.Printf(format, args...)
 }

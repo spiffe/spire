@@ -235,7 +235,7 @@ func TestV1SignData(t *testing.T) {
 		signerOpts       crypto.SignerOpts
 		signature        string
 		fingerprint      string
-		expectSignerOpts interface{}
+		expectSignerOpts any
 		expectCode       codes.Code
 		expectMessage    string
 	}{
@@ -331,7 +331,7 @@ func loadV1Plugin(t *testing.T, plugin fakeV1Plugin) keymanager.KeyManager {
 type fakeV1Plugin struct {
 	keymanagerv1.UnimplementedKeyManagerServer
 
-	expectSignerOpts interface{}
+	expectSignerOpts any
 
 	generateKeyResponse   *keymanagerv1.GenerateKeyResponse
 	generateKeyErr        error

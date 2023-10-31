@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,7 +14,6 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"golang.org/x/net/context"
 )
 
 type listCommand struct {
@@ -96,7 +96,7 @@ func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintAgents)
 }
 
-func prettyPrintAgents(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintAgents(env *commoncli.Env, results ...any) error {
 	listResp, ok := results[0].(*agentv1.ListAgentsResponse)
 	if !ok {
 		return errors.New("internal error: cli printer; please report this bug")

@@ -339,7 +339,7 @@ func (s *IITAttestorSuite) newPlugin() *IITAttestorPlugin {
 	return p
 }
 
-func (s *IITAttestorSuite) signToken(key crypto.Signer, kid string, claims interface{}) []byte {
+func (s *IITAttestorSuite) signToken(key crypto.Signer, kid string, claims any) []byte {
 	return signToken(s.T(), key, kid, claims)
 }
 
@@ -450,7 +450,7 @@ func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
 }
 
-func signToken(t *testing.T, key crypto.Signer, kid string, claims interface{}) []byte {
+func signToken(t *testing.T, key crypto.Signer, kid string, claims any) []byte {
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.RS256,
 		Key: &jose.JSONWebKey{

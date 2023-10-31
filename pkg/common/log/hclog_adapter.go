@@ -15,7 +15,7 @@ import (
 type HCLogAdapter struct {
 	log  logrus.FieldLogger
 	name string
-	args []interface{} // key/value pairs if this logger was created via With()
+	args []any // key/value pairs if this logger was created via With()
 }
 
 func NewHCLogAdapter(log logrus.FieldLogger, name string) *HCLogAdapter {
@@ -27,26 +27,26 @@ func NewHCLogAdapter(log logrus.FieldLogger, name string) *HCLogAdapter {
 
 // HCLog has one more level than we do. As such, we will never
 // set trace level.
-func (*HCLogAdapter) Trace(_ string, _ ...interface{}) {
+func (*HCLogAdapter) Trace(_ string, _ ...any) {
 }
 
-func (a *HCLogAdapter) Debug(msg string, args ...interface{}) {
+func (a *HCLogAdapter) Debug(msg string, args ...any) {
 	a.CreateEntry(args).Debug(msg)
 }
 
-func (a *HCLogAdapter) Info(msg string, args ...interface{}) {
+func (a *HCLogAdapter) Info(msg string, args ...any) {
 	a.CreateEntry(args).Info(msg)
 }
 
-func (a *HCLogAdapter) Warn(msg string, args ...interface{}) {
+func (a *HCLogAdapter) Warn(msg string, args ...any) {
 	a.CreateEntry(args).Warn(msg)
 }
 
-func (a *HCLogAdapter) Error(msg string, args ...interface{}) {
+func (a *HCLogAdapter) Error(msg string, args ...any) {
 	a.CreateEntry(args).Error(msg)
 }
 
-func (a *HCLogAdapter) Log(level hclog.Level, msg string, args ...interface{}) {
+func (a *HCLogAdapter) Log(level hclog.Level, msg string, args ...any) {
 	switch level {
 	case hclog.Trace:
 		a.Trace(msg, args...)
@@ -93,7 +93,7 @@ func (a *HCLogAdapter) GetLevel() hclog.Level {
 	return hclog.NoLevel
 }
 
-func (a *HCLogAdapter) With(args ...interface{}) hclog.Logger {
+func (a *HCLogAdapter) With(args ...any) hclog.Logger {
 	e := a.CreateEntry(args)
 	return &HCLogAdapter{
 		log:  e,
@@ -106,15 +106,15 @@ func (a *HCLogAdapter) With(args ...interface{}) hclog.Logger {
 // accidentally overriding the original slice a, e.g.
 // when logger.With() is called multiple times to create
 // sub-scoped loggers.
-func concatFields(a, b []interface{}) []interface{} {
-	c := make([]interface{}, len(a)+len(b))
+func concatFields(a, b []any) []any {
+	c := make([]any, len(a)+len(b))
 	copy(c, a)
 	copy(c[len(a):], b)
 	return c
 }
 
 // ImpliedArgs returns With key/value pairs
-func (a *HCLogAdapter) ImpliedArgs() []interface{} {
+func (a *HCLogAdapter) ImpliedArgs() []any {
 	return a.args
 }
 
@@ -134,7 +134,7 @@ func (a *HCLogAdapter) Named(name string) hclog.Logger {
 }
 
 func (a *HCLogAdapter) ResetNamed(name string) hclog.Logger {
-	fields := []interface{}{"subsystem_name", name}
+	fields := []any{"subsystem_name", name}
 	e := a.CreateEntry(fields)
 	return &HCLogAdapter{log: e, name: name}
 }
@@ -170,7 +170,7 @@ func (a *HCLogAdapter) shouldEmit(level logrus.Level) bool {
 	return a.log.WithFields(logrus.Fields{}).Level >= level
 }
 
-func (a *HCLogAdapter) CreateEntry(args []interface{}) *logrus.Entry {
+func (a *HCLogAdapter) CreateEntry(args []any) *logrus.Entry {
 	if len(args)%2 != 0 {
 		args = append(args, "<unknown>")
 	}

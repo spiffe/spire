@@ -63,7 +63,7 @@ func (m *Mock) WaitForAfterCh() <-chan time.Duration {
 }
 
 // WaitForTimer waits up to the specified timeout for Timer to be called on the clock.
-func (m *Mock) WaitForTimer(timeout time.Duration, format string, args ...interface{}) {
+func (m *Mock) WaitForTimer(timeout time.Duration, format string, args ...any) {
 	select {
 	case <-m.timerC:
 	case <-time.After(timeout):
@@ -72,7 +72,7 @@ func (m *Mock) WaitForTimer(timeout time.Duration, format string, args ...interf
 }
 
 // WaitForAfter waits up to the specified timeout for After to be called on the clock.
-func (m *Mock) WaitForAfter(timeout time.Duration, format string, args ...interface{}) {
+func (m *Mock) WaitForAfter(timeout time.Duration, format string, args ...any) {
 	select {
 	case <-m.afterC:
 	case <-time.After(timeout):
@@ -81,11 +81,11 @@ func (m *Mock) WaitForAfter(timeout time.Duration, format string, args ...interf
 }
 
 // WaitForTicker waits up to the specified timeout for a Ticker to be created from the clock.
-func (m *Mock) WaitForTicker(timeout time.Duration, format string, args ...interface{}) {
+func (m *Mock) WaitForTicker(timeout time.Duration, format string, args ...any) {
 	m.WaitForTickerMulti(timeout, 1, format, args...)
 }
 
-func (m *Mock) WaitForTickerMulti(timeout time.Duration, count int, format string, args ...interface{}) {
+func (m *Mock) WaitForTickerMulti(timeout time.Duration, count int, format string, args ...any) {
 	deadlineChan := time.After(timeout)
 	for {
 		select {
@@ -101,7 +101,7 @@ func (m *Mock) WaitForTickerMulti(timeout time.Duration, count int, format strin
 }
 
 // WaitForSleep waits up to the specified timeout for a sleep to begin using the clock.
-func (m *Mock) WaitForSleep(timeout time.Duration, format string, args ...interface{}) {
+func (m *Mock) WaitForSleep(timeout time.Duration, format string, args ...any) {
 	select {
 	case <-m.sleepC:
 	case <-time.After(timeout):

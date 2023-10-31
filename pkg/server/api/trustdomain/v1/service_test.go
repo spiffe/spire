@@ -2205,7 +2205,7 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 		logHook: logHook,
 	}
 
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 		ctx = rpccontext.WithLogger(ctx, log)
 
 		return ctx, nil

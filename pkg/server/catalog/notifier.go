@@ -11,7 +11,7 @@ type notifierRepository struct {
 	notifier.Repository
 }
 
-func (repo *notifierRepository) Binder() interface{} {
+func (repo *notifierRepository) Binder() any {
 	return repo.AddNotifier
 }
 

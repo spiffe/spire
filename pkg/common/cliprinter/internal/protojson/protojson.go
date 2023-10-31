@@ -65,7 +65,7 @@ func parseJSONMessages(jms []json.RawMessage) ([]json.RawMessage, error) {
 }
 
 func parseJSONMessage(jm json.RawMessage) (json.RawMessage, error) {
-	var jmMap map[string]interface{}
+	var jmMap map[string]any
 	if err := json.Unmarshal(jm, &jmMap); err != nil {
 		return nil, err
 	}
@@ -75,29 +75,29 @@ func parseJSONMessage(jm json.RawMessage) (json.RawMessage, error) {
 	return json.Marshal(jmMap)
 }
 
-func removeNulls(jsonMap map[string]interface{}) {
+func removeNulls(jsonMap map[string]any) {
 	for key, val := range jsonMap {
 		switch v := val.(type) {
 		case nil:
 			delete(jsonMap, key)
-		case map[string]interface{}:
+		case map[string]any:
 			removeNulls(v)
-		case []interface{}:
+		case []any:
 			jsonMap[key] = removeNullsFromSlice(v)
 		}
 	}
 }
 
-func removeNullsFromSlice(slice []interface{}) []interface{} {
-	var newSlice = make([]interface{}, 0)
+func removeNullsFromSlice(slice []any) []any {
+	var newSlice = make([]any, 0)
 	for _, val := range slice {
 		switch v := val.(type) {
 		case nil:
 			continue
-		case map[string]interface{}:
+		case map[string]any:
 			removeNulls(v)
 			newSlice = append(newSlice, v)
-		case []interface{}:
+		case []any:
 			newSlice = append(newSlice, removeNullsFromSlice(v))
 		default:
 			newSlice = append(newSlice, v)

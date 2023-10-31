@@ -18,7 +18,7 @@ type nodeAttestorRepository struct {
 	nodeattestor.Repository
 }
 
-func (repo *nodeAttestorRepository) Binder() interface{} {
+func (repo *nodeAttestorRepository) Binder() any {
 	return repo.SetNodeAttestor
 }
 
