@@ -1497,7 +1497,7 @@ func TestListFederatedBundles(t *testing.T) {
 		{
 			name: "page bundles",
 			// Returns only one element because server bundle is the first element
-			// returned by datastore, and we filter resutls on service
+			// returned by datastore, and we filter results on service
 			expectBundlePages: [][]*common.Bundle{
 				{b1},
 				{b2, b3},

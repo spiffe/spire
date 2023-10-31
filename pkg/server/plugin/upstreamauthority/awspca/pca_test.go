@@ -347,7 +347,7 @@ func TestMintX509CA(t *testing.T) {
 			preferredTTL:      300 * time.Second,
 			getCertificateErr: awsErr("Internal", "some error", errors.New("oh no")),
 			expectCode:        codes.Internal,
-			expectMsgPrefix:   "upstreamauthority(aws_pca): failed to get cerficates: Internal: some error\ncaused by: oh no",
+			expectMsgPrefix:   "upstreamauthority(aws_pca): failed to get certificates: Internal: some error\ncaused by: oh no",
 		},
 		{
 			test:                    "Fails to parse certificate from GetCertificate",
@@ -482,7 +482,7 @@ func setupIssueCertificate(client *pcaClientFake, clk clock.Clock, csr []byte, e
 			Value: aws.Int64(clk.Now().Add(time.Second * testTTL).Unix()),
 		},
 	}
-	client.issueCertifcateErr = err
+	client.issueCertificateErr = err
 	client.issueCertificateOutput = &acmpca.IssueCertificateOutput{
 		CertificateArn: aws.String("certificateArn"),
 	}

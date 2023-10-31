@@ -537,7 +537,7 @@ func TestConfigureWithMalformedConfiguration(t *testing.T) {
 	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "unable to decode configuration")
 }
 
-func TestBundleFailsToLoadIfHostServicesUnavailabler(t *testing.T) {
+func TestBundleFailsToLoadIfHostServicesUnavailable(t *testing.T) {
 	var err error
 	plugintest.Load(t, BuiltIn(), nil,
 		plugintest.CaptureLoadError(&err))

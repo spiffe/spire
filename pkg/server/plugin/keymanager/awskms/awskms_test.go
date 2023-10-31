@@ -681,7 +681,7 @@ func TestGenerateKey(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instace.",
+					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instance.",
 				},
 			},
 		},
@@ -696,7 +696,7 @@ func TestGenerateKey(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instace.",
+					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instance.",
 				},
 			},
 		},
