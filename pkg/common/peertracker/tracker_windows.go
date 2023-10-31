@@ -71,7 +71,7 @@ func (t *windowsTracker) newWindowsWatcher(info CallerInfo, log logrus.FieldLogg
 
 	// This is a mitigation for attacks that leverage opening a
 	// named pipe through the local SMB server that set the PID
-	// attribute to 0xFEFF (65279). We wanto to prevent abusing
+	// attribute to 0xFEFF (65279). We want to to prevent abusing
 	// the fact that Windows reuses PID values and an attacker could
 	// cycle through process creation until it has a suitable process
 	// meeting the security check requirements from SMB server.
