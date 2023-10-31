@@ -1164,7 +1164,8 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 		{
 			name: "add allowed subject to existing map",
 			subjectAllowList: map[string]map[string]struct{}{
-				"issuer1": {"spirex1@example.com": struct{}{},
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
 					"spirex2@example.com": struct{}{},
 					"spirex3@example.com": struct{}{},
 					"spirex5@example.com": struct{}{},
@@ -1173,7 +1174,8 @@ func TestSigstoreimpl_AddAllowedSubject(t *testing.T) {
 			issuer:  "issuer1",
 			subject: "spirex4@example.com",
 			want: map[string]map[string]struct{}{
-				"issuer1": {"spirex1@example.com": struct{}{},
+				"issuer1": {
+					"spirex1@example.com": struct{}{},
 					"spirex2@example.com": struct{}{},
 					"spirex3@example.com": struct{}{},
 					"spirex4@example.com": struct{}{},
@@ -1273,7 +1275,6 @@ func TestSigstoreimpl_ClearAllowedSubjects(t *testing.T) {
 		name             string
 		subjectAllowList map[string]map[string]struct{}
 	}{
-
 		{
 			name: "clear existing map",
 			subjectAllowList: map[string]map[string]struct{}{
@@ -1842,6 +1843,7 @@ func TestSigstoreimpl_AttestContainerSignatures(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt := tt
 			fetchArguments := fetchFunctionArguments{}
 			verifyArguments := verifyFunctionArguments{}
 			checkOptsArguments := checkOptsFunctionArguments{}
