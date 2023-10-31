@@ -68,7 +68,7 @@ type keyEntry struct {
 type pluginHooks struct {
 	newKeyVaultClient func(creds azcore.TokenCredential, keyVaultUri string) (cloudKeyManagementService, error)
 	clk               clock.Clock
-	msiCredential     func() (azcore.TokenCredential, error)
+	fetchCredential   func() (azcore.TokenCredential, error)
 	// Used for testing only.
 	scheduleDeleteSignal chan error
 	refreshKeysSignal    chan error
@@ -117,8 +117,8 @@ func newPlugin(
 		hooks: pluginHooks{
 			newKeyVaultClient: newKeyVaultClient,
 			clk:               clock.New(),
-			msiCredential: func() (azcore.TokenCredential, error) {
-				return azidentity.NewManagedIdentityCredential(nil)
+			fetchCredential: func() (azcore.TokenCredential, error) {
+				return azidentity.NewDefaultAzureCredential(nil)
 			},
 		},
 		scheduleDelete: make(chan string, 120),
@@ -171,17 +171,20 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to create Key Vault client with client credentials: %v", err)
 		}
+
 	case config.UseMSI:
-		cred, err := p.hooks.msiCredential()
+		p.log.Warn("use_msi is deprecated and will be removed in a future release")
+		fallthrough // use default credential which attempts to fetch credentials using MSI
+
+	default:
+		cred, err := p.hooks.fetchCredential()
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to get MSI credential: %v", err)
+			return nil, status.Errorf(codes.Internal, "unable to fetch client credential: %v", err)
 		}
 		client, err = p.hooks.newKeyVaultClient(cred, config.KeyVaultURI)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to create Key Vault client with MSI credential: %v", err)
 		}
-	default:
-		return nil, status.Errorf(codes.InvalidArgument, "either MSI (use_msi) must be set to true or app authentication (tenant_id, subscription_id, app_id and app_secret) must be set")
 	}
 
 	fetcher := &keyFetcher{
