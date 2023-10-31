@@ -296,7 +296,7 @@ func (s *ClientSuite) TestLoadClientFailsIfConfigCannotBeCreated() {
 	s.Nil(clientset)
 }
 
-func (s *ClientSuite) TestLoadClientSucceds() {
+func (s *ClientSuite) TestLoadClientSucceeds() {
 	kubeConfigPath := filepath.Join(s.dir, "config")
 	s.createSampleKubeConfigFile(kubeConfigPath)
 	clientset, err := loadClient(kubeConfigPath)
