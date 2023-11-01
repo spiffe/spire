@@ -74,19 +74,6 @@ var (
 			},
 		},
 	}
-
-	tdValidationContext2 = &tls_v3.Secret{
-		Name: "ROOTCA",
-		Type: &tls_v3.Secret_ValidationContext{
-			ValidationContext: &tls_v3.CertificateValidationContext{
-				TrustedCa: &core_v3.DataSource{
-					Specifier: &core_v3.DataSource_InlineBytes{
-						InlineBytes: []byte("-----BEGIN CERTIFICATE-----\nQlVORExF\n-----END CERTIFICATE-----\n"),
-					},
-				},
-			},
-		},
-	}
 	tdValidationContext2SpiffeValidator = &tls_v3.Secret{
 		Name: "ROOTCA",
 		Type: &tls_v3.Secret_ValidationContext{
@@ -323,14 +310,12 @@ func TestStreamSecrets(t *testing.T) {
 			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
 		},
 		{
-			name: "Default TrustDomain bundle: RootCA",
+			name: "Default TrustDomain bundle: SPIFFE",
 			req: &discovery_v3.DiscoveryRequest{
-				ResourceNames: []string{"ROOTCA"},
-				Node: &core_v3.Node{
-					UserAgentVersionType: userAgentVersionTypeV17,
-				},
+				ResourceNames: []string{"spiffe://domain.test"},
+				Node:          &core_v3.Node{},
 			},
-			expectSecrets: []*tls_v3.Secret{tdValidationContext2},
+			expectSecrets: []*tls_v3.Secret{tdValidationContextSpiffeValidator},
 		},
 		{
 			name: "Default TrustDomain bundle: SPIFFE",
@@ -662,6 +647,40 @@ func TestStreamSecretsStreaming(t *testing.T) {
 	require.NotEmpty(t, resp.Nonce)
 	requireSecrets(t, resp, workloadTLSCertificate1)
 
+	test.setWorkloadUpdate(workloadCert2)
+
+	resp, err = stream.Recv()
+	require.NoError(t, err)
+	requireSecrets(t, resp, workloadTLSCertificate2)
+}
+
+func TestStreamSecretsStreamingKeepNodeInformation(t *testing.T) {
+	test := setupTest(t)
+	defer test.server.Stop()
+
+	stream, err := test.handler.StreamSecrets(context.Background())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, stream.CloseSend())
+	}()
+
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+		Node: &core_v3.Node{
+			UserAgentVersionType: userAgentVersionTypeV17,
+		},
+	})
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.VersionInfo)
+	require.NotEmpty(t, resp.Nonce)
+	requireSecrets(t, resp, workloadTLSCertificate1)
+
+	// Update request
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{
+		ResourceNames: []string{"spiffe://domain.test/workload"},
+		ResponseNonce: resp.Nonce,
+	})
 	test.setWorkloadUpdate(workloadCert2)
 
 	resp, err = stream.Recv()
