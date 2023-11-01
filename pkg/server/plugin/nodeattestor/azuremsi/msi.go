@@ -63,10 +63,13 @@ func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
 
 type TenantConfig struct {
 	ResourceID     string `hcl:"resource_id" json:"resource_id"`
-	UseMSI         bool   `hcl:"use_msi" json:"use_msi"`
 	SubscriptionID string `hcl:"subscription_id" json:"subscription_id"`
 	AppID          string `hcl:"app_id" json:"app_id"`
 	AppSecret      string `hcl:"app_secret" json:"app_secret"`
+
+	// Deprecated: use_msi is deprecated and will be removed in a future release.
+	// Will be used implicitly if other mechanisms to authenticate fail.
+	UseMSI bool `hcl:"use_msi" json:"use_msi"`
 }
 
 type MSIAttestorConfig struct {
@@ -100,7 +103,7 @@ type MSIAttestorPlugin struct {
 		keySetProvider        jwtutil.KeySetProvider
 		newClient             func(string, azcore.TokenCredential) (apiClient, error)
 		fetchInstanceMetadata func(azure.HTTPClient) (*azure.InstanceMetadata, error)
-		msiCredential         func() (azcore.TokenCredential, error)
+		fetchCredential       func(string) (azcore.TokenCredential, error)
 	}
 }
 
@@ -112,9 +115,14 @@ func New() *MSIAttestorPlugin {
 	p.hooks.keySetProvider = jwtutil.NewCachingKeySetProvider(jwtutil.OIDCIssuer(azureOIDCIssuer), keySetRefreshInterval)
 	p.hooks.newClient = newAzureClient
 	p.hooks.fetchInstanceMetadata = azure.FetchInstanceMetadata
-	p.hooks.msiCredential = func() (azcore.TokenCredential, error) {
-		return azidentity.NewManagedIdentityCredential(nil)
+	p.hooks.fetchCredential = func(tenantID string) (azcore.TokenCredential, error) {
+		return azidentity.NewDefaultAzureCredential(
+			&azidentity.DefaultAzureCredentialOptions{
+				TenantID: tenantID,
+			},
+		)
 	}
+
 	return p
 }
 
@@ -203,11 +211,9 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	}
 
 	var selectorValues []string
-	if tenant.client != nil {
-		selectorValues, err = p.resolve(stream.Context(), tenant.client, claims.PrincipalID)
-		if err != nil {
-			return err
-		}
+	selectorValues, err = p.resolve(stream.Context(), tenant.client, claims.PrincipalID)
+	if err != nil {
+		return err
 	}
 
 	return stream.Send(&nodeattestorv1.AttestResponse{
@@ -277,26 +283,29 @@ func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "unable to create client for tenant %q: %v", tenantID, err)
 			}
+
 		case tenant.UseMSI:
+			p.log.Warn("use_msi is deprecated and will be removed in a future release")
+			fallthrough // use default credential which attempts to fetch credentials using MSI
+
+		default:
 			instanceMetadata, err := p.hooks.fetchInstanceMetadata(http.DefaultClient)
 			if err != nil {
 				return nil, err
 			}
-			cred, err := p.hooks.msiCredential()
+			cred, err := p.hooks.fetchCredential(tenantID)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, "unable to get MSI credential: %v", err)
+				return nil, status.Errorf(codes.Internal, "unable to fetch client credential: %v", err)
 			}
 			client, err = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
 			if err != nil {
-				return nil, status.Errorf(codes.Internal, "unable to create client with MSI credential: %v", err)
+				return nil, status.Errorf(codes.Internal, "unable to create client with default credential: %v", err)
 			}
 		}
 
 		// If credentials are not configured then selectors won't be gathered.
-		// TODO: make this an error condition in a future release
 		if client == nil {
-			p.log.Warn("No client credentials available for tenant. Selectors will not be produced by the node attestor for this node. This will be an error in a future release.",
-				"tenant", tenantID)
+			return nil, status.Errorf(codes.Internal, "no client credentials available for tenant %q", tenantID)
 		}
 
 		tenants[tenantID] = &tenantConfig{
