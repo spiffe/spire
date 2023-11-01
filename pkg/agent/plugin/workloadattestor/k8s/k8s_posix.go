@@ -57,7 +57,7 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 func (h *containerHelper) GetOSSelectors(ctx context.Context, log hclog.Logger, containerStatus *corev1.ContainerStatus) ([]string, error) {
 	var selectors []string
 	if h.sigstoreClient != nil {
-		log.Debug("Attemping to get signature info for container", telemetry.ContainerName, containerStatus.Name)
+		log.Debug("Attempting to get signature info for container", telemetry.ContainerName, containerStatus.Name)
 		sigstoreSelectors, err := h.sigstoreClient.AttestContainerSignatures(ctx, containerStatus)
 		if err != nil {
 			log.Error("Error retrieving signature payload", "error", err)

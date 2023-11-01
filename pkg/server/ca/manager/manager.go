@@ -563,7 +563,7 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 	var allErrs errs.Group
 	for i := 0; i < len(notifiers); i++ {
 		// don't select on the ctx here as we can rely on the plugins to
-		// respond to context cancelation and return an error.
+		// respond to context cancellation and return an error.
 		if err := <-errsCh; err != nil {
 			allErrs.Add(err)
 		}

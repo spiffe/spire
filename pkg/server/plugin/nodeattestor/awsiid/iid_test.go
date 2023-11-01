@@ -435,7 +435,7 @@ func TestAttest(t *testing.T) {
 				return testAWSCACert, nil
 			}
 
-			attestor.clients = newClientsCache(func(ctx context.Context, config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
+			attestor.clients = newClientsCache(func(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string) (Client, error) {
 				return client, nil
 			})
 

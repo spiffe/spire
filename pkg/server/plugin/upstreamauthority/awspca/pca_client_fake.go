@@ -17,7 +17,7 @@ type pcaClientFake struct {
 
 	issueCertificateOutput *acmpca.IssueCertificateOutput
 	expectedIssueInput     *acmpca.IssueCertificateInput
-	issueCertifcateErr     error
+	issueCertificateErr    error
 
 	expectedGetCertificateInput *acmpca.GetCertificateInput
 	getCertificateOutput        *acmpca.GetCertificateOutput
@@ -34,8 +34,8 @@ func (f *pcaClientFake) DescribeCertificateAuthority(_ context.Context, input *a
 
 func (f *pcaClientFake) IssueCertificate(_ context.Context, input *acmpca.IssueCertificateInput, _ ...func(*acmpca.Options)) (*acmpca.IssueCertificateOutput, error) {
 	require.Equal(f.t, f.expectedIssueInput, input)
-	if f.issueCertifcateErr != nil {
-		return nil, f.issueCertifcateErr
+	if f.issueCertificateErr != nil {
+		return nil, f.issueCertificateErr
 	}
 	return f.issueCertificateOutput, nil
 }

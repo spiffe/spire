@@ -148,7 +148,7 @@ func TestCacheReturnsClonedEntries(t *testing.T) {
 	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))
 	spiretest.RequireProtoListEqual(t, []*types.Entry{expected}, actual)
 
-	// Now mutate the returned entry, refetch, and assert the cache copy was
+	// Now mutate the returned entry, re-fetch, and assert the cache copy was
 	// not altered.
 	actual[0].DnsNames = nil
 	actual = cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))

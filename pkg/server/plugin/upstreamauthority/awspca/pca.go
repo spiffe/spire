@@ -236,7 +236,7 @@ func (p *PCAPlugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509
 	p.log.Info("Retrieving certificate and chain from ACM", "certificate_arn", aws.ToString(certificateArn))
 	getResponse, err := p.pcaClient.GetCertificate(ctx, getCertificateInput)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to get cerficates: %v", err)
+		return status.Errorf(codes.Internal, "failed to get certificates: %v", err)
 	}
 
 	// Parse the cert from the response
