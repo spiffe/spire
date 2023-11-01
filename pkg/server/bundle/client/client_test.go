@@ -42,7 +42,7 @@ func TestClient(t *testing.T) {
 			status: http.StatusOK,
 			// We don't need a really elaborate body here. this test just
 			// makes sure we unmarshal the body. The unmarshal tests will
-			// provide the coverage for unmarshaling code.
+			// provide the coverage for unmarshalling code.
 			body:       `{"spiffe_refresh_hint": 10}`,
 			serverID:   serverID,
 			expectedID: serverID,

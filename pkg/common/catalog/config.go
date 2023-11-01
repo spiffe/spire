@@ -89,7 +89,7 @@ func PluginConfigsFromHCLNode(pluginsNode ast.Node) (PluginConfigs, error) {
 		return nil, fmt.Errorf("failed to decode plugins config: %w", err)
 	}
 
-	// Santity check the length of the pluginsMapList and those found when
+	// Sanity check the length of the pluginsMapList and those found when
 	// determining order. If this mismatches, it's a bug.
 	if pluginsLen := pluginsMaps.Len(); pluginsLen != len(order) {
 		return nil, fmt.Errorf("bug: expected %d plugins but got %d", len(order), pluginsLen)

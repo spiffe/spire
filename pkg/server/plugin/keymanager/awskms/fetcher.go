@@ -108,9 +108,9 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, alias types.Alia
 		return nil, status.Errorf(codes.FailedPrecondition, "found disabled SPIRE key: %q, alias: %q", *describeResp.KeyMetadata.Arn, *alias.AliasArn)
 	}
 
-	keyType, ok := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec) //nolint:staticcheck // not deprecated in a relased version yet
+	keyType, ok := keyTypeFromKeySpec(describeResp.KeyMetadata.CustomerMasterKeySpec) //nolint:staticcheck // not deprecated in a released version yet
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "unsupported key spec: %v", describeResp.KeyMetadata.CustomerMasterKeySpec) //nolint:staticcheck // not deprecated in a relased version yet
+		return nil, status.Errorf(codes.Internal, "unsupported key spec: %v", describeResp.KeyMetadata.CustomerMasterKeySpec) //nolint:staticcheck // not deprecated in a released version yet
 	}
 
 	publicKeyResp, err := kf.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: alias.AliasArn})

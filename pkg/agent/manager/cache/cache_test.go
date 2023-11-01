@@ -330,7 +330,7 @@ func TestSubscriberNotifiedOnSVIDChanges(t *testing.T) {
 	})
 }
 
-func TestSubcriberNotificationsOnSelectorChanges(t *testing.T) {
+func TestSubscriberNotificationsOnSelectorChanges(t *testing.T) {
 	cache := newTestCache()
 
 	// initialize the cache with a FOO entry with selector A and an SVID
@@ -386,7 +386,7 @@ func newTestCache() *Cache {
 	return New(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{})
 }
 
-func TestSubcriberNotifiedWhenEntryDropped(t *testing.T) {
+func TestSubscriberNotifiedWhenEntryDropped(t *testing.T) {
 	cache := newTestCache()
 
 	subA := cache.subscribeToWorkloadUpdates(makeSelectors("A"))
@@ -447,7 +447,7 @@ func TestSubcriberNotifiedWhenEntryDropped(t *testing.T) {
 	assertNoWorkloadUpdate(t, subB)
 }
 
-func TestSubcriberOnlyGetsEntriesWithSVID(t *testing.T) {
+func TestSubscriberOnlyGetsEntriesWithSVID(t *testing.T) {
 	cache := newTestCache()
 
 	foo := makeRegistrationEntry("FOO", "A")

@@ -199,7 +199,7 @@ func TestACMEAuth(t *testing.T) {
 
 	// Perform the initial challenge to obtain a new certificate but without
 	// the TOS being accepted. This should fail. We require the ToSAccepted
-	// configurable to be set in order to funcion.
+	// configurable to be set in order to function.
 	t.Run("new-account-tos-not-accepted", func(t *testing.T) {
 		log, hook := test.NewNullLogger()
 		addr, done := newTestServer(t, testGetter(bundle),

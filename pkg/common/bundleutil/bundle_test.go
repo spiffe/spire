@@ -243,7 +243,7 @@ func TestSPIFFEBundleToProto(t *testing.T) {
 			},
 		},
 		{
-			name:   "fail with error marshaling jwt public key",
+			name:   "fail with error marshalling jwt public key",
 			bundle: bundleInvalidKey,
 			expErr: errors.New("failed to marshal public key: x509: unsupported public key type: string"),
 		},
