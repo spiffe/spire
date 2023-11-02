@@ -110,7 +110,7 @@ func (k *kmsClientFake) CreateKey(_ context.Context, input *kms.CreateKeyInput, 
 	}
 
 	var privateKey crypto.Signer
-	switch input.CustomerMasterKeySpec { //nolint:staticcheck // not deprecated in a relased version yet
+	switch input.CustomerMasterKeySpec { //nolint:staticcheck // not deprecated in a released version yet
 	case types.CustomerMasterKeySpecEccNistP256:
 		privateKey = k.testKeys.NewEC256(k.t)
 	case types.CustomerMasterKeySpecEccNistP384:
@@ -120,7 +120,7 @@ func (k *kmsClientFake) CreateKey(_ context.Context, input *kms.CreateKeyInput, 
 	case types.CustomerMasterKeySpecRsa4096:
 		privateKey = k.testKeys.NewRSA4096(k.t)
 	default:
-		return nil, fmt.Errorf("unknown key type %q", input.CustomerMasterKeySpec) //nolint:staticcheck // not deprecated in a relased version yet
+		return nil, fmt.Errorf("unknown key type %q", input.CustomerMasterKeySpec) //nolint:staticcheck // not deprecated in a released version yet
 	}
 
 	pkixData, err := x509.MarshalPKIXPublicKey(privateKey.Public())
@@ -133,7 +133,7 @@ func (k *kmsClientFake) CreateKey(_ context.Context, input *kms.CreateKeyInput, 
 		CreationDate: aws.Time(time.Unix(0, 0)),
 		PublicKey:    pkixData,
 		privateKey:   privateKey,
-		KeySpec:      input.CustomerMasterKeySpec, //nolint:staticcheck // not deprecated in a relased version yet
+		KeySpec:      input.CustomerMasterKeySpec, //nolint:staticcheck // not deprecated in a released version yet
 		Enabled:      true,
 	}
 

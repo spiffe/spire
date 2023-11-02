@@ -86,7 +86,7 @@ test-envoy() {
     local max_checks_per_port=15
     local check_interval=1
 	
-    # Remove howdy, it i neccesary for VERIFY to get again messages
+    # Remove howdy, it i necessary for VERIFY to get again messages
     docker-compose exec -T upstream-socat rm -f /tmp/howdy
     
     log-debug "Checking mTLS: ${mTLSSocat}"

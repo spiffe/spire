@@ -328,7 +328,7 @@ func (p *Plugin) unsubscribeToPolling() {
 	defer p.pollMtx.Unlock()
 	p.currentPollSubscribers--
 	if p.currentPollSubscribers == 0 {
-		// TODO: may we relase server here?
+		// TODO: may we release server here?
 		p.stopPolling()
 	}
 }
