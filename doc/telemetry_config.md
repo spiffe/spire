@@ -16,19 +16,20 @@ You may use all, some, or none of the collectors. The following collectors suppo
 
 ## Telemetry configuration syntax
 
-| Configuration     | Type          | Description                                                   | Default                  |
-|-------------------|---------------|---------------------------------------------------------------|--------------------------|
-| `InMem`           | `InMem`       | In-memory configuration                                       | running                  |
-| `Prometheus`      | `Prometheus`  | Prometheus configuration                                      |                          |
-| `DogStatsd`       | `[]DogStatsd` | List of DogStatsd configurations                              |                          |
-| `Statsd`          | `[]Statsd`    | List of Statsd configurations                                 |                          |
-| `M3`              | `[]M3`        | List of M3 configurations                                     |                          |
-| `MetricPrefix`    | `string`      | Prefix to add to all emitted metrics                          | spire_server/spire_agent |
-| `AllowedPrefixes` | `[]string`    | A list of metric prefixes to allow, with '.' as the separator |                          |
-| `AllowedPrefixes` | `[]string`    | A list of metric prefixes to allow, with '.' as the separator |                          |
-| `BlockedPrefixes` | `[]string`    | A list of metric prefixes to block, with '.' as the separator |                          |
-| `AllowedLabels`   | `[]string`    | A list of metric labels to allow, with '.' as the separator   |                          |
-| `BlockedLabels`   | `[]string`    | A list of metric labels to block, with '.' as the separator   |                          |
+| Configuration         | Type          | Description                                                   | Default                  |
+|-----------------------|---------------|---------------------------------------------------------------|--------------------------|
+| `InMem`               | `InMem`       | In-memory configuration                                       | running                  |
+| `Prometheus`          | `Prometheus`  | Prometheus configuration                                      |                          |
+| `DogStatsd`           | `[]DogStatsd` | List of DogStatsd configurations                              |                          |
+| `Statsd`              | `[]Statsd`    | List of Statsd configurations                                 |                          |
+| `M3`                  | `[]M3`        | List of M3 configurations                                     |                          |
+| `MetricPrefix`        | `string`      | Prefix to add to all emitted metrics                          | spire_server/spire_agent |
+| `EnableHostnameLabel` | `bool`        | Enable adding hostname to labels                              | true                     |
+| `AllowedPrefixes`     | `[]string`    | A list of metric prefixes to allow, with '.' as the separator |                          |
+| `AllowedPrefixes`     | `[]string`    | A list of metric prefixes to allow, with '.' as the separator |                          |
+| `BlockedPrefixes`     | `[]string`    | A list of metric prefixes to block, with '.' as the separator |                          |
+| `AllowedLabels`       | `[]string`    | A list of metric labels to allow, with '.' as the separator   |                          |
+| `BlockedLabels`       | `[]string`    | A list of metric labels to block, with '.' as the separator   |                          |
 
 ### `Prometheus`
 
