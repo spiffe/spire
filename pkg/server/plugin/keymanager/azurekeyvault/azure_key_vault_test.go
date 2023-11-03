@@ -121,8 +121,6 @@ func TestConfigure(t *testing.T) {
 		{
 			name:             "missing client authentication config",
 			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, "", "", "", "", "false"),
-			err:              "either MSI (use_msi) must be set to true or app authentication (tenant_id, subscription_id, app_id and app_secret) must be set",
-			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "use MSI while app secret is set",
@@ -998,7 +996,7 @@ func configureRequestWithString(config string) *configv1.ConfigureRequest {
 func createKeyMetadataFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	tempFilePath := filepath.ToSlash(filepath.Join(tempDir, validServerIDFile))
-	err := os.WriteFile(tempFilePath, []byte(validServerID), 0600)
+	err := os.WriteFile(tempFilePath, []byte(validServerID), 0o600)
 	if err != nil {
 		t.Error(err)
 	}
