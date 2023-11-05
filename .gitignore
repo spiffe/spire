@@ -36,3 +36,7 @@ tools/spire-plugingen/spire-plugingen
 # oci artifacts
 *-image.tar
 oci/
+
+# Go workspace files
+go.work
+go.work.sum
