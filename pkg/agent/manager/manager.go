@@ -155,6 +155,13 @@ type manager struct {
 
 	// Cache for 'storable' SVIDs
 	svidStoreCache *storecache.Cache
+
+	// These two maps hold onto the synced entries and bundles. They are used
+	// to do efficient revision-based syncing and are updated with any changes
+	// during each sync event. They are also used as the inputs to update the
+	// cache.
+	syncedEntries map[string]*common.RegistrationEntry
+	syncedBundles map[string]*common.Bundle
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
@@ -167,6 +174,8 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval, backoff.WithMaxInterval(synchronizeBackoffMaxInterval))
 	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
 	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
+	m.syncedEntries = make(map[string]*common.RegistrationEntry)
+	m.syncedBundles = make(map[string]*common.Bundle)
 
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {
