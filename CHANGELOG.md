@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.4] - 2023-11-07
+
+### Security
+
+- Updated to Go 1.21.4 to address CVE-2023-45283, CVE-2023-45284
+
 ## [1.8.3] - 2023-10-25
 
 ### Added
@@ -58,6 +64,12 @@
 - Support for Envoy SDS v2 API (#4444)
 - Server no longer cleans up stale data in the database on startup (#4443)
 - Server no longer deletes entries with invalid SPIFFE IDs on startup (#4449)
+
+## [1.7.5] - 2023-11-07
+
+### Security
+
+- Updated to Go 1.20.11 to address CVE-2023-45283, CVE-2023-45284
 
 ## [1.7.4] - 2023-10-12
 
