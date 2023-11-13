@@ -172,7 +172,11 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 			continue
 		}
 
-		log.Info("Renewing X509-SVID")
+		if csr.CurrentSVIDExpiresAt.IsZero() {
+			log.Info("Creating X509-SVID")
+		} else {
+			log.Info("Renewing X509-SVID")
+		}
 
 		spiffeID, err := spiffeid.FromString(csr.SpiffeID)
 		if err != nil {
