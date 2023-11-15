@@ -50,6 +50,12 @@ type Config struct {
 	// going to be deployed behind an HTTPS proxy.
 	InsecureAddr string `hcl:"insecure_addr"`
 
+	// ListenTLSAddr is the HTTPS address. When set, the server does not
+	// perform ACME to obtain certificates. Instead, the server mint x509
+	// svid from ServerAPI and use certificates in x509 svid to serve.
+	// When ListenTLSAddr is set, ServerAPI must be set.
+	ListenTLSAddr string `hcl:"listen_tls_addr"`
+
 	// ListenSocketPath specifies a unix socket to listen for plaintext HTTP
 	// on, for when deployed behind another webserver or sidecar.
 	ListenSocketPath string `hcl:"listen_socket_path"`
@@ -216,6 +222,12 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 			return nil, errs.New("tos_accepted must be set to true in the acme configuration section")
 		case c.ACME.Email == "":
 			return nil, errs.New("email must be configured in the acme configuration section")
+		}
+	}
+
+	if c.ListenTLSAddr != "" {
+		if c.ServerAPI == nil {
+			return nil, errs.New("listen_tls_addr require using server_api instead of workload_api")
 		}
 	}
 

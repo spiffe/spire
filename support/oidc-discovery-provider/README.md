@@ -41,6 +41,7 @@ The configuration file is **required** by the provider. It contains
 | `insecure_addr`         | string  | optional\[3\]      | Exposes the service on http.                                           |          |
 | `set_key_use`           | bool    | optional           | If true, the `use` parameter on JWKs will be set to `sig`.             | `false`  |
 | `listen_socket_path`    | string  | required\[1\]\[3\] | Path on disk to listen with a Unix Domain Socket. Unix platforms only. |          |
+| `listen_tls_addr`       | string  | required\[1\]      | Exposee the service on https with certificates minted by ServerAPI.    |          |
 | `log_format`            | string  | optional           | Format of the logs (either `"TEXT"` or `"JSON"`)                       | `""`     |
 | `log_level`             | string  | required           | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`)               | `"info"` |
 | `log_path`              | string  | optional           | Path on disk to write the log.                                         |          |
@@ -57,13 +58,13 @@ The configuration file is **required** by the provider. It contains
 
 #### Considerations for Unix platforms
 
-[1]: One of `acme`, `serving_cert_file` or `listen_socket_path` must be defined.
+[1]: One of `acme`, `listen_tls_addr`, `serving_cert_file` or `listen_socket_path` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_socket_path`.
 
 #### Considerations for Windows platforms
 
-[1]: One of `acme`, `serving_cert_file` or `listen_named_pipe_name` must be defined.
+[1]: One of `acme`, `listen_tls_addr`,`serving_cert_file` or `listen_named_pipe_name` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_named_pipe_name`.
 

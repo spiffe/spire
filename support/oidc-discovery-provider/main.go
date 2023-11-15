@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/version"
@@ -72,7 +75,7 @@ func run(configPath string) error {
 		handler = logHandler(log, handler)
 	}
 
-	listener, err := buildNetListener(ctx, config, log)
+	listener, err := buildNetListener(ctx, config, log, source)
 	if err != nil {
 		return err
 	}
@@ -108,8 +111,28 @@ func run(configPath string) error {
 	return server.Serve(listener)
 }
 
-func buildNetListener(ctx context.Context, config *Config, log *log.Logger) (listener net.Listener, err error) {
+func buildNetListener(ctx context.Context, config *Config, log *log.Logger, source interface{}) (listener net.Listener, err error) {
 	switch {
+	case config.ListenTLSAddr != "":
+		svidSource, ok := source.(x509svid.Source)
+		if !ok {
+			return nil, fmt.Errorf("ListenTLSAddr must be cooprate with ServerAPI instead WorkloadAPI")
+		}
+		bundleSource, ok := source.(x509bundle.Source)
+		if !ok {
+			return nil, fmt.Errorf("ListenTLSAddr must be cooprate with ServerAPI instead WorkloadAPI")
+		}
+		tlsConfig := tlsconfig.MTLSServerConfig(svidSource, bundleSource, tlsconfig.AuthorizeAny())
+		tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven
+		tlsConfig.VerifyPeerCertificate = nil
+
+		listener, err = net.Listen("tcp", config.ListenTLSAddr)
+		if err != nil {
+			return nil, err
+		}
+		listener = tls.NewListener(listener, tlsConfig)
+		return listener, nil
+
 	case config.InsecureAddr != "":
 		listener, err = net.Listen("tcp", config.InsecureAddr)
 		if err != nil {

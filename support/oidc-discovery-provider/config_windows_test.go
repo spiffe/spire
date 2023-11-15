@@ -58,7 +58,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					}					
 				}
 			`,
-			err: "either acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured",
+			err: "either acme, listen_tls_addr, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured",
 		},
 		{
 			name: "ACME ToS not accepted",
@@ -277,6 +277,64 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 			`,
 			err: "listen_named_pipe_name and the acme section are mutually exclusive",
+		},
+		{
+			name: "both listen_tls_addr and insecure_addr configured",
+			in: `
+				spiffe_id = "spiffe://example.org/oidc-provider"
+				domains = ["domain.test"]
+				insecure_addr = ":8080"
+				listen_tls_addr = ":8081"
+				server_api {
+					socket_path = "/other/socket/path"
+				}
+			`,
+			err: "listen_tls_addr and insecure_addr are mutually exclusive",
+		},
+		{
+			name: "both listen_tls_addr and listen_named_pipe_name configured",
+			in: `
+				spiffe_id = "spiffe://example.org/oidc-provider"
+				domains = ["domain.test"]
+				experimental {
+					listen_named_pipe_name = "test"
+				}
+				listen_tls_addr = ":8081"
+				server_api {
+					socket_path = "/other/socket/path"
+				}
+			`,
+			err: "listen_tls_addr and listen_named_pipe_name are mutually exclusive",
+		},
+		{
+			name: "both listen_tls_addr and serving_cert_file configured",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				listen_tls_addr = ":8081"
+				server_api {
+					socket_path = "/other/socket/path"
+				}
+			`,
+			err: "listen_tls_addr and serving_cert_file are mutually exclusive",
+		},
+		{
+			name: "both acme and listen_tls_addr configured",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				listen_tls_addr = ":8081"
+				server_api {
+					socket_path = "/other/socket/path"
+				}
+			`,
+			err: "listen_tls_addr and acme are mutually exclusive",
 		},
 		{
 			name: "both acme and serving_cert_file configured",
