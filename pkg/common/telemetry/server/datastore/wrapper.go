@@ -198,10 +198,10 @@ func (w metricsWrapper) CountBundles(ctx context.Context) (_ int32, err error) {
 	return w.ds.CountBundles(ctx)
 }
 
-func (w metricsWrapper) CountRegistrationEntries(ctx context.Context) (_ int32, err error) {
+func (w metricsWrapper) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (_ int32, err error) {
 	callCounter := StartCountRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CountRegistrationEntries(ctx)
+	return w.ds.CountRegistrationEntries(ctx, req)
 }
 
 func (w metricsWrapper) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) (err error) {

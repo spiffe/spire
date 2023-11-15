@@ -112,9 +112,23 @@ const (
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	countUsage = `Usage of entry count:
+  -federatesWith value
+    	SPIFFE ID of a trust domain an entry is federate with. Can be used more than once
+  -hint string
+    	The Hint of the records to show (optional)
+  -matchFederatesWithOn string
+    	The match mode used when filtering by federates with. Options: exact, any, superset and subset (default "superset")
+  -matchSelectorsOn string
+    	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -output value
     	Desired output format (pretty, json); default: pretty.
+  -parentID string
+    	The Parent ID of the records to count
+  -selector value
+    	A colon-delimited type:value selector. Can be used more than once
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
+  -spiffeID string
+    	The SPIFFE ID of the records to count
 `
 )

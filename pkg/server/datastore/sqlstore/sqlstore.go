@@ -446,15 +446,41 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 }
 
 // CountRegistrationEntries counts all registrations (pagination available)
-func (ds *Plugin) CountRegistrationEntries(ctx context.Context) (count int32, err error) {
+func (ds *Plugin) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (count int32, err error) {
+	if hasFilters(req) {
+		var actDb = ds.db
+		if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
+			actDb = ds.roDb
+		}
+		resp, err := listRegistrationEntries(ctx, actDb, ds.log, &datastore.ListRegistrationEntriesRequest{
+			DataConsistency: req.DataConsistency,
+			ByParentID:      req.ByParentID,
+			BySelectors:     req.BySelectors,
+			BySpiffeID:      req.BySpiffeID,
+			ByFederatesWith: req.ByFederatesWith,
+			ByHint:          req.ByHint,
+		})
+		return int32(len(resp.Entries)), err
+	}
+
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		count, err = countRegistrationEntries(tx)
+		count, err = countRegistrationEntries(tx, req)
 		return err
 	}); err != nil {
 		return 0, err
 	}
 
 	return count, nil
+}
+
+func hasFilters(req *datastore.CountRegistrationEntriesRequest) bool {
+	if req.ByParentID != "" || req.ByHint != "" || req.BySpiffeID != "" {
+		return true
+	}
+	if req.ByFederatesWith != nil || req.BySelectors != nil {
+		return true
+	}
+	return false
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -2619,7 +2645,7 @@ ORDER BY selector_id, dns_name_id
 	return query, []any{entryID}, nil
 }
 
-func countRegistrationEntries(tx *gorm.DB) (int32, error) {
+func countRegistrationEntries(tx *gorm.DB, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
 	var count int
 	if err := tx.Model(&RegisteredEntry{}).Count(&count).Error; err != nil {
 		return 0, sqlError.Wrap(err)

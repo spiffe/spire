@@ -326,7 +326,7 @@ func (ds *fakeDataStore) CountBundles(context.Context) (int32, error) {
 	return 0, ds.err
 }
 
-func (ds *fakeDataStore) CountRegistrationEntries(context.Context) (int32, error) {
+func (ds *fakeDataStore) CountRegistrationEntries(context.Context, *datastore.CountRegistrationEntriesRequest) (int32, error) {
 	return 0, ds.err
 }
 

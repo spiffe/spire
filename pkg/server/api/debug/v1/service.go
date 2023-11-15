@@ -83,7 +83,7 @@ func (s *Service) GetInfo(ctx context.Context, _ *debugv1.GetInfoRequest) (*debu
 			return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
 		}
 
-		entries, err := s.ds.CountRegistrationEntries(ctx)
+		entries, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
 		}

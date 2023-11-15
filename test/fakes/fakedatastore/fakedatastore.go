@@ -238,11 +238,11 @@ func (s *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, dataC
 	return selectors, err
 }
 
-func (s *DataStore) CountRegistrationEntries(ctx context.Context) (int32, error) {
+func (s *DataStore) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
 	if err := s.getNextError(); err != nil {
 		return 0, err
 	}
-	return s.ds.CountRegistrationEntries(ctx)
+	return s.ds.CountRegistrationEntries(ctx, req)
 }
 
 func (s *DataStore) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {

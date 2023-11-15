@@ -509,7 +509,7 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 
 func (s *PluginSuite) TestCountRegistrationEntries() {
 	// Count empty registration entries
-	count, err := s.ds.CountRegistrationEntries(ctx)
+	count, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(int32(0), count)
 
@@ -531,7 +531,7 @@ func (s *PluginSuite) TestCountRegistrationEntries() {
 	s.Require().NoError(err)
 
 	// Count all
-	count, err = s.ds.CountRegistrationEntries(ctx)
+	count, err = s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(int32(2), count)
 }
