@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -16,13 +17,14 @@ import (
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithEventsBasedCache)(nil)
 
 type AuthorizedEntryFetcherWithEventsBasedCache struct {
-	cache                *authorizedentries.Cache
-	clk                  clock.Clock
-	log                  logrus.FieldLogger
-	ds                   datastore.DataStore
-	cacheReloadInterval  time.Duration
-	pruneEventsOlderThan time.Duration
-	lastEventID          uint
+	cache                        *authorizedentries.Cache
+	clk                          clock.Clock
+	log                          logrus.FieldLogger
+	ds                           datastore.DataStore
+	cacheReloadInterval          time.Duration
+	pruneEventsOlderThan         time.Duration
+	lastRegistrationEntryEventID uint
+	lastAttestedNodeEventID      uint
 }
 
 func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
@@ -78,15 +80,22 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) PruneEventsTask(ctx context
 }
 
 func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneEvents(ctx context.Context, olderThan time.Duration) error {
-	if err := a.ds.PruneRegistrationEntriesEvents(ctx, olderThan); err != nil {
-		return err
-	}
-	return a.ds.PruneAttestedNodesEvents(ctx, olderThan)
+	pruneRegistrationEntriesEventsErr := a.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
+	pruneAttestedNodesEventsErr := a.ds.PruneAttestedNodesEvents(ctx, olderThan)
+
+	return errors.Join(pruneRegistrationEntriesEventsErr, pruneAttestedNodesEventsErr)
 }
 
 func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Context) error {
+	updateRegistrationEntriesCacheErr := a.updateRegistrationEntriesCache(ctx)
+	updateAttestedNodesCacheErr := a.updateAttestedNodesCache(ctx)
+
+	return errors.Join(updateRegistrationEntriesCacheErr, updateAttestedNodesCacheErr)
+}
+
+func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntriesCache(ctx context.Context) error {
 	req := &datastore.ListRegistrationEntriesEventsRequest{
-		GreaterThanEventID: a.lastEventID,
+		GreaterThanEventID: a.lastRegistrationEntryEventID,
 	}
 	resp, err := a.ds.ListRegistrationEntriesEvents(ctx, req)
 	if err != nil {
@@ -98,19 +107,48 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Con
 		if err != nil {
 			return err
 		}
-
-		if commonEntry == nil {
-			a.cache.RemoveEntry(entryID)
-			a.lastEventID++
-			continue
-		}
+		a.lastRegistrationEntryEventID++
 
 		entry, err := api.RegistrationEntryToProto(commonEntry)
 		if err != nil {
+			a.cache.RemoveEntry(entryID)
+			continue
+		}
+
+		a.cache.UpdateEntry(entry)
+	}
+
+	return nil
+}
+
+func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ctx context.Context) error {
+	req := &datastore.ListAttestedNodesEventsRequest{
+		GreaterThanEventID: a.lastAttestedNodeEventID,
+	}
+	resp, err := a.ds.ListAttestedNodesEvents(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	for _, spiffeID := range resp.SpiffeIDs {
+		node, err := a.ds.FetchAttestedNode(ctx, spiffeID)
+		if err != nil {
 			return err
 		}
-		a.cache.UpdateEntry(entry)
-		a.lastEventID++
+		a.lastAttestedNodeEventID++
+
+		if node == nil {
+			a.cache.RemoveAgent(spiffeID)
+			continue
+		}
+
+		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
+		if agentExpiresAt.Before(time.Now()) {
+			a.cache.RemoveAgent(spiffeID)
+			continue
+		}
+
+		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
 	}
 
 	return nil
@@ -119,11 +157,11 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Con
 func buildCache(ctx context.Context, ds datastore.DataStore) (*authorizedentries.Cache, error) {
 	cache := authorizedentries.NewCache()
 
-	if err := addEntries(ctx, ds, cache); err != nil {
+	if err := buildRegistrationEntriesCache(ctx, ds, cache); err != nil {
 		return nil, err
 	}
 
-	if err := addAgents(ctx, ds, cache); err != nil {
+	if err := buildAttestedNodesCache(ctx, ds, cache); err != nil {
 		return nil, err
 	}
 
@@ -131,7 +169,7 @@ func buildCache(ctx context.Context, ds datastore.DataStore) (*authorizedentries
 }
 
 // Fetches all registration entries and adds them to the cache
-func addEntries(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache) error {
+func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache) error {
 	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		DataConsistency: datastore.TolerateStale,
 	})
@@ -152,8 +190,7 @@ func addEntries(ctx context.Context, ds datastore.DataStore, cache *authorizeden
 }
 
 // Fetches all attested nodes and adds the unexpired ones to the cache
-func addAgents(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache) error {
-	now := time.Now()
+func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache) error {
 	resp, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		FetchSelectors: true,
 	})
@@ -163,7 +200,7 @@ func addAgents(ctx context.Context, ds datastore.DataStore, cache *authorizedent
 
 	for _, node := range resp.Nodes {
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
-		if agentExpiresAt.Before(now) {
+		if agentExpiresAt.Before(time.Now()) {
 			continue
 		}
 		cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))

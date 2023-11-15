@@ -32,11 +32,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
-	"github.com/spiffe/spire/pkg/server/api"
 )
 
 const (
@@ -127,7 +127,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 			return nil, err
 		}
 		cacheRebuildTask = efEventsBasedCache.RunUpdateCacheTask
-		pruneEventsTask =efEventsBasedCache.PruneEventsTask
+		pruneEventsTask = efEventsBasedCache.PruneEventsTask
 		ef = efEventsBasedCache
 	} else {
 		buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
@@ -163,7 +163,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AdminIDs:                     c.AdminIDs,
 	}, nil
 }
-
 
 // ListenAndServe starts all endpoint servers and blocks until the context
 // is canceled or any of the servers fails to run. If the context is

@@ -18,12 +18,12 @@ var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithFullCache)(nil)
 type entryCacheBuilderFn func(ctx context.Context) (entrycache.Cache, error)
 
 type AuthorizedEntryFetcherWithFullCache struct {
-	buildCache           entryCacheBuilderFn
-	cache                entrycache.Cache
-	clk                  clock.Clock
-	log                  logrus.FieldLogger
-	mu                   sync.RWMutex
-	cacheReloadInterval  time.Duration
+	buildCache          entryCacheBuilderFn
+	cache               entrycache.Cache
+	clk                 clock.Clock
+	log                 logrus.FieldLogger
+	mu                  sync.RWMutex
+	cacheReloadInterval time.Duration
 }
 
 func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, log logrus.FieldLogger, clk clock.Clock, cacheReloadInterval time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
@@ -35,11 +35,11 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 
 	log.Info("Completed building in-memory entry cache")
 	return &AuthorizedEntryFetcherWithFullCache{
-		buildCache:           buildCache,
-		cache:                cache,
-		clk:                  clk,
-		log:                  log,
-		cacheReloadInterval:  cacheReloadInterval,
+		buildCache:          buildCache,
+		cache:               cache,
+		clk:                 clk,
+		log:                 log,
+		cacheReloadInterval: cacheReloadInterval,
 	}, nil
 }
 
