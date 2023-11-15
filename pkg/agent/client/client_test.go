@@ -971,7 +971,7 @@ func (c *fakeEntryServer) SetEntries(entries ...*types.Entry) {
 	c.entries = entries
 }
 
-func (c *fakeEntryServer) GetAuthorizedEntries(ctx context.Context, in *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+func (c *fakeEntryServer) GetAuthorizedEntries(_ context.Context, in *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -1135,10 +1135,6 @@ func makeCommonBundle(trustDomainName string) *common.Bundle {
 		TrustDomainId: "spiffe://" + trustDomainName,
 		RootCas:       []*common.Certificate{{DerBytes: []byte{10, 20, 30, 40}}},
 	}
-}
-
-func makeSPIFFEID(trustDomainName, path string) *types.SPIFFEID {
-	return &types.SPIFFEID{TrustDomain: trustDomainName, Path: path}
 }
 
 func makeEntry(id string, revisionNumber int64) *types.Entry {
