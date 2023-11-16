@@ -200,7 +200,7 @@ func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, cache 
 
 	for _, node := range resp.Nodes {
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
-		if agentExpiresAt.Before(time.Now()) {
+		if agentExpiresAt.Before(a.clk.Now()) {
 			continue
 		}
 		cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
