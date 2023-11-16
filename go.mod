@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/kms v1.15.4
 	cloud.google.com/go/secretmanager v1.11.2
 	cloud.google.com/go/security v1.15.2
-	cloud.google.com/go/storage v1.34.1
+	cloud.google.com/go/storage v1.35.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys v0.10.0
