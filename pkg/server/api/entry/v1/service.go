@@ -789,6 +789,10 @@ func fieldsFromListEntryFilter(ctx context.Context, td spiffeid.TrustDomain, fil
 func fieldsFromCountEntryFilter(ctx context.Context, td spiffeid.TrustDomain, filter *entryv1.CountEntriesRequest_Filter) logrus.Fields {
 	fields := logrus.Fields{}
 
+	if filter.ByHint != nil {
+		fields[telemetry.Hint] = filter.ByHint.Value
+	}
+
 	if filter.ByParentId != nil {
 		if parentID, err := api.TrustDomainMemberIDFromProto(ctx, td, filter.ByParentId); err == nil {
 			fields[telemetry.ParentID] = parentID.String()
@@ -799,6 +803,16 @@ func fieldsFromCountEntryFilter(ctx context.Context, td spiffeid.TrustDomain, fi
 		if id, err := api.TrustDomainWorkloadIDFromProto(ctx, td, filter.BySpiffeId); err == nil {
 			fields[telemetry.SPIFFEID] = id.String()
 		}
+	}
+
+	if filter.BySelectors != nil {
+		fields[telemetry.BySelectorMatch] = filter.BySelectors.Match.String()
+		fields[telemetry.BySelectors] = api.SelectorFieldFromProto(filter.BySelectors.Selectors)
+	}
+
+	if filter.ByFederatesWith != nil {
+		fields[telemetry.FederatesWithMatch] = filter.ByFederatesWith.Match.String()
+		fields[telemetry.FederatesWith] = strings.Join(filter.ByFederatesWith.TrustDomains, ",")
 	}
 
 	return fields
