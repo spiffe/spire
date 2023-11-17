@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -36,7 +37,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	ssignal "github.com/spiffe/spire/pkg/common/signal"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -199,7 +199,7 @@ func (cmd *Command) Run(args []string) int {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	ctx, stop := signal.NotifyContext(ctx, ssignal.SIGINT, ssignal.SIGTERM)
+	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	err = a.Run(ctx)
