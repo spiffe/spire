@@ -314,7 +314,7 @@ else
 endif
 
 integration-windows:
-	$(E)./test/integration/test-windows.sh $(SUITES)
+	$(E)$(go_path) ./test/integration/test-windows.sh $(SUITES)
 
 #############################################################################
 # Docker Images
