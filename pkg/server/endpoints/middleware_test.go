@@ -103,7 +103,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Unable to look up agent information",
-					Data: map[string]interface{}{
+					Data: map[string]any{
 						logrus.ErrorKey:      "fetch failed",
 						telemetry.CallerID:   agentID.String(),
 						telemetry.CallerAddr: "127.0.0.1",
@@ -125,7 +125,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent SVID is expired",
-					Data: map[string]interface{}{
+					Data: map[string]any{
 						telemetry.CallerID:   agentID.String(),
 						telemetry.CallerAddr: "127.0.0.1",
 					},
@@ -141,7 +141,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent is not attested",
-					Data: map[string]interface{}{
+					Data: map[string]any{
 						telemetry.CallerID:   agentID.String(),
 						telemetry.CallerAddr: "127.0.0.1",
 					},
@@ -160,7 +160,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent is banned",
-					Data: map[string]interface{}{
+					Data: map[string]any{
 						telemetry.CallerID:   agentID.String(),
 						telemetry.CallerAddr: "127.0.0.1",
 					},
@@ -180,7 +180,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Agent SVID is not active",
-					Data: map[string]interface{}{
+					Data: map[string]any{
 						telemetry.CallerID:         agentID.String(),
 						telemetry.CallerAddr:       "127.0.0.1",
 						telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
@@ -219,7 +219,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				{
 					Level:   logrus.WarnLevel,
 					Message: "Unable to activate the new agent SVID",
-					Data: map[string]interface{}{
+					Data: map[string]any{
 						telemetry.CallerID:         agentID.String(),
 						telemetry.CallerAddr:       "127.0.0.1",
 						telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),

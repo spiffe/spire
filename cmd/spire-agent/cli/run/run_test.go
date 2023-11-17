@@ -959,7 +959,7 @@ func TestNewAgentConfig(t *testing.T) {
 						t.Cleanup(func() {
 							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
 								{
-									Data:  map[string]interface{}{"trust_domain": strings.Repeat("a", 256)},
+									Data:  map[string]any{"trust_domain": strings.Repeat("a", 256)},
 									Level: logrus.WarnLevel,
 									Message: "Configured trust domain name should be less than 255 characters to be " +
 										"SPIFFE compliant; a longer trust domain name may impact interoperability",

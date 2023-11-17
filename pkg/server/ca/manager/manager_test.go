@@ -658,7 +658,7 @@ func TestPreparationThresholdCap(t *testing.T) {
 	require.Equal(t, thirtyDays, notAfter.Sub(threshold))
 }
 
-func TestActivationThreshholdCap(t *testing.T) {
+func TestActivationThresholdCap(t *testing.T) {
 	issuedAt := time.Now()
 	notAfter := issuedAt.Add(365 * 24 * time.Hour)
 
@@ -953,11 +953,11 @@ func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType key
 	}
 }
 
-func (m *managerTest) requireX509CAEqual(t *testing.T, expected, actual *ca.X509CA, msgAndArgs ...interface{}) {
+func (m *managerTest) requireX509CAEqual(t *testing.T, expected, actual *ca.X509CA, msgAndArgs ...any) {
 	require.Equal(t, m.getX509CAInfo(expected), m.getX509CAInfo(actual), msgAndArgs...)
 }
 
-func (m *managerTest) requireJWTKeyEqual(t *testing.T, expected, actual *ca.JWTKey, msgAndArgs ...interface{}) {
+func (m *managerTest) requireJWTKeyEqual(t *testing.T, expected, actual *ca.JWTKey, msgAndArgs ...any) {
 	require.Equal(t, m.getJWTKeyInfo(expected), m.getJWTKeyInfo(actual), msgAndArgs...)
 }
 

@@ -526,10 +526,10 @@ func (c apiServiceClient) Informer(callback informerCallback) (cache.SharedIndex
 	// AddEventHandler now support returning event handler registration,
 	// to remove them if required (https://github.com/kubernetes-sigs/controller-runtime/pull/2046)
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			callback(c, obj.(runtime.Object))
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			callback(c, newObj.(runtime.Object))
 		},
 	})
@@ -600,10 +600,10 @@ func (c mutatingWebhookClient) Patch(ctx context.Context, _, name string, patchB
 func (c mutatingWebhookClient) Informer(callback informerCallback) (cache.SharedIndexInformer, error) {
 	informer := c.factory.Admissionregistration().V1().MutatingWebhookConfigurations().Informer()
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			callback(c, obj.(runtime.Object))
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			callback(c, newObj.(runtime.Object))
 		},
 	})
@@ -674,10 +674,10 @@ func (c validatingWebhookClient) Patch(ctx context.Context, _, name string, patc
 func (c validatingWebhookClient) Informer(callback informerCallback) (cache.SharedIndexInformer, error) {
 	informer := c.factory.Admissionregistration().V1().ValidatingWebhookConfigurations().Informer()
 	_, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			callback(c, obj.(runtime.Object))
 		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
+		UpdateFunc: func(oldObj, newObj any) {
 			callback(c, newObj.(runtime.Object))
 		},
 	})

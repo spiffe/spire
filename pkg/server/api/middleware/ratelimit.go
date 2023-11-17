@@ -74,7 +74,7 @@ func PerIPLimit(limit int) api.RateLimiter {
 }
 
 // WithRateLimits returns a middleware that performs rate limiting for the
-// group of methods descripted by the rateLimits map. It provides the
+// group of methods described by the rateLimits map. It provides the
 // configured rate limiter to the method handlers via the request context. If
 // the middleware is invoked for a method that is not described in the map, it
 // will fail the RPC with an INTERNAL error code, describing the RPC that was
@@ -201,7 +201,7 @@ type rateLimitsMiddleware struct {
 	metrics  telemetry.Metrics
 }
 
-func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string, _ interface{}) (context.Context, error) {
+func (i rateLimitsMiddleware) Preprocess(ctx context.Context, fullMethod string, _ any) (context.Context, error) {
 	rateLimiter, ok := i.limiters[fullMethod]
 	if !ok {
 		middleware.LogMisconfiguration(ctx, "Rate limiting misconfigured; this is a bug")

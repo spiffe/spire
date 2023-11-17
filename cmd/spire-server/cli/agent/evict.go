@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"flag"
 
@@ -11,7 +12,6 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/server/api"
-	"golang.org/x/net/context"
 )
 
 type evictCommand struct {
@@ -65,7 +65,7 @@ func (c *evictCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintEvictResult)
 }
 
-func prettyPrintEvictResult(env *commoncli.Env, _ ...interface{}) error {
+func prettyPrintEvictResult(env *commoncli.Env, _ ...any) error {
 	env.Println("Agent evicted successfully")
 	return nil
 }

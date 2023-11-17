@@ -104,7 +104,7 @@ func TestChallengeResponse(t *testing.T) {
 	require.EqualError(err, "certificate not intended for digital signature use")
 }
 
-func createCertificate(privateKey, publicKey interface{}) (*x509.Certificate, error) {
+func createCertificate(privateKey, publicKey any) (*x509.Certificate, error) {
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -118,7 +118,7 @@ func createCertificate(privateKey, publicKey interface{}) (*x509.Certificate, er
 
 // createBadCertificate creates a certificate that is not appropriate to use
 // for signature-based challenge response (i.e. missing digitalSignature key usage)
-func createBadCertificate(privateKey, publicKey interface{}) (*x509.Certificate, error) {
+func createBadCertificate(privateKey, publicKey any) (*x509.Certificate, error) {
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 	}

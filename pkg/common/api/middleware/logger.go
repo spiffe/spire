@@ -12,7 +12,7 @@ import (
 // some initial fields set. If unset, it also provides name metadata to the
 // handler context.
 func WithLogger(log logrus.FieldLogger) Middleware {
-	return Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+	return Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 		ctx, names := withNames(ctx, fullMethod)
 		log := log.WithFields(logrus.Fields{
 			telemetry.Service: names.Service,

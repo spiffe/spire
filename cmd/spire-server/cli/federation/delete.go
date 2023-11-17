@@ -57,7 +57,7 @@ func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 	return c.printer.PrintProto(resp)
 }
 
-func prettyPrintDelete(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintDelete(env *commoncli.Env, results ...any) error {
 	if deleteResp, ok := results[0].(*trustdomain.BatchDeleteFederationRelationshipResponse); ok && len(deleteResp.Results) > 0 {
 		result := deleteResp.Results[0]
 		switch result.Status.Code {

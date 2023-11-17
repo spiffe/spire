@@ -1,6 +1,7 @@
 package endpoints
 
 import (
+	"context"
 	"crypto/x509"
 
 	"github.com/sirupsen/logrus"
@@ -18,7 +19,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

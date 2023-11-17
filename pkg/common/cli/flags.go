@@ -34,7 +34,7 @@ func (f *DurationFlag) Set(v string) error {
 	return nil
 }
 
-// StringsFlag faciliates setting multiple flags
+// StringsFlag facilitates setting multiple flags
 type StringsFlag []string
 
 func (s *StringsFlag) String() string {

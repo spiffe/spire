@@ -28,7 +28,7 @@ type configurerRepo struct {
 	configurer Configurer
 }
 
-func (repo *configurerRepo) Binder() interface{} {
+func (repo *configurerRepo) Binder() any {
 	return func(configurer Configurer) {
 		repo.configurer = configurer
 	}

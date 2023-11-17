@@ -157,8 +157,8 @@ func (c *cache) setStatus(name string, prevState checkState, state checkState) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	// We are sure that checker exist in this plase, to be able to check
-	// status of a subsytem we must call the checker inside this map
+	// We are sure that checker exist in this place, to be able to check
+	// status of a subsystem we must call the checker inside this map
 	c.checkerSubsystems[name].state = state
 }
 

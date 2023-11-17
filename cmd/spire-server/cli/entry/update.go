@@ -1,6 +1,7 @@
 package entry
 
 import (
+	"context"
 	"errors"
 	"flag"
 
@@ -11,8 +12,6 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"google.golang.org/grpc/codes"
-
-	"golang.org/x/net/context"
 )
 
 // NewUpdateCommand creates a new "update" subcommand for "entry" command.
@@ -242,7 +241,7 @@ func updateEntries(ctx context.Context, c entryv1.EntryClient, entries []*types.
 	return
 }
 
-func prettyPrintUpdate(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintUpdate(env *commoncli.Env, results ...any) error {
 	var succeeded, failed []*entryv1.BatchUpdateEntryResponse_Result
 	updateResp, ok := results[0].(*entryv1.BatchUpdateEntryResponse)
 	if !ok {

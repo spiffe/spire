@@ -33,7 +33,7 @@ type Template struct {
 	tmpl *template.Template
 }
 
-func (t *Template) Execute(args interface{}) (string, error) {
+func (t *Template) Execute(args any) (string, error) {
 	buf := new(bytes.Buffer)
 	if err := t.tmpl.Execute(buf, args); err != nil {
 		return "", err

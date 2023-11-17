@@ -85,7 +85,7 @@ func (f *Facade) Error(code codes.Code, message string) error {
 
 // Errorf creates a gRPC status with the given code and
 // formatted message. The message will be prefixed with the plugin name.
-func (f *Facade) Errorf(code codes.Code, format string, args ...interface{}) error {
+func (f *Facade) Errorf(code codes.Code, format string, args ...any) error {
 	return status.Errorf(code, messagePrefix(f)+format, args...)
 }
 
