@@ -51,7 +51,7 @@ func (c *showCommand) Run(ctx context.Context, _ *common_cli.Env, serverClient u
 	return c.printer.PrintProto(resp)
 }
 
-func (c *showCommand) prettyPrintBundle(env *common_cli.Env, results ...interface{}) error {
+func (c *showCommand) prettyPrintBundle(env *common_cli.Env, results ...any) error {
 	showResp, ok := results[0].(*types.Bundle)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

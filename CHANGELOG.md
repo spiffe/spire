@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.8.4] - 2023-11-07
+
+### Security
+
+- Updated to Go 1.21.4 to address CVE-2023-45283, CVE-2023-45284
+
+## [1.8.3] - 2023-10-25
+
+### Added
+
+- SPIRE Agent distributes sync requests to the SPIRE server to mitigate thundering herd situations (#4534)
+- Allow configuring prefixes for all metrics (#4535)
+- Documentation improvements (#4579, #4569)
+
+### Changed
+
+- SPIRE Agent performs the initial sync more aggressively when tuned with a longer sync interval (#4479)
+
+### Fixed
+
+- Release artifacts have the correct version information (#4564)
+- The SPIRE Agent `insecureBootstrap` and `trustBundleUrl` configurables are now mutually exclusive (#4532)
+- Bug preventing JWT-SVIDs from being minted when a Credential Composer plugin is configured (#4489)
+
 ## [1.8.2] - 2023-10-12
 
 ### Security
@@ -40,6 +64,12 @@
 - Support for Envoy SDS v2 API (#4444)
 - Server no longer cleans up stale data in the database on startup (#4443)
 - Server no longer deletes entries with invalid SPIFFE IDs on startup (#4449)
+
+## [1.7.5] - 2023-11-07
+
+### Security
+
+- Updated to Go 1.20.11 to address CVE-2023-45283, CVE-2023-45284
 
 ## [1.7.4] - 2023-10-12
 

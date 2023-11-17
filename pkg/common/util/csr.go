@@ -10,7 +10,7 @@ import (
 	"github.com/zeebo/errs"
 )
 
-func MakeCSR(privateKey interface{}, spiffeID spiffeid.ID) ([]byte, error) {
+func MakeCSR(privateKey any, spiffeID spiffeid.ID) ([]byte, error) {
 	return makeCSR(privateKey, &x509.CertificateRequest{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
@@ -20,7 +20,7 @@ func MakeCSR(privateKey interface{}, spiffeID spiffeid.ID) ([]byte, error) {
 	})
 }
 
-func MakeCSRWithoutURISAN(privateKey interface{}) ([]byte, error) {
+func MakeCSRWithoutURISAN(privateKey any) ([]byte, error) {
 	return makeCSR(privateKey, &x509.CertificateRequest{
 		Subject: pkix.Name{
 			Country:      []string{"US"},
@@ -30,7 +30,7 @@ func MakeCSRWithoutURISAN(privateKey interface{}) ([]byte, error) {
 	})
 }
 
-func makeCSR(privateKey interface{}, template *x509.CertificateRequest) ([]byte, error) {
+func makeCSR(privateKey any, template *x509.CertificateRequest) ([]byte, error) {
 	csr, err := x509.CreateCertificateRequest(rand.Reader, template, privateKey)
 	if err != nil {
 		return nil, errs.Wrap(err)

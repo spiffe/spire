@@ -112,7 +112,7 @@ func GenerateChallenge(cert *x509.Certificate) (*Challenge, error) {
 	}
 }
 
-func CalculateResponse(privateKey interface{}, challenge *Challenge) (*Response, error) {
+func CalculateResponse(privateKey any, challenge *Challenge) (*Response, error) {
 	switch privateKey := privateKey.(type) {
 	case *rsa.PrivateKey:
 		rsaChallenge := challenge.RSASignature
@@ -142,7 +142,7 @@ func CalculateResponse(privateKey interface{}, challenge *Challenge) (*Response,
 	}
 }
 
-func VerifyChallengeResponse(publicKey interface{}, challenge *Challenge, response *Response) error {
+func VerifyChallengeResponse(publicKey any, challenge *Challenge, response *Response) error {
 	switch publicKey := publicKey.(type) {
 	case *rsa.PublicKey:
 		if challenge.RSASignature == nil {

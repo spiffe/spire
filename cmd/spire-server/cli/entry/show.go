@@ -1,6 +1,7 @@
 package entry
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,8 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/protobuf/types/known/wrapperspb"
-
-	"golang.org/x/net/context"
 )
 
 const listEntriesRequestPageSize = 500
@@ -246,7 +245,7 @@ func parseToFederatesWithMatch(match string) (types.FederatesWithMatch_MatchBeha
 	}
 }
 
-func prettyPrintShow(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintShow(env *commoncli.Env, results ...any) error {
 	listResp, ok := results[0].(*entryv1.ListEntriesResponse)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

@@ -435,7 +435,7 @@ func TestAttest(t *testing.T) {
 				return testAWSCACert, nil
 			}
 
-			attestor.clients = newClientsCache(func(ctx context.Context, config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
+			attestor.clients = newClientsCache(func(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string) (Client, error) {
 				return client, nil
 			})
 
@@ -705,7 +705,7 @@ func generateCertificate(t *testing.T, key crypto.Signer) *x509.Certificate {
 	return cert
 }
 
-func toJSON(t *testing.T, obj interface{}) []byte {
+func toJSON(t *testing.T, obj any) []byte {
 	jsonBytes, err := json.Marshal(obj)
 	require.NoError(t, err)
 	return jsonBytes

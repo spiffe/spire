@@ -981,7 +981,7 @@ func cryptoKeyVersionAlgorithmFromKeyType(keyType keymanagerv1.KeyType) (kmspb.C
 // generateCryptoKeyID returns a new identifier to be used as a CryptoKeyID.
 // The returned identifier has the form: spire-key-<UUID>-<SPIRE-KEY-ID>,
 // where UUID is a new randomly generated UUID and SPIRE-KEY-ID is provided
-// through the spireKeyID paramenter.
+// through the spireKeyID parameter.
 func (p *Plugin) generateCryptoKeyID(spireKeyID string) (cryptoKeyID string, err error) {
 	pd, err := p.getPluginData()
 	if err != nil {

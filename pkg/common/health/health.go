@@ -38,10 +38,10 @@ type State struct {
 	// Subsystems can return whatever details they want here as long as it is
 	// serializable via json.Marshal.
 	// LiveDetails are opaque details related to the live check.
-	LiveDetails interface{}
+	LiveDetails any
 
 	// ReadyDetails are opaque details related to the live check.
-	ReadyDetails interface{}
+	ReadyDetails any
 }
 
 // Checkable is the interface implemented by subsystems that the checker uses
@@ -165,24 +165,24 @@ func WaitForTestDial(ctx context.Context, addr net.Addr) {
 }
 
 // LiveState returns the global live state and details.
-func (c *checker) LiveState() (bool, interface{}) {
+func (c *checker) LiveState() (bool, any) {
 	live, _, details, _ := c.checkStates()
 
 	return live, details
 }
 
 // ReadyState returns the global ready state and details.
-func (c *checker) ReadyState() (bool, interface{}) {
+func (c *checker) ReadyState() (bool, any) {
 	_, ready, _, details := c.checkStates()
 
 	return ready, details
 }
 
-func (c *checker) checkStates() (bool, bool, interface{}, interface{}) {
+func (c *checker) checkStates() (bool, bool, any, any) {
 	isLive, isReady := true, true
 
-	liveDetails := make(map[string]interface{})
-	readyDetails := make(map[string]interface{})
+	liveDetails := make(map[string]any)
+	readyDetails := make(map[string]any)
 	for subsystemName, subsystemState := range c.cache.getStatuses() {
 		state := subsystemState.details
 		if !state.Live {

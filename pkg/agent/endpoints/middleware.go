@@ -28,7 +28,7 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics) middleware.Mi
 	)
 }
 
-func addWatcherPID(ctx context.Context, _ string, _ interface{}) (context.Context, error) {
+func addWatcherPID(ctx context.Context, _ string, _ any) (context.Context, error) {
 	watcher, ok := peertracker.WatcherFromContext(ctx)
 	if ok {
 		pid := int(watcher.PID())
@@ -38,7 +38,7 @@ func addWatcherPID(ctx context.Context, _ string, _ interface{}) (context.Contex
 	return ctx, nil
 }
 
-func verifySecurityHeader(ctx context.Context, fullMethod string, _ interface{}) (context.Context, error) {
+func verifySecurityHeader(ctx context.Context, fullMethod string, _ any) (context.Context, error) {
 	if isWorkloadAPIMethod(fullMethod) && !hasSecurityHeader(ctx) {
 		return nil, status.Error(codes.InvalidArgument, "security header missing from request")
 	}

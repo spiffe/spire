@@ -13,7 +13,7 @@ import (
 // returned. If all functions finish to completion successfully, RunTasks
 // returns nil. If the context passed to RunTasks is canceled then each
 // function is canceled and RunTasks returns ctx.Err(). Tasks passed to
-// RunTasks MUST support cancelation via the provided context for RunTasks to
+// RunTasks MUST support cancellation via the provided context for RunTasks to
 // work properly.
 func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 	var wg sync.WaitGroup
@@ -62,7 +62,7 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 // If all functions finish to completion successfully, SerialRun
 // returns nil. If the context passed to SerialRun is canceled
 // then each function is canceled and SerialRun returns ctx.Err().
-// Tasks passed to SerialRun MUST support cancelation via the provided
+// Tasks passed to SerialRun MUST support cancellation via the provided
 // context for SerialRun to work properly.
 func SerialRun(tasks ...func(context.Context) error) func(ctx context.Context) error {
 	return func(ctx context.Context) (err error) {

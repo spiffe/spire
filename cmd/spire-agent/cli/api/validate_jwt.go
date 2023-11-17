@@ -76,7 +76,7 @@ func (c *validateJWTCommand) validateJWTSVID(ctx context.Context, client *worklo
 	return resp, nil
 }
 
-func prettyPrintValidate(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintValidate(env *commoncli.Env, results ...any) error {
 	resp, ok := results[0].(*workload.ValidateJWTSVIDResponse)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

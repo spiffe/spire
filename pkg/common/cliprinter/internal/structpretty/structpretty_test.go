@@ -10,13 +10,13 @@ import (
 func TestPrint(t *testing.T) {
 	cases := []struct {
 		name   string
-		s      []interface{}
+		s      []any
 		stdout string
 		stderr string
 	}{
 		{
 			name: "pointer_to_struct_with_bool",
-			s: []interface{}{
+			s: []any{
 				&friendlyBool{Foo: true},
 			},
 			stdout: "Foo: true\n\n",
@@ -24,7 +24,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "struct_with_int",
-			s: []interface{}{
+			s: []any{
 				friendlyInt{Foo: 42},
 			},
 			stdout: "Foo: 42\n\n",
@@ -32,7 +32,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "struct_with_string",
-			s: []interface{}{
+			s: []any{
 				friendlyString{Foo: "bar"},
 			},
 			stdout: "Foo: bar\n\n",
@@ -40,7 +40,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "struct_with_array",
-			s: []interface{}{
+			s: []any{
 				friendlyArray{Foo: [1]string{"bar"}},
 			},
 			stdout: "Foo: [bar]\n\n",
@@ -48,7 +48,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "struct_with_slice",
-			s: []interface{}{
+			s: []any{
 				friendlySlice{Foo: []string{"bar"}},
 			},
 			stdout: "Foo: [bar]\n\n",
@@ -56,7 +56,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "multiple_structs_different_friendly_types",
-			s: []interface{}{
+			s: []any{
 				friendlyBool{Foo: true},
 				bigFriendly{
 					Foo: "bar",
@@ -68,7 +68,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "struct_with_chan",
-			s: []interface{}{
+			s: []any{
 				angryChan{Foo: make(chan string)},
 			},
 			stdout: "",
@@ -76,7 +76,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "struct_with_struct",
-			s: []interface{}{
+			s: []any{
 				angryStruct{Foo: struct{}{}},
 			},
 			stdout: "",
@@ -84,7 +84,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "struct_with_Func",
-			s: []interface{}{
+			s: []any{
 				angryFunc{Foo: func() {}},
 			},
 			stdout: "",
@@ -92,7 +92,7 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name: "multiple_structs_different_angry_types",
-			s: []interface{}{
+			s: []any{
 				angryChan{Foo: make(chan string)},
 				bigAngry{
 					Friendly: false,
@@ -109,13 +109,13 @@ func TestPrint(t *testing.T) {
 		},
 		{
 			name:   "nil_struct",
-			s:      []interface{}{nil},
+			s:      []any{nil},
 			stdout: "",
 			stderr: "",
 		},
 		{
 			name: "empty_struct",
-			s: []interface{}{
+			s: []any{
 				struct{}{},
 			},
 			stdout: "",
@@ -155,5 +155,5 @@ type bigAngry struct {
 	Friendly bool
 
 	AngryChan      chan (string)
-	AngryInterface interface{}
+	AngryInterface any
 }

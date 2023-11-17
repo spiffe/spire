@@ -80,7 +80,7 @@ func EncodeRSAPrivateKey(privateKey *rsa.PrivateKey) ([]byte, error) {
 	}), nil
 }
 
-func rsaPrivateKeyFromObject(object interface{}) (*rsa.PrivateKey, error) {
+func rsaPrivateKeyFromObject(object any) (*rsa.PrivateKey, error) {
 	key, ok := object.(*rsa.PrivateKey)
 	if !ok {
 		return nil, fmt.Errorf("expected %T; got %T", key, object)
@@ -116,7 +116,7 @@ func EncodeECPrivateKey(privateKey *ecdsa.PrivateKey) ([]byte, error) {
 	}), nil
 }
 
-func EncodePKCS8PrivateKey(privateKey interface{}) ([]byte, error) {
+func EncodePKCS8PrivateKey(privateKey any) ([]byte, error) {
 	keyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func EncodePKCS8PrivateKey(privateKey interface{}) ([]byte, error) {
 	}), nil
 }
 
-func ecdsaPrivateKeyFromObject(object interface{}) (*ecdsa.PrivateKey, error) {
+func ecdsaPrivateKeyFromObject(object any) (*ecdsa.PrivateKey, error) {
 	key, ok := object.(*ecdsa.PrivateKey)
 	if !ok {
 		return nil, fmt.Errorf("expected %T; got %T", key, object)

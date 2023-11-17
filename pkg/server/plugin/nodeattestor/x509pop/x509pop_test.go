@@ -301,13 +301,13 @@ ca_bundle_paths = %s
 	return ""
 }
 
-func marshal(t *testing.T, obj interface{}) []byte {
+func marshal(t *testing.T, obj any) []byte {
 	data, err := json.Marshal(obj)
 	require.NoError(t, err)
 	return data
 }
 
-func unmarshal(t *testing.T, data []byte, obj interface{}) {
+func unmarshal(t *testing.T, data []byte, obj any) {
 	require.NoError(t, json.Unmarshal(data, obj))
 }
 

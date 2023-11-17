@@ -53,7 +53,7 @@ func EncodeCertificate(cert *x509.Certificate) []byte {
 	return buf.Bytes()
 }
 
-func certFromObject(object interface{}) (*x509.Certificate, error) {
+func certFromObject(object any) (*x509.Certificate, error) {
 	cert, ok := object.(*x509.Certificate)
 	if !ok {
 		return nil, fmt.Errorf("expected %T; got %T", cert, object)

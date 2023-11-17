@@ -32,7 +32,7 @@ type cacheEntry struct {
 	client Client
 }
 
-type newClientCallback func(ctx context.Context, config *SessionConfig, region string, asssumeRoleARN string) (Client, error)
+type newClientCallback func(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string) (Client, error)
 
 func newClientsCache(newClient newClientCallback) *clientsCache {
 	return &clientsCache{
@@ -103,8 +103,8 @@ func (cc *clientsCache) getCachedClient(cacheKey string) *cacheEntry {
 	return r
 }
 
-func newClient(ctx context.Context, config *SessionConfig, region string, asssumeRoleARN string) (Client, error) {
-	conf, err := newAWSConfig(ctx, config.AccessKeyID, config.SecretAccessKey, region, asssumeRoleARN)
+func newClient(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string) (Client, error) {
+	conf, err := newAWSConfig(ctx, config.AccessKeyID, config.SecretAccessKey, region, assumeRoleARN)
 	if err != nil {
 		return nil, err
 	}

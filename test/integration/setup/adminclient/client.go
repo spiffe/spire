@@ -208,7 +208,7 @@ func mintJWTSVID(ctx context.Context, c *itclient.Client) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse token: %w", err)
 	}
-	claimsMap := make(map[string]interface{})
+	claimsMap := make(map[string]any)
 	err = token.UnsafeClaimsWithoutVerification(&claimsMap)
 	if err != nil {
 		return fmt.Errorf("claims verification failed: %w", err)

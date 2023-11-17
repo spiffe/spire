@@ -52,14 +52,14 @@ func AssertGRPCStatus(tb testing.TB, err error, code codes.Code, message string)
 	return true
 }
 
-func RequireGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string, msgAndArgs ...interface{}) {
+func RequireGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string, msgAndArgs ...any) {
 	tb.Helper()
 	if !AssertGRPCStatusContains(tb, err, code, contains, msgAndArgs...) {
 		tb.FailNow()
 	}
 }
 
-func AssertGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string, msgAndArgs ...interface{}) bool {
+func AssertGRPCStatusContains(tb testing.TB, err error, code codes.Code, contains string, msgAndArgs ...any) bool {
 	tb.Helper()
 
 	if code == codes.OK {
@@ -92,14 +92,14 @@ func AssertGRPCStatusHasPrefix(tb testing.TB, err error, code codes.Code, prefix
 	return true
 }
 
-func RequireProtoListEqual(tb testing.TB, expected, actual interface{}) {
+func RequireProtoListEqual(tb testing.TB, expected, actual any) {
 	tb.Helper()
 	if !AssertProtoListEqual(tb, expected, actual) {
 		tb.FailNow()
 	}
 }
 
-func AssertProtoListEqual(tb testing.TB, expected, actual interface{}) bool {
+func AssertProtoListEqual(tb testing.TB, expected, actual any) bool {
 	tb.Helper()
 	ev := reflect.ValueOf(expected)
 	et := ev.Type()
@@ -134,14 +134,14 @@ func AssertProtoListEqual(tb testing.TB, expected, actual interface{}) bool {
 	return true
 }
 
-func RequireProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...interface{}) {
+func RequireProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...any) {
 	tb.Helper()
 	if !AssertProtoEqual(tb, expected, actual, msgAndArgs...) {
 		tb.FailNow()
 	}
 }
 
-func AssertProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...interface{}) bool {
+func AssertProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...any) bool {
 	tb.Helper()
 	return assert.Empty(tb, cmp.Diff(expected, actual, protocmp.Transform()), msgAndArgs...)
 }

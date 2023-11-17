@@ -84,6 +84,8 @@ type serverConfig struct {
 	RateLimit          rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath         string             `hcl:"socket_path"`
 	TrustDomain        string             `hcl:"trust_domain"`
+	// Temporary flag to allow disabling the inclusion of serial number in X509 CAs Subject field
+	ExcludeSNFromCASubject bool `hcl:"exclude_sn_from_ca_subject"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -634,6 +636,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CASubject = credtemplate.DefaultX509CASubject()
 	}
 
+	sc.ExcludeSNFromCASubject = c.Server.ExcludeSNFromCASubject
+	// TODO: remove exclude_sn_from_ca_subject in SPIRE v1.10.0
+	if sc.ExcludeSNFromCASubject {
+		sc.Log.Warn("The deprecated exclude_sn_from_ca_subject configurable will be removed in a future release")
+	}
+
 	sc.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
 	if err != nil {
 		return nil, err
@@ -962,7 +970,7 @@ func keyTypeFromString(s string) (keymanager.KeyType, error) {
 }
 
 // hasCompatibleTTL checks if we can guarantee the configured SVID TTL given the
-// configurd CA TTL. If we detect that a new SVID TTL may be cut short due to
+// configured CA TTL. If we detect that a new SVID TTL may be cut short due to
 // a scheduled CA rotation, this function will return false. This method should
 // be called for each SVID TTL we may use
 func hasCompatibleTTL(caTTL time.Duration, svidTTL time.Duration) bool {

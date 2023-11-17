@@ -36,7 +36,7 @@ func TestPolicy(t *testing.T) {
 			input: authpolicy.Input{
 				Caller:     "some_caller",
 				FullMethod: "some_method",
-				Req: map[string]interface{}{
+				Req: map[string]any{
 					"some_field": "abc",
 				},
 			},
@@ -57,7 +57,7 @@ func TestPolicy(t *testing.T) {
 			input: authpolicy.Input{
 				Caller:     "some_caller",
 				FullMethod: "some_method",
-				Req: map[string]interface{}{
+				Req: map[string]any{
 					"some_field": "abc",
 				},
 			},
@@ -79,7 +79,7 @@ func TestPolicy(t *testing.T) {
 			input: authpolicy.Input{
 				Caller:     "some_caller",
 				FullMethod: "some_method",
-				Req: map[string]interface{}{
+				Req: map[string]any{
 					"some_field": "abc",
 				},
 			},
@@ -98,7 +98,7 @@ func TestPolicy(t *testing.T) {
 			input: authpolicy.Input{
 				Caller:     "some_caller",
 				FullMethod: "some_method",
-				Req: map[string]interface{}{
+				Req: map[string]any{
 					"some_field": "abc",
 				},
 			},
@@ -117,7 +117,7 @@ func TestPolicy(t *testing.T) {
 			input: authpolicy.Input{
 				Caller:     "some_caller",
 				FullMethod: "some_method",
-				Req: map[string]interface{}{
+				Req: map[string]any{
 					"some_field": "abc",
 				},
 			},
@@ -136,7 +136,7 @@ func TestPolicy(t *testing.T) {
 			input: authpolicy.Input{
 				Caller:     "some_caller",
 				FullMethod: "some_method",
-				Req: map[string]interface{}{
+				Req: map[string]any{
 					"some_field": "abc",
 				},
 			},
@@ -155,7 +155,7 @@ func TestPolicy(t *testing.T) {
 			input: authpolicy.Input{
 				Caller:     "some_caller",
 				FullMethod: "some_method",
-				Req: map[string]interface{}{
+				Req: map[string]any{
 					"some_field": "abc",
 				},
 			},
@@ -174,9 +174,9 @@ func TestPolicy(t *testing.T) {
 			input: authpolicy.Input{
 				Caller:     "some_caller",
 				FullMethod: "some_method",
-				Req: map[string]interface{}{
+				Req: map[string]any{
 					"some_field": "abc",
-					"nested": map[string]interface{}{
+					"nested": map[string]any{
 						"field": "def",
 					},
 				},
@@ -196,7 +196,7 @@ func TestPolicy(t *testing.T) {
 			input: authpolicy.Input{
 				Caller:     "some_caller",
 				FullMethod: "some_method",
-				Req: map[string]interface{}{
+				Req: map[string]any{
 					"some_field": "data1",
 				},
 			},
@@ -211,7 +211,7 @@ func TestPolicy(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			var json map[string]interface{}
+			var json map[string]any
 			err := util.UnmarshalJSON([]byte(tt.jsonData), &json)
 			require.Nil(t, err, "failed to unmarshal data JSON")
 

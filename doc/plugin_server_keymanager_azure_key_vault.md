@@ -14,7 +14,7 @@ The plugin accepts the following configuration options:
 |-------------------|---------|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | key_metadata_file | string  | yes                                         | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information. | ""      |
 | key_vault_uri     | string  | Yes                                         | The Key Vault URI where the keys managed by this plugin reside.                                                                                     | ""      |
-| use_msi           | boolean | [Optional](#authenticating-to-azure)        | Whether or not to use MSI to authenticate to Azure Key Vault.                                                                                       | false   |
+| use_msi           | boolean | [Deprecated](#authenticating-to-azure)        | Whether or not to use MSI to authenticate to Azure Key Vault.                                                                                       | false   |
 | subscription_id   | string  | [Optional](#authenticating-to-azure)        | The subscription id.                                                                                                                                | ""      |
 | app_id            | string  | [Optional](#authenticating-to-azure)        | The application id.                                                                                                                                 | ""      |
 | app_secret        | string  | [Optional](#authenticating-to-azure)        | The application secret.                                                                                                                             | ""      |
@@ -22,10 +22,15 @@ The plugin accepts the following configuration options:
 
 ### Authenticating to Azure
 
-This plugin can be configured to either authenticate with an MSI token
-(`use_msi`) or credentials for an application registered within the tenant
-(`tenant_id`,`subscription_id`, `app_id`, and `app_secret`). The SPIRE Server must be running
-in an Azure VM when authenticating with an MSI token.
+By default, the plugin will attempt to use the application default credential by
+using the [DefaultAzureCredential API](https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#section-readme).
+The `DefaultAzureCredential API` attempts to authenticate via the following mechanisms in order -
+environment variables, Workload Identity, and Managed Identity; stopping when once succeeds.
+When using Workload Identity or Managed Identity, the plugin must be able to fetch the credential for the configured
+tenant ID, or else the attestation of nodes using this attestor will fail.
+
+Alternatively, the plugin can be configured to use static credentials for an application
+registered within the tenant (`subscription_id`, `app_id`, and `app_secret`).
 
 ### Use of key versions
 

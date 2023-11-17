@@ -166,7 +166,7 @@ func TestRetrieveIdentity(t *testing.T) {
 	}
 }
 
-func signToken(t *testing.T, key crypto.Signer, kid string, claims interface{}) string {
+func signToken(t *testing.T, key crypto.Signer, kid string, claims any) string {
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.RS256,
 		Key: &jose.JSONWebKey{

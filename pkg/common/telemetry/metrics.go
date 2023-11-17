@@ -78,7 +78,11 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 
 		conf := metrics.DefaultConfig(metricsPrefix)
 		conf.EnableHostname = false
-		conf.EnableHostnameLabel = true
+		if c.FileConfig.EnableHostnameLabel != nil {
+			conf.EnableHostnameLabel = *c.FileConfig.EnableHostnameLabel
+		} else {
+			conf.EnableHostnameLabel = true
+		}
 		conf.EnableTypePrefix = runner.requiresTypePrefix()
 		conf.AllowedLabels = c.FileConfig.AllowedLabels
 		conf.BlockedLabels = c.FileConfig.BlockedLabels

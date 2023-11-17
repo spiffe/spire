@@ -80,7 +80,7 @@ func TestGenerateKeyPersistence(t *testing.T) {
 	)
 }
 
-func loadPlugin(t *testing.T, configFmt string, configArgs ...interface{}) (keymanager.KeyManager, error) {
+func loadPlugin(t *testing.T, configFmt string, configArgs ...any) (keymanager.KeyManager, error) {
 	km := new(keymanager.V1)
 	var configErr error
 	plugintest.Load(t, disk.TestBuiltIn(keymanagertest.NewGenerator()), km,

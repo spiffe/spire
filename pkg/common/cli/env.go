@@ -25,22 +25,22 @@ type Env struct {
 	BaseDir string
 }
 
-func (e *Env) Printf(format string, args ...interface{}) error {
+func (e *Env) Printf(format string, args ...any) error {
 	_, err := fmt.Fprintf(e.Stdout, format, args...)
 	return err
 }
 
-func (e *Env) Println(args ...interface{}) error {
+func (e *Env) Println(args ...any) error {
 	_, err := fmt.Fprintln(e.Stdout, args...)
 	return err
 }
 
-func (e *Env) ErrPrintf(format string, args ...interface{}) error {
+func (e *Env) ErrPrintf(format string, args ...any) error {
 	_, err := fmt.Fprintf(e.Stderr, format, args...)
 	return err
 }
 
-func (e *Env) ErrPrintln(args ...interface{}) error {
+func (e *Env) ErrPrintln(args ...any) error {
 	_, err := fmt.Fprintln(e.Stderr, args...)
 	return err
 }

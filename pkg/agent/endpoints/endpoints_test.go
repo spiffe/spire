@@ -265,13 +265,13 @@ func attest(ctx context.Context, attestor PeerTrackerAttestor) error {
 	return nil
 }
 
-func logEntryWithPID(level logrus.Level, msg string, keyvalues ...interface{}) spiretest.LogEntry {
+func logEntryWithPID(level logrus.Level, msg string, keyvalues ...any) spiretest.LogEntry {
 	data := logrus.Fields{
 		telemetry.PID: fmt.Sprint(os.Getpid()),
 	}
 	for i := 0; i < len(keyvalues); i += 2 {
 		key := keyvalues[i]
-		var value interface{}
+		var value any
 		if (i + 1) < len(keyvalues) {
 			value = keyvalues[i+1]
 		}
