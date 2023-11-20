@@ -203,6 +203,18 @@ workload_api {
 }
 ```
 
+#### Server API and Listen TLS address
+
+```hcl
+log_level = "debug"
+domains = ["mypublicdomain.test"]
+listen_tls_addr = ":8081"
+server_api {
+    address = "unix:///tmp/spire-server/private/api.sock"
+    spiffe_id = "spiffe://example.org/oidc-provider"
+}
+```
+
 #### Listening on a Unix Socket
 
 The following configuration has the OIDC Discovery Provider listen for requests

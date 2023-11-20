@@ -281,12 +281,12 @@ func parseConfigCasesOS() []parseConfigCase {
 		{
 			name: "both listen_tls_addr and insecure_addr configured",
 			in: `
-				spiffe_id = "spiffe://example.org/oidc-provider"
 				domains = ["domain.test"]
 				insecure_addr = ":8080"
 				listen_tls_addr = ":8081"
 				server_api {
 					socket_path = "/other/socket/path"
+					spiffe_id = "spiffe://example.org/oidc-provider"
 				}
 			`,
 			err: "listen_tls_addr and insecure_addr are mutually exclusive",
@@ -294,7 +294,6 @@ func parseConfigCasesOS() []parseConfigCase {
 		{
 			name: "both listen_tls_addr and listen_named_pipe_name configured",
 			in: `
-				spiffe_id = "spiffe://example.org/oidc-provider"
 				domains = ["domain.test"]
 				experimental {
 					listen_named_pipe_name = "test"
@@ -302,6 +301,7 @@ func parseConfigCasesOS() []parseConfigCase {
 				listen_tls_addr = ":8081"
 				server_api {
 					socket_path = "/other/socket/path"
+					spiffe_id = "spiffe://example.org/oidc-provider"
 				}
 			`,
 			err: "listen_tls_addr and listen_named_pipe_name are mutually exclusive",
@@ -317,6 +317,7 @@ func parseConfigCasesOS() []parseConfigCase {
 				listen_tls_addr = ":8081"
 				server_api {
 					socket_path = "/other/socket/path"
+					spiffe_id = "spiffe://example.org/oidc-provider"
 				}
 			`,
 			err: "listen_tls_addr and serving_cert_file are mutually exclusive",
@@ -332,6 +333,7 @@ func parseConfigCasesOS() []parseConfigCase {
 				listen_tls_addr = ":8081"
 				server_api {
 					socket_path = "/other/socket/path"
+					spiffe_id = "spiffe://example.org/oidc-provider"
 				}
 			`,
 			err: "listen_tls_addr and acme are mutually exclusive",

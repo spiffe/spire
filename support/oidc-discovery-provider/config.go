@@ -139,6 +139,18 @@ type ServerAPIConfig struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalServerAPIConfig `hcl:"experimental"`
+
+	// SVIDTTL is used for setting the ttl of minted x509 SVID by calling Server
+	// API. This value is calculated by LoadConfig()/ParseConfig() from
+	// RawSVIDTTL.
+	SVIDTTL time.Duration `hcl:"-"`
+
+	// RawSVIDTTL holds the string version of the SVIDTTL. Consumers
+	// should use SVIDTTL instead.
+	RawSVIDTTL string `hcl:"svid_ttl"`
+
+	// SPIFFEIDPath is the spiffeid used for minted x509 SVID
+	SPIFFEID string `hcl:"spiffe_id"`
 }
 
 type WorkloadAPIConfig struct {
@@ -226,8 +238,8 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	}
 
 	if c.ListenTLSAddr != "" {
-		if c.ServerAPI == nil {
-			return nil, errs.New("listen_tls_addr require using server_api instead of workload_api")
+		if c.ServerAPI == nil || c.ServerAPI.SPIFFEID == "" {
+			return nil, errs.New("listen_tls_addr require using server_api instead of workload_api, and server_api.spiffe_id must be set")
 		}
 	}
 
@@ -261,6 +273,10 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		c.ServerAPI.PollInterval, err = parseDurationField(c.ServerAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
 			return nil, errs.New("invalid poll_interval in the server_api configuration section: %v", err)
+		}
+		c.ServerAPI.SVIDTTL, err = parseDurationField(c.ServerAPI.RawSVIDTTL, DefaultServerSVIDTTL)
+		if err != nil {
+			return nil, errs.New("invalid svid_ttl in the server_api configuration section: %v", err)
 		}
 		methodCount++
 	}

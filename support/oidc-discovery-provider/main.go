@@ -175,6 +175,9 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 			Log:          log,
 			GRPCTarget:   config.getServerAPITargetName(),
 			PollInterval: config.ServerAPI.PollInterval,
+			DNSNames:     config.Domains,
+			SVIDTTL:      config.ServerAPI.SVIDTTL,
+			SPIFFEID:     config.ServerAPI.SPIFFEID,
 		})
 	case config.WorkloadAPI != nil:
 		workloadAPIAddr, err := config.getWorkloadAPIAddr()
