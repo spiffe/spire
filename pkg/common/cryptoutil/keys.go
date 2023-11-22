@@ -6,8 +6,8 @@ import (
 	"crypto/rsa"
 	"fmt"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/zeebo/errs"
-	"gopkg.in/square/go-jose.v2"
 )
 
 func RSAPublicKeyEqual(a, b *rsa.PublicKey) bool {

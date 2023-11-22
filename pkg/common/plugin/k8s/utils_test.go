@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	authv1 "k8s.io/api/authentication/v1"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
