@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"syscall"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -149,7 +148,7 @@ func TestExitDetection(t *testing.T) {
 		secondEntry := test.logHook.Entries[1]
 		require.Equal(t, logrus.WarnLevel, secondEntry.Level)
 		require.Equal(t, "Caller exit suspected due to failed readdirent", secondEntry.Message)
-		require.Equal(t, syscall.ENOENT, secondEntry.Data["error"])
+		requireCallerExitFailedDirent(t, secondEntry.Data["error"])
 	case "windows":
 		require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller exit detected: exit code: 0")
 		require.Len(t, test.logHook.Entries, 2)

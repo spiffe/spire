@@ -3,11 +3,11 @@
 package peertracker
 
 import (
-	"syscall"
+	"golang.org/x/sys/unix"
 )
 
 func getCallerInfoFromFileDescriptor(fd uintptr) (CallerInfo, error) {
-	ucred, err := syscall.GetsockoptUcred(int(fd), syscall.SOL_SOCKET, syscall.SO_PEERCRED)
+	ucred, err := unix.GetsockoptUcred(int(fd), unix.SOL_SOCKET, unix.SO_PEERCRED)
 	if err != nil {
 		return CallerInfo{}, err
 	}

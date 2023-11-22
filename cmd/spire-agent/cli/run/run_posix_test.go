@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"syscall"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent"
@@ -16,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func TestCommand_Run(t *testing.T) {
@@ -129,8 +129,8 @@ func TestCommand_Run(t *testing.T) {
 			}
 			if testCase.want.agentUdsDirCreated {
 				assert.DirExistsf(t, testAgentSocketDir, "spire-agent uds dir should be created")
-				currentUmask := syscall.Umask(0)
-				assert.Equalf(t, currentUmask, 0027, "spire-agent process should be created with 0027 umask")
+				currentUmask := unix.Umask(0)
+				assert.Equalf(t, currentUmask, 0o027, "spire-agent process should be created with 0027 umask")
 			} else {
 				assert.NoDirExistsf(t, testAgentSocketDir, "spire-agent uds dir should not be created")
 			}

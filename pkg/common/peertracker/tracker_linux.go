@@ -8,10 +8,10 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -55,14 +55,14 @@ func newLinuxWatcher(info CallerInfo, log logrus.FieldLogger) (*linuxWatcher, er
 	procPath := fmt.Sprintf("/proc/%v", info.PID)
 
 	// Grab a handle to proc first since that's the fastest thing we can do
-	procfd, err := syscall.Open(procPath, syscall.O_RDONLY, 0)
+	procfd, err := unix.Open(procPath, unix.O_RDONLY, 0)
 	if err != nil {
 		return nil, fmt.Errorf("could not open caller's proc directory: %w", err)
 	}
 
 	starttime, err := getStarttime(info.PID)
 	if err != nil {
-		syscall.Close(procfd)
+		unix.Close(procfd)
 		return nil, err
 	}
 
@@ -93,7 +93,7 @@ func (l *linuxWatcher) Close() {
 		return
 	}
 
-	syscall.Close(l.procfd)
+	unix.Close(l.procfd)
 	l.procfd = -1
 }
 
@@ -110,7 +110,7 @@ func (l *linuxWatcher) IsAlive() error {
 	// If the process has exited since we opened it, the read should fail (i.e.
 	// the ReadDirent syscall will return -1)
 	var buf [8196]byte
-	n, err := syscall.ReadDirent(l.procfd, buf[:])
+	n, err := unix.ReadDirent(l.procfd, buf[:])
 	if err != nil {
 		l.log.WithError(err).Warn("Caller exit suspected due to failed readdirent")
 		return errors.New("caller exit suspected due to failed readdirent")
@@ -145,8 +145,8 @@ func (l *linuxWatcher) IsAlive() error {
 	// we got beaten by a PID race when opening the proc handle originally, we can at
 	// least get to know that the race winner is running as the same user and group as
 	// the original caller by comparing it to the received CallerInfo.
-	var stat syscall.Stat_t
-	if err := syscall.Stat(l.procPath, &stat); err != nil {
+	var stat unix.Stat_t
+	if err := unix.Stat(l.procPath, &stat); err != nil {
 		l.log.WithError(err).Warn("Caller exit suspected due to failed proc stat")
 		return errors.New("caller exit suspected due to failed proc stat")
 	}
