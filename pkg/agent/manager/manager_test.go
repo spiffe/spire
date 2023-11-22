@@ -1123,7 +1123,7 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 
 	/// Sync to get expected error
 	err := m.runSynchronizer(ctx)
-	spiretest.RequireErrorPrefix(t, err, "agent SVID is signed by unknow authority:")
+	spiretest.RequireErrorPrefix(t, err, "failed to sync with SPIRE Server:")
 }
 
 func TestSyncSVIDsWithLRUCache(t *testing.T) {

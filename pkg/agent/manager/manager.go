@@ -287,7 +287,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		switch {
 		case nodeutil.IsUnknownAuthorityError(err):
 			m.c.Log.WithError(err).Info("Synchronize failed, non-recoverable error")
-			return fmt.Errorf("agent SVID is signed by unknow authority: %w", err)
+			return fmt.Errorf("failed to sync with SPIRE Server: %w", err)
 		case err != nil && nodeutil.ShouldAgentReattest(err):
 			fallthrough
 		case nodeutil.ShouldAgentShutdown(err):
