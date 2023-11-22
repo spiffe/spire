@@ -9,8 +9,8 @@
 
 ### Changed
 
-- Agent SDS API now provides a SPIFFEValidationContext as the default CertificateValidationContext (#4618)
-- Server CAs now contain a `serialNumber` DN in the `Subject` field (#4585)
+- Agent SDS API now provides a SPIFFEValidationContext as the default CertificateValidationContext when the Envoy version cannot be determined (#4618)
+- Server CAs now contain a `serialNumber` attribute in the `Subject` DN (#4585)
 - Improved accuracy of Agent log message for SVID renewal events (#4654)
 
 ### Deprecated
