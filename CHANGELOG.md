@@ -19,7 +19,7 @@
 
 ### Fixed
 
-- Agent SDS API now provides correct CertificateValidationContext when Envoy is not initially registered in SPIRE then later registered (#4611)
+- Agent SDS API now provides correct CertificateValidationContext when Envoy registered in SPIRE after the first SDS request (#4611)
 
 ## [1.8.4] - 2023-11-07
 
