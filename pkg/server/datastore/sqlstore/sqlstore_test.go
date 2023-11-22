@@ -4959,7 +4959,7 @@ func (s *PluginSuite) TestConfigure() {
 	}{
 		{
 			desc:               "defaults",
-			expectMaxOpenConns: 0,
+			expectMaxOpenConns: 100,
 			// defined in database/sql
 			expectIdle: 2,
 		},
@@ -4990,7 +4990,6 @@ func (s *PluginSuite) TestConfigure() {
 			dbPath := filepath.ToSlash(filepath.Join(s.dir, "test-datastore-configure.sqlite3"))
 
 			log, _ := test.NewNullLogger()
-
 			p := New(log)
 			err := p.Configure(ctx, fmt.Sprintf(`
 				database_type = "sqlite3"
