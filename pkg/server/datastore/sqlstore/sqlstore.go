@@ -843,6 +843,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	db.SetLogger(gormLogger{
 		log: ds.log.WithField(telemetry.SubsystemName, "gorm"),
 	})
+	db.DB().SetMaxOpenConns(100) // default value
 	if cfg.MaxOpenConns != nil {
 		db.DB().SetMaxOpenConns(*cfg.MaxOpenConns)
 	}
