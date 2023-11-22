@@ -55,7 +55,7 @@ require (
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
 	github.com/jinzhu/gorm v1.9.16
-	github.com/lestrrat-go/jwx/v2 v2.0.16
+	github.com/lestrrat-go/jwx/v2 v2.0.17
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.18
 	github.com/mitchellh/cli v1.1.5
@@ -78,7 +78,7 @@ require (
 	golang.org/x/sync v0.5.0
 	golang.org/x/sys v0.14.0
 	golang.org/x/time v0.4.0
-	google.golang.org/api v0.150.0
+	google.golang.org/api v0.151.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231030173426-d783a09b4405
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
@@ -178,7 +178,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.0 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.1 // indirect
 	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
