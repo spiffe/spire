@@ -14,7 +14,7 @@ type workloadAttestorRepository struct {
 	workloadattestor.Repository
 }
 
-func (repo *workloadAttestorRepository) Binder() interface{} {
+func (repo *workloadAttestorRepository) Binder() any {
 	return repo.AddWorkloadAttestor
 }
 

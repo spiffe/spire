@@ -47,7 +47,7 @@ func (c *listCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient ut
 	return c.printer.PrintProto(resp)
 }
 
-func prettyPrintList(env *commoncli.Env, results ...interface{}) error {
+func prettyPrintList(env *commoncli.Env, results ...any) error {
 	listResp, ok := results[0].(*trustdomainv1.ListFederationRelationshipsResponse)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

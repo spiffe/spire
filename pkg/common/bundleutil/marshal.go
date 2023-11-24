@@ -116,7 +116,7 @@ func Marshal(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error)
 		}
 	}
 
-	var out interface{} = jwks
+	var out any = jwks
 	if !c.standardJWKS {
 		out = bundleDoc{
 			JSONWebKeySet: jwks,

@@ -10,7 +10,7 @@ import (
 
 // GetSubjectKeyID calculates a subject key identifier by doing a SHA-1 hash
 // over the ASN.1 encoding of the public key.
-func GetSubjectKeyID(pubKey interface{}) ([]byte, error) {
+func GetSubjectKeyID(pubKey any) ([]byte, error) {
 	// Borrowed with love from cfssl under the BSD 2-Clause license
 	// TODO: just use cfssl...
 

@@ -1497,7 +1497,7 @@ func TestListFederatedBundles(t *testing.T) {
 		{
 			name: "page bundles",
 			// Returns only one element because server bundle is the first element
-			// returned by datastore, and we filter resutls on service
+			// returned by datastore, and we filter results on service
 			expectBundlePages: [][]*common.Bundle{
 				{b1},
 				{b2, b3},
@@ -2916,7 +2916,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		rateLimiter: rateLimiter,
 	}
 
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 		ctx = rpccontext.WithLogger(ctx, log)
 		if test.isAdmin {
 			ctx = rpccontext.WithAdminCaller(ctx)

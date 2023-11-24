@@ -8,37 +8,37 @@ import (
 
 var (
 	stringSetPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make(stringSet)
 		},
 	}
 
 	subscriberSetPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make(subscriberSet)
 		},
 	}
 
 	selectorSetPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make(selectorSet)
 		},
 	}
 
 	recordSetPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make(recordSet)
 		},
 	}
 
 	lruCacheRecordSetPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make(lruCacheRecordSet)
 		},
 	}
 
 	lruCacheSubscriberSetPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return make(lruCacheSubscriberSet)
 		},
 	}

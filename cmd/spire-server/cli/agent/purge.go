@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"time"
@@ -13,7 +14,6 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"golang.org/x/net/context"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -95,8 +95,8 @@ type expiredAgent struct {
 	Error   string      `json:"error,omitempty"`
 }
 
-func (c *purgeCommand) prettyPrintPurgeResult(env *commoncli.Env, results ...interface{}) error {
-	if expAgents, ok := results[0].([]interface{})[0].(*expiredAgents); ok {
+func (c *purgeCommand) prettyPrintPurgeResult(env *commoncli.Env, results ...any) error {
+	if expAgents, ok := results[0].([]any)[0].(*expiredAgents); ok {
 		if len(expAgents.Agents) == 0 {
 			env.Println("No agents to purge.")
 			return nil

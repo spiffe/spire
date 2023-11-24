@@ -60,7 +60,7 @@ func TestGetCurrentJWTKeySlot(t *testing.T) {
 	t.Run("no authority created", func(t *testing.T) {
 		currentSlot := test.m.GetCurrentJWTKeySlot()
 
-		slot := currentSlot.(*JwtKeySlot)
+		slot := currentSlot.(*jwtKeySlot)
 
 		require.True(t, slot.IsEmpty())
 		require.Empty(t, slot.issuedAt)
@@ -75,7 +75,7 @@ func TestGetCurrentJWTKeySlot(t *testing.T) {
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
 		currentSlot := test.m.GetCurrentJWTKeySlot()
-		slot := currentSlot.(*JwtKeySlot)
+		slot := currentSlot.(*jwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
 		require.NotEmpty(t, slot.authorityID)
 		require.Equal(t, expectIssuedAt, slot.issuedAt)
@@ -91,7 +91,7 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 
 	t.Run("no next created", func(t *testing.T) {
 		nextSlot := test.m.GetNextJWTKeySlot()
-		slot := nextSlot.(*JwtKeySlot)
+		slot := nextSlot.(*jwtKeySlot)
 
 		require.Nil(t, slot.jwtKey)
 		require.Empty(t, slot.issuedAt)
@@ -106,7 +106,7 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
 		nextSlot := test.m.GetNextJWTKeySlot()
-		slot := nextSlot.(*JwtKeySlot)
+		slot := nextSlot.(*jwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
 		require.NotEmpty(t, slot.authorityID)
 		require.Equal(t, expectIssuedAt, slot.issuedAt)
@@ -123,7 +123,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 	t.Run("no authority created", func(t *testing.T) {
 		currentSlot := test.m.GetCurrentX509CASlot()
 
-		slot := currentSlot.(*X509CASlot)
+		slot := currentSlot.(*x509CASlot)
 		require.Nil(t, slot.x509CA)
 		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
@@ -138,7 +138,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
 		currentSlot := test.m.GetCurrentX509CASlot()
-		slot := currentSlot.(*X509CASlot)
+		slot := currentSlot.(*x509CASlot)
 		require.NotNil(t, slot.x509CA)
 		require.NotEmpty(t, slot.authorityID)
 		require.NotNil(t, slot.publicKey)
@@ -155,7 +155,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 
 	t.Run("no next created", func(t *testing.T) {
 		nextSlot := test.m.GetNextX509CASlot()
-		slot := nextSlot.(*X509CASlot)
+		slot := nextSlot.(*x509CASlot)
 
 		require.Nil(t, slot.x509CA)
 		require.Empty(t, slot.authorityID)
@@ -171,7 +171,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
 		nextSlot := test.m.GetNextX509CASlot()
-		slot := nextSlot.(*X509CASlot)
+		slot := nextSlot.(*x509CASlot)
 		require.NotNil(t, slot.x509CA)
 		require.NotEmpty(t, slot.authorityID)
 		require.NotNil(t, slot.publicKey)
@@ -192,9 +192,9 @@ func TestPersistence(t *testing.T) {
 
 	// Prepare authority and activate authority
 	require.NoError(t, test.m.PrepareJWTKey(ctx))
-	test.m.ActivateJWTKey()
+	test.m.ActivateJWTKey(ctx)
 	require.NoError(t, test.m.PrepareX509CA(ctx))
-	test.m.ActivateX509CA()
+	test.m.ActivateX509CA(ctx)
 
 	firstX509CA, firstJWTKey := test.currentX509CA(), test.currentJWTKey()
 
@@ -418,7 +418,7 @@ func TestX509CARotation(t *testing.T) {
 
 	// Rotate "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateX509CA()
+	test.m.RotateX509CA(ctx)
 	test.requireX509CAEqual(t, second, test.currentX509CA())
 	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	assert.Nil(t, test.nextX509CA())
@@ -440,7 +440,7 @@ func TestX509CARotation(t *testing.T) {
 
 	// Rotate again, "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateX509CA()
+	test.m.RotateX509CA(ctx)
 	test.requireX509CAEqual(t, third, test.currentX509CA())
 	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	assert.Nil(t, test.nextX509CA())
@@ -458,7 +458,7 @@ func TestX509CARotationMetric(t *testing.T) {
 
 	// reset the metrics rotate CA to activate mark
 	test.metrics.Reset()
-	test.m.RotateX509CA()
+	test.m.RotateX509CA(ctx)
 
 	// create expected metrics with ttl from certificate
 	expected := fakemetrics.New()
@@ -507,7 +507,7 @@ func TestJWTKeyRotation(t *testing.T) {
 
 	// rotate, "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateJWTKey()
+	test.m.RotateJWTKey(ctx)
 	test.requireJWTKeyEqual(t, second, test.currentJWTKey())
 	require.Equal(t, journal.Status_ACTIVE, test.currentJWTKeyStatus())
 	assert.Nil(t, test.nextJWTKey())
@@ -529,7 +529,7 @@ func TestJWTKeyRotation(t *testing.T) {
 
 	// rotate again. "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateJWTKey()
+	test.m.RotateJWTKey(ctx)
 	test.requireJWTKeyEqual(t, third, test.currentJWTKey())
 	require.Equal(t, journal.Status_ACTIVE, test.currentJWTKeyStatus())
 	assert.Nil(t, test.nextJWTKey())
@@ -578,7 +578,7 @@ func TestPruneBundle(t *testing.T) {
 
 	// advance beyond the safety threshold of the first, prune, and assert that
 	// the first has been pruned
-	test.addTimeAndPrune(safetyThreshold)
+	test.addTimeAndPrune(safetyThresholdBundle)
 	test.requireBundleRootCAs(ctx, t, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
 
@@ -587,7 +587,7 @@ func TestPruneBundle(t *testing.T) {
 
 	// advance beyond the second expiration time, prune, and assert nothing
 	// changes because we can't prune out the whole bundle.
-	test.clock.Set(secondExpiresTime.Add(time.Minute + safetyThreshold))
+	test.clock.Set(secondExpiresTime.Add(time.Minute + safetyThresholdBundle))
 	require.EqualError(t, test.m.PruneBundle(context.Background()), "unable to prune bundle: rpc error: code = Unknown desc = prune failed: would prune all certificates")
 	test.requireBundleRootCAs(ctx, t, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
@@ -658,7 +658,7 @@ func TestPreparationThresholdCap(t *testing.T) {
 	require.Equal(t, thirtyDays, notAfter.Sub(threshold))
 }
 
-func TestActivationThreshholdCap(t *testing.T) {
+func TestActivationThresholdCap(t *testing.T) {
 	issuedAt := time.Now()
 	notAfter := issuedAt.Add(365 * 24 * time.Hour)
 
@@ -805,9 +805,9 @@ func TestAlternateKeyTypes(t *testing.T) {
 
 			// Prepare and activate a bundle
 			require.NoError(t, test.m.PrepareJWTKey(ctx))
-			test.m.ActivateJWTKey()
+			test.m.ActivateJWTKey(ctx)
 			require.NoError(t, test.m.PrepareX509CA(ctx))
-			test.m.activateX509CA()
+			test.m.activateX509CA(ctx)
 
 			testCase.checkX509CA(t, test.currentX509CA().Signer)
 			testCase.checkJWTKey(t, test.currentJWTKey().Signer)
@@ -889,9 +889,9 @@ func (m *managerTest) initAndActivateSelfSignedManager(ctx context.Context) {
 	require.NoError(m.t, err)
 
 	require.NoError(m.t, manager.PrepareJWTKey(ctx))
-	manager.ActivateJWTKey()
+	manager.ActivateJWTKey(ctx)
 	require.NoError(m.t, manager.PrepareX509CA(ctx))
-	manager.ActivateX509CA()
+	manager.ActivateX509CA(ctx)
 
 	m.m = manager
 }
@@ -914,9 +914,9 @@ func (m *managerTest) initAndActivateUpstreamSignedManager(ctx context.Context, 
 	m.initUpstreamSignedManager(upstreamAuthority)
 
 	require.NoError(m.t, m.m.PrepareJWTKey(ctx))
-	m.m.ActivateJWTKey()
+	m.m.ActivateJWTKey(ctx)
 	require.NoError(m.t, m.m.PrepareX509CA(ctx))
-	m.m.ActivateX509CA()
+	m.m.ActivateX509CA(ctx)
 }
 
 func (m *managerTest) selfSignedConfig() Config {
@@ -953,11 +953,11 @@ func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType key
 	}
 }
 
-func (m *managerTest) requireX509CAEqual(t *testing.T, expected, actual *ca.X509CA, msgAndArgs ...interface{}) {
+func (m *managerTest) requireX509CAEqual(t *testing.T, expected, actual *ca.X509CA, msgAndArgs ...any) {
 	require.Equal(t, m.getX509CAInfo(expected), m.getX509CAInfo(actual), msgAndArgs...)
 }
 
-func (m *managerTest) requireJWTKeyEqual(t *testing.T, expected, actual *ca.JWTKey, msgAndArgs ...interface{}) {
+func (m *managerTest) requireJWTKeyEqual(t *testing.T, expected, actual *ca.JWTKey, msgAndArgs ...any) {
 	require.Equal(t, m.getJWTKeyInfo(expected), m.getJWTKeyInfo(actual), msgAndArgs...)
 }
 
@@ -1088,7 +1088,13 @@ func (m *managerTest) addTimeAndPrune(d time.Duration) {
 }
 
 func (m *managerTest) wipeJournal(t *testing.T) {
+	// TODO: journal saved on this will no longer be supported in v1.10. Remove
+	// this.
 	require.NoError(t, os.Remove(filepath.Join(m.m.c.Dir, "journal.pem")))
+
+	// Have a clean datastore.
+	m.ds = fakedatastore.New(t)
+	m.cat.SetDataStore(m.ds)
 }
 
 func (m *managerTest) waitForBundleUpdatedNotification(ctx context.Context, ch <-chan *common.Bundle) {

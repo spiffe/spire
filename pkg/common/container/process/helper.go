@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package process
 
@@ -7,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"syscall"
 	"unsafe"
 
 	"github.com/hashicorp/go-hclog"
@@ -122,7 +120,7 @@ func (h *helper) searchProcessByExeFile(exeFile string, log hclog.Logger) ([]uin
 	var results []uint32
 
 	for {
-		entryExeFile := syscall.UTF16ToString(entry.ExeFile[:])
+		entryExeFile := windows.UTF16ToString(entry.ExeFile[:])
 		if entryExeFile == exeFile {
 			results = append(results, entry.ProcessID)
 		}

@@ -1,5 +1,4 @@
 //go:build windows
-// +build windows
 
 package entrypoint
 
@@ -7,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -299,7 +297,7 @@ func TestUnsupportedCommand(t *testing.T) {
 				return 1
 			}, testCase.sc)
 			assert.Equal(t, 0, ep.Main())
-			assert.Equal(t, windows.ERROR_BAD_ARGUMENTS, syscall.Errno(testCase.sc.exitCode))
+			assert.Equal(t, windows.ERROR_BAD_ARGUMENTS, windows.Errno(testCase.sc.exitCode))
 		})
 	}
 }

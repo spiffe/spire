@@ -28,7 +28,7 @@ func SelfSignCertificateWithKey(tb testing.TB, tmpl *x509.Certificate, key crypt
 	return CreateCertificate(tb, tmpl, tmpl, key.Public(), key)
 }
 
-func CreateCertificate(tb testing.TB, tmpl, parent *x509.Certificate, pub, priv interface{}) *x509.Certificate {
+func CreateCertificate(tb testing.TB, tmpl, parent *x509.Certificate, pub, priv any) *x509.Certificate {
 	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, parent, pub, priv)
 	require.NoError(tb, err)
 	cert, err := x509.ParseCertificate(certDER)

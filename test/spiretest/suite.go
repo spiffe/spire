@@ -39,7 +39,7 @@ func (s *Suite) RequireGRPCStatusContains(err error, code codes.Code, contains s
 	RequireGRPCStatusContains(s.T(), err, code, contains)
 }
 
-func (s *Suite) RequireProtoListEqual(expected, actual interface{}) {
+func (s *Suite) RequireProtoListEqual(expected, actual any) {
 	s.T().Helper()
 	RequireProtoListEqual(s.T(), expected, actual)
 }
@@ -64,12 +64,12 @@ func (s *Suite) AssertGRPCStatusContains(err error, code codes.Code, contains st
 	return AssertGRPCStatusContains(s.T(), err, code, contains)
 }
 
-func (s *Suite) AssertProtoListEqual(expected, actual interface{}) bool {
+func (s *Suite) AssertProtoListEqual(expected, actual any) bool {
 	s.T().Helper()
 	return AssertProtoListEqual(s.T(), expected, actual)
 }
 
-func (s *Suite) AssertProtoEqual(expected, actual proto.Message, msgAndArgs ...interface{}) bool {
+func (s *Suite) AssertProtoEqual(expected, actual proto.Message, msgAndArgs ...any) bool {
 	s.T().Helper()
 	return AssertProtoEqual(s.T(), expected, actual, msgAndArgs...)
 }

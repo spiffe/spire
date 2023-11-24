@@ -2,7 +2,7 @@
 
 source init-kubectl
 
-expLeafIssuerOpenSSL="issuer=C = US, O = SPIFFE"
+expLeafIssuerOpenSSL="issuer=C = US, O = SPIFFE, SerialNumber = [[:digit:]]+"
 expCASubjectOpenSSL="subject=O = cert-manager.io, CN = example.org"
 
 # On macOS, /usr/bin/openssl is LibreSSL, which outputs certificate details with a different format than OpenSSL
@@ -39,7 +39,7 @@ if [ "$leafURIResult" != "$expLeafURI" ]; then
 fi
 log-info "got expected SPIFFE ID result"
 
-if [ "$leafIssuerResult" != "$expLeafIssuer" ]; then
+if [ ! "$leafIssuerResult" =~ "$expLeafIssuer" ]; then
   fail-now "unexpected Issuer in resulting certificate, exp=$expLeafIssuer got=$leafIssuerResult"
 fi
 log-info "got expected Issuer result"

@@ -18,20 +18,20 @@ type Config struct {
 }
 
 func New(t *testing.T, config Config) notifier.Notifier {
-	server := notifierv1.NotifierPluginServer(&fakeNotifer{config: config})
+	server := notifierv1.NotifierPluginServer(&fakeNotifier{config: config})
 
 	v1 := new(notifier.V1)
 	plugintest.Load(t, catalog.MakeBuiltIn("fake", server), v1)
 	return v1
 }
 
-type fakeNotifer struct {
+type fakeNotifier struct {
 	notifierv1.UnimplementedNotifierServer
 
 	config Config
 }
 
-func (n *fakeNotifer) Notify(_ context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
+func (n *fakeNotifier) Notify(_ context.Context, req *notifierv1.NotifyRequest) (*notifierv1.NotifyResponse, error) {
 	var err error
 	if event := req.GetBundleUpdated(); event != nil && n.config.OnNotifyBundleUpdated != nil {
 		err = n.config.OnNotifyBundleUpdated(bundle.RequireToCommonFromPluginProto(event.Bundle))
@@ -39,7 +39,7 @@ func (n *fakeNotifer) Notify(_ context.Context, req *notifierv1.NotifyRequest) (
 	return &notifierv1.NotifyResponse{}, err
 }
 
-func (n *fakeNotifer) NotifyAndAdvise(_ context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
+func (n *fakeNotifier) NotifyAndAdvise(_ context.Context, req *notifierv1.NotifyAndAdviseRequest) (*notifierv1.NotifyAndAdviseResponse, error) {
 	var err error
 	if event := req.GetBundleLoaded(); event != nil && n.config.OnNotifyAndAdviseBundleLoaded != nil {
 		err = n.config.OnNotifyAndAdviseBundleLoaded(bundle.RequireToCommonFromPluginProto(event.Bundle))

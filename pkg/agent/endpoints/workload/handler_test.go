@@ -1510,7 +1510,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
 		middleware.WithLogger(log),
-		middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+		middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 			return rpccontext.WithCallerPID(ctx, params.AsPID), nil
 		}),
 	))

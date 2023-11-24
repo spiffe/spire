@@ -175,6 +175,12 @@ const (
 	// BySelectors tags selectors used when filtering
 	BySelectors = "by_selectors"
 
+	// CAJournal is a CA journal record
+	CAJournal = "ca_journal"
+
+	// CAJournalID tags a CA journal ID
+	CAJournalID = "ca_journal_id"
+
 	// CallerAddr labels an API caller address
 	CallerAddr = "caller_addr"
 

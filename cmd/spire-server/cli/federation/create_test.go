@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-func TestCreatetHelp(t *testing.T) {
+func TestCreateHelp(t *testing.T) {
 	test := setupTest(t, newCreateCommand)
 	test.client.Help()
 

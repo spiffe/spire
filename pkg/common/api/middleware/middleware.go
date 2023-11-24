@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-type PreprocessFunc = func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error)
+type PreprocessFunc = func(ctx context.Context, fullMethod string, req any) (context.Context, error)
 type PostprocessFunc = func(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error)
 
 type Middleware interface {
@@ -14,7 +14,7 @@ type Middleware interface {
 	// from it. If the function returns an error, the gRPC method fails.
 	// req passes the request object for unary interceptors and nil for
 	// stream interceptors
-	Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error)
+	Preprocess(ctx context.Context, fullMethod string, req any) (context.Context, error)
 
 	// Postprocess is invoked after the handler is called, or if downstream
 	// middleware returns an error from Preprocess. The function is passed an
@@ -60,7 +60,7 @@ type funcs struct {
 }
 
 // Preprocess implements the Middleware interface
-func (h funcs) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+func (h funcs) Preprocess(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 	if h.preprocess != nil {
 		return h.preprocess(ctx, fullMethod, req)
 	}
@@ -76,7 +76,7 @@ func (h funcs) Postprocess(ctx context.Context, fullMethod string, handlerInvoke
 
 type middlewares []Middleware
 
-func (ms middlewares) Preprocess(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+func (ms middlewares) Preprocess(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 	if len(ms) == 0 {
 		return ctx, nil
 	}

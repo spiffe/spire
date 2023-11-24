@@ -1806,7 +1806,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		ca:      m,
 	}
 
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req interface{}) (context.Context, error) {
+	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 		ctx = rpccontext.WithLogger(ctx, log)
 		return ctx, nil
 	})
@@ -1865,7 +1865,7 @@ func (m *fakeCAManager) PrepareJWTKey(context.Context) error {
 	return m.prepareJWTKeyErr
 }
 
-func (m *fakeCAManager) RotateJWTKey() {
+func (m *fakeCAManager) RotateJWTKey(_ context.Context) {
 	m.rotateJWTKeyCalled = true
 }
 
@@ -1881,7 +1881,7 @@ func (m *fakeCAManager) PrepareX509CA(context.Context) error {
 	return m.prepareX509CAErr
 }
 
-func (m *fakeCAManager) RotateX509CA() {
+func (m *fakeCAManager) RotateX509CA(_ context.Context) {
 	m.rotateX509CACalled = true
 }
 

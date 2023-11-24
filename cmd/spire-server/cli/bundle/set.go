@@ -80,7 +80,7 @@ func (c *setCommand) Run(ctx context.Context, env *common_cli.Env, serverClient 
 	return c.printer.PrintProto(resp)
 }
 
-func prettyPrintSet(env *common_cli.Env, results ...interface{}) error {
+func prettyPrintSet(env *common_cli.Env, results ...any) error {
 	setResp, ok := results[0].(*bundlev1.BatchSetFederatedBundleResponse)
 	if !ok {
 		return cliprinter.ErrInternalCustomPrettyFunc

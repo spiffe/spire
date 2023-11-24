@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
@@ -745,18 +746,18 @@ func (s *PluginSuite) TestRevokeX509CA() {
 	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
 	require.NoError(t, err)
 
-	fetchedBunde, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+	fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	require.NoError(t, err)
 
 	expectedRootCAs := []*common.Certificate{
 		{DerBytes: s.cacert.Raw},
 	}
-	require.Equal(t, expectedRootCAs, fetchedBunde.RootCas)
+	require.Equal(t, expectedRootCAs, fetchedBundle.RootCas)
 
 	expectedTaintedKeys := []*common.X509TaintedKey{
 		{PublicKey: caCertPublicKeyRaw},
 	}
-	require.Equal(t, expectedTaintedKeys, fetchedBunde.X509TaintedKeys)
+	require.Equal(t, expectedTaintedKeys, fetchedBundle.X509TaintedKeys)
 }
 
 func (s *PluginSuite) TestTaintJWTKey() {
@@ -4828,7 +4829,155 @@ func (s *PluginSuite) TestBindVar() {
 	s.Require().Equal("SELECT whatever FROM foo WHERE x = $1 AND y = $2", bound)
 }
 
-func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue interface{}) {
+func (s *PluginSuite) TestSetCAJournal() {
+	testCases := []struct {
+		name      string
+		code      codes.Code
+		msg       string
+		caJournal *datastore.CAJournal
+	}{
+		{
+			name: "creating a new CA journal succeeds",
+			caJournal: &datastore.CAJournal{
+				Data:                  []byte("test data"),
+				ActiveJWTAuthorityID:  "jwt-authority-id",
+				ActiveX509AuthorityID: "x509-authority-id",
+			},
+		},
+		{
+			name: "nil CA journal",
+			code: codes.InvalidArgument,
+			msg:  "ca journal is nil",
+		},
+		{
+			name:      "no data",
+			code:      codes.InvalidArgument,
+			msg:       "data for CA journal is required",
+			caJournal: &datastore.CAJournal{},
+		},
+		{
+			name: "try to update a non existing CA journal",
+			code: codes.NotFound,
+			msg:  "datastore-sql: record not found",
+			caJournal: &datastore.CAJournal{
+				ID:                    999,
+				Data:                  []byte("test data"),
+				ActiveJWTAuthorityID:  "jwt-authority-id",
+				ActiveX509AuthorityID: "x509-authority-id",
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			caJournal, err := s.ds.SetCAJournal(ctx, tt.caJournal)
+			spiretest.RequireGRPCStatus(t, err, tt.code, tt.msg)
+			if tt.code != codes.OK {
+				require.Nil(t, caJournal)
+				return
+			}
+
+			assertCAJournal(t, tt.caJournal, caJournal)
+		})
+	}
+}
+
+func (s *PluginSuite) TestFetchCAJournal() {
+	testCases := []struct {
+		name                  string
+		activeX509AuthorityID string
+		code                  codes.Code
+		msg                   string
+		caJournal             *datastore.CAJournal
+	}{
+		{
+			name:                  "fetching an existent CA journal",
+			activeX509AuthorityID: "x509-authority-id",
+			caJournal: func() *datastore.CAJournal {
+				caJournal, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+					ActiveX509AuthorityID: "x509-authority-id",
+					ActiveJWTAuthorityID:  "jwt-authority-id",
+					Data:                  []byte("test data"),
+				})
+				s.Require().NoError(err)
+				return caJournal
+			}(),
+		},
+		{
+			name:                  "non-existent X509 authority ID returns nil",
+			activeX509AuthorityID: "non-existent-x509-authority-id",
+		},
+		{
+			name: "fetching without specifying an active authority ID fails",
+			code: codes.InvalidArgument,
+			msg:  "active X509 authority ID is required",
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			caJournal, err := s.ds.FetchCAJournal(ctx, tt.activeX509AuthorityID)
+			spiretest.RequireGRPCStatus(t, err, tt.code, tt.msg)
+			if tt.code != codes.OK {
+				require.Nil(t, caJournal)
+				return
+			}
+
+			assert.Equal(t, tt.caJournal, caJournal)
+		})
+	}
+}
+
+func (s *PluginSuite) TestPruneCAJournal() {
+	now := time.Now()
+	t := now.Add(time.Hour)
+	entries := &journal.Entries{
+		X509CAs: []*journal.X509CAEntry{
+			{
+				NotAfter: t.Add(-time.Hour * 6).Unix(),
+			},
+		},
+		JwtKeys: []*journal.JWTKeyEntry{
+			{
+				NotAfter: t.Add(time.Hour * 6).Unix(),
+			},
+		},
+	}
+
+	entriesBytes, err := proto.Marshal(entries)
+	s.Require().NoError(err)
+
+	// Store CA journal in datastore
+	caJournal, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		ActiveX509AuthorityID: "x509-authority-1",
+		Data:                  entriesBytes,
+	})
+	s.Require().NoError(err)
+
+	// Run a PruneCAJournals operation specifying a time that is before the
+	// expiration of all the authorities. The CA journal should not be pruned.
+	s.Require().NoError(s.ds.PruneCAJournals(ctx, t.Add(-time.Hour*12).Unix()))
+	caj, err := s.ds.FetchCAJournal(ctx, "x509-authority-1")
+	s.Require().NoError(err)
+	s.Require().Equal(caJournal, caj)
+
+	// Run a PruneCAJournals operation specifying a time that is before the
+	// expiration of one of the authorities, but not all the authorities.
+	// The CA journal should not be pruned.
+	s.Require().NoError(s.ds.PruneCAJournals(ctx, t.Unix()))
+	caj, err = s.ds.FetchCAJournal(ctx, "x509-authority-1")
+	s.Require().NoError(err)
+	s.Require().Equal(caJournal, caj)
+
+	// Run a PruneCAJournals operation specifying a time that is after the
+	// expiration of all the authorities. The CA journal should be pruned.
+	s.Require().NoError(s.ds.PruneCAJournals(ctx, t.Add(time.Hour*12).Unix()))
+	caj, err = s.ds.FetchCAJournal(ctx, "x509-authority-1")
+	s.Require().NoError(err)
+	s.Require().Nil(caj)
+}
+
+func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue any) {
 	entriesJSON, err := os.ReadFile(filePath)
 	s.Require().NoError(err)
 
@@ -4907,7 +5056,7 @@ func (s *PluginSuite) TestConfigure() {
 	}{
 		{
 			desc:               "defaults",
-			expectMaxOpenConns: 0,
+			expectMaxOpenConns: 100,
 			// defined in database/sql
 			expectIdle: 2,
 		},
@@ -4938,7 +5087,6 @@ func (s *PluginSuite) TestConfigure() {
 			dbPath := filepath.ToSlash(filepath.Join(s.dir, "test-datastore-configure.sqlite3"))
 
 			log, _ := test.NewNullLogger()
-
 			p := New(log)
 			err := p.Configure(ctx, fmt.Sprintf(`
 				database_type = "sqlite3"
@@ -5069,7 +5217,7 @@ func dropTables(t *testing.T, db *sql.DB, tableNames []string) {
 // TODO: replace this with calls to Equal when we replace common.Selector with
 // a normal struct that doesn't require special comparison (i.e. not a
 // protobuf)
-func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Selector, msgAndArgs ...interface{}) {
+func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Selector, msgAndArgs ...any) {
 	type selector struct {
 		Type  string
 		Value string
@@ -5137,4 +5285,14 @@ func assertFederationRelationship(t *testing.T, exp, actual *datastore.Federatio
 	assert.Equal(t, exp.EndpointSPIFFEID, actual.EndpointSPIFFEID)
 	assert.Equal(t, exp.TrustDomain, actual.TrustDomain)
 	spiretest.AssertProtoEqual(t, exp.TrustDomainBundle, actual.TrustDomainBundle)
+}
+
+func assertCAJournal(t *testing.T, exp, actual *datastore.CAJournal) {
+	if exp == nil {
+		assert.Nil(t, actual)
+		return
+	}
+	assert.Equal(t, exp.ActiveJWTAuthorityID, actual.ActiveJWTAuthorityID)
+	assert.Equal(t, exp.ActiveX509AuthorityID, actual.ActiveX509AuthorityID)
+	assert.Equal(t, exp.Data, actual.Data)
 }

@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.8.5] - 2023-11-22
+
+### Added
+
+- All credential types supported by Azure can now be used in `azure_msi` NodeAttestor plugin and `azure_key_vault` KeyManager plugin (#4568)
+- `EnableHostnameLabel` field in Server and Agent `telemetry` configuration section that enables addition of a hostname label to metrics (#4584)
+
+### Changed
+
+- Agent SDS API now provides a SPIFFEValidationContext as the default CertificateValidationContext when the Envoy version cannot be determined (#4618)
+- Server CAs now contain a `serialNumber` attribute in the `Subject` DN (#4585)
+- Improved accuracy of Agent log message for SVID renewal events (#4654)
+
+### Deprecated
+
+- `use_msi` configuration fields in `azure_msi` NodeAttestor plugin and `azure_key_vault` KeyManager plugin are deprecated in favor of the chained Azure SDK credential loading strategy (#4568)
+
+### Fixed
+
+- Agent SDS API now provides correct CertificateValidationContext when Envoy registered in SPIRE after the first SDS request (#4611)
+
+## [1.8.4] - 2023-11-07
+
+### Security
+
+- Updated to Go 1.21.4 to address CVE-2023-45283, CVE-2023-45284
+
+## [1.8.3] - 2023-10-25
+
+### Added
+
+- SPIRE Agent distributes sync requests to the SPIRE server to mitigate thundering herd situations (#4534)
+- Allow configuring prefixes for all metrics (#4535)
+- Documentation improvements (#4579, #4569)
+
+### Changed
+
+- SPIRE Agent performs the initial sync more aggressively when tuned with a longer sync interval (#4479)
+
+### Fixed
+
+- Release artifacts have the correct version information (#4564)
+- The SPIRE Agent `insecureBootstrap` and `trustBundleUrl` configurables are now mutually exclusive (#4532)
+- Bug preventing JWT-SVIDs from being minted when a Credential Composer plugin is configured (#4489)
+
 ## [1.8.2] - 2023-10-12
 
 ### Security
@@ -40,6 +85,12 @@
 - Support for Envoy SDS v2 API (#4444)
 - Server no longer cleans up stale data in the database on startup (#4443)
 - Server no longer deletes entries with invalid SPIFFE IDs on startup (#4449)
+
+## [1.7.5] - 2023-11-07
+
+### Security
+
+- Updated to Go 1.20.11 to address CVE-2023-45283, CVE-2023-45284
 
 ## [1.7.4] - 2023-10-12
 

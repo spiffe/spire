@@ -15,7 +15,7 @@ var (
 type Block struct {
 	Type    string
 	Headers map[string]string
-	Object  interface{}
+	Object  any
 }
 
 func LoadBlocks(path string) ([]Block, error) {
@@ -78,7 +78,7 @@ func parseBlocks(pemBytes []byte, expectedCount int, expectedTypes ...string) (b
 				}
 			}
 			if !found {
-				var expectedTypeList interface{} = expectedTypes
+				var expectedTypeList any = expectedTypes
 				if len(expectedTypes) == 1 {
 					expectedTypeList = expectedTypes[0]
 				}

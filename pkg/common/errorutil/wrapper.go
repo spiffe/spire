@@ -16,7 +16,7 @@ func WrapError(err error, newErrStr string) error {
 }
 
 // PermissionDenied formats a PermissionDenied error with an error string.
-func PermissionDenied(reason types.PermissionDeniedDetails_Reason, format string, args ...interface{}) error {
+func PermissionDenied(reason types.PermissionDeniedDetails_Reason, format string, args ...any) error {
 	st := status.Newf(codes.PermissionDenied, format, args...)
 	if detailed, err := st.WithDetails(&types.PermissionDeniedDetails{Reason: reason}); err == nil {
 		st = detailed

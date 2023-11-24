@@ -136,15 +136,15 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.54.1
+golangci_lint_version = v1.55.0
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
-markdown_lint_version = v0.35.0
+markdown_lint_version = v0.37.0
 markdown_lint_image = ghcr.io/igorshubovych/markdownlint-cli:$(markdown_lint_version)
 
-protoc_version = 3.20.1
+protoc_version = 24.4
 ifeq ($(os1),windows)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-win64.zip
 else ifeq ($(arch2),arm64)
@@ -164,7 +164,7 @@ protoc_gen_go_base_dir := $(build_dir)/protoc-gen-go
 protoc_gen_go_dir := $(protoc_gen_go_base_dir)/$(protoc_gen_go_version)-go$(go_version)
 protoc_gen_go_bin := $(protoc_gen_go_dir)/protoc-gen-go
 
-protoc_gen_go_grpc_version := v1.1.0
+protoc_gen_go_grpc_version := v1.3.0
 protoc_gen_go_grpc_base_dir := $(build_dir)/protoc-gen-go-grpc
 protoc_gen_go_grpc_dir := $(protoc_gen_go_grpc_base_dir)/$(protoc_gen_go_grpc_version)-go$(go_version)
 protoc_gen_go_grpc_bin := $(protoc_gen_go_grpc_dir)/protoc-gen-go-grpc
@@ -284,7 +284,6 @@ bin/static/%: cmd/% FORCE | go-check
 	$(E)$(go_build_static) $@$(exe) ./$<
 
 bin/static/%: support/% FORCE | go-check
-	@echo Building $@…
 	$(E)$(go_build_static) $@$(exe) ./$<
 
 #############################################################################
@@ -315,7 +314,7 @@ else
 endif
 
 integration-windows:
-	$(E)./test/integration/test-windows.sh $(SUITES)
+	$(E)$(go_path) ./test/integration/test-windows.sh $(SUITES)
 
 #############################################################################
 # Docker Images
@@ -337,6 +336,7 @@ $1: $3 container-builder
 	$(E)docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg goversion=$(go_version) \
+		--build-arg TAG=$(TAG) \
 		--target $2 \
 		-o type=oci,dest=$2-image.tar \
 		-f $3 \
