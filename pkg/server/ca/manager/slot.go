@@ -62,6 +62,8 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		filePath: s.journalPath(),
 	}
 
+	// Load the journal and see if we can figure out the next and current
+	// X509CA and JWTKey entries, if any.
 	loadedJournal, err := LoadJournal(ctx, jc)
 	if err != nil {
 		return nil, nil, err

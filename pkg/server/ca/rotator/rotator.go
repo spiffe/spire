@@ -18,7 +18,7 @@ import (
 const (
 	rotateInterval          = 10 * time.Second
 	pruneBundleInterval     = 6 * time.Hour
-	pruneCAJournalsInterval = 48 * time.Hour
+	pruneCAJournalsInterval = 8 * time.Hour
 )
 
 type CAManager interface {

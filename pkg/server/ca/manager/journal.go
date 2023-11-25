@@ -270,9 +270,7 @@ func (j *Journal) saveInDatastore(ctx context.Context, entriesBytes []byte) (err
 // findCAJournal finds the corresponding CA journal record in the datastore for
 // this server. It does that by retrieving all the public keys managed by the
 // KeyManager and trying to get a match with a record which last active
-// X509 authority ID correspond to one of the keys. If a match is not found,
-// it goes over the CA journal data of the records and tries to find a match
-// with any of the slots of a record.
+// X509 authority ID correspond to one of the keys.
 func (j *Journal) findCAJournal(ctx context.Context) (*datastore.CAJournal, error) {
 	km := j.config.cat.GetKeyManager()
 	ds := j.config.cat.GetDataStore()
@@ -347,7 +345,7 @@ func chainDER(chain []*x509.Certificate) [][]byte {
 // loadJournalFromDisk loads the journal from disk if it exists.
 // TODO: stop loading the journal from disk in v1.10 and remove this function.
 func loadJournalFromDisk(config *journalConfig) (*Journal, error) {
-	config.log.Debug("Loading journal from disk")
+	config.log.WithField(telemetry.Path, config.filePath).Debug("Loading journal from disk")
 
 	j := &Journal{
 		config:  config,
