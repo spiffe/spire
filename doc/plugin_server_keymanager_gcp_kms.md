@@ -10,12 +10,13 @@ SPIRE.
 
 The plugin accepts the following configuration options:
 
-| Key | Type | Required | Description | Default |
-| --- | ---- | -------- | ----------- | ------- |
-| key_policy_file | string | no | A file path location to a custom [IAM Policy (v3)](https://cloud.google.com/pubsub/docs/reference/rpc/google.iam.v1#google.iam.v1.Policy) in JSON format to be attached to created CryptoKeys. | "" |
-| key_metadata_file | string | yes | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information. | "" |
-| key_ring | string | yes | Resource ID of the key ring where the keys managed by this plugin reside, in the format projects/\*/locations/\*/keyRings/\* | "" |
-| service_account_file | string | no | Path to the service account file used to authenticate with the Cloud KMS API. | Value of `GOOGLE_APPLICATION_CREDENTIALS` environment variable. |
+| Key                  | Type   | Required | Description                                                                                                                                                                                    | Default                                                         |
+|----------------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| key_policy_file      | string | no       | A file path location to a custom [IAM Policy (v3)](https://cloud.google.com/pubsub/docs/reference/rpc/google.iam.v1#google.iam.v1.Policy) in JSON format to be attached to created CryptoKeys. | ""                                                              |
+| key_metadata_file    | string | yes      | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information.                                            | ""                                                              |
+| key_metadata         | string | yes      | A static identifier for the SPIRE server instance (used instead of `key_metadata_file`)                                                                                                        | ""                                                              |
+| key_ring             | string | yes      | Resource ID of the key ring where the keys managed by this plugin reside, in the format projects/\*/locations/\*/keyRings/\*                                                                   | ""                                                              |
+| service_account_file | string | no       | Path to the service account file used to authenticate with the Cloud KMS API.                                                                                                                  | Value of `GOOGLE_APPLICATION_CREDENTIALS` environment variable. |
 
 ### Authenticating with the Cloud KMS API
 

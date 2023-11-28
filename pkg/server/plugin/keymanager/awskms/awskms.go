@@ -96,6 +96,7 @@ type Config struct {
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	Region          string `hcl:"region" json:"region"`
 	KeyMetadataFile string `hcl:"key_metadata_file" json:"key_metadata_file"`
+	KeyMetadata     string `hcl:"key_metadata" json:"key_metadata"`
 	KeyPolicyFile   string `hcl:"key_policy_file" json:"key_policy_file"`
 }
 
@@ -131,11 +132,14 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	serverID, err := loadServerID(config.KeyMetadataFile)
-	if err != nil {
-		return nil, err
+	var serverID = config.KeyMetadata
+	if config.KeyMetadata == "" {
+		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
+		if err != nil {
+			return nil, err
+		}
+		p.log.Debug("Loaded server id", "server_id", serverID)
 	}
-	p.log.Debug("Loaded server id", "server_id", serverID)
 
 	if config.KeyPolicyFile != "" {
 		policyBytes, err := os.ReadFile(config.KeyPolicyFile)
@@ -832,8 +836,8 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing a region")
 	}
 
-	if config.KeyMetadataFile == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing server id file path")
+	if config.KeyMetadataFile == "" && config.KeyMetadata == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration requires server id or server id file path")
 	}
 
 	return config, nil
@@ -923,7 +927,7 @@ func min(x, y time.Duration) time.Duration {
 	return y
 }
 
-func loadServerID(idPath string) (string, error) {
+func getOrCreateServerID(idPath string) (string, error) {
 	// get id from path
 	data, err := os.ReadFile(idPath)
 	switch {

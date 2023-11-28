@@ -115,7 +115,7 @@ func TestConfigure(t *testing.T) {
 		{
 			name:             "missing key metadata file",
 			configureRequest: configureRequestWithVars("", validKeyVaultURI, "", "", "", validAppSecret, "true"),
-			err:              "configuration is missing server ID file path",
+			err:              "configuration requires server id or server id file path",
 			code:             codes.InvalidArgument,
 		},
 		{
@@ -149,7 +149,7 @@ func TestConfigure(t *testing.T) {
 		{
 			name:             "missing server id file path",
 			configureRequest: configureRequestWithVars("", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
-			err:              "configuration is missing server ID file path",
+			err:              "configuration requires server id or server id file path",
 			code:             codes.InvalidArgument,
 		},
 		{

@@ -91,7 +91,7 @@ func TestKeyManagerContract(t *testing.T) {
 			func(aws.Config) (stsClient, error) { return fakeSTSClient, nil },
 		)
 		km := new(keymanager.V1)
-		keyMetadataFile := filepath.Join(dir, "metadata.json")
+		keyMetadataFile := filepath.Join(dir, "metadata")
 		if isWindows {
 			keyMetadataFile = filepath.ToSlash(keyMetadataFile)
 		}
@@ -226,7 +226,7 @@ func TestConfigure(t *testing.T) {
 		{
 			name:             "missing server id file path",
 			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "region", "", ""),
-			err:              "configuration is missing server id file path",
+			err:              "configuration requires server id or server id file path",
 			code:             codes.InvalidArgument,
 		},
 		{

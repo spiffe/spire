@@ -119,6 +119,9 @@ type Config struct {
 	// File path location where key metadata used by the plugin is persisted.
 	KeyMetadataFile string `hcl:"key_metadata_file" json:"key_metadata_file"`
 
+	// Key metadata used by the plugin.
+	KeyMetadata string `hcl:"key_metadata" json:"key_metadata"`
+
 	// File path location to a custom IAM Policy (v3) that will be set to
 	// created CryptoKeys.
 	KeyPolicyFile string `hcl:"key_policy_file" json:"key_policy_file"`
@@ -167,11 +170,15 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	serverID, err := getOrCreateServerID(config.KeyMetadataFile)
-	if err != nil {
-		return nil, err
+	var serverID = config.KeyMetadata
+	if config.KeyMetadata == "" {
+		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
+		if err != nil {
+			return nil, err
+		}
+		p.log.Debug("Loaded server ID", "server_id", serverID)
 	}
-	p.log.Debug("Loaded server ID", "server_id", serverID)
+
 	var customPolicy *iam.Policy3
 	if config.KeyPolicyFile != "" {
 		if customPolicy, err = parsePolicyFile(config.KeyPolicyFile); err != nil {
@@ -1103,8 +1110,8 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing the key ring")
 	}
 
-	if config.KeyMetadataFile == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing server ID file path")
+	if config.KeyMetadataFile == "" && config.KeyMetadata == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration requires server id or server id file path")
 	}
 
 	return config, nil

@@ -236,7 +236,7 @@ func TestConfigure(t *testing.T) {
 			config: &Config{
 				KeyRing: validKeyRing,
 			},
-			expectMsg:  "configuration is missing server ID file path",
+			expectMsg:  "configuration requires server id or server id file path",
 			expectCode: codes.InvalidArgument,
 		},
 		{
