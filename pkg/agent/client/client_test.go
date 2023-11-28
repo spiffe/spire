@@ -35,6 +35,8 @@ import (
 )
 
 var (
+	ctx = context.Background()
+
 	log, _ = test.NewNullLogger()
 
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
@@ -170,7 +172,7 @@ func TestFetchUpdates(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		update, err = client.FetchUpdates(context.Background())
+		update, err = client.FetchUpdates(ctx)
 	}()
 
 	// The request should wait until the SVID rotation finishes
@@ -194,7 +196,6 @@ func TestFetchUpdates(t *testing.T) {
 }
 
 func TestSyncUpdatesBundles(t *testing.T) {
-	ctx := context.Background()
 	client, tc := createClient(t)
 
 	tc.bundleServer.serverBundle = makeAPIBundle("example.org")
@@ -202,8 +203,15 @@ func TestSyncUpdatesBundles(t *testing.T) {
 	cachedEntries := make(map[string]*common.RegistrationEntry)
 	cachedBundles := make(map[string]*common.Bundle)
 
-	// Assert that the server bundle is synced
-	require.NoError(t, client.SyncUpdates(ctx, cachedEntries, cachedBundles))
+	syncUpdates := func() {
+		stats, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
+		require.NoError(t, err)
+		assert.Equal(t, SyncBundlesStats{Total: len(cachedBundles)}, stats.Bundles)
+	}
+
+	// Assert that the server bundle is synced. No other bundles are expected
+	// since no entries are configured to federate.
+	syncUpdates()
 	assert.Equal(t, map[string]*common.Bundle{
 		"spiffe://example.org": makeCommonBundle("example.org"),
 	}, cachedBundles)
@@ -222,7 +230,8 @@ func TestSyncUpdatesBundles(t *testing.T) {
 			Selectors: []*types.Selector{{Type: "not", Value: "relevant"}},
 		},
 	}
-	require.NoError(t, client.SyncUpdates(ctx, cachedEntries, cachedBundles))
+
+	syncUpdates()
 	assert.Len(t, cachedEntries, 1)
 	assert.Equal(t, map[string]*common.Bundle{
 		"spiffe://example.org": makeCommonBundle("example.org"),
@@ -231,7 +240,7 @@ func TestSyncUpdatesBundles(t *testing.T) {
 	// Change the entry to federate and assert the federated bundle is synced.
 	tc.entryServer.entries[0].RevisionNumber++
 	tc.entryServer.entries[0].FederatesWith = []string{"domain1.test"}
-	require.NoError(t, client.SyncUpdates(ctx, cachedEntries, cachedBundles))
+	syncUpdates()
 	assert.Equal(t, map[string]*common.Bundle{
 		"spiffe://example.org":  makeCommonBundle("example.org"),
 		"spiffe://domain1.test": makeCommonBundle("domain1.test"),
@@ -241,7 +250,7 @@ func TestSyncUpdatesBundles(t *testing.T) {
 	// federated bundle is synced and the old is removed.
 	tc.entryServer.entries[0].RevisionNumber++
 	tc.entryServer.entries[0].FederatesWith = []string{"domain2.test"}
-	require.NoError(t, client.SyncUpdates(ctx, cachedEntries, cachedBundles))
+	syncUpdates()
 	assert.Equal(t, map[string]*common.Bundle{
 		"spiffe://example.org":  makeCommonBundle("example.org"),
 		"spiffe://domain2.test": makeCommonBundle("domain2.test"),
@@ -249,7 +258,6 @@ func TestSyncUpdatesBundles(t *testing.T) {
 }
 
 func TestSyncUpdatesEntries(t *testing.T) {
-	ctx := context.Background()
 	client, tc := createClient(t)
 
 	tc.bundleServer.serverBundle = makeAPIBundle("example.org")
@@ -257,7 +265,8 @@ func TestSyncUpdatesEntries(t *testing.T) {
 	cachedBundles := make(map[string]*common.Bundle)
 	cachedEntries := make(map[string]*common.RegistrationEntry)
 
-	syncAndAssertEntries := func(t *testing.T, expectedEntries ...*types.Entry) {
+	syncAndAssertEntries := func(t *testing.T, total, missing, stale, dropped int, expectedEntries ...*types.Entry) {
+		t.Helper()
 		expected := make(map[string]*common.RegistrationEntry)
 		for _, entry := range expectedEntries {
 			commonEntry, err := slicedEntryFromProto(entry)
@@ -265,7 +274,14 @@ func TestSyncUpdatesEntries(t *testing.T) {
 			expected[entry.Id] = commonEntry
 		}
 		tc.entryServer.SetEntries(expectedEntries...)
-		require.NoError(t, client.SyncUpdates(ctx, cachedEntries, cachedBundles))
+		stats, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
+		require.NoError(t, err)
+		assert.Equal(t, SyncEntriesStats{
+			Total:   total,
+			Missing: missing,
+			Stale:   stale,
+			Dropped: dropped,
+		}, stats.Entries)
 		assert.Equal(t, expected, cachedEntries)
 	}
 
@@ -279,25 +295,25 @@ func TestSyncUpdatesEntries(t *testing.T) {
 	entryC2 := makeEntry("C", 2)
 
 	// No entries yet
-	syncAndAssertEntries(t)
+	syncAndAssertEntries(t, 0, 0, 0, 0)
 
 	// Partial page to test entries in first response are processed ok.
-	syncAndAssertEntries(t, entryA1)
+	syncAndAssertEntries(t, 1, 1, 0, 0, entryA1)
 
 	// Single page to test entries in first response are processed ok.
-	syncAndAssertEntries(t, entryA1, entryB1)
+	syncAndAssertEntries(t, 2, 1, 0, 0, entryA1, entryB1)
 
 	// More than one page to test entry revision based diff
-	syncAndAssertEntries(t, entryA1, entryB1, entryC1)
+	syncAndAssertEntries(t, 3, 1, 0, 0, entryA1, entryB1, entryC1)
 
 	// More than one page to test entry revision based diff
-	syncAndAssertEntries(t, entryA1, entryB1, entryC1, entryD1)
+	syncAndAssertEntries(t, 4, 1, 0, 0, entryA1, entryB1, entryC1, entryD1)
 
 	// Sync down new A, B, and C entries and drop D.
-	syncAndAssertEntries(t, entryA2, entryB2, entryC2)
+	syncAndAssertEntries(t, 3, 0, 3, 1, entryA2, entryB2, entryC2)
 
 	// Sync again but with no changes.
-	syncAndAssertEntries(t, entryA2, entryB2, entryC2)
+	syncAndAssertEntries(t, 3, 0, 0, 0, entryA2, entryB2, entryC2)
 }
 
 func TestRenewSVID(t *testing.T) {
@@ -358,7 +374,7 @@ func TestRenewSVID(t *testing.T) {
 			tc.agentServer.err = tt.agentErr
 			tc.agentServer.svid = tt.agentSVID
 
-			svid, err := client.RenewSVID(context.Background(), tt.csr)
+			svid, err := client.RenewSVID(ctx, tt.csr)
 			if tt.err != "" {
 				require.EqualError(t, err, tt.err)
 				require.Nil(t, svid)
@@ -471,7 +487,7 @@ func TestNewX509SVIDs(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				svids, err = sClient.NewX509SVIDs(context.Background(), newTestCSRs())
+				svids, err = sClient.NewX509SVIDs(ctx, newTestCSRs())
 			}()
 
 			// The request should wait until the SVID rotation finishes
@@ -575,7 +591,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 		},
 	}
 
-	update, err := client.FetchUpdates(context.Background())
+	update, err := client.FetchUpdates(ctx)
 	require.NoError(t, err)
 
 	assert.Equal(t, testBundles, update.Bundles)
@@ -598,25 +614,25 @@ func TestNewNodeClientRelease(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		// Create agent client and release
-		_, r, err := client.newAgentClient(context.Background())
+		_, r, err := client.newAgentClient(ctx)
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
 
 		// Create bundle client and release
-		_, r, err = client.newBundleClient(context.Background())
+		_, r, err = client.newBundleClient(ctx)
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
 
 		// Create entry client and release
-		_, r, err = client.newEntryClient(context.Background())
+		_, r, err = client.newEntryClient(ctx)
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
 
 		// Create svid client and release
-		_, r, err = client.newSVIDClient(context.Background())
+		_, r, err = client.newSVIDClient(ctx)
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
@@ -635,7 +651,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		// Create agent client
-		_, conn, err := client.newAgentClient(context.Background())
+		_, conn, err := client.newAgentClient(ctx)
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -644,7 +660,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 		assertConnectionIsNil(t, client)
 
 		// Create bundle client
-		_, conn, err = client.newBundleClient(context.Background())
+		_, conn, err = client.newBundleClient(ctx)
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -653,7 +669,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 		assertConnectionIsNil(t, client)
 
 		// Create entry client
-		_, conn, err = client.newEntryClient(context.Background())
+		_, conn, err = client.newEntryClient(ctx)
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -662,7 +678,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 		assertConnectionIsNil(t, client)
 
 		// Create svid client
-		_, conn, err = client.newSVIDClient(context.Background())
+		_, conn, err = client.newSVIDClient(ctx)
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -698,7 +714,7 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 			client, tc := createClient(t)
 			tt.setupTest(tc)
 
-			update, err := client.FetchUpdates(context.Background())
+			update, err := client.FetchUpdates(ctx)
 			assert.Nil(t, update)
 			assert.EqualError(t, err, tt.err)
 			assertConnectionIsNil(t, client)
@@ -711,7 +727,7 @@ func TestFetchUpdatesReleaseConnectionIfItFails(t *testing.T) {
 
 	tc.entryServer.err = errors.New("an error")
 
-	update, err := client.FetchUpdates(context.Background())
+	update, err := client.FetchUpdates(ctx)
 	assert.Nil(t, update)
 	assert.Error(t, err)
 	assertConnectionIsNil(t, client)
@@ -722,7 +738,7 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchEntriesFails(t *testing.T)
 
 	tc.entryServer.err = status.Error(codes.Internal, "call to grpc method fetchEntries has failed")
 
-	update, err := client.FetchUpdates(context.Background())
+	update, err := client.FetchUpdates(ctx)
 	assert.Nil(t, update)
 	assert.Error(t, err)
 	assertConnectionIsNil(t, client)
@@ -739,7 +755,7 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T)
 	client, tc := createClient(t)
 
 	tc.bundleServer.bundleErr = status.Error(codes.Internal, "call to grpc method fetchBundles has failed")
-	update, err := client.FetchUpdates(context.Background())
+	update, err := client.FetchUpdates(ctx)
 	assert.Nil(t, update)
 	assert.Error(t, err)
 	assertConnectionIsNil(t, client)
@@ -757,7 +773,7 @@ func TestNewAgentClientFailsDial(t *testing.T) {
 		KeysAndBundle: keysAndBundle,
 		TrustDomain:   trustDomain,
 	})
-	agentClient, conn, err := client.newAgentClient(context.Background())
+	agentClient, conn, err := client.newAgentClient(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to dial")
 	require.Nil(t, agentClient)
@@ -769,7 +785,7 @@ func TestNewBundleClientFailsDial(t *testing.T) {
 		KeysAndBundle: keysAndBundle,
 		TrustDomain:   trustDomain,
 	})
-	agentClient, conn, err := client.newBundleClient(context.Background())
+	agentClient, conn, err := client.newBundleClient(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to dial")
 	require.Nil(t, agentClient)
@@ -781,7 +797,7 @@ func TestNewEntryClientFailsDial(t *testing.T) {
 		KeysAndBundle: keysAndBundle,
 		TrustDomain:   trustDomain,
 	})
-	agentClient, conn, err := client.newEntryClient(context.Background())
+	agentClient, conn, err := client.newEntryClient(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to dial")
 	require.Nil(t, agentClient)
@@ -793,7 +809,7 @@ func TestNewSVIDClientFailsDial(t *testing.T) {
 		KeysAndBundle: keysAndBundle,
 		TrustDomain:   trustDomain,
 	})
-	agentClient, conn, err := client.newSVIDClient(context.Background())
+	agentClient, conn, err := client.newSVIDClient(ctx)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to dial")
 	require.Nil(t, agentClient)
@@ -802,7 +818,6 @@ func TestNewSVIDClientFailsDial(t *testing.T) {
 
 func TestFetchJWTSVID(t *testing.T) {
 	client, tc := createClient(t)
-	ctx := context.Background()
 
 	issuedAt := time.Now().Unix()
 	expiresAt := time.Now().Add(time.Minute).Unix()

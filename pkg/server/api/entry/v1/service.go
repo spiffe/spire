@@ -427,7 +427,7 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 		if err != nil {
 			// EOF is normal and happens when the server processes the
 			// CloseSend sent by the client. If the client closes the stream
-			// before then then Canceled is expected. Either way, these
+			// before that point, then Canceled is expected. Either way, these
 			// conditions are normal and not an error.
 			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
 				return nil

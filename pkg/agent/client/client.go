@@ -54,9 +54,25 @@ type JWTSVID struct {
 	ExpiresAt time.Time
 }
 
+type SyncStats struct {
+	Entries SyncEntriesStats
+	Bundles SyncBundlesStats
+}
+
+type SyncEntriesStats struct {
+	Total   int
+	Missing int
+	Stale   int
+	Dropped int
+}
+
+type SyncBundlesStats struct {
+	Total int
+}
+
 type Client interface {
 	FetchUpdates(ctx context.Context) (*Update, error)
-	SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) error
+	SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) (SyncStats, error)
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
@@ -120,7 +136,7 @@ func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
 				telemetry.SPIFFEID:       e.SpiffeId,
 				telemetry.Selectors:      e.Selectors,
 				telemetry.Error:          err.Error(),
-			}).Warn("Received malformed entry from SPIRE server")
+			}).Warn("Received malformed entry from SPIRE server; are the server and agent versions compatible?")
 			continue
 		}
 
@@ -145,7 +161,7 @@ func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
 	for _, b := range protoBundles {
 		bundle, err := bundleutil.CommonBundleFromProto(b)
 		if err != nil {
-			c.c.Log.WithError(err).Warn("Received malformed bundle from SPIRE server")
+			c.c.Log.WithError(err).Warn("Received malformed bundle from SPIRE server; are the server and agent versions compatible?")
 			continue
 		}
 		bundles[bundle.TrustDomainId] = bundle
@@ -157,12 +173,12 @@ func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
 	}, nil
 }
 
-func (c *client) SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) error {
+func (c *client) SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) (SyncStats, error) {
 	switch {
 	case cachedEntries == nil:
-		return errors.New("non-nil cached entries map is required")
+		return SyncStats{}, errors.New("non-nil cached entries map is required")
 	case cachedBundles == nil:
-		return errors.New("non-nil cached bundles map is required")
+		return SyncStats{}, errors.New("non-nil cached bundles map is required")
 	}
 
 	c.c.RotMtx.RLock()
@@ -171,8 +187,9 @@ func (c *client) SyncUpdates(ctx context.Context, cachedEntries map[string]*comm
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
-	if err := c.syncEntries(ctx, cachedEntries); err != nil {
-		return err
+	entriesStats, err := c.syncEntries(ctx, cachedEntries)
+	if err != nil {
+		return SyncStats{}, err
 	}
 
 	federatedTrustDomains := make(stringSet)
@@ -181,11 +198,10 @@ func (c *client) SyncUpdates(ctx context.Context, cachedEntries map[string]*comm
 			federatedTrustDomains.Add(federatesWith)
 		}
 	}
-	fmt.Println("federatedTrustDomains", federatedTrustDomains)
 
 	protoBundles, err := c.fetchBundles(ctx, federatedTrustDomains.Sorted())
 	if err != nil {
-		return err
+		return SyncStats{}, err
 	}
 
 	for k := range cachedBundles {
@@ -195,13 +211,18 @@ func (c *client) SyncUpdates(ctx context.Context, cachedEntries map[string]*comm
 	for _, b := range protoBundles {
 		bundle, err := bundleutil.CommonBundleFromProto(b)
 		if err != nil {
-			c.c.Log.WithError(err).Warn("Received malformed bundle from SPIRE server")
+			c.c.Log.WithError(err).Warn("Received malformed bundle from SPIRE server; are the server and agent versions compatible?")
 			continue
 		}
 		cachedBundles[bundle.TrustDomainId] = bundle
 	}
 
-	return nil
+	return SyncStats{
+		Entries: entriesStats,
+		Bundles: SyncBundlesStats{
+			Total: len(cachedBundles),
+		},
+	}, nil
 }
 
 func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
@@ -373,23 +394,24 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 	return resp.Entries, err
 }
 
-func (c *client) syncEntries(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry) error {
+func (c *client) syncEntries(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry) (SyncEntriesStats, error) {
 	entryClient, connection, err := c.newEntryClient(ctx)
 	if err != nil {
-		return err
+		return SyncEntriesStats{}, err
 	}
 	defer connection.Release()
 
-	if err := c.streamAndSyncEntries(ctx, entryClient, cachedEntries); err != nil {
+	stats, err := c.streamAndSyncEntries(ctx, entryClient, cachedEntries)
+	if err != nil {
 		c.release(connection)
 		c.c.Log.WithError(err).Error("Failed to fetch authorized entries")
-		return fmt.Errorf("failed to fetch authorized entries: %w", err)
+		return SyncEntriesStats{}, fmt.Errorf("failed to fetch authorized entries: %w", err)
 	}
 
-	return nil
+	return stats, nil
 }
 
-func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.EntryClient, cachedEntries map[string]*common.RegistrationEntry) (err error) {
+func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.EntryClient, cachedEntries map[string]*common.RegistrationEntry) (stats SyncEntriesStats, err error) {
 	// Build a set of all the entries to be removed. This set is initialized
 	// with all entries currently known. As entries are synced down from the
 	// server, they are removed from this set. If the sync is successful,
@@ -401,9 +423,11 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 	}
 	defer func() {
 		if err == nil {
+			stats.Dropped = len(toRemove)
 			for id := range toRemove {
 				delete(cachedEntries, id)
 			}
+			stats.Total = len(cachedEntries)
 		}
 	}()
 
@@ -412,13 +436,15 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 	// comparison)
 	var needFull []string
 
+	// processEntryRevisions determines what needs to be synced down based
+	// on entry revisions.
 	processEntryRevisions := func(entryRevisions []*entryv1.EntryRevision) {
 		for _, entryRevision := range entryRevisions {
-			if entryRevision.Id == "" || entryRevision.RevisionNumber == 0 {
+			if entryRevision.Id == "" || entryRevision.RevisionNumber <= 0 {
 				c.c.Log.WithFields(logrus.Fields{
 					telemetry.RegistrationID: entryRevision.Id,
 					telemetry.RevisionNumber: entryRevision.RevisionNumber,
-				}).Warn("Received malformed entry revision from SPIRE server")
+				}).Warn("Received malformed entry revision from SPIRE server; are the server and agent versions compatible?")
 				continue
 			}
 
@@ -434,6 +460,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 		}
 	}
 
+	// processServerEntries updates the cached entries
 	processServerEntries := func(serverEntries []*types.Entry) {
 		for _, serverEntry := range serverEntries {
 			entry, err := slicedEntryFromProto(serverEntry)
@@ -444,12 +471,20 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 					telemetry.SPIFFEID:       serverEntry.SpiffeId,
 					telemetry.Selectors:      serverEntry.Selectors,
 					telemetry.Error:          err.Error(),
-				}).Warn("Received malformed entry from SPIRE server")
+				}).Warn("Received malformed entry from SPIRE server; are the server and agent versions compatible?")
 				continue
 			}
 
 			// The entry is still authorized for this agent. Don't remove it.
 			delete(toRemove, entry.EntryId)
+
+			cachedEntry, ok := cachedEntries[entry.EntryId]
+			switch {
+			case !ok:
+				stats.Missing++
+			case cachedEntry.RevisionNumber < entry.RevisionNumber:
+				stats.Stale++
+			}
 
 			// Update the cached entry
 			cachedEntries[entry.EntryId] = entry
@@ -461,25 +496,25 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 
 	stream, err := entryClient.SyncAuthorizedEntries(ctx)
 	if err != nil {
-		return err
+		return SyncEntriesStats{}, err
 	}
 
 	if err := stream.Send(&entryv1.SyncAuthorizedEntriesRequest{
 		OutputMask: entryOutputMask,
 	}); err != nil {
-		return err
+		return SyncEntriesStats{}, err
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return err
+		return SyncEntriesStats{}, err
 	}
 
 	// If the first response does not contain entry revisions then it contains
 	// the complete list of authorized entries.
 	if len(resp.EntryRevisions) == 0 {
 		processServerEntries(resp.Entries)
-		return nil
+		return stats, nil
 	}
 
 	// Assume that the page size is the size of the revisions in the first
@@ -491,10 +526,10 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 	for resp.More {
 		resp, err = stream.Recv()
 		if err != nil {
-			return fmt.Errorf("failed to receive entry revision page from server: %w", err)
+			return SyncEntriesStats{}, fmt.Errorf("failed to receive entry revision page from server: %w", err)
 		}
 		if len(resp.Entries) > 0 {
-			return errors.New("unexpected entry in response receiving entry revisions")
+			return SyncEntriesStats{}, errors.New("unexpected entry in response receiving entry revisions")
 		}
 		processEntryRevisions(resp.EntryRevisions)
 	}
@@ -514,7 +549,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 			n = pageSize
 		}
 		if err := stream.Send(&entryv1.SyncAuthorizedEntriesRequest{Ids: needFull[:n]}); err != nil {
-			return err
+			return SyncEntriesStats{}, err
 		}
 		needFull = needFull[n:]
 
@@ -525,10 +560,10 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 		for {
 			resp, err := stream.Recv()
 			if err != nil {
-				return fmt.Errorf("failed to receive entry revision page from server: %w", err)
+				return SyncEntriesStats{}, fmt.Errorf("failed to receive entry revision page from server: %w", err)
 			}
 			if len(resp.EntryRevisions) != 0 {
-				return errors.New("unexpected entry revisions in response while requesting entries")
+				return SyncEntriesStats{}, errors.New("unexpected entry revisions in response while requesting entries")
 			}
 			processServerEntries(resp.Entries)
 			if !resp.More {
@@ -536,7 +571,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 			}
 		}
 	}
-	return nil
+	return stats, nil
 }
 
 func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([]*types.Bundle, error) {
