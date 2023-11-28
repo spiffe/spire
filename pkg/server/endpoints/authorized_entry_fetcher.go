@@ -29,7 +29,7 @@ type AuthorizedEntryFetcherWithEventsBasedCache struct {
 
 func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
 	log.Info("Building in-memory entry cache")
-	cache, err := buildCache(ctx, ds)
+	cache, err := buildCache(ctx, ds, clk)
 	if err != nil {
 		return nil, err
 	}
@@ -102,16 +102,16 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntriesCa
 		return err
 	}
 
-	for _, entryID := range resp.EntryIDs {
-		commonEntry, err := a.ds.FetchRegistrationEntry(ctx, entryID)
+	for _,event := range resp.Events {
+		commonEntry, err := a.ds.FetchRegistrationEntry(ctx, event.EntryID)
 		if err != nil {
 			return err
 		}
-		a.lastRegistrationEntryEventID++
+		a.lastRegistrationEntryEventID = event.EventID
 
 		entry, err := api.RegistrationEntryToProto(commonEntry)
 		if err != nil {
-			a.cache.RemoveEntry(entryID)
+			a.cache.RemoveEntry(event.EntryID)
 			continue
 		}
 
@@ -154,14 +154,14 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 	return nil
 }
 
-func buildCache(ctx context.Context, ds datastore.DataStore) (*authorizedentries.Cache, error) {
+func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*authorizedentries.Cache, error) {
 	cache := authorizedentries.NewCache()
 
 	if err := buildRegistrationEntriesCache(ctx, ds, cache); err != nil {
 		return nil, err
 	}
 
-	if err := buildAttestedNodesCache(ctx, ds, cache); err != nil {
+	if err := buildAttestedNodesCache(ctx, ds, clk, cache); err != nil {
 		return nil, err
 	}
 
@@ -190,7 +190,7 @@ func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, 
 }
 
 // Fetches all attested nodes and adds the unexpired ones to the cache
-func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache) error {
+func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache) error {
 	resp, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		FetchSelectors: true,
 	})
@@ -200,7 +200,7 @@ func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, cache 
 
 	for _, node := range resp.Nodes {
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
-		if agentExpiresAt.Before(a.clk.Now()) {
+		if agentExpiresAt.Before(clk.Now()) {
 			continue
 		}
 		cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))

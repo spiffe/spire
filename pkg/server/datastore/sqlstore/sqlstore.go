@@ -3738,10 +3738,11 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	}
 
 	resp := &datastore.ListRegistrationEntriesEventsResponse{
-		EntryIDs: make([]string, 0, len(events)),
+		Events: make([]datastore.RegistrationEntryEvent, len(events)),
 	}
-	for _, event := range events {
-		resp.EntryIDs = append(resp.EntryIDs, event.EntryID)
+	for i, event := range events {
+		resp.Events[i].EventID = event.ID
+		resp.Events[i].EntryID = event.EntryID
 	}
 	if len(events) > 0 {
 		resp.FirstEventID = events[0].ID

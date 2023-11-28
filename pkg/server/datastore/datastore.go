@@ -204,8 +204,13 @@ type ListRegistrationEntriesEventsRequest struct {
 	GreaterThanEventID uint
 }
 
+type RegistrationEntryEvent struct {
+	EventID uint
+	EntryID string
+}
+
 type ListRegistrationEntriesEventsResponse struct {
-	EntryIDs     []string
+	Events       []RegistrationEntryEvent
 	FirstEventID uint
 }
 
