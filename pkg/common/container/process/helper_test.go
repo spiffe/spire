@@ -5,7 +5,6 @@ package process
 import (
 	"errors"
 	"fmt"
-	"syscall"
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
@@ -304,7 +303,7 @@ func createDefaultFakeWinAPI(t *testing.T) *fakeWinAPI {
 }
 
 func strToUTF16Max(t *testing.T, s string) [windows.MAX_PATH]uint16 {
-	u, err := syscall.UTF16FromString(s)
+	u, err := windows.UTF16FromString(s)
 	require.NoError(t, err)
 	require.LessOrEqual(t, len(u), windows.MAX_PATH)
 

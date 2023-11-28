@@ -10,7 +10,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -169,8 +169,8 @@ func TestCommand_Run(t *testing.T) {
 			}
 			if testCase.want.dataDirCreated != "" {
 				assert.DirExistsf(t, testCase.want.dataDirCreated, "data directory should be created")
-				currentUmask := syscall.Umask(0)
-				assert.Equalf(t, currentUmask, 0027, "spire-server process should have been created with 0027 umask")
+				currentUmask := unix.Umask(0)
+				assert.Equalf(t, currentUmask, 0o027, "spire-server process should have been created with 0027 umask")
 			} else {
 				assert.NoDirExistsf(t, testCase.want.dataDirCreated, "data directory should not be created")
 			}
@@ -205,7 +205,6 @@ func killServerOnStart(t *testing.T, testLogFile string) {
 				panic("server did not start in time")
 			case <-ticker.C:
 				logs, err := os.ReadFile(testLogFile)
-
 				if err != nil {
 					continue
 				}
@@ -216,7 +215,7 @@ func killServerOnStart(t *testing.T, testLogFile string) {
 			}
 		}
 
-		err := syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+		err := unix.Kill(unix.Getpid(), unix.SIGINT)
 		if err != nil {
 			t.Errorf("Failed to kill process: %v", err)
 		}

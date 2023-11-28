@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.8.5] - 2023-11-22
+
+### Added
+
+- All credential types supported by Azure can now be used in `azure_msi` NodeAttestor plugin and `azure_key_vault` KeyManager plugin (#4568)
+- `EnableHostnameLabel` field in Server and Agent `telemetry` configuration section that enables addition of a hostname label to metrics (#4584)
+
+### Changed
+
+- Agent SDS API now provides a SPIFFEValidationContext as the default CertificateValidationContext when the Envoy version cannot be determined (#4618)
+- Server CAs now contain a `serialNumber` attribute in the `Subject` DN (#4585)
+- Improved accuracy of Agent log message for SVID renewal events (#4654)
+
+### Deprecated
+
+- `use_msi` configuration fields in `azure_msi` NodeAttestor plugin and `azure_key_vault` KeyManager plugin are deprecated in favor of the chained Azure SDK credential loading strategy (#4568)
+
+### Fixed
+
+- Agent SDS API now provides correct CertificateValidationContext when Envoy registered in SPIRE after the first SDS request (#4611)
+
 ## [1.8.4] - 2023-11-07
 
 ### Security
