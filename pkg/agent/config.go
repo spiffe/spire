@@ -94,6 +94,9 @@ type Config struct {
 	AllowedForeignJWTClaims []string
 
 	AuthorizedDelegates []string
+
+	// AvailabilityTarget controls how frequently rotate SVIDs
+	AvailabilityTarget time.Duration
 }
 
 func New(c *Config) *Agent {

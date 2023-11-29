@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -39,6 +40,7 @@ type Config struct {
 	SVIDStoreCache           *storecache.Cache
 	SVIDCacheMaxSize         int
 	NodeAttestor             nodeattestor.NodeAttestor
+	RotationStrategy         *rotationutil.RotationStrategy
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -73,18 +75,19 @@ func newManager(c *Config) *manager {
 	}
 
 	rotCfg := &svid.RotatorConfig{
-		SVIDKeyManager: keymanager.ForSVID(c.Catalog.GetKeyManager()),
-		Log:            c.Log,
-		Metrics:        c.Metrics,
-		SVID:           c.SVID,
-		SVIDKey:        c.SVIDKey,
-		BundleStream:   cache.SubscribeToBundleChanges(),
-		ServerAddr:     c.ServerAddr,
-		TrustDomain:    c.TrustDomain,
-		Interval:       c.RotationInterval,
-		Clk:            c.Clk,
-		NodeAttestor:   c.NodeAttestor,
-		Reattestable:   c.Reattestable,
+		SVIDKeyManager:   keymanager.ForSVID(c.Catalog.GetKeyManager()),
+		Log:              c.Log,
+		Metrics:          c.Metrics,
+		SVID:             c.SVID,
+		SVIDKey:          c.SVIDKey,
+		BundleStream:     cache.SubscribeToBundleChanges(),
+		ServerAddr:       c.ServerAddr,
+		TrustDomain:      c.TrustDomain,
+		Interval:         c.RotationInterval,
+		Clk:              c.Clk,
+		NodeAttestor:     c.NodeAttestor,
+		Reattestable:     c.Reattestable,
+		RotationStrategy: c.RotationStrategy,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

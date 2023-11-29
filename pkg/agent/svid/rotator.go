@@ -144,7 +144,7 @@ func (r *rotator) rotateSVIDIfNeeded(ctx context.Context) (err error) {
 		return fmt.Errorf("unexpected value type: %T", r.state.Value())
 	}
 
-	if rotationutil.ShouldRotateX509(r.clk.Now(), state.SVID[0]) {
+	if r.c.RotationStrategy.ShouldRotateX509(r.clk.Now(), state.SVID[0]) {
 		if state.Reattestable && fflag.IsSet(fflag.FlagReattestToRenew) {
 			err = r.reattest(ctx)
 		} else {
