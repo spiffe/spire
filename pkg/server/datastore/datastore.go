@@ -162,8 +162,13 @@ type ListAttestedNodesEventsRequest struct {
 	GreaterThanEventID uint
 }
 
+type AttestedNodeEvent struct {
+	EventID  uint
+	SpiffeID string
+}
+
 type ListAttestedNodesEventsResponse struct {
-	SpiffeIDs    []string
+	Events       []AttestedNodeEvent
 	FirstEventID uint
 }
 

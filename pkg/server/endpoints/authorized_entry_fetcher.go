@@ -102,7 +102,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntriesCa
 		return err
 	}
 
-	for _,event := range resp.Events {
+	for _, event := range resp.Events {
 		commonEntry, err := a.ds.FetchRegistrationEntry(ctx, event.EntryID)
 		if err != nil {
 			return err
@@ -130,21 +130,21 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 		return err
 	}
 
-	for _, spiffeID := range resp.SpiffeIDs {
-		node, err := a.ds.FetchAttestedNode(ctx, spiffeID)
+	for _, event := range resp.Events {
+		node, err := a.ds.FetchAttestedNode(ctx, event.SpiffeID)
 		if err != nil {
 			return err
 		}
-		a.lastAttestedNodeEventID++
+		a.lastAttestedNodeEventID = event.EventID
 
 		if node == nil {
-			a.cache.RemoveAgent(spiffeID)
+			a.cache.RemoveAgent(event.SpiffeID)
 			continue
 		}
 
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
 		if agentExpiresAt.Before(a.clk.Now()) {
-			a.cache.RemoveAgent(spiffeID)
+			a.cache.RemoveAgent(event.SpiffeID)
 			continue
 		}
 

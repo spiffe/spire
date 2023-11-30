@@ -1473,10 +1473,11 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 	}
 
 	resp := &datastore.ListAttestedNodesEventsResponse{
-		SpiffeIDs: make([]string, 0, len(events)),
+		Events: make([]datastore.AttestedNodeEvent, len(events)),
 	}
-	for _, event := range events {
-		resp.SpiffeIDs = append(resp.SpiffeIDs, event.SpiffeID)
+	for i, event := range events {
+		resp.Events[i].EventID = event.ID
+		resp.Events[i].SpiffeID = event.SpiffeID
 	}
 	if len(events) > 0 {
 		resp.FirstEventID = events[0].ID
