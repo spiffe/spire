@@ -54,11 +54,7 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 		return newStaticEntryCache(entryMap), nil
 	}
 
-	pruneEventsFn := func(context.Context, time.Duration) error {
-		return nil
-	}
-
-	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	f, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 
 	entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
