@@ -139,7 +139,7 @@ func TestUpdateEntriesWithMultipleEntries(t *testing.T) {
 		},
 	}
 
-	// Call update entries againt to update cache
+	// Call update entries again to update cache
 	c.UpdateEntries(update, nil)
 
 	expectedRecords = []*storecache.Record{
@@ -1075,7 +1075,7 @@ func TestCheckSVID(t *testing.T) {
 			"foh": entry,
 		},
 	}
-	// All new entries so no expeting previous entry or svid.
+	// All new entries so not expecting previous entry or svid.
 	c.UpdateEntries(update, func(re1, re2 *common.RegistrationEntry, xs *cache.X509SVID) bool {
 		assert.Nil(t, re1)
 		assert.Equal(t, entry, re2)
@@ -1093,7 +1093,7 @@ func TestCheckSVID(t *testing.T) {
 		},
 	})
 
-	// Creating new entry with same information instead of clonning and change revision
+	// Creating new entry with same information instead of cloning and change revision
 	updatedEntry := createTestEntry()
 	updatedEntry.RevisionNumber = 10
 	update = &cache.UpdateEntries{

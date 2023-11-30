@@ -519,7 +519,8 @@ func supportsSPIFFEAuthExtension(req *discovery_v3.DiscoveryRequest) bool {
 		version := buildVersion.Version
 		return (version.MajorNumber == 1 && version.MinorNumber > 17) || version.MajorNumber > 1
 	}
-	return false
+	// Support as default except
+	return true
 }
 
 func (h *Handler) isSPIFFECertValidationDisabled(req *discovery_v3.DiscoveryRequest) bool {

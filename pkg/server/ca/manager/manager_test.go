@@ -658,7 +658,7 @@ func TestPreparationThresholdCap(t *testing.T) {
 	require.Equal(t, thirtyDays, notAfter.Sub(threshold))
 }
 
-func TestActivationThreshholdCap(t *testing.T) {
+func TestActivationThresholdCap(t *testing.T) {
 	issuedAt := time.Now()
 	notAfter := issuedAt.Add(365 * 24 * time.Hour)
 

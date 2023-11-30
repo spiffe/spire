@@ -273,16 +273,17 @@ func (s *MSIAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
 	s.RequireProtoListEqual(expected, resp.Selectors)
 }
 
-func (s *MSIAttestorSuite) TestAttestSuccessWithNoClientCredentials() {
+func (s *MSIAttestorSuite) TestAttestFailsWithNoClientCredentials() {
 	s.attestor = s.loadPlugin(plugintest.Configure(`
 		tenants = {
 			"TENANTID" = {}
 		}`))
 
-	s.requireAttestSuccess(
+	s.requireAttestError(
+		s.T(),
 		s.signAttestPayload("KEYID", azure.DefaultMSIResourceID, "TENANTID", "PRINCIPALID"),
-		"spiffe://example.org/spire/agent/azure_msi/TENANTID/PRINCIPALID",
-		nil)
+		codes.Internal,
+		`nodeattestor(azure_msi): unable to get resource for principal "PRINCIPALID": not found`)
 }
 
 func (s *MSIAttestorSuite) TestAttestResolutionWithVariousSelectorCombos() {
@@ -401,10 +402,19 @@ func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
 func (s *MSIAttestorSuite) TestConfigure() {
 	var clients []string
 	var logEntries []*logrus.Entry
-	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
+
+	type testOpts struct {
+		fetchCredential func(string) (azcore.TokenCredential, error)
+	}
+
+	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string, opt *testOpts) error {
 		// reset the clients list and log entries
 		clients = nil
 		logEntries = nil
+
+		if opt == nil {
+			opt = new(testOpts)
+		}
 
 		attestor := New()
 		attestor.hooks.now = func() time.Time { return s.now }
@@ -412,7 +422,10 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		attestor.hooks.fetchInstanceMetadata = func(azure.HTTPClient) (*azure.InstanceMetadata, error) {
 			return instanceMetadata, nil
 		}
-		attestor.hooks.msiCredential = func() (azcore.TokenCredential, error) {
+		attestor.hooks.fetchCredential = func(tenantID string) (azcore.TokenCredential, error) {
+			if opt.fetchCredential != nil {
+				return opt.fetchCredential(tenantID)
+			}
 			return &fakeAzureCredential{}, nil
 		}
 		attestor.hooks.newClient = func(subscriptionID string, credential azcore.TokenCredential) (apiClient, error) {
@@ -432,22 +445,24 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		return err
 	}
 
+	_ = logEntries // silence unused warning, future tests asserting on logs will use this
+
 	coreConfig := catalog.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}
 
 	s.T().Run("malformed configuration", func(t *testing.T) {
-		err := doConfig(t, coreConfig, "blah")
+		err := doConfig(t, coreConfig, "blah", nil)
 		spiretest.RequireErrorContains(t, err, "unable to decode configuration")
 	})
 
 	s.T().Run("missing trust domain", func(t *testing.T) {
-		err := doConfig(t, catalog.CoreConfig{}, "")
+		err := doConfig(t, catalog.CoreConfig{}, "", nil)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "core configuration missing trust domain")
 	})
 
 	s.T().Run("missing tenants", func(t *testing.T) {
-		err := doConfig(t, coreConfig, "")
+		err := doConfig(t, coreConfig, "", nil)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "configuration must have at least one tenant")
 	})
 
@@ -458,16 +473,9 @@ func (s *MSIAttestorSuite) TestConfigure() {
 				resource_id = "https://example.org/app/"
 			}
 		}
-		`)
+		`, nil)
 		require.NoError(t, err)
-		require.ElementsMatch(t, nil, clients)
-		spiretest.AssertLogs(t, logEntries, []spiretest.LogEntry{
-			spiretest.LogEntry{
-				Level:   logrus.WarnLevel,
-				Message: "No client credentials available for tenant. Selectors will not be produced by the node attestor for this node. This will be an error in a future release.",
-				Data:    logrus.Fields{"tenant": "TENANTID"},
-			},
-		})
+		require.ElementsMatch(t, []string{"SUBSCRIPTIONID"}, clients)
 	})
 
 	s.T().Run("success with MSI", func(t *testing.T) {
@@ -478,7 +486,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 				use_msi = true
 			}
 		}
-		`)
+		`, nil)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"SUBSCRIPTIONID"}, clients)
 	})
@@ -493,7 +501,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 				app_secret = "APPSECRET"
 			}
 		}
-		`)
+		`, nil)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"TENANTSUBSCRIPTIONID"}, clients)
 	})
@@ -511,7 +519,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 				use_msi = true
 			}
 		}
-		`)
+		`, nil)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"TENANTSUBSCRIPTIONID", "SUBSCRIPTIONID"}, clients)
 	})
@@ -530,7 +538,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 				use_msi = true
 			}
 		}
-		`)
+		`, nil)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `misconfigured tenant "TENANTID": cannot use both MSI and app authentication`)
 	})
 
@@ -544,7 +552,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 
 			}
 		}
-		`)
+		`, nil)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `misconfigured tenant "TENANTID": missing subscription id`)
 	})
 
@@ -558,7 +566,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 
 			}
 		}
-		`)
+		`, nil)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `misconfigured tenant "TENANTID": missing app id`)
 	})
 
@@ -572,8 +580,37 @@ func (s *MSIAttestorSuite) TestConfigure() {
 
 			}
 		}
-		`)
+		`, nil)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `misconfigured tenant "TENANTID": missing app secret`)
+	})
+
+	s.T().Run("success with default credential", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		tenants = {
+			"TENANTID" = {
+				resource_id = "https://example.org/app/"
+			}
+		}
+		`, nil)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"SUBSCRIPTIONID"}, clients)
+	})
+
+	s.T().Run("error when default credential fetch fails", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		tenants = {
+			"TENANTID" = {
+				resource_id = "https://example.org/app/"
+			}
+		}
+		`,
+			&testOpts{
+				fetchCredential: func(string) (azcore.TokenCredential, error) {
+					return nil, errors.New("some error")
+				},
+			},
+		)
+		spiretest.RequireGRPCStatusContains(t, err, codes.Internal, `unable to fetch client credential: some error`)
 	})
 }
 
@@ -651,7 +688,7 @@ func (s *MSIAttestorSuite) loadPluginWithConfig(config string, options ...plugin
 	attestor.hooks.fetchInstanceMetadata = func(azure.HTTPClient) (*azure.InstanceMetadata, error) {
 		return instanceMetadata, nil
 	}
-	attestor.hooks.msiCredential = func() (azcore.TokenCredential, error) {
+	attestor.hooks.fetchCredential = func(_ string) (azcore.TokenCredential, error) {
 		return &fakeAzureCredential{}, nil
 	}
 

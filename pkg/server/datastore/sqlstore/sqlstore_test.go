@@ -745,18 +745,18 @@ func (s *PluginSuite) TestRevokeX509CA() {
 	err = s.ds.RevokeX509CA(ctx, "spiffe://foo", s.cert.PublicKey)
 	require.NoError(t, err)
 
-	fetchedBunde, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+	fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
 	require.NoError(t, err)
 
 	expectedRootCAs := []*common.Certificate{
 		{DerBytes: s.cacert.Raw},
 	}
-	require.Equal(t, expectedRootCAs, fetchedBunde.RootCas)
+	require.Equal(t, expectedRootCAs, fetchedBundle.RootCas)
 
 	expectedTaintedKeys := []*common.X509TaintedKey{
 		{PublicKey: caCertPublicKeyRaw},
 	}
-	require.Equal(t, expectedTaintedKeys, fetchedBunde.X509TaintedKeys)
+	require.Equal(t, expectedTaintedKeys, fetchedBundle.X509TaintedKeys)
 }
 
 func (s *PluginSuite) TestTaintJWTKey() {
@@ -4907,7 +4907,7 @@ func (s *PluginSuite) TestConfigure() {
 	}{
 		{
 			desc:               "defaults",
-			expectMaxOpenConns: 0,
+			expectMaxOpenConns: 100,
 			// defined in database/sql
 			expectIdle: 2,
 		},
@@ -4938,7 +4938,6 @@ func (s *PluginSuite) TestConfigure() {
 			dbPath := filepath.ToSlash(filepath.Join(s.dir, "test-datastore-configure.sqlite3"))
 
 			log, _ := test.NewNullLogger()
-
 			p := New(log)
 			err := p.Configure(ctx, fmt.Sprintf(`
 				database_type = "sqlite3"

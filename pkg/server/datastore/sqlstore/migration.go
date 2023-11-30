@@ -194,6 +194,8 @@ import (
 // | v1.7.3  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.7.4  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.7.5  |        |                                                                           |
 // |*********|********|***************************************************************************|
 // | v1.8.0  | 23     | Added ca_journals table                                                   |
 // |---------|        |                                                                           |
@@ -202,6 +204,10 @@ import (
 // | v1.8.2  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.8.3  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.8.4  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.8.5  |        |                                                                           |
 // ================================================================================================
 
 const (
@@ -214,10 +220,8 @@ const (
 	lastMinorReleaseSchemaVersion = 21
 )
 
-var (
-	// the current code version
-	codeVersion = semver.MustParse(version.Version())
-)
+// the current code version
+var codeVersion = semver.MustParse(version.Version())
 
 func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.FieldLogger) (err error) {
 	// The version comparison logic in this package supports only 0.x and 1.x versioning semantics.

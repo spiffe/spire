@@ -151,7 +151,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
-		// Wait for the test to provide the resultss
+		// Wait for the test to provide the results
 		select {
 		case result := <-resultCh:
 			return result.cache, result.err

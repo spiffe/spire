@@ -69,7 +69,7 @@ func TestGetInfo(t *testing.T) {
 		SVID: svidWithIntermediate.Certificates,
 		Key:  svidWithIntermediate.PrivateKey.(*ecdsa.PrivateKey),
 	}
-	// Manually create SVID chain with intemediate
+	// Manually create SVID chain with intermediate
 	svidWithIntermediateChain := []*debugv1.GetInfoResponse_Cert{
 		{
 			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/bar"},

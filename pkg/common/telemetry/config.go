@@ -19,11 +19,12 @@ type FileConfig struct {
 	M3         []M3Config        `hcl:"M3"`
 	InMem      *InMem            `hcl:"InMem"`
 
-	MetricPrefix    string   `hcl:"MetricPrefix"`
-	AllowedPrefixes []string `hcl:"AllowedPrefixes"` // A list of metric prefixes to allow, with '.' as the separator
-	BlockedPrefixes []string `hcl:"BlockedPrefixes"` // A list of metric prefixes to block, with '.' as the separator
-	AllowedLabels   []string `hcl:"AllowedLabels"`   // A list of metric labels to allow, with '.' as the separator
-	BlockedLabels   []string `hcl:"BlockedLabels"`   // A list of metric labels to block, with '.' as the separator
+	MetricPrefix        string   `hcl:"MetricPrefix"`
+	EnableHostnameLabel *bool    `hcl:"EnableHostnameLabel"`
+	AllowedPrefixes     []string `hcl:"AllowedPrefixes"` // A list of metric prefixes to allow, with '.' as the separator
+	BlockedPrefixes     []string `hcl:"BlockedPrefixes"` // A list of metric prefixes to block, with '.' as the separator
+	AllowedLabels       []string `hcl:"AllowedLabels"`   // A list of metric labels to allow, with '.' as the separator
+	BlockedLabels       []string `hcl:"BlockedLabels"`   // A list of metric labels to block, with '.' as the separator
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }

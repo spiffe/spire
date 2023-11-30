@@ -31,7 +31,7 @@ import (
 
 const (
 	// Defaults used for testing
-	validAccessKeyID     = "AKIAIOSFODNN7EXAMPLE"
+	validAccessKeyID     = "AKIAIOSFODNN7EXAMPLE" //nolint:gosec // This is a fake access key ID only used as test input
 	validSecretAccessKey = "secret"
 	validRegion          = "us-west-2"
 	validServerIDFile    = "server_id_test"
@@ -681,7 +681,7 @@ func TestGenerateKey(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instace.",
+					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instance.",
 				},
 			},
 		},
@@ -696,7 +696,7 @@ func TestGenerateKey(t *testing.T) {
 			logs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instace.",
+					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instance.",
 				},
 			},
 		},
@@ -1060,7 +1060,6 @@ func TestGetPublicKey(t *testing.T) {
 			name:  "existing key",
 			keyID: spireKeyID,
 			fakeEntries: []fakeKeyEntry{
-
 				{
 					AliasName: aws.String(aliasName),
 					KeyID:     aws.String(keyID),
@@ -1127,7 +1126,6 @@ func TestGetPublicKeys(t *testing.T) {
 		{
 			name: "existing key",
 			fakeEntries: []fakeKeyEntry{
-
 				{
 					AliasName: aws.String(aliasName),
 					KeyID:     aws.String(keyID),
@@ -1979,7 +1977,7 @@ func serializedConfiguration(accessKeyID, secretAccessKey, region string, keyMet
 func getKeyMetadataFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	tempFilePath := path.Join(tempDir, validServerIDFile)
-	err := os.WriteFile(tempFilePath, []byte(validServerID), 0600)
+	err := os.WriteFile(tempFilePath, []byte(validServerID), 0o600)
 	if err != nil {
 		t.Error(err)
 	}
@@ -2001,7 +1999,7 @@ func getEmptyKeyMetadataFile(t *testing.T) string {
 func getCustomPolicyFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	tempFilePath := path.Join(tempDir, validPolicyFile)
-	err := os.WriteFile(tempFilePath, []byte(customPolicy), 0600)
+	err := os.WriteFile(tempFilePath, []byte(customPolicy), 0o600)
 	if err != nil {
 		t.Error(err)
 	}

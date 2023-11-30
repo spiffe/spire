@@ -49,7 +49,7 @@ If you are compiling SPIRE from source, please see [SQLite and CGO](#sqlite-and-
 
 ### `database_type = "postgres"`
 
-The `connection_string` for the PostreSQL database connection consists of the number of configuration options separated by spaces.
+The `connection_string` for the PostgreSQL database connection consists of the number of configuration options separated by spaces.
 
 For example:
 

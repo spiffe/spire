@@ -26,7 +26,7 @@ type PluginRepo interface {
 	ServiceRepo
 
 	// Constraints returns the constraints required by the plugin repository.
-	// The Load funcion will ensure that these constraints are satisfied before
+	// The Load function will ensure that these constraints are satisfied before
 	// returning successfully.
 	Constraints() Constraints
 

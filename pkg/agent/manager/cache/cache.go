@@ -320,7 +320,7 @@ func (c *Cache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.Regi
 		}
 
 		// If any selectors or federated bundles were changed, then make
-		// sure subscribers for the new and extisting entry selector sets
+		// sure subscribers for the new and existing entry selector sets
 		// are notified.
 		if selectorsChanged {
 			if existingEntry != nil {
