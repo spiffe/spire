@@ -109,7 +109,15 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntriesCa
 		return err
 	}
 
+	seenMap := map[string]struct{}{}
 	for _, event := range resp.Events {
+		// Skip fetching entries we've already fetched this call
+		if _, seen := seenMap[event.EntryID]; seen {
+			a.lastRegistrationEntryEventID = event.EventID
+			continue
+		}
+		seenMap[event.EntryID] = struct{}{}
+
 		commonEntry, err := a.ds.FetchRegistrationEntry(ctx, event.EntryID)
 		if err != nil {
 			return err
@@ -137,7 +145,15 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 		return err
 	}
 
+	seenMap := map[string]struct{}{}
 	for _, event := range resp.Events {
+		// Skip fetching entries we've already fetched this call
+		if _, seen := seenMap[event.SpiffeID]; seen {
+			a.lastAttestedNodeEventID = event.EventID
+			continue
+		}
+		seenMap[event.SpiffeID] = struct{}{}
+
 		node, err := a.ds.FetchAttestedNode(ctx, event.SpiffeID)
 		if err != nil {
 			return err
@@ -177,7 +193,7 @@ func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*
 	return cache, lastRegistrationEntryEventID, lastAttestedNodeEventID, nil
 }
 
-// Fetches all registration entries and adds them to the cache
+// buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
 func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache) (uint, error) {
 	lastEventID, err := ds.GetLatestRegistrationEntryEventID(ctx)
 	if err != nil && status.Code(err) != codes.NotFound {
@@ -203,7 +219,7 @@ func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, 
 	return lastEventID, nil
 }
 
-// Fetches all attested nodes and adds the unexpired ones to the cache
+// buildAttestedNodesCache Fetches all attested nodes and adds the unexpired ones to the cache
 func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache) (uint, error) {
 	lastEventID, err := ds.GetLatestAttestedNodeEventID(ctx)
 	if err != nil && status.Code(err) != codes.NotFound {
