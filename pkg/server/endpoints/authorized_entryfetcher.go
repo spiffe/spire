@@ -3,6 +3,7 @@ package endpoints
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -12,6 +13,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithEventsBasedCache)(nil)
@@ -29,19 +32,21 @@ type AuthorizedEntryFetcherWithEventsBasedCache struct {
 
 func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
 	log.Info("Building in-memory entry cache")
-	cache, err := buildCache(ctx, ds, clk)
+	cache, lastRegistrationEntryEventID, lastAttestedNodeEventID, err := buildCache(ctx, ds, clk)
 	if err != nil {
 		return nil, err
 	}
 	log.Info("Completed building in-memory entry cache")
 
 	return &AuthorizedEntryFetcherWithEventsBasedCache{
-		cache:                cache,
-		clk:                  clk,
-		log:                  log,
-		ds:                   ds,
-		cacheReloadInterval:  cacheReloadInterval,
-		pruneEventsOlderThan: pruneEventsOlderThan,
+		cache:                        cache,
+		clk:                          clk,
+		log:                          log,
+		ds:                           ds,
+		cacheReloadInterval:          cacheReloadInterval,
+		pruneEventsOlderThan:         pruneEventsOlderThan,
+		lastRegistrationEntryEventID: lastRegistrationEntryEventID,
+		lastAttestedNodeEventID:      lastAttestedNodeEventID,
 	}, nil
 }
 
@@ -64,6 +69,8 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) RunUpdateCacheTask(ctx cont
 		}
 	}
 }
+
+// PruneEventsTask start a ticker which prunes old events
 func (a *AuthorizedEntryFetcherWithEventsBasedCache) PruneEventsTask(ctx context.Context) error {
 	for {
 		select {
@@ -154,48 +161,60 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 	return nil
 }
 
-func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*authorizedentries.Cache, error) {
+func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*authorizedentries.Cache, uint, uint, error) {
 	cache := authorizedentries.NewCache()
 
-	if err := buildRegistrationEntriesCache(ctx, ds, cache); err != nil {
-		return nil, err
+	lastRegistrationEntryEventID, err := buildRegistrationEntriesCache(ctx, ds, cache)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 
-	if err := buildAttestedNodesCache(ctx, ds, clk, cache); err != nil {
-		return nil, err
+	lastAttestedNodeEventID, err := buildAttestedNodesCache(ctx, ds, clk, cache)
+	if err != nil {
+		return nil, 0, 0, err
 	}
 
-	return cache, nil
+	return cache, lastRegistrationEntryEventID, lastAttestedNodeEventID, nil
 }
 
 // Fetches all registration entries and adds them to the cache
-func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache) error {
+func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache) (uint, error) {
+	lastEventID, err := ds.GetLatestRegistrationEntryEventID(ctx)
+	if err != nil && status.Code(err) != codes.NotFound {
+		return 0, fmt.Errorf("failed to get latest registration entry event id: %w", err)
+	}
+
 	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		DataConsistency: datastore.TolerateStale,
 	})
 	if err != nil {
-		return err
+		return 0, fmt.Errorf("failed to list registration entries: %w", err)
 	}
 
 	entries, err := api.RegistrationEntriesToProto(resp.Entries)
 	if err != nil {
-		return err
+		return 0, fmt.Errorf("failed to convert registration entries: %w", err)
 	}
 
 	for _, entry := range entries {
 		cache.UpdateEntry(entry)
 	}
 
-	return nil
+	return lastEventID, nil
 }
 
 // Fetches all attested nodes and adds the unexpired ones to the cache
-func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache) error {
+func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache) (uint, error) {
+	lastEventID, err := ds.GetLatestAttestedNodeEventID(ctx)
+	if err != nil && status.Code(err) != codes.NotFound {
+		return 0, fmt.Errorf("failed to get latest attested node event id: %w", err)
+	}
+
 	resp, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		FetchSelectors: true,
 	})
 	if err != nil {
-		return err
+		return 0, fmt.Errorf("failed to list attested nodes: %w", err)
 	}
 
 	for _, node := range resp.Nodes {
@@ -206,5 +225,5 @@ func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, clk cl
 		cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
 	}
 
-	return nil
+	return lastEventID, nil
 }

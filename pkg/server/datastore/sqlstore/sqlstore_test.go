@@ -1552,6 +1552,11 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 			s.Require().Equal(test.expectedEvents, resp.Events)
 		})
 	}
+
+	// Check we can get the last event id
+	lastEventID, err := s.ds.GetLatestAttestedNodeEventID(ctx)
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEventID, lastEventID)
 }
 
 func (s *PluginSuite) TestPruneAttestedNodesEvents() {
@@ -3987,6 +3992,11 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 			s.Require().Equal(test.expectedEvents, resp.Events)
 		})
 	}
+
+	// Check we can get the last event id
+	lastEventID, err := s.ds.GetLatestRegistrationEntryEventID(ctx)
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEventID, lastEventID)
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
