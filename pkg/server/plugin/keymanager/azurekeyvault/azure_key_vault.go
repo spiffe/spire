@@ -77,13 +77,14 @@ type pluginHooks struct {
 
 // Config provides configuration context for the plugin.
 type Config struct {
-	KeyMetadataFile string `hcl:"key_metadata_file" json:"key_metadata_file"`
-	KeyMetadata     string `hcl:"key_metadata" json:"key_metadata"`
-	KeyVaultURI     string `hcl:"key_vault_uri" json:"key_vault_uri"`
-	TenantID        string `hcl:"tenant_id" json:"tenant_id"`
-	SubscriptionID  string `hcl:"subscription_id" json:"subscription_id"`
-	AppID           string `hcl:"app_id" json:"app_id"`
-	AppSecret       string `hcl:"app_secret" json:"app_secret"`
+	KeyMetadataFile    string `hcl:"key_metadata_file" json:"key_metadata_file"`
+	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
+	KeyVaultURI        string `hcl:"key_vault_uri" json:"key_vault_uri"`
+	TenantID           string `hcl:"tenant_id" json:"tenant_id"`
+	SubscriptionID     string `hcl:"subscription_id" json:"subscription_id"`
+	AppID              string `hcl:"app_id" json:"app_id"`
+	AppSecret          string `hcl:"app_secret" json:"app_secret"`
 
 	// Deprecated: use_msi is deprecated and will be removed in a future release.
 	// Will be used implicitly if other mechanisms to authenticate fail.
@@ -140,13 +141,21 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	var serverID = config.KeyMetadata
-	if config.KeyMetadata == "" {
+	var serverID = config.KeyIdentifierValue
+	if serverID == "" && config.KeyMetadataFile != "" {
+		p.log.Warn("`key_metadata_file` is deprecated in favor of `key_identifier_file` and will be removed in a future version")
 		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
 		if err != nil {
 			return nil, err
 		}
-		p.log.Debug("Loaded server ID", "server_id", serverID)
+		p.log.Debug("Loaded server id", "server_id", serverID)
+	}
+	if serverID == "" && config.KeyIdentifierFile != "" {
+		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
+		if err != nil {
+			return nil, err
+		}
+		p.log.Debug("Loaded server id", "server_id", serverID)
 	}
 
 	var client cloudKeyManagementService
@@ -689,8 +698,14 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing the Key Vault URI")
 	}
 
-	if config.KeyMetadataFile == "" && config.KeyMetadata == "" {
+	if config.KeyMetadataFile == "" && config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
 		return nil, status.Error(codes.InvalidArgument, "configuration requires server id or server id file path")
+	}
+	if (config.KeyMetadataFile != "" || config.KeyIdentifierFile != "") && config.KeyIdentifierValue != "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both server id and server id file path")
+	}
+	if config.KeyMetadataFile != "" && config.KeyIdentifierFile != "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both `key_identifier_file` and deprecated `key_metadata_file`")
 	}
 
 	return config, nil

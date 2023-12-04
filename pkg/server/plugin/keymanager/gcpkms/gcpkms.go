@@ -117,10 +117,11 @@ type Plugin struct {
 // Config provides configuration context for the plugin.
 type Config struct {
 	// File path location where key metadata used by the plugin is persisted.
-	KeyMetadataFile string `hcl:"key_metadata_file" json:"key_metadata_file"`
+	KeyMetadataFile   string `hcl:"key_metadata_file" json:"key_metadata_file"`
+	KeyIdentifierFile string `hcl:"key_identifier_file" json:"key_identifier_file"`
 
 	// Key metadata used by the plugin.
-	KeyMetadata string `hcl:"key_metadata" json:"key_metadata"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
 
 	// File path location to a custom IAM Policy (v3) that will be set to
 	// created CryptoKeys.
@@ -170,13 +171,20 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	var serverID = config.KeyMetadata
-	if config.KeyMetadata == "" {
+	var serverID = config.KeyIdentifierValue
+	if serverID == "" && config.KeyMetadataFile != "" {
 		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
 		if err != nil {
 			return nil, err
 		}
-		p.log.Debug("Loaded server ID", "server_id", serverID)
+		p.log.Debug("Loaded server id", "server_id", serverID)
+	}
+	if serverID == "" && config.KeyIdentifierFile != "" {
+		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
+		if err != nil {
+			return nil, err
+		}
+		p.log.Debug("Loaded server id", "server_id", serverID)
 	}
 
 	var customPolicy *iam.Policy3
@@ -1110,8 +1118,14 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing the key ring")
 	}
 
-	if config.KeyMetadataFile == "" && config.KeyMetadata == "" {
+	if config.KeyMetadataFile == "" && config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
 		return nil, status.Error(codes.InvalidArgument, "configuration requires server id or server id file path")
+	}
+	if (config.KeyMetadataFile != "" || config.KeyIdentifierFile != "") && config.KeyIdentifierValue != "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both server id and server id file path")
+	}
+	if config.KeyMetadataFile != "" && config.KeyIdentifierFile != "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both `key_identifier_file` and deprecated `key_metadata_file`")
 	}
 
 	return config, nil
