@@ -352,9 +352,15 @@ Updates registration entries.
 
 Displays the total number of registration entries.
 
-| Command       | Action                              | Default                            |
-|:--------------|:------------------------------------|:-----------------------------------|
-| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| Command          | Action                                                                                           | Default                            |
+|:-----------------|:-------------------------------------------------------------------------------------------------|:-----------------------------------|
+| `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server     |                                    |
+| `-federatesWith` | SPIFFE ID of a trust domain an entry is federate with. Can be used more than once                |                                    |
+| `-parentID`      | The Parent ID of the records to count.                                                            |                                    |
+| `-selector`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
+| `-socketPath`    | Path to the SPIRE Server API socket                                                              | /tmp/spire-server/private/api.sock |
+| `-spiffeID`      | The SPIFFE ID of the records to count.                                                            |                                    |
+
 
 ### `spire-server entry delete`
 
@@ -508,7 +514,11 @@ Displays the total number of attested nodes.
 
 | Command       | Action                              | Default                            |
 |:--------------|:------------------------------------|:-----------------------------------|
-| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| `-selector`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
+| `-canReattest`      | Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all |                                    |
+| `-banned`    |   Filter based on string received, 'true': banned agents, 'false': not banned agents, other value will return all |                |
+| `-expiresBefore`      | A date that indicates the time it should expired before. (format: YYYY-MM-DD) |                                    |
+| `-spiffeID`      | The SPIFFE ID of the records to count.                                              
 
 ### `spire-server agent evict`
 
@@ -525,7 +535,13 @@ Displays attested nodes.
 
 | Command       | Action                              | Default                            |
 |:--------------|:------------------------------------|:-----------------------------------|
-| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+| Command       | Action                              | Default                            |
+|:--------------|:------------------------------------|:-----------------------------------|
+| `-selector`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
+| `-canReattest`      | Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all |                                    |
+| `-banned`    |   Filter based on string received, 'true': banned agents, 'false': not banned agents, other value will return all |                |
+| `-expiresBefore`      | A date that indicates the time it should expired before. (format: YYYY-MM-DD)|                                    |
+| `-attestationType`      |  Filters agents to those matching the attestation type. |         |
 
 ### `spire-server agent show`
 

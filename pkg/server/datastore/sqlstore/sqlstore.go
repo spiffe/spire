@@ -282,7 +282,18 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attes
 }
 
 // CountAttestedNodes counts all attested nodes
-func (ds *Plugin) CountAttestedNodes(ctx context.Context) (count int32, err error) {
+func (ds *Plugin) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (count int32, err error) {
+	if countAttestedNodesHasFilters(req) {
+		resp, err := listAttestedNodes(ctx, ds.db, ds.log, &datastore.ListAttestedNodesRequest{
+			ByAttestationType: req.ByAttestationType,
+			ByBanned:          req.ByBanned,
+			ByExpiresBefore:   req.ByExpiresBefore,
+			BySelectorMatch:   req.BySelectorMatch,
+			FetchSelectors:    req.FetchSelectors,
+			ByCanReattest:     req.ByCanReattest,
+		})
+		return int32(len(resp.Nodes)), err
+	}
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		count, err = countAttestedNodes(tx)
 		return err
@@ -447,11 +458,12 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 
 // CountRegistrationEntries counts all registrations (pagination available)
 func (ds *Plugin) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (count int32, err error) {
-	if hasFilters(req) {
+	if countRegistrationEntriesHasFilters(req) {
 		var actDb = ds.db
 		if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
 			actDb = ds.roDb
 		}
+
 		resp, err := listRegistrationEntries(ctx, actDb, ds.log, &datastore.ListRegistrationEntriesRequest{
 			DataConsistency: req.DataConsistency,
 			ByParentID:      req.ByParentID,
@@ -459,6 +471,7 @@ func (ds *Plugin) CountRegistrationEntries(ctx context.Context, req *datastore.C
 			BySpiffeID:      req.BySpiffeID,
 			ByFederatesWith: req.ByFederatesWith,
 			ByHint:          req.ByHint,
+			ByDownstream:    req.ByDownstream,
 		})
 		return int32(len(resp.Entries)), err
 	}
@@ -471,16 +484,6 @@ func (ds *Plugin) CountRegistrationEntries(ctx context.Context, req *datastore.C
 	}
 
 	return count, nil
-}
-
-func hasFilters(req *datastore.CountRegistrationEntriesRequest) bool {
-	if req.ByParentID != "" || req.ByHint != "" || req.BySpiffeID != "" {
-		return true
-	}
-	if req.ByFederatesWith != nil || req.BySelectors != nil {
-		return true
-	}
-	return false
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -1541,6 +1544,16 @@ func countAttestedNodes(tx *gorm.DB) (int32, error) {
 	return int32(count), nil
 }
 
+func countAttestedNodesHasFilters(req *datastore.CountAttestedNodesRequest) bool {
+	if req.ByAttestationType != "" || req.ByBanned != nil || !req.ByExpiresBefore.IsZero() {
+		return true
+	}
+	if req.BySelectorMatch != nil || !req.FetchSelectors || req.ByCanReattest != nil {
+		return true
+	}
+	return false
+}
+
 func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
@@ -1731,7 +1744,6 @@ func listAttestedNodesOnce(ctx context.Context, db *sqlDB, req *datastore.ListAt
 			resp.Pagination.Token = strconv.FormatUint(lastEID, 10)
 		}
 	}
-
 	return resp, nil
 }
 
@@ -1789,7 +1801,6 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 		builder.WriteString("\t\tAND data_type = ?\n")
 		args = append(args, req.ByAttestationType)
 	}
-
 	// Filter by banned, an Attestation Node is banned when serial number is empty.
 	// This filter allows 3 outputs:
 	// - nil:  returns all
@@ -1802,8 +1813,11 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 			builder.WriteString("\t\tAND serial_number <> ''\n")
 		}
 	}
-
-	// Filter by CanReattest. This is similar to ByBanned
+	// Filter by canReattest,
+	// This filter allows 3 outputs:
+	//  - nil:  returns all
+	// - true: returns nodes with canReattest=true
+	// - false: returns nodes with canReattest=false
 	if req.ByCanReattest != nil {
 		if *req.ByCanReattest {
 			builder.WriteString("\t\tAND can_reattest = true\n")
@@ -1951,7 +1965,6 @@ SELECT
 	}
 
 	builder.WriteString("\n) ORDER BY id ASC\n")
-
 	return builder.String(), args, nil
 }
 
@@ -2654,6 +2667,16 @@ func countRegistrationEntries(tx *gorm.DB, req *datastore.CountRegistrationEntri
 	return int32(count), nil
 }
 
+func countRegistrationEntriesHasFilters(req *datastore.CountRegistrationEntriesRequest) bool {
+	if req.ByParentID != "" || req.ByHint != "" || req.BySpiffeID != "" {
+		return true
+	}
+	if req.ByFederatesWith != nil || req.BySelectors != nil || req.ByDownstream != nil {
+		return true
+	}
+	return false
+}
+
 func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
@@ -2810,6 +2833,7 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 }
 
 func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
+	//TODO: check how to add downstream to all querys
 	switch dbType {
 	case SQLite:
 		// The SQLite3 queries unconditionally leverage CTE since the
@@ -2831,8 +2855,12 @@ func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *dat
 
 func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
 	builder := new(strings.Builder)
-
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -2864,8 +2892,16 @@ SELECT
 FROM
 	registered_entries
 `)
+
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
 	}
 	builder.WriteString(`
 UNION
@@ -2915,6 +2951,11 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -2948,6 +2989,13 @@ FROM
 `)
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
 	}
 	builder.WriteString(`
 UNION ALL
@@ -3042,6 +3090,11 @@ LEFT JOIN
 `)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -3049,7 +3102,13 @@ LEFT JOIN
 	if filtered {
 		builder.WriteString(")")
 	}
-
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
 	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
 
 	return builder.String(), args, nil
@@ -3059,6 +3118,11 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, MySQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -3092,6 +3156,13 @@ FROM
 `)
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
 	}
 	builder.WriteString(`
 UNION

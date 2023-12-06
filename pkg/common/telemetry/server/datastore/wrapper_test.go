@@ -318,7 +318,7 @@ func (ds *fakeDataStore) AppendBundle(context.Context, *common.Bundle) (*common.
 	return &common.Bundle{}, ds.err
 }
 
-func (ds *fakeDataStore) CountAttestedNodes(context.Context) (int32, error) {
+func (ds *fakeDataStore) CountAttestedNodes(context.Context, *datastore.CountAttestedNodesRequest) (int32, error) {
 	return 0, ds.err
 }
 

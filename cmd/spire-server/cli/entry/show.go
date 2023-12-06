@@ -175,6 +175,8 @@ func (c *showCommand) fetchEntries(ctx context.Context, client entryv1.EntryClie
 		filter.ByHint = wrapperspb.String(c.hint)
 	}
 
+	filter.ByDownstream = wrapperspb.Bool(c.downstream)
+
 	pageToken := ""
 
 	for {

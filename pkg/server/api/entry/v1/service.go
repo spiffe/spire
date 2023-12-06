@@ -118,6 +118,10 @@ func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesReq
 				TrustDomains: trustDomains,
 			}
 		}
+
+		if req.Filter.ByDownstream != nil {
+			countReq.ByDownstream = &req.Filter.ByDownstream.Value
+		}
 	}
 
 	count, err := s.ds.CountRegistrationEntries(ctx, countReq)
@@ -196,6 +200,10 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 				Match:        datastore.MatchBehavior(req.Filter.ByFederatesWith.Match),
 				TrustDomains: trustDomains,
 			}
+		}
+
+		if req.Filter.ByDownstream != nil {
+			listReq.ByDownstream = &req.Filter.ByDownstream.Value
 		}
 	}
 
@@ -783,6 +791,10 @@ func fieldsFromListEntryFilter(ctx context.Context, td spiffeid.TrustDomain, fil
 		fields[telemetry.FederatesWith] = strings.Join(filter.ByFederatesWith.TrustDomains, ",")
 	}
 
+	if filter.ByDownstream != nil {
+		fields[telemetry.Downstream] = &filter.ByDownstream.Value
+	}
+
 	return fields
 }
 
@@ -813,6 +825,10 @@ func fieldsFromCountEntryFilter(ctx context.Context, td spiffeid.TrustDomain, fi
 	if filter.ByFederatesWith != nil {
 		fields[telemetry.FederatesWithMatch] = filter.ByFederatesWith.Match.String()
 		fields[telemetry.FederatesWith] = strings.Join(filter.ByFederatesWith.TrustDomains, ",")
+	}
+
+	if filter.ByDownstream != nil {
+		fields[telemetry.Downstream] = &filter.ByDownstream.Value
 	}
 
 	return fields

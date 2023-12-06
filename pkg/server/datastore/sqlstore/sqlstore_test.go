@@ -478,7 +478,7 @@ func (s *PluginSuite) TestCountBundles() {
 
 func (s *PluginSuite) TestCountAttestedNodes() {
 	// Count empty attested nodes
-	count, err := s.ds.CountAttestedNodes(ctx)
+	count, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(int32(0), count)
 
@@ -502,7 +502,7 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 	s.Require().NoError(err)
 
 	// Count all
-	count, err = s.ds.CountAttestedNodes(ctx)
+	count, err = s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(int32(2), count)
 }

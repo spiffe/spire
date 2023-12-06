@@ -46,7 +46,7 @@ type DataStore interface {
 	GetLatestRegistrationEntryEventID(ctx context.Context) (uint, error)
 
 	// Nodes
-	CountAttestedNodes(context.Context) (int32, error)
+	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (int32, error)
 	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
 	DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
 	FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
@@ -206,6 +206,7 @@ type ListRegistrationEntriesRequest struct {
 	Pagination      *Pagination
 	ByFederatesWith *ByFederatesWith
 	ByHint          string
+	ByDownstream    *bool
 }
 
 type CAJournal struct {
@@ -242,6 +243,15 @@ type ListFederationRelationshipsResponse struct {
 	Pagination              *Pagination
 }
 
+type CountAttestedNodesRequest struct {
+	ByAttestationType string
+	ByBanned          *bool
+	ByExpiresBefore   time.Time
+	BySelectorMatch   *BySelectors
+	FetchSelectors    bool
+	ByCanReattest     *bool
+}
+
 type CountRegistrationEntriesRequest struct {
 	DataConsistency DataConsistency
 	ByParentID      string
@@ -249,6 +259,7 @@ type CountRegistrationEntriesRequest struct {
 	BySpiffeID      string
 	ByFederatesWith *ByFederatesWith
 	ByHint          string
+	ByDownstream    *bool
 }
 
 type BundleEndpointType string

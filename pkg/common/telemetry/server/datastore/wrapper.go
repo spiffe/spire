@@ -186,10 +186,10 @@ func (w metricsWrapper) ListRegistrationEntriesEvents(ctx context.Context, req *
 	return w.ds.ListRegistrationEntriesEvents(ctx, req)
 }
 
-func (w metricsWrapper) CountAttestedNodes(ctx context.Context) (_ int32, err error) {
+func (w metricsWrapper) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (_ int32, err error) {
 	callCounter := StartCountNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.CountAttestedNodes(ctx)
+	return w.ds.CountAttestedNodes(ctx, req)
 }
 
 func (w metricsWrapper) CountBundles(ctx context.Context) (_ int32, err error) {

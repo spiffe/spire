@@ -112,6 +112,8 @@ const (
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	countUsage = `Usage of entry count:
+  -downstream
+    	A boolean value that, when set, indicates that the entry describes a downstream SPIRE server
   -federatesWith value
     	SPIFFE ID of a trust domain an entry is federate with. Can be used more than once
   -hint string

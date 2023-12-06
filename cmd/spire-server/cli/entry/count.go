@@ -31,6 +31,9 @@ type countCommand struct {
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
 	federatesWith StringsFlag
 
+	// Whether or not the entry is for a downstream SPIRE server
+	downstream bool
+
 	// Match used when filtering by federates with
 	matchFederatesWithOn string
 
@@ -101,6 +104,8 @@ func (c *countCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 		}
 	}
 
+	filter.ByDownstream = wrapperspb.Bool(c.downstream)
+
 	if len(c.federatesWith) > 0 {
 		matchFederatesWithBehavior, err := parseToFederatesWithMatch(c.matchFederatesWithOn)
 		if err != nil {
@@ -131,6 +136,7 @@ func (c *countCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.parentID, "parentID", "", "The Parent ID of the records to count")
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the records to count")
+	fs.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
 	fs.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	fs.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
 	fs.StringVar(&c.matchFederatesWithOn, "matchFederatesWithOn", "superset", "The match mode used when filtering by federates with. Options: exact, any, superset and subset")

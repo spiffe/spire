@@ -71,8 +71,42 @@ func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 }
 
 // CountAgents returns the total number of agents.
-func (s *Service) CountAgents(ctx context.Context, _ *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
-	count, err := s.ds.CountAttestedNodes(ctx)
+func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
+
+	log := rpccontext.Logger(ctx)
+
+	countReq := &datastore.CountAttestedNodesRequest{}
+
+	// Parse proto filter into datastore request
+	if req.Filter != nil {
+		filter := req.Filter
+		rpccontext.AddRPCAuditFields(ctx, fieldsFromCountAgentsRequest(filter))
+
+		if filter.ByBanned != nil {
+			countReq.ByBanned = &req.Filter.ByBanned.Value
+		}
+		if filter.ByCanReattest != nil {
+			countReq.ByCanReattest = &req.Filter.ByCanReattest.Value
+		}
+
+		countReq.ByAttestationType = filter.ByAttestationType
+
+		// err is verified previously
+		countReq.ByExpiresBefore, _ = time.Parse("2006-01-02", filter.ByExpiresBefore)
+
+		if filter.BySelectorMatch != nil {
+			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse selectors", err)
+			}
+			countReq.BySelectorMatch = &datastore.BySelectors{
+				Match:     datastore.MatchBehavior(filter.BySelectorMatch.Match),
+				Selectors: selectors,
+			}
+		}
+	}
+
+	count, err := s.ds.CountAttestedNodes(ctx, countReq)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
@@ -94,20 +128,18 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 	// Parse proto filter into datastore request
 	if req.Filter != nil {
 		filter := req.Filter
-		rpccontext.AddRPCAuditFields(ctx, fieldsFromFilterRequest(filter))
+		rpccontext.AddRPCAuditFields(ctx, fieldsFromListAgentsRequest(filter))
 
-		var byBanned *bool
 		if filter.ByBanned != nil {
-			byBanned = &filter.ByBanned.Value
+			listReq.ByBanned = &req.Filter.ByBanned.Value
 		}
-		var byCanReattest *bool
 		if filter.ByCanReattest != nil {
-			byCanReattest = &filter.ByCanReattest.Value
+			listReq.ByCanReattest = &req.Filter.ByCanReattest.Value
 		}
 
 		listReq.ByAttestationType = filter.ByAttestationType
-		listReq.ByBanned = byBanned
-		listReq.ByCanReattest = byCanReattest
+		// err is verified previously
+		listReq.ByExpiresBefore, _ = time.Parse("2006-01-02", filter.ByExpiresBefore)
 
 		if filter.BySelectorMatch != nil {
 			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)
@@ -687,7 +719,30 @@ func getAttestAgentResponse(spiffeID spiffeid.ID, certificates []*x509.Certifica
 	}
 }
 
-func fieldsFromFilterRequest(filter *agentv1.ListAgentsRequest_Filter) logrus.Fields {
+func fieldsFromListAgentsRequest(filter *agentv1.ListAgentsRequest_Filter) logrus.Fields {
+	fields := logrus.Fields{}
+
+	if filter.ByAttestationType != "" {
+		fields[telemetry.NodeAttestorType] = filter.ByAttestationType
+	}
+
+	if filter.ByBanned != nil {
+		fields[telemetry.ByBanned] = filter.ByBanned.Value
+	}
+
+	if filter.ByCanReattest != nil {
+		fields[telemetry.ByCanReattest] = filter.ByCanReattest.Value
+	}
+
+	if filter.BySelectorMatch != nil {
+		fields[telemetry.BySelectorMatch] = filter.BySelectorMatch.Match.String()
+		fields[telemetry.BySelectors] = api.SelectorFieldFromProto(filter.BySelectorMatch.Selectors)
+	}
+
+	return fields
+}
+
+func fieldsFromCountAgentsRequest(filter *agentv1.CountAgentsRequest_Filter) logrus.Fields {
 	fields := logrus.Fields{}
 
 	if filter.ByAttestationType != "" {
