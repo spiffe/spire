@@ -72,7 +72,6 @@ func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 
 // CountAgents returns the total number of agents.
 func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsRequest) (*agentv1.CountAgentsResponse, error) {
-
 	log := rpccontext.Logger(ctx)
 
 	countReq := &datastore.CountAttestedNodesRequest{}

@@ -2658,7 +2658,7 @@ ORDER BY selector_id, dns_name_id
 	return query, []any{entryID}, nil
 }
 
-func countRegistrationEntries(tx *gorm.DB, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
+func countRegistrationEntries(tx *gorm.DB, _ *datastore.CountRegistrationEntriesRequest) (int32, error) {
 	var count int
 	if err := tx.Model(&RegisteredEntry{}).Count(&count).Error; err != nil {
 		return 0, sqlError.Wrap(err)

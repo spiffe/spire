@@ -117,7 +117,7 @@ const (
   -federatesWith value
     	SPIFFE ID of a trust domain an entry is federate with. Can be used more than once
   -hint string
-    	The Hint of the records to show (optional)
+    	The Hint of the records to count (optional)
   -matchFederatesWithOn string
     	The match mode used when filtering by federates with. Options: exact, any, superset and subset (default "superset")
   -matchSelectorsOn string
