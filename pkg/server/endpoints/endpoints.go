@@ -32,6 +32,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -109,20 +110,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return nil, errors.New("policy engine not provided for new endpoint")
 	}
 
-	buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
-		call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
-		defer call.Done(&err)
-		return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
-	}
-
-	pruneEventsFn := func(ctx context.Context, olderThan time.Duration) error {
-		ds := c.Catalog.GetDataStore()
-		if err := ds.PruneRegistrationEntriesEvents(ctx, olderThan); err != nil {
-			return err
-		}
-		return ds.PruneAttestedNodesEvents(ctx, olderThan)
-	}
-
 	if c.CacheReloadInterval == 0 {
 		c.CacheReloadInterval = defaultCacheReloadInterval
 	}
@@ -130,12 +117,32 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		c.PruneEventsOlderThan = defaultPruneEventsOlderThan
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, pruneEventsFn, c.Log, c.Clock, c.CacheReloadInterval, c.PruneEventsOlderThan)
-	if err != nil {
-		return nil, err
-	}
-
 	ds := c.Catalog.GetDataStore()
+
+	var ef api.AuthorizedEntryFetcher
+	var cacheRebuildTask, pruneEventsTask func(context.Context) error
+	if fflag.IsSet(fflag.FlagEventsBasedCache) {
+		efEventsBasedCache, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, c.Log, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan)
+		if err != nil {
+			return nil, err
+		}
+		cacheRebuildTask = efEventsBasedCache.RunUpdateCacheTask
+		pruneEventsTask = efEventsBasedCache.PruneEventsTask
+		ef = efEventsBasedCache
+	} else {
+		buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
+			call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
+			defer call.Done(&err)
+			return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
+		}
+
+		efFullCache, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, c.CacheReloadInterval)
+		if err != nil {
+			return nil, err
+		}
+		cacheRebuildTask = efFullCache.RunRebuildCacheTask
+		ef = efFullCache
+	}
 
 	return &Endpoints{
 		TCPAddr:                      c.TCPAddr,
@@ -149,8 +156,8 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		Log:                          c.Log,
 		Metrics:                      c.Metrics,
 		RateLimit:                    c.RateLimit,
-		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
-		EntryFetcherPruneEventsTask:  ef.PruneEventsTask,
+		EntryFetcherCacheRebuildTask: cacheRebuildTask,
+		EntryFetcherPruneEventsTask:  pruneEventsTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,

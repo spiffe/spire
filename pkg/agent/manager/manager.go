@@ -285,6 +285,9 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 
 		err := m.synchronize(ctx)
 		switch {
+		case nodeutil.IsUnknownAuthorityError(err):
+			m.c.Log.WithError(err).Info("Synchronize failed, non-recoverable error")
+			return fmt.Errorf("failed to sync with SPIRE Server: %w", err)
 		case err != nil && nodeutil.ShouldAgentReattest(err):
 			fallthrough
 		case nodeutil.ShouldAgentShutdown(err):

@@ -177,6 +177,13 @@ func (s *DataStore) PruneAttestedNodesEvents(ctx context.Context, olderThan time
 	return s.ds.PruneAttestedNodesEvents(ctx, olderThan)
 }
 
+func (s *DataStore) GetLatestAttestedNodeEventID(ctx context.Context) (uint, error) {
+	if err := s.getNextError(); err != nil {
+		return 0, err
+	}
+	return s.ds.GetLatestAttestedNodeEventID(ctx)
+}
+
 func (s *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
 	if err := s.getNextError(); err != nil {
 		return err
@@ -304,6 +311,13 @@ func (s *DataStore) PruneRegistrationEntriesEvents(ctx context.Context, olderTha
 		return err
 	}
 	return s.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
+}
+
+func (s *DataStore) GetLatestRegistrationEntryEventID(ctx context.Context) (uint, error) {
+	if err := s.getNextError(); err != nil {
+		return 0, err
+	}
+	return s.ds.GetLatestRegistrationEntryEventID(ctx)
 }
 
 func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {

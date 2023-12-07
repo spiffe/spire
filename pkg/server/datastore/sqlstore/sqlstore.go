@@ -351,6 +351,17 @@ func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.D
 	})
 }
 
+// GetLatestAttestedNodeEventID get the id of the last event
+func (ds *Plugin) GetLatestAttestedNodeEventID(ctx context.Context) (eventID uint, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		eventID, err = getLatestAttestedNodeEventID(tx)
+		return err
+	}); err != nil {
+		return 0, err
+	}
+	return eventID, nil
+}
+
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
 func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -512,6 +523,17 @@ func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan 
 		err = pruneRegistrationEntriesEvents(tx, olderThan)
 		return err
 	})
+}
+
+// GetLatestRegistrationEntryEventID get the id of the last event
+func (ds *Plugin) GetLatestRegistrationEntryEventID(ctx context.Context) (eventID uint, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		eventID, err = getLatestRegistrationEntryEventID(tx)
+		return err
+	}); err != nil {
+		return 0, err
+	}
+	return eventID, nil
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -1474,10 +1496,11 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 	}
 
 	resp := &datastore.ListAttestedNodesEventsResponse{
-		SpiffeIDs: make([]string, 0, len(events)),
+		Events: make([]datastore.AttestedNodeEvent, len(events)),
 	}
-	for _, event := range events {
-		resp.SpiffeIDs = append(resp.SpiffeIDs, event.SpiffeID)
+	for i, event := range events {
+		resp.Events[i].EventID = event.ID
+		resp.Events[i].SpiffeID = event.SpiffeID
 	}
 	if len(events) > 0 {
 		resp.FirstEventID = events[0].ID
@@ -1496,6 +1519,19 @@ func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration) error {
 	}
 
 	return nil
+}
+
+func getLatestAttestedNodeEventID(tx *gorm.DB) (uint, error) {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return 0, nil
+	}
+
+	lastAttestedNodeEvent := AttestedNodeEvent{}
+	if err := tx.Last(&lastAttestedNodeEvent).Error; err != nil {
+		return 0, sqlError.Wrap(err)
+	}
+
+	return lastAttestedNodeEvent.ID, nil
 }
 
 // filterNodesBySelectorSet filters nodes based on provided selectors
@@ -3739,10 +3775,11 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	}
 
 	resp := &datastore.ListRegistrationEntriesEventsResponse{
-		EntryIDs: make([]string, 0, len(events)),
+		Events: make([]datastore.RegistrationEntryEvent, len(events)),
 	}
-	for _, event := range events {
-		resp.EntryIDs = append(resp.EntryIDs, event.EntryID)
+	for i, event := range events {
+		resp.Events[i].EventID = event.ID
+		resp.Events[i].EntryID = event.EntryID
 	}
 	if len(events) > 0 {
 		resp.FirstEventID = events[0].ID
@@ -3761,6 +3798,19 @@ func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error 
 	}
 
 	return nil
+}
+
+func getLatestRegistrationEntryEventID(tx *gorm.DB) (uint, error) {
+	if !fflag.IsSet(fflag.FlagEventsBasedCache) {
+		return 0, nil
+	}
+
+	lastRegisteredEntryEvent := RegisteredEntryEvent{}
+	if err := tx.Last(&lastRegisteredEntryEvent).Error; err != nil {
+		return 0, sqlError.Wrap(err)
+	}
+
+	return lastRegisteredEntryEvent.ID, nil
 }
 
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {

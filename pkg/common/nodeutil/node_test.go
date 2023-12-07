@@ -1,13 +1,17 @@
 package nodeutil_test
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
 	legacyProto "github.com/golang/protobuf/proto" //nolint:staticcheck // deprecated library needed until WithDetails can take v2
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -46,6 +50,29 @@ func TestShouldAgentReattest(t *testing.T) {
 
 	require.False(t, nodeutil.ShouldAgentReattest(getError(t, codes.PermissionDenied, &types.Status{})))
 	require.False(t, nodeutil.ShouldAgentReattest(getError(t, codes.PermissionDenied, nil)))
+}
+
+func TestIsUnknownAuthority(t *testing.T) {
+	t.Run("no error provided", func(t *testing.T) {
+		require.False(t, nodeutil.IsUnknownAuthorityError(nil))
+	})
+
+	t.Run("unexpected error", func(t *testing.T) {
+		require.False(t, nodeutil.IsUnknownAuthorityError(errors.New("oh no")))
+	})
+
+	t.Run("unknown authority err", func(t *testing.T) {
+		// Create two bundles with same TD and an SVID that is signed by one of them
+		ca := testca.New(t, spiffeid.RequireTrustDomainFromString("test.td"))
+		ca2 := testca.New(t, spiffeid.RequireTrustDomainFromString("test.td"))
+		svid := ca2.CreateX509SVID(spiffeid.RequireFromString("spiffe://test.td/w1"))
+
+		// Verify must fail
+		_, _, err := x509svid.Verify(svid.Certificates, ca.X509Bundle())
+		require.Error(t, err)
+
+		require.True(t, nodeutil.IsUnknownAuthorityError(err))
+	})
 }
 
 func TestShouldAgentShutdown(t *testing.T) {

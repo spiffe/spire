@@ -1452,7 +1452,8 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 }
 
 func (s *PluginSuite) TestListAttestedNodesEvents() {
-	var expectedSpiffeIDs []string
+	var expectedEvents []datastore.AttestedNodeEvent
+	var expectedEventID uint = 1
 
 	// Create an attested node
 	node1, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -1462,11 +1463,15 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	})
 	s.Require().NoError(err)
-	expectedSpiffeIDs = append(expectedSpiffeIDs, node1.SpiffeId)
+	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
+		EventID:  expectedEventID,
+		SpiffeID: node1.SpiffeId,
+	})
+	expectedEventID++
 
 	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(expectedSpiffeIDs, resp.SpiffeIDs)
+	s.Require().Equal(expectedEvents, resp.Events)
 
 	// Create second attested node
 	node2, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -1476,54 +1481,65 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	})
 	s.Require().NoError(err)
-	expectedSpiffeIDs = append(expectedSpiffeIDs, node2.SpiffeId)
+	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
+		EventID:  expectedEventID,
+		SpiffeID: node2.SpiffeId,
+	})
+	expectedEventID++
 
 	resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(expectedSpiffeIDs, resp.SpiffeIDs)
+	s.Require().Equal(expectedEvents, resp.Events)
 
 	// Update first attested node
 	updatedNode, err := s.ds.UpdateAttestedNode(ctx, node1, nil)
 	s.Require().NoError(err)
-	expectedSpiffeIDs = append(expectedSpiffeIDs, updatedNode.SpiffeId)
+	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
+		EventID:  expectedEventID,
+		SpiffeID: updatedNode.SpiffeId,
+	})
+	expectedEventID++
 
 	resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(expectedSpiffeIDs, resp.SpiffeIDs)
+	s.Require().Equal(expectedEvents, resp.Events)
 
 	// Delete second atttested node
 	deletedNode, err := s.ds.DeleteAttestedNode(ctx, node2.SpiffeId)
 	s.Require().NoError(err)
-	expectedSpiffeIDs = append(expectedSpiffeIDs, deletedNode.SpiffeId)
+	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
+		EventID:  expectedEventID,
+		SpiffeID: deletedNode.SpiffeId,
+	})
 
 	resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(expectedSpiffeIDs, resp.SpiffeIDs)
+	s.Require().Equal(expectedEvents, resp.Events)
 
 	// Check filtering events by id
 	tests := []struct {
 		name                 string
 		greaterThanEventID   uint
-		expectedSpiffeIDs    []string
+		expectedEvents       []datastore.AttestedNodeEvent
 		expectedFirstEventID uint
 	}{
 		{
 			name:                 "All Events",
 			greaterThanEventID:   0,
 			expectedFirstEventID: 1,
-			expectedSpiffeIDs:    []string{node1.SpiffeId, node2.SpiffeId, node1.SpiffeId, node2.SpiffeId},
+			expectedEvents:       expectedEvents,
 		},
 		{
 			name:                 "Half of the Events",
 			greaterThanEventID:   2,
 			expectedFirstEventID: 3,
-			expectedSpiffeIDs:    []string{node1.SpiffeId, node2.SpiffeId},
+			expectedEvents:       expectedEvents[2:],
 		},
 		{
 			name:                 "None of the  Events",
 			greaterThanEventID:   4,
 			expectedFirstEventID: 0,
-			expectedSpiffeIDs:    []string{},
+			expectedEvents:       []datastore.AttestedNodeEvent{},
 		},
 	}
 	for _, test := range tests {
@@ -1533,9 +1549,14 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 			})
 			s.Require().NoError(err)
 			s.Require().Equal(test.expectedFirstEventID, resp.FirstEventID)
-			s.Require().Equal(test.expectedSpiffeIDs, resp.SpiffeIDs)
+			s.Require().Equal(test.expectedEvents, resp.Events)
 		})
 	}
+
+	// Check we can get the last event id
+	lastEventID, err := s.ds.GetLatestAttestedNodeEventID(ctx)
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEventID, lastEventID)
 }
 
 func (s *PluginSuite) TestPruneAttestedNodesEvents() {
@@ -1549,22 +1570,27 @@ func (s *PluginSuite) TestPruneAttestedNodesEvents() {
 
 	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(node.SpiffeId, resp.SpiffeIDs[0])
+	s.Require().Equal(node.SpiffeId, resp.Events[0].SpiffeID)
 
 	for _, tt := range []struct {
-		name              string
-		olderThan         time.Duration
-		expectedSpiffeIDs []string
+		name           string
+		olderThan      time.Duration
+		expectedEvents []datastore.AttestedNodeEvent
 	}{
 		{
-			name:              "Don't prune valid events",
-			olderThan:         1 * time.Hour,
-			expectedSpiffeIDs: []string{node.SpiffeId},
+			name:      "Don't prune valid events",
+			olderThan: 1 * time.Hour,
+			expectedEvents: []datastore.AttestedNodeEvent{
+				{
+					EventID:  1,
+					SpiffeID: node.SpiffeId,
+				},
+			},
 		},
 		{
-			name:              "Prune old events",
-			olderThan:         0 * time.Second,
-			expectedSpiffeIDs: []string{},
+			name:           "Prune old events",
+			olderThan:      0 * time.Second,
+			expectedEvents: []datastore.AttestedNodeEvent{},
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -1573,7 +1599,7 @@ func (s *PluginSuite) TestPruneAttestedNodesEvents() {
 				s.Require().NoError(err)
 				resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
 				s.Require().NoError(err)
-				return reflect.DeepEqual(tt.expectedSpiffeIDs, resp.SpiffeIDs)
+				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
 		})
 	}
@@ -3867,7 +3893,8 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 }
 
 func (s *PluginSuite) TestListRegistrationEntriesEvents() {
-	var expectedEntryIDs []string
+	var expectedEvents []datastore.RegistrationEntryEvent
+	var expectedEventID uint = 1
 
 	// Create an entry
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
@@ -3877,11 +3904,15 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 		SpiffeId: "spiffe://example.org/foo1",
 		ParentId: "spiffe://example.org/bar",
 	})
-	expectedEntryIDs = append(expectedEntryIDs, entry1.EntryId)
+	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
+		EventID: expectedEventID,
+		EntryID: entry1.EntryId,
+	})
+	expectedEventID++
 
 	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
+	s.Require().Equal(expectedEvents, resp.Events)
 
 	// Create second entry
 	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
@@ -3891,53 +3922,64 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 		SpiffeId: "spiffe://example.org/foo2",
 		ParentId: "spiffe://example.org/bar",
 	})
-	expectedEntryIDs = append(expectedEntryIDs, entry2.EntryId)
+	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
+		EventID: expectedEventID,
+		EntryID: entry2.EntryId,
+	})
+	expectedEventID++
 
 	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
+	s.Require().Equal(expectedEvents, resp.Events)
 
 	// Update first entry
 	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry1, nil)
 	s.Require().NoError(err)
-	expectedEntryIDs = append(expectedEntryIDs, updatedRegistrationEntry.EntryId)
+	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
+		EventID: expectedEventID,
+		EntryID: updatedRegistrationEntry.EntryId,
+	})
+	expectedEventID++
 
 	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
+	s.Require().Equal(expectedEvents, resp.Events)
 
 	// Delete second entry
 	s.deleteRegistrationEntry(entry2.EntryId)
-	expectedEntryIDs = append(expectedEntryIDs, entry2.EntryId)
+	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
+		EventID: expectedEventID,
+		EntryID: entry2.EntryId,
+	})
 
 	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(expectedEntryIDs, resp.EntryIDs)
+	s.Require().Equal(expectedEvents, resp.Events)
 
 	// Check filtering events by id
 	tests := []struct {
 		name                 string
 		greaterThanEventID   uint
-		expectedEntryIDs     []string
+		expectedEvents       []datastore.RegistrationEntryEvent
 		expectedFirstEventID uint
 	}{
 		{
 			name:                 "All Events",
 			greaterThanEventID:   0,
 			expectedFirstEventID: 1,
-			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId, entry1.EntryId, entry2.EntryId},
+			expectedEvents:       expectedEvents,
 		},
 		{
 			name:                 "Half of the Events",
 			greaterThanEventID:   2,
 			expectedFirstEventID: 3,
-			expectedEntryIDs:     []string{entry1.EntryId, entry2.EntryId},
+			expectedEvents:       expectedEvents[2:],
 		},
 		{
 			name:                 "None of the  Events",
 			greaterThanEventID:   4,
 			expectedFirstEventID: 0,
-			expectedEntryIDs:     []string{},
+			expectedEvents:       []datastore.RegistrationEntryEvent{},
 		},
 	}
 	for _, test := range tests {
@@ -3947,9 +3989,14 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 			})
 			s.Require().NoError(err)
 			s.Require().Equal(test.expectedFirstEventID, resp.FirstEventID)
-			s.Require().Equal(test.expectedEntryIDs, resp.EntryIDs)
+			s.Require().Equal(test.expectedEvents, resp.Events)
 		})
 	}
+
+	// Check we can get the last event id
+	lastEventID, err := s.ds.GetLatestRegistrationEntryEventID(ctx)
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEventID, lastEventID)
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
@@ -3964,22 +4011,27 @@ func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
 	createdRegistrationEntry := s.createRegistrationEntry(entry)
 	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(createdRegistrationEntry.EntryId, resp.EntryIDs[0])
+	s.Require().Equal(createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
 
 	for _, tt := range []struct {
-		name             string
-		olderThan        time.Duration
-		expectedEntryIDs []string
+		name           string
+		olderThan      time.Duration
+		expectedEvents []datastore.RegistrationEntryEvent
 	}{
 		{
-			name:             "Don't prune valid events",
-			olderThan:        1 * time.Hour,
-			expectedEntryIDs: []string{createdRegistrationEntry.EntryId},
+			name:      "Don't prune valid events",
+			olderThan: 1 * time.Hour,
+			expectedEvents: []datastore.RegistrationEntryEvent{
+				{
+					EventID: 1,
+					EntryID: createdRegistrationEntry.EntryId,
+				},
+			},
 		},
 		{
-			name:             "Prune old events",
-			olderThan:        0 * time.Second,
-			expectedEntryIDs: []string{},
+			name:           "Prune old events",
+			olderThan:      0 * time.Second,
+			expectedEvents: []datastore.RegistrationEntryEvent{},
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -3988,7 +4040,7 @@ func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
 				s.Require().NoError(err)
 				resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 				s.Require().NoError(err)
-				return reflect.DeepEqual(tt.expectedEntryIDs, resp.EntryIDs)
+				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
 		})
 	}

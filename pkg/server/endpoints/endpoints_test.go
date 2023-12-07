@@ -186,11 +186,7 @@ func TestListenAndServe(t *testing.T) {
 		return entrycache.BuildFromDataStore(ctx, ds)
 	}
 
-	pruneEventsFn := func(context.Context, time.Duration) error {
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)
@@ -217,7 +213,6 @@ func TestListenAndServe(t *testing.T) {
 		Metrics:                      metrics,
 		RateLimit:                    rateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
-		EntryFetcherPruneEventsTask:  ef.PruneEventsTask,
 		AuthPolicyEngine:             pe,
 		AdminIDs:                     []spiffeid.ID{foreignAdminSVID.ID},
 	}
