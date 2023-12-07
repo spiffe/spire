@@ -361,7 +361,6 @@ Displays the total number of registration entries.
 | `-socketPath`    | Path to the SPIRE Server API socket                                                              | /tmp/spire-server/private/api.sock |
 | `-spiffeID`      | The SPIFFE ID of the records to count.                                                            |                                    |
 
-
 ### `spire-server entry delete`
 
 Deletes a specified registration entry.
@@ -518,7 +517,7 @@ Displays the total number of attested nodes.
 | `-canReattest`      | Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all |                                    |
 | `-banned`    |   Filter based on string received, 'true': banned agents, 'false': not banned agents, other value will return all |                |
 | `-expiresBefore`      | A date that indicates the time it should expired before. (format: YYYY-MM-DD) |                                    |
-| `-spiffeID`      | The SPIFFE ID of the records to count.                                              
+| `-spiffeID`      | The SPIFFE ID of the records to count. |                                    |
 
 ### `spire-server agent evict`
 

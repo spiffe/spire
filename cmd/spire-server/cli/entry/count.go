@@ -141,7 +141,7 @@ func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
 	fs.StringVar(&c.matchFederatesWithOn, "matchFederatesWithOn", "superset", "The match mode used when filtering by federates with. Options: exact, any, superset and subset")
 	fs.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
-	fs.StringVar(&c.hint, "hint", "", "The Hint of the records to  count (optional)")
+	fs.StringVar(&c.hint, "hint", "", "The Hint of the records to count (optional)")
 
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintCount)
 }
