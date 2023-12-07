@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.7.6] - 2023-12-07
+
+### Security
+
+- Updated to Go 1.20.12 to address CVE-2023-39326
+
 ## [1.7.5] - 2023-11-07
 
 ### Security
