@@ -10,6 +10,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -698,6 +699,15 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing the Key Vault URI")
 	}
 
+	if config.KeyIdentifierValue != "" {
+		re := regexp.MustCompile(".*[^A-z0-9/_-].*")
+		if re.MatchString(config.KeyIdentifierValue) {
+			return nil, status.Error(codes.InvalidArgument, "Key identifier must contain only alphanumeric characters, forward slashes (/), underscores (_), and dashes (-)")
+		}
+		if len(config.KeyIdentifierValue) > 256 {
+			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 256 characters")
+		}
+	}
 	if config.KeyMetadataFile == "" && config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
 		return nil, status.Error(codes.InvalidArgument, "configuration requires server id or server id file path")
 	}
