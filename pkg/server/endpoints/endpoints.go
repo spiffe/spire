@@ -28,7 +28,6 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -121,7 +120,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 
 	var ef api.AuthorizedEntryFetcher
 	var cacheRebuildTask, pruneEventsTask func(context.Context) error
-	if fflag.IsSet(fflag.FlagEventsBasedCache) {
+	if c.EventsBasedCache {
 		efEventsBasedCache, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, c.Log, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan)
 		if err != nil {
 			return nil, err
@@ -205,7 +204,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		tasks = append(tasks, e.BundleEndpointServer.ListenAndServe)
 	}
 
-	if fflag.IsSet(fflag.FlagEventsBasedCache) {
+	if e.EntryFetcherPruneEventsTask != nil {
 		tasks = append(tasks, e.EntryFetcherPruneEventsTask)
 	}
 
