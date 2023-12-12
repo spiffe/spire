@@ -177,15 +177,14 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		if err != nil {
 			return nil, err
 		}
-		p.log.Debug("Loaded server id", "server_id", serverID)
 	}
 	if serverID == "" && config.KeyIdentifierFile != "" {
 		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
 		if err != nil {
 			return nil, err
 		}
-		p.log.Debug("Loaded server id", "server_id", serverID)
 	}
+	p.log.Debug("Loaded server id", "server_id", serverID)
 
 	var customPolicy *iam.Policy3
 	if config.KeyPolicyFile != "" {
