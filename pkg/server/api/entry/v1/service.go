@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 
@@ -389,7 +390,7 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 		})
 	}
 
-	// Prepulate the entry page used in the response with empty entry structs.
+	// Prepopulate the entry page used in the response with empty entry structs.
 	// These will be reused for each sparse entry response.
 	entryRevisions := make([]*entryv1.EntryRevision, entryPageSize)
 	for i := range entryRevisions {
@@ -444,8 +445,10 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 		}
 
 		// Sort the requested IDs for efficient lookups into the sorted entry
-		// list.
-		sort.Strings(req.Ids)
+		// list. Agents SHOULD already send the list sorted but we need to
+		// make sure they are sorted for correctness of the search loop below.
+		// The go stdlib sorting algorithm performs well on pre-sorted data.
+		slices.Sort(req.Ids)
 
 		// Page back the requested entries. The slice for the entries in the response
 		// is reused to reduce memory pressure. Since both the entries and

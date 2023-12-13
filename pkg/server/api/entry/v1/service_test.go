@@ -3060,6 +3060,26 @@ func TestSyncAuthorizedEntries(t *testing.T) {
 						More:    false,
 					},
 				},
+				// Request a page and a half but middle does not exist
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{
+						Ids: []string{"entry-1", "entry-4", "entry-3"},
+					},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{entry1, entry3},
+						More:    false,
+					},
+				},
+				// Request a page and a half but end does not exist
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{
+						Ids: []string{"entry-1", "entry-3", "entry-4"},
+					},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{entry1, entry3},
+						More:    false,
+					},
+				},
 				// Request nothing
 				{
 					req: &entryv1.SyncAuthorizedEntriesRequest{},
@@ -3307,7 +3327,7 @@ func FuzzSyncAuthorizedStreams(f *testing.F) {
 		entries = append(entries, &types.Entry{Id: strconv.Itoa(i), RevisionNumber: 1})
 	}
 
-	// Add some quick boundary conditions in here that will be run
+	// Add some quick boundary conditions as seeds that will be run
 	// during standard testing.
 	f.Add(0, 0)
 	f.Add(1, 1)
