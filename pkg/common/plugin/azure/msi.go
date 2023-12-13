@@ -5,11 +5,11 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/zeebo/errs"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (

@@ -47,11 +47,7 @@ func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	pruneEventsFn := func(context.Context, time.Duration) error {
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 }
@@ -65,11 +61,7 @@ func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) 
 		return nil, errors.New("some cache build error")
 	}
 
-	pruneEventsFn := func(context.Context, time.Duration) error {
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 }
@@ -89,11 +81,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	pruneEventsFn := func(context.Context, time.Duration) error {
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -162,11 +150,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		}
 	}
 
-	pruneEventsFn := func(context.Context, time.Duration) error {
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -230,49 +214,6 @@ func TestRunRebuildCacheTask(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, expectedEntries, entries)
 	sendResult(req, entryMap, nil)
-}
-
-func TestRunPruneEventsTask(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	watchErr := make(chan error, 1)
-	defer func() {
-		cancel()
-		select {
-		case err := <-watchErr:
-			assert.NoError(t, err)
-		case <-time.After(5 * time.Second):
-			t.Fatal("timed out waiting for watch to return")
-		}
-	}()
-
-	log, _ := test.NewNullLogger()
-	clk := clock.NewMock(t)
-
-	buildCache := func(ctx context.Context) (entrycache.Cache, error) {
-		return nil, nil
-	}
-
-	pruneEventsCh := make(chan struct{}, 1)
-	pruneEventsFn := func(context.Context, time.Duration) error {
-		pruneEventsCh <- struct{}{}
-		return nil
-	}
-
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, pruneEventsFn, log, clk, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
-	require.NoError(t, err)
-	require.NotNil(t, ef)
-
-	go func() {
-		watchErr <- ef.PruneEventsTask(ctx)
-	}()
-
-	clk.WaitForAfter(5*time.Second, "waiting for watch timer")
-	clk.Add(defaultPruneEventsOlderThan)
-	select {
-	case <-pruneEventsCh:
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for pruneEventsFn to return")
-	}
 }
 
 func setupExpectedEntriesData(t *testing.T, agentID spiffeid.ID) []*types.Entry {

@@ -16,20 +16,17 @@ import (
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithFullCache)(nil)
 
 type entryCacheBuilderFn func(ctx context.Context) (entrycache.Cache, error)
-type pruneEventsFn func(ctx context.Context, olderThan time.Duration) error
 
 type AuthorizedEntryFetcherWithFullCache struct {
-	buildCache           entryCacheBuilderFn
-	pruneEvents          pruneEventsFn
-	cache                entrycache.Cache
-	clk                  clock.Clock
-	log                  logrus.FieldLogger
-	mu                   sync.RWMutex
-	cacheReloadInterval  time.Duration
-	pruneEventsOlderThan time.Duration
+	buildCache          entryCacheBuilderFn
+	cache               entrycache.Cache
+	clk                 clock.Clock
+	log                 logrus.FieldLogger
+	mu                  sync.RWMutex
+	cacheReloadInterval time.Duration
 }
 
-func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, pruneEvents pruneEventsFn, log logrus.FieldLogger, clk clock.Clock, cacheReloadInterval, pruneEventsOlderThan time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
+func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, log logrus.FieldLogger, clk clock.Clock, cacheReloadInterval time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
 	log.Info("Building in-memory entry cache")
 	cache, err := buildCache(ctx)
 	if err != nil {
@@ -38,13 +35,11 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 
 	log.Info("Completed building in-memory entry cache")
 	return &AuthorizedEntryFetcherWithFullCache{
-		buildCache:           buildCache,
-		pruneEvents:          pruneEvents,
-		cache:                cache,
-		clk:                  clk,
-		log:                  log,
-		cacheReloadInterval:  cacheReloadInterval,
-		pruneEventsOlderThan: pruneEventsOlderThan,
+		buildCache:          buildCache,
+		cache:               cache,
+		clk:                 clk,
+		log:                 log,
+		cacheReloadInterval: cacheReloadInterval,
 	}, nil
 }
 
@@ -78,17 +73,26 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 	}
 }
 
-func (a *AuthorizedEntryFetcherWithFullCache) PruneEventsTask(ctx context.Context) error {
+// RunUpdateCacheTask starts a ticker which rebuilds the in-memory entry cache.
+func (a *AuthorizedEntryFetcherWithFullCache) RunUpdateCacheTask(ctx context.Context) error {
+	rebuild := func() {
+		cache, err := a.buildCache(ctx)
+		if err != nil {
+			a.log.WithError(err).Error("Failed to reload entry cache")
+		} else {
+			a.mu.Lock()
+			a.cache = cache
+			a.mu.Unlock()
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
-			a.log.Debug("Stopping event pruner")
+			a.log.Debug("Stopping in-memory entry cache hydrator")
 			return nil
-		case <-a.clk.After(a.pruneEventsOlderThan / 2):
-			a.log.Debug("Pruning events")
-			if err := a.pruneEvents(ctx, a.pruneEventsOlderThan); err != nil {
-				a.log.WithError(err).Error("Failed to prune events")
-			}
+		case <-a.clk.After(a.cacheReloadInterval):
+			rebuild()
 		}
 	}
 }

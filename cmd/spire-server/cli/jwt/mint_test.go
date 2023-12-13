@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
@@ -21,8 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 var (
@@ -249,7 +249,7 @@ func TestMintRun(t *testing.T) {
     "issued_at": "0"
   }
 }`,
-			expStderr: "Unable to determine JWT-SVID lifetime: square/go-jose: compact JWS format must have three parts\n",
+			expStderr: "Unable to determine JWT-SVID lifetime: go-jose/go-jose: compact JWS format must have three parts\n",
 		},
 		{
 			name:     "expired token",

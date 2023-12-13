@@ -7,9 +7,9 @@ import (
 	"crypto/rsa"
 	"testing"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/square/go-jose.v2"
 )
 
 func TestJoseAlgFromPublicKey(t *testing.T) {
