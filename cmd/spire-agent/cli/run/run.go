@@ -110,9 +110,10 @@ type sdsConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval       string `hcl:"sync_interval"`
-	NamedPipeName      string `hcl:"named_pipe_name"`
-	AdminNamedPipeName string `hcl:"admin_named_pipe_name"`
+	SyncInterval             string `hcl:"sync_interval"`
+	NamedPipeName            string `hcl:"named_pipe_name"`
+	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
+	UseSyncAuthorizedEntries bool   `hcl:"use_sync_authorized_entries"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -461,6 +462,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if c.Agent.Experimental.X509SVIDCacheMaxSize < 0 {
 		return nil, errors.New("x509_svid_cache_max_size should not be negative")
 	}
+	ac.UseSyncAuthorizedEntries = c.Agent.Experimental.UseSyncAuthorizedEntries
 	ac.X509SVIDCacheMaxSize = c.Agent.Experimental.X509SVIDCacheMaxSize
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))

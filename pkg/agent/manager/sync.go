@@ -12,7 +12,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
@@ -228,7 +227,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 	defer counter.Done(&err)
 
 	var update *client.Update
-	if fflag.IsSet(fflag.FlagUseSyncAuthorizedEntries) {
+	if m.c.UseSyncAuthorizedEntries {
 		stats, err := m.client.SyncUpdates(ctx, m.syncedEntries, m.syncedBundles)
 		if err != nil {
 			return nil, nil, err

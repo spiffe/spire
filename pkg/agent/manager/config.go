@@ -22,22 +22,23 @@ import (
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
-	SVID             []*x509.Certificate
-	SVIDKey          keymanager.Key
-	Bundle           *managerCache.Bundle
-	Reattestable     bool
-	Catalog          catalog.Catalog
-	TrustDomain      spiffeid.TrustDomain
-	Log              logrus.FieldLogger
-	Metrics          telemetry.Metrics
-	ServerAddr       string
-	Storage          storage.Storage
-	WorkloadKeyType  workloadkey.KeyType
-	SyncInterval     time.Duration
-	RotationInterval time.Duration
-	SVIDStoreCache   *storecache.Cache
-	SVIDCacheMaxSize int
-	NodeAttestor     nodeattestor.NodeAttestor
+	SVID                     []*x509.Certificate
+	SVIDKey                  keymanager.Key
+	Bundle                   *managerCache.Bundle
+	Reattestable             bool
+	Catalog                  catalog.Catalog
+	TrustDomain              spiffeid.TrustDomain
+	Log                      logrus.FieldLogger
+	Metrics                  telemetry.Metrics
+	ServerAddr               string
+	Storage                  storage.Storage
+	WorkloadKeyType          workloadkey.KeyType
+	SyncInterval             time.Duration
+	UseSyncAuthorizedEntries bool
+	RotationInterval         time.Duration
+	SVIDStoreCache           *storecache.Cache
+	SVIDCacheMaxSize         int
+	NodeAttestor             nodeattestor.NodeAttestor
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
