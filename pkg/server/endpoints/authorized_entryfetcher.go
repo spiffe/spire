@@ -31,12 +31,12 @@ type AuthorizedEntryFetcherWithEventsBasedCache struct {
 }
 
 func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
-	log.Info("Building in-memory entry cache")
+	log.Info("Building event-based in-memory entry cache")
 	cache, lastRegistrationEntryEventID, lastAttestedNodeEventID, err := buildCache(ctx, ds, clk)
 	if err != nil {
 		return nil, err
 	}
-	log.Info("Completed building in-memory entry cache")
+	log.Info("Completed building event-based in-memory entry cache")
 
 	return &AuthorizedEntryFetcherWithEventsBasedCache{
 		cache:                        cache,
