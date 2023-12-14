@@ -1124,7 +1124,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both server id and server id file path")
 	}
 	if config.KeyMetadataFile != "" && config.KeyIdentifierFile != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both `key_identifier_file` and deprecated `key_metadata_file`")
+		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'")
 	}
 
 	return config, nil

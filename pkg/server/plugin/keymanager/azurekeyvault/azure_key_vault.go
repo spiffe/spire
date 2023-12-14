@@ -144,7 +144,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	var serverID = config.KeyIdentifierValue
 	if serverID == "" && config.KeyMetadataFile != "" {
-		p.log.Warn("`key_metadata_file` is deprecated in favor of `key_identifier_file` and will be removed in a future version")
+		p.log.Warn("'key_metadata_file' is deprecated in favor of 'key_identifier_file' and will be removed in a future version")
 		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
 		if err != nil {
 			return nil, err
@@ -714,7 +714,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both server id and server id file path")
 	}
 	if config.KeyMetadataFile != "" && config.KeyIdentifierFile != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both `key_identifier_file` and deprecated `key_metadata_file`")
+		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'")
 	}
 
 	return config, nil

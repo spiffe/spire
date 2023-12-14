@@ -246,7 +246,7 @@ func TestConfigure(t *testing.T) {
 		{
 			name:             "key metadata file and key identifier file",
 			configureRequest: configureRequestWithString(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_metadata_file":"key_metadata_file","key_identifier_file":"key_identifier_file","key_policy_file":""}`),
-			err:              "configuration must not contain both `key_identifier_file` and deprecated `key_metadata_file`",
+			err:              "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'",
 			code:             codes.InvalidArgument,
 		},
 		{
