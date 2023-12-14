@@ -36,7 +36,7 @@ var _ datastore.DataStore = (*DataStore)(nil)
 func New(tb testing.TB) *DataStore {
 	log, _ := test.NewNullLogger()
 
-	ds := sql.New(log)
+	ds := sql.New(log, false)
 	ds.SetUseServerTimestamps(true)
 
 	err := ds.Configure(ctx, fmt.Sprintf(`
