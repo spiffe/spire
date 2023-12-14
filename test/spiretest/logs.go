@@ -15,14 +15,17 @@ type LogEntry struct {
 }
 
 func AssertLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
+	t.Helper()
 	assert.Equal(t, expected, convertLogEntries(entries), "unexpected logs")
 }
 
 func AssertLogsAnyOrder(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
+	t.Helper()
 	assert.ElementsMatch(t, expected, convertLogEntries(entries), "unexpected logs")
 }
 
 func AssertLastLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
+	t.Helper()
 	removeLen := len(entries) - len(expected)
 	if removeLen > 0 {
 		assert.Equal(t, expected, convertLogEntries(entries[removeLen:]), "unexpected logs")
@@ -32,6 +35,7 @@ func AssertLastLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) 
 }
 
 func AssertLogsContainEntries(t *testing.T, entries []*logrus.Entry, expectedEntries []LogEntry) {
+	t.Helper()
 	if len(expectedEntries) == 0 {
 		return
 	}

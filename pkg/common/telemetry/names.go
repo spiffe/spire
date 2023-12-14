@@ -526,6 +526,21 @@ const (
 	// SVIDUpdated tags that for some entity the SVID was updated
 	SVIDUpdated = "svid_updated"
 
+	// SyncBundlesTotal is the number of bundles synced from the server.
+	SyncBundlesTotal = "sync_bundles_total"
+
+	// SyncEntriesTotal is the number of entries synced from the server.
+	SyncEntriesTotal = "sync_entries_total"
+
+	// SyncEntriesTotal is the number of entries that existed on the server but not the agent.
+	SyncEntriesMissing = "sync_entries_missing"
+
+	// SyncEntriesTotal is the number of entries that were out of date on the agent.
+	SyncEntriesStale = "sync_entries_stale"
+
+	// SyncEntriesTotal is the number of entries that were no longer on the server.
+	SyncEntriesDropped = "sync_entries_dropped"
+
 	// TTL functionality related to a time-to-live field; should be used
 	// with other tags to add clarity
 	TTL = "ttl"
