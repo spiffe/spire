@@ -24,7 +24,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -114,9 +113,6 @@ func (s *PluginSuite) SetupSuite() {
 		s.Require().NoError(err, "failed to parse read-only delay")
 		s.readOnlyDelay = delay
 	}
-
-	err = fflag.Load(fflag.RawConfig{"events_based_cache"})
-	s.Require().NoError(err)
 }
 
 func (s *PluginSuite) SetupTest() {
@@ -132,7 +128,7 @@ func (s *PluginSuite) TearDownTest() {
 
 func (s *PluginSuite) newPlugin() *Plugin {
 	log, hook := test.NewNullLogger()
-	ds := New(log)
+	ds := New(log, true)
 	s.hook = hook
 
 	// When the test suite is executed normally, we test against sqlite3 since
@@ -4990,7 +4986,7 @@ func (s *PluginSuite) TestConfigure() {
 			dbPath := filepath.ToSlash(filepath.Join(s.dir, "test-datastore-configure.sqlite3"))
 
 			log, _ := test.NewNullLogger()
-			p := New(log)
+			p := New(log, true)
 			err := p.Configure(ctx, fmt.Sprintf(`
 				database_type = "sqlite3"
 				log_sql = true

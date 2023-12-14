@@ -64,6 +64,7 @@ type Config struct {
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
 	HealthChecker    health.Checker
+	EventsBasedCache bool
 }
 
 type datastoreRepository struct{ datastore.Repository }
@@ -136,7 +137,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
 	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
-	sqlDataStore, err := loadSQLDataStore(ctx, config.Log, dataStoreConfigs)
+	sqlDataStore, err := loadSQLDataStore(ctx, config, dataStoreConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +173,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	return repo, nil
 }
 
-func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
+func loadSQLDataStore(ctx context.Context, config Config, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
 	switch {
 	case len(datastoreConfigs) == 0:
 		return nil, errors.New("expecting a DataStore plugin")
@@ -189,7 +190,7 @@ func loadSQLDataStore(ctx context.Context, log logrus.FieldLogger, datastoreConf
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
-	ds := ds_sql.New(log.WithField(telemetry.SubsystemName, sqlConfig.Name))
+	ds := ds_sql.New(config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name), config.EventsBasedCache)
 	if err := ds.Configure(ctx, sqlConfig.Data); err != nil {
 		return nil, err
 	}

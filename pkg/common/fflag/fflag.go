@@ -29,10 +29,6 @@ const (
 	// enabled or not. See #1934 for more information.
 	FlagForcedRotation Flag = "forced_rotation"
 
-	// FlagEventsBasedCache controls whether or not to use events to update the cache
-	// with what's changed since the last update.
-	FlagEventsBasedCache = "events_based_cache"
-
 	// FlagReattestToRenew controls whether or not the agent will reattest to
 	// renew when the SVID expires. Some attestors, such as aws_iid, are not
 	// reattestable. In those cases the agent will still renew without reattesting.
@@ -49,10 +45,9 @@ var (
 		mtx    *sync.RWMutex
 	}{
 		flags: map[Flag]bool{
-			FlagForcedRotation:   false,
-			FlagEventsBasedCache: false,
-			FlagReattestToRenew:  false,
-			FlagTestFlag:         false,
+			FlagForcedRotation:  false,
+			FlagReattestToRenew: false,
+			FlagTestFlag:        false,
 		},
 		loaded: false,
 		mtx:    new(sync.RWMutex),
