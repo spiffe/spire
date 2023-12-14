@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -40,40 +38,17 @@ type Storage interface {
 }
 
 func Open(dir string) (Storage, error) {
-	// TODO: stop updating and instead delete legacy files in 1.5.0
-
-	legacySVID, legacySVIDTime, err := loadLegacySVID(dir)
+	data, err := loadData(dir)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 
-	legacyBundle, legacyBundleTime, err := loadLegacyBundle(dir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
-	}
-
-	data, dataTime, err := loadData(dir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
-	}
-
-	storeNow := false
-
-	if !legacySVIDTime.IsZero() && (dataTime.IsZero() || dataTime.Before(legacySVIDTime)) {
-		storeNow = true
-		data.SVID = legacySVID
-	}
-
-	if !legacyBundleTime.IsZero() && (dataTime.IsZero() || dataTime.Before(legacyBundleTime)) {
-		storeNow = true
-		data.Bundle = legacyBundle
-	}
-
-	if storeNow {
-		if err := storeData(dir, data); err != nil {
-			return nil, err
-		}
-	}
+	// TODO: Can be removed after 1.10 release
+	// No point in checking for errors here, we're just
+	// trying to clean up some files that we will no longer
+	// use.
+	os.Remove(legacySVIDPath(dir))
+	os.Remove(legacyBundlePath(dir))
 
 	return &storage{
 		dir:  dir,
@@ -102,10 +77,6 @@ func (s *storage) StoreBundle(bundle []*x509.Certificate) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	if err := storeLegacyBundle(s.dir, bundle); err != nil {
-		return err
-	}
-
 	data := s.data
 	data.Bundle = bundle
 
@@ -131,10 +102,6 @@ func (s *storage) StoreSVID(svid []*x509.Certificate, reattestable bool) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	if err := storeLegacySVID(s.dir, svid); err != nil {
-		return err
-	}
-
 	data := s.data
 	data.SVID = svid
 	data.Reattestable = reattestable
@@ -151,10 +118,6 @@ func (s *storage) DeleteSVID() error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
-	if err := deleteLegacySVID(s.dir); err != nil {
-		return err
-	}
-
 	data := s.data
 	data.SVID = nil
 	data.Reattestable = false
@@ -164,28 +127,6 @@ func (s *storage) DeleteSVID() error {
 
 	s.data = data
 	return nil
-}
-
-func readFile(path string) ([]byte, time.Time, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("failed to open file: %w", err)
-	}
-	defer func() {
-		_ = f.Close()
-	}()
-	fi, err := f.Stat()
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("failed to stat file: %w", err)
-	}
-	data, err := io.ReadAll(f)
-	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("failed to read file: %w", err)
-	}
-	if err := f.Close(); err != nil {
-		return nil, time.Time{}, fmt.Errorf("failed to close file: %w", err)
-	}
-	return data, fi.ModTime(), nil
 }
 
 type storageJSON struct {
@@ -251,20 +192,20 @@ func storeData(dir string, data storageData) error {
 	return nil
 }
 
-func loadData(dir string) (storageData, time.Time, error) {
+func loadData(dir string) (storageData, error) {
 	path := dataPath(dir)
 
-	marshaled, mtime, err := readFile(path)
+	marshaled, err := os.ReadFile(path)
 	if err != nil {
-		return storageData{}, time.Time{}, fmt.Errorf("failed to read data: %w", err)
+		return storageData{}, fmt.Errorf("failed to read data: %w", err)
 	}
 
 	var data storageData
 	if err := json.Unmarshal(marshaled, &data); err != nil {
-		return storageData{}, time.Time{}, fmt.Errorf("failed to unmarshal data: %w", err)
+		return storageData{}, fmt.Errorf("failed to unmarshal data: %w", err)
 	}
 
-	return data, mtime, nil
+	return data, nil
 }
 
 func parseCertificates(certsPEM [][]byte) ([]*x509.Certificate, error) {
@@ -292,4 +233,12 @@ func encodeCertificates(certs []*x509.Certificate) ([][]byte, error) {
 
 func dataPath(dir string) string {
 	return filepath.Join(dir, "agent-data.json")
+}
+
+func legacyBundlePath(dir string) string {
+	return filepath.Join(dir, "bundle.der")
+}
+
+func legacySVIDPath(dir string) string {
+	return filepath.Join(dir, "agent_svid.der")
 }
