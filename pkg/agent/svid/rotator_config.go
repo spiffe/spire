@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -40,6 +41,8 @@ type RotatorConfig struct {
 
 	// Clk is the clock that the rotator will use to create a ticker
 	Clk clock.Clock
+
+	RotationStrategy *rotationutil.RotationStrategy
 }
 
 func NewRotator(c *RotatorConfig) (Rotator, client.Client) {

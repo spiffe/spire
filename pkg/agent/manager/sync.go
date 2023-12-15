@@ -12,7 +12,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -83,7 +82,7 @@ func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, 
 				telemetry.RegistrationID: newEntry.EntryId,
 				telemetry.SPIFFEID:       newEntry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
-		case rotationutil.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
+		case m.c.RotationStrategy.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
 			expiring++
 		case existingEntry != nil && existingEntry.RevisionNumber != newEntry.RevisionNumber:
 			// Registration entry has been updated
@@ -208,6 +207,16 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 		if err != nil {
 			return nil, err
 		}
+
+		svidLifetime := chain[0].NotAfter.Sub(chain[0].NotBefore)
+		if m.c.RotationStrategy.ShouldFallbackX509DefaultRotation(svidLifetime) {
+			log := m.c.Log.WithFields(logrus.Fields{
+				"spiffe_id": chain[0].URIs[0].String(),
+				"entry_id":  entryID,
+			})
+			log.Warn("X509 SVID lifetime isn't long enough to guarantee the availability_target, falling back to the default rotation strategy")
+		}
+
 		byEntryID[entryID] = &cache.X509SVID{
 			Chain:      chain,
 			PrivateKey: privateKey,

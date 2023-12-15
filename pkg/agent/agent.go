@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -228,6 +229,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		SVIDCacheMaxSize:         a.c.X509SVIDCacheMaxSize,
 		SVIDStoreCache:           cache,
 		NodeAttestor:             na,
+		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
 	}
 
 	mgr := manager.New(config)

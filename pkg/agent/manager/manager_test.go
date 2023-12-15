@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
@@ -205,18 +206,19 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	cat.SetKeyManager(km)
 
 	c := &Config{
-		ServerAddr:      api.addr,
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     trustDomain,
-		Storage:         openStorage(t, dir),
-		WorkloadKeyType: workloadkey.ECP256,
-		Bundle:          api.bundle,
-		Metrics:         &telemetry.Blackhole{},
-		Clk:             clk,
-		Catalog:         cat,
-		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		WorkloadKeyType:  workloadkey.ECP256,
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Clk:              clk,
+		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -296,18 +298,19 @@ func TestRotationWithRSAKey(t *testing.T) {
 	cat.SetKeyManager(km)
 
 	c := &Config{
-		ServerAddr:      api.addr,
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     trustDomain,
-		Storage:         openStorage(t, dir),
-		Bundle:          api.bundle,
-		Metrics:         &telemetry.Blackhole{},
-		Clk:             clk,
-		Catalog:         cat,
-		WorkloadKeyType: workloadkey.RSA2048,
-		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.RSA2048,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -404,6 +407,7 @@ func TestSVIDRotation(t *testing.T) {
 		Clk:              clk,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := initializeNewManager(t, c)
@@ -516,6 +520,7 @@ func TestSynchronization(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -656,18 +661,19 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	cat.SetKeyManager(km)
 
 	c := &Config{
-		ServerAddr:      api.addr,
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     trustDomain,
-		Storage:         openStorage(t, dir),
-		Bundle:          api.bundle,
-		Metrics:         &telemetry.Blackhole{},
-		Clk:             clk,
-		Catalog:         cat,
-		WorkloadKeyType: workloadkey.ECP256,
-		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -729,18 +735,19 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	cat.SetKeyManager(km)
 
 	c := &Config{
-		ServerAddr:      api.addr,
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     trustDomain,
-		Storage:         openStorage(t, dir),
-		Bundle:          api.bundle,
-		Metrics:         &telemetry.Blackhole{},
-		Clk:             clk,
-		Catalog:         cat,
-		WorkloadKeyType: workloadkey.ECP256,
-		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -802,6 +809,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -860,6 +868,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDCacheMaxSize: 10,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -1020,11 +1029,12 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 		RotationInterval: time.Hour,
 		// set sync interval to a high value to proof that synchronizer retries sync
 		// with the lower default interval in case 0 entries are returned
-		SyncInterval:    time.Hour,
-		Clk:             clk,
-		Catalog:         cat,
-		WorkloadKeyType: workloadkey.ECP256,
-		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		SyncInterval:     time.Hour,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -1107,11 +1117,12 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 		RotationInterval: time.Hour,
 		// set sync interval to a high value to proof that synchronizer retries sync
 		// with the lower default interval in case 0 entries are returned
-		SyncInterval:    time.Hour,
-		Clk:             clk,
-		Catalog:         cat,
-		WorkloadKeyType: workloadkey.ECP256,
-		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		SyncInterval:     time.Hour,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -1175,6 +1186,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -1268,6 +1280,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -1317,18 +1330,19 @@ func TestFetchJWTSVID(t *testing.T) {
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 
 	c := &Config{
-		ServerAddr:      api.addr,
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     trustDomain,
-		Storage:         openStorage(t, dir),
-		Bundle:          api.bundle,
-		Metrics:         &telemetry.Blackhole{},
-		Catalog:         cat,
-		Clk:             clk,
-		WorkloadKeyType: workloadkey.ECP256,
-		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Catalog:          cat,
+		Clk:              clk,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -1439,18 +1453,19 @@ func TestStorableSVIDsSync(t *testing.T) {
 	cat.SetKeyManager(fakeagentkeymanager.New(t, dir))
 
 	c := &Config{
-		ServerAddr:      api.addr,
-		SVID:            baseSVID,
-		SVIDKey:         baseSVIDKey,
-		Log:             testLogger,
-		TrustDomain:     trustDomain,
-		Storage:         openStorage(t, dir),
-		Bundle:          api.bundle,
-		Metrics:         &telemetry.Blackhole{},
-		Clk:             clk,
-		Catalog:         cat,
-		WorkloadKeyType: workloadkey.ECP256,
-		SVIDStoreCache:  storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)

@@ -261,9 +261,8 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 	}
 
 	now := m.clk.Now()
-
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
-	if ok && !rotationutil.JWTSVIDExpiresSoon(cachedSVID, now) {
+	if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
 		return cachedSVID, nil
 	}
 

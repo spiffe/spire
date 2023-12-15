@@ -55,6 +55,8 @@ const (
 
 	bundleFormatPEM    = "pem"
 	bundleFormatSPIFFE = "spiffe"
+
+	minimumAvailabilityTarget = 24 * time.Hour
 )
 
 // Config contains all available configurables, arranged by section
@@ -86,6 +88,7 @@ type agentConfig struct {
 	TrustDomain                   string    `hcl:"trust_domain"`
 	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
 	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
+	AvailabilityTarget            string    `hcl:"availability_target"`
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
@@ -565,6 +568,17 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
+
+	if c.Agent.AvailabilityTarget != "" {
+		t, err := time.ParseDuration(c.Agent.AvailabilityTarget)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse availability_target: %w", err)
+		}
+		if t < minimumAvailabilityTarget {
+			return nil, fmt.Errorf("availability_target must be at least %s", minimumAvailabilityTarget.String())
+		}
+		ac.AvailabilityTarget = t
+	}
 
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
 		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
