@@ -10,7 +10,6 @@ import (
 	"math/big"
 	"net/http"
 	"os"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -699,10 +698,6 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	}
 
 	if config.KeyIdentifierValue != "" {
-		re := regexp.MustCompile(".*[^A-z0-9/_-].*")
-		if re.MatchString(config.KeyIdentifierValue) {
-			return nil, status.Error(codes.InvalidArgument, "Key identifier must contain only alphanumeric characters, forward slashes (/), underscores (_), and dashes (-)")
-		}
 		if len(config.KeyIdentifierValue) > 256 {
 			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 256 characters")
 		}

@@ -139,12 +139,6 @@ func TestConfigure(t *testing.T) {
 			code:             codes.InvalidArgument,
 		},
 		{
-			name:             "key metadata value invalid character",
-			configureRequest: configureRequestWithVars(KeyIdentifierValue, "@key_identifier_value@", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
-			err:              "Key identifier must contain only alphanumeric characters, forward slashes (/), underscores (_), and dashes (-)",
-			code:             codes.InvalidArgument,
-		},
-		{
 			name:             "key metadata value too long",
 			configureRequest: configureRequestWithVars(KeyIdentifierValue, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
 			err:              "Key identifier must not be longer than 256 characters",
