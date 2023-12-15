@@ -13,7 +13,7 @@ The plugin accepts the following configuration options:
 | region               | string | yes                                   | The region where the keys will be stored                                                   |                                                         |
 | key_metadata_file    | string | yes                                   | A file path location where information about generated keys will be persisted (deprecated) |                                                         |
 | key_identifier_file  | string | yes                                   | A file path location where information about generated keys will be persisted              |                                                         |
-| key_identifier_value | string | yes                                   | A static identifier for the SPIRE server instance (used instead of `key_metadata_file`)    |                                                         |
+| key_identifier_value | string | Required if key_identifier_file is not set | A static identifier for the SPIRE server instance (used instead of `key_metadata_file`)    |                                                         |
 | key_policy_file      | string | no                                    | A file path location to a custom key policy in JSON format                                 | ""                                                      |
 
 ### Alias and Key Management
