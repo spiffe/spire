@@ -7,6 +7,9 @@ updates:
     time: "09:00"
     timezone: "America/Los_Angeles"
   groups:
+    actions:
+      patterns:
+        - "github.com/actions/*"
     aws-sdk:
       patterns:
         - "github.com/aws/aws-sdk-go-v2/*"
