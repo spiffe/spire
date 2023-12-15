@@ -831,8 +831,8 @@ github.com/go-openapi/swag v0.22.4 h1:QLMzNJnMGPRNDCbySlcj1x01tzU8/9LTTL9hZZZogB
 github.com/go-openapi/swag v0.22.4/go.mod h1:UzaqsxGiab7freDnrUUra0MwWfN/q7tE4j+VcZ0yl14=
 github.com/go-openapi/validate v0.22.3 h1:KxG9mu5HBRYbecRb37KRCihvGGtND2aXziBAv0NNfyI=
 github.com/go-openapi/validate v0.22.3/go.mod h1:kVxh31KbfsxU8ZyoHaDbLBWU5CnMdqBUEtadQ2G4d5M=
-github.com/go-rod/rod v0.114.4 h1:FpkNFukjCuZLwnoLs+S9aCL95o/EMec6M+41UmvQay8=
-github.com/go-rod/rod v0.114.4/go.mod h1:aiedSEFg5DwG/fnNbUOTPMTTWX3MRj6vIs/a684Mthw=
+github.com/go-rod/rod v0.114.5 h1:1x6oqnslwFVuXJbJifgxspJUd3O4ntaGhRLHt+4Er9c=
+github.com/go-rod/rod v0.114.5/go.mod h1:aiedSEFg5DwG/fnNbUOTPMTTWX3MRj6vIs/a684Mthw=
 github.com/go-sql-driver/mysql v1.5.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
 github.com/go-sql-driver/mysql v1.7.1 h1:lUIinVbN1DY0xBg0eMOzmmtGoHwWBbvnWubQUrtU8EI=
 github.com/go-sql-driver/mysql v1.7.1/go.mod h1:OXbVy3sEdcQ2Doequ6Z5BW6fXNQTmx+9S1MCJN5yJMI=
@@ -1360,8 +1360,8 @@ github.com/sigstore/fulcio v1.4.3 h1:9JcUCZjjVhRF9fmhVuz6i1RyhCc/EGCD7MOl+iqCJLQ
 github.com/sigstore/fulcio v1.4.3/go.mod h1:BQPWo7cfxmJwgaHlphUHUpFkp5+YxeJes82oo39m5og=
 github.com/sigstore/rekor v1.3.4 h1:RGIia1iOZU7fOiiP2UY/WFYhhp50S5aUm7YrM8aiA6E=
 github.com/sigstore/rekor v1.3.4/go.mod h1:1GubPVO2yO+K0m0wt/3SHFqnilr/hWbsjSOe7Vzxrlg=
-github.com/sigstore/sigstore v1.7.5 h1:ij55dBhLwjICmLTBJZm7SqoQLdsu/oowDanACcJNs48=
-github.com/sigstore/sigstore v1.7.5/go.mod h1:9OCmYWhzuq/G4e1cy9m297tuMRJ1LExyrXY3ZC3Zt/s=
+github.com/sigstore/sigstore v1.7.6 h1:zB0woXx+3Bp7dk7AjklHF1VhXBdCs84VXkZbp0IHLv8=
+github.com/sigstore/sigstore v1.7.6/go.mod h1:FJE+NpEZIs4QKqZl4B2RtaVLVDcDtocAwTiNlexeBkY=
 github.com/sigstore/sigstore/pkg/signature/kms/aws v1.7.5 h1:ilufPp36exfpivctI3ElU4ZTckP3eVu6RxYebBb6u+M=
 github.com/sigstore/sigstore/pkg/signature/kms/aws v1.7.5/go.mod h1:121n8nBnuXbcI6K0hIBo/0EMYiyXqGVzbIYd0rV0ZWw=
 github.com/sigstore/sigstore/pkg/signature/kms/azure v1.7.5 h1:gLdNJJo+xMf7+IeFRlyA/Pjavndo9rivmf5ioYeuPmM=
