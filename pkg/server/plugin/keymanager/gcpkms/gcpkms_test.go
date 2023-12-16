@@ -266,6 +266,24 @@ func TestConfigure(t *testing.T) {
 			expectCode:       codes.InvalidArgument,
 		},
 		{
+			name:             "key metadata value invalid character",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"key_identifier_value@","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
+			expectMsg:        "Key identifier must contain only alphanumeric characters, underscores (_), and dashes (-)",
+			expectCode:       codes.InvalidArgument,
+		},
+		{
+			name:             "key metadata value too long",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
+			expectMsg:        "Key identifier must not be longer than 63 characters",
+			expectCode:       codes.InvalidArgument,
+		},
+		{
+			name:             "key metadata value starts with non alphabetic character",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"0_key_identifier_value","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
+			expectMsg:        "Key identifier must start with a letter character",
+			expectCode:       codes.InvalidArgument,
+		},
+		{
 			name: "custom policy file does not exist",
 			config: &Config{
 				KeyMetadataFile: createKeyIdentifierFile(t, validServerID),
@@ -1737,7 +1755,8 @@ func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration: config,
+		HclConfiguration:  config,
+		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
 	}
 }
 

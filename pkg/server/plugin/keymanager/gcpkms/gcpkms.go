@@ -11,9 +11,12 @@ import (
 	"fmt"
 	"hash/crc32"
 	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"cloud.google.com/go/iam"
 	"cloud.google.com/go/iam/apiv1/iampb"
@@ -1126,8 +1129,30 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	if config.KeyMetadataFile != "" && config.KeyIdentifierFile != "" {
 		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'")
 	}
+	if config.KeyIdentifierValue != "" {
+		if !validateCharacters(config.KeyIdentifierValue) {
+			return nil, status.Error(codes.InvalidArgument, "Key identifier must contain only alphanumeric characters, underscores (_), and dashes (-)")
+		}
+		if !unicode.IsLetter(rune(config.KeyIdentifierValue[0])) {
+			return nil, status.Error(codes.InvalidArgument, "Key identifier must start with a letter character")
+		}
+		if len(config.KeyIdentifierValue) > 63 {
+			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 63 characters")
+		}
+	}
 
 	return config, nil
+}
+
+func validateCharacters(str string) bool {
+	re := regexp.MustCompile("[0-9_-]")
+	for _, r := range str {
+		s := strconv.QuoteRune(r)
+		if !unicode.IsLetter(r) && !re.MatchString(s) {
+			return false
+		}
+	}
+	return true
 }
 
 // parsePolicyFile parses a file containing iam.Policy3 data in JSON format.
