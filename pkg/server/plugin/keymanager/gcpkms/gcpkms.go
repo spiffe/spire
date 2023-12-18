@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"hash/crc32"
 	"os"
-	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1131,10 +1129,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 	}
 	if config.KeyIdentifierValue != "" {
 		if !validateCharacters(config.KeyIdentifierValue) {
-			return nil, status.Error(codes.InvalidArgument, "Key identifier must contain only alphanumeric characters, underscores (_), and dashes (-)")
-		}
-		if !unicode.IsLetter(rune(config.KeyIdentifierValue[0])) {
-			return nil, status.Error(codes.InvalidArgument, "Key identifier must start with a letter character")
+			return nil, status.Error(codes.InvalidArgument, "Key identifier must contain only letters, numbers, underscores (_), and dashes (-)")
 		}
 		if len(config.KeyIdentifierValue) > 63 {
 			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 63 characters")
@@ -1145,10 +1140,8 @@ func parseAndValidateConfig(c string) (*Config, error) {
 }
 
 func validateCharacters(str string) bool {
-	re := regexp.MustCompile("[0-9_-]")
 	for _, r := range str {
-		s := strconv.QuoteRune(r)
-		if !unicode.IsLetter(r) && !re.MatchString(s) {
+		if !unicode.IsLower(r) && unicode.IsNumber(r) && r != '-' && r != '_' {
 			return false
 		}
 	}
