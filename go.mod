@@ -65,7 +65,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.23.11
 	github.com/sigstore/cosign/v2 v2.2.1
 	github.com/sigstore/rekor v1.3.4
-	github.com/sigstore/sigstore v1.7.5
+	github.com/sigstore/sigstore v1.7.6
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spiffe/go-spiffe/v2 v2.1.6
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20231107161112-ba57e0e943a2
