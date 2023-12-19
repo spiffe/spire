@@ -1141,7 +1141,7 @@ func parseAndValidateConfig(c string) (*Config, error) {
 
 func validateCharacters(str string) bool {
 	for _, r := range str {
-		if !unicode.IsLower(r) && unicode.IsNumber(r) && r != '-' && r != '_' {
+		if !unicode.IsLower(r) && !unicode.IsNumber(r) && r != '-' && r != '_' {
 			return false
 		}
 	}
