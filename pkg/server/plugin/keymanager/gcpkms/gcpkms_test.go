@@ -273,7 +273,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "key metadata value too long",
-			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
 			expectMsg:        "Key identifier must not be longer than 63 characters",
 			expectCode:       codes.InvalidArgument,
 		},
