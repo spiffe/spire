@@ -19,6 +19,7 @@ func (a PeerTrackerAttestor) Attest(ctx context.Context) ([]*common.Selector, er
 	if !ok {
 		return nil, status.Error(codes.Internal, "peer tracker watcher missing from context")
 	}
+	defer watcher.Close()
 
 	selectors := a.Attestor.Attest(ctx, int(watcher.PID()))
 

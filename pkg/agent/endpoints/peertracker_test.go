@@ -23,15 +23,19 @@ func TestPeerTrackerAttestor(t *testing.T) {
 	})
 
 	t.Run("fails if peer is not alive", func(t *testing.T) {
-		selectors, err := attestor.Attest(WithFakeWatcher(false))
+		watcher := &FakeWatcher{alive: false}
+		selectors, err := attestor.Attest(WithFakeWatcher(watcher))
 		spiretest.AssertGRPCStatus(t, err, codes.Unauthenticated, "could not verify existence of the original caller: dead")
 		assert.Empty(t, selectors)
+		assert.True(t, watcher.closed)
 	})
 
 	t.Run("succeeds if peer is alive", func(t *testing.T) {
-		selectors, err := attestor.Attest(WithFakeWatcher(true))
+		watcher := &FakeWatcher{alive: true}
+		selectors, err := attestor.Attest(WithFakeWatcher(watcher))
 		assert.NoError(t, err)
 		assert.Equal(t, []*common.Selector{{Type: "Type", Value: "Value"}}, selectors)
+		assert.True(t, watcher.closed)
 	})
 }
 
@@ -44,23 +48,26 @@ func (a FakeAttestor) Attest(_ context.Context, pid int) []*common.Selector {
 	return nil
 }
 
-func WithFakeWatcher(alive bool) context.Context {
+func WithFakeWatcher(watcher *FakeWatcher) context.Context {
 	return peer.NewContext(context.Background(), &peer.Peer{
 		AuthInfo: peertracker.AuthInfo{
-			Watcher: FakeWatcher(alive),
+			Watcher: watcher,
 		},
 	})
 }
 
-type FakeWatcher bool
+type FakeWatcher struct {
+	alive  bool
+	closed bool
+}
 
-func (w FakeWatcher) Close() {}
+func (w *FakeWatcher) Close() { w.closed = true }
 
-func (w FakeWatcher) IsAlive() error {
-	if !w {
+func (w *FakeWatcher) IsAlive() error {
+	if !w.alive {
 		return errors.New("dead")
 	}
 	return nil
 }
 
-func (w FakeWatcher) PID() int32 { return int32(os.Getpid()) }
+func (w *FakeWatcher) PID() int32 { return int32(os.Getpid()) }
