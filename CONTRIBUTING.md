@@ -233,13 +233,25 @@ implementation can easily serve the needs for an entire suite of tests and
 the behavior is in a centralized location when it needs to be updated. Fakes
 are also less inclined to be impacted by changes to usage patterns.
 
+## Support for [direnv][direnv_link]
+
+We have committed a basic `.envrc` for developers who use [direnv][direnv_link].
+Enable it with `direnv allow`. It will build the managed `go` sdk, set
+`GOROOT` and `PATH` to use the managed go tool, and enforce the `pre-commit`
+git hook described below. Additionally, if you want to further customize your
+SPIRE development environment, add a `.envrc.local` at the top level of the
+worktree with your customizations. The `.envrc.local` is gitignored.
+
+
+[direnv_link]: https://direnv.net/
+
 ## Git hooks
 
 We have checked in a pre-commit hook which enforces `go fmt` styling. Please install it
 before sending a pull request. From the project root:
 
 ```shell
-$ ln -s .githooks/pre-commit .git/hooks/pre-commit
+$ pushd "$(git rev-parse --show-toplevel)/.git/hooks" && ln -sf "../../.githooks/pre-commit" && popd
 ```
 
 ## Reporting security vulnerabilities
