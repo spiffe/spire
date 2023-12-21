@@ -35,7 +35,7 @@ func TestPeerTrackerAttestor(t *testing.T) {
 		selectors, err := attestor.Attest(WithFakeWatcher(watcher))
 		assert.NoError(t, err)
 		assert.Equal(t, []*common.Selector{{Type: "Type", Value: "Value"}}, selectors)
-		assert.True(t, watcher.closed)
+		assert.False(t, watcher.closed)
 	})
 }
 
