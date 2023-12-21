@@ -25,6 +25,8 @@ func (a PeerTrackerAttestor) Attest(ctx context.Context) ([]*common.Selector, er
 	// Ensure that the original caller is still alive so that we know we didn't
 	// attest some other process that happened to be assigned the original PID
 	if err := watcher.IsAlive(); err != nil {
+		// close the watcher to prevent future IsAlive success for this PID
+		// and to free resources on linux and windows
 		watcher.Close()
 		return nil, status.Errorf(codes.Unauthenticated, "could not verify existence of the original caller: %v", err)
 	}
