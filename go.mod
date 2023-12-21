@@ -25,7 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.25.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.141.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.28.1
-	github.com/aws/aws-sdk-go-v2/service/kms v1.27.1
+	github.com/aws/aws-sdk-go-v2/service/kms v1.27.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.47.1
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.25.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.26.5
@@ -63,7 +63,7 @@ require (
 	github.com/open-policy-agent/opa v0.59.0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/shirou/gopsutil/v3 v3.23.11
-	github.com/sigstore/cosign/v2 v2.2.1
+	github.com/sigstore/cosign/v2 v2.2.2
 	github.com/sigstore/rekor v1.3.4
 	github.com/sigstore/sigstore v1.7.6
 	github.com/sirupsen/logrus v1.9.3
@@ -187,7 +187,7 @@ require (
 	github.com/go-openapi/loads v0.21.2 // indirect
 	github.com/go-openapi/runtime v0.26.0 // indirect
 	github.com/go-openapi/spec v0.20.11 // indirect
-	github.com/go-openapi/strfmt v0.21.7 // indirect
+	github.com/go-openapi/strfmt v0.21.8 // indirect
 	github.com/go-openapi/swag v0.22.4 // indirect
 	github.com/go-openapi/validate v0.22.3 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
@@ -241,7 +241,7 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/miekg/pkcs11 v1.1.1 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -301,7 +301,7 @@ require (
 	github.com/transparency-dev/merkle v0.0.2 // indirect
 	github.com/twmb/murmur3 v1.1.6 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
-	github.com/xanzy/go-gitlab v0.93.2 // indirect
+	github.com/xanzy/go-gitlab v0.94.0 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
@@ -318,12 +318,12 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
+	golang.org/x/exp v0.0.0-20231108232855-2478ac86f678 // indirect
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/oauth2 v0.15.0 // indirect
 	golang.org/x/term v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
-	golang.org/x/tools v0.14.0 // indirect
+	golang.org/x/tools v0.15.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20231120223509-83a465c0220f // indirect
