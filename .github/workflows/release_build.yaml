@@ -139,9 +139,9 @@ jobs:
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive artifacts
-        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v3
+        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v4
         with:
-          name: binaries
+          name: binaries-linux
           path: ./artifacts/
 
   images:
@@ -174,7 +174,7 @@ jobs:
       - name: Export images
         run: tar -czvf images.tar.gz *-image.tar
       - name: Archive images
-        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v3
+        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v4
         with:
           name: images
           path: images.tar.gz
@@ -182,7 +182,7 @@ jobs:
   images-windows:
     name: images (windows)
     runs-on: windows-2022
-    needs: artifact-windows
+    needs: artifacts-windows
 
     permissions:
       contents: read
@@ -190,11 +190,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - name: Download artifacts
-        uses: actions/download-artifact@7a1cd3216ca9260cd8022db641d960b1db4d1be4 # v4.0.0
+      - name: Load cached executables
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
-          name: bin-windows
           path: ./bin/
+          key: ${{ runner.os }}-executables-${{ hashFiles('**/*.exe') }}
       - name: Build images
         run: make images-windows
       - name: Export images
@@ -202,7 +202,7 @@ jobs:
           docker save spire-server-windows:latest-local spire-agent-windows:latest-local oidc-discovery-provider-windows:latest-local -o images-windows.tar
           gzip images-windows.tar
       - name: Archive images
-        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v3
+        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v4
         with:
           name: images-windows
           path: images-windows.tar.gz
@@ -497,8 +497,8 @@ jobs:
       - name: Run unit tests
         run: ./.github/workflows/scripts/run_unit_tests.sh
 
-  artifact-windows:
-    name: artifact (windows)
+  artifacts-windows:
+    name: artifacts (windows)
     runs-on: windows-2022
     needs: cache-deps-windows
 
@@ -536,31 +536,37 @@ jobs:
         run: make build
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
-      - name: Archive binaries
-        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v3
+      - name: Setup executables cache
+        uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
         with:
-          name: bin-windows
           path: ./bin/
+          key: ${{ runner.os }}-executables-${{ hashFiles('**/*.exe') }}
       - name: Archive artifacts
-        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v3
+        uses: actions/upload-artifact@c7d193f32edcb7bfad88892161225aeda64e9392 # v4
         with:
-          name: binaries
+          name: binaries-windows
           path: ./artifacts/
 
   publish-artifacts:
     runs-on: ubuntu-20.04
-    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, lint-windows, unit-test-windows, artifact-windows, integration-windows]
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, lint-windows, unit-test-windows, artifacts-windows, integration-windows]
     permissions:
       contents: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - name: Download archived artifacts
+      - name: Download archived Linux artifacts
         uses: actions/download-artifact@7a1cd3216ca9260cd8022db641d960b1db4d1be4 # v4.0.0
         with:
-          name: binaries
+          name: binaries-linux
           path: ./artifacts/
+      - name: Download archived Windows artifacts
+        uses: actions/download-artifact@7a1cd3216ca9260cd8022db641d960b1db4d1be4 # v4.0.0
+        with:
+          name: binaries-windows
+          path: ./artifacts/
+
       - name: Create Release
         env:
           # GH_REPO is required for older releases of `gh`. Until we're
@@ -575,7 +581,7 @@ jobs:
 
   publish-images:
     runs-on: ubuntu-20.04
-    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, lint-windows, unit-test-windows, artifact-windows, integration-windows]
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, lint-windows, unit-test-windows, artifacts-windows, integration-windows]
     permissions:
       contents: read
       id-token: write
