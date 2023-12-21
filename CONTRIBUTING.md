@@ -242,7 +242,6 @@ git hook described below. Additionally, if you want to further customize your
 SPIRE development environment, add a `.envrc.local` at the top level of the
 worktree with your customizations. The `.envrc.local` is gitignored.
 
-
 [direnv_link]: https://direnv.net/
 
 ## Git hooks
