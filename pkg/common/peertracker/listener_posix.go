@@ -2,7 +2,12 @@
 
 package peertracker
 
-import "net"
+import (
+	"net"
+	"syscall"
+
+	"golang.org/x/net/netutil"
+)
 
 type ListenerFactoryOS struct {
 	NewUnixListener func(network string, laddr *net.UnixAddr) (*net.UnixListener, error)
@@ -26,6 +31,10 @@ func (lf *ListenerFactory) listenUnix(network string, laddr *net.UnixAddr) (*Lis
 	if err != nil {
 		return nil, err
 	}
+	limitedListener, err := lf.limitListenerBelowRlimit(l)
+	if err != nil {
+		return nil, err
+	}
 
 	tracker, err := lf.NewTracker(lf.Log)
 	if err != nil {
@@ -34,8 +43,24 @@ func (lf *ListenerFactory) listenUnix(network string, laddr *net.UnixAddr) (*Lis
 	}
 
 	return &Listener{
-		l:       l,
+		l:       limitedListener,
 		Tracker: tracker,
 		log:     lf.Log,
 	}, nil
+}
+
+func (lf *ListenerFactory) limitListenerBelowRlimit(l net.Listener) (net.Listener, error) {
+	var (
+		concurrency   int
+		rlimit        syscall.Rlimit
+		rlimitPercent uint64 = 99
+	)
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &rlimit); err != nil {
+		return l, err
+	}
+	concurrency = int(rlimit.Cur * rlimitPercent / 100)
+	// FIXME: placeholder log message needs wordsmithing
+	lf.Log.Infof("rlimit: %d concurrency: %d", rlimit.Cur, int(concurrency))
+
+	return netutil.LimitListener(l, int(concurrency)), nil
 }

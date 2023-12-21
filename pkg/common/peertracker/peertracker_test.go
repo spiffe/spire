@@ -141,14 +141,18 @@ func TestExitDetection(t *testing.T) {
 		require.Equal(t, "Caller exit detected via kevent notification", secondEntry.Message)
 	case "linux":
 		require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller exit suspected due to failed readdirent")
-		require.Len(t, test.logHook.Entries, 2)
+		require.Len(t, test.logHook.Entries, 3)
 		firstEntry := test.logHook.Entries[0]
-		require.Equal(t, logrus.WarnLevel, firstEntry.Level)
-		require.Equal(t, "Caller is no longer being watched", firstEntry.Message)
+		require.Equal(t, logrus.InfoLevel, firstEntry.Level)
+		require.Contains(t, firstEntry.Message, "rlimit: ")
+		require.Contains(t, firstEntry.Message, "concurrency: ")
 		secondEntry := test.logHook.Entries[1]
 		require.Equal(t, logrus.WarnLevel, secondEntry.Level)
-		require.Equal(t, "Caller exit suspected due to failed readdirent", secondEntry.Message)
-		requireCallerExitFailedDirent(t, secondEntry.Data["error"])
+		require.Equal(t, "Caller is no longer being watched", secondEntry.Message)
+		thirdEntry := test.logHook.Entries[2]
+		require.Equal(t, logrus.WarnLevel, thirdEntry.Level)
+		require.Equal(t, "Caller exit suspected due to failed readdirent", thirdEntry.Message)
+		requireCallerExitFailedDirent(t, thirdEntry.Data["error"])
 	case "windows":
 		require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller exit detected: exit code: 0")
 		require.Len(t, test.logHook.Entries, 2)

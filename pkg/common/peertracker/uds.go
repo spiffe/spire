@@ -2,12 +2,14 @@ package peertracker
 
 import (
 	"net"
+
+	"golang.org/x/net/netutil"
 )
 
 func CallerFromUDSConn(conn net.Conn) (CallerInfo, error) {
 	var info CallerInfo
 
-	unixConn, ok := conn.(*net.UnixConn)
+	unixConn, ok := conn.(*netutil.LimitListenerConn).Conn.(*net.UnixConn)
 	if !ok {
 		return info, ErrInvalidConnection
 	}
