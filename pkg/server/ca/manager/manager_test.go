@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/credvalidator"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -39,6 +40,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -591,6 +593,130 @@ func TestPruneBundle(t *testing.T) {
 	require.EqualError(t, test.m.PruneBundle(context.Background()), "unable to prune bundle: rpc error: code = Unknown desc = prune failed: would prune all certificates")
 	test.requireBundleRootCAs(ctx, t, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
+}
+
+func TestPruneCAJournals(t *testing.T) {
+	test := setupTest(t)
+	test.initSelfSignedManager()
+
+	type testJournal struct {
+		Journal
+		shouldBePruned bool
+	}
+
+	now := test.clock.Now().Unix()
+	tomorrow := test.clock.Now().Add(time.Hour * 24).Unix()
+	beforeThreshold := test.clock.Now().Add(-safetyThresholdCAJournals).Add(-time.Minute).Unix()
+
+	jc := &journalConfig{
+		cat: test.cat,
+		log: test.log,
+	}
+	testCases := []struct {
+		name               string
+		entries            *journal.Entries
+		expectedCAJournals []*datastore.CAJournal
+		testJournals       []*testJournal
+	}{
+		{
+			name: "no journals with CAs expired before the threshold - no journals to be pruned",
+			testJournals: []*testJournal{
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "some journals with CAs expired before the threshold, but not all - no journals to be pruned",
+			testJournals: []*testJournal{
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "all CAs expired before the threshold in a journal - one journal to be pruned",
+			testJournals: []*testJournal{
+				{
+					shouldBePruned: true,
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
+						},
+					},
+				},
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			// Have a fresh data store in each test case
+			test.ds = fakedatastore.New(t)
+			test.m.c.Catalog.(*fakeservercatalog.Catalog).SetDataStore(test.ds)
+
+			for _, j := range testCase.testJournals {
+				entriesBytes, err := proto.Marshal(j.entries)
+				require.NoError(t, err)
+				caJournal, err := test.ds.SetCAJournal(ctx, &datastore.CAJournal{
+					ActiveX509AuthorityID: "",
+					Data:                  entriesBytes,
+				})
+				require.NoError(t, err)
+
+				if !j.shouldBePruned {
+					testCase.expectedCAJournals = append(testCase.expectedCAJournals, caJournal)
+				}
+			}
+
+			require.NoError(t, test.m.PruneCAJournals(ctx))
+			caJournals, err := test.ds.ListCAJournalsForTesting(ctx)
+			require.NoError(t, err)
+			require.ElementsMatch(t, testCase.expectedCAJournals, caJournals)
+		})
+	}
 }
 
 func TestRunNotifiesBundleLoaded(t *testing.T) {

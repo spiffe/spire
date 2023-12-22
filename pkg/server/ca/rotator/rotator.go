@@ -8,7 +8,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
@@ -87,10 +86,7 @@ func (r *Rotator) Run(ctx context.Context) error {
 			return r.pruneBundleEvery(ctx, pruneBundleInterval)
 		},
 		func(ctx context.Context) error {
-			if fflag.IsSet(fflag.FlagCAJournalInDatastore) {
-				return r.pruneCAJournalsEvery(ctx, pruneCAJournalsInterval)
-			}
-			return nil
+			return r.pruneCAJournalsEvery(ctx, pruneCAJournalsInterval)
 		},
 		func(ctx context.Context) error {
 			// notifyOnBundleUpdate does not fail but rather logs any errors

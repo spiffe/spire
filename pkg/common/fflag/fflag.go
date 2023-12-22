@@ -38,10 +38,6 @@ const (
 	// reattestable. In those cases the agent will still renew without reattesting.
 	FlagReattestToRenew Flag = "reattest_to_renew"
 
-	// FlagCAJournalInDatastore controls whether or not to store the CA journal
-	// of the server in the datastore.
-	FlagCAJournalInDatastore = "ca_journal_in_datastore"
-
 	// FlagTestFlag is defined purely for testing purposes.
 	FlagTestFlag Flag = "i_am_a_test_flag"
 )
@@ -53,11 +49,10 @@ var (
 		mtx    *sync.RWMutex
 	}{
 		flags: map[Flag]bool{
-			FlagForcedRotation:       false,
-			FlagEventsBasedCache:     false,
-			FlagReattestToRenew:      false,
-			FlagCAJournalInDatastore: false,
-			FlagTestFlag:             false,
+			FlagForcedRotation:   false,
+			FlagEventsBasedCache: false,
+			FlagReattestToRenew:  false,
+			FlagTestFlag:         false,
 		},
 		loaded: false,
 		mtx:    new(sync.RWMutex),

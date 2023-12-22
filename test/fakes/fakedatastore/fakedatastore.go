@@ -376,6 +376,13 @@ func (s *DataStore) FetchCAJournal(ctx context.Context, activeX509AuthorityID st
 	return s.ds.FetchCAJournal(ctx, activeX509AuthorityID)
 }
 
+func (s *DataStore) ListCAJournalsForTesting(ctx context.Context) ([]*datastore.CAJournal, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.ListCAJournalsForTesting(ctx)
+}
+
 func (s *DataStore) SetCAJournal(ctx context.Context, caJournal *datastore.CAJournal) (*datastore.CAJournal, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err

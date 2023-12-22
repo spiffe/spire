@@ -21,3 +21,9 @@ func StartFetchCAJournal(m telemetry.Metrics) *telemetry.CallCounter {
 func StartPruneCAJournalsCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.CAJournal, telemetry.Prune)
 }
+
+// StartListCAJournalsForTesting return metric
+// for server's datastore, on listing CA journals for testing.
+func StartListCAJournalsForTesting(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.CAJournal, telemetry.List)
+}

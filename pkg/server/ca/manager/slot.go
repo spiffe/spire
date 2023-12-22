@@ -69,7 +69,7 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		return nil, nil, err
 	}
 
-	entries := loadedJournal.Entries()
+	entries := loadedJournal.getEntries()
 
 	log.WithFields(logrus.Fields{
 		telemetry.X509CAs: len(entries.X509CAs),
@@ -116,7 +116,7 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 // - If all the statuses are unknown, the two most recent slots are returned.
 // - Active entry is returned on current slot if set.
 // - The most recent Prepared or Old entry is returned on next slot.
-func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*x509CAEntry) (*x509CASlot, *x509CASlot, error) {
+func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*journal.X509CAEntry) (*x509CASlot, *x509CASlot, error) {
 	var current *x509CASlot
 	var next *x509CASlot
 
@@ -266,7 +266,7 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 // If we find such a discrepancy, removing the entry from the journal prior to beginning signing
 // operations prevents us from using a signing key that consumers may not be able to validate.
 // Instead, we'll rotate into a new one.
-func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*jwtKeyEntry, []*x509CAEntry, error) {
+func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*journal.JWTKeyEntry, []*journal.X509CAEntry, error) {
 	bundle, err := s.fetchOptionalBundle(ctx)
 
 	if err != nil {
@@ -277,7 +277,7 @@ func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.
 		return entries.JwtKeys, entries.X509CAs, nil
 	}
 
-	filteredEntriesJwtKeys := []*jwtKeyEntry{}
+	filteredEntriesJwtKeys := []*journal.JWTKeyEntry{}
 
 	for _, entry := range entries.GetJwtKeys() {
 		if containsJwtSigningKeyID(bundle.JwtSigningKeys, entry.Kid) {
@@ -292,7 +292,7 @@ func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.
 		return filteredEntriesJwtKeys, entries.X509CAs, nil
 	}
 
-	filteredEntriesX509CAs := []*x509CAEntry{}
+	filteredEntriesX509CAs := []*journal.X509CAEntry{}
 
 	for _, entry := range entries.GetX509CAs() {
 		if containsX509CA(bundle.RootCas, entry.Certificate) {
@@ -313,7 +313,7 @@ func (s *SlotLoader) fetchOptionalBundle(ctx context.Context) (*common.Bundle, e
 	return bundle, nil
 }
 
-func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *x509CAEntry) (*x509CASlot, error) {
+func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *journal.X509CAEntry) (*x509CASlot, error) {
 	slot, badReason, err := s.loadX509CASlotFromEntry(ctx, entry)
 	if err != nil {
 		s.Log.WithError(err).WithFields(logrus.Fields{
@@ -336,7 +336,7 @@ func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *x509
 	return slot, nil
 }
 
-func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *x509CAEntry) (*x509CASlot, string, error) {
+func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal.X509CAEntry) (*x509CASlot, string, error) {
 	if entry.SlotId == "" {
 		return nil, "no slot id", nil
 	}
@@ -382,7 +382,7 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *x509CAE
 	}, "", nil
 }
 
-func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *jwtKeyEntry) (*jwtKeySlot, error) {
+func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *journal.JWTKeyEntry) (*jwtKeySlot, error) {
 	slot, badReason, err := s.loadJWTKeySlotFromEntry(ctx, entry)
 	if err != nil {
 		s.Log.WithError(err).WithFields(logrus.Fields{
@@ -405,7 +405,7 @@ func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *jwtK
 	return slot, nil
 }
 
-func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *jwtKeyEntry) (*jwtKeySlot, string, error) {
+func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *journal.JWTKeyEntry) (*jwtKeySlot, string, error) {
 	if entry.SlotId == "" {
 		return nil, "no slot id", nil
 	}

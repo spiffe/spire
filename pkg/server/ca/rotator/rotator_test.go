@@ -8,7 +8,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/proto/private/server/journal"
@@ -446,13 +445,13 @@ func (f *fakeCAManager) PrepareX509CA(context.Context) error {
 	return nil
 }
 
-func (f *fakeCAManager) ActivateX509CA(_ context.Context) {
+func (f *fakeCAManager) ActivateX509CA(context.Context) {
 	f.cleanX509CACh()
 	f.currentX509CASlot.isActive = true
 	f.x509CACh <- struct{}{}
 }
 
-func (f *fakeCAManager) RotateX509CA(_ context.Context) {
+func (f *fakeCAManager) RotateX509CA(context.Context) {
 	f.cleanX509CACh()
 	currentID := f.currentX509CASlot.keyID
 
@@ -490,13 +489,13 @@ func (f *fakeCAManager) PrepareJWTKey(context.Context) error {
 	return nil
 }
 
-func (f *fakeCAManager) ActivateJWTKey(_ context.Context) {
+func (f *fakeCAManager) ActivateJWTKey(context.Context) {
 	f.cleanJWTKeyCh()
 	f.currentJWTKeySlot.isActive = true
 	f.jwtKeyCh <- struct{}{}
 }
 
-func (f *fakeCAManager) RotateJWTKey(_ context.Context) {
+func (f *fakeCAManager) RotateJWTKey(context.Context) {
 	f.cleanJWTKeyCh()
 	currentID := f.currentJWTKeySlot.keyID
 
@@ -615,13 +614,5 @@ func createSlot(id string, now time.Time, hasValue bool) *fakeSlot {
 		activationTime:  now.Add(2 * time.Minute),
 		hasValue:        hasValue,
 		isActive:        hasValue,
-	}
-}
-
-func init() {
-	// Enable the ca_journal_in_datastore feature flag.
-	err := fflag.Load(fflag.RawConfig{"ca_journal_in_datastore"})
-	if err != nil {
-		panic(err)
 	}
 }

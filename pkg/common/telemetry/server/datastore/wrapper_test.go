@@ -222,6 +222,10 @@ func TestWithMetrics(t *testing.T) {
 			key:        "datastore.ca_journal.prune",
 			methodName: "PruneCAJournals",
 		},
+		{
+			key:        "datastore.ca_journal.list",
+			methodName: "ListCAJournalsForTesting",
+		},
 	} {
 		tt := tt
 		methodType, ok := wt.MethodByName(tt.methodName)
@@ -480,6 +484,10 @@ func (ds *fakeDataStore) SetCAJournal(context.Context, *datastore.CAJournal) (*d
 
 func (ds *fakeDataStore) FetchCAJournal(context.Context, string) (*datastore.CAJournal, error) {
 	return &datastore.CAJournal{}, ds.err
+}
+
+func (ds *fakeDataStore) ListCAJournalsForTesting(context.Context) ([]*datastore.CAJournal, error) {
+	return []*datastore.CAJournal{}, ds.err
 }
 
 func (ds *fakeDataStore) PruneCAJournals(context.Context, int64) error {

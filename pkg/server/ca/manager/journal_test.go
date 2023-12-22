@@ -13,7 +13,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -34,23 +33,11 @@ var (
 		{Raw: []byte("B")},
 		{Raw: []byte("C")},
 	}
+
+	km        keymanager.KeyManager
+	kmKeys    = map[string]keymanager.Key{}
+	rootCerts = map[string]*x509.Certificate{}
 )
-
-type journalTest struct {
-	jc *journalConfig
-	ds *fakedatastore.DataStore
-
-	x509KeyA,
-	x509KeyB,
-	x509KeyC,
-	jwtKeyA,
-	jwtKeyB,
-	jwtKeyC keymanager.Key
-
-	x509RootA,
-	x509RootB,
-	x509RootC *x509.Certificate
-}
 
 func setupJournalTest(t *testing.T) *journalTest {
 	log, _ := test.NewNullLogger()
@@ -64,29 +51,32 @@ func setupJournalTest(t *testing.T) *journalTest {
 	})
 	require.NoError(t, err)
 
-	km := fakeserverkeymanager.New(t)
 	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
-	cat.SetKeyManager(km)
 	cat.SetDataStore(ds)
 
-	x509KeyA, x509RootA, err := createSelfSigned(ctx, credBuilder, km, "x509-CA-A")
-	require.NoError(t, err)
+	if km == nil {
+		km := fakeserverkeymanager.New(t)
+		cat.SetKeyManager(km)
 
-	x509KeyB, x509RootB, err := createSelfSigned(ctx, credBuilder, km, "x509-CA-B")
-	require.NoError(t, err)
+		kmKeys["X509-CA-A"], rootCerts["X509-Root-A"], err = createSelfSigned(ctx, credBuilder, km, "X509-CA-A")
+		require.NoError(t, err)
 
-	x509KeyC, x509RootC, err := createSelfSigned(ctx, credBuilder, km, "x509-CA-C")
-	require.NoError(t, err)
+		kmKeys["X509-CA-B"], rootCerts["X509-Root-B"], err = createSelfSigned(ctx, credBuilder, km, "x509-CA-B")
+		require.NoError(t, err)
 
-	jwtKeyA, err := km.GenerateKey(ctx, "JWT-Signer-A", keymanager.ECP256)
-	require.NoError(t, err)
+		kmKeys["X509-CA-C"], rootCerts["X509-Root-C"], err = createSelfSigned(ctx, credBuilder, km, "x509-CA-C")
+		require.NoError(t, err)
 
-	jwtKeyB, err := km.GenerateKey(ctx, "JWT-Signer-B", keymanager.ECP256)
-	require.NoError(t, err)
+		kmKeys["JWT-Signer-A"], err = km.GenerateKey(ctx, "JWT-Signer-A", keymanager.ECP256)
+		require.NoError(t, err)
 
-	jwtKeyC, err := km.GenerateKey(ctx, "JWT-Signer-C", keymanager.ECP256)
-	require.NoError(t, err)
+		kmKeys["JWT-Signer-B"], err = km.GenerateKey(ctx, "JWT-Signer-B", keymanager.ECP256)
+		require.NoError(t, err)
+
+		kmKeys["JWT-Signer-C"], err = km.GenerateKey(ctx, "JWT-Signer-C", keymanager.ECP256)
+		require.NoError(t, err)
+	}
 
 	return &journalTest{
 		ds: ds,
@@ -95,26 +85,20 @@ func setupJournalTest(t *testing.T) *journalTest {
 			log:      log,
 			filePath: filepath.Join(t.TempDir(), "journal.pem"),
 		},
-		x509KeyA:  x509KeyA,
-		x509KeyB:  x509KeyB,
-		x509KeyC:  x509KeyC,
-		jwtKeyA:   jwtKeyA,
-		jwtKeyB:   jwtKeyB,
-		jwtKeyC:   jwtKeyC,
-		x509RootA: x509RootA,
-		x509RootB: x509RootB,
-		x509RootC: x509RootC,
 	}
 }
 
 func TestNew(t *testing.T) {
 	test := setupJournalTest(t)
-	journal, err := LoadJournal(ctx, test.jc)
+	j, err := LoadJournal(ctx, test.jc)
 	require.NoError(t, err)
-	if assert.NotNil(t, journal) {
+	if assert.NotNil(t, j) {
 		// Verify entries is empty
-		spiretest.RequireProtoEqual(t, &journalEntries{}, journal.Entries())
+		spiretest.RequireProtoEqual(t, &journal.Entries{}, j.getEntries())
 	}
+	caJournals, err := test.ds.ListCAJournalsForTesting(ctx)
+	require.NoError(t, err)
+	require.Empty(t, caJournals)
 }
 
 func TestJournalPersistence(t *testing.T) {
@@ -124,15 +108,15 @@ func TestJournalPersistence(t *testing.T) {
 	j := test.loadJournal(t)
 
 	err := j.AppendX509CA(ctx, "A", now, &ca.X509CA{
-		Signer:        test.x509KeyA,
-		Certificate:   test.x509RootA,
+		Signer:        kmKeys["X509-CA-A"],
+		Certificate:   rootCerts["X509-Root-A"],
 		UpstreamChain: testChain,
 	})
 	require.NoError(t, err)
 
 	err = j.AppendJWTKey(ctx, "B", now, &ca.JWTKey{
-		Signer:   test.x509KeyA,
-		Kid:      "KID",
+		Signer:   kmKeys["JWT-Signer-B"],
+		Kid:      "kid1",
 		NotAfter: now.Add(time.Hour),
 	})
 	require.NoError(t, err)
@@ -140,11 +124,11 @@ func TestJournalPersistence(t *testing.T) {
 	require.NoError(t, j.UpdateX509CAStatus(ctx, now, journal.Status_ACTIVE))
 
 	// Check that the CA journal was properly stored in the datastore.
-	spiretest.RequireProtoEqual(t, j.Entries(), test.loadJournalFromDS(t).Entries())
+	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDS(t).getEntries())
 
 	// TODO: the following checks assume that the CA journal is stored both in
 	// datastore and on disk. Revisit this in v1.10.
-	spiretest.RequireProtoEqual(t, j.Entries(), test.loadJournalFromDisk(t).Entries())
+	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDisk(t).getEntries())
 
 	// Test for the case when SPIRE starts with a CA journal on disk and does
 	// not yet have a CA journal stored in the datastore. Reset the datastore so
@@ -155,35 +139,35 @@ func TestJournalPersistence(t *testing.T) {
 	// Load the journal again. It should still get the CA journal stored on
 	// disk.
 	j = test.loadJournal(t)
-	spiretest.RequireProtoEqual(t, j.Entries(), test.loadJournalFromDisk(t).Entries())
+	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDisk(t).getEntries())
 
 	// Append a new X.509 CA, which will make the CA journal to be stored
 	// on disk and in the datastore.
 	now = now.Add(time.Minute)
 	err = j.AppendX509CA(ctx, "C", now, &ca.X509CA{
-		Signer:        test.x509KeyC,
-		Certificate:   test.x509RootC,
+		Signer:        kmKeys["X509-CA-C"],
+		Certificate:   rootCerts["X509-Root-C"],
 		UpstreamChain: testChain,
 	})
 	require.NoError(t, err)
 	require.NoError(t, j.UpdateX509CAStatus(ctx, now, journal.Status_ACTIVE))
 
-	spiretest.RequireProtoEqual(t, j.Entries(), test.loadJournalFromDS(t).Entries())
-	spiretest.RequireProtoEqual(t, j.Entries(), test.loadJournalFromDisk(t).Entries())
+	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDS(t).getEntries())
+	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDisk(t).getEntries())
 
 	// Simulate a datastore error
 	dsError := errors.New("ds error")
 	test.ds.SetNextError(dsError)
 	err = j.AppendX509CA(ctx, "C", now, &ca.X509CA{
-		Signer:        test.x509KeyC,
-		Certificate:   test.x509RootC,
+		Signer:        kmKeys["X509-CA-C"],
+		Certificate:   rootCerts["X509-Root-C"],
 		UpstreamChain: testChain,
 	})
 	require.Error(t, err)
 	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
 
 	// CA journal on disk should have been saved successfully
-	spiretest.RequireProtoEqual(t, j.Entries(), test.loadJournalFromDisk(t).Entries())
+	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDisk(t).getEntries())
 }
 
 func TestAppendSetPreparedStatus(t *testing.T) {
@@ -193,8 +177,8 @@ func TestAppendSetPreparedStatus(t *testing.T) {
 	testJournal := test.loadJournal(t)
 
 	err := testJournal.AppendX509CA(ctx, "A", now, &ca.X509CA{
-		Signer:        test.x509KeyA,
-		Certificate:   test.x509RootA,
+		Signer:        kmKeys["X509-CA-A"],
+		Certificate:   rootCerts["X509-Root-A"],
 		UpstreamChain: testChain,
 	})
 	require.NoError(t, err)
@@ -205,7 +189,7 @@ func TestAppendSetPreparedStatus(t *testing.T) {
 	require.Equal(t, journal.Status_PREPARED, lastX509CA.Status)
 
 	err = testJournal.AppendJWTKey(ctx, "B", now, &ca.JWTKey{
-		Signer:   test.x509KeyB,
+		Signer:   kmKeys["X509-CA-B"],
 		Kid:      "KID",
 		NotAfter: now.Add(time.Hour),
 	})
@@ -226,13 +210,13 @@ func TestX509CAOverflow(t *testing.T) {
 	for i := 0; i < (journalCap + 1); i++ {
 		now = now.Add(time.Minute)
 		err := journal.AppendX509CA(ctx, "A", now, &ca.X509CA{
-			Signer:      test.x509KeyA,
-			Certificate: test.x509RootA,
+			Signer:      kmKeys["X509-CA-A"],
+			Certificate: rootCerts["X509-Root-A"],
 		})
 		require.NoError(t, err)
 	}
 
-	entries := journal.Entries()
+	entries := journal.getEntries()
 	require.Len(t, entries.X509CAs, journalCap, "X509CA entries exceeds cap")
 	lastEntry := entries.X509CAs[len(entries.X509CAs)-1]
 	require.Equal(t, now, time.Unix(lastEntry.IssuedAt, 0).UTC())
@@ -248,20 +232,20 @@ func TestUpdateX509CAStatus(t *testing.T) {
 	testJournal := test.loadJournal(t)
 
 	err := testJournal.AppendX509CA(ctx, "A", firstIssuedAt, &ca.X509CA{
-		Signer:      test.x509KeyA,
-		Certificate: test.x509RootA,
+		Signer:      kmKeys["X509-CA-A"],
+		Certificate: rootCerts["X509-Root-A"],
 	})
 	require.NoError(t, err)
 
 	err = testJournal.AppendX509CA(ctx, "B", secondIssuedAt, &ca.X509CA{
-		Signer:      test.x509KeyB,
-		Certificate: test.x509RootB,
+		Signer:      kmKeys["X509-CA-B"],
+		Certificate: rootCerts["X509-Root-B"],
 	})
 	require.NoError(t, err)
 
 	err = testJournal.AppendX509CA(ctx, "C", thirdIssuedAt, &ca.X509CA{
-		Signer:      test.x509KeyC,
-		Certificate: test.x509RootC,
+		Signer:      kmKeys["X509-CA-C"],
+		Certificate: rootCerts["X509-Root-C"],
 	})
 	require.NoError(t, err)
 
@@ -274,7 +258,7 @@ func TestUpdateX509CAStatus(t *testing.T) {
 	err = testJournal.UpdateX509CAStatus(ctx, secondIssuedAt, journal.Status_ACTIVE)
 	require.NoError(t, err)
 
-	for _, ca := range testJournal.Entries().X509CAs {
+	for _, ca := range testJournal.getEntries().X509CAs {
 		expectedStatus := journal.Status_PREPARED
 		if ca.SlotId == "B" {
 			expectedStatus = journal.Status_ACTIVE
@@ -298,24 +282,24 @@ func TestUpdateJWTKeyStatus(t *testing.T) {
 	testJournal := test.loadJournal(t)
 
 	err := testJournal.AppendJWTKey(ctx, "A", firstIssuedAt, &ca.JWTKey{
-		Signer: test.jwtKeyA,
+		Signer: kmKeys["JWT-Signer-A"],
 		Kid:    "kid1",
 	})
 	require.NoError(t, err)
 
 	err = testJournal.AppendJWTKey(ctx, "B", secondIssuedAt, &ca.JWTKey{
-		Signer: test.jwtKeyB,
+		Signer: kmKeys["JWT-Signer-B"],
 		Kid:    "kid2",
 	})
 	require.NoError(t, err)
 
 	err = testJournal.AppendJWTKey(ctx, "C", thirdIssuedAt, &ca.JWTKey{
-		Signer: test.jwtKeyC,
+		Signer: kmKeys["JWT-Signer-C"],
 		Kid:    "kid3",
 	})
 	require.NoError(t, err)
 
-	keys := testJournal.Entries().JwtKeys
+	keys := testJournal.getEntries().JwtKeys
 	require.Len(t, keys, 3)
 	for _, key := range keys {
 		require.Equal(t, journal.Status_PREPARED, key.Status)
@@ -324,7 +308,7 @@ func TestUpdateJWTKeyStatus(t *testing.T) {
 	err = testJournal.UpdateJWTKeyStatus(ctx, secondIssuedAt, journal.Status_ACTIVE)
 	require.NoError(t, err)
 
-	for _, key := range testJournal.Entries().JwtKeys {
+	for _, key := range testJournal.getEntries().JwtKeys {
 		expectedStatus := journal.Status_PREPARED
 		if key.SlotId == "B" {
 			expectedStatus = journal.Status_ACTIVE
@@ -348,14 +332,14 @@ func TestJWTKeyOverflow(t *testing.T) {
 	for i := 0; i < (journalCap + 1); i++ {
 		now = now.Add(time.Minute)
 		err := journal.AppendJWTKey(ctx, "B", now, &ca.JWTKey{
-			Signer:   test.jwtKeyB,
+			Signer:   kmKeys["JWT-Signer-B"],
 			Kid:      "KID",
 			NotAfter: now.Add(time.Hour),
 		})
 		require.NoError(t, err)
 	}
 
-	entries := journal.Entries()
+	entries := journal.getEntries()
 	require.Len(t, entries.JwtKeys, journalCap, "JWT key entries exceeds cap")
 	lastEntry := entries.JwtKeys[len(entries.JwtKeys)-1]
 	require.Equal(t, now, time.Unix(lastEntry.IssuedAt, 0).UTC())
@@ -423,10 +407,7 @@ func (j *journalTest) now() time.Time {
 	return time.Now().UTC().Truncate(time.Second)
 }
 
-func init() {
-	// Enable the ca_journal_in_datastore feature flag.
-	err := fflag.Load(fflag.RawConfig{"ca_journal_in_datastore"})
-	if err != nil {
-		panic(err)
-	}
+type journalTest struct {
+	jc *journalConfig
+	ds *fakedatastore.DataStore
 }

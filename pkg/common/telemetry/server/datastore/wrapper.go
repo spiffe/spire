@@ -294,6 +294,12 @@ func (w metricsWrapper) FetchCAJournal(ctx context.Context, activeX509AuthorityI
 	return w.ds.FetchCAJournal(ctx, activeX509AuthorityID)
 }
 
+func (w metricsWrapper) ListCAJournalsForTesting(ctx context.Context) (_ []*datastore.CAJournal, err error) {
+	callCounter := StartListCAJournalsForTesting(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.ListCAJournalsForTesting(ctx)
+}
+
 func (w metricsWrapper) PruneCAJournals(ctx context.Context, allCAsExpireBefore int64) (err error) {
 	callCounter := StartPruneCAJournalsCall(w.m)
 	defer callCounter.Done(&err)

@@ -199,7 +199,7 @@ func TestJournalLoad(t *testing.T) {
 
 	for _, tt := range []struct {
 		name        string
-		entries     *journalEntries
+		entries     *journal.Entries
 		expectSlots map[SlotPosition]Slot
 		expectError string
 		expectLogs  []spiretest.LogEntry
@@ -226,7 +226,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "stored file has a single entry",
-			entries: &journalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					{
 						SlotId:      "B",
@@ -285,7 +285,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "Stored entries has unknown status",
-			entries: &journalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					{
 						SlotId:      "A",
@@ -396,7 +396,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "Stored entry has a single Prepared entry",
-			entries: &journalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					{
 						SlotId:      "A",
@@ -463,7 +463,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "Stored entries has old and active",
-			entries: &journalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					{
 						SlotId:      "A",
@@ -580,7 +580,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "There are another entries before Active entry",
-			entries: &journalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					// This can happens when force rotation is executed
 					{
@@ -780,7 +780,7 @@ func TestJournalLoad(t *testing.T) {
 				filePath: journalFile,
 				log:      log,
 			}
-			journal.SetEntries(tt.entries)
+			journal.setEntries(tt.entries)
 			err = journal.save(ctx)
 			require.NoError(t, err)
 

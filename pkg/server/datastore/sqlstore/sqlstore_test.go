@@ -4840,20 +4840,13 @@ func (s *PluginSuite) TestSetCAJournal() {
 			name: "creating a new CA journal succeeds",
 			caJournal: &datastore.CAJournal{
 				Data:                  []byte("test data"),
-				ActiveJWTAuthorityID:  "jwt-authority-id",
 				ActiveX509AuthorityID: "x509-authority-id",
 			},
 		},
 		{
 			name: "nil CA journal",
 			code: codes.InvalidArgument,
-			msg:  "ca journal is nil",
-		},
-		{
-			name:      "no data",
-			code:      codes.InvalidArgument,
-			msg:       "data for CA journal is required",
-			caJournal: &datastore.CAJournal{},
+			msg:  "ca journal is required",
 		},
 		{
 			name: "try to update a non existing CA journal",
@@ -4862,7 +4855,6 @@ func (s *PluginSuite) TestSetCAJournal() {
 			caJournal: &datastore.CAJournal{
 				ID:                    999,
 				Data:                  []byte("test data"),
-				ActiveJWTAuthorityID:  "jwt-authority-id",
 				ActiveX509AuthorityID: "x509-authority-id",
 			},
 		},
@@ -4896,7 +4888,6 @@ func (s *PluginSuite) TestFetchCAJournal() {
 			caJournal: func() *datastore.CAJournal {
 				caJournal, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
 					ActiveX509AuthorityID: "x509-authority-id",
-					ActiveJWTAuthorityID:  "jwt-authority-id",
 					Data:                  []byte("test data"),
 				})
 				s.Require().NoError(err)
@@ -5292,7 +5283,6 @@ func assertCAJournal(t *testing.T, exp, actual *datastore.CAJournal) {
 		assert.Nil(t, actual)
 		return
 	}
-	assert.Equal(t, exp.ActiveJWTAuthorityID, actual.ActiveJWTAuthorityID)
 	assert.Equal(t, exp.ActiveX509AuthorityID, actual.ActiveX509AuthorityID)
 	assert.Equal(t, exp.Data, actual.Data)
 }
