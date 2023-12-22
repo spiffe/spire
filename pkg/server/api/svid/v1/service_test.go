@@ -34,10 +34,10 @@ import (
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 var (

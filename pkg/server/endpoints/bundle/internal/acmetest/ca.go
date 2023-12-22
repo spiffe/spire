@@ -62,8 +62,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
 	"golang.org/x/crypto/acme"
-	"gopkg.in/square/go-jose.v2"
 )
 
 // CAServer is a simple test server which implements ACME spec bits needed for testing.

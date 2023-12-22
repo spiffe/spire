@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"math/rand"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -2869,7 +2872,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			test := setupServiceTest(t, fakedatastore.New(t))
 			defer test.Cleanup()
 
-			test.withCallerID = !tt.failCallerID
+			test.omitCallerID = tt.failCallerID
 			test.ef.entries = tt.fetcherEntries
 			test.ef.err = tt.fetcherErr
 			resp, err := test.client.GetAuthorizedEntries(ctx, &entryv1.GetAuthorizedEntriesRequest{
@@ -2891,6 +2894,530 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			spiretest.AssertProtoEqual(t, expectResponse, resp)
 		})
 	}
+}
+
+func TestSyncAuthorizedEntries(t *testing.T) {
+	entry1 := &types.Entry{
+		Id:          "entry-1",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+		X509SvidTtl: 10,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
+		},
+		FederatesWith: []string{
+			"domain1.com",
+			"domain2.com",
+		},
+		Admin:          true,
+		ExpiresAt:      time.Now().Add(10 * time.Second).Unix(),
+		DnsNames:       []string{"dns1", "dns2"},
+		Downstream:     true,
+		RevisionNumber: 1,
+	}
+	entry2 := &types.Entry{
+		Id:          "entry-2",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/baz"},
+		X509SvidTtl: 20,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1001"},
+			{Type: "unix", Value: "gid:1001"},
+		},
+		FederatesWith: []string{
+			"domain3.com",
+			"domain4.com",
+		},
+		ExpiresAt:      time.Now().Add(20 * time.Second).Unix(),
+		DnsNames:       []string{"dns3", "dns4"},
+		RevisionNumber: 2,
+	}
+	entry3 := &types.Entry{
+		Id:          "entry-3",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/buz"},
+		X509SvidTtl: 30,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1002"},
+			{Type: "unix", Value: "gid:1002"},
+		},
+		FederatesWith: []string{
+			"domain5.com",
+			"domain6.com",
+		},
+		ExpiresAt:      time.Now().Add(30 * time.Second).Unix(),
+		DnsNames:       []string{"dns5", "dns6"},
+		RevisionNumber: 3,
+	}
+
+	type step struct {
+		req  *entryv1.SyncAuthorizedEntriesRequest
+		resp *entryv1.SyncAuthorizedEntriesResponse
+		err  string
+		code codes.Code
+	}
+
+	for _, tt := range []struct {
+		name              string
+		code              codes.Code
+		fetcherErr        string
+		authorizedEntries []*types.Entry
+		steps             []step
+		expectLogs        []spiretest.LogEntry
+		omitCallerID      bool
+	}{
+		{
+			name:              "success no paging",
+			authorizedEntries: []*types.Entry{entry1, entry2},
+			steps: []step{
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{entry1, entry2},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name:              "success with paging",
+			authorizedEntries: []*types.Entry{entry2, entry3, entry1},
+			steps: []step{
+				// Sends initial request and gets back first page of sparse entries
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						EntryRevisions: []*entryv1.EntryRevision{
+							{Id: "entry-2", RevisionNumber: 2},
+							{Id: "entry-3", RevisionNumber: 3},
+						},
+						More: true,
+					},
+				},
+				// Gets back second page of sparse entries
+				{
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						EntryRevisions: []*entryv1.EntryRevision{
+							{Id: "entry-1", RevisionNumber: 1},
+						},
+						More: false,
+					},
+				},
+				// Requests all entries and gets back first page of full entries
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{
+						Ids: []string{"entry-3", "entry-1", "entry-2"},
+					},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{entry1, entry2},
+						More:    true,
+					},
+				},
+				// Gets back second page of full entries
+				{
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{entry3},
+						More:    false,
+					},
+				},
+				// Requests one full page of entries and gets back only page
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{
+						Ids: []string{"entry-1", "entry-3"},
+					},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{entry1, entry3},
+						More:    false,
+					},
+				},
+				// Requests less than a page of entries and gets back only page
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{
+						Ids: []string{"entry-2"},
+					},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{entry2},
+						More:    false,
+					},
+				},
+				// Requests entry that does not exist
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{
+						Ids: []string{"entry-4"},
+					},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: nil,
+						More:    false,
+					},
+				},
+				// Request a page and a half but middle does not exist
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{
+						Ids: []string{"entry-1", "entry-4", "entry-3"},
+					},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{entry1, entry3},
+						More:    false,
+					},
+				},
+				// Request a page and a half but end does not exist
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{
+						Ids: []string{"entry-1", "entry-3", "entry-4"},
+					},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{entry1, entry3},
+						More:    false,
+					},
+				},
+				// Request nothing
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: nil,
+						More:    false,
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name:              "success, no entries",
+			authorizedEntries: []*types.Entry{},
+			steps: []step{
+				{
+					req:  &entryv1.SyncAuthorizedEntriesRequest{},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name:              "success with output mask",
+			authorizedEntries: []*types.Entry{entry1, entry2},
+			steps: []step{
+				{
+					req: &entryv1.SyncAuthorizedEntriesRequest{
+						OutputMask: &types.EntryMask{
+							SpiffeId:       true,
+							ParentId:       true,
+							Selectors:      true,
+							RevisionNumber: true,
+						},
+					},
+					resp: &entryv1.SyncAuthorizedEntriesResponse{
+						Entries: []*types.Entry{
+							{
+								Id:             entry1.Id,
+								SpiffeId:       entry1.SpiffeId,
+								ParentId:       entry1.ParentId,
+								Selectors:      entry1.Selectors,
+								RevisionNumber: entry1.RevisionNumber,
+							},
+							{
+								Id:             entry2.Id,
+								SpiffeId:       entry2.SpiffeId,
+								ParentId:       entry2.ParentId,
+								Selectors:      entry2.Selectors,
+								RevisionNumber: entry2.RevisionNumber,
+							},
+						},
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
+				},
+			},
+		},
+		{
+			name: "output mask excludes revision number",
+			steps: []step{
+				{
+					req:  &entryv1.SyncAuthorizedEntriesRequest{OutputMask: &types.EntryMask{}},
+					err:  "revision number cannot be masked",
+					code: codes.InvalidArgument,
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "revision number cannot be masked",
+					},
+				},
+			},
+		},
+		{
+			name: "no caller id",
+			steps: []step{
+				{
+					req:  &entryv1.SyncAuthorizedEntriesRequest{},
+					err:  "caller ID missing from request context",
+					code: codes.Internal,
+				},
+			},
+			omitCallerID: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Caller ID missing from request context",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "caller ID missing from request context",
+					},
+				},
+			},
+		},
+		{
+			name: "fetcher fails",
+			steps: []step{
+				{
+					req:  &entryv1.SyncAuthorizedEntriesRequest{},
+					err:  "failed to fetch entries",
+					code: codes.Internal,
+				},
+			},
+			fetcherErr: "fetcher fails",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to fetch entries",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = fetcher fails",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to fetch entries: fetcher fails",
+					},
+				},
+			},
+		},
+		{
+			name: "initial request specifies IDs",
+			steps: []step{
+				{
+					req:  &entryv1.SyncAuthorizedEntriesRequest{Ids: []string{"entry-1"}},
+					err:  "specifying IDs on initial request is not supported",
+					code: codes.InvalidArgument,
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "specifying IDs on initial request is not supported",
+					},
+				},
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t, fakedatastore.New(t))
+			defer func() {
+				test.Cleanup()
+				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			}()
+
+			test.omitCallerID = tt.omitCallerID
+			test.ef.entries = tt.authorizedEntries
+			test.ef.err = tt.fetcherErr
+
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			stream, err := test.client.SyncAuthorizedEntries(ctx)
+			require.NoError(t, err)
+
+			for i, step := range tt.steps {
+				t.Logf("stream step: %d", i)
+				if step.req != nil {
+					require.NoError(t, stream.Send(step.req))
+				}
+				resp, err := stream.Recv()
+				if step.err != "" {
+					spiretest.RequireGRPCStatusContains(t, err, step.code, step.err)
+					require.Nil(t, resp)
+					return
+				}
+				require.NoError(t, err)
+				spiretest.AssertProtoEqual(t, step.resp, resp)
+			}
+			require.NoError(t, stream.CloseSend())
+		})
+	}
+}
+
+func FuzzSyncAuthorizedStreams(f *testing.F) {
+	rnd := rand.New(rand.NewSource(time.Now().Unix())) //nolint: gosec // this rand source ok for fuzz tests
+
+	const entryPageSize = 5
+
+	calculatePageCount := func(entries int) int {
+		return (entries + (entryPageSize - 1)) / entryPageSize
+	}
+	recvNoError := func(tb testing.TB, stream entryv1.Entry_SyncAuthorizedEntriesClient) *entryv1.SyncAuthorizedEntriesResponse {
+		resp, err := stream.Recv()
+		require.NoError(tb, err)
+		return resp
+	}
+	recvEOF := func(tb testing.TB, stream entryv1.Entry_SyncAuthorizedEntriesClient) {
+		_, err := stream.Recv()
+		require.True(tb, errors.Is(err, io.EOF))
+	}
+
+	const maxEntries = 40
+	var entries []*types.Entry
+	for i := 0; i < maxEntries; i++ {
+		entries = append(entries, &types.Entry{Id: strconv.Itoa(i), RevisionNumber: 1})
+	}
+
+	// Add some quick boundary conditions as seeds that will be run
+	// during standard testing.
+	f.Add(0, 0)
+	f.Add(1, 1)
+	f.Add(entryPageSize-1, entryPageSize-1)
+	f.Add(entryPageSize, entryPageSize)
+	f.Add(entryPageSize+1, entryPageSize+1)
+	f.Add(0, maxEntries)
+	f.Add(maxEntries/2, maxEntries)
+	f.Add(maxEntries, maxEntries)
+
+	f.Fuzz(func(t *testing.T, staleEntries, totalEntries int) {
+		if totalEntries < 0 || totalEntries > maxEntries {
+			t.Skip()
+		}
+		if staleEntries < 0 || staleEntries > totalEntries {
+			t.Skip()
+		}
+
+		entries := entries[:totalEntries]
+
+		test := setupServiceTest(t, fakedatastore.New(t), withEntryPageSize(entryPageSize))
+		defer test.Cleanup()
+		test.ef.entries = entries
+
+		ctx, cancel := context.WithCancel(ctx)
+		t.Cleanup(cancel)
+
+		// Open the stream and send the first request
+		stream, err := test.client.SyncAuthorizedEntries(ctx)
+		require.NoError(t, err)
+		require.NoError(t, stream.Send(&entryv1.SyncAuthorizedEntriesRequest{}))
+
+		revisionsExpected := totalEntries > entryPageSize
+
+		if !revisionsExpected {
+			// The number of entries does not exceed the page size. Expect
+			// the full list of entries in a single response.
+			resp := recvNoError(t, stream)
+			require.Empty(t, resp.EntryRevisions)
+			require.Equal(t, getEntryIDs(entries), getEntryIDs(resp.Entries))
+			recvEOF(t, stream)
+			return
+		}
+
+		// The number of entries exceeded the page size. Expect one or more
+		// pages of entry revisions.
+		var actualIDs []string
+		for page := 0; page < calculatePageCount(totalEntries)-1; page++ {
+			resp := recvNoError(t, stream)
+			require.Equal(t, len(resp.EntryRevisions), entryPageSize)
+			require.Zero(t, resp.Entries)
+			require.True(t, resp.More)
+			actualIDs = appendEntryIDs(actualIDs, resp.EntryRevisions)
+		}
+		resp := recvNoError(t, stream)
+		require.LessOrEqual(t, len(resp.EntryRevisions), entryPageSize)
+		require.Zero(t, resp.Entries)
+		require.False(t, resp.More)
+		actualIDs = appendEntryIDs(actualIDs, resp.EntryRevisions)
+
+		// Build and request a shuffled list of stale entry IDs. Shuffling
+		// helps exercise the searching logic in the handler though the actual
+		// agent sends them sorted for better performance.
+		staleIDs := getEntryIDs(entries)
+		require.Equal(t, staleIDs, actualIDs)
+		rnd.Shuffle(len(staleIDs), func(i, j int) { staleIDs[i], staleIDs[j] = staleIDs[j], staleIDs[i] })
+		staleIDs = staleIDs[:staleEntries]
+		require.NoError(t, stream.Send(&entryv1.SyncAuthorizedEntriesRequest{Ids: staleIDs}))
+
+		actualIDs = actualIDs[:0]
+		for page := 0; page < calculatePageCount(len(staleIDs))-1; page++ {
+			resp = recvNoError(t, stream)
+			require.Equal(t, len(resp.Entries), entryPageSize)
+			require.Zero(t, resp.EntryRevisions)
+			require.True(t, resp.More)
+			actualIDs = appendEntryIDs(actualIDs, resp.Entries)
+		}
+		resp = recvNoError(t, stream)
+		require.LessOrEqual(t, len(resp.Entries), entryPageSize)
+		require.Zero(t, resp.EntryRevisions)
+		require.False(t, resp.More)
+		actualIDs = appendEntryIDs(actualIDs, resp.Entries)
+
+		// Ensure that all of the entries were received that were requested
+		sort.Strings(staleIDs)
+		require.Equal(t, staleIDs, actualIDs)
+
+		require.NoError(t, stream.CloseSend())
+		recvEOF(t, stream)
+	})
 }
 
 func TestBatchUpdateEntry(t *testing.T) {
@@ -4183,25 +4710,46 @@ func createTestEntries(t *testing.T, ds datastore.DataStore, entry ...*common.Re
 	return entriesMap
 }
 
+type serviceTestOption = func(*serviceTestConfig)
+
+func withEntryPageSize(v int) func(*serviceTestConfig) {
+	return func(config *serviceTestConfig) {
+		config.entryPageSize = v
+	}
+}
+
+type serviceTestConfig struct {
+	entryPageSize int
+}
+
 type serviceTest struct {
 	client       entryv1.EntryClient
 	ef           *entryFetcher
 	done         func()
 	ds           datastore.DataStore
 	logHook      *test.Hook
-	withCallerID bool
+	omitCallerID bool
 }
 
 func (s *serviceTest) Cleanup() {
 	s.done()
 }
 
-func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
+func setupServiceTest(t *testing.T, ds datastore.DataStore, options ...serviceTestOption) *serviceTest {
+	config := serviceTestConfig{
+		entryPageSize: 2,
+	}
+
+	for _, opt := range options {
+		opt(&config)
+	}
+
 	ef := &entryFetcher{}
 	service := entry.New(entry.Config{
-		TrustDomain:  td,
-		DataStore:    ds,
-		EntryFetcher: ef,
+		TrustDomain:   td,
+		DataStore:     ds,
+		EntryFetcher:  ef,
+		EntryPageSize: config.entryPageSize,
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -4217,7 +4765,7 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 
 	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
 		ctx = rpccontext.WithLogger(ctx, log)
-		if test.withCallerID {
+		if !test.omitCallerID {
 			ctx = rpccontext.WithCallerID(ctx, agentID)
 		}
 		return ctx, nil
@@ -4307,4 +4855,19 @@ func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiff
 	}
 
 	return f.entries, nil
+}
+
+type HasID interface {
+	GetId() string
+}
+
+func getEntryIDs[T HasID](entries []T) []string {
+	return appendEntryIDs([]string(nil), entries)
+}
+
+func appendEntryIDs[T HasID](ids []string, entries []T) []string {
+	for _, entry := range entries {
+		ids = append(ids, entry.GetId())
+	}
+	return ids
 }

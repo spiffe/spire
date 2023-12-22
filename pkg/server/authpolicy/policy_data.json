@@ -110,6 +110,10 @@
 			"allow_agent": true
 		},
 		{
+			"full_method": "/spire.api.server.entry.v1.Entry/SyncAuthorizedEntries",
+			"allow_agent": true
+		},
+		{
 			"full_method": "/spire.api.server.agent.v1.Agent/CountAgents",
 			"allow_admin": true,
 			"allow_local": true

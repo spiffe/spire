@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -46,3 +47,11 @@ func AddCacheManagerOutdatedSVIDsSample(m telemetry.Metrics, cacheType string, c
 }
 
 // End Add Samples
+
+func SetSyncStats(m telemetry.Metrics, stats client.SyncStats) {
+	m.SetGauge([]string{telemetry.SyncBundlesTotal}, float32(stats.Bundles.Total))
+	m.SetGauge([]string{telemetry.SyncEntriesTotal}, float32(stats.Entries.Total))
+	m.SetGauge([]string{telemetry.SyncEntriesMissing}, float32(stats.Entries.Missing))
+	m.SetGauge([]string{telemetry.SyncEntriesStale}, float32(stats.Entries.Stale))
+	m.SetGauge([]string{telemetry.SyncEntriesDropped}, float32(stats.Entries.Dropped))
+}

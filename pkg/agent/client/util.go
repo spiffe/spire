@@ -12,7 +12,7 @@ import (
 
 func spiffeIDFromProto(protoID *types.SPIFFEID) (string, error) {
 	if protoID == nil {
-		return "", errors.New("request must specify SPIFFE ID")
+		return "", errors.New("response missing SPIFFE ID")
 	}
 
 	td, err := spiffeid.TrustDomainFromString(protoID.TrustDomain)

@@ -132,6 +132,18 @@ func (w metricsWrapper) FetchFederationRelationship(ctx context.Context, trustDo
 	return w.ds.FetchFederationRelationship(ctx, trustDomain)
 }
 
+func (w metricsWrapper) GetLatestAttestedNodeEventID(ctx context.Context) (_ uint, err error) {
+	callCounter := StartGetLatestAttestedNodeEventIDCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.GetLatestAttestedNodeEventID(ctx)
+}
+
+func (w metricsWrapper) GetLatestRegistrationEntryEventID(ctx context.Context) (_ uint, err error) {
+	callCounter := StartGetLatestRegistrationEntryEventIDCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.GetLatestRegistrationEntryEventID(ctx)
+}
+
 func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) (_ []*common.Selector, err error) {
 	callCounter := StartGetNodeSelectorsCall(w.m)
 	defer callCounter.Done(&err)
