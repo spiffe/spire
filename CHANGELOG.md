@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.8.7] - 2023-12-21
+
+### Added
+
+- Agents can now be configured with an availability target, which establishes the minimum amount of time desired to gracefully handle server or agent downtime, influencing how aggressively X509-SVIDs should be rotated (#4599)
+- SyncAuthorizedEntries RPC, which allows agents to only sync down changes instead of the entire set of entries. Agents can be configured to use this new RPC through the `use_sync_authorized_entries` experimental setting (#4648)
+- Experimental support for an events based entry cache which reduces overhead on the database (#4379, #4411, #4527, #4451, #4562, #4723, #4731)
+
+### Changed
+
+- The maximum number of open database connections in the datastore now defaults to 100 instead of unlimited (#4656)
+- Agents now shut down when they can't synchronize entries with the server due to an unknown authority error (#4617)
+
+### Removed
+
+- Agents no longer maintains agent SVID and bundle information in the legacy paths in the data directory (#4717)
+
 ## [1.8.6] - 2023-12-07
 
 ### Security
