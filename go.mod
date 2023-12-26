@@ -58,7 +58,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lestrrat-go/jwx/v2 v2.0.18
 	github.com/lib/pq v1.10.9
-	github.com/mattn/go-sqlite3 v1.14.18
+	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.59.0
 	github.com/prometheus/client_golang v1.17.0
