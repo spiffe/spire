@@ -55,6 +55,8 @@ const (
 
 	bundleFormatPEM    = "pem"
 	bundleFormatSPIFFE = "spiffe"
+
+	minimumAvailabilityTarget = 24 * time.Hour
 )
 
 // Config contains all available configurables, arranged by section
@@ -86,6 +88,7 @@ type agentConfig struct {
 	TrustDomain                   string    `hcl:"trust_domain"`
 	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
 	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
+	AvailabilityTarget            string    `hcl:"availability_target"`
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
@@ -110,9 +113,10 @@ type sdsConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval       string `hcl:"sync_interval"`
-	NamedPipeName      string `hcl:"named_pipe_name"`
-	AdminNamedPipeName string `hcl:"admin_named_pipe_name"`
+	SyncInterval             string `hcl:"sync_interval"`
+	NamedPipeName            string `hcl:"named_pipe_name"`
+	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
+	UseSyncAuthorizedEntries bool   `hcl:"use_sync_authorized_entries"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -461,6 +465,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if c.Agent.Experimental.X509SVIDCacheMaxSize < 0 {
 		return nil, errors.New("x509_svid_cache_max_size should not be negative")
 	}
+	ac.UseSyncAuthorizedEntries = c.Agent.Experimental.UseSyncAuthorizedEntries
 	ac.X509SVIDCacheMaxSize = c.Agent.Experimental.X509SVIDCacheMaxSize
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
@@ -563,6 +568,17 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
+
+	if c.Agent.AvailabilityTarget != "" {
+		t, err := time.ParseDuration(c.Agent.AvailabilityTarget)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse availability_target: %w", err)
+		}
+		if t < minimumAvailabilityTarget {
+			return nil, fmt.Errorf("availability_target must be at least %s", minimumAvailabilityTarget.String())
+		}
+		ac.AvailabilityTarget = t
+	}
 
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
 		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")

@@ -26,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
@@ -141,17 +142,18 @@ func TestRotator(t *testing.T) {
 
 			// Initialize the rotator
 			rotator, _ := newRotator(&RotatorConfig{
-				SVIDKeyManager: svidKM,
-				Log:            log,
-				Metrics:        telemetry.Blackhole{},
-				TrustDomain:    trustDomain,
-				BundleStream:   cache.NewBundleStream(observer.NewProperty(bundle).Observe()),
-				Clk:            clk,
-				SVID:           svid,
-				SVIDKey:        svidKey,
-				Reattestable:   tt.reattest,
-				NodeAttestor:   attestor,
-				ServerAddr:     listener.Addr().String(),
+				SVIDKeyManager:   svidKM,
+				Log:              log,
+				Metrics:          telemetry.Blackhole{},
+				TrustDomain:      trustDomain,
+				BundleStream:     cache.NewBundleStream(observer.NewProperty(bundle).Observe()),
+				Clk:              clk,
+				SVID:             svid,
+				SVIDKey:          svidKey,
+				Reattestable:     tt.reattest,
+				NodeAttestor:     attestor,
+				ServerAddr:       listener.Addr().String(),
+				RotationStrategy: rotationutil.NewRotationStrategy(0),
 			})
 			rotator.client = mockClient
 
@@ -353,17 +355,18 @@ func TestRotationFails(t *testing.T) {
 
 			// Initialize the rotator
 			rotator, _ := newRotator(&RotatorConfig{
-				SVIDKeyManager: svidKM,
-				Log:            log,
-				Metrics:        telemetry.Blackhole{},
-				TrustDomain:    trustDomain,
-				BundleStream:   cache.NewBundleStream(observer.NewProperty(bundle).Observe()),
-				Clk:            clk,
-				Reattestable:   tt.reattest,
-				SVID:           svid,
-				SVIDKey:        svidKey,
-				NodeAttestor:   attestor,
-				ServerAddr:     listener.Addr().String(),
+				SVIDKeyManager:   svidKM,
+				Log:              log,
+				Metrics:          telemetry.Blackhole{},
+				TrustDomain:      trustDomain,
+				BundleStream:     cache.NewBundleStream(observer.NewProperty(bundle).Observe()),
+				Clk:              clk,
+				Reattestable:     tt.reattest,
+				SVID:             svid,
+				SVIDKey:          svidKey,
+				NodeAttestor:     attestor,
+				ServerAddr:       listener.Addr().String(),
+				RotationStrategy: rotationutil.NewRotationStrategy(0),
 			})
 			rotator.client = mockClient
 

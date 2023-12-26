@@ -2,6 +2,7 @@ package nodeutil
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -19,6 +20,7 @@ var (
 	shouldShutDown = map[types.PermissionDeniedDetails_Reason]struct{}{
 		types.PermissionDeniedDetails_AGENT_BANNED: {},
 	}
+	unknowAuthorityErr = "x509: certificate signed by unknown authority"
 )
 
 // IsAgentBanned determines if a given attested node is banned or not.
@@ -30,6 +32,17 @@ func IsAgentBanned(node *common.AttestedNode) bool {
 // ShouldAgentReattest returns true if the Server returned an error worth rebooting the Agent
 func ShouldAgentReattest(err error) bool {
 	return isExpectedPermissionDenied(err, shouldReattest)
+}
+
+// IsUnknownAuthorityError returns tru if the Server returned an unknow authority error when verifying
+// presented SVID
+func IsUnknownAuthorityError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Since it is an rpc error we are unable to use errors.As since it is not possible to unwrap
+	return strings.Contains(err.Error(), unknowAuthorityErr)
 }
 
 // ShouldAgentShutdown returns true if the Server returned an error worth shutting down the Agent

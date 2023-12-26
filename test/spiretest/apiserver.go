@@ -12,23 +12,23 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func NewAPIServerWithMiddleware(t *testing.T, registerFn func(s *grpc.Server), server *grpc.Server) (*grpc.ClientConn, func()) {
-	return newAPIServer(t, registerFn, server)
+func NewAPIServerWithMiddleware(tb testing.TB, registerFn func(s *grpc.Server), server *grpc.Server) (*grpc.ClientConn, func()) {
+	return newAPIServer(tb, registerFn, server)
 }
 
-func NewAPIServer(t *testing.T, registerFn func(s *grpc.Server), contextFn func(ctx context.Context) context.Context) (*grpc.ClientConn, func()) {
+func NewAPIServer(tb testing.TB, registerFn func(s *grpc.Server), contextFn func(ctx context.Context) context.Context) (*grpc.ClientConn, func()) {
 	server := grpc.NewServer(
 		grpc.UnaryInterceptor(unaryInterceptor(contextFn)),
 		grpc.StreamInterceptor(streamInterceptor(contextFn)),
 	)
-	return newAPIServer(t, registerFn, server)
+	return newAPIServer(tb, registerFn, server)
 }
 
-func newAPIServer(t *testing.T, registerFn func(s *grpc.Server), server *grpc.Server) (*grpc.ClientConn, func()) {
+func newAPIServer(tb testing.TB, registerFn func(s *grpc.Server), server *grpc.Server) (*grpc.ClientConn, func()) {
 	registerFn(server)
 
 	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
+	require.NoError(tb, err)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -38,17 +38,17 @@ func newAPIServer(t *testing.T, registerFn func(s *grpc.Server), server *grpc.Se
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		server.Stop()
-		require.NoError(t, err)
+		require.NoError(tb, err)
 	}
 
 	done := func() {
-		assert.NoError(t, conn.Close())
+		assert.NoError(tb, conn.Close())
 		server.GracefulStop()
 		err := <-errCh
 		switch {
 		case err == nil, errors.Is(err, grpc.ErrServerStopped):
 		default:
-			t.Fatal(err)
+			tb.Fatal(err)
 		}
 	}
 	return conn, done

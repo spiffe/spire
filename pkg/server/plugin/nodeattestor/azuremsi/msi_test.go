@@ -14,6 +14,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
+	jose "github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -29,8 +31,6 @@ import (
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	jose "gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -182,13 +182,13 @@ func (s *MSIAttestorSuite) TestAttestFailsClaimValidation() {
 	s.T().Run("no audience", func(t *testing.T) {
 		s.requireAttestError(t, s.signAttestPayload("KEYID", "", "TENANTID", "PRINCIPALID"),
 			codes.Internal,
-			"nodeattestor(azure_msi): unable to validate token claims: square/go-jose/jwt: validation failed, invalid audience claim (aud)")
+			"nodeattestor(azure_msi): unable to validate token claims: go-jose/go-jose/jwt: validation failed, invalid audience claim (aud)")
 	})
 
 	s.T().Run("wrong audience", func(t *testing.T) {
 		s.requireAttestError(t, s.signAttestPayload("KEYID", "FOO", "TENANTID", "PRINCIPALID"),
 			codes.Internal,
-			"nodeattestor(azure_msi): unable to validate token claims: square/go-jose/jwt: validation failed, invalid audience claim (aud)")
+			"nodeattestor(azure_msi): unable to validate token claims: go-jose/go-jose/jwt: validation failed, invalid audience claim (aud)")
 	})
 
 	s.T().Run(" missing principal id (sub) claim", func(t *testing.T) {
@@ -208,7 +208,7 @@ func (s *MSIAttestorSuite) TestAttestTokenExpiration() {
 
 	// just after 5m leeway
 	s.adjustTime(time.Second)
-	s.requireAttestError(s.T(), token, codes.Internal, "nodeattestor(azure_msi): unable to validate token claims: square/go-jose/jwt: validation failed, token is expired (exp)")
+	s.requireAttestError(s.T(), token, codes.Internal, "nodeattestor(azure_msi): unable to validate token claims: go-jose/go-jose/jwt: validation failed, token is expired (exp)")
 }
 
 func (s *MSIAttestorSuite) TestAttestSuccessWithDefaultResourceID() {

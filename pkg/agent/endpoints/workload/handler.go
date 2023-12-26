@@ -185,6 +185,16 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 		}
 	}
 
+	// RFC 7519 structures `aud` as an array of StringOrURIs but has a special
+	// case where it MAY be specified as a single StringOrURI if there is only
+	// one audience. We have traditionally always returned it as an array but
+	// the JWT library we use now returns a single string when there is only
+	// one. To maintain backcompat, convert a single string value for the
+	// audience to a list.
+	if aud, ok := claims["aud"].(string); ok {
+		claims["aud"] = []string{aud}
+	}
+
 	s, err := structFromValues(claims)
 	if err != nil {
 		log.WithError(err).Error("Error deserializing claims from JWT-SVID")

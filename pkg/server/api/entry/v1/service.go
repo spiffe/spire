@@ -3,6 +3,9 @@ package entry
 import (
 	"context"
 	"errors"
+	"io"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -19,28 +22,36 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const defaultEntryPageSize = 500
+
 // Config defines the service configuration.
 type Config struct {
-	TrustDomain  spiffeid.TrustDomain
-	EntryFetcher api.AuthorizedEntryFetcher
-	DataStore    datastore.DataStore
+	TrustDomain   spiffeid.TrustDomain
+	EntryFetcher  api.AuthorizedEntryFetcher
+	DataStore     datastore.DataStore
+	EntryPageSize int
 }
 
 // Service defines the v1 entry service.
 type Service struct {
 	entryv1.UnsafeEntryServer
 
-	td spiffeid.TrustDomain
-	ds datastore.DataStore
-	ef api.AuthorizedEntryFetcher
+	td            spiffeid.TrustDomain
+	ds            datastore.DataStore
+	ef            api.AuthorizedEntryFetcher
+	entryPageSize int
 }
 
 // New creates a new v1 entry service.
 func New(config Config) *Service {
+	if config.EntryPageSize == 0 {
+		config.EntryPageSize = defaultEntryPageSize
+	}
 	return &Service{
-		td: config.TrustDomain,
-		ds: config.DataStore,
-		ef: config.EntryFetcher,
+		td:            config.TrustDomain,
+		ds:            config.DataStore,
+		ef:            config.EntryFetcher,
+		entryPageSize: config.EntryPageSize,
 	}
 }
 
@@ -322,6 +333,160 @@ func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entryv1.GetAuth
 	return resp, nil
 }
 
+// SyncAuthorizedEntries returns the list of entries authorized for the caller ID in the context.
+func (s *Service) SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer) (err error) {
+	ctx := stream.Context()
+	log := rpccontext.Logger(ctx)
+
+	// Emit "success" auditing if we succeed.
+	defer func() {
+		if err == nil {
+			rpccontext.AuditRPC(ctx)
+		}
+	}()
+
+	entries, err := s.fetchEntries(ctx, log)
+	if err != nil {
+		return err
+	}
+
+	return SyncAuthorizedEntries(stream, entries, s.entryPageSize)
+}
+
+func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, entries []*types.Entry, entryPageSize int) (err error) {
+	// Receive the initial request with the output mask.
+	req, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	// There is no reason we couldn't support filtering by ID on the initial
+	// response but there doesn't seem to be a reason to. For now, fail if
+	// the initial request has IDs set.
+	if len(req.Ids) > 0 {
+		return status.Error(codes.InvalidArgument, "specifying IDs on initial request is not supported")
+	}
+
+	// The revision number should probably have never been included in the
+	// entry mask. In any case, it is required to allow the caller to determine
+	// if it needs to ask for the full entry, so disallow masking here.
+	if req.OutputMask != nil && !req.OutputMask.RevisionNumber {
+		return status.Error(codes.InvalidArgument, "revision number cannot be masked")
+	}
+
+	// Apply output mask to entries. The output mask field will be
+	// intentionally ignored on subsequent requests.
+	for i, entry := range entries {
+		applyMask(entry, req.OutputMask)
+		entries[i] = entry
+	}
+
+	// If the number of entries is less than or equal to the entry page size,
+	// then just send the full list back. Otherwise, we'll send a sparse list
+	// and then stream back full entries as requested.
+	if len(entries) <= entryPageSize {
+		return stream.Send(&entryv1.SyncAuthorizedEntriesResponse{
+			Entries: entries,
+		})
+	}
+
+	// Prepopulate the entry page used in the response with empty entry structs.
+	// These will be reused for each sparse entry response.
+	entryRevisions := make([]*entryv1.EntryRevision, entryPageSize)
+	for i := range entryRevisions {
+		entryRevisions[i] = &entryv1.EntryRevision{}
+	}
+	for i := 0; i < len(entries); {
+		more := false
+		n := len(entries) - i
+		if n > entryPageSize {
+			n = entryPageSize
+			more = true
+		}
+		for j, entry := range entries[i : i+n] {
+			entryRevisions[j].Id = entry.Id
+			entryRevisions[j].RevisionNumber = entry.RevisionNumber
+		}
+
+		if err := stream.Send(&entryv1.SyncAuthorizedEntriesResponse{
+			EntryRevisions: entryRevisions[:n],
+			More:           more,
+		}); err != nil {
+			return err
+		}
+		i += n
+	}
+
+	// Now wait for the client to request IDs that they need the full copy of.
+	// Each request is treated independently. Entries are paged back fully
+	// before the next request is received, using the More field as a flag to
+	// signal to the caller when all requested entries have been streamed back.
+	resp := &entryv1.SyncAuthorizedEntriesResponse{}
+	entriesSorted := false
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			// EOF is normal and happens when the server processes the
+			// CloseSend sent by the client. If the client closes the stream
+			// before that point, then Canceled is expected. Either way, these
+			// conditions are normal and not an error.
+			if errors.Is(err, io.EOF) || status.Code(err) == codes.Canceled {
+				return nil
+			}
+			return err
+		}
+
+		if !entriesSorted {
+			// Sort the entries by ID for efficient lookups. This is done
+			// lazily since we only need these lookups if full copies are
+			// being requested.
+			sortEntriesByID(entries)
+			entriesSorted = true
+		}
+
+		// Sort the requested IDs for efficient lookups into the sorted entry
+		// list. Agents SHOULD already send the list sorted but we need to
+		// make sure they are sorted for correctness of the search loop below.
+		// The go stdlib sorting algorithm performs well on pre-sorted data.
+		slices.Sort(req.Ids)
+
+		// Page back the requested entries. The slice for the entries in the response
+		// is reused to reduce memory pressure. Since both the entries and
+		// requested IDs are sorted, we can reduce the amount of entries we
+		// need to search as we iteratively move through the requested IDs.
+		resp.Entries = resp.Entries[:0]
+		entriesToSearch := entries
+		for _, id := range req.Ids {
+			i, found := sort.Find(len(entriesToSearch), func(i int) int {
+				return strings.Compare(id, entriesToSearch[i].Id)
+			})
+			if found {
+				if len(resp.Entries) == entryPageSize {
+					// Adding the entry just found will exceed our page size.
+					// Ship the pageful of entries first and signal that there
+					// is more to follow.
+					resp.More = true
+					if err := stream.Send(resp); err != nil {
+						return err
+					}
+					resp.Entries = resp.Entries[:0]
+				}
+				resp.Entries = append(resp.Entries, entriesToSearch[i])
+			}
+			entriesToSearch = entriesToSearch[i:]
+			if len(entriesToSearch) == 0 {
+				break
+			}
+		}
+		// The response is either empty or contains a partial page. Either way
+		// we need to send what we have and signal there is no more to follow.
+		resp.More = false
+		if err := stream.Send(resp); err != nil {
+			return err
+		}
+	}
+}
+
 // fetchEntries fetches authorized entries using caller ID from context
 func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) ([]*types.Entry, error) {
 	callerID, ok := rpccontext.CallerID(ctx)
@@ -561,4 +726,10 @@ func fieldsFromListEntryFilter(ctx context.Context, td spiffeid.TrustDomain, fil
 	}
 
 	return fields
+}
+
+func sortEntriesByID(entries []*types.Entry) {
+	sort.Slice(entries, func(a, b int) bool {
+		return entries[a].Id < entries[b].Id
+	})
 }

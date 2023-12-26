@@ -16,28 +16,31 @@ import (
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
-	SVID             []*x509.Certificate
-	SVIDKey          keymanager.Key
-	Bundle           *managerCache.Bundle
-	Reattestable     bool
-	Catalog          catalog.Catalog
-	TrustDomain      spiffeid.TrustDomain
-	Log              logrus.FieldLogger
-	Metrics          telemetry.Metrics
-	ServerAddr       string
-	Storage          storage.Storage
-	WorkloadKeyType  workloadkey.KeyType
-	SyncInterval     time.Duration
-	RotationInterval time.Duration
-	SVIDStoreCache   *storecache.Cache
-	SVIDCacheMaxSize int
-	NodeAttestor     nodeattestor.NodeAttestor
+	SVID                     []*x509.Certificate
+	SVIDKey                  keymanager.Key
+	Bundle                   *managerCache.Bundle
+	Reattestable             bool
+	Catalog                  catalog.Catalog
+	TrustDomain              spiffeid.TrustDomain
+	Log                      logrus.FieldLogger
+	Metrics                  telemetry.Metrics
+	ServerAddr               string
+	Storage                  storage.Storage
+	WorkloadKeyType          workloadkey.KeyType
+	SyncInterval             time.Duration
+	UseSyncAuthorizedEntries bool
+	RotationInterval         time.Duration
+	SVIDStoreCache           *storecache.Cache
+	SVIDCacheMaxSize         int
+	NodeAttestor             nodeattestor.NodeAttestor
+	RotationStrategy         *rotationutil.RotationStrategy
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -72,18 +75,19 @@ func newManager(c *Config) *manager {
 	}
 
 	rotCfg := &svid.RotatorConfig{
-		SVIDKeyManager: keymanager.ForSVID(c.Catalog.GetKeyManager()),
-		Log:            c.Log,
-		Metrics:        c.Metrics,
-		SVID:           c.SVID,
-		SVIDKey:        c.SVIDKey,
-		BundleStream:   cache.SubscribeToBundleChanges(),
-		ServerAddr:     c.ServerAddr,
-		TrustDomain:    c.TrustDomain,
-		Interval:       c.RotationInterval,
-		Clk:            c.Clk,
-		NodeAttestor:   c.NodeAttestor,
-		Reattestable:   c.Reattestable,
+		SVIDKeyManager:   keymanager.ForSVID(c.Catalog.GetKeyManager()),
+		Log:              c.Log,
+		Metrics:          c.Metrics,
+		SVID:             c.SVID,
+		SVIDKey:          c.SVIDKey,
+		BundleStream:     cache.SubscribeToBundleChanges(),
+		ServerAddr:       c.ServerAddr,
+		TrustDomain:      c.TrustDomain,
+		Interval:         c.RotationInterval,
+		Clk:              c.Clk,
+		NodeAttestor:     c.NodeAttestor,
+		Reattestable:     c.Reattestable,
+		RotationStrategy: c.RotationStrategy,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

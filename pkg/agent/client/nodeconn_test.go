@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"crypto"
+	"crypto/x509"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,7 @@ func newTestConn(t *testing.T) *grpc.ClientConn {
 	client := newClient(&Config{
 		Addr:          "unix:///foo",
 		Log:           log,
-		KeysAndBundle: keysAndBundle,
+		KeysAndBundle: emptyKeysAndBundle,
 		TrustDomain:   trustDomain,
 	})
 	client.dialContext = func(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -85,4 +87,8 @@ func TestNewNodeMany(t *testing.T) {
 	// should error since we already closed
 	err := conn.Close()
 	require.Equal(t, codes.Canceled, status.Code(err))
+}
+
+func emptyKeysAndBundle() ([]*x509.Certificate, crypto.Signer, []*x509.Certificate) {
+	return nil, nil, nil
 }

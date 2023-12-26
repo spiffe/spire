@@ -7,7 +7,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -373,7 +372,6 @@ func (p *fakeV1Plugin) SignData(_ context.Context, req *keymanagerv1.SignDataReq
 	}
 
 	if diff := cmp.Diff(p.expectSignerOpts, req.GetSignerOpts(), protocmp.Transform()); diff != "" {
-		fmt.Println("DIFF", diff)
 		return nil, status.Errorf(codes.InvalidArgument, "unexpected signer opts %s", diff)
 	}
 

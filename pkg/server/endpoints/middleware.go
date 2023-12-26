@@ -152,6 +152,7 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/spire.api.server.entry.v1.Entry/BatchUpdateEntry":                              noLimit,
 		"/spire.api.server.entry.v1.Entry/BatchDeleteEntry":                              noLimit,
 		"/spire.api.server.entry.v1.Entry/GetAuthorizedEntries":                          noLimit,
+		"/spire.api.server.entry.v1.Entry/SyncAuthorizedEntries":                         noLimit,
 		"/spire.api.server.agent.v1.Agent/CountAgents":                                   noLimit,
 		"/spire.api.server.agent.v1.Agent/ListAgents":                                    noLimit,
 		"/spire.api.server.agent.v1.Agent/GetAgent":                                      noLimit,

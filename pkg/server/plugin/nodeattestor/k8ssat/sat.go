@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gofrs/uuid/v5"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -25,7 +26,6 @@ import (
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"gopkg.in/square/go-jose.v2/jwt"
 	authv1 "k8s.io/api/authentication/v1"
 )
 

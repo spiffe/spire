@@ -102,6 +102,7 @@ type serverConfig struct {
 type experimentalConfig struct {
 	AuthOpaPolicyEngine  *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 	CacheReloadInterval  string                      `hcl:"cache_reload_interval"`
+	EventsBasedCache     bool                        `hcl:"events_based_cache"`
 	PruneEventsOlderThan string                      `hcl:"prune_events_older_than"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
@@ -675,6 +676,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.PruneEventsOlderThan = interval
 	}
 
+	if c.Server.Experimental.EventsBasedCache {
+		sc.Log.Info("Using events based cache")
+	}
+
+	sc.EventsBasedCache = c.Server.Experimental.EventsBasedCache
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
 
 	for _, f := range c.Server.Experimental.Flags {

@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/cryptosigner"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
@@ -24,9 +27,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/grpc/codes"
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/cryptosigner"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 const (
@@ -78,7 +78,7 @@ func (s *IITAttestorSuite) TestErrorOnMissingPayload() {
 
 func (s *IITAttestorSuite) TestErrorOnMissingKid() {
 	payload := s.signToken(testKey, "", buildDefaultClaims())
-	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: square/go-jose: unsupported key type/format")
+	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: go-jose/go-jose: unsupported key type/format")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidClaims() {
@@ -86,14 +86,14 @@ func (s *IITAttestorSuite) TestErrorOnInvalidClaims() {
 	claims.Expiry = jwt.NewNumericDate(time.Now().Add(-time.Hour))
 
 	payload := s.signToken(testKey, "kid", claims)
-	s.requireAttestError(s.T(), payload, codes.PermissionDenied, "nodeattestor(gcp_iit): failed to validate the identity token claims: square/go-jose/jwt: validation failed, token is expired (exp)")
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, "nodeattestor(gcp_iit): failed to validate the identity token claims: go-jose/go-jose/jwt: validation failed, token is expired (exp)")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidAudience() {
 	claims := buildClaims(testProject, "invalid")
 
 	payload := s.signToken(testKey, "kid", claims)
-	s.requireAttestError(s.T(), payload, codes.PermissionDenied, `nodeattestor(gcp_iit): failed to validate the identity token claims: square/go-jose/jwt: validation failed, invalid audience claim (aud)`)
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, `nodeattestor(gcp_iit): failed to validate the identity token claims: go-jose/go-jose/jwt: validation failed, invalid audience claim (aud)`)
 }
 
 func (s *IITAttestorSuite) TestErrorOnAttestedBefore() {
@@ -118,11 +118,11 @@ func (s *IITAttestorSuite) TestErrorOnInvalidSignature() {
 
 	payload := s.signToken(alternativeKey, "kid", buildDefaultClaims())
 
-	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: square/go-jose: error in cryptographic primitive")
+	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: go-jose/go-jose: error in cryptographic primitive")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidPayload() {
-	s.requireAttestError(s.T(), []byte("secret"), codes.InvalidArgument, "nodeattestor(gcp_iit): unable to parse the identity token: square/go-jose: compact JWS format must have three parts")
+	s.requireAttestError(s.T(), []byte("secret"), codes.InvalidArgument, "nodeattestor(gcp_iit): unable to parse the identity token: go-jose/go-jose: compact JWS format must have three parts")
 }
 
 func (s *IITAttestorSuite) TestErrorOnServiceAccountFileMismatch() {
