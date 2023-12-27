@@ -250,7 +250,7 @@ We have checked in a pre-commit hook which enforces `go fmt` styling. Please ins
 before sending a pull request. From the project root:
 
 ```shell
-$ pushd "$(git rev-parse --show-toplevel)/.git/hooks" && ln -sf "../../.githooks/pre-commit" && popd
+$ ln -s .githooks/pre-commit .git/hooks/pre-commit
 ```
 
 ## Reporting security vulnerabilities
