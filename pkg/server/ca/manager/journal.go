@@ -229,18 +229,9 @@ func (j *Journal) setEntries(entries *journal.Entries) {
 // the error (if any) of the operation.
 func (j *Journal) saveInDatastore(ctx context.Context, entriesBytes []byte) (caJournalID uint, err error) {
 	// Check if we already identified what's the CA journal for this server in
-	// the datastore.
+	// the datastore. If not, log that we are creating a new CA journal entry.
 	if j.caJournalID == 0 {
-		// We haven't identified what's the CA journal for this server.
-		// Look for a record that has an active X509 authority ID that matches
-		// one of our key manager keys.
-		caJournal, err := j.findCAJournal(ctx)
-		if err != nil {
-			return 0, fmt.Errorf("failed to get CA journal from database: %w", err)
-		}
-		if caJournal == nil {
-			j.config.log.Info("Creating a new CA journal entry")
-		}
+		j.config.log.Info("Creating a new CA journal entry")
 	}
 
 	ds := j.config.cat.GetDataStore()
@@ -254,7 +245,7 @@ func (j *Journal) saveInDatastore(ctx context.Context, entriesBytes []byte) (caJ
 	}
 
 	j.config.log.WithFields(logrus.Fields{
-		telemetry.CAJournalID:      j.caJournalID,
+		telemetry.CAJournalID:      caJournal.ID,
 		telemetry.LocalAuthorityID: j.activeX509AuthorityID,
 	}).Debug("Successfully stored CA journal entry in datastore")
 

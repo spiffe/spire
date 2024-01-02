@@ -604,9 +604,10 @@ func TestPruneCAJournals(t *testing.T) {
 		shouldBePruned bool
 	}
 
-	now := test.clock.Now().Unix()
-	tomorrow := test.clock.Now().Add(time.Hour * 24).Unix()
-	beforeThreshold := test.clock.Now().Add(-safetyThresholdCAJournals).Add(-time.Minute).Unix()
+	timeNow := test.clock.Now()
+	now := timeNow.Unix()
+	tomorrow := timeNow.Add(time.Hour * 24).Unix()
+	beforeThreshold := timeNow.Add(-safetyThresholdCAJournals).Add(-time.Minute).Unix()
 
 	jc := &journalConfig{
 		cat: test.cat,

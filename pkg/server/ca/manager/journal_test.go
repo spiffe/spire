@@ -124,11 +124,15 @@ func TestJournalPersistence(t *testing.T) {
 	require.NoError(t, j.UpdateX509CAStatus(ctx, now, journal.Status_ACTIVE))
 
 	// Check that the CA journal was properly stored in the datastore.
-	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDS(t).getEntries())
+	journalDS := test.loadJournalFromDS(t)
+	require.NotNil(t, journalDS)
+	spiretest.RequireProtoEqual(t, j.getEntries(), journalDS.getEntries())
 
 	// TODO: the following checks assume that the CA journal is stored both in
 	// datastore and on disk. Revisit this in v1.10.
-	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDisk(t).getEntries())
+	journalDisk := test.loadJournalFromDisk(t)
+	require.NotNil(t, journalDisk)
+	spiretest.RequireProtoEqual(t, j.getEntries(), journalDisk.getEntries())
 
 	// Test for the case when SPIRE starts with a CA journal on disk and does
 	// not yet have a CA journal stored in the datastore. Reset the datastore so
@@ -139,7 +143,9 @@ func TestJournalPersistence(t *testing.T) {
 	// Load the journal again. It should still get the CA journal stored on
 	// disk.
 	j = test.loadJournal(t)
-	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDisk(t).getEntries())
+	journalDisk = test.loadJournalFromDisk(t)
+	require.NotNil(t, journalDisk)
+	spiretest.RequireProtoEqual(t, j.getEntries(), journalDisk.getEntries())
 
 	// Append a new X.509 CA, which will make the CA journal to be stored
 	// on disk and in the datastore.
@@ -152,8 +158,12 @@ func TestJournalPersistence(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, j.UpdateX509CAStatus(ctx, now, journal.Status_ACTIVE))
 
-	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDS(t).getEntries())
-	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDisk(t).getEntries())
+	journalDS = test.loadJournalFromDS(t)
+	require.NotNil(t, journalDS)
+	spiretest.RequireProtoEqual(t, j.getEntries(), journalDS.getEntries())
+	journalDisk = test.loadJournalFromDisk(t)
+	require.NotNil(t, journalDisk)
+	spiretest.RequireProtoEqual(t, j.getEntries(), journalDisk.getEntries())
 
 	// Simulate a datastore error
 	dsError := errors.New("ds error")
@@ -167,7 +177,9 @@ func TestJournalPersistence(t *testing.T) {
 	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
 
 	// CA journal on disk should have been saved successfully
-	spiretest.RequireProtoEqual(t, j.getEntries(), test.loadJournalFromDisk(t).getEntries())
+	journalDisk = test.loadJournalFromDisk(t)
+	require.NotNil(t, journalDisk)
+	spiretest.RequireProtoEqual(t, j.getEntries(), journalDisk.getEntries())
 }
 
 func TestAppendSetPreparedStatus(t *testing.T) {
