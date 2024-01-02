@@ -174,6 +174,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	var serverID = config.KeyIdentifierValue
 	if serverID == "" && config.KeyMetadataFile != "" {
+		p.log.Warn("'key_metadata_file' is deprecated in favor of 'key_identifier_file' and will be removed in a future version")
 		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
 		if err != nil {
 			return nil, err
