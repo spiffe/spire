@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -92,11 +93,13 @@ type Plugin struct {
 
 // Config provides configuration context for the plugin
 type Config struct {
-	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
-	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
-	Region          string `hcl:"region" json:"region"`
-	KeyMetadataFile string `hcl:"key_metadata_file" json:"key_metadata_file"`
-	KeyPolicyFile   string `hcl:"key_policy_file" json:"key_policy_file"`
+	AccessKeyID        string `hcl:"access_key_id" json:"access_key_id"`
+	SecretAccessKey    string `hcl:"secret_access_key" json:"secret_access_key"`
+	Region             string `hcl:"region" json:"region"`
+	KeyMetadataFile    string `hcl:"key_metadata_file" json:"key_metadata_file"`
+	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
+	KeyPolicyFile      string `hcl:"key_policy_file" json:"key_policy_file"`
 }
 
 // New returns an instantiated plugin
@@ -131,12 +134,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	serverID, err := loadServerID(config.KeyMetadataFile)
-	if err != nil {
-		return nil, err
-	}
-	p.log.Debug("Loaded server id", "server_id", serverID)
-
 	if config.KeyPolicyFile != "" {
 		policyBytes, err := os.ReadFile(config.KeyPolicyFile)
 		if err != nil {
@@ -145,6 +142,22 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		policyStr := string(policyBytes)
 		p.keyPolicy = &policyStr
 	}
+
+	var serverID = config.KeyIdentifierValue
+	if serverID == "" && config.KeyMetadataFile != "" {
+		p.log.Warn("'key_metadata_file' is deprecated in favor of 'key_identifier_file' and will be removed in a future version")
+		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if serverID == "" && config.KeyIdentifierFile != "" {
+		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+	p.log.Debug("Loaded server id", "server_id", serverID)
 
 	awsCfg, err := newAWSConfig(ctx, config)
 	if err != nil {
@@ -832,8 +845,26 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing a region")
 	}
 
-	if config.KeyMetadataFile == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing server id file path")
+	if config.KeyIdentifierValue != "" {
+		re := regexp.MustCompile(".*[^A-z0-9/_-].*")
+		if re.MatchString(config.KeyIdentifierValue) {
+			return nil, status.Error(codes.InvalidArgument, "Key identifier must contain only alphanumeric characters, forward slashes (/), underscores (_), and dashes (-)")
+		}
+		if strings.HasPrefix(config.KeyIdentifierValue, "alias/aws/") {
+			return nil, status.Error(codes.InvalidArgument, "Key identifier must not start with alias/aws/")
+		}
+		if len(config.KeyIdentifierValue) > 256 {
+			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 256 characters")
+		}
+	}
+	if config.KeyMetadataFile == "" && config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration requires server id or server id file path")
+	}
+	if (config.KeyMetadataFile != "" || config.KeyIdentifierFile != "") && config.KeyIdentifierValue != "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both server id and server id file path")
+	}
+	if config.KeyMetadataFile != "" && config.KeyIdentifierFile != "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'")
 	}
 
 	return config, nil
@@ -923,7 +954,7 @@ func min(x, y time.Duration) time.Duration {
 	return y
 }
 
-func loadServerID(idPath string) (string, error) {
+func getOrCreateServerID(idPath string) (string, error) {
 	// get id from path
 	data, err := os.ReadFile(idPath)
 	switch {
