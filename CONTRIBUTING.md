@@ -233,15 +233,6 @@ implementation can easily serve the needs for an entire suite of tests and
 the behavior is in a centralized location when it needs to be updated. Fakes
 are also less inclined to be impacted by changes to usage patterns.
 
-## Git hooks
-
-We have checked in a pre-commit hook which enforces `go fmt` styling. Please install it
-before sending a pull request. From the project root:
-
-```shell
-$ pushd "$(git rev-parse --show-toplevel)/.git/hooks" && ln -sf "../../.githooks/pre-commit" && popd
-```
-
 ## Reporting security vulnerabilities
 
 If you've found a vulnerability or a potential vulnerability in SPIRE please let us know at <security@spiffe.io>. We'll send a confirmation email to acknowledge your report, and we'll send an additional email when we've identified the issue positively or negatively.
