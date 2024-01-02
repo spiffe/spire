@@ -233,16 +233,15 @@ implementation can easily serve the needs for an entire suite of tests and
 the behavior is in a centralized location when it needs to be updated. Fakes
 are also less inclined to be impacted by changes to usage patterns.
 
-## Support for [direnv][direnv_link]
+## Example [direnv][direnv_link] .envrc
 
-We have committed a basic `.envrc` for developers who use [direnv][direnv_link].
-Enable it with `direnv allow`. It will build the managed `go` sdk, set
-`GOROOT` and `PATH` to use the managed go tool, and enforce the `pre-commit`
-git hook described below. Additionally, if you want to further customize your
-SPIRE development environment, add a `.envrc.local` at the top level of the
-worktree with your customizations. The `.envrc.local` is gitignored.
+We have committed a basic `.envrc.example`. If you use [direnv][direnv_link],
+copy it into `.envrc`, edit as desired, and enable it with `direnv allow`. The
+`.envrc` is `.gitignored`. Be aware that [source_env][source_env] is insecure
+so keep your customizations in `.envrc`.
 
 [direnv_link]: https://direnv.net/
+[source_env]: https://direnv.net/man/direnv-stdlib.1.html#codesourceenv-ltfileordirpathgtcode
 
 ## Git hooks
 
