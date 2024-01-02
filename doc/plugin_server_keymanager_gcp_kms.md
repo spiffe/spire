@@ -10,12 +10,14 @@ SPIRE.
 
 The plugin accepts the following configuration options:
 
-| Key | Type | Required | Description | Default |
-| --- | ---- | -------- | ----------- | ------- |
-| key_policy_file | string | no | A file path location to a custom [IAM Policy (v3)](https://cloud.google.com/pubsub/docs/reference/rpc/google.iam.v1#google.iam.v1.Policy) in JSON format to be attached to created CryptoKeys. | "" |
-| key_metadata_file | string | yes | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information. | "" |
-| key_ring | string | yes | Resource ID of the key ring where the keys managed by this plugin reside, in the format projects/\*/locations/\*/keyRings/\* | "" |
-| service_account_file | string | no | Path to the service account file used to authenticate with the Cloud KMS API. | Value of `GOOGLE_APPLICATION_CREDENTIALS` environment variable. |
+| Key                  | Type   | Required                                    | Description                                                                                                                                                                                    | Default                                                         |
+|----------------------|--------|---------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| key_policy_file      | string | no                                          | A file path location to a custom [IAM Policy (v3)](https://cloud.google.com/pubsub/docs/reference/rpc/google.iam.v1#google.iam.v1.Policy) in JSON format to be attached to created CryptoKeys. | ""                                                              |
+| key_metadata_file    | string | no                                          | A file path location where key metadata used by the plugin will be persisted (deprecated). See "[Management of keys](#management-of-keys)" for more information.                               | ""                                                              |
+| key_identifier_file  | string | Required if key_identifier_value is not set | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information.                                            | ""                                                              |
+| key_identifier_value | string | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_metadata_file`)                                                                                                        | ""                                                              |
+| key_ring             | string | yes                                         | Resource ID of the key ring where the keys managed by this plugin reside, in the format projects/\*/locations/\*/keyRings/\*                                                                   | ""                                                              |
+| service_account_file | string | no                                          | Path to the service account file used to authenticate with the Cloud KMS API.                                                                                                                  | Value of `GOOGLE_APPLICATION_CREDENTIALS` environment variable. |
 
 ### Authenticating with the Cloud KMS API
 
@@ -49,12 +51,12 @@ the service. All the labels are named with the `spire-` prefix.
 Users don't need to interact with the labels managed by the plugin. The
 following table is provided for informational purposes only:
 
-| Label | Description |
-| ----- | ----------- |
-| spire-server-td | SHA-1 checksum of the trust domain name of the server. |
-| spire-server-id | Auto-generated ID that is unique to the server and is persisted in the _Key Metadata File_ (see the `key_metadata_file` configurable). |
-| spire-last-update | Unix time of the last time that the plugin updated the CryptoKey to keep it active. |
-| spire-active | Indicates if the CryptoKey is still in use by the plugin. |
+| Label             | Description                                                                                                                            |
+|-------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| spire-server-td   | SHA-1 checksum of the trust domain name of the server.                                                                                 |
+| spire-server-id   | Auto-generated ID that is unique to the server and is persisted in the _Key Metadata File_ (see the `key_metadata_file` configurable). |
+| spire-last-update | Unix time of the last time that the plugin updated the CryptoKey to keep it active.                                                    |
+| spire-active      | Indicates if the CryptoKey is still in use by the plugin.                                                                              |
 
 If the _Key Metadata File_ is not found during server startup, the file is
 recreated, with a new auto-generated server ID. Consequently, if the file is
