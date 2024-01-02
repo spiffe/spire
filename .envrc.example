@@ -1,19 +1,9 @@
 toplevel="$(git rev-parse --show-toplevel)"
 
-# ensure the pre-commit git hook is in place
-pushd $toplevel/.git/hooks >/dev/null &&
-    ln -sf ../../.githooks/pre-commit &&
-    popd >/dev/null
+# build and use the managed go sdk
+unset GOROOT
+make -C "$toplevel" go-check
+go_bin_path="$(make --no-print-directory -C $toplevel go-bin-path)"
+PATH="$go_bin_path:$PATH"
 
-# build the managed go sdk
-pushd $toplevel >/dev/null &&
-    make go-check &&
-    popd >/dev/null
-
-# detect os and architecture on darwin and linux
-machine="$(go env GOOS)-$(uname -m)"
-
-# export GOROOT and PATH for managed go sdk
-GOROOT="$toplevel/.build/$machine/go/$(cat .go-version)"
-PATH="$GOROOT/bin:$PATH"
-export GOROOT PATH
+# add custom direnv initialization below here
