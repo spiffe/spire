@@ -10,15 +10,17 @@ SPIRE.
 
 The plugin accepts the following configuration options:
 
-| Key               | Type    | Required                                    | Description                                                                                                                                         | Default |
-|-------------------|---------|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| key_metadata_file | string  | yes                                         | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information. | ""      |
-| key_vault_uri     | string  | Yes                                         | The Key Vault URI where the keys managed by this plugin reside.                                                                                     | ""      |
-| use_msi           | boolean | [Deprecated](#authenticating-to-azure)        | Whether or not to use MSI to authenticate to Azure Key Vault.                                                                                       | false   |
-| subscription_id   | string  | [Optional](#authenticating-to-azure)        | The subscription id.                                                                                                                                | ""      |
-| app_id            | string  | [Optional](#authenticating-to-azure)        | The application id.                                                                                                                                 | ""      |
-| app_secret        | string  | [Optional](#authenticating-to-azure)        | The application secret.                                                                                                                             | ""      |
-| tenant_id         | string  | [Optional](#authenticating-to-azure)        | The tenant id.                                                                                                                                      | ""      |
+| Key                  | Type    | Required                                    | Description                                                                                                                                                      | Default |
+|----------------------|---------|---------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| key_metadata_file    | string  | no                                          | A file path location where key metadata used by the plugin will be persisted (deprecated). See "[Management of keys](#management-of-keys)" for more information. | ""      |
+| key_identifier_file  | string  | Required if key_identifier_value is not set | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information.              | ""      |
+| key_identifier_value | string  | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_metadata_file`)                                                                          | ""      |
+| key_vault_uri        | string  | Yes                                         | The Key Vault URI where the keys managed by this plugin reside.                                                                                                  | ""      |
+| use_msi              | boolean | [Deprecated](#authenticating-to-azure)      | Whether or not to use MSI to authenticate to Azure Key Vault.                                                                                                    | false   |
+| subscription_id      | string  | [Optional](#authenticating-to-azure)        | The subscription id.                                                                                                                                             | ""      |
+| app_id               | string  | [Optional](#authenticating-to-azure)        | The application id.                                                                                                                                              | ""      |
+| app_secret           | string  | [Optional](#authenticating-to-azure)        | The application secret.                                                                                                                                          | ""      |
+| tenant_id            | string  | [Optional](#authenticating-to-azure)        | The tenant id.                                                                                                                                                   | ""      |
 
 ### Authenticating to Azure
 
@@ -52,7 +54,7 @@ following table is provided for informational purposes only:
 
 | Label           | Description                                                                                                                            |
 |-----------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| spire-server-td | A string representing the trust domain name of the server.                                                                            |
+| spire-server-td | A string representing the trust domain name of the server.                                                                             |
 | spire-server-id | Auto-generated ID that is unique to the server and is persisted in the _Key Metadata File_ (see the `key_metadata_file` configurable). |
 
 If the _Key Metadata File_ is not found during server startup, the file is
