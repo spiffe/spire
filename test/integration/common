@@ -112,8 +112,8 @@ check-x509-svid-count() {
   CHECKINTERVAL=1
 
   for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "check X.509-SVID count on agent debug endpoint ($(($i)) of $MAXCHECKS max)..."
-    COUNT=$(docker-compose exec -T $1 /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq '.svidsCount')
+    log-info "check X.509-SVID count on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
+    COUNT=$(docker-compose exec -T "$1" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq '.svidsCount')
     log-info "X.509-SVID Count: ${COUNT}"
     if [ "$COUNT" -eq "$2" ]; then
       log-info "X.509-SVID count of $COUNT from cache matches the expected count of $2"
@@ -122,7 +122,7 @@ check-x509-svid-count() {
     sleep "${CHECKINTERVAL}"
   done
 
-  if (( $i>$MAXCHECKS )); then
+  if (( i>MAXCHECKS )); then
       fail-now "X.509-SVID count validation failed"
   fi
 }
@@ -191,7 +191,7 @@ download-bin() {
     local bin_path=$1
     local bin_url=$2
     if [ ! -f "${bin_path}" ] ; then
-        log-info "downloading $(basename ${bin_path}) from ${bin_url}..."
+        log-info "downloading $(basename "${bin_path}") from ${bin_url}..."
         curl -# -f -Lo "${bin_path}" "${bin_url}"
         chmod +x "${bin_path}"
     fi
@@ -207,14 +207,15 @@ download-kind() {
     elif [ "${ARCH}" = "aarch64" ]; then
         ARCH=arm64
     fi
+    echo "Ensuring kind version $KINDVERSION is available..." 
     KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-$ARCH"
 
-    local kind_path=$1
+    local kind_link_or_path=$1
     # Ensure kind exists at the expected version
     if [ -x "${KINDPATH}" ] && "${KINDPATH}" version | grep -q "${KINDVERSION}"; then
-        ln -s "${KINDPATH}" "${kind_path}"
+        ln -s "${KINDPATH}" "${kind_link_or_path}"
     else
-        download-bin "${kind_path}" "${KINDURL}"
+        download-bin "${kind_link_or_path}" "${KINDURL}"
     fi
 }
 
@@ -229,18 +230,19 @@ download-helm() {
         ARCH=arm64
     fi
 
+    echo "Ensuring helm version $HELMVERSION is available..." 
     HELMURL="https://get.helm.sh/helm-${HELMVERSION}-${UNAME}-${ARCH}.tar.gz"
 
-    local helm_path=$1
+    local helm_link_or_path=$1
     # Ensure helm exists at the expected version
     if [ -x "${HELMPATH}" ] && "${HELMPATH}" version | grep -q "${HELMSION}"; then
-        ln -s "${HELMPATH}" "${helm_path}"
+        ln -s "${HELMPATH}" "${helm_link_or_path}"
     else
-        curl -# -f -LO ${HELMURL}
+        curl -# -f -LO "${HELMURL}"
         tar zxvf "helm-${HELMVERSION}-${UNAME}-${ARCH}.tar.gz"
-        cp ${UNAME}-${ARCH}/helm ${helm_path}
-        chmod +x ${helm_path}
-        ls -l ${helm_path}
+        cp "${UNAME}-${ARCH}"/helm "${helm_link_or_path}"
+        chmod +x "${helm_link_or_path}"
+        ls -l "${helm_link_or_path}"
     fi
 }
 
@@ -265,12 +267,12 @@ download-kubectl() {
     echo "Want kubectl version: ${WANTVERSION}"
     echo "Have kubectl version: ${HAVEVERSION}"
 
-    local kubectl_path=$1
+    local kubectl_link_or_path=$1
     # Ensure kubectl exists at the expected version
     if [ "${HAVEVERSION}" = "${WANTVERSION}" ]; then
-        ln -s "${KUBECTLPATH}" "${kubectl_path}"
+        ln -s "${KUBECTLPATH}" "${kubectl_link_or_path}"
     else
-        download-bin "${kubectl_path}" "${KUBECTLURL}"
+        download-bin "${kubectl_link_or_path}" "${KUBECTLURL}"
     fi
 }
 
