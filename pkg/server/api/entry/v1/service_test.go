@@ -3190,7 +3190,6 @@ func TestSyncAuthorizedEntries(t *testing.T) {
 			name: "no caller id",
 			steps: []step{
 				{
-					req:  &entryv1.SyncAuthorizedEntriesRequest{},
 					err:  "caller ID missing from request context",
 					code: codes.Internal,
 				},
@@ -3217,7 +3216,6 @@ func TestSyncAuthorizedEntries(t *testing.T) {
 			name: "fetcher fails",
 			steps: []step{
 				{
-					req:  &entryv1.SyncAuthorizedEntriesRequest{},
 					err:  "failed to fetch entries",
 					code: codes.Internal,
 				},

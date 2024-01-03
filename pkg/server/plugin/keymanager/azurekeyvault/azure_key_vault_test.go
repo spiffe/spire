@@ -66,13 +66,13 @@ func TestKeyManagerContract(t *testing.T) {
 			func(azcore.TokenCredential, string) (cloudKeyManagementService, error) { return kmsClient, nil },
 		)
 		km := new(keymanager.V1)
-		keyMetadataFile := createKeyMetadataFile(t)
+		keyIdentifierFile := createKeyIdentifierFile(t)
 
 		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
 			key_metadata_file = %q
 			key_vault_uri = "https://spire-server.vault.azure.net/"
 			use_msi=true
-		`, keyMetadataFile))
+		`, keyIdentifierFile))
 		return km
 	}
 
@@ -113,54 +113,80 @@ func TestConfigure(t *testing.T) {
 			configureRequest: configureRequestWithDefaults(t),
 		},
 		{
+			name:             "pass with identity file",
+			configureRequest: configureRequestWithVars(KeyIdentifierFile, createKeyIdentifierFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
+		},
+		{
+			name:             "pass with identity value",
+			configureRequest: configureRequestWithVars(KeyIdentifierValue, "server-id", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
+		},
+		{
 			name:             "missing key metadata file",
-			configureRequest: configureRequestWithVars("", validKeyVaultURI, "", "", "", validAppSecret, "true"),
-			err:              "configuration is missing server ID file path",
+			configureRequest: configureRequestWithVars(KeyMetadataFile, "", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
+			err:              "configuration requires server id or server id file path",
+			code:             codes.InvalidArgument,
+		},
+		{
+			name:             "key identifier file and key identifier value",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_file":"key_identifier_file","key_identifier_value":"key_identifier_value","key_policy_file":"","key_vault_uri":"%s"}`, validKeyVaultURI)),
+			err:              "configuration must not contain both server id and server id file path",
+			code:             codes.InvalidArgument,
+		},
+		{
+			name:             "key metadata file and key identifier file",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_metadata_file":"key_metadata_file","key_identifier_file":"key_identifier_file","key_policy_file":"","key_vault_uri":"%s"}`, validKeyVaultURI)),
+			err:              "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'",
+			code:             codes.InvalidArgument,
+		},
+		{
+			name:             "key metadata value too long",
+			configureRequest: configureRequestWithVars(KeyIdentifierValue, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
+			err:              "Key identifier must not be longer than 256 characters",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing client authentication config",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, "", "", "", "", "false"),
+			configureRequest: configureRequestWithVars(KeyMetadataFile, createKeyIdentifierFile(t), validKeyVaultURI, "", "", "", "", "false"),
 		},
 		{
 			name:             "use MSI while app secret is set",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, "", "", "", validAppSecret, "true"),
+			configureRequest: configureRequestWithVars(KeyMetadataFile, createKeyIdentifierFile(t), validKeyVaultURI, "", "", "", validAppSecret, "true"),
 			err:              "invalid configuration, cannot use both MSI and app authentication",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing Key Vault URI",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), "", validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
+			configureRequest: configureRequestWithVars(KeyMetadataFile, createKeyIdentifierFile(t), "", validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
 			err:              "configuration is missing the Key Vault URI",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing tenant ID",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, "", validSubscriptionID, validAppID, validAppSecret, "false"),
+			configureRequest: configureRequestWithVars(KeyMetadataFile, createKeyIdentifierFile(t), validKeyVaultURI, "", validSubscriptionID, validAppID, validAppSecret, "false"),
 			err:              "invalid configuration, missing tenant id",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing subscription ID ",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, "", validAppID, validAppSecret, "false"),
+			configureRequest: configureRequestWithVars(KeyMetadataFile, createKeyIdentifierFile(t), validKeyVaultURI, validTenantID, "", validAppID, validAppSecret, "false"),
 			err:              "invalid configuration, missing subscription id",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing server id file path",
-			configureRequest: configureRequestWithVars("", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
-			err:              "configuration is missing server ID file path",
+			configureRequest: configureRequestWithVars(KeyMetadataFile, "", validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, "false"),
+			err:              "configuration requires server id or server id file path",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing application ID",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, "", validAppSecret, "false"),
+			configureRequest: configureRequestWithVars(KeyMetadataFile, createKeyIdentifierFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, "", validAppSecret, "false"),
 			err:              "invalid configuration, missing application id",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "missing application secret",
-			configureRequest: configureRequestWithVars(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, "", "false"),
+			configureRequest: configureRequestWithVars(KeyMetadataFile, createKeyIdentifierFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, "", "false"),
 			err:              "invalid configuration, missing app secret",
 			code:             codes.InvalidArgument,
 		},
@@ -950,7 +976,7 @@ func setupTest(t *testing.T) *pluginTest {
 
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(createKeyMetadataFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, ""),
+		HclConfiguration:  serializedConfiguration(KeyMetadataFile, createKeyIdentifierFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret, ""),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
 	}
 }
@@ -961,9 +987,17 @@ func getUUID(t *testing.T) string {
 	return uuid.String()
 }
 
-func serializedConfiguration(keyMetadataFile, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi string) string {
+type KeyIdentifierConfigName string
+
+const (
+	KeyMetadataFile    KeyIdentifierConfigName = "key_metadata_file"
+	KeyIdentifierFile  KeyIdentifierConfigName = "key_identifier_file"
+	KeyIdentifierValue KeyIdentifierConfigName = "key_identifier_value"
+)
+
+func serializedConfiguration(keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi string) string {
 	return fmt.Sprintf(`{
-		"key_metadata_file":"%s",
+		"%s":"%s",
 		"key_vault_uri":"%s",
 		"tenant_id":"%s",
 		"subscription_id":"%s",
@@ -971,7 +1005,8 @@ func serializedConfiguration(keyMetadataFile, keyVaultURI, tenantID, subscriptio
 		"app_secret":"%s",
 		"use_msi":%s
 		}`,
-		keyMetadataFile,
+		keyIdentifierConfigName,
+		keyIdentifierConfigValue,
 		keyVaultURI,
 		tenantID,
 		subscriptionID,
@@ -980,9 +1015,9 @@ func serializedConfiguration(keyMetadataFile, keyVaultURI, tenantID, subscriptio
 		useMsi)
 }
 
-func configureRequestWithVars(keyMetadataFile, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi string) *configv1.ConfigureRequest {
+func configureRequestWithVars(keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(keyMetadataFile, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi),
+		HclConfiguration:  serializedConfiguration(keyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret, useMsi),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
 	}
 }
@@ -993,7 +1028,7 @@ func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	}
 }
 
-func createKeyMetadataFile(t *testing.T) string {
+func createKeyIdentifierFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	tempFilePath := filepath.ToSlash(filepath.Join(tempDir, validServerIDFile))
 	err := os.WriteFile(tempFilePath, []byte(validServerID), 0o600)
