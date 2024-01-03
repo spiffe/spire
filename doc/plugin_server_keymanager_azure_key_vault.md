@@ -29,7 +29,7 @@ using the [DefaultAzureCredential API](https://pkg.go.dev/github.com/Azure/azure
 The `DefaultAzureCredential API` attempts to authenticate via the following mechanisms in order -
 environment variables, Workload Identity, and Managed Identity; stopping when once succeeds.
 When using Workload Identity or Managed Identity, the plugin must be able to fetch the credential for the configured
-tenant ID, or else the attestation of nodes using this attestor will fail.
+tenant ID, otherwise the authentication to Key Vault will fail.
 
 Alternatively, the plugin can be configured to use static credentials for an application
 registered within the tenant (`subscription_id`, `app_id`, and `app_secret`).
