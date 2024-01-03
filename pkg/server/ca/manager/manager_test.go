@@ -614,10 +614,9 @@ func TestPruneCAJournals(t *testing.T) {
 		log: test.log,
 	}
 	testCases := []struct {
-		name               string
-		entries            *journal.Entries
-		expectedCAJournals []*datastore.CAJournal
-		testJournals       []*testJournal
+		name         string
+		entries      *journal.Entries
+		testJournals []*testJournal
 	}{
 		{
 			name: "no journals with CAs expired before the threshold - no journals to be pruned",
@@ -691,8 +690,10 @@ func TestPruneCAJournals(t *testing.T) {
 		},
 	}
 
+	var expectedCAJournals []*datastore.CAJournal
 	for _, testCase := range testCases {
 		testCase := testCase
+		expectedCAJournals = []*datastore.CAJournal{}
 		t.Run(testCase.name, func(t *testing.T) {
 			// Have a fresh data store in each test case
 			test.ds = fakedatastore.New(t)
@@ -708,14 +709,14 @@ func TestPruneCAJournals(t *testing.T) {
 				require.NoError(t, err)
 
 				if !j.shouldBePruned {
-					testCase.expectedCAJournals = append(testCase.expectedCAJournals, caJournal)
+					expectedCAJournals = append(expectedCAJournals, caJournal)
 				}
 			}
 
 			require.NoError(t, test.m.PruneCAJournals(ctx))
 			caJournals, err := test.ds.ListCAJournalsForTesting(ctx)
 			require.NoError(t, err)
-			require.ElementsMatch(t, testCase.expectedCAJournals, caJournals)
+			require.ElementsMatch(t, expectedCAJournals, caJournals)
 		})
 	}
 }
