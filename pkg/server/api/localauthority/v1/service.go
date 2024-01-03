@@ -25,13 +25,13 @@ type CAManager interface {
 	GetCurrentJWTKeySlot() manager.Slot
 	GetNextJWTKeySlot() manager.Slot
 	PrepareJWTKey(ctx context.Context) error
-	RotateJWTKey()
+	RotateJWTKey(ctx context.Context)
 
 	// X509
 	GetCurrentX509CASlot() manager.Slot
 	GetNextX509CASlot() manager.Slot
 	PrepareX509CA(ctx context.Context) error
-	RotateX509CA()
+	RotateX509CA(ctx context.Context)
 }
 
 // Config is the service configuration
@@ -140,7 +140,7 @@ func (s *Service) ActivateJWTAuthority(ctx context.Context, req *localauthorityv
 		return nil, api.MakeErr(log, codes.Internal, "only Prepared authorities can be activated", fmt.Errorf("unsupported local authority status: %v", nextSlot.Status()))
 	}
 
-	s.ca.RotateJWTKey()
+	s.ca.RotateJWTKey(ctx)
 
 	current := s.ca.GetCurrentJWTKeySlot()
 	state := &localauthorityv1.AuthorityState{
@@ -308,7 +308,7 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 	}
 
 	// Move next into current and reset next to clean CA
-	s.ca.RotateX509CA()
+	s.ca.RotateX509CA(ctx)
 
 	current := s.ca.GetCurrentX509CASlot()
 	state := &localauthorityv1.AuthorityState{

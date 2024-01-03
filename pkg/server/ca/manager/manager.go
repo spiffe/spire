@@ -31,8 +31,9 @@ import (
 )
 
 const (
-	publishJWKTimeout = 5 * time.Second
-	safetyThreshold   = 24 * time.Hour
+	publishJWKTimeout         = 5 * time.Second
+	safetyThresholdBundle     = 24 * time.Hour
+	safetyThresholdCAJournals = time.Hour * 24 * 14 // Two weeks
 
 	thirtyDays                  = 30 * 24 * time.Hour
 	preparationThresholdCap     = thirtyDays
@@ -73,12 +74,12 @@ type Manager struct {
 	upstreamClient     *ca.UpstreamClient
 	upstreamPluginName string
 
-	currentX509CA *X509CASlot
-	nextX509CA    *X509CASlot
+	currentX509CA *x509CASlot
+	nextX509CA    *x509CASlot
 	x509CAMutex   sync.RWMutex
 
-	currentJWTKey *JwtKeySlot
-	nextJWTKey    *JwtKeySlot
+	currentJWTKey *jwtKeySlot
+	nextJWTKey    *jwtKeySlot
 	jwtKeyMutex   sync.RWMutex
 
 	journal *Journal
@@ -119,7 +120,7 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		UpstreamClient: m.upstreamClient,
 	}
 
-	journal, slots, err := loader.Load(ctx)
+	journal, slots, err := loader.load(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -127,21 +128,21 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	now := m.c.Clock.Now()
 	m.journal = journal
 	if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
-		m.currentX509CA = currentX509CA.(*X509CASlot)
+		m.currentX509CA = currentX509CA.(*x509CASlot)
 
 		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
 			// activate the X509CA immediately if it is set and not within
 			// activation time of the next X509CA.
-			m.activateX509CA()
+			m.activateX509CA(ctx)
 		}
 	}
 
 	if nextX509CA, ok := slots[NextX509CASlot]; ok {
-		m.nextX509CA = nextX509CA.(*X509CASlot)
+		m.nextX509CA = nextX509CA.(*x509CASlot)
 	}
 
 	if currentJWTKey, ok := slots[CurrentJWTKeySlot]; ok {
-		m.currentJWTKey = currentJWTKey.(*JwtKeySlot)
+		m.currentJWTKey = currentJWTKey.(*jwtKeySlot)
 
 		// TODO: Activation on journal depends on dates, it will need to be
 		// refactored to allow to set a status, because when forcing a rotation,
@@ -149,12 +150,12 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		if !currentJWTKey.IsEmpty() && !currentJWTKey.ShouldActivateNext(now) {
 			// activate the JWT key immediately if it is set and not within
 			// activation time of the next JWT key.
-			m.activateJWTKey()
+			m.activateJWTKey(ctx)
 		}
 	}
 
 	if nextJWTKey, ok := slots[NextJWTKeySlot]; ok {
-		m.nextJWTKey = nextJWTKey.(*JwtKeySlot)
+		m.nextJWTKey = nextJWTKey.(*jwtKeySlot)
 	}
 
 	return m, nil
@@ -229,7 +230,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	slot.publicKey = slot.x509CA.Certificate.PublicKey
 	slot.notAfter = slot.x509CA.Certificate.NotAfter
 
-	if err := m.journal.AppendX509CA(slot.id, slot.issuedAt, slot.x509CA); err != nil {
+	if err := m.journal.AppendX509CA(ctx, slot.id, slot.issuedAt, slot.x509CA); err != nil {
 		log.WithError(err).Error("Unable to append X509 CA to journal")
 	}
 
@@ -243,24 +244,24 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *Manager) ActivateX509CA() {
+func (m *Manager) ActivateX509CA(ctx context.Context) {
 	m.x509CAMutex.RLock()
 	defer m.x509CAMutex.RUnlock()
 
-	m.activateX509CA()
+	m.activateX509CA(ctx)
 }
 
-func (m *Manager) RotateX509CA() {
+func (m *Manager) RotateX509CA(ctx context.Context) {
 	m.x509CAMutex.Lock()
 	defer m.x509CAMutex.Unlock()
 
 	m.currentX509CA, m.nextX509CA = m.nextX509CA, m.currentX509CA
 	m.nextX509CA.Reset()
-	if err := m.journal.UpdateX509CAStatus(m.nextX509CA.issuedAt, journal.Status_OLD); err != nil {
+	if err := m.journal.UpdateX509CAStatus(ctx, m.nextX509CA.issuedAt, journal.Status_OLD); err != nil {
 		m.c.Log.WithError(err).Error("Failed to update status on X509CA journal entry")
 	}
 
-	m.activateX509CA()
+	m.activateX509CA(ctx)
 }
 
 func (m *Manager) GetCurrentJWTKeySlot() Slot {
@@ -324,7 +325,7 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 	slot.authorityID = jwtKey.Kid
 	slot.notAfter = jwtKey.NotAfter
 
-	if err := m.journal.AppendJWTKey(slot.id, slot.issuedAt, slot.jwtKey); err != nil {
+	if err := m.journal.AppendJWTKey(ctx, slot.id, slot.issuedAt, slot.jwtKey); err != nil {
 		log.WithError(err).Error("Unable to append JWT key to journal")
 	}
 
@@ -337,25 +338,25 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *Manager) ActivateJWTKey() {
+func (m *Manager) ActivateJWTKey(ctx context.Context) {
 	m.jwtKeyMutex.RLock()
 	defer m.jwtKeyMutex.RUnlock()
 
-	m.activateJWTKey()
+	m.activateJWTKey(ctx)
 }
 
-func (m *Manager) RotateJWTKey() {
+func (m *Manager) RotateJWTKey(ctx context.Context) {
 	m.jwtKeyMutex.Lock()
 	defer m.jwtKeyMutex.Unlock()
 
 	m.currentJWTKey, m.nextJWTKey = m.nextJWTKey, m.currentJWTKey
 	m.nextJWTKey.Reset()
 
-	if err := m.journal.UpdateJWTKeyStatus(m.nextJWTKey.issuedAt, journal.Status_OLD); err != nil {
+	if err := m.journal.UpdateJWTKeyStatus(ctx, m.nextJWTKey.issuedAt, journal.Status_OLD); err != nil {
 		m.c.Log.WithError(err).Error("Failed to update status on JWTKey journal entry")
 	}
 
-	m.activateJWTKey()
+	m.activateJWTKey(ctx)
 }
 
 // PublishJWTKey publishes the passed JWK to the upstream server using the configured
@@ -408,7 +409,7 @@ func (m *Manager) PruneBundle(ctx context.Context) (err error) {
 	defer counter.Done(&err)
 
 	ds := m.c.Catalog.GetDataStore()
-	expiresBefore := m.c.Clock.Now().Add(-safetyThreshold)
+	expiresBefore := m.c.Clock.Now().Add(-safetyThresholdBundle)
 
 	changed, err := ds.PruneBundle(ctx, m.c.TrustDomain.IDString(), expiresBefore)
 
@@ -422,6 +423,21 @@ func (m *Manager) PruneBundle(ctx context.Context) (err error) {
 		m.bundleUpdated()
 	}
 
+	return nil
+}
+
+func (m *Manager) PruneCAJournals(ctx context.Context) (err error) {
+	counter := telemetry_server.StartCAManagerPruneBundleCall(m.c.Metrics)
+	defer counter.Done(&err)
+
+	ds := m.c.Catalog.GetDataStore()
+	expiresBefore := m.c.Clock.Now().Add(-safetyThresholdCAJournals)
+
+	err = ds.PruneCAJournals(ctx, expiresBefore.Unix())
+
+	if err != nil {
+		return fmt.Errorf("unable to prune CA journals: %w", err)
+	}
 	return nil
 }
 
@@ -457,7 +473,7 @@ func (m *Manager) NotifyBundleLoaded(ctx context.Context) error {
 	)
 }
 
-func (m *Manager) activateJWTKey() {
+func (m *Manager) activateJWTKey(ctx context.Context) {
 	log := m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:             m.currentJWTKey.id,
 		telemetry.IssuedAt:         m.currentJWTKey.issuedAt,
@@ -468,14 +484,14 @@ func (m *Manager) activateJWTKey() {
 	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
 
 	m.currentJWTKey.status = journal.Status_ACTIVE
-	if err := m.journal.UpdateJWTKeyStatus(m.currentJWTKey.issuedAt, journal.Status_ACTIVE); err != nil {
+	if err := m.journal.UpdateJWTKeyStatus(ctx, m.currentJWTKey.issuedAt, journal.Status_ACTIVE); err != nil {
 		log.WithError(err).Error("Failed to update to activated status on JWTKey journal entry")
 	}
 
 	m.c.CA.SetJWTKey(m.currentJWTKey.jwtKey)
 }
 
-func (m *Manager) activateX509CA() {
+func (m *Manager) activateX509CA(ctx context.Context) {
 	log := m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:             m.currentX509CA.id,
 		telemetry.IssuedAt:         m.currentX509CA.issuedAt,
@@ -486,7 +502,7 @@ func (m *Manager) activateX509CA() {
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
 
 	m.currentX509CA.status = journal.Status_ACTIVE
-	if err := m.journal.UpdateX509CAStatus(m.currentX509CA.issuedAt, journal.Status_ACTIVE); err != nil {
+	if err := m.journal.UpdateX509CAStatus(ctx, m.currentX509CA.issuedAt, journal.Status_ACTIVE); err != nil {
 		log.WithError(err).Error("Failed to update to activated status on X509CA journal entry")
 	}
 
