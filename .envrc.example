@@ -1,0 +1,8 @@
+toplevel="$(git rev-parse --show-toplevel)"
+
+# build and use the managed go sdk
+unset GOROOT
+make -C "$toplevel" go-check
+PATH="$(make --no-print-directory -C "$toplevel" go-bin-path)"
+
+# add custom direnv initialization below here
