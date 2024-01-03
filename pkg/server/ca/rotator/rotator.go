@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	rotateInterval = 10 * time.Second
-	pruneInterval  = 6 * time.Hour
+	rotateInterval          = 10 * time.Second
+	pruneBundleInterval     = 6 * time.Hour
+	pruneCAJournalsInterval = 8 * time.Hour
 )
 
 type CAManager interface {
@@ -27,17 +28,18 @@ type CAManager interface {
 	GetNextX509CASlot() manager.Slot
 
 	PrepareX509CA(ctx context.Context) error
-	ActivateX509CA()
-	RotateX509CA()
+	ActivateX509CA(ctx context.Context)
+	RotateX509CA(ctx context.Context)
 
 	GetCurrentJWTKeySlot() manager.Slot
 	GetNextJWTKeySlot() manager.Slot
 
 	PrepareJWTKey(ctx context.Context) error
-	ActivateJWTKey()
-	RotateJWTKey()
+	ActivateJWTKey(ctx context.Context)
+	RotateJWTKey(ctx context.Context)
 
 	PruneBundle(ctx context.Context) error
+	PruneCAJournals(ctx context.Context) error
 }
 
 type Config struct {
@@ -81,7 +83,10 @@ func (r *Rotator) Run(ctx context.Context) error {
 			return r.rotateEvery(ctx, rotateInterval)
 		},
 		func(ctx context.Context) error {
-			return r.pruneBundleEvery(ctx, pruneInterval)
+			return r.pruneBundleEvery(ctx, pruneBundleInterval)
+		},
+		func(ctx context.Context) error {
+			return r.pruneCAJournalsEvery(ctx, pruneCAJournalsInterval)
 		},
 		func(ctx context.Context) error {
 			// notifyOnBundleUpdate does not fail but rather logs any errors
@@ -139,7 +144,7 @@ func (r *Rotator) rotateJWTKey(ctx context.Context) error {
 		if err := r.c.Manager.PrepareJWTKey(ctx); err != nil {
 			return err
 		}
-		r.c.Manager.ActivateJWTKey()
+		r.c.Manager.ActivateJWTKey(ctx)
 	}
 
 	// if there is no next keypair set and the current is within the
@@ -151,7 +156,7 @@ func (r *Rotator) rotateJWTKey(ctx context.Context) error {
 	}
 
 	if currentJWTKey.ShouldActivateNext(now) {
-		r.c.Manager.RotateJWTKey()
+		r.c.Manager.RotateJWTKey(ctx)
 	}
 
 	return nil
@@ -166,7 +171,7 @@ func (r *Rotator) rotateX509CA(ctx context.Context) error {
 		if err := r.c.Manager.PrepareX509CA(ctx); err != nil {
 			return err
 		}
-		r.c.Manager.ActivateX509CA()
+		r.c.Manager.ActivateX509CA(ctx)
 	}
 
 	// if there is no next keypair set and the current is within the
@@ -178,7 +183,7 @@ func (r *Rotator) rotateX509CA(ctx context.Context) error {
 	}
 
 	if currentX509CA.ShouldActivateNext(now) {
-		r.c.Manager.RotateX509CA()
+		r.c.Manager.RotateX509CA(ctx)
 	}
 
 	return nil
@@ -193,6 +198,22 @@ func (r *Rotator) pruneBundleEvery(ctx context.Context, interval time.Duration) 
 		case <-ticker.C:
 			if err := r.c.Manager.PruneBundle(ctx); err != nil {
 				r.c.Log.WithError(err).Error("Could not prune CA certificates")
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (r *Rotator) pruneCAJournalsEvery(ctx context.Context, interval time.Duration) error {
+	ticker := r.c.Clock.Ticker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := r.c.Manager.PruneCAJournals(ctx); err != nil {
+				r.c.Log.WithError(err).Error("Could not prune CA journals")
 			}
 		case <-ctx.Done():
 			return nil

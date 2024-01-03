@@ -1865,7 +1865,7 @@ func (m *fakeCAManager) PrepareJWTKey(context.Context) error {
 	return m.prepareJWTKeyErr
 }
 
-func (m *fakeCAManager) RotateJWTKey() {
+func (m *fakeCAManager) RotateJWTKey(context.Context) {
 	m.rotateJWTKeyCalled = true
 }
 
@@ -1881,7 +1881,7 @@ func (m *fakeCAManager) PrepareX509CA(context.Context) error {
 	return m.prepareX509CAErr
 }
 
-func (m *fakeCAManager) RotateX509CA() {
+func (m *fakeCAManager) RotateX509CA(context.Context) {
 	m.rotateX509CACalled = true
 }
 
