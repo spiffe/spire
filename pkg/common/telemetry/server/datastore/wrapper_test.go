@@ -218,6 +218,22 @@ func TestWithMetrics(t *testing.T) {
 			key:        "datastore.registration_entry.update",
 			methodName: "UpdateRegistrationEntry",
 		},
+		{
+			key:        "datastore.ca_journal.set",
+			methodName: "SetCAJournal",
+		},
+		{
+			key:        "datastore.ca_journal.fetch",
+			methodName: "FetchCAJournal",
+		},
+		{
+			key:        "datastore.ca_journal.prune",
+			methodName: "PruneCAJournals",
+		},
+		{
+			key:        "datastore.ca_journal.list",
+			methodName: "ListCAJournalsForTesting",
+		},
 	} {
 		tt := tt
 		methodType, ok := wt.MethodByName(tt.methodName)
@@ -476,4 +492,20 @@ func (ds *fakeDataStore) UpdateRegistrationEntry(context.Context, *common.Regist
 
 func (ds *fakeDataStore) UpdateFederationRelationship(context.Context, *datastore.FederationRelationship, *types.FederationRelationshipMask) (*datastore.FederationRelationship, error) {
 	return &datastore.FederationRelationship{}, ds.err
+}
+
+func (ds *fakeDataStore) SetCAJournal(context.Context, *datastore.CAJournal) (*datastore.CAJournal, error) {
+	return &datastore.CAJournal{}, ds.err
+}
+
+func (ds *fakeDataStore) FetchCAJournal(context.Context, string) (*datastore.CAJournal, error) {
+	return &datastore.CAJournal{}, ds.err
+}
+
+func (ds *fakeDataStore) ListCAJournalsForTesting(context.Context) ([]*datastore.CAJournal, error) {
+	return []*datastore.CAJournal{}, ds.err
+}
+
+func (ds *fakeDataStore) PruneCAJournals(context.Context, int64) error {
+	return ds.err
 }

@@ -233,6 +233,16 @@ implementation can easily serve the needs for an entire suite of tests and
 the behavior is in a centralized location when it needs to be updated. Fakes
 are also less inclined to be impacted by changes to usage patterns.
 
+## Example [direnv][direnv_link] .envrc
+
+We have committed a basic `.envrc.example`. If you use [direnv][direnv_link],
+copy it into `.envrc`, edit as desired, and enable it with `direnv allow`. The
+`.envrc` is `.gitignored`. Be aware that [source_env][source_env] is insecure
+so keep your customizations in `.envrc`.
+
+[direnv_link]: https://direnv.net/
+[source_env]: https://direnv.net/man/direnv-stdlib.1.html#codesourceenv-ltfileordirpathgtcode
+
 ## Reporting security vulnerabilities
 
 If you've found a vulnerability or a potential vulnerability in SPIRE please let us know at <security@spiffe.io>. We'll send a confirmation email to acknowledge your report, and we'll send an additional email when we've identified the issue positively or negatively.

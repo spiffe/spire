@@ -27,6 +27,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
@@ -656,6 +657,100 @@ func (ds *Plugin) UpdateFederationRelationship(ctx context.Context, fr *datastor
 // since some databases round off timestamp data with lower precision.
 func (ds *Plugin) SetUseServerTimestamps(useServerTimestamps bool) {
 	ds.useServerTimestamps = useServerTimestamps
+}
+
+// FetchCAJournal fetches the CA journal that has the given active X509
+// authority domain. If the CA journal is not found, nil is returned.
+func (ds *Plugin) FetchCAJournal(ctx context.Context, activeX509AuthorityID string) (caJournal *datastore.CAJournal, err error) {
+	if activeX509AuthorityID == "" {
+		return nil, status.Error(codes.InvalidArgument, "active X509 authority ID is required")
+	}
+
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		caJournal, err = fetchCAJournal(tx, activeX509AuthorityID)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	return caJournal, nil
+}
+
+// ListCAJournalsForTesting returns all the CA journal records, and is meant to
+// be used in tests.
+func (ds *Plugin) ListCAJournalsForTesting(ctx context.Context) (caJournals []*datastore.CAJournal, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		caJournals, err = listCAJournalsForTesting(tx)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return caJournals, nil
+}
+
+// SetCAJournal sets the content for the specified CA journal. If the CA journal
+// does not exist, it is created.
+func (ds *Plugin) SetCAJournal(ctx context.Context, caJournal *datastore.CAJournal) (caj *datastore.CAJournal, err error) {
+	if err := validateCAJournal(caJournal); err != nil {
+		return nil, err
+	}
+
+	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		if caJournal.ID == 0 {
+			caj, err = createCAJournal(tx, caJournal)
+			return err
+		}
+
+		// The CA journal already exists, update it.
+		caj, err = updateCAJournal(tx, caJournal)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+	return caj, nil
+}
+
+// PruneCAJournals prunes the CA journals that have all of their authorities
+// expired.
+func (ds *Plugin) PruneCAJournals(ctx context.Context, allAuthoritiesExpireBefore int64) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		err = ds.pruneCAJournals(tx, allAuthoritiesExpireBefore)
+		return err
+	})
+}
+
+func (ds *Plugin) pruneCAJournals(tx *gorm.DB, allAuthoritiesExpireBefore int64) error {
+	var caJournals []CAJournal
+	if err := tx.Find(&caJournals).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+checkAuthorities:
+	for _, model := range caJournals {
+		entries := new(journal.Entries)
+		if err := proto.Unmarshal(model.Data, entries); err != nil {
+			return status.Errorf(codes.Internal, "unable to unmarshal entries from CA journal record: %v", err)
+		}
+
+		for _, x509CA := range entries.X509CAs {
+			if x509CA.NotAfter > allAuthoritiesExpireBefore {
+				continue checkAuthorities
+			}
+		}
+		for _, jwtKey := range entries.JwtKeys {
+			if jwtKey.NotAfter > allAuthoritiesExpireBefore {
+				continue checkAuthorities
+			}
+		}
+		if err := deleteCAJournal(tx, model.ID); err != nil {
+			return status.Errorf(codes.Internal, "failed to delete CA journal: %v", err)
+		}
+		ds.log.WithFields(logrus.Fields{
+			telemetry.CAJournalID: model.ID,
+		}).Info("Pruned stale CA journal record")
+	}
+
+	return nil
 }
 
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
@@ -4266,6 +4361,14 @@ func modelToJoinToken(model JoinToken) *datastore.JoinToken {
 	}
 }
 
+func modelToCAJournal(model CAJournal) *datastore.CAJournal {
+	return &datastore.CAJournal{
+		ID:                    model.ID,
+		Data:                  model.Data,
+		ActiveX509AuthorityID: model.ActiveX509AuthorityID,
+	}
+}
+
 func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
 	var bundles []*Bundle
 	if err := tx.Where("trust_domain in (?)", ids).Find(&bundles).Error; err != nil {
@@ -4397,4 +4500,78 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *comm
 // unix epoch. This function is used to avoid issues with databases versions that do not support sub-second precision.
 func roundedInSecondsUnix(t time.Time) int64 {
 	return t.Round(time.Second).Unix()
+}
+
+func createCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CAJournal, error) {
+	model := CAJournal{
+		Data:                  caJournal.Data,
+		ActiveX509AuthorityID: caJournal.ActiveX509AuthorityID,
+	}
+
+	if err := tx.Create(&model).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	return modelToCAJournal(model), nil
+}
+
+func fetchCAJournal(tx *gorm.DB, activeX509AuthorityID string) (*datastore.CAJournal, error) {
+	var model CAJournal
+	err := tx.Find(&model, "active_x509_authority_id = ?", activeX509AuthorityID).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return nil, nil
+	case err != nil:
+		return nil, sqlError.Wrap(err)
+	}
+
+	return modelToCAJournal(model), nil
+}
+
+func listCAJournalsForTesting(tx *gorm.DB) (caJournals []*datastore.CAJournal, err error) {
+	var caJournalsModel []CAJournal
+	if err := tx.Find(&caJournals).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	for _, model := range caJournalsModel {
+		model := model // alias the loop variable since we pass it by reference below
+		caJournals = append(caJournals, modelToCAJournal(model))
+	}
+	return caJournals, nil
+}
+
+func updateCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CAJournal, error) {
+	var model CAJournal
+	if err := tx.Find(&model, "id = ?", caJournal.ID).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	model.ActiveX509AuthorityID = caJournal.ActiveX509AuthorityID
+	model.Data = caJournal.Data
+
+	if err := tx.Save(&model).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	return modelToCAJournal(model), nil
+}
+
+func validateCAJournal(caJournal *datastore.CAJournal) error {
+	if caJournal == nil {
+		return status.Error(codes.InvalidArgument, "ca journal is required")
+	}
+
+	return nil
+}
+
+func deleteCAJournal(tx *gorm.DB, caJournalID uint) error {
+	model := new(CAJournal)
+	if err := tx.Find(model, "id = ?", caJournalID).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	if err := tx.Delete(model).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
 }

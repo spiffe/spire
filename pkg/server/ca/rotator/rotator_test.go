@@ -185,12 +185,6 @@ func TestRunJWTKeyRotation(t *testing.T) {
 	defer cancel()
 	test := setupTest()
 
-	now := test.clock.Now()
-	test.fakeCAManager.currentJWTKeySlot = createSlot("jwt-a", now, true)
-	test.fakeCAManager.currentX509CASlot = createSlot("x509-a", now, true)
-	test.fakeCAManager.nextJWTKeySlot = createSlot("jwt-b", now, false)
-	test.fakeCAManager.nextX509CASlot = createSlot("x509-b", now, false)
-
 	go func() {
 		err := test.rotator.Run(ctx)
 		assert.NoError(t, err)
@@ -243,12 +237,6 @@ func TestRunX509CARotation(t *testing.T) {
 	defer cancel()
 	test := setupTest()
 
-	now := test.clock.Now()
-	test.fakeCAManager.currentJWTKeySlot = createSlot("jwt-a", now, true)
-	test.fakeCAManager.currentX509CASlot = createSlot("x509-a", now, true)
-	test.fakeCAManager.nextJWTKeySlot = createSlot("jwt-b", now, false)
-	test.fakeCAManager.nextX509CASlot = createSlot("x509-b", now, false)
-
 	go func() {
 		err := test.rotator.Run(ctx)
 		assert.NoError(t, err)
@@ -296,16 +284,10 @@ func TestRunX509CARotation(t *testing.T) {
 	require.True(t, test.fakeCAManager.nextX509CASlot.IsEmpty())
 }
 
-func TestPrune(t *testing.T) {
+func TestPruneBundle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	test := setupTest()
-
-	now := test.clock.Now()
-	test.fakeCAManager.currentJWTKeySlot = createSlot("jwt-a", now, true)
-	test.fakeCAManager.currentX509CASlot = createSlot("x509-a", now, true)
-	test.fakeCAManager.nextJWTKeySlot = createSlot("jwt-b", now, false)
-	test.fakeCAManager.nextX509CASlot = createSlot("x509-b", now, false)
 
 	go func() {
 		err := test.rotator.Run(ctx)
@@ -313,7 +295,7 @@ func TestPrune(t *testing.T) {
 	}()
 
 	test.clock.Add(time.Minute + time.Second)
-	require.False(t, test.fakeCAManager.pruneWasCalled)
+	require.False(t, test.fakeCAManager.pruneBundleWasCalled)
 
 	currentJWTKey := test.fakeCAManager.GetCurrentJWTKeySlot()
 	require.Equal(t, "jwt-a", currentJWTKey.KmKeyID())
@@ -331,11 +313,31 @@ func TestPrune(t *testing.T) {
 	require.Equal(t, "x509-b", nextX509CA.KmKeyID())
 	require.True(t, nextX509CA.IsEmpty())
 
-	// Prune was called successfully
-	test.clock.Add(pruneInterval)
-	test.fakeCAManager.waitPruneCalled(ctx, t)
+	// Prune bundle was called successfully
+	test.clock.Add(pruneBundleInterval)
+	test.fakeCAManager.waitPruneBundleCalled(ctx, t)
 
-	require.True(t, test.fakeCAManager.pruneWasCalled)
+	require.True(t, test.fakeCAManager.pruneBundleWasCalled)
+}
+
+func TestPruneCAJournals(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	test := setupTest()
+
+	go func() {
+		err := test.rotator.Run(ctx)
+		assert.NoError(t, err)
+	}()
+
+	test.clock.Add(time.Minute + time.Second)
+	require.False(t, test.fakeCAManager.pruneCAJournalsWasCalled)
+
+	// Prune CA journals was called successfully
+	test.clock.Add(pruneCAJournalsInterval)
+	test.fakeCAManager.waitPruneCAJournalsCalled(ctx, t)
+
+	require.True(t, test.fakeCAManager.pruneCAJournalsWasCalled)
 }
 
 type rotationTest struct {
@@ -353,11 +355,18 @@ func setupTest() *rotationTest {
 	fManager := &fakeCAManager{
 		clk: clock,
 
-		x509CACh: make(chan struct{}, 1),
-		jwtKeyCh: make(chan struct{}, 1),
-		pruneCh:  make(chan struct{}, 1),
+		x509CACh:          make(chan struct{}, 1),
+		jwtKeyCh:          make(chan struct{}, 1),
+		pruneBundleCh:     make(chan struct{}, 1),
+		pruneCAJournalsCh: make(chan struct{}, 1),
 	}
 	fakeHealthChecker := fakehealthchecker.New()
+
+	now := clock.Now()
+	fManager.currentJWTKeySlot = createSlot("jwt-a", now, true)
+	fManager.currentX509CASlot = createSlot("x509-a", now, true)
+	fManager.nextJWTKeySlot = createSlot("jwt-b", now, false)
+	fManager.nextX509CASlot = createSlot("x509-b", now, false)
 
 	rotator := NewRotator(Config{
 		Manager:       fManager,
@@ -391,8 +400,10 @@ type fakeCAManager struct {
 	x509CACh chan struct{}
 	jwtKeyCh chan struct{}
 
-	pruneWasCalled bool
-	pruneCh        chan struct{}
+	pruneBundleWasCalled     bool
+	pruneBundleCh            chan struct{}
+	pruneCAJournalsCh        chan struct{}
+	pruneCAJournalsWasCalled bool
 }
 
 func (f *fakeCAManager) NotifyBundleLoaded(context.Context) error {
@@ -434,13 +445,13 @@ func (f *fakeCAManager) PrepareX509CA(context.Context) error {
 	return nil
 }
 
-func (f *fakeCAManager) ActivateX509CA() {
+func (f *fakeCAManager) ActivateX509CA(context.Context) {
 	f.cleanX509CACh()
 	f.currentX509CASlot.isActive = true
 	f.x509CACh <- struct{}{}
 }
 
-func (f *fakeCAManager) RotateX509CA() {
+func (f *fakeCAManager) RotateX509CA(context.Context) {
 	f.cleanX509CACh()
 	currentID := f.currentX509CASlot.keyID
 
@@ -478,13 +489,13 @@ func (f *fakeCAManager) PrepareJWTKey(context.Context) error {
 	return nil
 }
 
-func (f *fakeCAManager) ActivateJWTKey() {
+func (f *fakeCAManager) ActivateJWTKey(context.Context) {
 	f.cleanJWTKeyCh()
 	f.currentJWTKeySlot.isActive = true
 	f.jwtKeyCh <- struct{}{}
 }
 
-func (f *fakeCAManager) RotateJWTKey() {
+func (f *fakeCAManager) RotateJWTKey(context.Context) {
 	f.cleanJWTKeyCh()
 	currentID := f.currentJWTKeySlot.keyID
 
@@ -497,9 +508,18 @@ func (f *fakeCAManager) RotateJWTKey() {
 
 func (f *fakeCAManager) PruneBundle(context.Context) error {
 	defer func() {
-		f.pruneCh <- struct{}{}
+		f.pruneBundleCh <- struct{}{}
 	}()
-	f.pruneWasCalled = true
+	f.pruneBundleWasCalled = true
+
+	return nil
+}
+
+func (f *fakeCAManager) PruneCAJournals(context.Context) error {
+	defer func() {
+		f.pruneCAJournalsCh <- struct{}{}
+	}()
+	f.pruneCAJournalsWasCalled = true
 
 	return nil
 }
@@ -534,11 +554,19 @@ func (f *fakeCAManager) waitJWTKeyUpdate(ctx context.Context, t *testing.T) {
 	}
 }
 
-func (f *fakeCAManager) waitPruneCalled(ctx context.Context, t *testing.T) {
+func (f *fakeCAManager) waitPruneBundleCalled(ctx context.Context, t *testing.T) {
 	select {
 	case <-ctx.Done():
 		assert.Fail(t, "context finished")
-	case <-f.pruneCh:
+	case <-f.pruneBundleCh:
+	}
+}
+
+func (f *fakeCAManager) waitPruneCAJournalsCalled(ctx context.Context, t *testing.T) {
+	select {
+	case <-ctx.Done():
+		assert.Fail(t, "context finished")
+	case <-f.pruneCAJournalsCh:
 	}
 }
 

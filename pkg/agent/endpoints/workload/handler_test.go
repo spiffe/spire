@@ -34,6 +34,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/stats"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -1515,13 +1516,14 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		}),
 	))
 
+	sh := newStatsHandler()
 	server := grpc.NewServer(
 		grpc.UnaryInterceptor(unaryInterceptor),
 		grpc.StreamInterceptor(streamInterceptor),
+		grpc.StatsHandler(sh),
 	)
 	workloadPB.RegisterSpiffeWorkloadAPIServer(server, handler)
 	addr := spiretest.ServeGRPCServerOnTempUDSSocket(t, server)
-	t.Cleanup(func() { server.Stop() })
 
 	// Provide a cancelable context to ensure the stream is always
 	// closed when the test case is done, and also to ensure that
@@ -1536,7 +1538,18 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	fn(ctx, workloadPB.NewSpiffeWorkloadAPIClient(conn))
 
 	cancel()
+
+	// Cancelling the stream context above causes the streaming RPC to
+	// technically "finish", which results in GracefulStop returning before the
+	// handler implementation finishes executing. We want to ensure that all
+	// callers of SubscribeToCacheChanges call Finish on the returned
+	// subscription, so after calling GracefulStop, wait until the statsHandler
+	// reports that all RPCs are complete before checking that Finish was
+	// called.
 	server.GracefulStop()
+	assert.Eventually(t, func() bool {
+		return sh.Outstanding() == 0
+	}, time.Second*10, time.Millisecond*50)
 
 	assert.Equal(t, 0, manager.Subscribers(), "there should be no more subscribers")
 
@@ -1653,4 +1666,31 @@ func pkcs8FromSigner(t *testing.T, key crypto.Signer) []byte {
 	keyBytes, err := x509.MarshalPKCS8PrivateKey(key)
 	require.NoError(t, err)
 	return keyBytes
+}
+
+type statsHandler struct {
+	outstanding int32
+}
+
+func newStatsHandler() *statsHandler {
+	return &statsHandler{}
+}
+
+func (c *statsHandler) TagRPC(ctx context.Context, _ *stats.RPCTagInfo) context.Context { return ctx }
+
+func (c *statsHandler) HandleRPC(_ context.Context, s stats.RPCStats) {
+	switch s.(type) {
+	case *stats.Begin:
+		atomic.AddInt32(&c.outstanding, 1)
+	case *stats.End:
+		atomic.AddInt32(&c.outstanding, -1)
+	}
+}
+
+func (c *statsHandler) TagConn(ctx context.Context, _ *stats.ConnTagInfo) context.Context { return ctx }
+
+func (c *statsHandler) HandleConn(_ context.Context, _ stats.ConnStats) {}
+
+func (c *statsHandler) Outstanding() int {
+	return int(atomic.LoadInt32(&c.outstanding))
 }
