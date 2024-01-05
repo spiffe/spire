@@ -88,6 +88,7 @@ type RegisteredEntry struct {
 	EntryID  string `gorm:"unique_index"`
 	SpiffeID string `gorm:"index"`
 	ParentID string `gorm:"index"`
+	TestMe   string `gorm:"test_me"`
 	// TTL of identities derived from this entry. This field represents the X509-SVID TTL of the Entry
 	TTL           int32
 	Selectors     []Selector

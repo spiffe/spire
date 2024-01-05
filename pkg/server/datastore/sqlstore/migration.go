@@ -218,7 +218,7 @@ import (
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 23
+	latestSchemaVersion = 24
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -442,6 +442,9 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	case 22:
 		// TODO: remove this migration in 1.9.0
 		err = migrateToV23(tx)
+	case 23:
+		// TODO: remove this migration in 1.9.0
+		err = migrateToV24(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -461,6 +464,13 @@ func migrateToV22(tx *gorm.DB) error {
 
 func migrateToV23(tx *gorm.DB) error {
 	if err := tx.AutoMigrate(&CAJournal{}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+	return nil
+}
+
+func migrateToV24(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 	return nil
