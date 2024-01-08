@@ -37,7 +37,7 @@ import (
 var (
 	ctx = context.Background()
 
-	log, _ = test.NewNullLogger()
+	log, logHook = test.NewNullLogger()
 
 	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 
@@ -451,6 +451,7 @@ func TestNewX509SVIDs(t *testing.T) {
 		wantError      assert.ErrorAssertionFunc
 		assertFuncConn func(t *testing.T, client *client)
 		testSvids      map[string]*X509SVID
+		expectedLogs   []spiretest.LogEntry
 	}{
 		{
 			name:           "success",
@@ -469,10 +470,22 @@ func TestNewX509SVIDs(t *testing.T) {
 			wantError:      assert.Error,
 			assertFuncConn: assertConnectionIsNil,
 			testSvids:      nil,
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to batch new X509 SVID(s)",
+					Data: logrus.Fields{
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "not found when executing BatchNewX509SVID",
+						logrus.ErrorKey:         "rpc error: code = NotFound desc = not found when executing BatchNewX509SVID",
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			logHook.Reset()
 			tc.entryServer.entries = tt.entries
 			tc.svidServer.x509SVIDs = tt.x509SVIDs
 			tc.svidServer.batchSVIDErr = tt.batchSVIDErr
@@ -499,6 +512,7 @@ func TestNewX509SVIDs(t *testing.T) {
 			wg.Wait()
 
 			// Assert results
+			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectedLogs)
 			tt.assertFuncConn(t, sClient)
 			if !tt.wantError(t, err, fmt.Sprintf("error was not expected for test case %s", tt.name)) {
 				return
