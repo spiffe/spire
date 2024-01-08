@@ -30,7 +30,7 @@ func TestX509CASlotShouldPrepareNext(t *testing.T) {
 	clock := clock.NewMock()
 	now := clock.Now()
 
-	slot := &X509CASlot{
+	slot := &x509CASlot{
 		id:       "A",
 		issuedAt: clock.Now(),
 		x509CA:   nil,
@@ -60,7 +60,7 @@ func TestX509CASlotShouldActivateNext(t *testing.T) {
 	clock := clock.NewMock()
 	now := clock.Now()
 
-	slot := &X509CASlot{
+	slot := &x509CASlot{
 		id:       "A",
 		issuedAt: now,
 		x509CA:   nil,
@@ -90,7 +90,7 @@ func TestJWTKeySlotShouldPrepareNext(t *testing.T) {
 	clock := clock.NewMock()
 	now := clock.Now()
 
-	slot := &JwtKeySlot{
+	slot := &jwtKeySlot{
 		id:       "A",
 		issuedAt: now,
 		jwtKey:   nil,
@@ -116,7 +116,7 @@ func TestJWTKeySlotShouldPrepareNext(t *testing.T) {
 func TestJWTKeySlotShouldActivateNext(t *testing.T) {
 	now := time.Now()
 
-	slot := &JwtKeySlot{
+	slot := &jwtKeySlot{
 		id:       "A",
 		issuedAt: now,
 		jwtKey:   nil,
@@ -199,7 +199,7 @@ func TestJournalLoad(t *testing.T) {
 
 	for _, tt := range []struct {
 		name        string
-		entries     *JournalEntries
+		entries     *journal.Entries
 		expectSlots map[SlotPosition]Slot
 		expectError string
 		expectLogs  []spiretest.LogEntry
@@ -208,10 +208,10 @@ func TestJournalLoad(t *testing.T) {
 			name:    "Journal has no entries",
 			entries: &journal.Entries{},
 			expectSlots: map[SlotPosition]Slot{
-				CurrentX509CASlot: &X509CASlot{id: "A"},
-				NextX509CASlot:    &X509CASlot{id: "B"},
-				CurrentJWTKeySlot: &JwtKeySlot{id: "A"},
-				NextJWTKeySlot:    &JwtKeySlot{id: "B"},
+				CurrentX509CASlot: &x509CASlot{id: "A"},
+				NextX509CASlot:    &x509CASlot{id: "B"},
+				CurrentJWTKeySlot: &jwtKeySlot{id: "A"},
+				NextJWTKeySlot:    &jwtKeySlot{id: "B"},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -226,7 +226,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "stored file has a single entry",
-			entries: &JournalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					{
 						SlotId:      "B",
@@ -245,7 +245,7 @@ func TestJournalLoad(t *testing.T) {
 				},
 			},
 			expectSlots: map[SlotPosition]Slot{
-				CurrentX509CASlot: &X509CASlot{
+				CurrentX509CASlot: &x509CASlot{
 					id:       "B",
 					issuedAt: secondIssuedAt,
 					status:   journal.Status_UNKNOWN,
@@ -257,8 +257,8 @@ func TestJournalLoad(t *testing.T) {
 					publicKey:   x509KeyB.Public(),
 					notAfter:    x509RootB.NotAfter,
 				},
-				NextX509CASlot: &X509CASlot{id: "A"},
-				CurrentJWTKeySlot: &JwtKeySlot{
+				NextX509CASlot: &x509CASlot{id: "A"},
+				CurrentJWTKeySlot: &jwtKeySlot{
 					id:       "B",
 					issuedAt: secondIssuedAt,
 					status:   journal.Status_UNKNOWN,
@@ -270,7 +270,7 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "",
 					notAfter:    notAfter,
 				},
-				NextJWTKeySlot: &JwtKeySlot{id: "A"},
+				NextJWTKeySlot: &jwtKeySlot{id: "A"},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -285,7 +285,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "Stored entries has unknown status",
-			entries: &JournalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					{
 						SlotId:      "A",
@@ -334,7 +334,7 @@ func TestJournalLoad(t *testing.T) {
 				},
 			},
 			expectSlots: map[SlotPosition]Slot{
-				CurrentX509CASlot: &X509CASlot{
+				CurrentX509CASlot: &x509CASlot{
 					id:       "B",
 					issuedAt: secondIssuedAt,
 					status:   journal.Status_UNKNOWN,
@@ -346,7 +346,7 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "2",
 					notAfter:    x509RootB.NotAfter,
 				},
-				NextX509CASlot: &X509CASlot{
+				NextX509CASlot: &x509CASlot{
 					id:       "A",
 					issuedAt: thirdIssuedAt,
 					status:   journal.Status_UNKNOWN,
@@ -358,7 +358,7 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "1",
 					notAfter:    x509RootA.NotAfter,
 				},
-				CurrentJWTKeySlot: &JwtKeySlot{
+				CurrentJWTKeySlot: &jwtKeySlot{
 					id:       "B",
 					issuedAt: secondIssuedAt,
 					status:   journal.Status_UNKNOWN,
@@ -370,7 +370,7 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "b",
 					notAfter:    notAfter,
 				},
-				NextJWTKeySlot: &JwtKeySlot{
+				NextJWTKeySlot: &jwtKeySlot{
 					id:       "A",
 					issuedAt: thirdIssuedAt,
 					status:   journal.Status_UNKNOWN,
@@ -396,7 +396,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "Stored entry has a single Prepared entry",
-			entries: &JournalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					{
 						SlotId:      "A",
@@ -419,7 +419,7 @@ func TestJournalLoad(t *testing.T) {
 				},
 			},
 			expectSlots: map[SlotPosition]Slot{
-				CurrentX509CASlot: &X509CASlot{
+				CurrentX509CASlot: &x509CASlot{
 					id:       "A",
 					issuedAt: thirdIssuedAt,
 					status:   journal.Status_PREPARED,
@@ -431,10 +431,10 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "1",
 					notAfter:    x509RootA.NotAfter,
 				},
-				NextX509CASlot: &X509CASlot{
+				NextX509CASlot: &x509CASlot{
 					id: "B",
 				},
-				CurrentJWTKeySlot: &JwtKeySlot{
+				CurrentJWTKeySlot: &jwtKeySlot{
 					id:       "A",
 					issuedAt: thirdIssuedAt,
 					status:   journal.Status_PREPARED,
@@ -446,7 +446,7 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "a",
 					notAfter:    notAfter,
 				},
-				NextJWTKeySlot: &JwtKeySlot{
+				NextJWTKeySlot: &jwtKeySlot{
 					id: "B",
 				},
 			},
@@ -463,7 +463,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "Stored entries has old and active",
-			entries: &JournalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					{
 						SlotId:      "A",
@@ -518,7 +518,7 @@ func TestJournalLoad(t *testing.T) {
 				},
 			},
 			expectSlots: map[SlotPosition]Slot{
-				CurrentX509CASlot: &X509CASlot{
+				CurrentX509CASlot: &x509CASlot{
 					id:       "A",
 					issuedAt: thirdIssuedAt,
 					status:   journal.Status_ACTIVE,
@@ -530,7 +530,7 @@ func TestJournalLoad(t *testing.T) {
 					publicKey:   x509KeyA.Public(),
 					notAfter:    x509RootA.NotAfter,
 				},
-				NextX509CASlot: &X509CASlot{
+				NextX509CASlot: &x509CASlot{
 					id:       "B",
 					issuedAt: secondIssuedAt,
 					status:   journal.Status_OLD,
@@ -542,7 +542,7 @@ func TestJournalLoad(t *testing.T) {
 					publicKey:   x509KeyB.Public(),
 					notAfter:    x509RootB.NotAfter,
 				},
-				CurrentJWTKeySlot: &JwtKeySlot{
+				CurrentJWTKeySlot: &jwtKeySlot{
 					id:       "A",
 					issuedAt: thirdIssuedAt,
 					status:   journal.Status_ACTIVE,
@@ -554,7 +554,7 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "a",
 					notAfter:    notAfter,
 				},
-				NextJWTKeySlot: &JwtKeySlot{
+				NextJWTKeySlot: &jwtKeySlot{
 					id:       "B",
 					issuedAt: secondIssuedAt,
 					status:   journal.Status_OLD,
@@ -580,7 +580,7 @@ func TestJournalLoad(t *testing.T) {
 		},
 		{
 			name: "There are another entries before Active entry",
-			entries: &JournalEntries{
+			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
 					// This can happens when force rotation is executed
 					{
@@ -637,7 +637,7 @@ func TestJournalLoad(t *testing.T) {
 				},
 			},
 			expectSlots: map[SlotPosition]Slot{
-				CurrentX509CASlot: &X509CASlot{
+				CurrentX509CASlot: &x509CASlot{
 					id:       "A",
 					issuedAt: firstIssuedAt,
 					status:   journal.Status_ACTIVE,
@@ -649,7 +649,7 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "3",
 					notAfter:    x509RootA.NotAfter,
 				},
-				NextX509CASlot: &X509CASlot{
+				NextX509CASlot: &x509CASlot{
 					id:       "B",
 					issuedAt: thirdIssuedAt,
 					status:   journal.Status_PREPARED,
@@ -661,7 +661,7 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "1",
 					notAfter:    x509RootB.NotAfter,
 				},
-				CurrentJWTKeySlot: &JwtKeySlot{
+				CurrentJWTKeySlot: &jwtKeySlot{
 					id:       "A",
 					issuedAt: firstIssuedAt,
 					status:   journal.Status_ACTIVE,
@@ -673,7 +673,7 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "c",
 					notAfter:    notAfter,
 				},
-				NextJWTKeySlot: &JwtKeySlot{
+				NextJWTKeySlot: &jwtKeySlot{
 					id:       "B",
 					issuedAt: thirdIssuedAt,
 					status:   journal.Status_PREPARED,
@@ -774,7 +774,14 @@ func TestJournalLoad(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			loghook.Reset()
-			err = saveJournalEntries(journalFile, tt.entries)
+			journal := new(Journal)
+			journal.config = &journalConfig{
+				cat:      cat,
+				filePath: journalFile,
+				log:      log,
+			}
+			journal.setEntries(tt.entries)
+			err = journal.save(ctx)
 			require.NoError(t, err)
 
 			loader := &SlotLoader{
@@ -784,8 +791,8 @@ func TestJournalLoad(t *testing.T) {
 				Catalog:     cat,
 			}
 
-			loadedJournal, slots, err := loader.Load(context.Background())
-			spiretest.AssertLogs(t, loghook.AllEntries(), tt.expectLogs)
+			loadedJournal, slots, err := loader.load(ctx)
+			spiretest.AssertLastLogs(t, loghook.AllEntries(), tt.expectLogs)
 			if tt.expectError != "" {
 				spiretest.AssertErrorPrefix(t, err, tt.expectError)
 				assert.Nil(t, loadedJournal)

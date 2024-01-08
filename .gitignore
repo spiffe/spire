@@ -1,6 +1,7 @@
 .build
 .cache
 .data
+.envrc
 .glide
 .tmp
 .DS_Store
