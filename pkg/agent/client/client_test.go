@@ -326,6 +326,7 @@ func TestRenewSVID(t *testing.T) {
 		expectSVID *X509SVID
 		csr        []byte
 		agentSVID  *types.X509SVID
+		expectLogs []spiretest.LogEntry
 	}{
 		{
 			name: "success",
@@ -355,26 +356,61 @@ func TestRenewSVID(t *testing.T) {
 				ExpiresAt: 12345,
 			},
 			err: "failed to renew agent: rpc error: code = Unknown desc = malformed param",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to renew agent",
+					Data: logrus.Fields{
+						telemetry.StatusCode:    "Unknown",
+						telemetry.StatusMessage: "malformed param",
+						telemetry.Error:         "rpc error: code = Unknown desc = malformed param",
+					},
+				},
+			},
 		},
 		{
 			name:     "renew agent fails",
 			csr:      []byte{0, 1, 2},
 			agentErr: errors.New("renew fails"),
 			err:      "failed to renew agent: rpc error: code = Unknown desc = renew fails",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to renew agent",
+					Data: logrus.Fields{
+						telemetry.StatusCode:    "Unknown",
+						telemetry.StatusMessage: "renew fails",
+						telemetry.Error:         "rpc error: code = Unknown desc = renew fails",
+					},
+				},
+			},
 		},
 		{
 			name:     "call to RenewAgent fails",
 			csr:      []byte{0, 1, 2},
 			agentErr: status.Error(codes.Internal, "renew fails"),
 			err:      "failed to renew agent: rpc error: code = Internal desc = renew fails",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to renew agent",
+					Data: logrus.Fields{
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "renew fails",
+						telemetry.Error:         "rpc error: code = Internal desc = renew fails",
+					},
+				},
+			},
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			logHook.Reset()
 			tc.agentServer.err = tt.agentErr
 			tc.agentServer.svid = tt.agentSVID
 
 			svid, err := client.RenewSVID(ctx, tt.csr)
+			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectLogs)
 			if tt.err != "" {
 				require.EqualError(t, err, tt.err)
 				require.Nil(t, svid)
@@ -391,7 +427,6 @@ func TestRenewSVID(t *testing.T) {
 
 func TestNewX509SVIDs(t *testing.T) {
 	sClient, tc := createClient(t)
-
 	entries := []*types.Entry{
 		{
 			Id:       "ENTRYID1",
@@ -485,7 +520,6 @@ func TestNewX509SVIDs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			logHook.Reset()
 			tc.entryServer.entries = tt.entries
 			tc.svidServer.x509SVIDs = tt.x509SVIDs
 			tc.svidServer.batchSVIDErr = tt.batchSVIDErr
@@ -512,7 +546,7 @@ func TestNewX509SVIDs(t *testing.T) {
 			wg.Wait()
 
 			// Assert results
-			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectedLogs)
+			spiretest.AssertLogsContainEntries(t, logHook.AllEntries(), tt.expectedLogs)
 			tt.assertFuncConn(t, sClient)
 			if !tt.wantError(t, err, fmt.Sprintf("error was not expected for test case %s", tt.name)) {
 				return
@@ -748,24 +782,31 @@ func TestFetchUpdatesReleaseConnectionIfItFails(t *testing.T) {
 }
 
 func TestFetchUpdatesAddStructuredLoggingIfCallToFetchEntriesFails(t *testing.T) {
+	logHook.Reset()
 	client, tc := createClient(t)
 
 	tc.entryServer.err = status.Error(codes.Internal, "call to grpc method fetchEntries has failed")
-
 	update, err := client.FetchUpdates(ctx)
 	assert.Nil(t, update)
 	assert.Error(t, err)
 	assertConnectionIsNil(t, client)
 
-	expectedLog := log.WithFields(
-		logrus.Fields{
-			telemetry.StatusCode:    codes.Internal,
+	var entries []spiretest.LogEntry
+	entries = append(entries, spiretest.LogEntry{
+		Level:   logrus.ErrorLevel,
+		Message: "Failed to fetch authorized entries",
+		Data: logrus.Fields{
+			telemetry.StatusCode:    "Internal",
 			telemetry.StatusMessage: "call to grpc method fetchEntries has failed",
-		}).WithError(tc.entryServer.err)
-	assert.Equal(t, expectedLog.Logger, client.c.Log)
+			telemetry.Error:         tc.entryServer.err.Error(),
+		},
+	})
+
+	spiretest.AssertLogs(t, logHook.AllEntries(), entries)
 }
 
 func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T) {
+	logHook.Reset()
 	client, tc := createClient(t)
 
 	tc.bundleServer.bundleErr = status.Error(codes.Internal, "call to grpc method fetchBundles has failed")
@@ -774,12 +815,18 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T)
 	assert.Error(t, err)
 	assertConnectionIsNil(t, client)
 
-	expectedLog := log.WithFields(
-		logrus.Fields{
-			telemetry.StatusCode:    codes.Internal,
+	var entries []spiretest.LogEntry
+	entries = append(entries, spiretest.LogEntry{
+		Level:   logrus.ErrorLevel,
+		Message: "Failed to fetch bundle",
+		Data: logrus.Fields{
+			telemetry.StatusCode:    "Internal",
 			telemetry.StatusMessage: "call to grpc method fetchBundles has failed",
-		})
-	assert.Equal(t, expectedLog.Logger, client.c.Log)
+			telemetry.Error:         tc.bundleServer.bundleErr.Error(),
+		},
+	})
+
+	spiretest.AssertLogs(t, logHook.AllEntries(), entries)
 }
 
 func TestNewAgentClientFailsDial(t *testing.T) {
