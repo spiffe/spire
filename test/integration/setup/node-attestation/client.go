@@ -13,6 +13,7 @@ import (
 	"io"
 	"log"
 	"math/big"
+	"strings"
 	"time"
 
 	agent "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -22,7 +23,6 @@ import (
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -213,9 +213,13 @@ func doX509popStep(ctx context.Context) error {
 		return fmt.Errorf("failed to attest: %w", err)
 	}
 
-	// Renew agent
-	if err := x509popRenew(ctx, svidResp); err != nil {
-		return fmt.Errorf("failed to renew agent: %w", err)
+	// Renew agent, this should fail
+	err = x509popRenew(ctx, svidResp)
+	if err == nil {
+		return errors.New("agent allowed to reattest")
+	}
+	if !strings.Contains(err.Error(), "agent can't renew SVID, must reattest") {
+		return fmt.Errorf("unexpected error renewing agent: %w", err)
 	}
 
 	// Delete agent
@@ -365,20 +369,13 @@ func x509popRenew(ctx context.Context, x509Svid *types.X509SVID) error {
 	defer conn.Release()
 	client := conn.AgentClient()
 
-	resp, err := client.RenewAgent(ctx, &agent.RenewAgentRequest{
+	_, err = client.RenewAgent(ctx, &agent.RenewAgentRequest{
 		Params: &agent.AgentX509SVIDParams{
 			Csr: csr,
 		},
 	})
-	if err != nil {
-		return fmt.Errorf("failed to renew agent: %w", err)
-	}
 
-	if !proto.Equal(resp.Svid.Id, x509Svid.Id) {
-		return fmt.Errorf("uxexpected ID: %q, expected: %q", resp.Svid.Id.String(), x509Svid.Id.String())
-	}
-
-	return nil
+	return err
 }
 
 // deleteAgent delete agent using "admin" connection
