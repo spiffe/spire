@@ -233,14 +233,15 @@ implementation can easily serve the needs for an entire suite of tests and
 the behavior is in a centralized location when it needs to be updated. Fakes
 are also less inclined to be impacted by changes to usage patterns.
 
-## Git hooks
+## Example [direnv][direnv_link] .envrc
 
-We have checked in a pre-commit hook which enforces `go fmt` styling. Please install it
-before sending a pull request. From the project root:
+We have committed a basic `.envrc.example`. If you use [direnv][direnv_link],
+copy it into `.envrc`, edit as desired, and enable it with `direnv allow`. The
+`.envrc` is `.gitignored`. Be aware that [source_env][source_env] is insecure
+so keep your customizations in `.envrc`.
 
-```shell
-$ ln -s .githooks/pre-commit .git/hooks/pre-commit
-```
+[direnv_link]: https://direnv.net/
+[source_env]: https://direnv.net/man/direnv-stdlib.1.html#codesourceenv-ltfileordirpathgtcode
 
 ## Reporting security vulnerabilities
 

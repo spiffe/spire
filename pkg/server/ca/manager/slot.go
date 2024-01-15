@@ -53,19 +53,23 @@ type SlotLoader struct {
 	UpstreamClient *ca.UpstreamClient
 }
 
-func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot, error) {
+func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot, error) {
 	log := s.Log
-	journalPath := s.journalPath()
+
+	jc := &journalConfig{
+		cat:      s.Catalog,
+		log:      log,
+		filePath: s.journalPath(),
+	}
 
 	// Load the journal and see if we can figure out the next and current
 	// X509CA and JWTKey entries, if any.
-	log.WithField(telemetry.Path, journalPath).Debug("Loading journal")
-	loadedJournal, err := LoadJournal(journalPath)
+	loadedJournal, err := LoadJournal(ctx, jc)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	entries := loadedJournal.Entries()
+	entries := loadedJournal.getEntries()
 
 	log.WithFields(logrus.Fields{
 		telemetry.X509CAs: len(entries.X509CAs),
@@ -112,9 +116,9 @@ func (s *SlotLoader) Load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 // - If all the statuses are unknown, the two most recent slots are returned.
 // - Active entry is returned on current slot if set.
 // - The most recent Prepared or Old entry is returned on next slot.
-func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*X509CAEntry) (*X509CASlot, *X509CASlot, error) {
-	var current *X509CASlot
-	var next *X509CASlot
+func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*journal.X509CAEntry) (*x509CASlot, *x509CASlot, error) {
+	var current *x509CASlot
+	var next *x509CASlot
 
 	// Search from oldest
 	for i := len(entries) - 1; i >= 0; i-- {
@@ -185,9 +189,9 @@ func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*X509CAEntry)
 // - If all status are unknown, choose the two newest on the list
 // - Active entry is returned on current if set
 // - Newest Prepared or Old entry is returned on next
-func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWTKeyEntry) (*JwtKeySlot, *JwtKeySlot, error) {
-	var current *JwtKeySlot
-	var next *JwtKeySlot
+func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWTKeyEntry) (*jwtKeySlot, *jwtKeySlot, error) {
+	var current *jwtKeySlot
+	var next *jwtKeySlot
 
 	// Search from oldest
 	for i := len(entries) - 1; i >= 0; i-- {
@@ -262,7 +266,7 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 // If we find such a discrepancy, removing the entry from the journal prior to beginning signing
 // operations prevents us from using a signing key that consumers may not be able to validate.
 // Instead, we'll rotate into a new one.
-func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*JWTKeyEntry, []*X509CAEntry, error) {
+func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*journal.JWTKeyEntry, []*journal.X509CAEntry, error) {
 	bundle, err := s.fetchOptionalBundle(ctx)
 
 	if err != nil {
@@ -273,7 +277,7 @@ func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.
 		return entries.JwtKeys, entries.X509CAs, nil
 	}
 
-	filteredEntriesJwtKeys := []*JWTKeyEntry{}
+	filteredEntriesJwtKeys := []*journal.JWTKeyEntry{}
 
 	for _, entry := range entries.GetJwtKeys() {
 		if containsJwtSigningKeyID(bundle.JwtSigningKeys, entry.Kid) {
@@ -288,7 +292,7 @@ func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.
 		return filteredEntriesJwtKeys, entries.X509CAs, nil
 	}
 
-	filteredEntriesX509CAs := []*X509CAEntry{}
+	filteredEntriesX509CAs := []*journal.X509CAEntry{}
 
 	for _, entry := range entries.GetX509CAs() {
 		if containsX509CA(bundle.RootCas, entry.Certificate) {
@@ -309,7 +313,7 @@ func (s *SlotLoader) fetchOptionalBundle(ctx context.Context) (*common.Bundle, e
 	return bundle, nil
 }
 
-func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntry) (*X509CASlot, error) {
+func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *journal.X509CAEntry) (*x509CASlot, error) {
 	slot, badReason, err := s.loadX509CASlotFromEntry(ctx, entry)
 	if err != nil {
 		s.Log.WithError(err).WithFields(logrus.Fields{
@@ -332,7 +336,7 @@ func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *X509
 	return slot, nil
 }
 
-func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAEntry) (*X509CASlot, string, error) {
+func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal.X509CAEntry) (*x509CASlot, string, error) {
 	if entry.SlotId == "" {
 		return nil, "no slot id", nil
 	}
@@ -363,7 +367,7 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAE
 		return nil, "public key does not match key manager key", nil
 	}
 
-	return &X509CASlot{
+	return &x509CASlot{
 		id:       entry.SlotId,
 		issuedAt: time.Unix(entry.IssuedAt, 0),
 		x509CA: &ca.X509CA{
@@ -378,7 +382,7 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *X509CAE
 	}, "", nil
 }
 
-func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntry) (*JwtKeySlot, error) {
+func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *journal.JWTKeyEntry) (*jwtKeySlot, error) {
 	slot, badReason, err := s.loadJWTKeySlotFromEntry(ctx, entry)
 	if err != nil {
 		s.Log.WithError(err).WithFields(logrus.Fields{
@@ -401,7 +405,7 @@ func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *JWTK
 	return slot, nil
 }
 
-func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyEntry) (*JwtKeySlot, string, error) {
+func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *journal.JWTKeyEntry) (*jwtKeySlot, string, error) {
 	if entry.SlotId == "" {
 		return nil, "no slot id", nil
 	}
@@ -423,7 +427,7 @@ func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *JWTKeyE
 		return nil, "public key does not match key manager key", nil
 	}
 
-	return &JwtKeySlot{
+	return &jwtKeySlot{
 		id:       entry.SlotId,
 		issuedAt: time.Unix(entry.IssuedAt, 0),
 		jwtKey: &ca.JWTKey{
@@ -515,7 +519,7 @@ func keyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 	return notAfter.Add(-threshold)
 }
 
-type X509CASlot struct {
+type x509CASlot struct {
 	id          string
 	issuedAt    time.Time
 	x509CA      *ca.X509CA
@@ -525,50 +529,50 @@ type X509CASlot struct {
 	notAfter    time.Time
 }
 
-func newX509CASlot(id string) *X509CASlot {
-	return &X509CASlot{
+func newX509CASlot(id string) *x509CASlot {
+	return &x509CASlot{
 		id: id,
 	}
 }
 
-func (s *X509CASlot) KmKeyID() string {
+func (s *x509CASlot) KmKeyID() string {
 	return x509CAKmKeyID(s.id)
 }
 
-func (s *X509CASlot) IsEmpty() bool {
+func (s *x509CASlot) IsEmpty() bool {
 	return s.x509CA == nil || s.status == journal.Status_OLD
 }
 
-func (s *X509CASlot) Reset() {
+func (s *x509CASlot) Reset() {
 	s.x509CA = nil
 	s.status = journal.Status_OLD
 }
 
-func (s *X509CASlot) ShouldPrepareNext(now time.Time) bool {
+func (s *x509CASlot) ShouldPrepareNext(now time.Time) bool {
 	return s.x509CA != nil && now.After(preparationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
 }
 
-func (s *X509CASlot) ShouldActivateNext(now time.Time) bool {
+func (s *x509CASlot) ShouldActivateNext(now time.Time) bool {
 	return s.x509CA != nil && now.After(keyActivationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
 }
 
-func (s *X509CASlot) Status() journal.Status {
+func (s *x509CASlot) Status() journal.Status {
 	return s.status
 }
 
-func (s *X509CASlot) AuthorityID() string {
+func (s *x509CASlot) AuthorityID() string {
 	return s.authorityID
 }
 
-func (s *X509CASlot) PublicKey() crypto.PublicKey {
+func (s *x509CASlot) PublicKey() crypto.PublicKey {
 	return s.publicKey
 }
 
-func (s *X509CASlot) NotAfter() time.Time {
+func (s *x509CASlot) NotAfter() time.Time {
 	return s.notAfter
 }
 
-type JwtKeySlot struct {
+type jwtKeySlot struct {
 	id          string
 	issuedAt    time.Time
 	jwtKey      *ca.JWTKey
@@ -577,48 +581,48 @@ type JwtKeySlot struct {
 	notAfter    time.Time
 }
 
-func newJWTKeySlot(id string) *JwtKeySlot {
-	return &JwtKeySlot{
+func newJWTKeySlot(id string) *jwtKeySlot {
+	return &jwtKeySlot{
 		id: id,
 	}
 }
 
-func (s *JwtKeySlot) KmKeyID() string {
+func (s *jwtKeySlot) KmKeyID() string {
 	return jwtKeyKmKeyID(s.id)
 }
 
-func (s *JwtKeySlot) Status() journal.Status {
+func (s *jwtKeySlot) Status() journal.Status {
 	return s.status
 }
 
-func (s *JwtKeySlot) AuthorityID() string {
+func (s *jwtKeySlot) AuthorityID() string {
 	return s.authorityID
 }
 
-func (s *JwtKeySlot) PublicKey() crypto.PublicKey {
+func (s *jwtKeySlot) PublicKey() crypto.PublicKey {
 	if s.jwtKey == nil {
 		return nil
 	}
 	return s.jwtKey.Signer.Public()
 }
 
-func (s *JwtKeySlot) IsEmpty() bool {
+func (s *jwtKeySlot) IsEmpty() bool {
 	return s.jwtKey == nil || s.status == journal.Status_OLD
 }
 
-func (s *JwtKeySlot) Reset() {
+func (s *jwtKeySlot) Reset() {
 	s.jwtKey = nil
 	s.status = journal.Status_OLD
 }
 
-func (s *JwtKeySlot) ShouldPrepareNext(now time.Time) bool {
+func (s *jwtKeySlot) ShouldPrepareNext(now time.Time) bool {
 	return s.jwtKey == nil || now.After(preparationThreshold(s.issuedAt, s.jwtKey.NotAfter))
 }
 
-func (s *JwtKeySlot) ShouldActivateNext(now time.Time) bool {
+func (s *jwtKeySlot) ShouldActivateNext(now time.Time) bool {
 	return s.jwtKey == nil || now.After(keyActivationThreshold(s.issuedAt, s.jwtKey.NotAfter))
 }
 
-func (s *JwtKeySlot) NotAfter() time.Time {
+func (s *jwtKeySlot) NotAfter() time.Time {
 	return s.notAfter
 }

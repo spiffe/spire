@@ -19,6 +19,9 @@ message X509CAEntry {
 
     // The X.509 Subject Key Identifier (SKID)
     string authority_id = 6;
+
+    // When the CA expires (unix epoch in seconds)
+    int64 not_after = 7;
 }
 
 message JWTKeyEntry {

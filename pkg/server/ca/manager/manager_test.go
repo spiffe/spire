@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/credvalidator"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -39,6 +40,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -60,7 +62,7 @@ func TestGetCurrentJWTKeySlot(t *testing.T) {
 	t.Run("no authority created", func(t *testing.T) {
 		currentSlot := test.m.GetCurrentJWTKeySlot()
 
-		slot := currentSlot.(*JwtKeySlot)
+		slot := currentSlot.(*jwtKeySlot)
 
 		require.True(t, slot.IsEmpty())
 		require.Empty(t, slot.issuedAt)
@@ -75,7 +77,7 @@ func TestGetCurrentJWTKeySlot(t *testing.T) {
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
 		currentSlot := test.m.GetCurrentJWTKeySlot()
-		slot := currentSlot.(*JwtKeySlot)
+		slot := currentSlot.(*jwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
 		require.NotEmpty(t, slot.authorityID)
 		require.Equal(t, expectIssuedAt, slot.issuedAt)
@@ -91,7 +93,7 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 
 	t.Run("no next created", func(t *testing.T) {
 		nextSlot := test.m.GetNextJWTKeySlot()
-		slot := nextSlot.(*JwtKeySlot)
+		slot := nextSlot.(*jwtKeySlot)
 
 		require.Nil(t, slot.jwtKey)
 		require.Empty(t, slot.issuedAt)
@@ -106,7 +108,7 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 		require.NoError(t, test.m.PrepareJWTKey(ctx))
 
 		nextSlot := test.m.GetNextJWTKeySlot()
-		slot := nextSlot.(*JwtKeySlot)
+		slot := nextSlot.(*jwtKeySlot)
 		require.NotNil(t, slot.jwtKey)
 		require.NotEmpty(t, slot.authorityID)
 		require.Equal(t, expectIssuedAt, slot.issuedAt)
@@ -123,7 +125,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 	t.Run("no authority created", func(t *testing.T) {
 		currentSlot := test.m.GetCurrentX509CASlot()
 
-		slot := currentSlot.(*X509CASlot)
+		slot := currentSlot.(*x509CASlot)
 		require.Nil(t, slot.x509CA)
 		require.Empty(t, slot.authorityID)
 		require.Empty(t, slot.issuedAt)
@@ -138,7 +140,7 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
 		currentSlot := test.m.GetCurrentX509CASlot()
-		slot := currentSlot.(*X509CASlot)
+		slot := currentSlot.(*x509CASlot)
 		require.NotNil(t, slot.x509CA)
 		require.NotEmpty(t, slot.authorityID)
 		require.NotNil(t, slot.publicKey)
@@ -155,7 +157,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 
 	t.Run("no next created", func(t *testing.T) {
 		nextSlot := test.m.GetNextX509CASlot()
-		slot := nextSlot.(*X509CASlot)
+		slot := nextSlot.(*x509CASlot)
 
 		require.Nil(t, slot.x509CA)
 		require.Empty(t, slot.authorityID)
@@ -171,7 +173,7 @@ func TestGetNextX509CASlot(t *testing.T) {
 		require.NoError(t, test.m.PrepareX509CA(ctx))
 
 		nextSlot := test.m.GetNextX509CASlot()
-		slot := nextSlot.(*X509CASlot)
+		slot := nextSlot.(*x509CASlot)
 		require.NotNil(t, slot.x509CA)
 		require.NotEmpty(t, slot.authorityID)
 		require.NotNil(t, slot.publicKey)
@@ -192,9 +194,9 @@ func TestPersistence(t *testing.T) {
 
 	// Prepare authority and activate authority
 	require.NoError(t, test.m.PrepareJWTKey(ctx))
-	test.m.ActivateJWTKey()
+	test.m.ActivateJWTKey(ctx)
 	require.NoError(t, test.m.PrepareX509CA(ctx))
-	test.m.ActivateX509CA()
+	test.m.ActivateX509CA(ctx)
 
 	firstX509CA, firstJWTKey := test.currentX509CA(), test.currentJWTKey()
 
@@ -418,7 +420,7 @@ func TestX509CARotation(t *testing.T) {
 
 	// Rotate "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateX509CA()
+	test.m.RotateX509CA(ctx)
 	test.requireX509CAEqual(t, second, test.currentX509CA())
 	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	assert.Nil(t, test.nextX509CA())
@@ -440,7 +442,7 @@ func TestX509CARotation(t *testing.T) {
 
 	// Rotate again, "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateX509CA()
+	test.m.RotateX509CA(ctx)
 	test.requireX509CAEqual(t, third, test.currentX509CA())
 	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	assert.Nil(t, test.nextX509CA())
@@ -458,7 +460,7 @@ func TestX509CARotationMetric(t *testing.T) {
 
 	// reset the metrics rotate CA to activate mark
 	test.metrics.Reset()
-	test.m.RotateX509CA()
+	test.m.RotateX509CA(ctx)
 
 	// create expected metrics with ttl from certificate
 	expected := fakemetrics.New()
@@ -507,7 +509,7 @@ func TestJWTKeyRotation(t *testing.T) {
 
 	// rotate, "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateJWTKey()
+	test.m.RotateJWTKey(ctx)
 	test.requireJWTKeyEqual(t, second, test.currentJWTKey())
 	require.Equal(t, journal.Status_ACTIVE, test.currentJWTKeyStatus())
 	assert.Nil(t, test.nextJWTKey())
@@ -529,7 +531,7 @@ func TestJWTKeyRotation(t *testing.T) {
 
 	// rotate again. "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateJWTKey()
+	test.m.RotateJWTKey(ctx)
 	test.requireJWTKeyEqual(t, third, test.currentJWTKey())
 	require.Equal(t, journal.Status_ACTIVE, test.currentJWTKeyStatus())
 	assert.Nil(t, test.nextJWTKey())
@@ -578,7 +580,7 @@ func TestPruneBundle(t *testing.T) {
 
 	// advance beyond the safety threshold of the first, prune, and assert that
 	// the first has been pruned
-	test.addTimeAndPrune(safetyThreshold)
+	test.addTimeAndPrune(safetyThresholdBundle)
 	test.requireBundleRootCAs(ctx, t, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
 
@@ -587,10 +589,136 @@ func TestPruneBundle(t *testing.T) {
 
 	// advance beyond the second expiration time, prune, and assert nothing
 	// changes because we can't prune out the whole bundle.
-	test.clock.Set(secondExpiresTime.Add(time.Minute + safetyThreshold))
+	test.clock.Set(secondExpiresTime.Add(time.Minute + safetyThresholdBundle))
 	require.EqualError(t, test.m.PruneBundle(context.Background()), "unable to prune bundle: rpc error: code = Unknown desc = prune failed: would prune all certificates")
 	test.requireBundleRootCAs(ctx, t, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
+}
+
+func TestPruneCAJournals(t *testing.T) {
+	test := setupTest(t)
+	test.initSelfSignedManager()
+
+	type testJournal struct {
+		Journal
+		shouldBePruned bool
+	}
+
+	timeNow := test.clock.Now()
+	now := timeNow.Unix()
+	tomorrow := timeNow.Add(time.Hour * 24).Unix()
+	beforeThreshold := timeNow.Add(-safetyThresholdCAJournals).Add(-time.Minute).Unix()
+
+	jc := &journalConfig{
+		cat: test.cat,
+		log: test.log,
+	}
+	testCases := []struct {
+		name         string
+		entries      *journal.Entries
+		testJournals []*testJournal
+	}{
+		{
+			name: "no journals with CAs expired before the threshold - no journals to be pruned",
+			testJournals: []*testJournal{
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "some journals with CAs expired before the threshold, but not all - no journals to be pruned",
+			testJournals: []*testJournal{
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "all CAs expired before the threshold in a journal - one journal to be pruned",
+			testJournals: []*testJournal{
+				{
+					shouldBePruned: true,
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
+						},
+					},
+				},
+				{
+					Journal: Journal{
+						config: jc,
+						entries: &journal.Entries{
+							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
+							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var expectedCAJournals []*datastore.CAJournal
+	for _, testCase := range testCases {
+		testCase := testCase
+		expectedCAJournals = []*datastore.CAJournal{}
+		t.Run(testCase.name, func(t *testing.T) {
+			// Have a fresh data store in each test case
+			test.ds = fakedatastore.New(t)
+			test.m.c.Catalog.(*fakeservercatalog.Catalog).SetDataStore(test.ds)
+
+			for _, j := range testCase.testJournals {
+				entriesBytes, err := proto.Marshal(j.entries)
+				require.NoError(t, err)
+				caJournal, err := test.ds.SetCAJournal(ctx, &datastore.CAJournal{
+					ActiveX509AuthorityID: "",
+					Data:                  entriesBytes,
+				})
+				require.NoError(t, err)
+
+				if !j.shouldBePruned {
+					expectedCAJournals = append(expectedCAJournals, caJournal)
+				}
+			}
+
+			require.NoError(t, test.m.PruneCAJournals(ctx))
+			caJournals, err := test.ds.ListCAJournalsForTesting(ctx)
+			require.NoError(t, err)
+			require.ElementsMatch(t, expectedCAJournals, caJournals)
+		})
+	}
 }
 
 func TestRunNotifiesBundleLoaded(t *testing.T) {
@@ -805,9 +933,9 @@ func TestAlternateKeyTypes(t *testing.T) {
 
 			// Prepare and activate a bundle
 			require.NoError(t, test.m.PrepareJWTKey(ctx))
-			test.m.ActivateJWTKey()
+			test.m.ActivateJWTKey(ctx)
 			require.NoError(t, test.m.PrepareX509CA(ctx))
-			test.m.activateX509CA()
+			test.m.activateX509CA(ctx)
 
 			testCase.checkX509CA(t, test.currentX509CA().Signer)
 			testCase.checkJWTKey(t, test.currentJWTKey().Signer)
@@ -889,9 +1017,9 @@ func (m *managerTest) initAndActivateSelfSignedManager(ctx context.Context) {
 	require.NoError(m.t, err)
 
 	require.NoError(m.t, manager.PrepareJWTKey(ctx))
-	manager.ActivateJWTKey()
+	manager.ActivateJWTKey(ctx)
 	require.NoError(m.t, manager.PrepareX509CA(ctx))
-	manager.ActivateX509CA()
+	manager.ActivateX509CA(ctx)
 
 	m.m = manager
 }
@@ -914,9 +1042,9 @@ func (m *managerTest) initAndActivateUpstreamSignedManager(ctx context.Context, 
 	m.initUpstreamSignedManager(upstreamAuthority)
 
 	require.NoError(m.t, m.m.PrepareJWTKey(ctx))
-	m.m.ActivateJWTKey()
+	m.m.ActivateJWTKey(ctx)
 	require.NoError(m.t, m.m.PrepareX509CA(ctx))
-	m.m.ActivateX509CA()
+	m.m.ActivateX509CA(ctx)
 }
 
 func (m *managerTest) selfSignedConfig() Config {
@@ -1088,7 +1216,13 @@ func (m *managerTest) addTimeAndPrune(d time.Duration) {
 }
 
 func (m *managerTest) wipeJournal(t *testing.T) {
+	// TODO: journal saved on this will no longer be supported in v1.10. Remove
+	// this.
 	require.NoError(t, os.Remove(filepath.Join(m.m.c.Dir, "journal.pem")))
+
+	// Have a clean datastore.
+	m.ds = fakedatastore.New(t)
+	m.cat.SetDataStore(m.ds)
 }
 
 func (m *managerTest) waitForBundleUpdatedNotification(ctx context.Context, ch <-chan *common.Bundle) {

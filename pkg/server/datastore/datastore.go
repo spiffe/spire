@@ -75,6 +75,12 @@ type DataStore interface {
 	ListFederationRelationships(context.Context, *ListFederationRelationshipsRequest) (*ListFederationRelationshipsResponse, error)
 	DeleteFederationRelationship(context.Context, spiffeid.TrustDomain) error
 	UpdateFederationRelationship(context.Context, *FederationRelationship, *types.FederationRelationshipMask) (*FederationRelationship, error)
+
+	// CA Journals
+	SetCAJournal(ctx context.Context, caJournal *CAJournal) (*CAJournal, error)
+	FetchCAJournal(ctx context.Context, activeX509AuthorityID string) (*CAJournal, error)
+	PruneCAJournals(ctx context.Context, allCAsExpireBefore int64) error
+	ListCAJournalsForTesting(ctx context.Context) ([]*CAJournal, error)
 }
 
 // DataConsistency indicates the required data consistency for a read operation.
@@ -200,6 +206,12 @@ type ListRegistrationEntriesRequest struct {
 	Pagination      *Pagination
 	ByFederatesWith *ByFederatesWith
 	ByHint          string
+}
+
+type CAJournal struct {
+	ID                    uint
+	Data                  []byte
+	ActiveX509AuthorityID string
 }
 
 type ListRegistrationEntriesResponse struct {
