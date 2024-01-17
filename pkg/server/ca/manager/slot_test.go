@@ -155,7 +155,7 @@ func TestJournalLoad(t *testing.T) {
 	require.NoError(t, err)
 
 	km := fakeserverkeymanager.New(t)
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 
 	cat := fakeservercatalog.New()

@@ -22,7 +22,7 @@ func TestFetchBundleCache(t *testing.T) {
 	td := "spiffe://domain.test"
 	bundle1 := &common.Bundle{TrustDomainId: "spiffe://domain.test", RefreshHint: 1}
 	bundle2 := &common.Bundle{TrustDomainId: "spiffe://domain.test", RefreshHint: 2}
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	clock := clock.NewMock(t)
 	cache := New(ds, clock)
 	ctxWithCache := WithCache(context.Background())
@@ -150,7 +150,7 @@ func TestBundleInvalidations(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Create datastore and cache
-			ds := fakedatastore.New(t)
+			ds := fakedatastore.New(t, false)
 			cache := New(ds, clock.NewMock(t))
 			ctxWithCache := WithCache(context.Background())
 

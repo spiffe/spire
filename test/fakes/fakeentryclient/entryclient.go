@@ -33,7 +33,7 @@ type Client struct {
 
 func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore, nowFn func() time.Time) *Client {
 	if ds == nil {
-		ds = fakedatastore.New(t)
+		ds = fakedatastore.New(t, false)
 	}
 	if nowFn == nil {
 		nowFn = time.Now

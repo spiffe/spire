@@ -1297,7 +1297,7 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			ds := fakedatastore.New(t)
+			ds := fakedatastore.New(t, false)
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
 
@@ -2133,7 +2133,7 @@ func TestRefreshBundle(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t, fakedatastore.New(t))
+			test := setupServiceTest(t, fakedatastore.New(t, false))
 			defer test.Cleanup()
 
 			_, err := test.client.RefreshBundle(ctx, &trustdomainv1.RefreshBundleRequest{
@@ -2237,7 +2237,7 @@ type fakeDS struct {
 
 func newFakeDS(t *testing.T) *fakeDS {
 	return &fakeDS{
-		DataStore: fakedatastore.New(t),
+		DataStore: fakedatastore.New(t, false),
 	}
 }
 

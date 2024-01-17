@@ -25,7 +25,7 @@ func TestFetchBundleX509(t *testing.T) {
 	updatedBundleX509Response := x509bundle.FromX509Authorities(td, certs2)
 	bundle1 := &common.Bundle{TrustDomainId: "spiffe://domain.test", RefreshHint: 1, SequenceNumber: 10, RootCas: []*common.Certificate{{DerBytes: certs1[0].Raw}}}
 	bundle2 := &common.Bundle{TrustDomainId: "spiffe://domain.test", RefreshHint: 2, SequenceNumber: 20, RootCas: []*common.Certificate{{DerBytes: certs2[0].Raw}}}
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	clock := clock.NewMock(t)
 	cache := NewCache(ds, clock)
 	ctx := context.Background()

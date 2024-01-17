@@ -79,7 +79,7 @@ func TestWithBundlePublisher(t *testing.T) {
 		tt := tt
 		ctx := context.Background()
 		t.Run(tt.name, func(t *testing.T) {
-			var ds datastore.DataStore = fakedatastore.New(t)
+			var ds datastore.DataStore = fakedatastore.New(t, false)
 
 			// We want to have at least two JWT signing keys so one can be
 			// pruned.

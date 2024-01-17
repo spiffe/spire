@@ -142,7 +142,7 @@ func TestCountEntries(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ds := fakedatastore.New(t)
+			ds := fakedatastore.New(t, false)
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
 
@@ -221,7 +221,7 @@ func TestListEntries(t *testing.T) {
 	}
 
 	// setup
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	test := setupServiceTest(t, ds)
 	defer test.Cleanup()
 
@@ -1219,7 +1219,7 @@ func TestListEntries(t *testing.T) {
 
 func TestGetEntry(t *testing.T) {
 	now := time.Now().Unix()
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	test := setupServiceTest(t, ds)
 	defer test.Cleanup()
 
@@ -2652,7 +2652,7 @@ func TestBatchDeleteEntry(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ds := fakedatastore.New(t)
+			ds := fakedatastore.New(t, false)
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
 
@@ -2869,7 +2869,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t, fakedatastore.New(t))
+			test := setupServiceTest(t, fakedatastore.New(t, false))
 			defer test.Cleanup()
 
 			test.omitCallerID = tt.failCallerID
@@ -3266,7 +3266,7 @@ func TestSyncAuthorizedEntries(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t, fakedatastore.New(t))
+			test := setupServiceTest(t, fakedatastore.New(t, false))
 			defer func() {
 				test.Cleanup()
 				spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
@@ -3346,7 +3346,7 @@ func FuzzSyncAuthorizedStreams(f *testing.F) {
 
 		entries := entries[:totalEntries]
 
-		test := setupServiceTest(t, fakedatastore.New(t), withEntryPageSize(entryPageSize))
+		test := setupServiceTest(t, fakedatastore.New(t, false), withEntryPageSize(entryPageSize))
 		defer test.Cleanup()
 		test.ef.entries = entries
 
@@ -4598,7 +4598,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			ds := fakedatastore.New(t)
+			ds := fakedatastore.New(t, false)
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
 			// Create federated bundles, that we use on "FederatesWith"
@@ -4798,7 +4798,7 @@ type fakeDS struct {
 
 func newFakeDS(t *testing.T) *fakeDS {
 	return &fakeDS{
-		DataStore:     fakedatastore.New(t),
+		DataStore:     fakedatastore.New(t, false),
 		expectEntries: make(map[string]*common.RegistrationEntry),
 		results:       make(map[string]*common.RegistrationEntry),
 	}

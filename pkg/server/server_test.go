@@ -22,7 +22,7 @@ type ServerTestSuite struct {
 }
 
 func (suite *ServerTestSuite) SetupTest() {
-	suite.ds = fakedatastore.New(suite.T())
+	suite.ds = fakedatastore.New(suite.T(), false)
 
 	suite.stdout = new(bytes.Buffer)
 	logrusLevel, err := logrus.ParseLevel("DEBUG")

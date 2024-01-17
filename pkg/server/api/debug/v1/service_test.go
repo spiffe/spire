@@ -439,7 +439,7 @@ func (s *serviceTest) Cleanup() {
 
 func setupServiceTest(t *testing.T) *serviceTest {
 	clk := clock.NewMock()
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	log, logHook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 	fakeUptime := &fakeUptime{

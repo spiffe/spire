@@ -52,7 +52,7 @@ func TestFetchX509IdentitySuccess(t *testing.T) {
 		TrustDomain: "domain.test",
 	}
 
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	_, err := ds.CreateBundle(context.Background(), bundleV0)
 	require.NoError(t, err)
 

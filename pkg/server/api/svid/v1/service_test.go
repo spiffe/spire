@@ -2077,7 +2077,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	ca := fakeserverca.New(t, trustDomain, &fakeserverca.Options{})
 	ef := &entryFetcher{}
 	downstream := &entryFetcher{}
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 
 	rateLimiter := &fakeRateLimiter{}
 	service := svid.New(svid.Config{

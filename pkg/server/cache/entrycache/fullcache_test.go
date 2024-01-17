@@ -45,7 +45,7 @@ var (
 )
 
 func TestCache(t *testing.T) {
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	ctx := context.Background()
 
 	rootID := spiffeid.RequireFromString("spiffe://example.org/root")
@@ -132,7 +132,7 @@ func TestCache(t *testing.T) {
 }
 
 func TestCacheReturnsClonedEntries(t *testing.T) {
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 
 	expected, err := api.RegistrationEntryToProto(createRegistrationEntry(context.Background(), t, ds, &common.RegistrationEntry{
 		ParentId:  "spiffe://domain.test/node",
@@ -156,7 +156,7 @@ func TestCacheReturnsClonedEntries(t *testing.T) {
 }
 
 func TestFullCacheNodeAliasing(t *testing.T) {
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	ctx := context.Background()
 
 	const serverID = "spiffe://example.org/spire/server"
@@ -270,7 +270,7 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 	// This is a mitigation for performance problems that arise when hydrating the cache today
 	// due to stale expired Agent data remaining in the datastore: https://github.com/spiffe/spire/issues/1836
 
-	ds := fakedatastore.New(t)
+	ds := fakedatastore.New(t, false)
 	ctx := context.Background()
 	serverURI := &url.URL{
 		Scheme: spiffeScheme,

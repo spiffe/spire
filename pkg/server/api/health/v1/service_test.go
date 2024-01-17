@@ -89,7 +89,7 @@ func TestServiceCheck(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log, logHook := test.NewNullLogger()
 
-			ds := fakedatastore.New(t)
+			ds := fakedatastore.New(t, false)
 			if tt.dsErr != nil {
 				ds.SetNextError(tt.dsErr)
 			}
