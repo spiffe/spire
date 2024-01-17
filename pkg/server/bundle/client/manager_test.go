@@ -265,7 +265,7 @@ func newManagerTest(t *testing.T, source TrustDomainConfigSource, localBundles, 
 	test.manager = NewManager(ManagerConfig{
 		Log:               log,
 		Metrics:           telemetry.Blackhole{},
-		DataStore:         fakedatastore.New(t, false),
+		DataStore:         fakedatastore.New(t),
 		Clock:             test.clock,
 		Source:            source,
 		newBundleUpdater:  test.newBundleUpdater,

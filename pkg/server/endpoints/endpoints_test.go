@@ -71,7 +71,7 @@ func TestNew(t *testing.T) {
 
 	log, _ := test.NewNullLogger()
 	metrics := fakemetrics.New()
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 
 	cat := fakeservercatalog.New()
 	cat.SetDataStore(ds)
@@ -124,7 +124,7 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 
 	log, _ := test.NewNullLogger()
 	metrics := fakemetrics.New()
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 	ds.SetNextError(errors.New("some datastore error"))
 
 	cat := fakeservercatalog.New()
@@ -175,7 +175,7 @@ func TestListenAndServe(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, listener.Close())
 
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 	log, _ := test.NewNullLogger()
 	metrics := fakemetrics.New()
 

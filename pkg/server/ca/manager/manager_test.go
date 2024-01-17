@@ -696,7 +696,7 @@ func TestPruneCAJournals(t *testing.T) {
 		expectedCAJournals = []*datastore.CAJournal{}
 		t.Run(testCase.name, func(t *testing.T) {
 			// Have a fresh data store in each test case
-			test.ds = fakedatastore.New(t, false)
+			test.ds = fakedatastore.New(t)
 			test.m.c.Catalog.(*fakeservercatalog.Catalog).SetDataStore(test.ds)
 
 			for _, j := range testCase.testJournals {
@@ -982,7 +982,7 @@ func setupTest(t *testing.T) *managerTest {
 	log, logHook := test.NewNullLogger()
 	metrics := fakemetrics.New()
 	km := fakeserverkeymanager.New(t)
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 
 	cat := fakeservercatalog.New()
 	cat.SetKeyManager(km)
@@ -1221,7 +1221,7 @@ func (m *managerTest) wipeJournal(t *testing.T) {
 	require.NoError(t, os.Remove(filepath.Join(m.m.c.Dir, "journal.pem")))
 
 	// Have a clean datastore.
-	m.ds = fakedatastore.New(t, false)
+	m.ds = fakedatastore.New(t)
 	m.cat.SetDataStore(m.ds)
 }
 

@@ -253,7 +253,7 @@ func (p *fakeBundlePublisher) Type() string {
 func setupTest(t *testing.T, bundlePublishers []bundlepublisher.BundlePublisher) *managerTest {
 	log, logHook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 
 	clock := clock.NewMock(t)
 	m, err := newManager(&ManagerConfig{

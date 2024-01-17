@@ -2894,7 +2894,7 @@ func (c *serviceTest) Cleanup() {
 }
 
 func setupServiceTest(t *testing.T) *serviceTest {
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 	up := new(fakeUpstreamPublisher)
 	rateLimiter := new(fakeRateLimiter)
 	service := bundle.New(bundle.Config{

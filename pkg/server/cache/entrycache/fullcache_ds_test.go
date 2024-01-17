@@ -18,7 +18,7 @@ import (
 )
 
 func TestEntryIteratorDS(t *testing.T) {
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 	ctx := context.Background()
 
 	t.Run("no entries", func(t *testing.T) {
@@ -79,7 +79,7 @@ func TestEntryIteratorDS(t *testing.T) {
 }
 
 func TestAgentIteratorDS(t *testing.T) {
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 	ctx := context.Background()
 
 	t.Run("no entries", func(t *testing.T) {

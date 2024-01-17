@@ -1785,7 +1785,7 @@ func TestRevokeX509Authority(t *testing.T) {
 }
 
 func setupServiceTest(t *testing.T) *serviceTest {
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 	m := &fakeCAManager{}
 
 	service := localauthority.New(localauthority.Config{

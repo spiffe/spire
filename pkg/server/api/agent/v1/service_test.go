@@ -3189,7 +3189,7 @@ func setupServiceTest(t *testing.T, agentSVIDTTL time.Duration) *serviceTest {
 	ca := fakeserverca.New(t, td, &fakeserverca.Options{
 		AgentSVIDTTL: agentSVIDTTL,
 	})
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
 	clk := clock.NewMock(t)
 

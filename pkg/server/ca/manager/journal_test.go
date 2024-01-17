@@ -51,7 +51,7 @@ func setupJournalTest(t *testing.T) *journalTest {
 	})
 	require.NoError(t, err)
 
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 	cat := fakeservercatalog.New()
 	cat.SetDataStore(ds)
 
@@ -137,7 +137,7 @@ func TestJournalPersistence(t *testing.T) {
 	// Test for the case when SPIRE starts with a CA journal on disk and does
 	// not yet have a CA journal stored in the datastore. Reset the datastore so
 	// we only have the CA journal on disk.
-	test.ds = fakedatastore.New(t, false)
+	test.ds = fakedatastore.New(t)
 	test.jc.cat.(*fakeservercatalog.Catalog).SetDataStore(test.ds)
 
 	// Load the journal again. It should still get the CA journal stored on

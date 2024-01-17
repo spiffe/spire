@@ -18,7 +18,7 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
-	ds := fakedatastore.New(t, true)
+	ds := fakedatastore.New(t)
 
 	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	assert.NoError(t, err)
@@ -97,7 +97,7 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCacheErrorBuildingCache(t *test
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
-	ds := fakedatastore.New(t, true)
+	ds := fakedatastore.New(t)
 
 	buildErr := errors.New("build error")
 	ds.SetNextError(buildErr)

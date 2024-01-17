@@ -36,7 +36,7 @@ type testEntries struct {
 func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
-	ds := fakedatastore.New(t, false)
+	ds := fakedatastore.New(t)
 	clk := clock.NewMock(t)
 
 	e := createAuthorizedEntryTestData(t, ds)
@@ -230,7 +230,7 @@ func TestAgentAuthorizer(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
-			ds := fakedatastore.New(t, false)
+			ds := fakedatastore.New(t)
 
 			if tt.node != nil {
 				_, err := ds.CreateAttestedNode(context.Background(), tt.node)
