@@ -722,31 +722,25 @@ func TestPruneCAJournals(t *testing.T) {
 }
 
 func TestRunNotifiesBundleLoaded(t *testing.T) {
-	test := setupTest(t)
-	test.initAndActivateSelfSignedManager(context.Background())
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	// time out in a minute if the bundle loaded never happens
+
+	test := setupTest(t)
+	test.initAndActivateSelfSignedManager(ctx)
+
 	var actual *common.Bundle
 	test.setNotifier(fakenotifier.New(t, fakenotifier.Config{
 		OnNotifyAndAdviseBundleLoaded: func(bundle *common.Bundle) error {
 			actual = bundle
-			cancel()
 			return nil
 		},
 	}))
 
-	// The bundle loaded handler above will cancel the
-	// context. This will usually be observed as an error returned from the
-	// notifier, but not always, depending on the timing of the cancellation.
-	// When the notifier does not return an error, Run will return without an
-	// error when the canceled context is passed internally to run the tasks.
 	err := test.m.NotifyBundleLoaded(ctx)
-	require.EqualError(t, err, "one or more notifiers returned an error: rpc error: code = Canceled desc = notifier(fake): context canceled")
+	require.NoError(t, err)
 
 	// make sure the event contained the bundle
-	expected := test.fetchBundle(context.Background())
+	expected := test.fetchBundle(ctx)
 	spiretest.RequireProtoEqual(t, expected, actual)
 }
 
@@ -756,10 +750,6 @@ func TestRunFailsIfNotifierFails(t *testing.T) {
 
 	test := setupTest(t)
 	test.initAndActivateSelfSignedManager(ctx)
-	// manager, err := NewManager(ctx, test.selfSignedConfig())
-	// require.NoError(t, err)
-
-	// test.m = manager
 	test.setNotifier(fakenotifier.New(t, fakenotifier.Config{
 		OnNotifyAndAdviseBundleLoaded: func(bundle *common.Bundle) error {
 			return errors.New("ohno")
