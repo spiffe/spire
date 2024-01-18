@@ -72,7 +72,7 @@ func (m *DrainHandlerMiddleware) Preprocess(ctx context.Context, _ string, _ any
 	return ctx, nil
 }
 
-func (m *DrainHandlerMiddleware) Postprocess(ctx context.Context, _ string, _ bool, _ error) {
+func (m *DrainHandlerMiddleware) Postprocess(context.Context, string, bool, error) {
 	m.wg.Done()
 }
 
