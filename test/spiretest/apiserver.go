@@ -67,22 +67,22 @@ func (m *DrainHandlerMiddleware) Wait() {
 	m.wg.Wait()
 }
 
-func (m *DrainHandlerMiddleware) Preprocess(ctx context.Context, fullMethod string, req any) (context.Context, error) {
+func (m *DrainHandlerMiddleware) Preprocess(ctx context.Context, _ string, _ any) (context.Context, error) {
 	m.wg.Add(1)
 	return ctx, nil
 }
 
-func (m *DrainHandlerMiddleware) Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error) {
+func (m *DrainHandlerMiddleware) Postprocess(ctx context.Context, _ string, _ bool, _ error) {
 	m.wg.Done()
 }
 
-func (m *DrainHandlerMiddleware) UnaryServerInterceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+func (m *DrainHandlerMiddleware) UnaryServerInterceptor(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	m.wg.Add(1)
 	defer m.wg.Done()
 	return handler(ctx, req)
 }
 
-func (m *DrainHandlerMiddleware) StreamServerInterceptor(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (m *DrainHandlerMiddleware) StreamServerInterceptor(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	m.wg.Add(1)
 	defer m.wg.Done()
 	return handler(srv, ss)
