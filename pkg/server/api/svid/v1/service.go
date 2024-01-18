@@ -91,17 +91,20 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
 	}
 
+	dnsNames := make([]string, 0, len(csr.DNSNames))
 	for _, dnsName := range csr.DNSNames {
-		if err := x509util.ValidateDNS(dnsName); err != nil {
+		normalized, err := x509util.ValidateAndNormalize(dnsName)
+		if err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name is invalid", err)
 		}
+		dnsNames = append(dnsNames, normalized)
 	}
 
 	x509SVID, err := s.ca.SignWorkloadX509SVID(ctx, ca.WorkloadX509SVIDParams{
 		SPIFFEID:  id,
 		PublicKey: csr.PublicKey,
 		TTL:       time.Duration(req.Ttl) * time.Second,
-		DNSNames:  csr.DNSNames,
+		DNSNames:  dnsNames,
 		Subject:   csr.Subject,
 	})
 	if err != nil {

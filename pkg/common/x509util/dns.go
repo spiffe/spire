@@ -2,50 +2,69 @@ package x509util
 
 import (
 	"errors"
-	"fmt"
-	"regexp"
 	"strings"
+
+	"golang.org/x/net/idna"
 )
 
-var isDNSLabel = regexp.MustCompile(`^[a-zA-Z0-9]([-]*[a-zA-Z0-9])+$`).MatchString
+var (
+	ErrTooManyWildcards         = errors.New("too many wildcards")
+	ErrWildcardMustBeFirstLabel = errors.New("wildcard must be first label")
+	ErrEmptyDomain              = errors.New("empty domain")
+	ErrIDNAError                = errors.New("idna error")
+	ErrDomainEndsWithDot        = errors.New("domain ends with dot")
+	errNoWildcardAllowed        = errors.New("wildcard not allowed")
+)
 
-// ValidateDNS validates that provided string is a valid DNS name
-func ValidateDNS(dns string) error {
-	// follow https://tools.ietf.org/html/rfc5280#section-4.2.1.6
-	// do not allow empty or the technically valid DNS " "
-	dns = strings.TrimSpace(dns)
-	if len(dns) == 0 {
-		return errors.New("empty or only whitespace")
+func ValidateAndNormalize(domain string) (string, error) {
+	starCount := strings.Count(domain, "*")
+	if starCount <= 0 {
+		return validNonwildcardLabel(domain)
 	}
 
-	// handle up to 255 characters
-	if len(dns) > 255 {
-		return errors.New("length exceeded")
+	if starCount > 1 {
+		return "", ErrTooManyWildcards
 	}
 
-	// a DNS is split into labels by "."
-	splitDNS := strings.Split(dns, ".")
-	for _, label := range splitDNS {
-		if err := validateDNSLabel(label); err != nil {
-			return err
-		}
+	if !strings.HasPrefix(domain, "*.") {
+		return "", ErrWildcardMustBeFirstLabel
 	}
 
-	return nil
+	domain = strings.TrimPrefix(domain, "*.")
+	validated, err := validNonwildcardLabel(domain)
+	if err != nil {
+		return "", err
+	}
+
+	return "*." + validated, nil
 }
 
-func validateDNSLabel(label string) error {
-	// follow https://tools.ietf.org/html/rfc5280#section-4.2.1.6 guidance
-	// <label> ::= <let-dig> [ [ <ldh-str> ] <let-dig> ]
-	// <ldh-str> ::= <let-dig-hyp> | <let-dig-hyp> <ldh-str>
-	switch {
-	case len(label) == 0:
-		return errors.New("label is empty")
-	case len(label) > 63:
-		return fmt.Errorf("label length exceeded: %v", label)
-	case !isDNSLabel(label):
-		return fmt.Errorf("label does not match regex: %v", label)
+func validNonwildcardLabel(domain string) (string, error) {
+	domain = strings.TrimSpace(domain)
+	if domain == "" {
+		return "", ErrEmptyDomain
 	}
 
-	return nil
+	if strings.HasSuffix(domain, ".") {
+		return "", ErrDomainEndsWithDot
+	}
+
+	if strings.HasPrefix(domain, "*.") {
+		return "", errNoWildcardAllowed
+	}
+
+	profile := idna.New(
+		idna.StrictDomainName(true),
+		idna.ValidateLabels(true),
+		idna.VerifyDNSLength(true),
+		idna.BidiRule(),
+		idna.CheckJoiners(true),
+		idna.CheckHyphens(true),
+	)
+
+	checked, err := profile.ToASCII(domain)
+	if err != nil {
+		return "", errors.Join(ErrIDNAError, err)
+	}
+	return checked, nil
 }
