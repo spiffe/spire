@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
@@ -161,7 +162,20 @@ type drainHandlers struct {
 }
 
 func (d *drainHandlers) Wait() {
-	d.wg.Wait()
+	done := make(chan struct{})
+
+	go func() {
+		d.wg.Wait()
+		close(done)
+	}()
+
+	t := time.NewTimer(time.Minute)
+	defer t.Stop()
+
+	select {
+	case <-done:
+	case <-t.C:
+	}
 }
 
 func (d *drainHandlers) UnaryServerInterceptor(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
