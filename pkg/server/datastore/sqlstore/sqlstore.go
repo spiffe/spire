@@ -265,7 +265,7 @@ func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedN
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, node.SpiffeId, ds.eventsBasedCache)
+		return createAttestedNodeEvent(tx, node.SpiffeId)
 	}); err != nil {
 		return nil, err
 	}
@@ -315,7 +315,7 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, n.SpiffeId, ds.eventsBasedCache)
+		return createAttestedNodeEvent(tx, n.SpiffeId)
 	}); err != nil {
 		return nil, err
 	}
@@ -329,7 +329,7 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, spiffeID, ds.eventsBasedCache)
+		return createAttestedNodeEvent(tx, spiffeID)
 	}); err != nil {
 		return nil, err
 	}
@@ -350,7 +350,7 @@ func (ds *Plugin) ListAttestedNodesEvents(ctx context.Context, req *datastore.Li
 // PruneAttestedNodesEvents deletes all attested node events older than a specified duration (i.e. more than 24 hours old)
 func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneAttestedNodesEvents(tx, olderThan, ds.eventsBasedCache)
+		err = pruneAttestedNodesEvents(tx, olderThan)
 		return err
 	})
 }
@@ -433,7 +433,7 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, registrationEntry.EntryId, ds.eventsBasedCache)
+		return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
 	}); err != nil {
 		return nil, false, err
 	}
@@ -477,7 +477,7 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.Registr
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, entry.EntryId, ds.eventsBasedCache)
+		return createRegistrationEntryEvent(tx, entry.EntryId)
 	}); err != nil {
 		return nil, err
 	}
@@ -494,7 +494,7 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, entryID, ds.eventsBasedCache)
+		return createRegistrationEntryEvent(tx, entryID)
 	}); err != nil {
 		return nil, err
 	}
@@ -524,7 +524,7 @@ func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datast
 // PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
 func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneRegistrationEntriesEvents(tx, olderThan, ds.eventsBasedCache)
+		err = pruneRegistrationEntriesEvents(tx, olderThan)
 		return err
 	})
 }
@@ -1567,11 +1567,7 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, r
 	}
 }
 
-func createAttestedNodeEvent(tx *gorm.DB, spiffeID string, eventsBasedCache bool) error {
-	if !eventsBasedCache {
-		return nil
-	}
-
+func createAttestedNodeEvent(tx *gorm.DB, spiffeID string) error {
 	newAttestedNodeEvent := AttestedNodeEvent{
 		SpiffeID: spiffeID,
 	}
@@ -1607,11 +1603,7 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 	return resp, nil
 }
 
-func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration, eventsBasedCache bool) error {
-	if !eventsBasedCache {
-		return nil
-	}
-
+func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration) error {
 	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&AttestedNodeEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -3846,11 +3838,7 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 	return nil
 }
 
-func createRegistrationEntryEvent(tx *gorm.DB, entryID string, eventsBasedCache bool) error {
-	if !eventsBasedCache {
-		return nil
-	}
-
+func createRegistrationEntryEvent(tx *gorm.DB, entryID string) error {
 	newRegisteredEntryEvent := RegisteredEntryEvent{
 		EntryID: entryID,
 	}
@@ -3886,11 +3874,7 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	return resp, nil
 }
 
-func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration, eventsBasedCache bool) error {
-	if !eventsBasedCache {
-		return nil
-	}
-
+func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
 	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}

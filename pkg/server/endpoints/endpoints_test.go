@@ -186,7 +186,7 @@ func TestListenAndServe(t *testing.T) {
 		return entrycache.BuildFromDataStore(ctx, ds)
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, defaultCacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
 
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)
