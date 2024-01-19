@@ -4769,7 +4769,10 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore, options ...serviceTe
 		return ctx, nil
 	})
 
+	drainHandler := spiretest.NewDrainHandlerMiddleware()
+
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
+		drainHandler,
 		ppMiddleware,
 		// Add audit log with local tracking disabled
 		middleware.WithAuditLog(false),
@@ -4780,7 +4783,10 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore, options ...serviceTe
 	)
 
 	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
-	test.done = done
+	test.done = func() {
+		done()
+		drainHandler.Wait()
+	}
 	test.client = entryv1.NewEntryClient(conn)
 
 	return test
