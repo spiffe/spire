@@ -64,7 +64,7 @@ func (l *Listener) Accept() (net.Conn, error) {
 			Conn: conn,
 			Info: AuthInfo{
 				Caller:  caller,
-				Watcher: watcher,
+				Watcher: closeOnIsAliveErr{Watcher: watcher, conn: conn},
 			},
 		}
 
@@ -79,4 +79,17 @@ func (l *Listener) Close() error {
 
 func (l *Listener) Addr() net.Addr {
 	return l.l.Addr()
+}
+
+type closeOnIsAliveErr struct {
+	Watcher
+	conn io.Closer
+}
+
+func (w closeOnIsAliveErr) IsAlive() error {
+	err := w.Watcher.IsAlive()
+	if err != nil {
+		_ = w.conn.Close()
+	}
+	return err
 }
