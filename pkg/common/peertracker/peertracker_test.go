@@ -163,12 +163,10 @@ func TestExitDetection(t *testing.T) {
 		require.FailNow(t, "missing case for OS specific failure")
 	}
 
-	// Read a bit of data from our grandchild just to be sure it's still there
-	theSign := make([]byte, 10)
-	expectedSign := []byte("i'm alive!")
-	_, err = conn.Read(theSign)
-	require.NoError(t, err)
-	require.Equal(t, expectedSign, theSign)
+	// IsAlive should close the underlying connection with the grandchild when
+	// it detects the caller has exited.
+	_, err = conn.Read(make([]byte, 10))
+	require.Error(t, err)
 
 	conn.Close()
 
