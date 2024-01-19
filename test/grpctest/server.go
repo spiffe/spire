@@ -19,8 +19,6 @@ import (
 
 type ServerOption = func(*serverConfig)
 
-type dialFunc = func(testing.TB, []grpc.DialOption) grpc.ClientConnInterface
-
 type Server struct {
 	dialTarget  string
 	dialOptions []grpc.DialOption

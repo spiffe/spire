@@ -1518,9 +1518,6 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	), grpctest.OverUDS(),
 	)
 
-	//func(s grpc.ServiceRegistrar, srv "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload".SpiffeWorkloadAPIServer)
-	//func(*grpc.Server, "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload".SpiffeWorkloadAPIServer)
-
 	conn := server.Dial(t)
 
 	// Provide a cancelable context to ensure the stream is always
