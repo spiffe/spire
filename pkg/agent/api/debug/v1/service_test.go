@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/grpctest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
@@ -250,15 +251,12 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		uptime:  fakeUptime,
 	}
 
-	registerFn := func(s *grpc.Server) {
+	registerFn := func(s grpc.ServiceRegistrar) {
 		debug.RegisterService(s, service)
 	}
-	contextFn := func(ctx context.Context) context.Context {
-		return ctx
-	}
-	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
-	test.done = done
-	test.client = debugv1.NewDebugClient(conn)
+	server := grpctest.StartServer(t, registerFn)
+	test.done = server.Stop
+	test.client = debugv1.NewDebugClient(server.Dial(t))
 
 	return test
 }
