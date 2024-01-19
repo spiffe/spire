@@ -42,7 +42,6 @@ func LoadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 }
 
 func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ *pluginImpl, err error) {
-
 	logger := log.NewHCLogAdapter(
 		config.Log,
 		builtIn.Name,
