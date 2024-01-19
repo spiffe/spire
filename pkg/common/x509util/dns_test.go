@@ -97,3 +97,32 @@ INk16I343I4FortWWCEV9nprutN3KQCZiIhHGkK4zQ6iyH7mTGc5bOfPIqE4aLynK`,
 		})
 	}
 }
+
+func TestWildcardOverlap(t *testing.T) {
+	tests := []struct {
+		name    string
+		dns     []string
+		wantErr error
+	}{
+		{
+			name: "no overlap",
+			dns:  []string{"example.com", "*.example.com"},
+		},
+		{
+			name:    "overlap",
+			dns:     []string{"example.com", "*.example.com", "foo.example.com"},
+			wantErr: x509util.ErrWildcardOverlap,
+		},
+		{
+			name: "no overlap if subdomain",
+			dns:  []string{"example.com", "*.example.com", "foo.bar.example.com"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := x509util.WildcardOverlap(tc.dns)
+			assert.ErrorIs(t, err, tc.wantErr)
+		})
+	}
+}

@@ -2,6 +2,7 @@ package x509util
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"golang.org/x/net/idna"
@@ -13,6 +14,7 @@ var (
 	ErrEmptyDomain              = errors.New("empty domain")
 	ErrIDNAError                = errors.New("idna error")
 	ErrDomainEndsWithDot        = errors.New("domain ends with dot")
+	ErrWildcardOverlap          = errors.New("wildcard overlap")
 	errNoWildcardAllowed        = errors.New("wildcard not allowed")
 )
 
@@ -67,4 +69,28 @@ func validNonwildcardLabel(domain string) (string, error) {
 		return "", errors.Join(ErrIDNAError, err)
 	}
 	return checked, nil
+}
+
+func WildcardOverlap(names []string) error {
+	nm := map[string]struct{}{}
+
+	for _, name := range names {
+		nm[name] = struct{}{}
+	}
+
+	for name := range nm {
+		// While we're checking, we don't need to care about wildcards
+		if strings.HasPrefix(name, "*") {
+			continue
+		}
+
+		// Let's split this non-wildcard DNS name into its corresponding labels
+		labels := strings.Split(name, ".")
+		labels[0] = "*" // Let's now replace the first label with a wildcard
+		if _, ok := nm[strings.Join(labels, ".")]; ok {
+			return fmt.Errorf("name %q overlaps with an existing wildcard name in the list: %w", name, ErrWildcardOverlap)
+		}
+	}
+
+	return nil
 }
