@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,6 +53,39 @@ func newAPIServer(tb testing.TB, registerFn func(s *grpc.Server), server *grpc.S
 		}
 	}
 	return conn, done
+}
+
+type DrainHandlerMiddleware struct {
+	wg sync.WaitGroup
+}
+
+func NewDrainHandlerMiddleware() *DrainHandlerMiddleware {
+	return &DrainHandlerMiddleware{}
+}
+
+func (m *DrainHandlerMiddleware) Wait() {
+	m.wg.Wait()
+}
+
+func (m *DrainHandlerMiddleware) Preprocess(ctx context.Context, _ string, _ any) (context.Context, error) {
+	m.wg.Add(1)
+	return ctx, nil
+}
+
+func (m *DrainHandlerMiddleware) Postprocess(context.Context, string, bool, error) {
+	m.wg.Done()
+}
+
+func (m *DrainHandlerMiddleware) UnaryServerInterceptor(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	m.wg.Add(1)
+	defer m.wg.Done()
+	return handler(ctx, req)
+}
+
+func (m *DrainHandlerMiddleware) StreamServerInterceptor(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	m.wg.Add(1)
+	defer m.wg.Done()
+	return handler(srv, ss)
 }
 
 func unaryInterceptor(fn func(ctx context.Context) context.Context) func(context.Context, any, *grpc.UnaryServerInfo, grpc.UnaryHandler) (any, error) {
