@@ -26,7 +26,7 @@ const (
 )
 
 // RegisterService registers debug service on provided server
-func RegisterService(s *grpc.Server, service *Service) {
+func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 	debugv1.RegisterDebugServer(s, service)
 }
 

@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/svid"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/grpctest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
@@ -464,16 +465,19 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		uptime:  fakeUptime,
 	}
 
-	registerFn := func(s *grpc.Server) {
+	registerFn := func(s grpc.ServiceRegistrar) {
 		debug.RegisterService(s, service)
 	}
-	contextFn := func(ctx context.Context) context.Context {
+	overrideContext := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		return ctx
 	}
 
-	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
-	test.done = done
+	server := grpctest.StartServer(t, registerFn, grpctest.OverrideContext(overrideContext))
+
+	conn := server.Dial(t)
+
+	test.done = server.Stop
 	test.client = debugv1.NewDebugClient(conn)
 
 	return test

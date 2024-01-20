@@ -55,7 +55,7 @@ func New(config Config) *Service {
 }
 
 // RegisterService registers the trustdomain service on the gRPC server.
-func RegisterService(s *grpc.Server, service *Service) {
+func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 	trustdomainv1.RegisterTrustDomainServer(s, service)
 }
 
