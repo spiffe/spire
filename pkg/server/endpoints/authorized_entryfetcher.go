@@ -165,6 +165,12 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 			continue
 		}
 
+		selectors, err := a.ds.GetNodeSelectors(ctx, event.SpiffeID, datastore.RequireCurrent)
+		if err != nil {
+			return err
+		}
+		node.Selectors = selectors
+
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
 		if agentExpiresAt.Before(a.clk.Now()) {
 			a.cache.RemoveAgent(event.SpiffeID)
