@@ -56,7 +56,7 @@ func New(config Config) *Service {
 }
 
 // RegisterService registers the entry service on the gRPC server.
-func RegisterService(s *grpc.Server, service *Service) {
+func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 	entryv1.RegisterEntryServer(s, service)
 }
 

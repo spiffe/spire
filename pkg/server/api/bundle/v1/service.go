@@ -58,7 +58,7 @@ func New(config Config) *Service {
 }
 
 // RegisterService registers the bundle service on the gRPC server.
-func RegisterService(s *grpc.Server, service *Service) {
+func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 	bundlev1.RegisterBundleServer(s, service)
 }
 

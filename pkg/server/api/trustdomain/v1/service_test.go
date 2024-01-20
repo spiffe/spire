@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/grpctest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
@@ -2195,9 +2196,6 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 
 	log, logHook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
-	registerFn := func(s *grpc.Server) {
-		trustdomain.RegisterService(s, service)
-	}
 
 	test := &serviceTest{
 		ds:      ds,
@@ -2205,26 +2203,21 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 		logHook: logHook,
 	}
 
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
-		ctx = rpccontext.WithLogger(ctx, log)
+	overrideContext := func(ctx context.Context) context.Context {
+		return rpccontext.WithLogger(ctx, log)
+	}
 
-		return ctx, nil
-	})
-
-	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
-		ppMiddleware,
-		// Add audit log with local tracking disabled
-		middleware.WithAuditLog(false),
-	))
-
-	server := grpc.NewServer(
-		grpc.UnaryInterceptor(unaryInterceptor),
-		grpc.StreamInterceptor(streamInterceptor),
+	server := grpctest.StartServer(t, func(s grpc.ServiceRegistrar) {
+		trustdomain.RegisterService(s, service)
+	},
+		grpctest.OverrideContext(overrideContext),
+		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
 
-	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
-	test.done = done
+	conn := server.Dial(t)
+
 	test.client = trustdomainv1.NewTrustDomainClient(conn)
+	test.done = server.Stop
 
 	return test
 }
