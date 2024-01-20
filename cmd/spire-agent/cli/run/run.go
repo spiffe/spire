@@ -122,6 +122,7 @@ type experimentalConfig struct {
 
 	UnusedKeyPositions   map[string][]token.Pos `hcl:",unusedKeyPositions"`
 	X509SVIDCacheMaxSize int                    `hcl:"x509_svid_cache_max_size"`
+	DisableLRUCache      bool                   `hcl:"disable_lru_cache"`
 }
 
 type Command struct {
@@ -467,6 +468,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.UseSyncAuthorizedEntries = c.Agent.Experimental.UseSyncAuthorizedEntries
 	ac.X509SVIDCacheMaxSize = c.Agent.Experimental.X509SVIDCacheMaxSize
+
+	if c.Agent.Experimental.DisableLRUCache && ac.X509SVIDCacheMaxSize != 0 {
+		return nil, errors.New("x509_svid_cache_max_size should not be set when disable_lru_cache is set")
+	}
+	ac.DisableLRUCache = c.Agent.Experimental.DisableLRUCache
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
