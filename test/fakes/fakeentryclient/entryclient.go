@@ -12,18 +12,17 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/audit"
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/test/spiretest"
 
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
+	"github.com/spiffe/spire/test/grpctest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
 
 type Client struct {
-	server      *grpc.Server
 	nowFn       func() time.Time
 	trustDomain spiffeid.TrustDomain
 	done        func()
@@ -40,7 +39,6 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore,
 	}
 
 	c := &Client{
-		server:      grpc.NewServer(grpc.Creds(fakeTransportCreds{})),
 		nowFn:       nowFn,
 		trustDomain: trustDomain,
 	}
@@ -48,27 +46,31 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore,
 	catalog := fakeservercatalog.New()
 	catalog.SetDataStore(ds)
 
-	server := entry.New(entry.Config{
+	service := entry.New(entry.Config{
 		TrustDomain: trustDomain,
 		DataStore:   ds,
 		//EntryFetcher: authorizedEntryFetcherWithCache,
 	})
 
 	log, _ := test.NewNullLogger()
-	registerFn := func(s *grpc.Server) {
-		entryv1.RegisterEntryServer(s, server)
-	}
 
-	contextFn := func(ctx context.Context) context.Context {
+	overrideContext := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		ctx = rpccontext.WithAdminCaller(ctx)
 		ctx = rpccontext.WithAuditLog(ctx, audit.New(log))
 		return ctx
 	}
 
-	conn, done := spiretest.NewAPIServer(t, registerFn, contextFn)
+	server := grpctest.StartServer(t, func(s grpc.ServiceRegistrar) {
+		entryv1.RegisterEntryServer(s, service)
+	},
+		grpctest.OverrideContext(overrideContext),
+		grpctest.Credentials(fakeTransportCreds{}),
+	)
 
-	c.done = done
+	conn := server.Dial(t)
+
+	c.done = server.Stop
 	c.EntryClient = entryv1.NewEntryClient(conn)
 
 	return c
@@ -76,7 +78,6 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore,
 
 func (c *Client) Close() {
 	c.done()
-	c.server.Stop()
 }
 
 // fakeTransportCreds is simply used to supply "unix domain socket" auth info
