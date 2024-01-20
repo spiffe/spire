@@ -916,6 +916,34 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "disable_lru_cache is set",
+			input: func(c *Config) {
+				c.Agent.Experimental.DisableLRUCache = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.True(t, c.DisableLRUCache)
+			},
+		},
+		{
+			msg:         "both disable_lru_cache and x509_svid_cache_max_size are set",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.DisableLRUCache = true
+				c.Agent.Experimental.X509SVIDCacheMaxSize = 100
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "disable_lru_cache is not set",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.False(t, c.DisableLRUCache)
+			},
+		},
+		{
 			msg: "allowed_foreign_jwt_claims provided",
 			input: func(c *Config) {
 				c.Agent.AllowedForeignJWTClaims = []string{"c1", "c2"}
