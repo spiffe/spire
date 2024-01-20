@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
@@ -42,8 +43,6 @@ func LoadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 }
 
 func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ *pluginImpl, err error) {
-	builtinServer := newBuiltInServer()
-
 	logger := log.NewHCLogAdapter(
 		config.Log,
 		builtIn.Name,
@@ -63,6 +62,9 @@ func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 	}()
 	closers = append(closers, dialer)
 
+	builtinServer, serverCloser := newBuiltInServer()
+	closers = append(closers, serverCloser)
+
 	pluginServers := append([]pluginsdk.ServiceServer{builtIn.Plugin}, builtIn.Services...)
 
 	private.Register(builtinServer, pluginServers, logger, dialer)
@@ -81,11 +83,12 @@ func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 	return newPlugin(ctx, builtinConn, info, config.Log, closers, config.HostServices)
 }
 
-func newBuiltInServer() *grpc.Server {
+func newBuiltInServer() (*grpc.Server, io.Closer) {
+	drain := &drainHandlers{}
 	return grpc.NewServer(
-		grpc.StreamInterceptor(streamPanicInterceptor),
-		grpc.UnaryInterceptor(unaryPanicInterceptor),
-	)
+		grpc.ChainStreamInterceptor(drain.StreamServerInterceptor, streamPanicInterceptor),
+		grpc.ChainUnaryInterceptor(drain.UnaryServerInterceptor, unaryPanicInterceptor),
+	), closerFunc(drain.Wait)
 }
 
 type builtinDialer struct {
@@ -152,4 +155,37 @@ func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, 
 		ClientConnInterface: conn,
 		Closer:              closers,
 	}, nil
+}
+
+type drainHandlers struct {
+	wg sync.WaitGroup
+}
+
+func (d *drainHandlers) Wait() {
+	done := make(chan struct{})
+
+	go func() {
+		d.wg.Wait()
+		close(done)
+	}()
+
+	t := time.NewTimer(time.Minute)
+	defer t.Stop()
+
+	select {
+	case <-done:
+	case <-t.C:
+	}
+}
+
+func (d *drainHandlers) UnaryServerInterceptor(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	d.wg.Add(1)
+	defer d.wg.Done()
+	return handler(ctx, req)
+}
+
+func (d *drainHandlers) StreamServerInterceptor(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	d.wg.Add(1)
+	defer d.wg.Done()
+	return handler(srv, ss)
 }
