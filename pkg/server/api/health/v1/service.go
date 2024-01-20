@@ -14,7 +14,7 @@ import (
 )
 
 // RegisterService registers the service on the gRPC server.
-func RegisterService(s *grpc.Server, service *Service) {
+func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 	grpc_health_v1.RegisterHealthServer(s, service)
 }
 
