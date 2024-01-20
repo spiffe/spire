@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/grpctest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -4751,43 +4752,31 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore, options ...serviceTe
 	})
 
 	log, logHook := test.NewNullLogger()
-	registerFn := func(s *grpc.Server) {
-		entry.RegisterService(s, service)
-	}
-
 	test := &serviceTest{
 		ds:      ds,
 		logHook: logHook,
 		ef:      ef,
 	}
 
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
+	overrideContext := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		if !test.omitCallerID {
 			ctx = rpccontext.WithCallerID(ctx, agentID)
 		}
-		return ctx, nil
-	})
+		return ctx
+	}
 
-	drainHandler := spiretest.NewDrainHandlerMiddleware()
-
-	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
-		drainHandler,
-		ppMiddleware,
-		// Add audit log with local tracking disabled
-		middleware.WithAuditLog(false),
-	))
-	server := grpc.NewServer(
-		grpc.UnaryInterceptor(unaryInterceptor),
-		grpc.StreamInterceptor(streamInterceptor),
+	server := grpctest.StartServer(t, func(s grpc.ServiceRegistrar) {
+		entry.RegisterService(s, service)
+	},
+		grpctest.OverrideContext(overrideContext),
+		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
 
-	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
-	test.done = func() {
-		done()
-		drainHandler.Wait()
-	}
+	conn := server.Dial(t)
+
 	test.client = entryv1.NewEntryClient(conn)
+	test.done = server.Stop
 
 	return test
 }
