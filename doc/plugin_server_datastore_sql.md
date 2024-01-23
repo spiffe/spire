@@ -135,6 +135,60 @@ If you need to use custom Root CA, just specify `root_ca_path` in the plugin con
     }
 ```
 
+### IAM Authentication
+
+With IAM database authentication, an authentication token is used instead of a password when connecting to the database. For that reason, a password must not be provided in the connection string.
+
+The `database_type` configuration can have additional settings when a database type supporting IAM authentication is used, and always takes the following form:
+
+```hcl
+    database_type "dbtype-with-iam-support" {
+        setting_1 = "value-1"
+        setting_2 = "value-2"
+        ...
+    }
+```
+
+The following database types support IAM authentication:
+
+#### "aws_postgres"
+
+The `aws_postgres` database type specifies that the database is a PostgreSQL database hosted by the AWS RDS service, and IAM authentication is used to authenticate to the database. As part of the `database_type` setting, the `region` of the service must be specified.
+
+Settings of the [`postgres`](#database_type--postgres) database type also apply for this type.
+
+##### Sample configuration
+
+```hcl
+    DataStore "sql" {
+        plugin_data {
+           database_type "aws_postgres" {
+                region = "us-east-2"
+            }
+            connection_string = "dbname=spire user=test_user host=spire-test-postgres.whjayetrnc2a.us-east-2.rds.amazonaws.com port=5432 sslmode=require"
+        }
+   }
+```
+
+#### "aws_mysql"
+
+The `aws_mysql` database type specifies that the database is a MySQL database hosted by the AWS RDS service, and IAM authentication is used to authenticate to the database. As part of the `database_type` setting, the `region` of the service must be specified.
+
+Settings of the [`mysql`](#database_type--mysql) database type also apply for this type.
+
+##### Sample configuration
+
+```hcl
+    DataStore "sql" {
+        plugin_data {
+            database_type "aws_mysql" {
+                region = "us-east-2"
+            }
+            connection_string="test_user:@tcp(spire-test.whjayetrnc2a.us-east-2.rds.amazonaws.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
+        }
+    }
+```
+
 #### Read Only connection
 
 Read Only connection will be used when the optional `ro_connection_string` is set. The formatted string takes the same form as connection_string. This option is not applicable for SQLite3.
