@@ -64,7 +64,6 @@ type Config struct {
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
 	HealthChecker    health.Checker
-	EventsBasedCache bool
 }
 
 type datastoreRepository struct{ datastore.Repository }
@@ -190,7 +189,7 @@ func loadSQLDataStore(ctx context.Context, config Config, datastoreConfigs catal
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 
-	ds := ds_sql.New(config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name), config.EventsBasedCache)
+	ds := ds_sql.New(config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name))
 	if err := ds.Configure(ctx, sqlConfig.Data); err != nil {
 		return nil, err
 	}

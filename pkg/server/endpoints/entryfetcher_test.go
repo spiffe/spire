@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
+	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,13 +42,14 @@ func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
 
 	entries := make(map[spiffeid.ID][]*types.Entry)
 	buildCache := func(context.Context) (entrycache.Cache, error) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 }
@@ -56,12 +58,13 @@ func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) 
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
 
 	buildCache := func(context.Context) (entrycache.Cache, error) {
 		return nil, errors.New("some cache build error")
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 }
@@ -70,6 +73,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
 	agentID := spiffeid.RequireFromPath(trustDomain, "/root")
 	expected := setupExpectedEntriesData(t, agentID)
 
@@ -81,7 +85,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 		return newStaticEntryCache(entries), nil
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, log, clk, defaultCacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -105,6 +109,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
 	agentID := spiffeid.RequireFromPath(trustDomain, "/root")
 	var expectedEntries []*types.Entry
 
@@ -150,7 +155,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		}
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, defaultCacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
