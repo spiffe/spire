@@ -129,7 +129,7 @@ func (s *PluginSuite) TearDownTest() {
 
 func (s *PluginSuite) newPlugin() *Plugin {
 	log, hook := test.NewNullLogger()
-	ds := New(log, true)
+	ds := New(log)
 	s.hook = hook
 
 	// When the test suite is executed normally, we test against sqlite3 since
@@ -5126,7 +5126,7 @@ func (s *PluginSuite) TestConfigure() {
 			dbPath := filepath.ToSlash(filepath.Join(s.dir, "test-datastore-configure.sqlite3"))
 
 			log, _ := test.NewNullLogger()
-			p := New(log, true)
+			p := New(log)
 			err := p.Configure(ctx, fmt.Sprintf(`
 				database_type = "sqlite3"
 				log_sql = true
