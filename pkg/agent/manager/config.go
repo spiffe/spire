@@ -39,6 +39,7 @@ type Config struct {
 	RotationInterval         time.Duration
 	SVIDStoreCache           *storecache.Cache
 	SVIDCacheMaxSize         int
+	DisableLRUCache          bool
 	NodeAttestor             nodeattestor.NodeAttestor
 	RotationStrategy         *rotationutil.RotationStrategy
 
@@ -65,13 +66,13 @@ func newManager(c *Config) *manager {
 	}
 
 	var cache Cache
-	if c.SVIDCacheMaxSize > 0 {
+	if c.DisableLRUCache {
+		cache = managerCache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
+			c.Metrics)
+	} else {
 		// use LRU cache implementation
 		cache = managerCache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
 			c.Metrics, c.SVIDCacheMaxSize, c.Clk)
-	} else {
-		cache = managerCache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
-			c.Metrics)
 	}
 
 	rotCfg := &svid.RotatorConfig{
