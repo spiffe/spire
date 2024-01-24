@@ -144,7 +144,7 @@ func (r *rotator) rotateSVIDIfNeeded(ctx context.Context) (err error) {
 	}
 
 	if r.c.RotationStrategy.ShouldRotateX509(r.clk.Now(), state.SVID[0]) {
-		if state.Reattestable {
+		if state.Reattestable && !r.c.DisableReattestToRenew {
 			err = r.reattest(ctx)
 		} else {
 			err = r.rotateSVID(ctx)
