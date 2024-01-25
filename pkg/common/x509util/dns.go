@@ -16,13 +16,14 @@ var (
 	ErrIDNAError                = errors.New("idna error")
 	ErrDomainEndsWithDot        = errors.New("domain ends with dot")
 	ErrWildcardOverlap          = errors.New("wildcard overlap")
-	ErrNameMustBeAscii          = errors.New("name must be ascii")
+	ErrNameMustBeASCII          = errors.New("name must be ascii")
+	ErrLabelMismatchAfterIDNA   = errors.New("label mismatch after idna")
 	errNoWildcardAllowed        = errors.New("wildcard not allowed")
 )
 
 func ValidateAndNormalize(domain string) (string, error) {
 	if !utf8string.NewString(domain).IsASCII() {
-		return "", ErrNameMustBeAscii
+		return "", ErrNameMustBeASCII
 	}
 
 	starCount := strings.Count(domain, "*")
@@ -73,6 +74,11 @@ func validNonwildcardLabel(domain string) (string, error) {
 	checked, err := profile.ToASCII(domain)
 	if err != nil {
 		return "", errors.Join(ErrIDNAError, err)
+	}
+
+	// Defensive check.
+	if domain != checked {
+		return "", fmt.Errorf("input domain name %q does not match idna output %q: %w", domain, checked, ErrLabelMismatchAfterIDNA)
 	}
 
 	return checked, nil

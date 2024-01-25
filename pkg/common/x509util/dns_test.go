@@ -1,11 +1,23 @@
 package x509util_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/stretchr/testify/assert"
 )
+
+func FuzzValidateAndNormalize(f *testing.F) {
+	f.Add("example.com")
+	f.Add("*.example.com")
+	f.Add("___.com")
+	f.Fuzz(func(t *testing.T, domain string) {
+		if _, err := x509util.ValidateAndNormalize(domain); errors.Is(err, x509util.ErrLabelMismatchAfterIDNA) {
+			t.Fatalf("domain: %q, err: %v", domain, err)
+		}
+	})
+}
 
 func TestValidateAndNormalize(t *testing.T) {
 	tests := []struct {
@@ -62,7 +74,7 @@ func TestValidateAndNormalize(t *testing.T) {
 		{
 			name:    "emoji",
 			dns:     "💩.com",
-			wantErr: x509util.ErrNameMustBeAscii,
+			wantErr: x509util.ErrNameMustBeASCII,
 		},
 		{
 			name: "ascii puny code",
@@ -72,7 +84,7 @@ func TestValidateAndNormalize(t *testing.T) {
 		{
 			name:    "emoji tld",
 			dns:     "example.💩",
-			wantErr: x509util.ErrNameMustBeAscii,
+			wantErr: x509util.ErrNameMustBeASCII,
 		},
 		{
 			name: "hypen is ok",
