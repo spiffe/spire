@@ -60,14 +60,19 @@ func TestValidateAndNormalize(t *testing.T) {
 			wantErr: x509util.ErrEmptyDomain,
 		},
 		{
-			name: "emoji",
-			dns:  "💩.com",
-			want: "xn--ls8h.com",
+			name:    "emoji",
+			dns:     "💩.com",
+			wantErr: x509util.ErrNoPunyCodeDomain,
 		},
 		{
-			name: "emoji tld",
-			dns:  "example.💩",
-			want: "example.xn--ls8h",
+			name:    "ascii puny code",
+			dns:     "xn--ls8h.org",
+			wantErr: x509util.ErrNoPunyCodeDomain,
+		},
+		{
+			name:    "emoji tld",
+			dns:     "example.💩",
+			wantErr: x509util.ErrNoPunyCodeDomain,
 		},
 		{
 			name: "hypen is ok",

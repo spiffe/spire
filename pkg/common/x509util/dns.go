@@ -15,6 +15,7 @@ var (
 	ErrIDNAError                = errors.New("idna error")
 	ErrDomainEndsWithDot        = errors.New("domain ends with dot")
 	ErrWildcardOverlap          = errors.New("wildcard overlap")
+	ErrNoPunyCodeDomain         = errors.New("no punycode domain")
 	errNoWildcardAllowed        = errors.New("wildcard not allowed")
 )
 
@@ -59,8 +60,8 @@ func validNonwildcardLabel(domain string) (string, error) {
 		idna.StrictDomainName(true),
 		idna.ValidateLabels(true),
 		idna.VerifyDNSLength(true),
-		idna.BidiRule(),
 		idna.CheckJoiners(true),
+		idna.BidiRule(),
 		idna.CheckHyphens(true),
 	)
 
@@ -68,6 +69,16 @@ func validNonwildcardLabel(domain string) (string, error) {
 	if err != nil {
 		return "", errors.Join(ErrIDNAError, err)
 	}
+
+	unicode, err := profile.ToUnicode(checked)
+	if err != nil {
+		return "", errors.Join(ErrIDNAError, err)
+	}
+
+	if checked != unicode {
+		return "", ErrNoPunyCodeDomain
+	}
+
 	return checked, nil
 }
 
