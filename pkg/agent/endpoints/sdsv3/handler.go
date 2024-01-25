@@ -14,7 +14,6 @@ import (
 	tls_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -350,8 +349,8 @@ func (h *Handler) triggerReceivedHook() {
 }
 
 type validationContextBuilder interface {
-	buildOne(resourceName, trustDomainID string) (*any.Any, error)
-	buildAll(resourceName string) (*any.Any, error)
+	buildOne(resourceName, trustDomainID string) (*anypb.Any, error)
+	buildAll(resourceName string) (*anypb.Any, error)
 }
 
 func (h *Handler) getValidationContextBuilder(req *discovery_v3.DiscoveryRequest, upd *cache.WorkloadUpdate) (validationContextBuilder, error) {
@@ -386,7 +385,7 @@ func newRootCABuilder(bundle *spiffebundle.Bundle, federatedBundles map[spiffeid
 	}
 }
 
-func (b *rootCABuilder) buildOne(resourceName, trustDomain string) (*any.Any, error) {
+func (b *rootCABuilder) buildOne(resourceName, trustDomain string) (*anypb.Any, error) {
 	bundle, ok := b.bundles[trustDomain]
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "no bundle found for trust domain: %q", trustDomain)
@@ -406,7 +405,7 @@ func (b *rootCABuilder) buildOne(resourceName, trustDomain string) (*any.Any, er
 	})
 }
 
-func (b *rootCABuilder) buildAll(string) (*any.Any, error) {
+func (b *rootCABuilder) buildAll(string) (*anypb.Any, error) {
 	return nil, status.Error(codes.Internal, `unable to use "SPIFFE validator" on Envoy below 1.17`)
 }
 
@@ -432,7 +431,7 @@ func newSpiffeBuilder(tdBundle *spiffebundle.Bundle, federatedBundles map[spiffe
 	}, nil
 }
 
-func (b *spiffeBuilder) buildOne(resourceName, trustDomainID string) (*any.Any, error) {
+func (b *spiffeBuilder) buildOne(resourceName, trustDomainID string) (*anypb.Any, error) {
 	td, err := spiffeid.TrustDomainFromString(trustDomainID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to parse trustdomain: %v", err)
@@ -472,7 +471,7 @@ func (b *spiffeBuilder) buildOne(resourceName, trustDomainID string) (*any.Any, 
 	})
 }
 
-func (b *spiffeBuilder) buildAll(resourceName string) (*any.Any, error) {
+func (b *spiffeBuilder) buildAll(resourceName string) (*anypb.Any, error) {
 	configTrustDomains := []*tls_v3.SPIFFECertValidatorConfig_TrustDomain{}
 
 	// Create SPIFFE validator config
