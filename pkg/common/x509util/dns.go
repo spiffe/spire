@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"golang.org/x/exp/utf8string"
 	"golang.org/x/net/idna"
 )
 
@@ -15,11 +16,15 @@ var (
 	ErrIDNAError                = errors.New("idna error")
 	ErrDomainEndsWithDot        = errors.New("domain ends with dot")
 	ErrWildcardOverlap          = errors.New("wildcard overlap")
-	ErrNoPunyCodeDomain         = errors.New("no punycode domain")
+	ErrNameMustBeAscii          = errors.New("name must be ascii")
 	errNoWildcardAllowed        = errors.New("wildcard not allowed")
 )
 
 func ValidateAndNormalize(domain string) (string, error) {
+	if !utf8string.NewString(domain).IsASCII() {
+		return "", ErrNameMustBeAscii
+	}
+
 	starCount := strings.Count(domain, "*")
 	if starCount <= 0 {
 		return validNonwildcardLabel(domain)
@@ -68,15 +73,6 @@ func validNonwildcardLabel(domain string) (string, error) {
 	checked, err := profile.ToASCII(domain)
 	if err != nil {
 		return "", errors.Join(ErrIDNAError, err)
-	}
-
-	unicode, err := profile.ToUnicode(checked)
-	if err != nil {
-		return "", errors.Join(ErrIDNAError, err)
-	}
-
-	if checked != unicode {
-		return "", ErrNoPunyCodeDomain
 	}
 
 	return checked, nil

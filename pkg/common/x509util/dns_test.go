@@ -62,17 +62,17 @@ func TestValidateAndNormalize(t *testing.T) {
 		{
 			name:    "emoji",
 			dns:     "💩.com",
-			wantErr: x509util.ErrNoPunyCodeDomain,
+			wantErr: x509util.ErrNameMustBeAscii,
 		},
 		{
-			name:    "ascii puny code",
-			dns:     "xn--ls8h.org",
-			wantErr: x509util.ErrNoPunyCodeDomain,
+			name: "ascii puny code",
+			dns:  "xn--ls8h.org",
+			want: "xn--ls8h.org",
 		},
 		{
 			name:    "emoji tld",
 			dns:     "example.💩",
-			wantErr: x509util.ErrNoPunyCodeDomain,
+			wantErr: x509util.ErrNameMustBeAscii,
 		},
 		{
 			name: "hypen is ok",
@@ -116,6 +116,11 @@ func TestWildcardOverlap(t *testing.T) {
 		{
 			name:    "overlap",
 			dns:     []string{"example.com", "*.example.com", "foo.example.com"},
+			wantErr: x509util.ErrWildcardOverlap,
+		},
+		{
+			name:    "overlap-flip",
+			dns:     []string{"foo.example.com", "*.example.com", "example.com"},
 			wantErr: x509util.ErrWildcardOverlap,
 		},
 		{
