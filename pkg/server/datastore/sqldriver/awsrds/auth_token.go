@@ -8,25 +8,27 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 )
+
+const iso8601BasicFormat = "20060102T150405Z"
 
 type authTokenBuilder interface {
 	buildAuthToken(ctx context.Context, endpoint string, region string, dbUser string, creds aws.CredentialsProvider, optFns ...func(options *auth.BuildAuthTokenOptions)) (string, error)
 }
 
 type tokenGetter interface {
-	getAWSAuthToken(ctx context.Context, params *Config, tokenBuilder authTokenBuilder) (string, error)
-	setNowFunc(nowFunc func() time.Time)
+	getAuthToken(ctx context.Context, params *Config, tokenBuilder authTokenBuilder) (string, error)
 }
 
 type authToken struct {
-	authToken string
+	token     string
 	expiresAt time.Time
-	nowFunc   func() time.Time
 }
 
-func (a *authToken) getAWSAuthToken(ctx context.Context, config *Config, tokenBuilder authTokenBuilder) (string, error) {
+func (a *authToken) getAuthToken(ctx context.Context, config *Config, tokenBuilder authTokenBuilder) (string, error) {
 	if config == nil {
 		return "", errors.New("missing config")
 	}
@@ -36,7 +38,7 @@ func (a *authToken) getAWSAuthToken(ctx context.Context, config *Config, tokenBu
 	}
 
 	if !a.isExpired() {
-		return a.authToken, nil
+		return a.token, nil
 	}
 
 	awsClientConfig, err := newAWSClientConfig(ctx, config)
@@ -75,29 +77,35 @@ func (a *authToken) getAWSAuthToken(ctx context.Context, config *Config, tokenBu
 	// X-Amz-Expires is expressed as a duration in seconds.
 	durationTime, err := time.ParseDuration(fmt.Sprintf("%ss", durationValues[0]))
 	if err != nil {
-		return "", fmt.Errorf("failed to parse duration: %w", err)
+		return "", fmt.Errorf("failed to parse X-Amz-Expires duration: %w", err)
 	}
-	a.authToken = authenticationToken
+	a.token = authenticationToken
 	a.expiresAt = dateTime.Add(durationTime)
 	return authenticationToken, nil
 }
 
 func (a *authToken) isExpired() bool {
 	clockSkew := time.Minute // Make sure that the authentication token is valid for one more minute.
-
-	nowFunc := time.Now
-	if a.nowFunc != nil {
-		nowFunc = a.nowFunc
-	}
 	return nowFunc().Add(clockSkew).Sub(a.expiresAt) >= 0
-}
-
-func (a *authToken) setNowFunc(nowFunc func() time.Time) {
-	a.nowFunc = nowFunc
 }
 
 type awsTokenBuilder struct{}
 
 func (a *awsTokenBuilder) buildAuthToken(ctx context.Context, endpoint string, region string, dbUser string, creds aws.CredentialsProvider, optFns ...func(options *auth.BuildAuthTokenOptions)) (string, error) {
 	return auth.BuildAuthToken(ctx, endpoint, region, dbUser, creds, optFns...)
+}
+
+func newAWSClientConfig(ctx context.Context, c *Config) (aws.Config, error) {
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(c.Region),
+	)
+	if err != nil {
+		return aws.Config{}, err
+	}
+
+	if c.SecretAccessKey != "" && c.AccessKeyID != "" {
+		cfg.Credentials = credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, "")
+	}
+
+	return cfg, nil
 }

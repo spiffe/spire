@@ -82,7 +82,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: token,
 			},
-			expectedError: "password was provided in the connection string",
+			expectedError: "unexpected password in connection string for IAM authentication",
 		},
 		{
 			name: "malformed token",
@@ -93,7 +93,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: "invalid;token",
 			},
-			expectedError: "could not get authorization token: failed to parse authentication token: invalid semicolon separator in query",
+			expectedError: "could not get authentication token: failed to parse authentication token: invalid semicolon separator in query",
 		},
 		{
 			name: "no X-Amz-Date",
@@ -104,7 +104,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: "a&b=c",
 			},
-			expectedError: "could not get authorization token: malformed token: could not get X-Amz-Date value",
+			expectedError: "could not get authentication token: malformed token: could not get X-Amz-Date value",
 		},
 		{
 			name: "more than one X-Amz-Date",
@@ -115,7 +115,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: "a&X-Amz-Date=123&X-Amz-Date=123",
 			},
-			expectedError: "could not get authorization token: malformed token: could not get X-Amz-Date value",
+			expectedError: "could not get authentication token: malformed token: could not get X-Amz-Date value",
 		},
 		{
 			name: "invalid X-Amz-Date",
@@ -126,7 +126,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: "a&X-Amz-Date=invalid",
 			},
-			expectedError: "could not get authorization token: failed to parse X-Amz-Date date: parsing time \"invalid\" as \"20060102T150405Z\": cannot parse \"invalid\" as \"2006\"",
+			expectedError: "could not get authentication token: failed to parse X-Amz-Date date: parsing time \"invalid\" as \"20060102T150405Z\": cannot parse \"invalid\" as \"2006\"",
 		},
 		{
 			name: "no X-Amz-Expires",
@@ -137,7 +137,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: "a&X-Amz-Date=20240116T150146Z",
 			},
-			expectedError: "could not get authorization token: malformed token: could not get X-Amz-Expires value",
+			expectedError: "could not get authentication token: malformed token: could not get X-Amz-Expires value",
 		},
 		{
 			name: "more than one X-Amz-Expires",
@@ -148,7 +148,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: "a&X-Amz-Date=20240116T150146Z&X-Amz-Expires=1&X-Amz-Expires=1",
 			},
-			expectedError: "could not get authorization token: malformed token: could not get X-Amz-Expires value",
+			expectedError: "could not get authentication token: malformed token: could not get X-Amz-Expires value",
 		},
 		{
 			name: "invalid X-Amz-Expires",
@@ -159,7 +159,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: "a&X-Amz-Date=20240116T150146Z&X-Amz-Expires=zz",
 			},
-			expectedError: "could not get authorization token: failed to parse duration: time: invalid duration \"zzs\"",
+			expectedError: "could not get authentication token: failed to parse X-Amz-Expires duration: time: invalid duration \"zzs\"",
 		},
 		{
 			name: "build auth token error",
@@ -171,7 +171,7 @@ func TestAWSRDS(t *testing.T) {
 				authToken: token,
 				err:       errors.New("ohno"),
 			},
-			expectedError: "could not get authorization token: failed to build authentication token: ohno",
+			expectedError: "could not get authentication token: failed to build authentication token: ohno",
 		},
 		{
 			name: "postgres - success",
@@ -203,7 +203,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: token,
 			},
-			expectedError: "password was provided in the connection string",
+			expectedError: "unexpected password in connection string for IAM authentication",
 		},
 		{
 			name: "postgres - success",
@@ -280,7 +280,7 @@ func TestCacheToken(t *testing.T) {
 	require.NotNil(t, db)
 
 	// Retrieve the token.
-	token, err := fakeSQLDriverWrapper.tokensMap[dsn].getAWSAuthToken(context.Background(), config, fakeSQLDriverWrapper.tokenBuilder)
+	token, err := fakeSQLDriverWrapper.tokensMap[dsn].getAuthToken(context.Background(), config, fakeSQLDriverWrapper.tokenBuilder)
 	require.NoError(t, err)
 
 	// The token retrieved should be the same firstToken.
@@ -301,7 +301,7 @@ func TestCacheToken(t *testing.T) {
 	require.NotNil(t, db)
 
 	// Retrieve the token.
-	token, err = fakeSQLDriverWrapper.tokensMap[dsn].getAWSAuthToken(context.Background(), config, fakeSQLDriverWrapper.tokenBuilder)
+	token, err = fakeSQLDriverWrapper.tokensMap[dsn].getAuthToken(context.Background(), config, fakeSQLDriverWrapper.tokenBuilder)
 	require.NoError(t, err)
 
 	// The token retrieved should be the cached firstToken.
@@ -310,7 +310,7 @@ func TestCacheToken(t *testing.T) {
 	// We will now make firstToken to expire, so we can test that the token
 	// builder is called to get a new token when the current token has expired.
 	// For that, we advance the clock one hour.
-	fakeSQLDriverWrapper.tokensMap[dsn].setNowFunc(func() time.Time { return now.Add(time.Hour) })
+	nowFunc = func() time.Time { return now.Add(time.Hour) }
 
 	// Call Open again, the new token should be used.
 	db, err = gorm.Open(fakeMySQLDriverName, dsn)
@@ -318,7 +318,7 @@ func TestCacheToken(t *testing.T) {
 	require.NotNil(t, db)
 
 	// Retrieve the token.
-	token, err = fakeSQLDriverWrapper.tokensMap[dsn].getAWSAuthToken(context.Background(), config, fakeSQLDriverWrapper.tokenBuilder)
+	token, err = fakeSQLDriverWrapper.tokensMap[dsn].getAuthToken(context.Background(), config, fakeSQLDriverWrapper.tokenBuilder)
 	require.NoError(t, err)
 
 	// The token retrieved should be the new token.

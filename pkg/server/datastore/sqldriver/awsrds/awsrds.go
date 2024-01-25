@@ -9,9 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/gorm"
@@ -19,11 +16,13 @@ import (
 )
 
 const (
-	MySQLDriverName    = "aws-rds-mysql"
-	PostgresDriverName = "aws-rds-postgres"
-	iso8601BasicFormat = "20060102T150405Z"
-	timeOut            = time.Second * 30
+	MySQLDriverName     = "aws-rds-mysql"
+	PostgresDriverName  = "aws-rds-postgres"
+	getAuthTokenTimeout = time.Second * 30
 )
+
+// nowFunc returns the current time and can overridden in tests.
+var nowFunc = time.Now
 
 // Config holds the configuration settings to be able to authenticate to a
 // database in the AWS RDS service.
@@ -68,15 +67,11 @@ type sqlDriverWrapper struct {
 	sqlDriver    driver.Driver
 	tokenBuilder authTokenBuilder
 	tokensMap    tokens
-	nowFunc      func() time.Time
 }
 
 // Open is the overridden method for opening a connection, using
 // AWS IAM authentication
 func (w *sqlDriverWrapper) Open(name string) (driver.Conn, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeOut)
-	defer cancel()
-
 	if w.sqlDriver == nil {
 		return nil, errors.New("missing sql driver")
 	}
@@ -92,14 +87,18 @@ func (w *sqlDriverWrapper) Open(name string) (driver.Conn, error) {
 
 	token, ok := w.tokensMap[name]
 	if !ok {
-		token = &authToken{
-			nowFunc: w.nowFunc,
-		}
+		token = &authToken{}
 		w.tokensMap[name] = token
 	}
-	password, err := token.getAWSAuthToken(ctx, config, w.tokenBuilder)
+
+	// We need a context for getting the authentication token. Since there is no
+	// parent context to derive from, we create a context with a timeout to
+	// get the authentication token.
+	ctx, cancel := context.WithTimeout(context.Background(), getAuthTokenTimeout)
+	defer cancel()
+	password, err := token.getAuthToken(ctx, config, w.tokenBuilder)
 	if err != nil {
-		return nil, fmt.Errorf("could not get authorization token: %w", err)
+		return nil, fmt.Errorf("could not get authentication token: %w", err)
 	}
 
 	connStringWithPassword, err := config.getConnStringWithPassword(password)
@@ -116,7 +115,7 @@ func addPasswordToPostgresConnString(connString, password string) (string, error
 		return "", fmt.Errorf("could not parse connection string: %w", err)
 	}
 	if cfg.Password != "" {
-		return "", errors.New("password was provided in the connection string")
+		return "", errors.New("unexpected password in connection string for IAM authentication")
 	}
 	return fmt.Sprintf("%s password=%s", connString, password), nil
 }
@@ -128,7 +127,7 @@ func addPasswordToMySQLConnString(connString, password string) (string, error) {
 	}
 
 	if cfg.Passwd != "" {
-		return "", errors.New("password was provided in the connection string")
+		return "", errors.New("unexpected password in connection string for IAM authentication")
 	}
 
 	cfg.Passwd = password
@@ -138,21 +137,6 @@ func addPasswordToMySQLConnString(connString, password string) (string, error) {
 func init() {
 	registerPostgres()
 	registerMySQL()
-}
-
-func newAWSClientConfig(ctx context.Context, c *Config) (aws.Config, error) {
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(c.Region),
-	)
-	if err != nil {
-		return aws.Config{}, err
-	}
-
-	if c.SecretAccessKey != "" && c.AccessKeyID != "" {
-		cfg.Credentials = credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, "")
-	}
-
-	return cfg, nil
 }
 
 func registerPostgres() {

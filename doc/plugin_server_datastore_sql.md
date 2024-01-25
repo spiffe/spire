@@ -137,9 +137,9 @@ If you need to use custom Root CA, just specify `root_ca_path` in the plugin con
 
 ### IAM Authentication
 
-With IAM database authentication, an authentication token is used instead of a password when connecting to the database. For that reason, a password must not be provided in the connection string.
+Identity and Access Management (IAM) authentication allows for secure authentication to databases hosted on cloud services. Unlike traditional methods, it uses an authentication token instead of a password. When using IAM authentication, it is required to exclude the password from the connection string.
 
-The `database_type` configuration can have additional settings when a database type supporting IAM authentication is used, and always takes the following form:
+The `database_type`` configuration allows specifying the type of database with IAM authentication support. The configuration always follows this structure:
 
 ```hcl
     database_type "dbtype-with-iam-support" {
@@ -149,13 +149,15 @@ The `database_type` configuration can have additional settings when a database t
     }
 ```
 
-The following database types support IAM authentication:
+_Note: Replace `dbtype-with-iam-support` with the specific database type that supports IAM authentication._
+
+Supported IAM authentication database types include:
 
 #### "aws_postgres"
 
-The `aws_postgres` database type specifies that the database is a PostgreSQL database hosted by the AWS RDS service, and IAM authentication is used to authenticate to the database. As part of the `database_type` setting, the `region` of the service must be specified.
+For PostgreSQL databases on AWS RDS using IAM authentication. The `region` setting is mandatory, specifying the AWS service region.
 
-Settings of the [`postgres`](#database_type--postgres) database type also apply for this type.
+Settings of the [`postgres`](#database_type--postgres) database type also apply here.
 
 ##### Sample configuration
 
@@ -165,16 +167,16 @@ Settings of the [`postgres`](#database_type--postgres) database type also apply 
            database_type "aws_postgres" {
                 region = "us-east-2"
             }
-            connection_string = "dbname=spire user=test_user host=spire-test-postgres.whjayetrnc2a.us-east-2.rds.amazonaws.com port=5432 sslmode=require"
+            connection_string = "dbname=spire user=test_user host=spire-test.example.us-east-2.rds.amazonaws.com port=5432 sslmode=require"
         }
    }
 ```
 
 #### "aws_mysql"
 
-The `aws_mysql` database type specifies that the database is a MySQL database hosted by the AWS RDS service, and IAM authentication is used to authenticate to the database. As part of the `database_type` setting, the `region` of the service must be specified.
+For MySQL databases on AWS RDS using IAM authentication. The `region` setting is required.
 
-Settings of the [`mysql`](#database_type--mysql) database type also apply for this type.
+Settings of the [`mysql`](#database_type--mysql) database type also apply here.
 
 ##### Sample configuration
 
@@ -184,7 +186,7 @@ Settings of the [`mysql`](#database_type--mysql) database type also apply for th
             database_type "aws_mysql" {
                 region = "us-east-2"
             }
-            connection_string="test_user:@tcp(spire-test.whjayetrnc2a.us-east-2.rds.amazonaws.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
+            connection_string="test_user:@tcp(spire-test.example.us-east-2.rds.amazonaws.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
         }
     }
 ```

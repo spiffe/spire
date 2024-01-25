@@ -29,7 +29,7 @@ func (p postgresDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, v
 			return nil, "", false, err
 		}
 		if c.Password != "" {
-			return nil, "", false, errors.New("invalid postgres config: no password should be provided when using IAM authentication")
+			return nil, "", false, errors.New("invalid postgres configuration: password should not be set when using IAM authentication")
 		}
 
 		awsrdsConfig := &awsrds.Config{
