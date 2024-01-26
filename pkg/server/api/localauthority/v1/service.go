@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/private/server/journal"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )
 
@@ -32,6 +33,11 @@ type CAManager interface {
 	GetNextX509CASlot() manager.Slot
 	PrepareX509CA(ctx context.Context) error
 	RotateX509CA(ctx context.Context)
+}
+
+// RegisterService registers the service on the gRPC server.
+func RegisterService(s grpc.ServiceRegistrar, service *Service) {
+	localauthorityv1.RegisterLocalAuthorityServer(s, service)
 }
 
 // Config is the service configuration

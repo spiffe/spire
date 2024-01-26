@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	legacyProto "github.com/golang/protobuf/proto" //nolint:staticcheck // deprecated library needed until WithDetails can take v2
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -15,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/runtime/protoiface"
 )
 
 func TestIsAgentBanned(t *testing.T) {
@@ -104,11 +103,11 @@ func TestShouldAgentShutdown(t *testing.T) {
 	require.False(t, nodeutil.ShouldAgentShutdown(getError(t, codes.PermissionDenied, nil)))
 }
 
-func getError(t *testing.T, code codes.Code, details proto.Message) error {
+func getError(t *testing.T, code codes.Code, details protoiface.MessageV1) error {
 	st := status.New(code, "some error")
 	if details != nil {
 		var err error
-		st, err = st.WithDetails(legacyProto.MessageV1(details))
+		st, err = st.WithDetails(details)
 		require.NoError(t, err)
 	}
 	return fmt.Errorf("extra info: %w", st.Err())

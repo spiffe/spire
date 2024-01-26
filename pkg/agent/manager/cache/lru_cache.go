@@ -17,8 +17,10 @@ import (
 )
 
 const (
+	// DefaultSVIDCacheMaxSize is set when svidCacheMaxSize is not provided
 	DefaultSVIDCacheMaxSize = 1000
-	SVIDSyncInterval        = 500 * time.Millisecond
+	// SVIDSyncInterval is the interval at which SVIDs are synced with subscribers
+	SVIDSyncInterval = 500 * time.Millisecond
 )
 
 // Cache caches each registration entry, bundles, and JWT SVIDs for the agent.

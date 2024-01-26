@@ -106,15 +106,13 @@ type Plugin struct {
 	roDb                *sqlDB
 	log                 logrus.FieldLogger
 	useServerTimestamps bool
-	eventsBasedCache    bool
 }
 
 // New creates a new sql plugin struct. Configure must be called
 // in order to start the db.
-func New(log logrus.FieldLogger, eventsBasedCache bool) *Plugin {
+func New(log logrus.FieldLogger) *Plugin {
 	return &Plugin{
-		log:              log,
-		eventsBasedCache: eventsBasedCache,
+		log: log,
 	}
 }
 
@@ -265,7 +263,7 @@ func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedN
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, node.SpiffeId, ds.eventsBasedCache)
+		return createAttestedNodeEvent(tx, node.SpiffeId)
 	}); err != nil {
 		return nil, err
 	}
@@ -315,7 +313,7 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, n.SpiffeId, ds.eventsBasedCache)
+		return createAttestedNodeEvent(tx, n.SpiffeId)
 	}); err != nil {
 		return nil, err
 	}
@@ -329,7 +327,7 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, spiffeID, ds.eventsBasedCache)
+		return createAttestedNodeEvent(tx, spiffeID)
 	}); err != nil {
 		return nil, err
 	}
@@ -339,7 +337,7 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 // ListAttestedNodesEvents lists all attested node events
 func (ds *Plugin) ListAttestedNodesEvents(ctx context.Context, req *datastore.ListAttestedNodesEventsRequest) (resp *datastore.ListAttestedNodesEventsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listAttestedNodesEvents(tx, req, ds.eventsBasedCache)
+		resp, err = listAttestedNodesEvents(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -350,7 +348,7 @@ func (ds *Plugin) ListAttestedNodesEvents(ctx context.Context, req *datastore.Li
 // PruneAttestedNodesEvents deletes all attested node events older than a specified duration (i.e. more than 24 hours old)
 func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneAttestedNodesEvents(tx, olderThan, ds.eventsBasedCache)
+		err = pruneAttestedNodesEvents(tx, olderThan)
 		return err
 	})
 }
@@ -358,7 +356,7 @@ func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.D
 // GetLatestAttestedNodeEventID get the id of the last event
 func (ds *Plugin) GetLatestAttestedNodeEventID(ctx context.Context) (eventID uint, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		eventID, err = getLatestAttestedNodeEventID(tx, ds.eventsBasedCache)
+		eventID, err = getLatestAttestedNodeEventID(tx)
 		return err
 	}); err != nil {
 		return 0, err
@@ -433,7 +431,7 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, registrationEntry.EntryId, ds.eventsBasedCache)
+		return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
 	}); err != nil {
 		return nil, false, err
 	}
@@ -477,7 +475,7 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.Registr
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, entry.EntryId, ds.eventsBasedCache)
+		return createRegistrationEntryEvent(tx, entry.EntryId)
 	}); err != nil {
 		return nil, err
 	}
@@ -494,7 +492,7 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, entryID, ds.eventsBasedCache)
+		return createRegistrationEntryEvent(tx, entryID)
 	}); err != nil {
 		return nil, err
 	}
@@ -513,7 +511,7 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore ti
 // ListRegistrationEntriesEvents lists all registration entry events
 func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (resp *datastore.ListRegistrationEntriesEventsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listRegistrationEntriesEvents(tx, req, ds.eventsBasedCache)
+		resp, err = listRegistrationEntriesEvents(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -524,7 +522,7 @@ func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datast
 // PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
 func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneRegistrationEntriesEvents(tx, olderThan, ds.eventsBasedCache)
+		err = pruneRegistrationEntriesEvents(tx, olderThan)
 		return err
 	})
 }
@@ -532,7 +530,7 @@ func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan 
 // GetLatestRegistrationEntryEventID get the id of the last event
 func (ds *Plugin) GetLatestRegistrationEntryEventID(ctx context.Context) (eventID uint, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		eventID, err = getLatestRegistrationEntryEventID(tx, ds.eventsBasedCache)
+		eventID, err = getLatestRegistrationEntryEventID(tx)
 		return err
 	}); err != nil {
 		return 0, err
@@ -1567,11 +1565,7 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, r
 	}
 }
 
-func createAttestedNodeEvent(tx *gorm.DB, spiffeID string, eventsBasedCache bool) error {
-	if !eventsBasedCache {
-		return nil
-	}
-
+func createAttestedNodeEvent(tx *gorm.DB, spiffeID string) error {
 	newAttestedNodeEvent := AttestedNodeEvent{
 		SpiffeID: spiffeID,
 	}
@@ -1583,11 +1577,7 @@ func createAttestedNodeEvent(tx *gorm.DB, spiffeID string, eventsBasedCache bool
 	return nil
 }
 
-func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEventsRequest, eventsBasedCache bool) (*datastore.ListAttestedNodesEventsResponse, error) {
-	if !eventsBasedCache {
-		return &datastore.ListAttestedNodesEventsResponse{}, nil
-	}
-
+func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEventsRequest) (*datastore.ListAttestedNodesEventsResponse, error) {
 	var events []AttestedNodeEvent
 	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Order("id asc").Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -1607,11 +1597,7 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 	return resp, nil
 }
 
-func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration, eventsBasedCache bool) error {
-	if !eventsBasedCache {
-		return nil
-	}
-
+func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration) error {
 	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&AttestedNodeEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -1619,11 +1605,7 @@ func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration, eventsBasedC
 	return nil
 }
 
-func getLatestAttestedNodeEventID(tx *gorm.DB, eventsBasedCache bool) (uint, error) {
-	if !eventsBasedCache {
-		return 0, nil
-	}
-
+func getLatestAttestedNodeEventID(tx *gorm.DB) (uint, error) {
 	lastAttestedNodeEvent := AttestedNodeEvent{}
 	if err := tx.Last(&lastAttestedNodeEvent).Error; err != nil {
 		return 0, sqlError.Wrap(err)
@@ -3846,11 +3828,7 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 	return nil
 }
 
-func createRegistrationEntryEvent(tx *gorm.DB, entryID string, eventsBasedCache bool) error {
-	if !eventsBasedCache {
-		return nil
-	}
-
+func createRegistrationEntryEvent(tx *gorm.DB, entryID string) error {
 	newRegisteredEntryEvent := RegisteredEntryEvent{
 		EntryID: entryID,
 	}
@@ -3862,11 +3840,7 @@ func createRegistrationEntryEvent(tx *gorm.DB, entryID string, eventsBasedCache 
 	return nil
 }
 
-func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest, eventsBasedCache bool) (*datastore.ListRegistrationEntriesEventsResponse, error) {
-	if !eventsBasedCache {
-		return &datastore.ListRegistrationEntriesEventsResponse{}, nil
-	}
-
+func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
 	var events []RegisteredEntryEvent
 	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Order("id asc").Error; err != nil {
 		return nil, sqlError.Wrap(err)
@@ -3886,11 +3860,7 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	return resp, nil
 }
 
-func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration, eventsBasedCache bool) error {
-	if !eventsBasedCache {
-		return nil
-	}
-
+func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
 	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -3898,11 +3868,7 @@ func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration, events
 	return nil
 }
 
-func getLatestRegistrationEntryEventID(tx *gorm.DB, eventsBasedCache bool) (uint, error) {
-	if !eventsBasedCache {
-		return 0, nil
-	}
-
+func getLatestRegistrationEntryEventID(tx *gorm.DB) (uint, error) {
 	lastRegisteredEntryEvent := RegisteredEntryEvent{}
 	if err := tx.Last(&lastRegisteredEntryEvent).Error; err != nil {
 		return 0, sqlError.Wrap(err)
