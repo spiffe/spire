@@ -395,6 +395,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	}
 
 	// Agent attempted to renew when it should've been reattesting
+	// TODO: Convert this to an error in 1.10.0
 	if attestedNode.CanReattest {
 		log.Warn("Agent renewing SVID when it should be reattesting")
 	}
