@@ -306,7 +306,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/transparency-dev/merkle v0.0.2 // indirect
-	github.com/twmb/murmur3 v1.1.6 // indirect
+	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	github.com/xanzy/go-gitlab v0.96.0 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
@@ -338,6 +338,7 @@ require (
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.120.0 // indirect
