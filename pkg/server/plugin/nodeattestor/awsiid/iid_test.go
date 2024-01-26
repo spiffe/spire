@@ -22,6 +22,8 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
+	"github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/fullsailor/pkcs7"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -54,6 +56,7 @@ var (
 	testAvailabilityZone = "test-az"
 	testImageID          = "test-image-id"
 	testProfile          = "test-profile"
+	testAccountID        = "123456789"
 	zeroDeviceIndex      = int32(0)
 	nonzeroDeviceIndex   = int32(1)
 	instanceStoreType    = ec2types.DeviceTypeInstanceStore
@@ -78,6 +81,8 @@ func TestAttest(t *testing.T) {
 		describeInstancesError         error
 		mutateGetInstanceProfileOutput func(output *iam.GetInstanceProfileOutput)
 		getInstanceProfileError        error
+		mutateListAccountOutput        func(output *organizations.ListAccountsOutput)
+		listOrgAccountError            error
 		overrideAttestationData        func(caws.IIDAttestationData) caws.IIDAttestationData
 		overridePayload                func() []byte
 		expectCode                     codes.Code
@@ -390,6 +395,66 @@ func TestAttest(t *testing.T) {
 				{Type: caws.PluginName, Value: "tag:Hostname:host1"},
 			},
 		},
+		{
+			name:            "fail with account id not belonging to organization", // Default attestation data already has different account id
+			config:          `account_ids_belong_to_org_validation = { org_account_id = "12345" org_account_role = "test-orgrole" org_account_region = "test-region"}`,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: fmt.Sprintf("nodeattestor(aws_iid): failed aws ec2 attestation, nodes account id: %v is not part of configured organization or doesn't have ACTIVE status", testAccount),
+		},
+		{
+			name:                "fail call for organization list account",
+			config:              `account_ids_belong_to_org_validation = { org_account_id = "12345" org_account_role = "test-orgrole" org_account_region = "test-region"}`,
+			expectCode:          codes.Internal,
+			listOrgAccountError: errors.New("whutt !!!"),
+			expectMsgPrefix:     "nodeattestor(aws_iid): failed aws ec2 attestation, issue while verifying",
+		},
+		{
+			name:       "fail for account id with not ACTIVE status in organization list",
+			config:     `account_ids_belong_to_org_validation = { org_account_id = "12345" org_account_role = "test-orgrole" org_account_region = "test-orgregion" }`,
+			expectCode: codes.Internal,
+			mutateListAccountOutput: func(output *organizations.ListAccountsOutput) {
+				output.Accounts = []types.Account{{
+					Id:     &testAccountID,
+					Status: types.AccountStatusSuspended,
+				}}
+			},
+			overrideAttestationData: func(id caws.IIDAttestationData) caws.IIDAttestationData {
+				doc := imds.InstanceIdentityDocument{
+					AccountID:        testAccountID,
+					InstanceID:       testInstance,
+					Region:           testRegion,
+					AvailabilityZone: testAvailabilityZone,
+					ImageID:          testImageID,
+				}
+				docBytes, _ := json.Marshal(doc)
+				id.Document = string(docBytes)
+				return id
+			},
+			expectMsgPrefix: fmt.Sprintf("nodeattestor(aws_iid): failed aws ec2 attestation, nodes account id: %v is not part of configured organization or doesn't have ACTIVE status", testAccountID),
+		},
+		{
+			name:   "success when organization validation feature is turned on",
+			config: `account_ids_belong_to_org_validation = { org_account_id = "12345" org_account_role = "test-orgrole" org_account_region = "test-orgregion" }`,
+			overrideAttestationData: func(id caws.IIDAttestationData) caws.IIDAttestationData {
+				doc := imds.InstanceIdentityDocument{
+					AccountID:        testAccountID,
+					InstanceID:       testInstance,
+					Region:           testRegion,
+					AvailabilityZone: testAvailabilityZone,
+					ImageID:          testImageID,
+				}
+				docBytes, _ := json.Marshal(doc)
+				id.Document = string(docBytes)
+				return id
+			},
+			expectID: "spiffe://example.org/spire/agent/aws_iid/123456789/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			client := newFakeClient()
@@ -400,6 +465,10 @@ func TestAttest(t *testing.T) {
 			client.GetInstanceProfileError = tt.getInstanceProfileError
 			if tt.mutateGetInstanceProfileOutput != nil {
 				tt.mutateGetInstanceProfileOutput(client.GetInstanceProfileOutput)
+			}
+			client.ListAccountError = tt.listOrgAccountError
+			if tt.mutateListAccountOutput != nil {
+				tt.mutateListAccountOutput(client.ListAccountOutput)
 			}
 
 			agentStore := fakeagentstore.New()
@@ -435,7 +504,7 @@ func TestAttest(t *testing.T) {
 				return testAWSCACert, nil
 			}
 
-			attestor.clients = newClientsCache(func(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string) (Client, error) {
+			attestor.clients = newClientsCache(func(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string, orgRoleArn string) (Client, error) {
 				return client, nil
 			})
 
@@ -545,6 +614,40 @@ func TestConfigure(t *testing.T) {
 		err := doConfig(t, coreConfig, ``)
 		require.NoError(t, err)
 	})
+
+	orgVerificationFeatureErr := fmt.Errorf("make sure %v, %v & %v are present inside block : %v for feature node attestation using account id verification", "account_ids_belong_to_org_validation", orgAccountID, orgAccountRole, orgAccRegion)
+	orgVerificationFeatureTTLErr := fmt.Errorf("make sure %v if configured, should be in hours and is suffix with required `h` for time duration in hour ex. 1h. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "account_ids_belong_to_org_validation", orgAccountDefaultListTTL)
+	orgVerificationFeatureMinTTLErr := fmt.Errorf("make sure %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "account_ids_belong_to_org_validation", orgAccountDefaultListTTL)
+
+	t.Run("fail, account belongs to org, if params are not specified and feature enabled", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = {}`)
+		require.Error(t, err, orgVerificationFeatureErr)
+	})
+
+	t.Run("fail, account belongs to org, if only account id is specified, roles & region are not specified", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" }`)
+		require.Error(t, err, orgVerificationFeatureErr)
+	})
+
+	t.Run("fail, account belongs to org, if ttl is not specified in proper format", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "2" }`)
+		require.Error(t, err, orgVerificationFeatureTTLErr)
+	})
+
+	t.Run("fail, account belongs to org, if ttl is specified and is less than min ttl required", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "30m" }`)
+		require.Error(t, err, orgVerificationFeatureMinTTLErr)
+	})
+
+	t.Run("success, account_ids_belong_to_org_validation featured enabled with required params", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" }`)
+		require.NoError(t, err)
+	})
+
+	t.Run("success, account_ids_belong_to_org_validation featured enabled with all params", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "2h" }`)
+		require.NoError(t, err)
+	})
 }
 
 func TestInstanceProfileArnParsing(t *testing.T) {
@@ -572,6 +675,8 @@ type fakeClient struct {
 	DescribeInstancesError   error
 	GetInstanceProfileOutput *iam.GetInstanceProfileOutput
 	GetInstanceProfileError  error
+	ListAccountOutput        *organizations.ListAccountsOutput
+	ListAccountError         error
 }
 
 func newFakeClient() *fakeClient {
@@ -595,6 +700,7 @@ func newFakeClient() *fakeClient {
 			},
 		},
 		GetInstanceProfileOutput: &iam.GetInstanceProfileOutput{},
+		ListAccountOutput:        &organizations.ListAccountsOutput{},
 	}
 }
 
@@ -617,6 +723,21 @@ func (c *fakeClient) GetInstanceProfile(_ context.Context, input *iam.GetInstanc
 		return nil, fmt.Errorf("unexpected request: %s", diff)
 	}
 	return c.GetInstanceProfileOutput, c.GetInstanceProfileError
+}
+
+func (c *fakeClient) ListAccounts(_ context.Context, input *organizations.ListAccountsInput, _ ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error) {
+
+	// Only modify the output if its not being mutated in test for : mutateListAccountOutput.
+	if c.ListAccountOutput.Accounts == nil {
+		c.ListAccountOutput = &organizations.ListAccountsOutput{
+			Accounts: []types.Account{{
+				Id:     &testAccountID,
+				Status: types.AccountStatusActive,
+			}},
+		}
+	}
+
+	return c.ListAccountOutput, c.ListAccountError
 }
 
 func buildAttestationDataRSA2048Signature(t *testing.T) caws.IIDAttestationData {
