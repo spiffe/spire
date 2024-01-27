@@ -10,11 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
@@ -23,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/svid/store"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -32,6 +36,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	bootstrapBackoffInterval       = 5 * time.Second
+	bootstrapBackoffMaxElapsedTime = 1 * time.Minute
 )
 
 type Agent struct {
@@ -89,9 +98,48 @@ func (a *Agent) Run(ctx context.Context) error {
 		nodeAttestor = cat.GetNodeAttestor()
 	}
 
-	as, err := a.attest(ctx, sto, cat, metrics, nodeAttestor)
-	if err != nil {
-		return err
+	var as *node_attestor.AttestationResult
+
+	if a.c.RetryBootstrap {
+		attBackoffClock := clock.New()
+		attBackoff := backoff.NewBackoff(
+			attBackoffClock,
+			bootstrapBackoffInterval,
+			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+		)
+
+		for {
+			as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
+			if err == nil {
+				break
+			}
+
+			if status.Code(err) == codes.PermissionDenied {
+				return err
+			}
+
+			nextDuration := attBackoff.NextBackOff()
+			if nextDuration == backoff.Stop {
+				return err
+			}
+
+			a.c.Log.WithFields(logrus.Fields{
+				telemetry.Error:         err,
+				telemetry.RetryInterval: nextDuration,
+			}).Warn("Failed to retrieve attestation result")
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-attBackoffClock.After(nextDuration):
+				continue
+			}
+		}
+	} else {
+		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
+		if err != nil {
+			return err
+		}
 	}
 
 	svidStoreCache := a.newSVIDStoreCache()
@@ -235,11 +283,47 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 	}
 
 	mgr := manager.New(config)
-	if err := mgr.Initialize(ctx); err != nil {
-		return nil, err
-	}
+	if a.c.RetryBootstrap {
+		initBackoffClock := clock.New()
+		initBackoff := backoff.NewBackoff(
+			initBackoffClock,
+			bootstrapBackoffInterval,
+			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+		)
 
-	return mgr, nil
+		for {
+			err := mgr.Initialize(ctx)
+			if err == nil {
+				return mgr, nil
+			}
+
+			if nodeutil.ShouldAgentReattest(err) || nodeutil.ShouldAgentShutdown(err) {
+				return nil, err
+			}
+
+			nextDuration := initBackoff.NextBackOff()
+			if nextDuration == backoff.Stop {
+				return nil, err
+			}
+
+			a.c.Log.WithFields(logrus.Fields{
+				telemetry.Error:         err,
+				telemetry.RetryInterval: nextDuration,
+			}).Warn("Failed to initialize manager")
+
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-initBackoffClock.After(nextDuration):
+				continue
+			}
+		}
+	} else {
+		if err := mgr.Initialize(ctx); err != nil {
+			return nil, err
+		}
+		return mgr, nil
+	}
 }
 
 func (a *Agent) newSVIDStoreCache() *storecache.Cache {
