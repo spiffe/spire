@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"testing"
 
-	legacyProto "github.com/golang/protobuf/proto" //nolint:staticcheck // deprecated library needed until WithDetails can take v2
 	"github.com/open-policy-agent/opa/storage/inmem"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -25,6 +24,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/runtime/protoiface"
 )
 
 func TestWithAuthorizationPreprocess(t *testing.T) {
@@ -230,7 +230,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			}),
 			agentAuthorizer: &testAgentAuthorizer{
 				isAgent: false,
-				details: []legacyProto.Message{
+				details: []protoiface.MessageV1{
 					&types.PermissionDeniedDetails{
 						Reason: types.PermissionDeniedDetails_AGENT_BANNED,
 					},
@@ -437,7 +437,7 @@ var (
 
 type testAgentAuthorizer struct {
 	isAgent bool
-	details []legacyProto.Message
+	details []protoiface.MessageV1
 }
 
 func (a *testAgentAuthorizer) AuthorizeAgent(context.Context, spiffeid.ID, *x509.Certificate) error {
