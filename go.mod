@@ -42,7 +42,7 @@ require (
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/google/btree v1.1.2
 	github.com/google/go-cmp v0.6.0
-	github.com/google/go-containerregistry v0.17.0
+	github.com/google/go-containerregistry v0.18.0
 	github.com/google/go-tpm v0.9.0
 	github.com/google/go-tpm-tools v0.4.2
 	github.com/googleapis/gax-go/v2 v2.12.0
