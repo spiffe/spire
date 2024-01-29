@@ -22,8 +22,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.26.4
 	github.com/aws/aws-sdk-go-v2/credentials v1.16.15
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.14.11
-	github.com/aws/aws-sdk-go-v2/service/acmpca v1.25.6
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.144.0
+	github.com/aws/aws-sdk-go-v2/service/acmpca v1.26.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.145.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.9
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.48.0
@@ -42,7 +42,7 @@ require (
 	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/google/btree v1.1.2
 	github.com/google/go-cmp v0.6.0
-	github.com/google/go-containerregistry v0.17.0
+	github.com/google/go-containerregistry v0.18.0
 	github.com/google/go-tpm v0.9.0
 	github.com/google/go-tpm-tools v0.4.2
 	github.com/googleapis/gax-go/v2 v2.12.0
