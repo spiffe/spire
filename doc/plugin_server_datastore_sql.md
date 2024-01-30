@@ -139,7 +139,7 @@ If you need to use custom Root CA, just specify `root_ca_path` in the plugin con
 
 Identity and Access Management (IAM) authentication allows for secure authentication to databases hosted on cloud services. Unlike traditional methods, it uses an authentication token instead of a password. When using IAM authentication, it is required to exclude the password from the connection string.
 
-The `database_type`` configuration allows specifying the type of database with IAM authentication support. The configuration always follows this structure:
+The `database_type` configuration allows specifying the type of database with IAM authentication support. The configuration always follows this structure:
 
 ```hcl
     database_type "dbtype-with-iam-support" {
