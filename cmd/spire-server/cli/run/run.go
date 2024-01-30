@@ -454,9 +454,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 				sc.Federation.BundleEndpoint.RefreshHint = &refreshHint
 			} else {
-				sc.Log.Warn("Bundle endpoint refresh_hint is not set. This configuration " +
-					"will default to 5 minutes in a future release; please check if you " +
-					"need to specify it")
+				refreshHint := 5 * time.Minute
+				sc.Federation.BundleEndpoint.RefreshHint = &refreshHint
 			}
 
 			if c.Server.Federation.BundleEndpoint != nil {
