@@ -25,7 +25,7 @@ type timeoutWorkloadAttestor struct {
 	c chan struct{}
 }
 
-func (twa *timeoutWorkloadAttestor) Attest(_ context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
+func (twa *timeoutWorkloadAttestor) Attest(_ context.Context, _ *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
 	// Block on channel until test sends signal
 	<-twa.c
 	return &workloadattestorv1.AttestResponse{}, nil
