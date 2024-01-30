@@ -19,6 +19,8 @@ import (
 
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithEventsBasedCache)(nil)
 
+const buildCachePageSize = 10000
+
 type AuthorizedEntryFetcherWithEventsBasedCache struct {
 	cache                        *authorizedentries.Cache
 	clk                          clock.Clock
@@ -186,7 +188,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*authorizedentries.Cache, uint, uint, error) {
 	cache := authorizedentries.NewCache()
 
-	lastRegistrationEntryEventID, err := buildRegistrationEntriesCache(ctx, ds, cache)
+	lastRegistrationEntryEventID, err := buildRegistrationEntriesCache(ctx, ds, cache, buildCachePageSize)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -200,26 +202,38 @@ func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*
 }
 
 // buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
-func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache) (uint, error) {
+func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, cache *authorizedentries.Cache, pageSize int32) (uint, error) {
 	lastEventID, err := ds.GetLatestRegistrationEntryEventID(ctx)
 	if err != nil && status.Code(err) != codes.NotFound {
 		return 0, fmt.Errorf("failed to get latest registration entry event id: %w", err)
 	}
 
-	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-		DataConsistency: datastore.TolerateStale,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("failed to list registration entries: %w", err)
-	}
+	var token string
+	for {
+		resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+			DataConsistency: datastore.TolerateStale,
+			Pagination: &datastore.Pagination{
+				Token:    token,
+				PageSize: pageSize,
+			},
+		})
+		if err != nil {
+			return 0, fmt.Errorf("failed to list registration entries: %w", err)
+		}
 
-	entries, err := api.RegistrationEntriesToProto(resp.Entries)
-	if err != nil {
-		return 0, fmt.Errorf("failed to convert registration entries: %w", err)
-	}
+		token = resp.Pagination.Token
+		if token == "" {
+			break
+		}
 
-	for _, entry := range entries {
-		cache.UpdateEntry(entry)
+		entries, err := api.RegistrationEntriesToProto(resp.Entries)
+		if err != nil {
+			return 0, fmt.Errorf("failed to convert registration entries: %w", err)
+		}
+
+		for _, entry := range entries {
+			cache.UpdateEntry(entry)
+		}
 	}
 
 	return lastEventID, nil
