@@ -865,7 +865,7 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 	case err := <-subErrCh:
 		assert.NoError(t, err, "subscriber failed")
 	case <-time.After(10 * time.Second):
-		require.FailNow(t, "timed out waiting for SVID")
+		require.FailNow(t, "timed out waiting for notification")
 	}
 }
 
