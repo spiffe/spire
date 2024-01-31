@@ -839,7 +839,7 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 		}
 
 		if len(u1.Bundle.X509Authorities()) != 1 {
-			subErrCh <- fmt.Errorf("a single bundle is expected")
+			subErrCh <- fmt.Errorf("a single bundle is expected but got %d", len(u1.Bundle.X509Authorities()))
 			return
 		}
 
@@ -851,7 +851,7 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 		subErrCh <- nil
 	}()
 
-	// Wait until subscribe is created and got a notification
+	// Wait until subscriber is created and got a notification
 	<-subWaitCh
 	cache.SyncSVIDsWithSubscribers()
 
