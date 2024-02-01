@@ -195,7 +195,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 		}
 		if !claims.Expiry.Time().IsZero() {
 			// This is an indication that this may be a projected service account token
-			p.log.Warn("The service account token has an expiration time, which is an indication that may be a projected service account token. If your cluster supports Service Account Token Volume Projection you should instead consider using the `k8s_psat` attestor. Please look at https://github.com/spiffe/spire/blob/main/doc/plugin_server_nodeattestor_k8s_sat.md#security-considerations for details about security considerations when using the `k8s_sat` attestor.")
+			p.log.Warn("The service account token has an expiration time, which is an indication that may be a projected service account token. If your cluster supports Service Account Token Volume Projection you should instead use the `k8s_psat` attestor as soon as possible. The `k8s_sat` attestor has been deprecated in favor of the `k8s_psat` attestor and will be removed in a future release. Please look at https://github.com/spiffe/spire/blob/main/doc/plugin_server_nodeattestor_k8s_sat.md#security-considerations for details about security considerations when using the `k8s_sat` attestor.")
 
 			// Validate the time with leeway
 			if err := claims.ValidateWithLeeway(jwt.Expected{
@@ -262,6 +262,8 @@ func (p *AttestorPlugin) getNamesFromClaims(claims *k8s.SATClaims) (namespace st
 }
 
 func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	p.log.Warn(fmt.Sprintf("The %q node attestor plugin has been deprecated in favor of the \"k8s_psat\" plugin and will be removed in a future release", pluginName))
+
 	hclConfig := new(AttestorConfig)
 	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
