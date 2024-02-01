@@ -27,7 +27,10 @@ func TestEntryIteratorDS(t *testing.T) {
 		assert.NoError(t, it.Err())
 	})
 
-	const numEntries = 10
+	// Create some entries.
+	// Set listEntriesRequestPageSize to 10 so that unit tests don't have to generate a huge number of entries in-memory.
+	listEntriesRequestPageSize = 10
+	numEntries := int(listEntriesRequestPageSize) + 1
 	const parentID = "spiffe://example.org/parent"
 	const spiffeIDPrefix = "spiffe://example.org/entry"
 	selectors := []*common.Selector{
@@ -50,9 +53,10 @@ func TestEntryIteratorDS(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	t.Run("existing entries", func(t *testing.T) {
+	t.Run("existing entries - multiple pages", func(t *testing.T) {
 		it := makeEntryIteratorDS(ds)
 		var entries []*types.Entry
+
 		for i := 0; i < numEntries; i++ {
 			assert.True(t, it.Next(ctx))
 			require.NoError(t, it.Err())
@@ -69,6 +73,10 @@ func TestEntryIteratorDS(t *testing.T) {
 
 	t.Run("datastore error", func(t *testing.T) {
 		it := makeEntryIteratorDS(ds)
+		for i := 0; i < int(listEntriesRequestPageSize); i++ {
+			assert.True(t, it.Next(ctx))
+			require.NoError(t, it.Err())
+		}
 		dsErr := errors.New("some datastore error")
 		ds.SetNextError(dsErr)
 		assert.False(t, it.Next(ctx))

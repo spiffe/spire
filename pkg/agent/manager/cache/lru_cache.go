@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -426,9 +427,12 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 			c.staleEntries[id] = true
 		}
 	}
-	c.log.WithField(telemetry.OutdatedSVIDs, len(outdatedEntries)).
-		Debug("Updating SVIDs with outdated attributes in cache")
 
+	// Add message only when there are outdated SVIDs
+	if len(outdatedEntries) > 0 {
+		c.log.WithField(telemetry.OutdatedSVIDs, len(outdatedEntries)).
+			Debug("Updating SVIDs with outdated attributes in cache")
+	}
 	if bundleRemoved || len(bundleChanged) > 0 {
 		c.BundleCache.Update(c.bundles)
 	}
@@ -532,6 +536,19 @@ func (c *LRUCache) SubscribeToWorkloadUpdates(ctx context.Context, selectors Sel
 func (c *LRUCache) subscribeToWorkloadUpdates(ctx context.Context, selectors Selectors, notifyCallbackFn func()) (Subscriber, error) {
 	subscriber := c.NewSubscriber(selectors)
 	bo := c.subscribeBackoffFn()
+
+	if len(selectors) == 0 {
+		sub, ok := subscriber.(*lruCacheSubscriber)
+		if !ok {
+			return nil, fmt.Errorf("unexpected subscriber type %T", sub)
+		}
+		if notifyCallbackFn != nil {
+			notifyCallbackFn()
+		}
+		c.notify(sub)
+		return subscriber, nil
+	}
+
 	// block until all svids are cached and subscriber is notified
 	for {
 		// notifyCallbackFn is used for testing

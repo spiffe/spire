@@ -807,6 +807,68 @@ func TestNotify(t *testing.T) {
 	assert.True(t, cache.Notify(makeSelectors("A")))
 }
 
+func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
+	clk := clock.NewMock(t)
+	cache := newTestLRUCacheWithConfig(1, clk)
+
+	// Creating test entries, but this will not affect current test...
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+
+	subWaitCh := make(chan struct{}, 1)
+	subErrCh := make(chan error, 1)
+	go func() {
+		sub1, err := cache.subscribeToWorkloadUpdates(context.Background(), Selectors{}, func() {
+			subWaitCh <- struct{}{}
+		})
+		if err != nil {
+			subErrCh <- err
+			return
+		}
+
+		defer sub1.Finish()
+
+		u1 := <-sub1.Updates()
+		if len(u1.Identities) > 0 {
+			subErrCh <- fmt.Errorf("no identity expected, got: %d", len(u1.Identities))
+			return
+		}
+
+		if len(u1.Bundle.X509Authorities()) != 1 {
+			subErrCh <- fmt.Errorf("a single bundle is expected but got %d", len(u1.Bundle.X509Authorities()))
+			return
+		}
+
+		if _, err := u1.Bundle.GetBundleForTrustDomain(trustDomain1); err != nil {
+			subErrCh <- err
+			return
+		}
+
+		subErrCh <- nil
+	}()
+
+	// Wait until subscriber is created and got a notification
+	<-subWaitCh
+	cache.SyncSVIDsWithSubscribers()
+
+	assert.Len(t, cache.GetStaleEntries(), 1)
+	cache.UpdateSVIDs(&UpdateSVIDs{
+		X509SVIDs: makeX509SVIDs(foo, bar),
+	})
+	assert.Equal(t, 2, cache.CountSVIDs())
+
+	select {
+	case err := <-subErrCh:
+		assert.NoError(t, err, "subscriber failed")
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "timed out waiting for notification")
+	}
+}
+
 func TestSubscribeToLRUCacheChanges(t *testing.T) {
 	clk := clock.NewMock(t)
 	cache := newTestLRUCacheWithConfig(1, clk)
