@@ -19,7 +19,7 @@ func sortByName(lesser, greater loggerRecord) bool {
 	var index int // declaration for post loop processing
 	for index = 0; index < len(lesserSegments); index++ {
 		//  lesser is "... (index) segment", greater is "... (index)"
-		//  fewer segments first, so lesser is not lesser
+		//  fewer segments in greater, so lesser is not lesser
 		if index >= len(greaterSegments) {
 			return false
 		}
@@ -37,7 +37,7 @@ func sortByName(lesser, greater loggerRecord) bool {
 		// continue comparison advancing to next segment
 	} 
 	// lesser is "... (index)", greater is "... (index) aaa"
-	// fewer segements first, so lesser is lesser
+	// fewer segements in greater, so lesser is lesser
 	return len(lesserSegments) < len(greaterSegments)
 }
 
