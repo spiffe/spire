@@ -8,9 +8,10 @@ This plugin is intended for backwards compatibility for deployments that have co
 
 This plugin has no configuration. To use the plugin, add it to the plugins section of the SPIRE Server configuration:
 
-```
+```hcl
 plugins {
     CredentialComposer "uniqueid" {}
 
     // ... other plugins ...
+}
 ```
