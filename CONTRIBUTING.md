@@ -245,7 +245,7 @@ so keep your customizations in `.envrc`.
 
 ## Project Tool Versions
 
-This project uses a `.project-versions` file to centralize the versions of various tools used for
+This project uses a `.spire-tool-versions` file to centralize the versions of various tools used for
 development, linting, and other tasks.
 
 ## Reporting security vulnerabilities
