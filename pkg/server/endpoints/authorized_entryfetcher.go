@@ -211,7 +211,7 @@ func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, 
 	var token string
 	for {
 		resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
-			DataConsistency: datastore.TolerateStale,
+			DataConsistency: datastore.RequireCurrent, // preliminary loading should not be done via read-replicas
 			Pagination: &datastore.Pagination{
 				Token:    token,
 				PageSize: pageSize,
