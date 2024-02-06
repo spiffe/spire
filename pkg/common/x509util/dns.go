@@ -21,9 +21,9 @@ var (
 	errNoWildcardAllowed        = errors.New("wildcard not allowed")
 )
 
-func ValidateAndNormalize(domain string) (string, error) {
+func ValidateLabel(domain string) error {
 	if !utf8string.NewString(domain).IsASCII() {
-		return "", ErrNameMustBeASCII
+		return ErrNameMustBeASCII
 	}
 
 	starCount := strings.Count(domain, "*")
@@ -32,34 +32,30 @@ func ValidateAndNormalize(domain string) (string, error) {
 	}
 
 	if starCount > 1 {
-		return "", ErrTooManyWildcards
+		return ErrTooManyWildcards
 	}
 
-	if !strings.HasPrefix(domain, "*.") {
-		return "", ErrWildcardMustBeFirstLabel
+	domain, hadPrefix := strings.CutPrefix(domain, "*.")
+
+	if !hadPrefix {
+		return ErrWildcardMustBeFirstLabel
 	}
 
-	domain = strings.TrimPrefix(domain, "*.")
-	validated, err := validNonwildcardLabel(domain)
-	if err != nil {
-		return "", err
-	}
-
-	return "*." + validated, nil
+	return validNonwildcardLabel(domain)
 }
 
-func validNonwildcardLabel(domain string) (string, error) {
+func validNonwildcardLabel(domain string) error {
 	domain = strings.TrimSpace(domain)
 	if domain == "" {
-		return "", ErrEmptyDomain
+		return ErrEmptyDomain
 	}
 
 	if strings.HasSuffix(domain, ".") {
-		return "", ErrDomainEndsWithDot
+		return ErrDomainEndsWithDot
 	}
 
 	if strings.HasPrefix(domain, "*.") {
-		return "", errNoWildcardAllowed
+		return errNoWildcardAllowed
 	}
 
 	profile := idna.New(
@@ -73,15 +69,15 @@ func validNonwildcardLabel(domain string) (string, error) {
 
 	checked, err := profile.ToASCII(domain)
 	if err != nil {
-		return "", errors.Join(ErrIDNAError, err)
+		return errors.Join(ErrIDNAError, err)
 	}
 
 	// Defensive check.
 	if domain != checked {
-		return "", fmt.Errorf("input domain name %q does not match idna output %q: %w", domain, checked, ErrLabelMismatchAfterIDNA)
+		return fmt.Errorf("input domain name %q does not match idna output %q: %w", domain, checked, ErrLabelMismatchAfterIDNA)
 	}
 
-	return checked, nil
+	return nil
 }
 
 func WildcardOverlap(names []string) error {

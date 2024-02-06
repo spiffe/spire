@@ -13,7 +13,7 @@ func FuzzValidateAndNormalize(f *testing.F) {
 	f.Add("*.example.com")
 	f.Add("___.com")
 	f.Fuzz(func(t *testing.T, domain string) {
-		if _, err := x509util.ValidateAndNormalize(domain); errors.Is(err, x509util.ErrLabelMismatchAfterIDNA) {
+		if err := x509util.ValidateLabel(domain); errors.Is(err, x509util.ErrLabelMismatchAfterIDNA) {
 			t.Fatalf("domain: %q, err: %v", domain, err)
 		}
 	})
@@ -23,23 +23,19 @@ func TestValidateAndNormalize(t *testing.T) {
 	tests := []struct {
 		name    string
 		dns     string
-		want    string
 		wantErr error
 	}{
 		{
 			name: "TLD",
 			dns:  "com",
-			want: "com",
 		},
 		{
 			name: "example.com",
 			dns:  "example.com",
-			want: "example.com",
 		},
 		{
 			name: "*.example.com",
 			dns:  "*.example.com",
-			want: "*.example.com",
 		},
 		{
 			name:    ".",
@@ -79,7 +75,6 @@ func TestValidateAndNormalize(t *testing.T) {
 		{
 			name: "ascii puny code",
 			dns:  "xn--ls8h.org",
-			want: "xn--ls8h.org",
 		},
 		{
 			name:    "emoji tld",
@@ -89,7 +84,6 @@ func TestValidateAndNormalize(t *testing.T) {
 		{
 			name: "hypen is ok",
 			dns:  "a-hello.com",
-			want: "a-hello.com",
 		},
 		{
 			name:    "starting hyphen is not ok",
@@ -108,9 +102,8 @@ INk16I343I4FortWWCEV9nprutN3KQCZiIhHGkK4zQ6iyH7mTGc5bOfPIqE4aLynK`,
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := x509util.ValidateAndNormalize(tc.dns)
+			err := x509util.ValidateLabel(tc.dns)
 			assert.ErrorIs(t, err, tc.wantErr)
-			assert.Equal(t, tc.want, result)
 		})
 	}
 }

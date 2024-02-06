@@ -93,11 +93,11 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 
 	dnsNames := make([]string, 0, len(csr.DNSNames))
 	for _, dnsName := range csr.DNSNames {
-		normalized, err := x509util.ValidateAndNormalize(dnsName)
+		err := x509util.ValidateLabel(dnsName)
 		if err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name is invalid", err)
 		}
-		dnsNames = append(dnsNames, normalized)
+		dnsNames = append(dnsNames, dnsName)
 	}
 
 	if err := x509util.WildcardOverlap(dnsNames); err != nil {

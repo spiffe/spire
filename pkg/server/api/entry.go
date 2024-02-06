@@ -123,11 +123,10 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 	if mask.DnsNames {
 		dnsNames = make([]string, 0, len(e.DnsNames))
 		for _, dnsName := range e.DnsNames {
-			normalized, err := x509util.ValidateAndNormalize(dnsName)
-			if err != nil {
+			if err := x509util.ValidateLabel(dnsName); err != nil {
 				return nil, fmt.Errorf("invalid DNS name: %w", err)
 			}
-			dnsNames = append(dnsNames, normalized)
+			dnsNames = append(dnsNames, dnsName)
 		}
 	}
 
