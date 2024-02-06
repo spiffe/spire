@@ -80,7 +80,7 @@ func validNonwildcardLabel(domain string) error {
 	return nil
 }
 
-func WildcardOverlap(names []string) error {
+func CheckForWildcardOverlap(names []string) error {
 	nm := map[string]struct{}{}
 
 	for _, name := range names {

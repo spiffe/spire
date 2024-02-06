@@ -136,7 +136,7 @@ func TestWildcardOverlap(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := x509util.WildcardOverlap(tc.dns)
+			err := x509util.CheckForWildcardOverlap(tc.dns)
 			assert.ErrorIs(t, err, tc.wantErr)
 		})
 	}

@@ -100,7 +100,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		dnsNames = append(dnsNames, dnsName)
 	}
 
-	if err := x509util.WildcardOverlap(dnsNames); err != nil {
+	if err := x509util.CheckForWildcardOverlap(dnsNames); err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name contains a wildcard that covers another non-wildcard name", err)
 	}
 
