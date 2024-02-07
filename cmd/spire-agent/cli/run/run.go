@@ -103,6 +103,9 @@ type agentConfig struct {
 	Experimental     experimentalConfig `hcl:"experimental"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+
+	// Deprecated configurables
+	DisableReattestToRenew bool `hcl:"disable_reattest_to_renew"`
 }
 
 type sdsConfig struct {
@@ -592,6 +595,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	for _, f := range c.Agent.Experimental.Flags {
 		logger.Warnf("Developer feature flag %q has been enabled", f)
+	}
+
+	ac.DisableReattestToRenew = c.Agent.DisableReattestToRenew
+	if c.Agent.DisableReattestToRenew {
+		logger.Warn("Disable reattest to renew flag will be removed in the next major release")
 	}
 
 	return ac, nil
