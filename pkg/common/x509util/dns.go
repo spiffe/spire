@@ -12,7 +12,7 @@ import (
 var (
 	ErrTooManyWildcards         = errors.New("too many wildcards")
 	ErrWildcardMustBeFirstLabel = errors.New("wildcard must be first label")
-	ErrEmptyDomain              = errors.New("empty domain")
+	ErrEmptyDomain              = errors.New("empty or only whitespace")
 	ErrIDNAError                = errors.New("idna error")
 	ErrDomainEndsWithDot        = errors.New("domain ends with dot")
 	ErrWildcardOverlap          = errors.New("wildcard overlap")
