@@ -469,14 +469,14 @@ func TestServiceMintX509SVID(t *testing.T) {
 				DNSNames: []string{"abc-"},
 			},
 			code: codes.InvalidArgument,
-			err:  "CSR DNS name is invalid: label does not match regex: abc-",
+			err:  "CSR DNS name is invalid: idna error",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
 						Message: "Invalid argument: CSR DNS name is invalid",
 						Data: logrus.Fields{
-							logrus.ErrorKey: "label does not match regex: abc-",
+							logrus.ErrorKey: "idna error\nidna: invalid label \"abc-\"",
 						},
 					},
 					{
@@ -486,7 +486,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 							telemetry.Status:        "error",
 							telemetry.Type:          "audit",
 							telemetry.StatusCode:    "InvalidArgument",
-							telemetry.StatusMessage: "CSR DNS name is invalid: label does not match regex: abc-",
+							telemetry.StatusMessage: "CSR DNS name is invalid: idna error\nidna: invalid label \"abc-\"",
 							telemetry.Csr:           api.HashByte(csr),
 							telemetry.TTL:           "0",
 						},
