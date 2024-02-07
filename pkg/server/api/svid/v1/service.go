@@ -23,7 +23,7 @@ import (
 )
 
 // RegisterService registers the service on the gRPC server.
-func RegisterService(s *grpc.Server, service *Service) {
+func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 	svidv1.RegisterSVIDServer(s, service)
 }
 

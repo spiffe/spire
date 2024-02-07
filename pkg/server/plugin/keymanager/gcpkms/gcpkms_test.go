@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"cloud.google.com/go/kms/apiv1/kmspb"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -675,7 +674,7 @@ func TestGenerateKey(t *testing.T) {
 		configureReq                 *configv1.ConfigureRequest
 		expectCode                   codes.Code
 		expectMsg                    string
-		destroyTime                  *timestamp.Timestamp
+		destroyTime                  *timestamppb.Timestamp
 		fakeCryptoKeys               []*fakeCryptoKey
 		generateKeyReq               *keymanagerv1.GenerateKeyRequest
 		logs                         []spiretest.LogEntry

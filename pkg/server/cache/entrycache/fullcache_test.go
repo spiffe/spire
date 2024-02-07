@@ -753,7 +753,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 
 func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.DataStore {
 	log, _ := test.NewNullLogger()
-	p := sqlds.New(log, false)
+	p := sqlds.New(log)
 
 	// When the test suite is executed normally, we test against sqlite3 since
 	// it requires no external dependencies. The integration test framework

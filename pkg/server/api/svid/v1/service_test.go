@@ -20,7 +20,6 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
@@ -30,6 +29,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
+	"github.com/spiffe/spire/test/grpctest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
@@ -76,7 +76,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				URIs: []*url.URL{workloadID.URL()},
 			},
 			expiredAt: expiredAt,
-			subject:   "O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "O=SPIRE,C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -102,7 +102,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				URIs: []*url.URL{workloadID.URL()},
 			},
 			expiredAt: customExpiresAt,
-			subject:   "O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "O=SPIRE,C=US",
 			ttl:       10 * time.Second,
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
@@ -131,7 +131,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 			dns:       []string{"dns1", "dns2"},
 			expiredAt: expiredAt,
-			subject:   "CN=dns1,O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "CN=dns1,O=SPIRE,C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -161,7 +161,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			expiredAt: expiredAt,
-			subject:   "O=ORG,C=EN+C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "O=ORG,C=EN+C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -193,7 +193,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 			dns:       []string{"dns1", "dns2"},
 			expiredAt: expiredAt,
-			subject:   "CN=dns1,O=ORG,C=EN+C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "CN=dns1,O=ORG,C=EN+C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -1791,9 +1791,6 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				expectedSubject := &pkix.Name{
 					Organization: []string{"SPIRE"},
 					Country:      []string{"US"},
-					Names: []pkix.AttributeTypeAndValue{
-						x509svid.UniqueIDAttribute(entrySPIFFEID),
-					},
 				}
 				if len(entry.DnsNames) > 0 {
 					expectedSubject.CommonName = entry.DnsNames[0]
@@ -2088,10 +2085,6 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	})
 
 	log, logHook := test.NewNullLogger()
-	registerFn := func(s *grpc.Server) {
-		svid.RegisterService(s, service)
-	}
-
 	test := &serviceTest{
 		ca:          ca,
 		ef:          ef,
@@ -2100,8 +2093,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		logHook:     logHook,
 		rateLimiter: rateLimiter,
 	}
-
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
+	overrideContext := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		ctx = rpccontext.WithRateLimiter(ctx, rateLimiter)
 		if test.withCallerID {
@@ -2110,23 +2102,20 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		if test.downstream.entries != nil {
 			ctx = rpccontext.WithCallerDownstreamEntries(ctx, downstream.entries)
 		}
-		return ctx, nil
-	})
+		return ctx
+	}
 
-	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
-		ppMiddleware,
-		// Add audit log with local tracking disabled
-		middleware.WithAuditLog(false),
-	))
-	server := grpc.NewServer(
-		grpc.UnaryInterceptor(unaryInterceptor),
-		grpc.StreamInterceptor(streamInterceptor),
+	server := grpctest.StartServer(t, func(s grpc.ServiceRegistrar) {
+		svid.RegisterService(s, service)
+	},
+		grpctest.OverrideContext(overrideContext),
+		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
 
-	// Set create client and add to test
-	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
+	conn := server.Dial(t)
+
 	test.client = svidv1.NewSVIDClient(conn)
-	test.done = done
+	test.done = server.Stop
 
 	return test
 }

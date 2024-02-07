@@ -14,6 +14,12 @@ import (
 var (
 	_ EntryIterator = (*entryIteratorDS)(nil)
 	_ AgentIterator = (*agentIteratorDS)(nil)
+	// 10,000 was chosen to balance # of requests sent to spire-db and timeouts to the database.
+	// Too large of a page size incurs large latencies while listing registrations.
+	// Too small incurs too many requests sent to the DB.
+	// Pagination only affects large entry counts within spire-db. Smaller deployments of spire-db should remain
+	// unaffected as the latency spent sending multiple requests is more expensive than the call itself.
+	listEntriesRequestPageSize int32 = 10000
 )
 
 // BuildFromDataStore builds a Cache using the provided datastore as the data source
@@ -22,10 +28,11 @@ func BuildFromDataStore(ctx context.Context, ds datastore.DataStore) (*FullEntry
 }
 
 type entryIteratorDS struct {
-	ds      datastore.DataStore
-	entries []*types.Entry
-	next    int
-	err     error
+	ds              datastore.DataStore
+	entries         []*types.Entry
+	next            int
+	err             error
+	paginationToken string
 }
 
 func makeEntryIteratorDS(ds datastore.DataStore) EntryIterator {
@@ -38,9 +45,13 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 	if it.err != nil {
 		return false
 	}
-	if it.entries == nil {
+	if it.entries == nil || (it.next >= len(it.entries) && it.paginationToken != "") {
 		req := &datastore.ListRegistrationEntriesRequest{
 			DataConsistency: datastore.TolerateStale,
+			Pagination: &datastore.Pagination{
+				Token:    it.paginationToken,
+				PageSize: listEntriesRequestPageSize,
+			},
 		}
 
 		resp, err := it.ds.ListRegistrationEntries(ctx, req)
@@ -51,6 +62,7 @@ func (it *entryIteratorDS) Next(ctx context.Context) bool {
 
 		resp.Entries = it.filterEntries(resp.Entries)
 
+		it.paginationToken = resp.Pagination.Token
 		it.next = 0
 		it.entries, err = api.RegistrationEntriesToProto(resp.Entries)
 		if err != nil {

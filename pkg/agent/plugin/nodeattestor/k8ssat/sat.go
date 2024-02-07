@@ -3,9 +3,11 @@ package k8ssat
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"sync"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -45,6 +47,7 @@ type attestorConfig struct {
 type AttestorPlugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
+	log hclog.Logger
 
 	mu     sync.RWMutex
 	config *attestorConfig
@@ -52,6 +55,11 @@ type AttestorPlugin struct {
 
 func New() *AttestorPlugin {
 	return &AttestorPlugin{}
+}
+
+// SetLogger sets a logger in the plugin.
+func (p *AttestorPlugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func (p *AttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) error {
@@ -81,6 +89,8 @@ func (p *AttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAt
 }
 
 func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
+	p.log.Warn(fmt.Sprintf("The %q node attestor plugin has been deprecated in favor of the \"k8s_psat\" plugin and will be removed in a future release", pluginName))
+
 	hclConfig := new(AttestorConfig)
 	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)

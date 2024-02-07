@@ -26,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/grpctest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
@@ -2905,9 +2906,6 @@ func setupServiceTest(t *testing.T) *serviceTest {
 
 	log, logHook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
-	registerFn := func(s *grpc.Server) {
-		bundle.RegisterService(s, service)
-	}
 
 	test := &serviceTest{
 		ds:          ds,
@@ -2916,7 +2914,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		rateLimiter: rateLimiter,
 	}
 
-	ppMiddleware := middleware.Preprocess(func(ctx context.Context, fullMethod string, req any) (context.Context, error) {
+	overrideContext := func(ctx context.Context) context.Context {
 		ctx = rpccontext.WithLogger(ctx, log)
 		if test.isAdmin {
 			ctx = rpccontext.WithAdminCaller(ctx)
@@ -2932,21 +2930,20 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		}
 
 		ctx = rpccontext.WithRateLimiter(ctx, rateLimiter)
-		return ctx, nil
-	})
+		return ctx
+	}
 
-	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.Chain(
-		ppMiddleware,
-		// Add audit log with local tracking disabled
-		middleware.WithAuditLog(false),
-	))
-	server := grpc.NewServer(
-		grpc.UnaryInterceptor(unaryInterceptor),
-		grpc.StreamInterceptor(streamInterceptor),
+	server := grpctest.StartServer(t, func(s grpc.ServiceRegistrar) {
+		bundle.RegisterService(s, service)
+	},
+		grpctest.OverrideContext(overrideContext),
+		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
-	conn, done := spiretest.NewAPIServerWithMiddleware(t, registerFn, server)
-	test.done = done
+
+	conn := server.Dial(t)
+
 	test.client = bundlev1.NewBundleClient(conn)
+	test.done = server.Stop
 
 	return test
 }

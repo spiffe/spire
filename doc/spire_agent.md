@@ -21,7 +21,7 @@ This document is a configuration reference for SPIRE Agent. It includes informat
 | NodeAttestor     | [azure_msi](/doc/plugin_agent_nodeattestor_azure_msi.md)                | A node attestor which attests agent identity using an Azure MSI token                                                                            |
 | NodeAttestor     | [gcp_iit](/doc/plugin_agent_nodeattestor_gcp_iit.md)                    | A node attestor which attests agent identity using a GCP Instance Identity Token                                                                 |
 | NodeAttestor     | [join_token](/doc/plugin_agent_nodeattestor_jointoken.md)               | A node attestor which uses a server-generated join token                                                                                         |
-| NodeAttestor     | [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md)                    | A node attestor which attests agent identity using a Kubernetes Service Account token                                                            |
+| NodeAttestor     | [k8s_sat](/doc/plugin_agent_nodeattestor_k8s_sat.md) (deprecated)       | A node attestor which attests agent identity using a Kubernetes Service Account token                                                            |
 | NodeAttestor     | [k8s_psat](/doc/plugin_agent_nodeattestor_k8s_psat.md)                  | A node attestor which attests agent identity using a Kubernetes Projected Service Account token                                                  |
 | NodeAttestor     | [sshpop](/doc/plugin_agent_nodeattestor_sshpop.md)                      | A node attestor which attests agent identity using an existing ssh certificate                                                                   |
 | NodeAttestor     | [x509pop](/doc/plugin_agent_nodeattestor_x509pop.md)                    | A node attestor which attests agent identity using an existing X.509 certificate                                                                 |
@@ -70,10 +70,12 @@ This may be useful for templating configuration files, for example across differ
 | `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&gt;                                                                                                                                                                                     | ec-p256                          |
 | `availability_target`             | The minimum amount of time desired to gracefully handle SPIRE Server or Agent downtime. This configurable influences how aggressively X509 SVIDs should be rotated. If set, must be at least 24h. See [Availability Target](#availability-target) |                                  |
 
-| experimental      | Description                                                     | Default                 |
-|:------------------|-----------------------------------------------------------------|-------------------------|
-| `named_pipe_name` | Pipe name to bind the SPIRE Agent API named pipe (Windows only) | \spire-agent\public\api |
-| `sync_interval`   | Sync interval with SPIRE server with exponential backoff        | 5 sec                   |
+| experimental               | Description                                                           | Default                 |
+|:---------------------------|-----------------------------------------------------------------------|-------------------------|
+| `named_pipe_name`          | Pipe name to bind the SPIRE Agent API named pipe (Windows only)       | \spire-agent\public\api |
+| `sync_interval`            | Sync interval with SPIRE server with exponential backoff              | 5 sec                   |
+| `x509_svid_cache_max_size` | Soft limit of max number of SVIDs that would be stored in LRU cache   | 1000                    |
+| `disable_lru_cache`        | Reverts back to use the SPIRE Agent non-LRU cache for storing SVIDs   | false                   |
 
 ### Initial trust bundle configuration
 
