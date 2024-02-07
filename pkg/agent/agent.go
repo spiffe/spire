@@ -217,6 +217,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		SVIDKey:                  as.Key,
 		Bundle:                   as.Bundle,
 		Reattestable:             as.Reattestable,
+		DisableReattestToRenew:   a.c.DisableReattestToRenew,
 		Catalog:                  cat,
 		TrustDomain:              a.c.TrustDomain,
 		ServerAddr:               a.c.ServerAddress,
