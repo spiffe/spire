@@ -56,8 +56,6 @@ func TestServer(t *testing.T) {
 		},
 	}
 
-	fiveMinutes := time.Minute * 5
-
 	testCases := []struct {
 		name        string
 		method      string
@@ -67,7 +65,7 @@ func TestServer(t *testing.T) {
 		bundle      *spiffebundle.Bundle
 		serverCert  *x509.Certificate
 		reqErr      string
-		refreshHint *time.Duration
+		refreshHint time.Duration
 	}{
 		{
 			name:   "success",
@@ -87,8 +85,9 @@ func TestServer(t *testing.T) {
 				],
 				"spiffe_refresh_hint": 360
 			}`, base64.StdEncoding.EncodeToString(serverCert.Raw)),
-			bundle:     bundle,
-			serverCert: serverCert,
+			bundle:      bundle,
+			serverCert:  serverCert,
+			refreshHint: 6 * time.Minute,
 		},
 		{
 			name:   "manually configured refresh hint",
@@ -110,7 +109,7 @@ func TestServer(t *testing.T) {
 			}`, base64.StdEncoding.EncodeToString(serverCert.Raw)),
 			bundle:      bundle,
 			serverCert:  serverCert,
-			refreshHint: &fiveMinutes,
+			refreshHint: 5 * time.Minute,
 		},
 		{
 			name:       "invalid method",
@@ -210,7 +209,7 @@ func TestACMEAuth(t *testing.T) {
 				Email:        "admin@domain.test",
 				ToSAccepted:  false,
 			}),
-			nil,
+			5*time.Minute,
 		)
 		defer done()
 
@@ -243,7 +242,7 @@ func TestACMEAuth(t *testing.T) {
 				Email:        "admin@domain.test",
 				ToSAccepted:  true,
 			}),
-			nil,
+			5*time.Minute,
 		)
 		defer done()
 
@@ -292,7 +291,7 @@ func TestACMEAuth(t *testing.T) {
 				Email:        "admin@domain.test",
 				ToSAccepted:  true,
 			}),
-			nil,
+			5*time.Minute,
 		)
 		defer done()
 
@@ -304,7 +303,7 @@ func TestACMEAuth(t *testing.T) {
 	})
 }
 
-func newTestServer(t *testing.T, getter Getter, serverAuth ServerAuth, refreshHint *time.Duration) (net.Addr, func()) {
+func newTestServer(t *testing.T, getter Getter, serverAuth ServerAuth, refreshHint time.Duration) (net.Addr, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	addrCh := make(chan net.Addr, 1)

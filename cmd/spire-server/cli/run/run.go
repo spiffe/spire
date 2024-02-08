@@ -452,10 +452,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 						"refresh more often than 1 minute")
 				}
 
-				sc.Federation.BundleEndpoint.RefreshHint = &refreshHint
+				sc.Federation.BundleEndpoint.RefreshHint = refreshHint
 			} else {
 				refreshHint := 5 * time.Minute
-				sc.Federation.BundleEndpoint.RefreshHint = &refreshHint
+				sc.Federation.BundleEndpoint.RefreshHint = refreshHint
 			}
 
 			if c.Server.Federation.BundleEndpoint != nil {

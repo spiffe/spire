@@ -33,7 +33,7 @@ type ServerConfig struct {
 	Address     string
 	Getter      Getter
 	ServerAuth  ServerAuth
-	RefreshHint *time.Duration
+	RefreshHint time.Duration
 
 	// test hooks
 	listen func(network, address string) (net.Listener, error)
@@ -101,16 +101,9 @@ func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var refreshHint time.Duration
-	if s.c.RefreshHint != nil {
-		refreshHint = *s.c.RefreshHint
-	} else {
-		refreshHint = bundleutil.CalculateRefreshHint(b)
-	}
-
 	// TODO: bundle sequence number?
 	opts := []bundleutil.MarshalOption{
-		bundleutil.OverrideRefreshHint(refreshHint),
+		bundleutil.OverrideRefreshHint(s.c.RefreshHint),
 	}
 
 	jsonBytes, err := bundleutil.Marshal(b, opts...)
