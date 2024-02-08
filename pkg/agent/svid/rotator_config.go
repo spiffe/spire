@@ -22,13 +22,14 @@ import (
 const DefaultRotatorInterval = 5 * time.Second
 
 type RotatorConfig struct {
-	SVIDKeyManager keymanager.SVIDKeyManager
-	Log            logrus.FieldLogger
-	Metrics        telemetry.Metrics
-	TrustDomain    spiffeid.TrustDomain
-	ServerAddr     string
-	NodeAttestor   nodeattestor.NodeAttestor
-	Reattestable   bool
+	SVIDKeyManager         keymanager.SVIDKeyManager
+	Log                    logrus.FieldLogger
+	Metrics                telemetry.Metrics
+	TrustDomain            spiffeid.TrustDomain
+	ServerAddr             string
+	NodeAttestor           nodeattestor.NodeAttestor
+	Reattestable           bool
+	DisableReattestToRenew bool
 
 	// Initial SVID and key
 	SVID    []*x509.Certificate

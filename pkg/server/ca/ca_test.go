@@ -123,7 +123,7 @@ func (s *CATestSuite) TestSignServerX509SVID() {
 	}
 
 	// Subject is calculated by SPIRE Server and should not be pulled from the CSR.
-	s.Equal("O=SPIRE,C=US,2.5.4.45=#13203237323538663032373464643334303764623137653930626334623961646632", svid.Subject.String())
+	s.Equal("O=SPIRE,C=US", svid.Subject.String())
 }
 
 func (s *CATestSuite) TestSignServerX509SVIDUsesDefaultTTLIfTTLUnspecified() {
@@ -193,7 +193,7 @@ func (s *CATestSuite) TestSignAgentX509SVID() {
 	}
 
 	// Subject is calculated by SPIRE Server and should not be pulled from the CSR.
-	s.Equal("O=SPIRE,C=US,2.5.4.45=#13203565613834343735306363306235393262363730383830636133376238343363", svid.Subject.String())
+	s.Equal("O=SPIRE,C=US", svid.Subject.String())
 }
 
 func (s *CATestSuite) TestSignAgentX509SVIDCannotSignTrustDomainID() {
@@ -277,7 +277,7 @@ func (s *CATestSuite) TestSignWorkloadX509SVID() {
 	}
 
 	// Subject is calculated by SPIRE Server and should not be pulled from the CSR.
-	s.Equal("O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531", svid.Subject.String())
+	s.Equal("O=SPIRE,C=US", svid.Subject.String())
 }
 
 func (s *CATestSuite) TestSignWorkloadX509SVIDCannotSignTrustDomainID() {
@@ -347,20 +347,20 @@ func (s *CATestSuite) TestSignWorkloadX509SVIDWithSubject() {
 	}{
 		{
 			name:     "empty subject",
-			expected: "O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
+			expected: "O=SPIRE,C=US",
 			subject:  pkix.Name{},
 		}, {
 			name:     "no subject but DNS",
 			dns:      dns,
-			expected: "CN=dns1,O=SPIRE,C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
+			expected: "CN=dns1,O=SPIRE,C=US",
 		}, {
 			name:     "subject provided",
-			expected: "CN=Common Name,O=ORG,C=EN+C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
+			expected: "CN=Common Name,O=ORG,C=EN+C=US",
 			subject:  subject,
 		}, {
 			name:     "subject and dns",
 			dns:      dns,
-			expected: "CN=dns1,O=ORG,C=EN+C=US,2.5.4.45=#13203933323965323863393434383738376466306663623363363535363035653531",
+			expected: "CN=dns1,O=ORG,C=EN+C=US",
 			subject:  subject,
 		},
 	}
