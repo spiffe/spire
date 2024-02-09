@@ -18,7 +18,7 @@ type attestor struct {
 }
 
 type Attestor interface {
-	Attest(ctx context.Context, pid int) []*common.Selector
+	Attest(ctx context.Context, pid int) ([]*common.Selector, error)
 }
 
 func New(config *Config) Attestor {
@@ -26,6 +26,10 @@ func New(config *Config) Attestor {
 }
 
 func newAttestor(config *Config) *attestor {
+	if config.selectorHook == nil {
+		config.selectorHook = func([]*common.Selector) {}
+	}
+
 	return &attestor{c: config}
 }
 
@@ -33,11 +37,14 @@ type Config struct {
 	Catalog catalog.Catalog
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
+
+	// Test hook called when selectors are obtained from a workload attestor plugin
+	selectorHook func([]*common.Selector)
 }
 
 // Attest invokes all workload attestor plugins against the provided PID. If an error
 // is encountered, it is logged and selectors from the failing plugin are discarded.
-func (wla *attestor) Attest(ctx context.Context, pid int) []*common.Selector {
+func (wla *attestor) Attest(ctx context.Context, pid int) ([]*common.Selector, error) {
 	counter := telemetry_workload.StartAttestationCall(wla.c.Metrics)
 	defer counter.Done(nil)
 
@@ -63,8 +70,14 @@ func (wla *attestor) Attest(ctx context.Context, pid int) []*common.Selector {
 		select {
 		case s := <-sChan:
 			selectors = append(selectors, s...)
+			wla.c.selectorHook(selectors)
 		case err := <-errChan:
 			log.WithError(err).Error("Failed to collect all selectors for PID")
+		case <-ctx.Done():
+			// If the client times out before all workload attestation plugins have reported selectors or an error,
+			// it can be helpful to see the partial set of selectors discovered for debugging purposes.
+			log.WithField(telemetry.PartialSelectors, selectors).Error("Timed out collecting selectors for PID")
+			return nil, ctx.Err()
 		}
 	}
 
@@ -76,7 +89,7 @@ func (wla *attestor) Attest(ctx context.Context, pid int) []*common.Selector {
 	if pid != os.Getpid() {
 		log.WithField(telemetry.Selectors, selectors).Debug("PID attested to have selectors")
 	}
-	return selectors
+	return selectors, nil
 }
 
 // invokeAttestor invokes attestation against the supplied plugin. Should be called from a goroutine.
