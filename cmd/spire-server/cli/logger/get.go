@@ -63,10 +63,10 @@ func (l* getCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error
 	if !ok {
 		return errors.New("internal error: logger not found; please report this as a bug")
 	}
-	if err := env.Printf("Logger Level : %s\n", logrus.Level(logger.CurrentLevel)); err != nil {
+	if err := env.Printf("Logger Level  : %s\n", logrus.Level(logger.CurrentLevel)); err != nil {
 		return err
 	}
-	if err := env.Printf("Logger Default : %s\n", logrus.Level(logger.DefaultLevel)); err != nil {
+	if err := env.Printf("Logger Default: %s\n", logrus.Level(logger.DefaultLevel)); err != nil {
 		return err
 	}
 	if err := env.Println(); err != nil {

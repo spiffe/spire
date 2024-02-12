@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	"github.com/mitchellh/cli"
 	api "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -53,7 +54,7 @@ func (c *setCommand) AppendFlags(fs *flag.FlagSet) {
 func (c *setCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	if c.newLevel != "" {
 		fmt.Errorf("the newLevel is %s", c.newLevel)
-		grpc_key := strings.ToUpper(c.newLevel) + "_LEVEL"
+		grpc_key := strings.ToUpper(c.newLevel)
 		value, found := api.SetLogLevelRequest_SetValue_value[grpc_key]
 		if !found {
 			return fmt.Errorf("the value %s is not a valid setting", c.newLevel)
@@ -77,10 +78,10 @@ func (l* setCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error
 	if !ok {
 		return errors.New("internal error: logger not found; please report this as a bug")
 	}
-	if err := env.Printf("Logger Level : %s\n", logger.CurrentLevel); err != nil {
+	if err := env.Printf("Logger Level : %s\n", logrus.Level(logger.CurrentLevel)); err != nil {
 		return err
 	}
-	if err := env.Printf("Logger Default : %d\n", logger.DefaultLevel); err != nil {
+	if err := env.Printf("Logger Default : %s\n", logrus.Level(logger.DefaultLevel)); err != nil {
 		return err
 	}
 	if err := env.Println(); err != nil {

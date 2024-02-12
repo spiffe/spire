@@ -47,7 +47,7 @@ func (service *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLev
 		"RequestLevel": loggerv1.SetLogLevelRequest_SetValue_name[int32(req.LogLevel)],
 	}).Info("SetLogger Called")
 	setLevel := loggerv1.SetLogLevelRequest_SetValue(req.LogLevel)
-	if setLevel == loggerv1.SetLogLevelRequest_DEFAULT_LEVEL {
+	if setLevel == loggerv1.SetLogLevelRequest_DEFAULT {
 		logrus.SetLevel(service.DefaultLevel)
 	} else {
 		logrus.SetLevel(logrus.Level(req.LogLevel))
