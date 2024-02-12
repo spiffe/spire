@@ -97,8 +97,11 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		"federation update": func() (cli.Command, error) {
 			return federation.NewUpdateCommand(), nil
 		},
-		"logger list": func() (cli.Command, error) {
-			return logger.NewListCommand(), nil
+		"logger get": func() (cli.Command, error) {
+			return logger.NewGetCommand(), nil
+		},
+		"logger set": func() (cli.Command, error) {
+			return logger.NewSetCommand(), nil
 		},
 		"run": func() (cli.Command, error) {
 			return run.NewRunCommand(ctx, cc.LogOptions, cc.AllowUnknownConfig), nil
