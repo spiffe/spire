@@ -129,7 +129,7 @@ jobs:
       - name: Install regctl
         uses: regclient/actions/regctl-installer@b6614f5f56245066b533343a85f4109bdc38c8cc # main
       - name: Download archived images
-        uses: actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935 # v4.1.1
+        uses: actions/download-artifact@eaceaf801fd36c7dee90939fad912460b18a1ffe # v4.1.2
         with:
           name: images
           path: .
@@ -139,7 +139,7 @@ jobs:
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive artifacts
-        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4
         with:
           name: binaries-linux
           path: ./artifacts/
@@ -174,7 +174,7 @@ jobs:
       - name: Export images
         run: tar -czvf images.tar.gz *-image.tar
       - name: Archive images
-        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4
         with:
           name: images
           path: images.tar.gz
@@ -202,7 +202,7 @@ jobs:
           docker save spire-server-windows:latest-local spire-agent-windows:latest-local oidc-discovery-provider-windows:latest-local -o images-windows.tar
           gzip images-windows.tar
       - name: Archive images
-        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4
         with:
           name: images-windows
           path: images-windows.tar.gz
@@ -274,7 +274,7 @@ jobs:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Download archived images
-        uses: actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935 # v4.1.1
+        uses: actions/download-artifact@eaceaf801fd36c7dee90939fad912460b18a1ffe # v4.1.2
         with:
           name: images
           path: .
@@ -334,7 +334,7 @@ jobs:
           path: .build
           key: ${{ runner.os }}-tools-${{ hashFiles('.go-version','Makefile') }}
       - name: Download archived images
-        uses: actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935 # v4.1.1
+        uses: actions/download-artifact@eaceaf801fd36c7dee90939fad912460b18a1ffe # v4.1.2
         with:
           name: images
           path: .
@@ -390,7 +390,7 @@ jobs:
           install: >-
             git base-devel mingw-w64-x86_64-toolchain unzip
       - name: Download archived images
-        uses: actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935 # v4.1.1
+        uses: actions/download-artifact@eaceaf801fd36c7dee90939fad912460b18a1ffe # v4.1.2
         with:
           name: images-windows
           path: .
@@ -542,7 +542,7 @@ jobs:
           path: ./bin/
           key: ${{ runner.os }}-executables-${{ hashFiles('**/*.exe') }}
       - name: Archive artifacts
-        uses: actions/upload-artifact@26f96dfa697d77e81fd5907df203aa23a56210a8 # v4
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4
         with:
           name: binaries-windows
           path: ./artifacts/
@@ -557,12 +557,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - name: Download archived Linux artifacts
-        uses: actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935 # v4.1.1
+        uses: actions/download-artifact@eaceaf801fd36c7dee90939fad912460b18a1ffe # v4.1.2
         with:
           name: binaries-linux
           path: ./artifacts/
       - name: Download archived Windows artifacts
-        uses: actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935 # v4.1.1
+        uses: actions/download-artifact@eaceaf801fd36c7dee90939fad912460b18a1ffe # v4.1.2
         with:
           name: binaries-windows
           path: ./artifacts/
@@ -600,7 +600,7 @@ jobs:
       - name: Install regctl
         uses: regclient/actions/regctl-installer@b6614f5f56245066b533343a85f4109bdc38c8cc # main
       - name: Download archived images
-        uses: actions/download-artifact@6b208ae046db98c579e8a3aa621ab581ff575935 # v4.1.1
+        uses: actions/download-artifact@eaceaf801fd36c7dee90939fad912460b18a1ffe # v4.1.2
         with:
           name: images
           path: .
