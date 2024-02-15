@@ -180,11 +180,9 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentity
 	// a response has already been sent so nothing is
 	// blocked on this logic
 	for i, svid := range resp.X509Svids {
-		id, err := idutil.IDProtoString(svid.X509Svid.Id)
-		if err != nil {
-			log.WithError(err).Warn("Could not convert SPIFFEID proto to string")
-			continue
-		}
+		// Ideally ID Proto parsing should succeed, but if it fails,
+		// ignore the error and still log with empty spiffe_id.
+		id, _ := idutil.IDProtoString(svid.X509Svid.Id)
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: id,
