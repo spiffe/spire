@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	fakeSqlDriverName  = "fake-sql-driver"
+	fakeSQLDriverName  = "fake-sql-driver"
 	token              = "aws-rds-host:1234?Action=connect&DBUser=test_user&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=TESTTESTTESTTESTTEST%2F20240116%2Fus-east-2%2Frds-db%2Faws4_request&X-Amz-Date=20240116T150146Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" //nolint: gosec // for testing
 	mysqlConnString    = "test_user:@tcp(aws-rds-host:1234)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
 	postgresConnString = "dbname=postgres user=postgres host=the-host sslmode=require"
@@ -243,7 +243,7 @@ func TestAWSRDS(t *testing.T) {
 
 			fakeSQLDriverWrapper.tokenBuilder = testCase.tokenProvider
 
-			db, err := gorm.Open(fakeSqlDriverName, dsn)
+			db, err := gorm.Open(fakeSQLDriverName, dsn)
 			if testCase.expectedError != "" {
 				require.EqualError(t, err, testCase.expectedError)
 				return
@@ -276,7 +276,7 @@ func TestCacheToken(t *testing.T) {
 	require.Empty(t, fakeSQLDriverWrapper.tokensMap[dsn])
 
 	// Calling to Open should map firstToken to the dsn.
-	db, err := gorm.Open(fakeSqlDriverName, dsn)
+	db, err := gorm.Open(fakeSQLDriverName, dsn)
 	require.NoError(t, err)
 	require.NotNil(t, db)
 
@@ -297,7 +297,7 @@ func TestCacheToken(t *testing.T) {
 	}
 
 	// Call Open again, the cached token should be used.
-	db, err = gorm.Open(fakeSqlDriverName, dsn)
+	db, err = gorm.Open(fakeSQLDriverName, dsn)
 	require.NoError(t, err)
 	require.NotNil(t, db)
 
@@ -314,7 +314,7 @@ func TestCacheToken(t *testing.T) {
 	nowFunc = func() time.Time { return now.Add(time.Hour) }
 
 	// Call Open again, the new token should be used.
-	db, err = gorm.Open(fakeSqlDriverName, dsn)
+	db, err = gorm.Open(fakeSQLDriverName, dsn)
 	require.NoError(t, err)
 	require.NotNil(t, db)
 
@@ -360,5 +360,5 @@ func (d *fakeSQLDriver) Open(string) (driver.Conn, error) {
 }
 
 func init() {
-	sql.Register(fakeSqlDriverName, fakeSQLDriverWrapper)
+	sql.Register(fakeSQLDriverName, fakeSQLDriverWrapper)
 }
