@@ -13,5 +13,5 @@ type EndpointConfig struct {
 	// If unset, the bundle endpoint will use SPIFFE auth.
 	ACME *ACMEConfig
 
-	RefreshHint *time.Duration
+	RefreshHint time.Duration
 }

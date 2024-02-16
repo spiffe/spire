@@ -4,13 +4,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/golang/protobuf/ptypes/any"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	spb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var (
@@ -58,7 +58,7 @@ func TestFacadeWrapErr(t *testing.T) {
 		stIn := status.FromProto(&spb.Status{
 			Code:    int32(codes.InvalidArgument),
 			Message: "ohno",
-			Details: []*any.Any{{TypeUrl: "fake"}},
+			Details: []*anypb.Any{{TypeUrl: "fake"}},
 		})
 
 		stOut := status.Convert(facade.WrapErr(stIn.Err()))
@@ -72,7 +72,7 @@ func TestFacadeWrapErr(t *testing.T) {
 		stIn := status.FromProto(&spb.Status{
 			Code:    int32(codes.InvalidArgument),
 			Message: "name: ohno",
-			Details: []*any.Any{{TypeUrl: "fake"}},
+			Details: []*anypb.Any{{TypeUrl: "fake"}},
 		})
 
 		stOut := status.Convert(facade.WrapErr(stIn.Err()))
@@ -85,7 +85,7 @@ func TestFacadeWrapErr(t *testing.T) {
 		stIn := status.FromProto(&spb.Status{
 			Code:    int32(codes.InvalidArgument),
 			Message: "type(name): ohno",
-			Details: []*any.Any{{TypeUrl: "fake"}},
+			Details: []*anypb.Any{{TypeUrl: "fake"}},
 		})
 
 		stOut := status.Convert(facade.WrapErr(stIn.Err()))

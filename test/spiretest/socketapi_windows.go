@@ -3,24 +3,18 @@
 package spiretest
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
-	"math/rand"
 	"net"
 	"path/filepath"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/Microsoft/go-winio"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/common/namedpipe"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-)
-
-var (
-	mtx sync.Mutex                                        // used to synchronize access of rnd
-	rnd = rand.New(rand.NewSource(time.Now().UnixNano())) //nolint: gosec // used for testing only
 )
 
 func StartWorkloadAPI(t *testing.T, server workload.SpiffeWorkloadAPIServer) net.Addr {
@@ -60,8 +54,9 @@ func GetRandNamedPipeAddr() net.Addr {
 }
 
 func randUint64() uint64 {
-	mtx.Lock()
-	defer mtx.Unlock()
-
-	return rnd.Uint64()
+	var value uint64
+	if err := binary.Read(rand.Reader, binary.LittleEndian, &value); err != nil {
+		panic(fmt.Sprintf("failed to generate random value for pipe name: %v", err))
+	}
+	return value
 }

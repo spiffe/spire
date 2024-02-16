@@ -110,6 +110,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, endpoints.APIServers.HealthServer)
 	assert.NotNil(t, endpoints.APIServers.SVIDServer)
 	assert.NotNil(t, endpoints.BundleEndpointServer)
+	assert.NotNil(t, endpoints.EntryFetcherPruneEventsTask)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
 	assert.Equal(t, metrics, endpoints.Metrics)
@@ -186,7 +187,7 @@ func TestListenAndServe(t *testing.T) {
 		return entrycache.BuildFromDataStore(ctx, ds)
 	}
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, defaultCacheReloadInterval)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
 
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)
@@ -213,6 +214,7 @@ func TestListenAndServe(t *testing.T) {
 		Metrics:                      metrics,
 		RateLimit:                    rateLimit,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
+		EntryFetcherPruneEventsTask:  ef.PruneEventsTask,
 		AuthPolicyEngine:             pe,
 		AdminIDs:                     []spiffeid.ID{foreignAdminSVID.ID},
 	}

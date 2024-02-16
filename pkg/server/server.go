@@ -288,7 +288,6 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
 		HealthChecker:    healthChecker,
-		EventsBasedCache: s.config.EventsBasedCache,
 	})
 }
 

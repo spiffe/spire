@@ -135,11 +135,12 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 			return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
 		}
 
-		efFullCache, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, c.CacheReloadInterval)
+		efFullCache, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan)
 		if err != nil {
 			return nil, err
 		}
 		cacheRebuildTask = efFullCache.RunRebuildCacheTask
+		pruneEventsTask = efFullCache.PruneEventsTask
 		ef = efFullCache
 	}
 
