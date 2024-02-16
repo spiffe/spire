@@ -17,7 +17,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	credentialcomposerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/credentialcomposer/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
@@ -565,7 +564,6 @@ func TestBuildServerX509SVIDTemplate(t *testing.T) {
 			overrideExpected: func(expected *x509.Certificate) {
 				expected.Subject = pkix.Name{
 					CommonName: "OVERRIDE",
-					ExtraNames: []pkix.AttributeTypeAndValue{x509svid.UniqueIDAttribute(serverID)},
 				}
 			},
 		},
@@ -626,7 +624,6 @@ func TestBuildServerX509SVIDTemplate(t *testing.T) {
 					Subject: pkix.Name{
 						Country:      []string{"US"},
 						Organization: []string{"SPIRE"},
-						ExtraNames:   []pkix.AttributeTypeAndValue{x509svid.UniqueIDAttribute(serverID)},
 					},
 					SubjectKeyId:          publicKeyID,
 					AuthorityKeyId:        parentKeyID,
@@ -730,7 +727,6 @@ func TestBuildAgentX509SVIDTemplate(t *testing.T) {
 			overrideExpected: func(expected *x509.Certificate) {
 				expected.Subject = pkix.Name{
 					CommonName: "OVERRIDE",
-					ExtraNames: []pkix.AttributeTypeAndValue{x509svid.UniqueIDAttribute(agentID)},
 				}
 			},
 		},
@@ -792,7 +788,6 @@ func TestBuildAgentX509SVIDTemplate(t *testing.T) {
 					Subject: pkix.Name{
 						Country:      []string{"US"},
 						Organization: []string{"SPIRE"},
-						ExtraNames:   []pkix.AttributeTypeAndValue{x509svid.UniqueIDAttribute(agentID)},
 					},
 					SubjectKeyId:          publicKeyID,
 					AuthorityKeyId:        parentKeyID,
@@ -893,7 +888,6 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 			overrideExpected: func(expected *x509.Certificate) {
 				expected.Subject = pkix.Name{
 					CommonName: "OVERRIDE",
-					ExtraNames: []pkix.AttributeTypeAndValue{x509svid.UniqueIDAttribute(workloadID)},
 				}
 			},
 		},
@@ -920,7 +914,6 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 				// Subject is explicit.
 				expected.Subject = pkix.Name{
 					CommonName: "DNSNAME1",
-					ExtraNames: []pkix.AttributeTypeAndValue{x509svid.UniqueIDAttribute(workloadID)},
 				}
 			},
 		},
@@ -940,7 +933,6 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 				// allowed to override.
 				expected.Subject = pkix.Name{
 					CommonName: "OVERRIDE-1",
-					ExtraNames: []pkix.AttributeTypeAndValue{x509svid.UniqueIDAttribute(workloadID)},
 				}
 			},
 		},
@@ -1021,7 +1013,6 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 					Subject: pkix.Name{
 						Country:      []string{"US"},
 						Organization: []string{"SPIRE"},
-						ExtraNames:   []pkix.AttributeTypeAndValue{x509svid.UniqueIDAttribute(workloadID)},
 					},
 					SubjectKeyId:          publicKeyID,
 					AuthorityKeyId:        parentKeyID,

@@ -634,8 +634,7 @@ func TestNewServerConfig(t *testing.T) {
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "192.168.1.1", c.Federation.BundleEndpoint.Address.IP.String())
 				require.Equal(t, 1337, c.Federation.BundleEndpoint.Address.Port)
-				require.NotNil(t, c.Federation.BundleEndpoint.RefreshHint)
-				require.Equal(t, 10*time.Minute, *c.Federation.BundleEndpoint.RefreshHint)
+				require.Equal(t, 10*time.Minute, c.Federation.BundleEndpoint.RefreshHint)
 			},
 		},
 		{
@@ -673,8 +672,7 @@ func TestNewServerConfig(t *testing.T) {
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "0.0.0.0", c.Federation.BundleEndpoint.Address.IP.String())
 				require.Equal(t, 8443, c.Federation.BundleEndpoint.Address.Port)
-				require.NotNil(t, c.Federation.BundleEndpoint.RefreshHint)
-				require.Equal(t, 10*time.Minute, *c.Federation.BundleEndpoint.RefreshHint)
+				require.Equal(t, 10*time.Minute, c.Federation.BundleEndpoint.RefreshHint)
 				require.Nil(t, c.Federation.BundleEndpoint.ACME)
 			},
 		},
@@ -688,8 +686,7 @@ func TestNewServerConfig(t *testing.T) {
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "0.0.0.0", c.Federation.BundleEndpoint.Address.IP.String())
 				require.Equal(t, 8443, c.Federation.BundleEndpoint.Address.Port)
-				require.NotNil(t, c.Federation.BundleEndpoint.RefreshHint)
-				require.Equal(t, 10*time.Minute, *c.Federation.BundleEndpoint.RefreshHint)
+				require.Equal(t, 10*time.Minute, c.Federation.BundleEndpoint.RefreshHint)
 
 				expectACME := &bundle.ACMEConfig{
 					DomainName: "example.org",
@@ -748,7 +745,7 @@ func TestNewServerConfig(t *testing.T) {
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "192.168.1.1", c.Federation.BundleEndpoint.Address.IP.String())
 				require.Equal(t, 1337, c.Federation.BundleEndpoint.Address.Port)
-				require.Nil(t, c.Federation.BundleEndpoint.RefreshHint)
+				require.Equal(t, 5*time.Minute, c.Federation.BundleEndpoint.RefreshHint)
 			},
 		},
 		{

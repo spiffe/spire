@@ -574,7 +574,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 		},
 		{
 			name: "invalid DNS name",
-			err:  "invalid DNS name: label does not match regex: abc-",
+			err:  "idna error",
 			entry: &types.Entry{
 				SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
 				ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},

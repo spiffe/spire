@@ -93,7 +93,7 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 	if c.BundleEndpoint.Address == nil {
 		return nil
 	}
-	c.Log.WithField("addr", c.BundleEndpoint.Address).Info("Serving bundle endpoint")
+	c.Log.WithField("addr", c.BundleEndpoint.Address).WithField("refresh_hint", c.BundleEndpoint.RefreshHint).Info("Serving bundle endpoint")
 
 	var serverAuth bundle.ServerAuth
 	if c.BundleEndpoint.ACME != nil {

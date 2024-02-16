@@ -16,7 +16,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -145,7 +144,7 @@ func (r *rotator) rotateSVIDIfNeeded(ctx context.Context) (err error) {
 	}
 
 	if r.c.RotationStrategy.ShouldRotateX509(r.clk.Now(), state.SVID[0]) {
-		if state.Reattestable && fflag.IsSet(fflag.FlagReattestToRenew) {
+		if state.Reattestable && !r.c.DisableReattestToRenew {
 			err = r.reattest(ctx)
 		} else {
 			err = r.rotateSVID(ctx)
