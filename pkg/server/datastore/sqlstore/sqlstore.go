@@ -3818,6 +3818,9 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
 			return err
 		}
+		if err := createRegistrationEntryEvent(tx, entry.EntryID); err != nil {
+			return err
+		}
 		logger.WithFields(logrus.Fields{
 			telemetry.SPIFFEID:       entry.SpiffeID,
 			telemetry.ParentID:       entry.ParentID,

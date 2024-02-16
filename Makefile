@@ -136,15 +136,15 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version = v1.55.0
+golangci_lint_version := $(shell awk '/golangci_lint/{print $$2}' .spire-tool-versions)
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
-markdown_lint_version = v0.37.0
+markdown_lint_version := $(shell awk '/markdown_lint/{print $$2}' .spire-tool-versions)
 markdown_lint_image = ghcr.io/igorshubovych/markdownlint-cli:$(markdown_lint_version)
 
-protoc_version = 24.4
+protoc_version := $(shell awk '/protoc/{print $$2}' .spire-tool-versions)
 ifeq ($(os1),windows)
 protoc_url = https://github.com/protocolbuffers/protobuf/releases/download/v$(protoc_version)/protoc-$(protoc_version)-win64.zip
 else ifeq ($(arch2),arm64)
