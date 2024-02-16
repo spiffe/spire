@@ -39,9 +39,22 @@ func TestAWSRDS(t *testing.T) {
 		tokenProvider *fakeTokenBuilder
 		authToken     string
 		expectedError string
+		gormDialect   string
 	}{
 		{
-			name: "with static credentials",
+			name:        "mysql - success",
+			gormDialect: fakeMySQLDriverName,
+			config: &Config{
+				DriverName: MySQLDriverName,
+				ConnString: mysqlConnString,
+			},
+			tokenProvider: &fakeTokenBuilder{
+				authToken: token,
+			},
+		},
+		{
+			name:        "mysql - success with static credentials",
+			gormDialect: fakeMySQLDriverName,
 			config: &Config{
 				DriverName:      MySQLDriverName,
 				ConnString:      mysqlConnString,
@@ -53,17 +66,8 @@ func TestAWSRDS(t *testing.T) {
 			},
 		},
 		{
-			name: "mysql - success",
-			config: &Config{
-				DriverName: MySQLDriverName,
-				ConnString: mysqlConnString,
-			},
-			tokenProvider: &fakeTokenBuilder{
-				authToken: token,
-			},
-		},
-		{
-			name: "mysql - invalid connection string",
+			name:        "mysql - invalid connection string",
+			gormDialect: fakeMySQLDriverName,
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: "not-valid!",
@@ -74,7 +78,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "could not parse connection string: invalid DSN: missing the slash separating the database name",
 		},
 		{
-			name: "mysql - password already present",
+			name:        "mysql - password already present",
+			gormDialect: fakeMySQLDriverName,
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: "test_user:test-password@tcp(aws-rds-host:1234)/spire?parseTime=true&allowCleartextPasswords=1&tls=true",
@@ -85,7 +90,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "unexpected password in connection string for IAM authentication",
 		},
 		{
-			name: "malformed token",
+			name:        "malformed token",
+			gormDialect: fakeMySQLDriverName, // have a registered driver here, not relevant for this case
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: mysqlConnString,
@@ -96,7 +102,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "could not get authentication token: failed to parse authentication token: invalid semicolon separator in query",
 		},
 		{
-			name: "no X-Amz-Date",
+			name:        "no X-Amz-Date",
+			gormDialect: fakeMySQLDriverName, // have a registered driver here, not relevant for this case
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: mysqlConnString,
@@ -107,7 +114,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "could not get authentication token: malformed token: could not get X-Amz-Date value",
 		},
 		{
-			name: "more than one X-Amz-Date",
+			name:        "more than one X-Amz-Date",
+			gormDialect: fakePostgresDriverName, // have a registered driver here, not relevant for this case
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: mysqlConnString,
@@ -118,7 +126,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "could not get authentication token: malformed token: could not get X-Amz-Date value",
 		},
 		{
-			name: "invalid X-Amz-Date",
+			name:        "invalid X-Amz-Date",
+			gormDialect: fakeMySQLDriverName, // have a registered driver here, not relevant for this case
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: mysqlConnString,
@@ -129,7 +138,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "could not get authentication token: failed to parse X-Amz-Date date: parsing time \"invalid\" as \"20060102T150405Z\": cannot parse \"invalid\" as \"2006\"",
 		},
 		{
-			name: "no X-Amz-Expires",
+			name:        "no X-Amz-Expires",
+			gormDialect: fakePostgresDriverName, // have a registered driver here, not relevant for this case
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: mysqlConnString,
@@ -140,7 +150,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "could not get authentication token: malformed token: could not get X-Amz-Expires value",
 		},
 		{
-			name: "more than one X-Amz-Expires",
+			name:        "more than one X-Amz-Expires",
+			gormDialect: fakeMySQLDriverName, // have a registered driver here, not relevant for this case
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: mysqlConnString,
@@ -151,7 +162,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "could not get authentication token: malformed token: could not get X-Amz-Expires value",
 		},
 		{
-			name: "invalid X-Amz-Expires",
+			name:        "invalid X-Amz-Expires",
+			gormDialect: fakePostgresDriverName, // have a registered driver here, not relevant for this case
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: mysqlConnString,
@@ -162,7 +174,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "could not get authentication token: failed to parse X-Amz-Expires duration: time: invalid duration \"zzs\"",
 		},
 		{
-			name: "build auth token error",
+			name:        "build auth token error",
+			gormDialect: fakePostgresDriverName, // have a registered driver here, not relevant for this case
 			config: &Config{
 				DriverName: MySQLDriverName,
 				ConnString: mysqlConnString,
@@ -174,7 +187,8 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "could not get authentication token: failed to build authentication token: ohno",
 		},
 		{
-			name: "postgres - success",
+			name:        "postgres - success",
+			gormDialect: fakePostgresDriverName,
 			config: &Config{
 				DriverName: PostgresDriverName,
 				ConnString: postgresConnString,
@@ -184,18 +198,8 @@ func TestAWSRDS(t *testing.T) {
 			},
 		},
 		{
-			name: "postgres - invalid connection string",
-			config: &Config{
-				DriverName: PostgresDriverName,
-				ConnString: "not-valid!",
-			},
-			tokenProvider: &fakeTokenBuilder{
-				authToken: token,
-			},
-			expectedError: "could not parse connection string: cannot parse `not-valid!`: failed to parse as DSN (invalid dsn)",
-		},
-		{
-			name: "postgres - password already present",
+			name:        "postgres - password already present",
+			gormDialect: fakePostgresDriverName,
 			config: &Config{
 				DriverName: PostgresDriverName,
 				ConnString: "password=the-password",
@@ -206,17 +210,33 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "unexpected password in connection string for IAM authentication",
 		},
 		{
-			name: "postgres - success",
+			name:        "postgres - invalid connection string",
+			gormDialect: fakePostgresDriverName,
 			config: &Config{
 				DriverName: PostgresDriverName,
-				ConnString: postgresConnString,
+				ConnString: "not-valid!",
+			},
+			tokenProvider: &fakeTokenBuilder{
+				authToken: token,
+			},
+			expectedError: "could not parse connection string: cannot parse `not-valid!`: failed to parse as DSN (invalid dsn)",
+		},
+		{
+			name:        "postgres - success with static credentials",
+			gormDialect: fakePostgresDriverName,
+			config: &Config{
+				DriverName:      PostgresDriverName,
+				ConnString:      postgresConnString,
+				AccessKeyID:     "access-key-id",
+				SecretAccessKey: "secret-access-key",
 			},
 			tokenProvider: &fakeTokenBuilder{
 				authToken: token,
 			},
 		},
 		{
-			name: "unknown driver",
+			name:        "unknown driver",
+			gormDialect: fakeMySQLDriverName, // have a registered driver here, not relevant for this case
 			config: &Config{
 				DriverName: "unknown",
 			},
@@ -226,8 +246,9 @@ func TestAWSRDS(t *testing.T) {
 			expectedError: "driver \"unknown\" is not supported",
 		},
 		{
-			name:   "no driver",
-			config: &Config{},
+			name:        "no driver",
+			gormDialect: fakePostgresDriverName, // have a registered driver here, not relevant for this case
+			config:      &Config{},
 			tokenProvider: &fakeTokenBuilder{
 				authToken: token,
 			},
@@ -242,7 +263,7 @@ func TestAWSRDS(t *testing.T) {
 
 			fakeSQLDriverWrapper.tokenBuilder = testCase.tokenProvider
 
-			db, err := gorm.Open(fakeMySQLDriverName, dsn)
+			db, err := gorm.Open(testCase.gormDialect, dsn)
 			if testCase.expectedError != "" {
 				require.EqualError(t, err, testCase.expectedError)
 				return
