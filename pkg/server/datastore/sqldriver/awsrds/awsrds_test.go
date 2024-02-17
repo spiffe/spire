@@ -31,6 +31,10 @@ var (
 )
 
 func TestAWSRDS(t *testing.T) {
+	// Some GitHub runners may have populated the PGPASSWORD environment
+	// variable. Have an empty value during the test.
+	t.Setenv("PGPASSWORD", "")
+
 	testCases := []struct {
 		name          string
 		config        *Config
