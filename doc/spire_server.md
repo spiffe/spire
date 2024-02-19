@@ -109,7 +109,7 @@ This may be useful for templating configuration files, for example across differ
 
 ### Profiling Names
 
-These are the available profiles that can be set in the `profiling_freq` configuration value:
+These are the available profiles that can be set in the `profiling_names` configuration value:
 
 - `goroutine`
 - `threadcreate`
