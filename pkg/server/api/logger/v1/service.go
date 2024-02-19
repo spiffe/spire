@@ -44,13 +44,13 @@ func (service *Service) GetLogger(ctx context.Context, req *loggerv1.GetLoggerRe
 
 func (service *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequest) (*types.Logger, error) {
 	logrus.WithFields(logrus.Fields{
-		"RequestLevel": loggerv1.SetLogLevelRequest_SetValue_name[int32(req.LogLevel)],
+		"RequestLevel": loggerv1.SetLogLevelRequest_SetValue_name[int32(req.SetLevel)],
 	}).Info("SetLogger Called")
-	setLevel := loggerv1.SetLogLevelRequest_SetValue(req.LogLevel)
+	setLevel := loggerv1.SetLogLevelRequest_SetValue(req.SetLevel)
 	if setLevel == loggerv1.SetLogLevelRequest_DEFAULT {
 		logrus.SetLevel(service.DefaultLevel)
 	} else {
-		logrus.SetLevel(logrus.Level(req.LogLevel))
+		logrus.SetLevel(logrus.Level(req.SetLevel))
 	}
 	logger := &types.Logger{
 		CurrentLevel: types.Logger_LogLevel(logrus.GetLevel()),

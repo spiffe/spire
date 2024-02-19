@@ -1,0 +1,105 @@
+package logger_test
+
+import (
+	"io"
+	"testing"
+	"github.com/spiffe/spire/test/spiretest"
+
+	"bytes"
+	"context"
+
+	"github.com/mitchellh/cli"
+	"github.com/spiffe/spire/cmd/spire-server/cli/common"
+	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"google.golang.org/grpc"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
+)
+
+// an input/output capture struct
+type loggerTest struct {
+	stdin  *bytes.Buffer
+	stdout *bytes.Buffer
+	stderr *bytes.Buffer
+	args   []string
+        server *mockLoggerServer
+	client cli.Command
+}
+
+// serialization of capture
+func (l *loggerTest) afterTest(t *testing.T) {
+	t.Logf("TEST:%s", t.Name())
+	t.Logf("STDOUT:\n%s", l.stdout.String())
+	t.Logf("STDIN:\n%s", l.stdin.String())
+	t.Logf("STDERR:\n%s", l.stderr.String())
+}
+
+// setup of input/output capture
+func setupCliTest(t *testing.T, server *mockLoggerServer, newClient func(*commoncli.Env) cli.Command) *loggerTest {
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
+		loggerv1.RegisterLoggerServer(s, server)
+	})
+
+	stdin  := new(bytes.Buffer)
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+
+	client := newClient(&commoncli.Env{
+		Stdin:  stdin,
+		Stdout: stdout,
+		Stderr: stderr,
+	})
+
+	test := &loggerTest{
+		stdin:  stdin,
+		stdout: stdout,
+		stderr: stderr,
+		args:   []string{common.AddrArg, common.GetAddr(addr)},
+		server: server,
+		client: client,
+	}
+
+	t.Cleanup(func() {
+		test.afterTest(t)
+	})
+
+	return test
+}
+
+// a mock grpc logger server
+type mockLoggerServer struct {
+	loggerv1.UnimplementedLoggerServer
+
+	receivedSetValue loggerv1.SetLogLevelRequest_SetValue
+	returnLogger *types.Logger
+	returnErr error
+}
+
+// mock implementation for GetLogger
+func (s *mockLoggerServer) GetLogger(_ context.Context, _ *loggerv1.GetLoggerRequest) (*types.Logger, error) {
+	return s.returnLogger, s.returnErr
+}
+
+func (s *mockLoggerServer) SetLogLevel(_ context.Context, req *loggerv1.SetLogLevelRequest) (*types.Logger, error) {
+	s.receivedSetValue = req.SetLevel
+	return s.returnLogger, s.returnErr
+}
+
+var _ io.Writer = &errorWriter{}
+
+type errorWriter struct {
+	ReturnError error
+	Buffer bytes.Buffer
+}
+
+func (e *errorWriter) Write(p []byte) (n int, err error) {
+	if e.ReturnError != nil {
+		return 0, e.ReturnError
+	}
+	return e.Buffer.Write(p)
+}
+
+func (e *errorWriter) String() string {
+	return e.Buffer.String()
+}
+

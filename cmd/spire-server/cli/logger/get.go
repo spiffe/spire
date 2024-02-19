@@ -2,14 +2,11 @@ package logger
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 
-	"github.com/sirupsen/logrus"
 	"github.com/mitchellh/cli"
 	api "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -59,19 +56,6 @@ func (c *getCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 
 // Formatting for the logger under pretty printing of output.
 func (l* getCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error {
-	logger, ok := results[0].(*types.Logger)
-	if !ok {
-		return errors.New("internal error: logger not found; please report this as a bug")
-	}
-	if err := env.Printf("Logger Level  : %s\n", logrus.Level(logger.CurrentLevel)); err != nil {
-		return err
-	}
-	if err := env.Printf("Logger Default: %s\n", logrus.Level(logger.DefaultLevel)); err != nil {
-		return err
-	}
-	if err := env.Println(); err != nil {
-		return err
-	}
-	return nil
+	return PrettyPrintLogger(env, results...)
 }
 

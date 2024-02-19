@@ -2,15 +2,12 @@ package logger
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"strings"
 
-	"github.com/sirupsen/logrus"
 	"github.com/mitchellh/cli"
 	api "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -40,12 +37,12 @@ func (_ *setCommand) Name() string {
 
 // The help presented description of the command.
 func (_ *setCommand) Synopsis() string {
-	return "Sets the logger attributes"
+	return "Sets the logger details"
 }
 
 // Adds additional flags specific to the command.
 func (c *setCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.newLevel, "level", "", "the new log level, one of (debug)")
+	fs.StringVar(&c.newLevel, "level", "", "The new log level, one of (panic, fatal, error, warn, info, debug, trace, default)")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintLogger)
 }
 
@@ -61,7 +58,7 @@ func (c *setCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 		}
 
 		logger, err := serverClient.NewLoggerClient().SetLogLevel(ctx, &api.SetLogLevelRequest{
-			LogLevel: api.SetLogLevelRequest_SetValue(value),
+			SetLevel: api.SetLogLevelRequest_SetValue(value),
 		})
 		if err != nil {
 			return fmt.Errorf("error fetching logger: %w", err)
@@ -70,23 +67,9 @@ func (c *setCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 		return c.printer.PrintProto(logger)
 	}
 
-	return fmt.Errorf("a value must be set")
+	return fmt.Errorf("a value (-level) must be set")
 }
 
 func (l* setCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error {
-	logger, ok := results[0].(*types.Logger)
-	if !ok {
-		return errors.New("internal error: logger not found; please report this as a bug")
-	}
-	if err := env.Printf("Logger Level : %s\n", logrus.Level(logger.CurrentLevel)); err != nil {
-		return err
-	}
-	if err := env.Printf("Logger Default : %s\n", logrus.Level(logger.DefaultLevel)); err != nil {
-		return err
-	}
-	if err := env.Println(); err != nil {
-		return err
-	}
-	return nil
+	return PrettyPrintLogger(env, results...)
 }
-
