@@ -99,7 +99,7 @@ Only one of these three options may be set at a time.
 
 ### Profiling Names
 
-These are the available profiles that can be set in the `profiling_freq` configuration value:
+These are the available profiles that can be set in the `profiling_names` configuration value:
 
 - `goroutine`
 - `threadcreate`
