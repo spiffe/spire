@@ -1,6 +1,7 @@
 #!/bin/bash
 
 log-info "Checking CipherTrust KMS Signing Service..."
+sleep 15
 
 if docker-compose logs spire-server | grep -q "Signature received from CipherTrust"; then
   log-info "SVID Signature generated successfully."

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 log-info "Checking Server SVID Bootstrap..."
+sleep 15
 
 if docker-compose logs spire-server | grep -q "Signed X509 SVID"; then
   log-info "Server SVID Signed with the Thales CipherTrust Key Manager."
