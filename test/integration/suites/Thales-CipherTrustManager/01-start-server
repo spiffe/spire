@@ -1,3 +1,4 @@
 #!/bin/bash
 
 docker-up spire-server
+sleep 5
