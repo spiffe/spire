@@ -1,9 +1,11 @@
-# Join Token Suite
+# Spire Server with Thales CipherTrust KMS
 
 ## Description
 
 This suite verifies that:
 
-- An agent can attest with a join token
-- A join token vanity record can be used to register a workload
-- A join token cannot be reused
+- The Spire Server can reach the Thales CipherTrust KMS for generating key pairs and signing SVIDs.
+- The Spire Server can deleguate signature of SVID to Thales CipherTrust KMS therefore bootstrap the Server Identity.
+
+
+

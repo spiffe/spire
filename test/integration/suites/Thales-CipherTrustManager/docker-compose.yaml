@@ -1,12 +1,8 @@
 version: '3'
 services:
   spire-server:
-    image: ghcr.io/spiffe/spire-server:1.8.2
+    image: spire-server:latest-local
     volumes:
       - ./conf/server:/opt/spire/conf/server
+      - ./ctmkms:/opt/spire/ctmkms
     command: ["-config", "/opt/spire/conf/server/server.conf"]
-  spire-agent:
-    image: ghcr.io/spiffe/spire-agent:1.8.2
-    volumes:
-      - ./conf/agent:/opt/spire/conf/agent
-    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
