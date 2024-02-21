@@ -113,7 +113,7 @@ func TestSetHelp(t *testing.T) {
 
 func TestSetSynopsis(t *testing.T) {
 	test := setupTest(t, newSetCommand)
-	require.Equal(t, "Creates or updates bundle data", test.client.Synopsis())
+	require.Equal(t, "Creates or updates federated bundle data", test.client.Synopsis())
 }
 
 func TestSet(t *testing.T) {
@@ -697,7 +697,7 @@ func TestDeleteHelp(t *testing.T) {
 
 func TestDeleteSynopsis(t *testing.T) {
 	test := setupTest(t, newDeleteCommand)
-	require.Equal(t, "Deletes bundle data", test.client.Synopsis())
+	require.Equal(t, "Deletes federated bundle data", test.client.Synopsis())
 }
 
 func TestDelete(t *testing.T) {
