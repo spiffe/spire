@@ -70,7 +70,7 @@ require (
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20231107161112-ba57e0e943a2
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230721151831-bf67dde4721d
 	github.com/stretchr/testify v1.8.4
-	github.com/uber-go/tally/v4 v4.1.10
+	github.com/uber-go/tally/v4 v4.1.11
 	github.com/valyala/fastjson v1.6.4
 	github.com/zeebo/errs v1.3.0
 	golang.org/x/crypto v0.18.0
@@ -196,6 +196,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/certificate-transparency-go v1.1.7 // indirect
