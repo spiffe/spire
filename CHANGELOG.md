@@ -6,7 +6,7 @@
 
 - `uniqueid` CredentialComposer plugin that adds the x509UniqueIdentifier attribute to workload X509-SVIDs (#4862)
 - Agent's Admin API has now a default location defined (#4856)
-- Partial selectors from workload attestation are now logged even if the client hangs up a connection to the agent (#4846)
+- Partial selectors from workload attestation are now logged when attestation is interrupted (#4846)
 - X509-SVIDs minted by SPIRE can now include wildcards in the DNS names (#4814)
 
 ### Changed
@@ -14,21 +14,19 @@
 - CA journal data is now stored in the datastore, removing the on-disk dependency of the server (#4690)
 - `aws_kms`, `azure_key_vault`, and `gcp_kms` KeyManager plugins no longer require storing metadata files on disk (#4700)
 - Bundle endpoint refresh hint now defaults to 5 minutes (#4847, #4888)
-- Wait for all RPC handlers to drain when unloading built-in plugins (#4820)
-- Entry cache hydration is now done with paginated requests to the datastore when listing entries (#4721)
-- Node attestors that can be re-attested now go through re-attestation by default (#4791)
-- SPIRE Agent now uses the LRU cache by default (#4773)
+- Graceful shutdown is now blocked while built-in plugin RPCs drain (#4820)
+- Entry cache hydration is now done with paginated requests to the datastore (#4721, #4826)
+- Agents renew SVIDs through re-attestation by default when using a supporting Node Attestor (#4791)
+- The SPIRE Agent LRU SVID cache is no longer experimental and is enabled by default (#4773)
 - Small documentation improvements (#4764, #4787)
-- Read-replicas are no longer used for initial events-based cache load (#4868)
-- Events based entry cache is now paginated on startup (#4826)
-- Events data is now unconditionally populated and pruned, irrespective of whether or not the events-based cache is utilized (#4813)
+- Read-replicas are no longer used when hydrating the experimental events-based entry cache (#4868)
+- Workload gRPC connections are now terminated when the peertracker liveness check fails instead of just failing the RPC calls (#4611)
 
 ### Fixed
 
-- Peertracker bug that could keep connections opened when the check to know if a process is still alive failed (#4611)
-- Missing creation of events in the events based entry cache when an entry was pruned (#4860)
-- Bug in LRU cache of the agent when no selector was found in attestation process (#4852)
-- Refreshing of selectors of attested agents when using the events based entry cache (#4803)
+- Missing creation of events in the experimental events-based cache entry when an entry was pruned (#4860)
+- Bug in SPIRE Agent LRU SVID cache that caused health checks to fail (#4852)
+- Refreshing of selectors of attested agents when using the experimental events-based entry cache (#4803)
 
 ### Deprecated
 
