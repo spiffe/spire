@@ -1213,6 +1213,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "workload",
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.ExpiresAt:      expiresAtFromCAStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/workload1",
 						},
 					},
 				}
@@ -1236,6 +1237,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "ttl",
 							telemetry.Csr:            api.HashByte(m["ttl"]),
 							telemetry.ExpiresAt:      expiresAtFromTTLEntryStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/ttl",
 						},
 					},
 				}
@@ -1259,6 +1261,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "x509ttl",
 							telemetry.Csr:            api.HashByte(m["x509ttl"]),
 							telemetry.ExpiresAt:      expiresAtFromX509TTLEntryStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/ttl",
 						},
 					},
 				}
@@ -1282,6 +1285,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "dns",
 							telemetry.Csr:            api.HashByte(m["dns"]),
 							telemetry.ExpiresAt:      expiresAtFromCAStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/dns",
 						},
 					},
 				}
@@ -1314,6 +1318,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "workload",
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.ExpiresAt:      expiresAtFromCAStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/workload1",
 						},
 					},
 					{
@@ -1334,6 +1339,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["invalid"]),
 							telemetry.StatusCode:     "Internal",
 							telemetry.StatusMessage:  "entry has malformed SPIFFE ID: request must specify SPIFFE ID",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 					{
@@ -1345,6 +1351,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "dns",
 							telemetry.Csr:            api.HashByte(m["dns"]),
 							telemetry.ExpiresAt:      expiresAtFromCAStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/dns",
 						},
 					},
 				}
@@ -1477,6 +1484,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m[""]),
 							telemetry.StatusCode:     "InvalidArgument",
 							telemetry.StatusMessage:  "missing entry ID",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1511,6 +1519,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            "",
 							telemetry.StatusCode:     "InvalidArgument",
 							telemetry.StatusMessage:  "missing CSR",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1545,6 +1554,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["invalid entry"]),
 							telemetry.StatusCode:     "NotFound",
 							telemetry.StatusMessage:  "entry not found or not authorized",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1583,6 +1593,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.StatusCode:     "InvalidArgument",
 							telemetry.StatusMessage:  fmt.Sprintf("malformed CSR: %v", invalidCsrErr),
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1624,6 +1635,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.StatusCode:     "InvalidArgument",
 							telemetry.StatusMessage:  "invalid CSR signature: x509: ECDSA verification failure",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1659,6 +1671,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["invalid"]),
 							telemetry.StatusCode:     "Internal",
 							telemetry.StatusMessage:  "entry has malformed SPIFFE ID: request must specify SPIFFE ID",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1696,6 +1709,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.StatusCode:     "Internal",
 							telemetry.StatusMessage:  "failed to sign X509-SVID: oh no",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
