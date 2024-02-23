@@ -86,7 +86,7 @@ func (a *authToken) getAuthToken(ctx context.Context, config *Config, tokenBuild
 
 func (a *authToken) isExpired() bool {
 	clockSkew := time.Minute // Make sure that the authentication token is valid for one more minute.
-	return nowFunc().Add(clockSkew).Sub(a.expiresAt) >= 0
+	return nowFunc().Add(-clockSkew).Sub(a.expiresAt) >= 0
 }
 
 type awsTokenBuilder struct{}

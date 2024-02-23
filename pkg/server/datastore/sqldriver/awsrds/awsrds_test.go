@@ -30,6 +30,10 @@ var (
 	}
 )
 
+func init() {
+	sql.Register(fakeSQLDriverName, fakeSQLDriverWrapper)
+}
+
 func TestAWSRDS(t *testing.T) {
 	// Some GitHub runners may have populated the PGPASSWORD environment
 	// variable. Have an empty value during the test.
@@ -361,8 +365,4 @@ type fakeSQLDriver struct {
 
 func (d *fakeSQLDriver) Open(string) (driver.Conn, error) {
 	return nil, d.err
-}
-
-func init() {
-	sql.Register(fakeSQLDriverName, fakeSQLDriverWrapper)
 }

@@ -172,7 +172,7 @@ Settings of the [`postgres`](#database_type--postgres) database type also apply 
 ```hcl
     DataStore "sql" {
         plugin_data {
-           database_type "aws_postgres" {
+            database_type "aws_postgres" {
                 region = "us-east-2"
             }
             connection_string = "dbname=spire user=test_user host=spire-test.example.us-east-2.rds.amazonaws.com port=5432 sslmode=require"

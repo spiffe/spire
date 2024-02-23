@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -34,6 +36,11 @@ type Config struct {
 	DbUser          string `json:"dbuser"`
 	DriverName      string `json:"driver_name"`
 	ConnString      string `json:"conn_string"`
+}
+
+func init() {
+	registerPostgres()
+	registerMySQL()
 }
 
 // FormatDSN returns a DSN string based on the configuration.
@@ -66,6 +73,8 @@ type tokens map[string]tokenGetter
 type sqlDriverWrapper struct {
 	sqlDriver    driver.Driver
 	tokenBuilder authTokenBuilder
+
+	tokensMapMtx sync.Mutex
 	tokensMap    tokens
 }
 
@@ -84,6 +93,9 @@ func (w *sqlDriverWrapper) Open(name string) (driver.Conn, error) {
 	if err := json.Unmarshal([]byte(name), config); err != nil {
 		return nil, fmt.Errorf("could not unmarshal configuration: %w", err)
 	}
+
+	w.tokensMapMtx.Lock()
+	defer w.tokensMapMtx.Unlock()
 
 	token, ok := w.tokensMap[name]
 	if !ok {
@@ -117,7 +129,7 @@ func addPasswordToPostgresConnString(connString, password string) (string, error
 	if cfg.Password != "" {
 		return "", errors.New("unexpected password in connection string for IAM authentication")
 	}
-	return fmt.Sprintf("%s password=%s", connString, password), nil
+	return fmt.Sprintf("%s password='%s'", connString, escapeSpecialCharsPostgres(password)), nil
 }
 
 func addPasswordToMySQLConnString(connString, password string) (string, error) {
@@ -134,9 +146,12 @@ func addPasswordToMySQLConnString(connString, password string) (string, error) {
 	return cfg.FormatDSN(), nil
 }
 
-func init() {
-	registerPostgres()
-	registerMySQL()
+// escapeSpecialCharsPostgres escapes special characters within a value of a
+// keyword/value postgres connection string.
+// Single quotes and backslashes within a value must be escaped with a
+// backslash, i.e., \' and \\.
+func escapeSpecialCharsPostgres(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `'`, `\'`)
 }
 
 func registerPostgres() {
