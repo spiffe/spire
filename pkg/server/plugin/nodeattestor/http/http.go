@@ -33,16 +33,16 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type configuration struct {
-	trustDomain  spiffeid.TrustDomain
-	pathTemplate *agentpathtemplate.Template
+	trustDomain         spiffeid.TrustDomain
+	pathTemplate        *agentpathtemplate.Template
 	allowAlternatePorts bool
-	dnsPatterns []*regexp.Regexp
+	dnsPatterns         []*regexp.Regexp
 }
 
 type Config struct {
 	DNSPatterns         []string `hcl:"dns_patterns"`
-	AllowAlternatePorts bool `hcl:"allow_alternate_ports"`
-	AgentPathTemplate   string `hcl:"agent_path_template"`
+	AllowAlternatePorts bool     `hcl:"allow_alternate_ports"`
+	AgentPathTemplate   string   `hcl:"agent_path_template"`
 }
 
 type Plugin struct {
@@ -83,17 +83,16 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	notfound := false
-	for re := range config.dnsPatterns {
+	for _, re := range config.dnsPatterns {
 		notfound = true
 		l := re.FindAllStringSubmatch(attestationData.HostName, -1)
 		if len(l) > 0 {
 			notfound = false
 			break
 		}
-
 	}
 	if notfound {
-		return status.Errorf(codes.PermissionDenied, "the requested hostname is not allowed to connect", err)
+		return status.Errorf(codes.PermissionDenied, "the requested hostname is not allowed to connect")
 	}
 
 	challenge, err := http.GenerateChallenge()
@@ -180,9 +179,9 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	}
 
 	p.setConfiguration(&configuration{
-		trustDomain:  trustDomain,
-		pathTemplate: pathTemplate,
-		dnsPatterns: dnsPatterns,
+		trustDomain:         trustDomain,
+		pathTemplate:        pathTemplate,
+		dnsPatterns:         dnsPatterns,
 		allowAlternatePorts: hclConfig.AllowAlternatePorts,
 	})
 
@@ -204,10 +203,10 @@ func (p *Plugin) setConfiguration(config *configuration) {
 	p.config = config
 }
 
-func buildSelectorValues(HostName string) []string {
+func buildSelectorValues(hostName string) []string {
 	var selectorValues []string
 
-	selectorValues = append(selectorValues, "http:hostname:" + HostName)
+	selectorValues = append(selectorValues, "http:hostname:"+hostName)
 
 	return selectorValues
 }

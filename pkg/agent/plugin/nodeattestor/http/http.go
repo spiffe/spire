@@ -36,8 +36,8 @@ type configData struct {
 
 type Config struct {
 	HostName       string `hcl:"hostname"`
-	Port           int `hcl:"port"`
-	AdvertisedPort int `hcl:"advertised_port"`
+	Port           int    `hcl:"port"`
+	AdvertisedPort int    `hcl:"advertised_port"`
 }
 
 type Plugin struct {
@@ -78,7 +78,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %v", err)
 	}
 
-//FIXME open http port and post nonce here. When nonce fetched, auto remove webserver.
+	// FIXME open http port and post nonce here. When nonce fetched, auto remove webserver.
 
 	response, err := http.CalculateResponse(challenge)
 	if err != nil {
@@ -144,16 +144,16 @@ func loadConfigData(config *Config) (*configData, error) {
 	}
 
 	if config.Port == 0 {
-		config.Port = 80;
+		config.Port = 80
 	}
 
 	if config.AdvertisedPort == 0 {
-		config.AdvertisedPort = 80;
+		config.AdvertisedPort = 80
 	}
 
 	attestationPayload, err := json.Marshal(http.AttestationData{
 		HostName: config.HostName,
-		Port: config.AdvertisedPort,
+		Port:     config.AdvertisedPort,
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)

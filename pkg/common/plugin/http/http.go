@@ -26,7 +26,7 @@ type agentPathTemplateData struct {
 
 type AttestationData struct {
 	HostName string `json:"hostname"`
-	Port     int `json:"port"`
+	Port     int    `json:"port"`
 }
 
 type Challenge struct {
@@ -41,23 +41,23 @@ func GenerateChallenge() (*Challenge, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Challenge {Nonce: nonce}, nil
+	return &Challenge{Nonce: nonce}, nil
 }
 
 func CalculateResponse(challenge *Challenge) (*Response, error) {
-	return &Response {}, nil;
+	return &Response{}, nil
 }
 
 func VerifyChallengeResponse(challenge *Challenge, response *Response) error {
-	//FIXME Contact host and verify nonce.
+	// FIXME Contact host and verify nonce.
 	return nil
 }
 
 // MakeAgentID creates an agent ID
 func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, hostName string) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
-		PluginName:      PluginName,
-		HostName:        hostName,
+		PluginName: PluginName,
+		HostName:   hostName,
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
