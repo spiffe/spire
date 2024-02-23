@@ -3,7 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
-	"regex"
+	"regexp"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -13,7 +13,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/http"
-	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -37,7 +36,7 @@ type configuration struct {
 	trustDomain  spiffeid.TrustDomain
 	pathTemplate *agentpathtemplate.Template
 	allowAlternatePorts bool
-	dnsPatterns []regex.Regexp
+	dnsPatterns []*regexp.Regexp
 }
 
 type Config struct {
@@ -79,12 +78,12 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.InvalidArgument, "failed to unmarshal data: %v", err)
 	}
 
-	if (!AllowAlternatePorts) && attestationData.Port != 80 {
+	if (!config.allowAlternatePorts) && attestationData.Port != 80 {
 		return status.Error(codes.InvalidArgument, "port is not allowed to be overridden by this server")
 	}
 
 	notfound := false
-	for re in config.dnsPatterns {
+	for re := range config.dnsPatterns {
 		notfound = true
 		l := re.FindAllStringSubmatch(attestationData.HostName, -1)
 		if len(l) > 0 {
@@ -130,7 +129,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-	spiffeid, err := http.MakeAgentID(config.trustDomain, config.pathTemplate, leaf)
+	spiffeid, err := http.MakeAgentID(config.trustDomain, config.pathTemplate, attestationData.HostName)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
@@ -139,7 +138,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       spiffeid.String(),
-				SelectorValues: buildSelectorValues(leaf, chains),
+				SelectorValues: buildSelectorValues(attestationData.HostName),
 				CanReattest:    true,
 			},
 		},
@@ -174,8 +173,8 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		pathTemplate = tmpl
 	}
 
-	var dnsPatterns []regex.Regexp
-	for r in hclConfig.DNSPatterns {
+	var dnsPatterns []*regexp.Regexp
+	for _, r := range hclConfig.DNSPatterns {
 		re := regexp.MustCompile(r)
 		dnsPatterns = append(dnsPatterns, re)
 	}
@@ -205,12 +204,10 @@ func (p *Plugin) setConfiguration(config *configuration) {
 	p.config = config
 }
 
-func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {
+func buildSelectorValues(HostName string) []string {
 	var selectorValues []string
 
-	if leaf.Subject.CommonName != "" {
-		selectorValues = append(selectorValues, "subject:cn:"+leaf.Subject.CommonName)
-	}
+	selectorValues = append(selectorValues, "http:hostname:" + HostName)
 
 	return selectorValues
 }

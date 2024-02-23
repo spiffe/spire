@@ -1,17 +1,7 @@
 package http
 
 import (
-	"crypto"
-	"crypto/ecdsa"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha1" //nolint: gosec // SHA1 use is according to specification
-	"crypto/sha256"
-	"crypto/x509"
-	"encoding/hex"
-	"errors"
-	"fmt"
-	"math/big"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -48,18 +38,19 @@ type Response struct {
 
 func GenerateChallenge() (*Challenge, error) {
 	nonce, err := generateNonce()
-	if err: {
+	if err != nil {
 		return nil, err
 	}
-	return Challenge {Nonce: nonce}
+	return &Challenge {Nonce: nonce}, nil
 }
 
-func CalculateResponse(privateKey any, challenge *Challenge) (*Response, error) {
-	return Response {}, nil;
+func CalculateResponse(challenge *Challenge) (*Response, error) {
+	return &Response {}, nil;
 }
 
 func VerifyChallengeResponse(challenge *Challenge, response *Response) error {
 	//FIXME Contact host and verify nonce.
+	return nil
 }
 
 // MakeAgentID creates an agent ID

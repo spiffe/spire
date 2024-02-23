@@ -2,10 +2,8 @@ package http
 
 import (
 	"context"
-	"crypto"
-	"crypto/tls"
 	"encoding/json"
-	"strings"
+	"os"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -13,7 +11,6 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/http"
-	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -83,7 +80,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 
 //FIXME open http port and post nonce here. When nonce fetched, auto remove webserver.
 
-	response, err := http.CalculateResponse(data.privateKey, challenge)
+	response, err := http.CalculateResponse(challenge)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to calculate challenge response: %v", err)
 	}
@@ -139,6 +136,7 @@ func (p *Plugin) loadConfigData() (*configData, error) {
 
 func loadConfigData(config *Config) (*configData, error) {
 	if config.HostName == "" {
+		var err error
 		config.HostName, err = os.Hostname()
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "unable to fetch hostname: %v", err)
