@@ -22,8 +22,8 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/v2/pkg/oci"
-	sig "github.com/sigstore/cosign/v2/pkg/signature"
 	rekor "github.com/sigstore/rekor/pkg/generated/client"
+	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	corev1 "k8s.io/api/core/v1"
@@ -414,9 +414,16 @@ func getSignatureSubject(signature oci.Signature) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to access signature certificate: %w", err)
 	}
-
 	if cert != nil {
-		return sig.CertSubject(cert), nil
+		// The CertSubject method used to be called here. It has since been
+		// removed in favore of GetSubjectAlternateNames method, which returns
+		// more SANs. In any case, preserve the previous behavior wherein a
+		// cert without a subject caused this function to return an empty
+		// subject and no error.
+		if sans := cryptoutils.GetSubjectAlternateNames(cert); len(sans) > 0 {
+			return sans[0], nil
+		}
+		return "", nil
 	}
 	if len(ss.Optional) > 0 {
 		if subjString, ok := ss.Optional["subject"]; ok {

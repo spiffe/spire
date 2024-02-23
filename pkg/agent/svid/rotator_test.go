@@ -24,7 +24,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -47,13 +46,6 @@ var (
 	bundleError    = "bundle not found"
 	testTimeout    = time.Minute
 )
-
-func init() {
-	err := fflag.Load(fflag.RawConfig{"reattest_to_renew"})
-	if err != nil {
-		panic(err)
-	}
-}
 
 func TestRotator(t *testing.T) {
 	caCert, caKey := testca.CreateCACertificate(t, nil, nil)

@@ -20,7 +20,6 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
@@ -77,7 +76,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				URIs: []*url.URL{workloadID.URL()},
 			},
 			expiredAt: expiredAt,
-			subject:   "O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "O=SPIRE,C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -103,7 +102,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				URIs: []*url.URL{workloadID.URL()},
 			},
 			expiredAt: customExpiresAt,
-			subject:   "O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "O=SPIRE,C=US",
 			ttl:       10 * time.Second,
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
@@ -132,7 +131,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 			dns:       []string{"dns1", "dns2"},
 			expiredAt: expiredAt,
-			subject:   "CN=dns1,O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "CN=dns1,O=SPIRE,C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -162,7 +161,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			expiredAt: expiredAt,
-			subject:   "O=ORG,C=EN+C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "O=ORG,C=EN+C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -194,7 +193,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 			dns:       []string{"dns1", "dns2"},
 			expiredAt: expiredAt,
-			subject:   "CN=dns1,O=ORG,C=EN+C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "CN=dns1,O=ORG,C=EN+C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -470,14 +469,14 @@ func TestServiceMintX509SVID(t *testing.T) {
 				DNSNames: []string{"abc-"},
 			},
 			code: codes.InvalidArgument,
-			err:  "CSR DNS name is invalid: label does not match regex: abc-",
+			err:  "CSR DNS name is invalid: idna error",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
 						Message: "Invalid argument: CSR DNS name is invalid",
 						Data: logrus.Fields{
-							logrus.ErrorKey: "label does not match regex: abc-",
+							logrus.ErrorKey: "idna error\nidna: invalid label \"abc-\"",
 						},
 					},
 					{
@@ -487,7 +486,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 							telemetry.Status:        "error",
 							telemetry.Type:          "audit",
 							telemetry.StatusCode:    "InvalidArgument",
-							telemetry.StatusMessage: "CSR DNS name is invalid: label does not match regex: abc-",
+							telemetry.StatusMessage: "CSR DNS name is invalid: idna error\nidna: invalid label \"abc-\"",
 							telemetry.Csr:           api.HashByte(csr),
 							telemetry.TTL:           "0",
 						},
@@ -1792,9 +1791,6 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				expectedSubject := &pkix.Name{
 					Organization: []string{"SPIRE"},
 					Country:      []string{"US"},
-					Names: []pkix.AttributeTypeAndValue{
-						x509svid.UniqueIDAttribute(entrySPIFFEID),
-					},
 				}
 				if len(entry.DnsNames) > 0 {
 					expectedSubject.CommonName = entry.DnsNames[0]

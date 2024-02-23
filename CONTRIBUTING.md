@@ -243,6 +243,11 @@ so keep your customizations in `.envrc`.
 [direnv_link]: https://direnv.net/
 [source_env]: https://direnv.net/man/direnv-stdlib.1.html#codesourceenv-ltfileordirpathgtcode
 
+## Project Tool Versions
+
+This project uses a `.spire-tool-versions` file to centralize the versions of various tools used for
+development, linting, and other tasks.
+
 ## Reporting security vulnerabilities
 
 If you've found a vulnerability or a potential vulnerability in SPIRE please let us know at <security@spiffe.io>. We'll send a confirmation email to acknowledge your report, and we'll send an additional email when we've identified the issue positively or negatively.

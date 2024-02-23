@@ -16,17 +16,18 @@ const (
 	_backoffMultiplier   = backoff.DefaultMultiplier
 	_maxIntervalMultiple = 24
 	_noMaxElapsedTime    = 0
+	Stop                 = backoff.Stop
 )
 
 // Option allows customization of the backoff.ExponentialBackOff
-type Option interface {
-	applyOption(*backoff.ExponentialBackOff)
+type Options interface {
+	applyOptions(*backoff.ExponentialBackOff)
 }
 
 // NewBackoff returns a new backoff calculator ready for use. Generalizes all backoffs
 // to have the same behavioral pattern, though with different bounds based on given
 // interval.
-func NewBackoff(clk clock.Clock, interval time.Duration, opts ...Option) BackOff {
+func NewBackoff(clk clock.Clock, interval time.Duration, opts ...Options) BackOff {
 	b := &backoff.ExponentialBackOff{
 		Clock:               clk,
 		InitialInterval:     interval,
@@ -34,9 +35,10 @@ func NewBackoff(clk clock.Clock, interval time.Duration, opts ...Option) BackOff
 		Multiplier:          _backoffMultiplier,
 		MaxInterval:         _maxIntervalMultiple * interval,
 		MaxElapsedTime:      _noMaxElapsedTime,
+		Stop:                backoff.Stop,
 	}
 	for _, opt := range opts {
-		opt.applyOption(b)
+		opt.applyOptions(b)
 	}
 	b.Reset()
 
@@ -44,14 +46,25 @@ func NewBackoff(clk clock.Clock, interval time.Duration, opts ...Option) BackOff
 }
 
 // WithMaxInterval returns maxInterval backoff option to override the MaxInterval
-func WithMaxInterval(maxInterval time.Duration) Option {
-	return backoffOption{maxInterval: maxInterval}
+func WithMaxInterval(maxInterval time.Duration) Options {
+	return backoffOptions{maxInterval: maxInterval}
 }
 
-type backoffOption struct {
-	maxInterval time.Duration
+// WithMaxElapsedTime returns maxElapsedTime backoff option to override the MaxElapsedTime
+func WithMaxElapsedTime(maxElapsedTime time.Duration) Options {
+	return backoffOptions{maxElapsedTime: maxElapsedTime}
 }
 
-func (b backoffOption) applyOption(bo *backoff.ExponentialBackOff) {
-	bo.MaxInterval = b.maxInterval
+type backoffOptions struct {
+	maxInterval    time.Duration
+	maxElapsedTime time.Duration
+}
+
+func (b backoffOptions) applyOptions(bo *backoff.ExponentialBackOff) {
+	if b.maxInterval != 0 {
+		bo.MaxInterval = b.maxInterval
+	}
+	if b.maxElapsedTime != 0 {
+		bo.MaxElapsedTime = b.maxElapsedTime
+	}
 }

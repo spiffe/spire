@@ -143,8 +143,8 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if !receivedFirstUpdate {
-				// emit latency metric for first update.
+			if len(update.Identities) > 0 && !receivedFirstUpdate {
+				// emit latency metric for first update containing an SVID.
 				latency.Measure()
 				receivedFirstUpdate = true
 			}
@@ -180,9 +180,12 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentity
 	// a response has already been sent so nothing is
 	// blocked on this logic
 	for i, svid := range resp.X509Svids {
+		// Ideally ID Proto parsing should succeed, but if it fails,
+		// ignore the error and still log with empty spiffe_id.
+		id, _ := idutil.IDProtoString(svid.X509Svid.Id)
 		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 		log.WithFields(logrus.Fields{
-			telemetry.SPIFFEID: svid.X509Svid.Id.String(),
+			telemetry.SPIFFEID: id,
 			telemetry.TTL:      ttl.Seconds(),
 		}).Debug("Fetched X.509 SVID for delegated identity")
 	}

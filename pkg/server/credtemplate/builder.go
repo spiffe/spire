@@ -15,7 +15,6 @@ import (
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
@@ -395,9 +394,6 @@ func (b *Builder) buildX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.P
 		x509.ExtKeyUsageServerAuth,
 		x509.ExtKeyUsageClientAuth,
 	}
-
-	// Append the unique ID to the subject, unless disabled
-	tmpl.Subject.ExtraNames = append(tmpl.Subject.ExtraNames, x509svid.UniqueIDAttribute(spiffeID))
 
 	return tmpl, nil
 }
