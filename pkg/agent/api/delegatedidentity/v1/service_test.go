@@ -112,9 +112,10 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				identities[0],
 			},
 			updates: []*cache.WorkloadUpdate{
-				{Identities: []cache.Identity{
-					identities[0],
-				},
+				{
+					Identities: []cache.Identity{
+						identities[0],
+					},
 					Bundle: bundle,
 				},
 			},
@@ -175,9 +176,8 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			identities: []cache.Identity{
 				identities[0],
 			},
-			updates:       []*cache.WorkloadUpdate{{}},
-			expectResp:    &delegatedidentityv1.SubscribeToX509SVIDsResponse{},
-			expectMetrics: generateSubscribeToX509SVIDMetrics(),
+			updates:    []*cache.WorkloadUpdate{{}},
+			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{},
 		},
 		{
 			testName:     "workload update without identity.SVID",

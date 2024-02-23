@@ -381,6 +381,9 @@ const (
 	// ParentID tags parent ID for an entry
 	ParentID = "parent_id"
 
+	// PartialSelectors is a partial set of selectors for a workload
+	PartialSelectors = "partial_selectors"
+
 	// Path declares some logic path, likely on the file system
 	Path = "path"
 

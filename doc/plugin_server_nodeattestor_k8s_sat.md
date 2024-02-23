@@ -1,4 +1,6 @@
-# Server plugin: NodeAttestor "k8s_sat"
+# Server plugin: NodeAttestor "k8s_sat" (deprecated)
+
+**This plugin has been deprecated in favor of the  ["k8s_psat"](plugin_server_nodeattestor_k8s_psat.md) plugin and will be removed in a future release.**
 
 *Must be used in conjunction with the agent-side k8s_sat plugin*
 

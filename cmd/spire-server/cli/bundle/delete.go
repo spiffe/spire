@@ -44,7 +44,7 @@ func (c *deleteCommand) Name() string {
 }
 
 func (c *deleteCommand) Synopsis() string {
-	return "Deletes bundle data"
+	return "Deletes federated bundle data"
 }
 
 func (c *deleteCommand) AppendFlags(fs *flag.FlagSet) {

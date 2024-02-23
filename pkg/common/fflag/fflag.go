@@ -29,11 +29,6 @@ const (
 	// enabled or not. See #1934 for more information.
 	FlagForcedRotation Flag = "forced_rotation"
 
-	// FlagReattestToRenew controls whether or not the agent will reattest to
-	// renew when the SVID expires. Some attestors, such as aws_iid, are not
-	// reattestable. In those cases the agent will still renew without reattesting.
-	FlagReattestToRenew Flag = "reattest_to_renew"
-
 	// FlagTestFlag is defined purely for testing purposes.
 	FlagTestFlag Flag = "i_am_a_test_flag"
 )
@@ -45,9 +40,8 @@ var (
 		mtx    *sync.RWMutex
 	}{
 		flags: map[Flag]bool{
-			FlagForcedRotation:  false,
-			FlagReattestToRenew: false,
-			FlagTestFlag:        false,
+			FlagForcedRotation: false,
+			FlagTestFlag:       false,
 		},
 		loaded: false,
 		mtx:    new(sync.RWMutex),
