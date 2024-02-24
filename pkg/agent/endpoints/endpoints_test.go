@@ -10,18 +10,10 @@ import (
 	"github.com/armon/go-metrics"
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
+	"github.com/jhump/protoreflect/grpcreflect"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
-	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
-	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
-	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
-	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
-	"github.com/spiffe/spire/pkg/agent/manager"
-	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/test/fakes/fakemetrics"
-	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -29,6 +21,17 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
+	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
+	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
+	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
+	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 func TestEndpoints(t *testing.T) {
@@ -126,6 +129,23 @@ func TestEndpoints(t *testing.T) {
 			name:       "access denied to remote caller",
 			fromRemote: true,
 		},
+		{
+			name: "reflection enabled",
+			do: func(t *testing.T, conn *grpc.ClientConn) {
+				exposedServices := []string{
+					middleware.WorkloadAPIServiceName,
+					middleware.EnvoySDSv3ServiceName,
+					middleware.HealthServiceName,
+					middleware.ServerReflectionServiceName,
+					middleware.ServerReflectionV1AlphaServiceName,
+				}
+				client := grpcreflect.NewClientAuto(context.Background(), conn)
+
+				services, err := client.ListServices()
+				require.NoError(t, err)
+				assert.ElementsMatchf(t, exposedServices, services, "expected services %v; got %v", exposedServices, services)
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -215,7 +235,9 @@ func TestEndpoints(t *testing.T) {
 			}, tt.expectedLogs...))
 			assert.Equal(t, tt.expectedMetrics, metrics.AllMetrics())
 		})
+
 	}
+
 }
 
 type FakeManager struct {
