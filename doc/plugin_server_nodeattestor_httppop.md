@@ -1,33 +1,34 @@
-# Server plugin: NodeAttestor "http"
+# Server plugin: NodeAttestor "httppop"
 
-*Must be used in conjunction with the agent-side http plugin*
+*Must be used in conjunction with the agent-side httppop plugin*
 
-The `http` plugin handshakes via http to ensure the agent is running on a valid
+The `httppop` plugin handshakes via http to ensure the agent is running on a valid
 dns name.
 
 The SPIFFE ID produced by the plugin is based on the dns name attested
 The SPIFFE ID has the form:
 
 ```xml
-spiffe://<trust_domain>/spire/agent/http/<hostname>
+spiffe://<trust_domain>/spire/agent/httppop/<hostname>
 ```
 
 | Configuration           | Description                                                                                                                                               | Default                             |
 |-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
 | `dns_patterns`          | A list of regular expressions to apply to the hostname being attested. If none match, attestation will fail. If unset, all hostnames are allowed.         |                                     |
-| `allow_alternate_ports` | Set to true to allow ports other then 80 to be specified by the agent and honored during the handshake. If false, ports other then 80 will be rejected.   |                                     |
-| `agent_path_template`   | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                         | "{{ .PluginName }}/{{ .Hostname }}" |
+| `allow_alternate_ports` | Set to true to allow ports other then 80 to be specified by the agent and honored during the handshake. If false, ports other then 80 will be rejected.   | false                               |
+| `allow_non_root_ports`  | Set to true to allow ports >= 1024 to be used by the agents with the advertised_port                                                                      | false                               |
+| `agent_path_template`   | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                         | "{{ .PluginName }}/{{ .HostName }}" |
 
 A sample configuration:
 
 ```hcl
-    NodeAttestor "http" {
+    NodeAttestor "httppop" {
         plugin_data {
             # Only match hosts that start with p, have a number, then end in example.com. Ex: 'p1.example.com'
             dns_patterns = ["p[0-9]\.example\.com"]
 
             # Change the agent's SPIFFE ID format
-            # agent_path_template = "/spire/agent/http/{{ .Hostname }}"
+            # agent_path_template = "/spire/agent/httppop/{{ .Hostname }}"
         }
     }
 ```
@@ -36,7 +37,7 @@ A sample configuration:
 
 | Selector | Example                        | Description            |
 |----------|--------------------------------|------------------------|
-| Hostname | `http:hostname:p1.example.com` | The Subject's Hostname |
+| Hostname | `httppop:hostname:p1.example.com` | The Subject's Hostname |
 
 ## Agent Path Template
 
@@ -48,5 +49,5 @@ Some useful values are:
 | Value                 | Description                         |
 |-----------------------|-------------------------------------|
 | .PluginName           | The name of the plugin.             |
-| .Hostname             | The hostname of the agent attested. |
+| .HostName             | The hostname of the agent attested. |
 | .TrustDomain          | The configured trust domain.        |

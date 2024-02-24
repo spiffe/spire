@@ -1,8 +1,10 @@
-package http
+package httppop
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"sync"
 
@@ -10,13 +12,13 @@ import (
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/plugin/http"
+	"github.com/spiffe/spire/pkg/common/plugin/httppop"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const (
-	pluginName = "http"
+	pluginName = "httppop"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -31,11 +33,13 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 type configData struct {
 	port               int
+	agentName          string
 	attestationPayload []byte
 }
 
 type Config struct {
 	HostName       string `hcl:"hostname"`
+	AgentName      string `hcl:"agentname"`
 	Port           int    `hcl:"port"`
 	AdvertisedPort int    `hcl:"advertised_port"`
 }
@@ -50,6 +54,29 @@ type Plugin struct {
 
 func New() *Plugin {
 	return &Plugin{}
+}
+
+func (p *Plugin) ServeNonce(agentName string, nonce string) (err error) {
+	h := http.NewServeMux()
+	s := &http.Server {
+		Addr:           ":80",
+		Handler:        h,
+	}
+	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/httppop/%s/%s", agentName, string(nonce))
+	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%s", nonce)
+		go s.Shutdown(context.Background())
+	})
+	// FIXME
+	go func() {
+
+	err = s.ListenAndServe()
+	if err == http.ErrServerClosed {
+		//return nil
+		return
+	}
+	}()
+	return err
 }
 
 func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) (err error) {
@@ -73,14 +100,18 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return err
 	}
 
-	challenge := new(http.Challenge)
+	challenge := new(httppop.Challenge)
 	if err := json.Unmarshal(resp.Challenge, challenge); err != nil {
 		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %v", err)
 	}
 
 	// FIXME open http port and post nonce here. When nonce fetched, auto remove webserver.
+	err = p.ServeNonce(data.agentName, string(challenge.Nonce))
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to start webserver: %v", err)
+	}
 
-	response, err := http.CalculateResponse(challenge)
+	response, err := httppop.CalculateResponse(challenge)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to calculate challenge response: %v", err)
 	}
@@ -142,6 +173,10 @@ func loadConfigData(config *Config) (*configData, error) {
 			return nil, status.Errorf(codes.InvalidArgument, "unable to fetch hostname: %v", err)
 		}
 	}
+	var agentName = "default"
+	if config.AgentName != "" {
+		agentName = config.AgentName
+	}
 
 	if config.Port == 0 {
 		config.Port = 80
@@ -151,8 +186,9 @@ func loadConfigData(config *Config) (*configData, error) {
 		config.AdvertisedPort = 80
 	}
 
-	attestationPayload, err := json.Marshal(http.AttestationData{
+	attestationPayload, err := json.Marshal(httppop.AttestationData{
 		HostName: config.HostName,
+		AgentName: agentName,
 		Port:     config.AdvertisedPort,
 	})
 	if err != nil {
@@ -161,6 +197,7 @@ func loadConfigData(config *Config) (*configData, error) {
 
 	return &configData{
 		port:               config.Port,
+		agentName:          agentName,
 		attestationPayload: attestationPayload,
 	}, nil
 }

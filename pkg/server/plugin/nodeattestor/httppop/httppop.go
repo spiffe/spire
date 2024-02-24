@@ -1,4 +1,4 @@
-package http
+package httppop
 
 import (
 	"context"
@@ -12,13 +12,13 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/plugin/http"
+	"github.com/spiffe/spire/pkg/common/plugin/httppop"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const (
-	pluginName = "http"
+	pluginName = "httppop"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -36,12 +36,15 @@ type configuration struct {
 	trustDomain         spiffeid.TrustDomain
 	pathTemplate        *agentpathtemplate.Template
 	allowAlternatePorts bool
+	allowNonRootPorts bool
 	dnsPatterns         []*regexp.Regexp
+	agentNamePattern    *regexp.Regexp
 }
 
 type Config struct {
 	DNSPatterns         []string `hcl:"dns_patterns"`
 	AllowAlternatePorts bool     `hcl:"allow_alternate_ports"`
+	AllowNonRootPorts   bool     `hcl:"allow_non_root_ports"`
 	AgentPathTemplate   string   `hcl:"agent_path_template"`
 }
 
@@ -73,13 +76,21 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
-	attestationData := new(http.AttestationData)
+	attestationData := new(httppop.AttestationData)
 	if err := json.Unmarshal(payload, attestationData); err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to unmarshal data: %v", err)
 	}
 
 	if (!config.allowAlternatePorts) && attestationData.Port != 80 {
 		return status.Error(codes.InvalidArgument, "port is not allowed to be overridden by this server")
+	}
+	if (!config.allowNonRootPorts) && attestationData.Port >= 1024 {
+		return status.Error(codes.InvalidArgument, "port is not allowed to be >= 1024")
+	}
+
+	l := config.agentNamePattern.FindAllStringSubmatch(attestationData.AgentName, -1)
+	if len(l) != 1 || len(l[0]) <= 0 || len(l[0]) > 32 {
+		return status.Error(codes.InvalidArgument, "agent name is not valid")
 	}
 
 	notfound := false
@@ -95,7 +106,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "the requested hostname is not allowed to connect")
 	}
 
-	challenge, err := http.GenerateChallenge()
+	challenge, err := httppop.GenerateChallenge()
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}
@@ -119,16 +130,16 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return err
 	}
 
-	response := new(http.Response)
+	response := new(httppop.Response)
 	if err := json.Unmarshal(responseReq.GetChallengeResponse(), response); err != nil {
 		return status.Errorf(codes.InvalidArgument, "unable to unmarshal challenge response: %v", err)
 	}
 
-	if err := http.VerifyChallengeResponse(challenge, response); err != nil {
+	if err := httppop.VerifyChallengeResponse(attestationData, challenge, response); err != nil {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-	spiffeid, err := http.MakeAgentID(config.trustDomain, config.pathTemplate, attestationData.HostName)
+	spiffeid, err := httppop.MakeAgentID(config.trustDomain, config.pathTemplate, attestationData.HostName)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
@@ -163,13 +174,12 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
 	}
 
-	pathTemplate := http.DefaultAgentPathTemplate
+	pathTemplate := httppop.DefaultAgentPathTemplate
 	if len(hclConfig.AgentPathTemplate) > 0 {
-		tmpl, err := agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
+		pathTemplate, err = agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", hclConfig.AgentPathTemplate)
 		}
-		pathTemplate = tmpl
 	}
 
 	var dnsPatterns []*regexp.Regexp
@@ -178,11 +188,15 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		dnsPatterns = append(dnsPatterns, re)
 	}
 
+	agentNamePattern := regexp.MustCompile("^[a-zA-z]+[a-zA-Z0-9-]$")
+
 	p.setConfiguration(&configuration{
 		trustDomain:         trustDomain,
 		pathTemplate:        pathTemplate,
 		dnsPatterns:         dnsPatterns,
 		allowAlternatePorts: hclConfig.AllowAlternatePorts,
+		allowNonRootPorts:   hclConfig.AllowNonRootPorts,
+		agentNamePattern:    agentNamePattern,
 	})
 
 	return &configv1.ConfigureResponse{}, nil
@@ -206,7 +220,7 @@ func (p *Plugin) setConfiguration(config *configuration) {
 func buildSelectorValues(hostName string) []string {
 	var selectorValues []string
 
-	selectorValues = append(selectorValues, "http:hostname:"+hostName)
+	selectorValues = append(selectorValues, "httppop:hostname:"+hostName)
 
 	return selectorValues
 }

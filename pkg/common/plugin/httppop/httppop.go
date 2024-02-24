@@ -1,7 +1,13 @@
-package http
+package httppop
 
 import (
+	"bytes"
 	"crypto/rand"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"net/http"
+	"io/ioutil"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -12,7 +18,7 @@ const (
 	nonceLen = 32
 
 	// PluginName for http based attestor
-	PluginName = "http"
+	PluginName = "httppop"
 )
 
 // DefaultAgentPathTemplate is the default template
@@ -25,8 +31,9 @@ type agentPathTemplateData struct {
 }
 
 type AttestationData struct {
-	HostName string `json:"hostname"`
-	Port     int    `json:"port"`
+	HostName  string `json:"hostname"`
+	AgentName string `json:"agentname"`
+	Port      int    `json:"port"`
 }
 
 type Challenge struct {
@@ -48,9 +55,24 @@ func CalculateResponse(challenge *Challenge) (*Response, error) {
 	return &Response{}, nil
 }
 
-func VerifyChallengeResponse(challenge *Challenge, response *Response) error {
-	// FIXME Contact host and verify nonce.
-	return nil
+func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challenge, response *Response) error {
+	url := fmt.Sprintf("http://%s:%d/.well-known/spiffe/nodeattestor/httppop/%s/%s", attestationData.HostName, attestationData.Port, attestationData.AgentName, challenge.Nonce)
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	//dec, err := base64.StdEncoding.DecodeString(string(body))
+	//if err != nil {
+	//	return err
+	//}
+	if bytes.Equal(body, challenge.Nonce) {
+		return nil
+	}
+	return errors.New(fmt.Sprintf("Nonce did not match, %s %s", string(body), string(challenge.Nonce)))
 }
 
 // MakeAgentID creates an agent ID
@@ -71,5 +93,8 @@ func generateNonce() ([]byte, error) {
 	if _, err := rand.Read(b); err != nil {
 		return nil, err
 	}
-	return b, nil
+	retval := make([]byte, base64.StdEncoding.EncodedLen(len(b)))
+	base64.StdEncoding.Encode(retval, []byte(b))
+
+	return retval, nil
 }
