@@ -95,13 +95,12 @@ func (w *sqlDriverWrapper) Open(name string) (driver.Conn, error) {
 	}
 
 	w.tokensMapMtx.Lock()
-	defer w.tokensMapMtx.Unlock()
-
 	token, ok := w.tokensMap[name]
 	if !ok {
 		token = &authToken{}
 		w.tokensMap[name] = token
 	}
+	w.tokensMapMtx.Unlock()
 
 	// We need a context for getting the authentication token. Since there is no
 	// parent context to derive from, we create a context with a timeout to
