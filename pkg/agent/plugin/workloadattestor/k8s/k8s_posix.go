@@ -138,6 +138,17 @@ var cgroupREs = []*regexp.Regexp{
 		`(?:[[:^punct:]]*/*)*crio[[:punct:]]` +
 		// non-punctuation end of string, i.e., the container ID
 		`(?P<containerid>[[:xdigit:]]{64})$`),
+
+	// Within the same pod, the PodUID will not be present in the cgroup.
+	regexp.MustCompile(`` +
+		// intentionally empty poduid group
+		`(?P<poduid>)` +
+		// mustnotmatch group: cgroup path must not include a poduid
+		`(?P<mustnotmatch>pod[[:xdigit:]]{8}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{12}[[:punct:]])?` +
+		// zero or more punctuation separated "segments" (e.g. "docker-")
+		`(?:[[:^punct:]]+[[:punct:]])*` +
+		// non-punctuation end of string, i.e., the container ID
+		`(?P<containerid>[[:xdigit:]]{64})$`),
 }
 
 func reSubMatchMap(r *regexp.Regexp, str string) map[string]string {
