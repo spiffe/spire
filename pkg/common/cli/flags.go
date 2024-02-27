@@ -46,9 +46,13 @@ func (s *StringsFlag) Set(val string) error {
 	return nil
 }
 
-// BoolFlag is used to define 3 possible states: true, false, or all
-// take care that false=1, and true=2
+// BoolFlag is used to define 3 possible states: true, false, or all.
+// Take care that false=1, and true=2
 type BoolFlag int
+
+const BoolFlagAll = 0
+const BoolFlagFalse = 1
+const BoolFlagTrue = 2
 
 func (b *BoolFlag) String() string {
 	return ""
@@ -56,14 +60,14 @@ func (b *BoolFlag) String() string {
 
 func (b *BoolFlag) Set(val string) error {
 	if val == "false" {
-		*b = 1
+		*b = BoolFlagFalse
 		return nil
 	}
 	if val == "true" {
-		*b = 2
+		*b = BoolFlagTrue
 		return nil
 	}
 	// if the value received isn't true or false, it will set the default value
-	*b = 0
+	*b = BoolFlagAll
 	return nil
 }

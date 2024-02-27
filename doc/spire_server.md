@@ -516,7 +516,7 @@ Displays the total number of attested nodes.
 | `-selector`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
 | `-canReattest`      | Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all |                                    |
 | `-banned`    |   Filter based on string received, 'true': banned agents, 'false': not banned agents, other value will return all |                |
-| `-expiresBefore`      | A date that indicates the time it should expired before. (format: YYYY-MM-DD) |                                    |
+| `-expiresBefore`      | Filter by expiration time (format: "2006-01-02 15:04:05 -0700 -07") |                                    |
 | `-spiffeID`      | The SPIFFE ID of the records to count. |                                    |
 
 ### `spire-server agent evict`
@@ -539,8 +539,8 @@ Displays attested nodes.
 | `-selector`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
 | `-canReattest`      | Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all |                                    |
 | `-banned`    |   Filter based on string received, 'true': banned agents, 'false': not banned agents, other value will return all |                |
-| `-expiresBefore`      | A date that indicates the time it should expired before. (format: YYYY-MM-DD)|                                    |
-| `-attestationType`      |  Filters agents to those matching the attestation type. |         |
+| `-expiresBefore`      | Filter by expiration time (format: "2006-01-02 15:04:05 -0700 -07")|                                    |
+| `-attestationType`      |  Filters agents to those matching the attestation type, like join_token or x509pop. |         |
 
 ### `spire-server agent show`
 

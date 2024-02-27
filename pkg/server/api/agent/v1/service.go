@@ -88,10 +88,14 @@ func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsReque
 			countReq.ByCanReattest = &req.Filter.ByCanReattest.Value
 		}
 
-		countReq.ByAttestationType = filter.ByAttestationType
+		if filter.ByAttestationType != "" {
+			countReq.ByAttestationType = filter.ByAttestationType
+		}
 
 		// err is verified previously
-		countReq.ByExpiresBefore, _ = time.Parse("2006-01-02", filter.ByExpiresBefore)
+		if filter.ByExpiresBefore != "" {
+			countReq.ByExpiresBefore, _ = time.Parse("2006-01-02 15:04:05 -0700 -07", filter.ByExpiresBefore)
+		}
 
 		if filter.BySelectorMatch != nil {
 			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)
@@ -136,9 +140,15 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 			listReq.ByCanReattest = &req.Filter.ByCanReattest.Value
 		}
 
-		listReq.ByAttestationType = filter.ByAttestationType
+		if filter.ByAttestationType != "" {
+			listReq.ByAttestationType = filter.ByAttestationType
+		}
+
 		// err is verified previously
-		listReq.ByExpiresBefore, _ = time.Parse("2006-01-02", filter.ByExpiresBefore)
+		// countReq.ByExpiresBefore, _ = time.Parse("2006-01-02", filter.ByExpiresBefore)
+		if filter.ByExpiresBefore != "" {
+			listReq.ByExpiresBefore, _ = time.Parse("2006-01-02 15:04:05 -0700 -07", filter.ByExpiresBefore)
+		}
 
 		if filter.BySelectorMatch != nil {
 			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)

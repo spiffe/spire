@@ -15,13 +15,13 @@ var (
 `
 	listUsage = `Usage of agent list:
   -attestationType string
-    	The SPIFFE ID of the nodes to list
+    	Filter by attestation type, like join_token or x509pop.
   -banned value
     	Filter based on string received, 'true': banned agents, 'false': not banned agents, other value will return all.
   -canReattest value
     	Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all.
   -expiresBefore string
-    	A date that indicates the time it should expired before, (format: YYYY-MM-DD)
+    	Filter by expiration time (format: "2006-01-02 15:04:05 -0700 -07")
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -output value
@@ -49,13 +49,13 @@ var (
 `
 	countUsage = `Usage of agent count:
   -attestationType string
-    	The SPIFFE ID of the nodes to count
+    	Filter by attestation type, like join_token or x509pop.
   -banned value
     	Filter based on string received, 'true': banned agents, 'false': not banned agents, other value will return all.
   -canReattest value
     	Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all.
   -expiresBefore string
-    	A date that indicates the time it should expired before, (format: YYYY-MM-DD)
+    	Filter by expiration time (format: "2006-01-02 15:04:05 -0700 -07")
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -output value

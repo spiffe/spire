@@ -85,7 +85,8 @@ func (c *listCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient ut
 	}
 
 	if c.expiresBefore != "" {
-		err := validate(c.expiresBefore)
+		// Parse the time string into a time.Time object
+		_, err := time.Parse("2006-01-02 15:04:05 -0700 -07", c.expiresBefore)
 		if err != nil {
 			return fmt.Errorf("date is not valid: %w", err)
 		}
@@ -136,10 +137,10 @@ func (c *listCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient ut
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
-	fs.StringVar(&c.attestationType, "attestationType", "", "The SPIFFE ID of the nodes to list")
+	fs.StringVar(&c.attestationType, "attestationType", "", "Filter by attestation type, like join_token or x509pop.")
 	fs.Var(&c.canReattest, "canReattest", "Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all.")
 	fs.Var(&c.banned, "banned", "Filter based on string received, 'true': banned agents, 'false': not banned agents, other value will return all.")
-	fs.StringVar(&c.expiresBefore, "expiresBefore", "", "A date that indicates the time it should expired before, (format: YYYY-MM-DD)")
+	fs.StringVar(&c.expiresBefore, "expiresBefore", "", "Filter by expiration time (format: \"2006-01-02 15:04:05 -0700 -07\")")
 	fs.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintAgents)
 }

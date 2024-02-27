@@ -458,32 +458,13 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 
 // CountRegistrationEntries counts all registrations (pagination available)
 func (ds *Plugin) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (count int32, err error) {
-	if countRegistrationEntriesHasFilters(req) {
-		var actDb = ds.db
-		if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
-			actDb = ds.roDb
-		}
-
-		resp, err := listRegistrationEntries(ctx, actDb, ds.log, &datastore.ListRegistrationEntriesRequest{
-			DataConsistency: req.DataConsistency,
-			ByParentID:      req.ByParentID,
-			BySelectors:     req.BySelectors,
-			BySpiffeID:      req.BySpiffeID,
-			ByFederatesWith: req.ByFederatesWith,
-			ByHint:          req.ByHint,
-			ByDownstream:    req.ByDownstream,
-		})
-		return int32(len(resp.Entries)), err
+	var actDb = ds.db
+	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
+		actDb = ds.roDb
 	}
 
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		count, err = countRegistrationEntries(tx, req)
-		return err
-	}); err != nil {
-		return 0, err
-	}
-
-	return count, nil
+	resp, err := countRegistrationEntries(ctx, actDb, ds.log, req)
+	return resp, err
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -2658,25 +2639,6 @@ ORDER BY selector_id, dns_name_id
 	return query, []any{entryID}, nil
 }
 
-func countRegistrationEntries(tx *gorm.DB, _ *datastore.CountRegistrationEntriesRequest) (int32, error) {
-	var count int
-	if err := tx.Model(&RegisteredEntry{}).Count(&count).Error; err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-
-	return int32(count), nil
-}
-
-func countRegistrationEntriesHasFilters(req *datastore.CountRegistrationEntriesRequest) bool {
-	if req.ByParentID != "" || req.ByHint != "" || req.BySpiffeID != "" {
-		return true
-	}
-	if req.ByFederatesWith != nil || req.BySelectors != nil || req.ByDownstream != nil {
-		return true
-	}
-	return false
-}
-
 func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
@@ -2771,7 +2733,6 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		return nil, sqlError.Wrap(err)
 	}
 	defer rows.Close()
-
 	var entries []*common.RegistrationEntry
 	if req.Pagination != nil {
 		entries = make([]*common.RegistrationEntry, 0, req.Pagination.PageSize)
@@ -2864,85 +2825,8 @@ func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEnt
 	if err != nil {
 		return "", nil, err
 	}
-	if filtered {
-		builder.WriteString(")")
-	}
 
-	builder.WriteString(`
-SELECT
-	id AS e_id,
-	entry_id,
-	spiffe_id,
-	parent_id,
-	ttl AS reg_ttl,
-	admin,
-	downstream,
-	expiry,
-	store_svid,
-	hint,
-	created_at,
-	NULL AS selector_id,
-	NULL AS selector_type,
-	NULL AS selector_value,
-	NULL AS trust_domain,
-	NULL AS dns_name_id,
-	NULL AS dns_name,
-	revision_number,
-	jwt_svid_ttl AS reg_jwt_svid_ttl
-FROM
-	registered_entries
-`)
-
-	if filtered {
-		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
-	}
-	if downstream {
-		if !filtered {
-			builder.WriteString("\t\tWHERE downstream = true\n")
-		} else {
-			builder.WriteString("\t\tAND downstream = true\n")
-		}
-	}
-	builder.WriteString(`
-UNION
-
-SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
-FROM
-	bundles B
-INNER JOIN
-	federated_registration_entries F
-ON
-	B.id = F.bundle_id
-`)
-	if filtered {
-		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-UNION
-
-SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
-FROM
-	dns_names
-`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-UNION
-
-SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
-FROM
-	selectors
-`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-ORDER BY e_id, selector_id, dns_name_id
-;`)
+	buildQuerySQLite3(builder, filtered, downstream)
 
 	return builder.String(), args, nil
 }
@@ -2959,84 +2843,8 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 	if err != nil {
 		return "", nil, err
 	}
-	if filtered {
-		builder.WriteString(")")
-	}
 
-	builder.WriteString(`
-SELECT
-	id AS e_id,
-	entry_id,
-	spiffe_id,
-	parent_id,
-	ttl AS reg_ttl,
-	admin,
-	downstream,
-	expiry,
-	store_svid,
-	hint,
-	created_at,
-	NULL ::integer AS selector_id,
-	NULL AS selector_type,
-	NULL AS selector_value,
-	NULL AS trust_domain,
-	NULL ::integer AS dns_name_id,
-	NULL AS dns_name,
-	revision_number,
-	jwt_svid_ttl AS reg_jwt_svid_ttl
-FROM
-	registered_entries
-`)
-	if filtered {
-		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
-	}
-	if downstream {
-		if !filtered {
-			builder.WriteString("\t\tWHERE downstream = true\n")
-		} else {
-			builder.WriteString("\t\tAND downstream = true\n")
-		}
-	}
-	builder.WriteString(`
-UNION ALL
-
-SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
-FROM
-	bundles B
-INNER JOIN
-	federated_registration_entries F
-ON
-	B.id = F.bundle_id
-`)
-	if filtered {
-		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-UNION ALL
-
-SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
-FROM
-	dns_names
-`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-UNION ALL
-
-SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
-FROM
-	selectors
-`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-ORDER BY e_id, selector_id, dns_name_id
-;`)
+	buildQueryPostgreSQL(builder, filtered, downstream)
 
 	return postgreSQLRebind(builder.String()), args, nil
 }
@@ -3056,38 +2864,6 @@ func postgreSQLRebind(s string) string {
 
 func buildListRegistrationEntriesQueryMySQL(req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
 	builder := new(strings.Builder)
-	builder.WriteString(`
-SELECT
-	E.id AS e_id,
-	E.entry_id AS entry_id,
-	E.spiffe_id,
-	E.parent_id,
-	E.ttl AS reg_ttl,
-	E.admin,
-	E.downstream,
-	E.expiry,
-	E.store_svid,
-	E.hint,
-	E.created_at,
-	S.id AS selector_id,
-	S.type AS selector_type,
-	S.value AS selector_value,
-	B.trust_domain,
-	D.id AS dns_name_id,
-	D.value AS dns_name,
-	E.revision_number,
-	E.jwt_svid_ttl AS reg_jwt_svid_ttl
-FROM
-	registered_entries E
-LEFT JOIN
-	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
-LEFT JOIN
-	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
-LEFT JOIN
-	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
-LEFT JOIN
-	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-`)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
 	var downstream = false
@@ -3099,17 +2875,7 @@ LEFT JOIN
 		return "", nil, err
 	}
 
-	if filtered {
-		builder.WriteString(")")
-	}
-	if downstream {
-		if !filtered {
-			builder.WriteString("\t\tWHERE downstream = true\n")
-		} else {
-			builder.WriteString("\t\tAND downstream = true\n")
-		}
-	}
-	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
+	buildQueryMySQL(builder, filtered, downstream)
 
 	return builder.String(), args, nil
 }
@@ -3126,34 +2892,354 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 	if err != nil {
 		return "", nil, err
 	}
+	buildQueryMySQLCTE(builder, filtered, downstream)
+	return builder.String(), args, nil
+}
+
+// Count Registration Entries
+func countRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
+		return 0, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
+	}
+
+	// Exact/subset selector matching requires filtering out all registration
+	// entries returned by the query whose selectors are not fully represented
+	// in the request selectors. For this reason, it's possible that a paged
+	// query returns rows that are completely filtered out. If that happens,
+	// keep querying until a page gets at least one result.
+	resp, err := countRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, req)
+
+	return resp, err
+}
+
+func countRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseType string, supportsCTE bool, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
+	query, args, err := buildCountRegistrationEntriesQuery(databaseType, supportsCTE, req)
+	if err != nil {
+		return 0, sqlError.Wrap(err)
+	}
+
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return 0, sqlError.Wrap(err)
+	}
+	defer rows.Close()
+
+	var resp int32 = -1
+	if rows.Next() {
+		rows.Scan(&resp)
+	}
+
+	if err := rows.Err(); err != nil {
+		return 0, sqlError.Wrap(err)
+	}
+	return resp, nil
+}
+
+func buildCountRegistrationEntriesQuery(dbType string, supportsCTE bool, req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
+	switch dbType {
+	case SQLite:
+		// The SQLite3 queries unconditionally leverage CTE since the
+		// embedded version of SQLite3 supports CTE.
+		return buildCountRegistrationEntriesQuerySQLite3(req)
+	case PostgreSQL:
+		// The PostgreSQL queries unconditionally leverage CTE since all versions
+		// of PostgreSQL supported by the plugin support CTE.
+		return buildCountRegistrationEntriesQueryPostgreSQL(req)
+	case MySQL:
+		if supportsCTE {
+			return buildCountRegistrationEntriesQueryMySQLCTE(req)
+		}
+		return buildCountRegistrationEntriesQueryMySQL(req)
+	default:
+		return "", nil, sqlError.New("unsupported db type: %q", dbType)
+	}
+}
+
+func buildCountRegistrationEntriesQuerySQLite3(req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
+	builder := new(strings.Builder)
+	builder.WriteString(`SELECT COUNT(*) FROM (`)
+
+	filtered, args, err := appendCountRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
+	if err != nil {
+		return "", nil, err
+	}
+
+	buildQuerySQLite3(builder, filtered, downstream)
+
+	builder.WriteString(`
+		) AS query_result
+		WHERE entry_id != ''
+	`)
+
+	return builder.String(), args, nil
+}
+
+func buildCountRegistrationEntriesQueryPostgreSQL(req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
+	builder := new(strings.Builder)
+	builder.WriteString(`SELECT COUNT(*) FROM (`)
+
+	filtered, args, err := appendCountRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
+	if err != nil {
+		return "", nil, err
+	}
+
+	buildQueryPostgreSQL(builder, filtered, downstream)
+
+	builder.WriteString(`
+		) AS query_result
+		WHERE entry_id != ''
+	`)
+
+	return postgreSQLRebind(builder.String()), args, nil
+}
+
+func buildCountRegistrationEntriesQueryMySQL(req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
+	builder := new(strings.Builder)
+	builder.WriteString(`SELECT COUNT(*) FROM (`)
+
+	filtered, args, err := appendCountRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
+	if err != nil {
+		return "", nil, err
+	}
+
+	buildQueryMySQL(builder, filtered, downstream)
+
+	builder.WriteString(`
+		) AS query_result
+		WHERE entry_id != ''
+	`)
+
+	return builder.String(), args, nil
+}
+
+func buildCountRegistrationEntriesQueryMySQLCTE(req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
+	builder := new(strings.Builder)
+	builder.WriteString(`SELECT COUNT(*) FROM (`)
+
+	filtered, args, err := appendCountRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, MySQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
+	if err != nil {
+		return "", nil, err
+	}
+
+	buildQueryMySQLCTE(builder, filtered, downstream)
+
+	builder.WriteString(`
+		) AS query_result
+		WHERE entry_id != ''
+	`)
+
+	return builder.String(), args, nil
+}
+
+func appendCountRegistrationEntriesFilterQuery(filterExp string, builder *strings.Builder, dbType string, req *datastore.CountRegistrationEntriesRequest) (bool, []any, error) {
+	var args []any
+
+	root := idFilterNode{idColumn: "id"}
+	if req.ByParentID != "" || req.BySpiffeID != "" {
+		subquery := new(strings.Builder)
+		subquery.WriteString("SELECT id AS e_id FROM registered_entries WHERE ")
+		if req.ByParentID != "" {
+			subquery.WriteString("parent_id = ?")
+			args = append(args, req.ByParentID)
+		}
+		if req.BySpiffeID != "" {
+			if req.ByParentID != "" {
+				subquery.WriteString(" AND ")
+			}
+			subquery.WriteString("spiffe_id = ?")
+			args = append(args, req.BySpiffeID)
+		}
+		root.children = append(root.children, idFilterNode{
+			idColumn: "id",
+			query:    []string{subquery.String()},
+		})
+	}
+
+	if req.ByHint != "" {
+		root.children = append(root.children, idFilterNode{
+			idColumn: "id",
+			query:    []string{"SELECT id AS e_id FROM registered_entries WHERE hint = ?"},
+		})
+		args = append(args, req.ByHint)
+	}
+
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
+		switch req.BySelectors.Match {
+		case datastore.Subset, datastore.MatchAny:
+			// subset needs a union, so we need to group them and add the group
+			// as a child to the root.
+			if len(req.BySelectors.Selectors) < 2 {
+				root.children = append(root.children, idFilterNode{
+					idColumn: "registered_entry_id",
+					query:    []string{"SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?"},
+				})
+			} else {
+				group := idFilterNode{
+					idColumn: "e_id",
+					union:    true,
+				}
+				for range req.BySelectors.Selectors {
+					group.children = append(group.children, idFilterNode{
+						idColumn: "registered_entry_id",
+						query:    []string{"SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?"},
+					})
+				}
+				root.children = append(root.children, group)
+			}
+		case datastore.Exact, datastore.Superset:
+			// exact match does use an intersection, so we can just add these
+			// directly to the root idFilterNode, since it is already an intersection
+			for range req.BySelectors.Selectors {
+				root.children = append(root.children, idFilterNode{
+					idColumn: "registered_entry_id",
+					query:    []string{"SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?"},
+				})
+			}
+		default:
+			return false, nil, errs.New("unhandled selectors match behavior %q", req.BySelectors.Match)
+		}
+		for _, selector := range req.BySelectors.Selectors {
+			args = append(args, selector.Type, selector.Value)
+		}
+	}
+
+	if req.ByFederatesWith != nil && len(req.ByFederatesWith.TrustDomains) > 0 {
+		// Take the trust domains from the request without duplicates
+		tdSet := make(map[string]struct{})
+		for _, td := range req.ByFederatesWith.TrustDomains {
+			tdSet[td] = struct{}{}
+		}
+		trustDomains := make([]string, 0, len(tdSet))
+		for td := range tdSet {
+			trustDomains = append(trustDomains, td)
+		}
+
+		// Exact/subset federates-with matching requires filtering out all registration
+		// entries whose federated trust domains are not fully represented in the request
+		filterNode := idFilterNode{
+			idColumn: "E.id",
+		}
+		filterNode.query = append(filterNode.query, "SELECT E.id AS e_id")
+		filterNode.query = append(filterNode.query, "FROM registered_entries E")
+		filterNode.query = append(filterNode.query, "INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id")
+		filterNode.query = append(filterNode.query, "INNER JOIN bundles B ON B.id = FE.bundle_id")
+		filterNode.query = append(filterNode.query, "GROUP BY E.id")
+		filterNode.query = append(filterNode.query, "HAVING")
+
+		sliceArg := buildSliceArg(len(trustDomains))
+		addIsSubset := func() {
+			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain NOT IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = 0 AND")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
+		}
+
+		switch req.ByFederatesWith.Match {
+		case datastore.Subset:
+			// Subset federates-with matching requires filtering out all registration
+			// entries that don't federate with even one trust domain in the request
+			addIsSubset()
+			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) > 0")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
+		case datastore.Exact:
+			// Exact federates-with matching requires filtering out all registration
+			// entries that don't federate with all the trust domains in the request
+			addIsSubset()
+			filterNode.query = append(filterNode.query, "\tCOUNT(DISTINCT CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = ?")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
+			args = append(args, len(trustDomains))
+		case datastore.MatchAny:
+			// MatchAny federates-with matching requires filtering out all registration
+			// entries that has at least one trust domain in the request
+			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) > 0")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
+		case datastore.Superset:
+			// SuperSet federates-with matching requires filtering out all registration
+			// entries has all trustdomains
+			filterNode.query = append(filterNode.query, "\tCOUNT(DISTINCT CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = ?")
+			for _, td := range trustDomains {
+				args = append(args, td)
+			}
+			args = append(args, len(trustDomains))
+
+		default:
+			return false, nil, errs.New("unhandled federates with match behavior %q", req.ByFederatesWith.Match)
+		}
+		root.children = append(root.children, filterNode)
+	}
+
+	filtered := false
+	filter := func() {
+		if !filtered {
+			builder.WriteString(filterExp)
+		}
+		filtered = true
+	}
+	indentation := 1
+	if len(root.children) > 0 {
+		filter()
+		root.Render(builder, dbType, indentation, true)
+	}
+
+	return filtered, args, nil
+}
+
+func buildQuerySQLite3(builder *strings.Builder, filtered bool, downstream bool) {
 	if filtered {
 		builder.WriteString(")")
 	}
 
 	builder.WriteString(`
-SELECT
-	id AS e_id,
-	entry_id,
-	spiffe_id,
-	parent_id,
-	ttl AS reg_ttl,
-	admin,
-	downstream,
-	expiry,
-	store_svid,
-	hint,
-	created_at,
-	NULL AS selector_id,
-	NULL AS selector_type,
-	NULL AS selector_value,
-	NULL AS trust_domain,
-	NULL AS dns_name_id,
-	NULL AS dns_name,
-	revision_number,
-	jwt_svid_ttl AS reg_jwt_svid_ttl
-FROM
-	registered_entries
-`)
+	SELECT
+		id AS e_id,
+		entry_id,
+		spiffe_id,
+		parent_id,
+		ttl AS reg_ttl,
+		admin,
+		downstream,
+		expiry,
+		store_svid,
+		hint,
+		created_at,
+		NULL AS selector_id,
+		NULL AS selector_type,
+		NULL AS selector_value,
+		NULL AS trust_domain,
+		NULL AS dns_name_id,
+		NULL AS dns_name,
+		revision_number,
+		jwt_svid_ttl AS reg_jwt_svid_ttl
+	FROM
+		registered_entries
+	`)
+
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
 	}
@@ -3165,47 +3251,255 @@ FROM
 		}
 	}
 	builder.WriteString(`
-UNION
+	UNION
 
-SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
-FROM
-	bundles B
-INNER JOIN
-	federated_registration_entries F
-ON
-	B.id = F.bundle_id
-`)
+	SELECT
+		F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+	FROM
+		bundles B
+	INNER JOIN
+		federated_registration_entries F
+	ON
+		B.id = F.bundle_id
+	`)
 	if filtered {
 		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
-UNION
+	UNION
 
-SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
-FROM
-	dns_names
-`)
+	SELECT
+		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+	FROM
+		dns_names
+	`)
 	if filtered {
 		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
-UNION
+	UNION
 
-SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
-FROM
-	selectors
-`)
+	SELECT
+		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+	FROM
+		selectors
+	`)
 	if filtered {
 		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
 	}
 	builder.WriteString(`
-ORDER BY e_id, selector_id, dns_name_id
-;`)
+	ORDER BY e_id, selector_id, dns_name_id
+	`)
+}
 
-	return builder.String(), args, nil
+func buildQueryPostgreSQL(builder *strings.Builder, filtered bool, downstream bool) {
+	if filtered {
+		builder.WriteString(")")
+	}
+
+	builder.WriteString(`
+	SELECT
+		id AS e_id,
+		entry_id,
+		spiffe_id,
+		parent_id,
+		ttl AS reg_ttl,
+		admin,
+		downstream,
+		expiry,
+		store_svid,
+		hint,
+		created_at,
+		NULL ::integer AS selector_id,
+		NULL AS selector_type,
+		NULL AS selector_value,
+		NULL AS trust_domain,
+		NULL ::integer AS dns_name_id,
+		NULL AS dns_name,
+		revision_number,
+		jwt_svid_ttl AS reg_jwt_svid_ttl
+	FROM
+		registered_entries
+	`)
+	if filtered {
+		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
+	builder.WriteString(`
+	UNION ALL
+
+	SELECT
+		F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+	FROM
+		bundles B
+	INNER JOIN
+		federated_registration_entries F
+	ON
+		B.id = F.bundle_id
+	`)
+	if filtered {
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+	UNION ALL
+
+	SELECT
+		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+	FROM
+		dns_names
+	`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+	UNION ALL
+
+	SELECT
+		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+	FROM
+		selectors
+	`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+	ORDER BY e_id, selector_id, dns_name_id
+	;`)
+}
+
+func buildQueryMySQLCTE(builder *strings.Builder, filtered bool, downstream bool) {
+	if filtered {
+		builder.WriteString(")")
+	}
+
+	builder.WriteString(`
+	SELECT
+		id AS e_id,
+		entry_id,
+		spiffe_id,
+		parent_id,
+		ttl AS reg_ttl,
+		admin,
+		downstream,
+		expiry,
+		store_svid,
+		hint,
+		created_at,
+		NULL AS selector_id,
+		NULL AS selector_type,
+		NULL AS selector_value,
+		NULL AS trust_domain,
+		NULL AS dns_name_id,
+		NULL AS dns_name,
+		revision_number,
+		jwt_svid_ttl AS reg_jwt_svid_ttl
+	FROM
+		registered_entries
+	`)
+	if filtered {
+		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
+	builder.WriteString(`
+	UNION
+
+	SELECT
+		F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+	FROM
+		bundles B
+	INNER JOIN
+		federated_registration_entries F
+	ON
+		B.id = F.bundle_id
+	`)
+	if filtered {
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+	UNION
+
+	SELECT
+		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+	FROM
+		dns_names
+	`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+	UNION
+
+	SELECT
+		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+	FROM
+		selectors
+	`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+	ORDER BY e_id, selector_id, dns_name_id
+	;`)
+}
+
+func buildQueryMySQL(builder *strings.Builder, filtered bool, downstream bool) {
+
+	builder.WriteString(`
+	SELECT
+		E.id AS e_id,
+		E.entry_id AS entry_id,
+		E.spiffe_id,
+		E.parent_id,
+		E.ttl AS reg_ttl,
+		E.admin,
+		E.downstream,
+		E.expiry,
+		E.store_svid,
+		E.hint,
+		E.created_at,
+		S.id AS selector_id,
+		S.type AS selector_type,
+		S.value AS selector_value,
+		B.trust_domain,
+		D.id AS dns_name_id,
+		D.value AS dns_name,
+		E.revision_number,
+		E.jwt_svid_ttl AS reg_jwt_svid_ttl
+	FROM
+		registered_entries E
+	LEFT JOIN
+		(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+	LEFT JOIN
+		selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+	LEFT JOIN
+		dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+	LEFT JOIN
+		(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+	`)
+
+	if filtered {
+		builder.WriteString(")")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
+	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
 }
 
 type idFilterNode struct {

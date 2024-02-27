@@ -226,18 +226,6 @@ func TestCount(t *testing.T) {
 			expectedStderr:     common.AddrError,
 		},
 		{
-			name:               "Count by expiresBefore: date is too long",
-			args:               []string{"-expiresBefore", "2001-01-011"},
-			expectedReturnCode: 1,
-			expectedStderr:     "Error: date is not valid: date is too long\n",
-		},
-		{
-			name:               "Count by expiresBefore: date is too long",
-			args:               []string{"-expiresBefore", "2001-01-0"},
-			expectedReturnCode: 1,
-			expectedStderr:     "Error: date is not valid: date is too short\n",
-		},
-		{
 			name:               "Count by expiresBefore: month out of range",
 			args:               []string{"-expiresBefore", "2001-13-05"},
 			expectedReturnCode: 1,
@@ -409,10 +397,10 @@ func TestList(t *testing.T) {
 		},
 		{
 			name: "by expiresBefore",
-			args: []string{"-expiresBefore", "2000-01-01"},
+			args: []string{"-expiresBefore", "2000-01-01 15:04:05 -0700 -07"},
 			expectReq: &agentv1.ListAgentsRequest{
 				Filter: &agentv1.ListAgentsRequest_Filter{
-					ByExpiresBefore: "2000-01-01",
+					ByExpiresBefore: "2000-01-01 15:04:05 -0700 -07",
 				},
 				PageSize: 1000,
 			},
@@ -463,18 +451,6 @@ func TestList(t *testing.T) {
 			args:               []string{common.AddrArg, common.AddrValue},
 			expectedReturnCode: 1,
 			expectedStderr:     common.AddrError,
-		},
-		{
-			name:               "List by expiresBefore: date is too long",
-			args:               []string{"-expiresBefore", "2001-01-011"},
-			expectedReturnCode: 1,
-			expectedStderr:     "Error: date is not valid: date is too long\n",
-		},
-		{
-			name:               "List by expiresBefore: date is too long",
-			args:               []string{"-expiresBefore", "2001-01-0"},
-			expectedReturnCode: 1,
-			expectedStderr:     "Error: date is not valid: date is too short\n",
 		},
 		{
 			name:               "List by expiresBefore: month out of range",
