@@ -39,7 +39,7 @@ func (c *setCommand) Name() string {
 }
 
 func (c *setCommand) Synopsis() string {
-	return "Creates or updates bundle data"
+	return "Creates or updates federated bundle data"
 }
 
 func (c *setCommand) AppendFlags(fs *flag.FlagSet) {

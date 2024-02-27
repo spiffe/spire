@@ -72,6 +72,7 @@ type agentConfig struct {
 	DataDir                       string    `hcl:"data_dir"`
 	AdminSocketPath               string    `hcl:"admin_socket_path"`
 	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
+	RetryBootstrap                bool      `hcl:"retry_bootstrap"`
 	JoinToken                     string    `hcl:"join_token"`
 	LogFile                       string    `hcl:"log_file"`
 	LogFormat                     string    `hcl:"log_format"`
@@ -336,6 +337,7 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.StringVar(&c.TrustBundleFormat, "trustBundleFormat", "", fmt.Sprintf("Format of the bootstrap trust bundle, %q or %q", bundleFormatPEM, bundleFormatSPIFFE))
 	flags.BoolVar(&c.AllowUnauthenticatedVerifiers, "allowUnauthenticatedVerifiers", false, "If true, the agent permits the retrieval of X509 certificate bundles by unregistered clients")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
+	flags.BoolVar(&c.RetryBootstrap, "retryBootstrap", false, "If true, the agent retries bootstrap with backoff")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
 	c.addOSFlags(flags)
@@ -457,6 +459,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if err := validateConfig(c); err != nil {
 		return nil, err
 	}
+
+	ac.RetryBootstrap = c.Agent.RetryBootstrap
 
 	if c.Agent.Experimental.SyncInterval != "" {
 		var err error
