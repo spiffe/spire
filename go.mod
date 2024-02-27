@@ -22,6 +22,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.0
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.15.0
+	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.3.10
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.28.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.148.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.30.0
@@ -54,6 +55,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.11.0
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
+	github.com/jackc/pgx/v5 v5.5.2
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lestrrat-go/jwx/v2 v2.0.19
 	github.com/lib/pq v1.10.9
@@ -226,6 +228,8 @@ require (
 	github.com/huandu/xstrings v1.3.3 // indirect
 	github.com/in-toto/in-toto-golang v0.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
 	github.com/jedisct1/go-minisign v0.0.0-20230811132847-661be99b8267 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
