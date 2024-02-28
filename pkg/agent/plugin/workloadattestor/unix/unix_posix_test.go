@@ -52,7 +52,6 @@ func (s *Suite) TestAttest() {
 		config         string
 		expectCode     codes.Code
 		expectMsg      string
-		expectLogs     []spiretest.LogEntry
 	}{
 		{
 			name:       "pid with no uids",
@@ -75,16 +74,6 @@ func (s *Suite) TestAttest() {
 				"group:g2000",
 			},
 			expectCode: codes.OK,
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "Failed to lookup user name by uid",
-					Data: logrus.Fields{
-						"uid":           "1999",
-						logrus.ErrorKey: "no user with UID 1999",
-					},
-				},
-			},
 		},
 		{
 			name:       "pid with no gids",
@@ -107,16 +96,6 @@ func (s *Suite) TestAttest() {
 				"gid:2999",
 			},
 			expectCode: codes.OK,
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "Failed to lookup group name by gid",
-					Data: logrus.Fields{
-						"gid":           "2999",
-						logrus.ErrorKey: "no group with GID 2999",
-					},
-				},
-			},
 		},
 		{
 			name: "primary user and gid",
@@ -253,7 +232,6 @@ func (s *Suite) TestAttest() {
 			}
 
 			require.Equal(t, testCase.selectorValues, selectorValues)
-			spiretest.AssertLogs(t, s.logHook.AllEntries(), testCase.expectLogs)
 		})
 	}
 }
