@@ -196,6 +196,35 @@ func (s *PluginSuite) TestInvalidPluginConfiguration() {
 	s.RequireErrorContains(err, "datastore-sql: unsupported database_type: wrong")
 }
 
+func (s *PluginSuite) TestInvalidAWSConfiguration() {
+	testCases := []struct {
+		name        string
+		config      string
+		expectedErr string
+	}{
+		{
+			name: "aws_mysql - no region",
+			config: `
+			database_type "aws_mysql" {}
+			connection_string = "test_user:@tcp(localhost:1234)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"`,
+			expectedErr: "datastore-sql: region must be specified",
+		},
+		{
+			name: "postgres_mysql - no region",
+			config: `
+			database_type "aws_postgres" {}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "region must be specified",
+		},
+	}
+	for _, testCase := range testCases {
+		s.T().Run(testCase.name, func(t *testing.T) {
+			err := s.ds.Configure(ctx, testCase.config)
+			s.RequireErrorContains(err, testCase.expectedErr)
+		})
+	}
+}
+
 func (s *PluginSuite) TestInvalidMySQLConfiguration() {
 	err := s.ds.Configure(ctx, `
 		database_type = "mysql"
