@@ -235,9 +235,7 @@ func TestEndpoints(t *testing.T) {
 			}, tt.expectedLogs...))
 			assert.Equal(t, tt.expectedMetrics, metrics.AllMetrics())
 		})
-
 	}
-
 }
 
 type FakeManager struct {
