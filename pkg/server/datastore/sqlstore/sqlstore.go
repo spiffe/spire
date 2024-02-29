@@ -2865,6 +2865,7 @@ func postgreSQLRebind(s string) string {
 func buildListRegistrationEntriesQueryMySQL(req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
 	builder := new(strings.Builder)
 
+	buildQueryMySQL(builder)
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
 	var downstream = false
 	if req.ByDownstream != nil {
@@ -2875,7 +2876,19 @@ func buildListRegistrationEntriesQueryMySQL(req *datastore.ListRegistrationEntri
 		return "", nil, err
 	}
 
-	buildQueryMySQL(builder, filtered, downstream)
+	if filtered {
+		builder.WriteString(")")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
+	builder.WriteString(`
+	ORDER BY e_id, selector_id, dns_name_id
+	`)
 
 	return builder.String(), args, nil
 }
@@ -2907,307 +2920,19 @@ func countRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLo
 	// in the request selectors. For this reason, it's possible that a paged
 	// query returns rows that are completely filtered out. If that happens,
 	// keep querying until a page gets at least one result.
-	resp, err := countRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, req)
+	resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE,
+		&datastore.ListRegistrationEntriesRequest{
+			DataConsistency: req.DataConsistency,
+			ByParentID:      req.ByParentID,
+			BySelectors:     req.BySelectors,
+			BySpiffeID:      req.BySpiffeID,
+			ByFederatesWith: req.ByFederatesWith,
+			ByHint:          req.ByHint,
+			ByDownstream:    req.ByDownstream,
+		},
+	)
 
-	return resp, err
-}
-
-func countRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseType string, supportsCTE bool, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
-	query, args, err := buildCountRegistrationEntriesQuery(databaseType, supportsCTE, req)
-	if err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-
-	rows, err := db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-	defer rows.Close()
-
-	var resp int32 = -1
-	if rows.Next() {
-		rows.Scan(&resp)
-	}
-
-	if err := rows.Err(); err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-	return resp, nil
-}
-
-func buildCountRegistrationEntriesQuery(dbType string, supportsCTE bool, req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
-	switch dbType {
-	case SQLite:
-		// The SQLite3 queries unconditionally leverage CTE since the
-		// embedded version of SQLite3 supports CTE.
-		return buildCountRegistrationEntriesQuerySQLite3(req)
-	case PostgreSQL:
-		// The PostgreSQL queries unconditionally leverage CTE since all versions
-		// of PostgreSQL supported by the plugin support CTE.
-		return buildCountRegistrationEntriesQueryPostgreSQL(req)
-	case MySQL:
-		if supportsCTE {
-			return buildCountRegistrationEntriesQueryMySQLCTE(req)
-		}
-		return buildCountRegistrationEntriesQueryMySQL(req)
-	default:
-		return "", nil, sqlError.New("unsupported db type: %q", dbType)
-	}
-}
-
-func buildCountRegistrationEntriesQuerySQLite3(req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
-	builder := new(strings.Builder)
-	builder.WriteString(`SELECT COUNT(*) FROM (`)
-
-	filtered, args, err := appendCountRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
-	var downstream = false
-	if req.ByDownstream != nil {
-		downstream = *req.ByDownstream
-	}
-
-	if err != nil {
-		return "", nil, err
-	}
-
-	buildQuerySQLite3(builder, filtered, downstream)
-
-	builder.WriteString(`
-		) AS query_result
-		WHERE entry_id != ''
-	`)
-
-	return builder.String(), args, nil
-}
-
-func buildCountRegistrationEntriesQueryPostgreSQL(req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
-	builder := new(strings.Builder)
-	builder.WriteString(`SELECT COUNT(*) FROM (`)
-
-	filtered, args, err := appendCountRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
-	var downstream = false
-	if req.ByDownstream != nil {
-		downstream = *req.ByDownstream
-	}
-
-	if err != nil {
-		return "", nil, err
-	}
-
-	buildQueryPostgreSQL(builder, filtered, downstream)
-
-	builder.WriteString(`
-		) AS query_result
-		WHERE entry_id != ''
-	`)
-
-	return postgreSQLRebind(builder.String()), args, nil
-}
-
-func buildCountRegistrationEntriesQueryMySQL(req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
-	builder := new(strings.Builder)
-	builder.WriteString(`SELECT COUNT(*) FROM (`)
-
-	filtered, args, err := appendCountRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
-	var downstream = false
-	if req.ByDownstream != nil {
-		downstream = *req.ByDownstream
-	}
-
-	if err != nil {
-		return "", nil, err
-	}
-
-	buildQueryMySQL(builder, filtered, downstream)
-
-	builder.WriteString(`
-		) AS query_result
-		WHERE entry_id != ''
-	`)
-
-	return builder.String(), args, nil
-}
-
-func buildCountRegistrationEntriesQueryMySQLCTE(req *datastore.CountRegistrationEntriesRequest) (string, []any, error) {
-	builder := new(strings.Builder)
-	builder.WriteString(`SELECT COUNT(*) FROM (`)
-
-	filtered, args, err := appendCountRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, MySQL, req)
-	var downstream = false
-	if req.ByDownstream != nil {
-		downstream = *req.ByDownstream
-	}
-
-	if err != nil {
-		return "", nil, err
-	}
-
-	buildQueryMySQLCTE(builder, filtered, downstream)
-
-	builder.WriteString(`
-		) AS query_result
-		WHERE entry_id != ''
-	`)
-
-	return builder.String(), args, nil
-}
-
-func appendCountRegistrationEntriesFilterQuery(filterExp string, builder *strings.Builder, dbType string, req *datastore.CountRegistrationEntriesRequest) (bool, []any, error) {
-	var args []any
-
-	root := idFilterNode{idColumn: "id"}
-	if req.ByParentID != "" || req.BySpiffeID != "" {
-		subquery := new(strings.Builder)
-		subquery.WriteString("SELECT id AS e_id FROM registered_entries WHERE ")
-		if req.ByParentID != "" {
-			subquery.WriteString("parent_id = ?")
-			args = append(args, req.ByParentID)
-		}
-		if req.BySpiffeID != "" {
-			if req.ByParentID != "" {
-				subquery.WriteString(" AND ")
-			}
-			subquery.WriteString("spiffe_id = ?")
-			args = append(args, req.BySpiffeID)
-		}
-		root.children = append(root.children, idFilterNode{
-			idColumn: "id",
-			query:    []string{subquery.String()},
-		})
-	}
-
-	if req.ByHint != "" {
-		root.children = append(root.children, idFilterNode{
-			idColumn: "id",
-			query:    []string{"SELECT id AS e_id FROM registered_entries WHERE hint = ?"},
-		})
-		args = append(args, req.ByHint)
-	}
-
-	if req.BySelectors != nil && len(req.BySelectors.Selectors) > 0 {
-		switch req.BySelectors.Match {
-		case datastore.Subset, datastore.MatchAny:
-			// subset needs a union, so we need to group them and add the group
-			// as a child to the root.
-			if len(req.BySelectors.Selectors) < 2 {
-				root.children = append(root.children, idFilterNode{
-					idColumn: "registered_entry_id",
-					query:    []string{"SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?"},
-				})
-			} else {
-				group := idFilterNode{
-					idColumn: "e_id",
-					union:    true,
-				}
-				for range req.BySelectors.Selectors {
-					group.children = append(group.children, idFilterNode{
-						idColumn: "registered_entry_id",
-						query:    []string{"SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?"},
-					})
-				}
-				root.children = append(root.children, group)
-			}
-		case datastore.Exact, datastore.Superset:
-			// exact match does use an intersection, so we can just add these
-			// directly to the root idFilterNode, since it is already an intersection
-			for range req.BySelectors.Selectors {
-				root.children = append(root.children, idFilterNode{
-					idColumn: "registered_entry_id",
-					query:    []string{"SELECT registered_entry_id AS e_id FROM selectors WHERE type = ? AND value = ?"},
-				})
-			}
-		default:
-			return false, nil, errs.New("unhandled selectors match behavior %q", req.BySelectors.Match)
-		}
-		for _, selector := range req.BySelectors.Selectors {
-			args = append(args, selector.Type, selector.Value)
-		}
-	}
-
-	if req.ByFederatesWith != nil && len(req.ByFederatesWith.TrustDomains) > 0 {
-		// Take the trust domains from the request without duplicates
-		tdSet := make(map[string]struct{})
-		for _, td := range req.ByFederatesWith.TrustDomains {
-			tdSet[td] = struct{}{}
-		}
-		trustDomains := make([]string, 0, len(tdSet))
-		for td := range tdSet {
-			trustDomains = append(trustDomains, td)
-		}
-
-		// Exact/subset federates-with matching requires filtering out all registration
-		// entries whose federated trust domains are not fully represented in the request
-		filterNode := idFilterNode{
-			idColumn: "E.id",
-		}
-		filterNode.query = append(filterNode.query, "SELECT E.id AS e_id")
-		filterNode.query = append(filterNode.query, "FROM registered_entries E")
-		filterNode.query = append(filterNode.query, "INNER JOIN federated_registration_entries FE ON FE.registered_entry_id = E.id")
-		filterNode.query = append(filterNode.query, "INNER JOIN bundles B ON B.id = FE.bundle_id")
-		filterNode.query = append(filterNode.query, "GROUP BY E.id")
-		filterNode.query = append(filterNode.query, "HAVING")
-
-		sliceArg := buildSliceArg(len(trustDomains))
-		addIsSubset := func() {
-			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain NOT IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = 0 AND")
-			for _, td := range trustDomains {
-				args = append(args, td)
-			}
-		}
-
-		switch req.ByFederatesWith.Match {
-		case datastore.Subset:
-			// Subset federates-with matching requires filtering out all registration
-			// entries that don't federate with even one trust domain in the request
-			addIsSubset()
-			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) > 0")
-			for _, td := range trustDomains {
-				args = append(args, td)
-			}
-		case datastore.Exact:
-			// Exact federates-with matching requires filtering out all registration
-			// entries that don't federate with all the trust domains in the request
-			addIsSubset()
-			filterNode.query = append(filterNode.query, "\tCOUNT(DISTINCT CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = ?")
-			for _, td := range trustDomains {
-				args = append(args, td)
-			}
-			args = append(args, len(trustDomains))
-		case datastore.MatchAny:
-			// MatchAny federates-with matching requires filtering out all registration
-			// entries that has at least one trust domain in the request
-			filterNode.query = append(filterNode.query, "\tCOUNT(CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) > 0")
-			for _, td := range trustDomains {
-				args = append(args, td)
-			}
-		case datastore.Superset:
-			// SuperSet federates-with matching requires filtering out all registration
-			// entries has all trustdomains
-			filterNode.query = append(filterNode.query, "\tCOUNT(DISTINCT CASE WHEN B.trust_domain IN "+sliceArg+" THEN B.trust_domain ELSE NULL END) = ?")
-			for _, td := range trustDomains {
-				args = append(args, td)
-			}
-			args = append(args, len(trustDomains))
-
-		default:
-			return false, nil, errs.New("unhandled federates with match behavior %q", req.ByFederatesWith.Match)
-		}
-		root.children = append(root.children, filterNode)
-	}
-
-	filtered := false
-	filter := func() {
-		if !filtered {
-			builder.WriteString(filterExp)
-		}
-		filtered = true
-	}
-	indentation := 1
-	if len(root.children) > 0 {
-		filter()
-		root.Render(builder, dbType, indentation, true)
-	}
-
-	return filtered, args, nil
+	return int32(len(resp.Entries)), err
 }
 
 func buildQuerySQLite3(builder *strings.Builder, filtered bool, downstream bool) {
@@ -3370,7 +3095,7 @@ func buildQueryPostgreSQL(builder *strings.Builder, filtered bool, downstream bo
 	}
 	builder.WriteString(`
 	ORDER BY e_id, selector_id, dns_name_id
-	;`)
+	`)
 }
 
 func buildQueryMySQLCTE(builder *strings.Builder, filtered bool, downstream bool) {
@@ -3451,10 +3176,10 @@ func buildQueryMySQLCTE(builder *strings.Builder, filtered bool, downstream bool
 	}
 	builder.WriteString(`
 	ORDER BY e_id, selector_id, dns_name_id
-	;`)
+	`)
 }
 
-func buildQueryMySQL(builder *strings.Builder, filtered bool, downstream bool) {
+func buildQueryMySQL(builder *strings.Builder) {
 
 	builder.WriteString(`
 	SELECT
@@ -3489,17 +3214,6 @@ func buildQueryMySQL(builder *strings.Builder, filtered bool, downstream bool) {
 		(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 	`)
 
-	if filtered {
-		builder.WriteString(")")
-	}
-	if downstream {
-		if !filtered {
-			builder.WriteString("\t\tWHERE downstream = true\n")
-		} else {
-			builder.WriteString("\t\tAND downstream = true\n")
-		}
-	}
-	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
 }
 
 type idFilterNode struct {
