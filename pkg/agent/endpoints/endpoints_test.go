@@ -10,7 +10,6 @@ import (
 	"github.com/armon/go-metrics"
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
-	"github.com/jhump/protoreflect/grpcreflect"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
@@ -20,6 +19,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/reflection/grpc_reflection_v1"
 	"google.golang.org/grpc/status"
 
 	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
@@ -139,11 +139,27 @@ func TestEndpoints(t *testing.T) {
 					middleware.ServerReflectionServiceName,
 					middleware.ServerReflectionV1AlphaServiceName,
 				}
-				client := grpcreflect.NewClientAuto(context.Background(), conn)
+				client := grpc_reflection_v1.NewServerReflectionClient(conn)
 
-				services, err := client.ListServices()
+				clientStream, err := client.ServerReflectionInfo(ctx)
 				require.NoError(t, err)
-				assert.ElementsMatchf(t, exposedServices, services, "expected services %v; got %v", exposedServices, services)
+
+				err = clientStream.Send(&grpc_reflection_v1.ServerReflectionRequest{
+					MessageRequest: &grpc_reflection_v1.ServerReflectionRequest_ListServices{},
+				})
+				require.NoError(t, err)
+
+				resp, err := clientStream.Recv()
+				require.NoError(t, err)
+
+				listResp := resp.GetListServicesResponse()
+				require.NotNil(t, listResp)
+
+				var serviceNames []string
+				for _, service := range listResp.Service {
+					serviceNames = append(serviceNames, service.Name)
+				}
+				assert.ElementsMatch(t, exposedServices, serviceNames)
 			},
 		},
 	} {

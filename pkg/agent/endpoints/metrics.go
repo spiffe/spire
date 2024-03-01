@@ -55,8 +55,8 @@ func (m *connectionMetrics) Postprocess(ctx context.Context, _ string, _ bool, _
 			sdsAPITelemetry.SetSDSAPIConnectionTotalGauge(m.metrics, atomic.AddInt32(&m.sdsAPIConns, -1))
 		case middleware.DelegatedIdentityServiceName:
 			adminapi.SetDelegatedIdentityAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.delegatedIdentityAPIConns, -1))
-		case middleware.HealthServiceName:
-			// Intentionally not emitting metrics for health
+		case middleware.HealthServiceName, middleware.ServerReflectionServiceName, middleware.ServerReflectionV1AlphaServiceName:
+			// Intentionally not emitting metrics for health and reflection services
 		default:
 			middleware.LogMisconfiguration(ctx, "unrecognized service for connection metrics: "+names.Service)
 		}
