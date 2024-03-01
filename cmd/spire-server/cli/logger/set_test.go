@@ -5,14 +5,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
-	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
 var (
 	setUsage = `Usage of logger set:
   -level string
-    	The new log level, one of (panic, fatal, error, warn, info, debug, trace, default)
+    	The new log level, one of (panic, fatal, error, warn, info, debug, trace, launch)
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -40,7 +39,7 @@ func TestSet(t *testing.T) {
 		// input
                 args               []string
 		// expected items
-		expectedSetValue   loggerv1.SetLogLevelRequest_SetValue
+		expectedSetValue   types.LogLevel
                 expectReturnCode   int
                 expectStdout       string
                 expectStderr       string
@@ -50,14 +49,14 @@ func TestSet(t *testing.T) {
 			args: []string{"-level", "debug", "-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_debug,
-					DefaultLevel: types.Logger_info,
+					CurrentLevel: types.LogLevel_DEBUG,
+					LaunchLevel: types.LogLevel_INFO,
 				},
 			},
-			expectedSetValue: loggerv1.SetLogLevelRequest_DEBUG,
+			expectedSetValue: types.LogLevel_DEBUG,
 			expectReturnCode: 0,
-			expectStdout: `Logger Level  : debug
-Logger Default: info
+			expectStdout: `Logger Level : debug
+Launch Level : info
 
 `,
 		},
@@ -66,30 +65,29 @@ Logger Default: info
 			args: []string{"-level", "warn", "-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_warn,
-					DefaultLevel: types.Logger_debug,
+					CurrentLevel: types.LogLevel_WARN,
+					LaunchLevel: types.LogLevel_DEBUG,
 				},
 			},
-			expectedSetValue: loggerv1.SetLogLevelRequest_WARN,
+			expectedSetValue: types.LogLevel_WARN,
 			expectReturnCode: 0,
-			expectStdout: `Logger Level  : warning
-Logger Default: debug
+			expectStdout: `Logger Level : warning
+Launch Level : debug
 
 `,
 		},
 		{
-			name: "set to default, configured to error, using pretty output",
-			args: []string{"-level", "default", "-output", "pretty"},
+			name: "set to launch, configured to error, using pretty output",
+			args: []string{"-level", "launch", "-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_error,
-					DefaultLevel: types.Logger_error,
+					CurrentLevel: types.LogLevel_ERROR,
+					LaunchLevel: types.LogLevel_ERROR,
 				},
 			},
-			expectedSetValue: loggerv1.SetLogLevelRequest_DEFAULT,
 			expectReturnCode: 0,
-			expectStdout: `Logger Level  : error
-Logger Default: error
+			expectStdout: `Logger Level : error
+Launch Level : error
 
 `,
 		},
@@ -98,14 +96,14 @@ Logger Default: error
 			args: []string{"-level", "panic", "-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_panic,
-					DefaultLevel: types.Logger_fatal,
+					CurrentLevel: types.LogLevel_PANIC,
+					LaunchLevel: types.LogLevel_FATAL,
 				},
 			},
-			expectedSetValue: loggerv1.SetLogLevelRequest_PANIC,
+			expectedSetValue: types.LogLevel_PANIC,
 			expectReturnCode: 0,
-			expectStdout: `Logger Level  : panic
-Logger Default: fatal
+			expectStdout: `Logger Level : panic
+Launch Level : fatal
 
 `,
 		},
@@ -114,23 +112,12 @@ Logger Default: fatal
 			args: []string{"-level", "never", "-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_info,
-					DefaultLevel: types.Logger_info,
+					CurrentLevel: types.LogLevel_INFO,
+					LaunchLevel: types.LogLevel_INFO,
 				},
 			},
-			expectedSetValue: loggerv1.SetLogLevelRequest_TRACE,
 			expectReturnCode: 1,
 			expectStderr: `Error: the value never is not a valid setting
-`,
-		},
-		{
-			name: "bizzarro world, returns neither logger nor error",
-			args: []string{"-level", "info", "-output", "pretty"},
-			server: &mockLoggerServer{
-				returnLogger: nil,
-			},
-			expectReturnCode: 1,
-			expectStderr: `Error: error fetching logger: rpc error: code = Internal desc = grpc: error while marshaling: proto: Marshal called with nil
 `,
 		},
 		{
@@ -138,8 +125,8 @@ Logger Default: fatal
 			args: []string{"-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_info,
-					DefaultLevel: types.Logger_info,
+					CurrentLevel: types.LogLevel_INFO,
+					LaunchLevel: types.LogLevel_INFO,
 				},
 			},
 			expectReturnCode: 1,
@@ -151,14 +138,14 @@ Logger Default: fatal
 			args: []string{"-level", "trace", "-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_info,
-					DefaultLevel: types.Logger_info,
+					CurrentLevel: types.LogLevel_INFO,
+					LaunchLevel: types.LogLevel_INFO,
 				},
 			},
-			expectedSetValue: loggerv1.SetLogLevelRequest_TRACE,
+			expectedSetValue: types.LogLevel_TRACE,
 			expectReturnCode: 0,
-			expectStdout: `Logger Level  : info
-Logger Default: info
+			expectStdout: `Logger Level : info
+Launch Level : info
 
 `,
 		},
@@ -166,9 +153,9 @@ Logger Default: info
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupCliTest(t, tt.server, logger.NewSetCommandWithEnv)
 			returnCode := test.client.Run(append(test.args, tt.args...))
-			require.Equal(t, tt.expectStdout, test.stdout.String())
-			require.Equal(t, tt.expectStderr, test.stderr.String())
 			require.Equal(t, tt.expectReturnCode, returnCode)
+			require.Equal(t, tt.expectStderr, test.stderr.String())
+			require.Equal(t, tt.expectStdout, test.stdout.String())
 		})
 	}
 }

@@ -12,8 +12,8 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"google.golang.org/grpc"
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
 // an input/output capture struct
@@ -70,7 +70,7 @@ func setupCliTest(t *testing.T, server *mockLoggerServer, newClient func(*common
 type mockLoggerServer struct {
 	loggerv1.UnimplementedLoggerServer
 
-	receivedSetValue loggerv1.SetLogLevelRequest_SetValue
+	receivedSetValue *types.LogLevel
 	returnLogger *types.Logger
 	returnErr error
 }
@@ -81,9 +81,15 @@ func (s *mockLoggerServer) GetLogger(_ context.Context, _ *loggerv1.GetLoggerReq
 }
 
 func (s *mockLoggerServer) SetLogLevel(_ context.Context, req *loggerv1.SetLogLevelRequest) (*types.Logger, error) {
-	s.receivedSetValue = req.SetLevel
+	s.receivedSetValue = &req.NewLevel
 	return s.returnLogger, s.returnErr
 }
+
+func (s *mockLoggerServer) ResetLogLevel(_ context.Context, req *loggerv1.ResetLogLevelRequest) (*types.Logger, error) {
+	s.receivedSetValue = nil
+	return s.returnLogger, s.returnErr
+}
+
 
 var _ io.Writer = &errorWriter{}
 

@@ -24,7 +24,7 @@ type Config struct {
 
 	Log logrus.FieldLogger
 
-	DefaultLogLevel logrus.Level
+	LaunchLogLevel logrus.Level
 
 	// LogReopener facilitates handling a signal to rotate log file.
 	LogReopener func(context.Context) error

@@ -76,7 +76,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	}).Info("Configured")
 
 	s.config.Log.WithFields(logrus.Fields{
-		"DefaultLogLevel": s.config.DefaultLogLevel,
+		"LaunchLogLevel": s.config.LaunchLogLevel,
 	}).Info("Log Level")
 
 	// create the data directory if needed
@@ -390,7 +390,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Catalog:              catalog,
 		ServerCA:             serverCA,
 		Log:                  s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
-		DefaultLogLevel:      s.config.DefaultLogLevel,
+		LaunchLogLevel:      s.config.LaunchLogLevel,
 		Metrics:              metrics,
 		JWTKeyPublisher:      jwtKeyPublisher,
 		RateLimit:            s.config.RateLimit,

@@ -24,11 +24,11 @@ func TestPrettyPrintLogger(t *testing.T) {
 		{
 			name: "test",
 			logger: &types.Logger{
-				CurrentLevel: types.Logger_debug,
-				DefaultLevel: types.Logger_info,
+				CurrentLevel: types.LogLevel_DEBUG,
+				LaunchLevel: types.LogLevel_INFO,
 			},
-			expectedStdout: `Logger Level  : debug
-Logger Default: info
+			expectedStdout: `Logger Level : debug
+Launch Level : info
 
 `,
 		},
@@ -38,8 +38,8 @@ Logger Default: info
 				ReturnError: errors.New("cannot write"),
 			},
 			logger: &types.Logger{
-				CurrentLevel: types.Logger_debug,
-				DefaultLevel: types.Logger_info,
+				CurrentLevel: types.LogLevel_DEBUG,
+				LaunchLevel: types.LogLevel_INFO,
 			},
 			expectedError: errors.New("cannot write"),
 		},

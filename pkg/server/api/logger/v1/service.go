@@ -1,31 +1,33 @@
 package logger
 
 import (
+	"fmt"
 	"context"
+	"strings"
 
 	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )
 
 type Config struct {
-	DefaultLevel logrus.Level
+	LaunchLevel logrus.Level
 }
 
 type Service struct {
 	loggerv1.UnsafeLoggerServer
 
-	DefaultLevel logrus.Level
+	LaunchLevel logrus.Level
 }
 
 func New(config Config) *Service {
 	logrus.WithFields(logrus.Fields{
-		"DefaultLevel": config.DefaultLevel,
+		"LaunchLevel": config.LaunchLevel,
 	}).Info("logger service Configured")
 	return &Service{
-		DefaultLevel: config.DefaultLevel,
+		LaunchLevel: config.LaunchLevel,
 	}
 }
 
@@ -33,28 +35,36 @@ func RegisterService(server *grpc.Server, service *Service) {
 	loggerv1.RegisterLoggerServer(server, service)
 }
 
-func (service *Service) GetLogger(ctx context.Context, req *loggerv1.GetLoggerRequest) (*types.Logger, error) {
+func (service *Service) GetLogger(ctx context.Context, req *loggerv1.GetLoggerRequest) (*apitype.Logger, error) {
 	logrus.Info("GetLogger Called")
-	logger := &types.Logger{
-		CurrentLevel: types.Logger_LogLevel(logrus.GetLevel()),
-		DefaultLevel: types.Logger_LogLevel(service.DefaultLevel),
+	logger := &apitype.Logger{
+		CurrentLevel: ApiLevel[logrus.GetLevel()],
+		LaunchLevel: ApiLevel[service.LaunchLevel],
 	}
 	return logger, nil
 }
 
-func (service *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequest) (*types.Logger, error) {
-	logrus.WithFields(logrus.Fields{
-		"RequestLevel": loggerv1.SetLogLevelRequest_SetValue_name[int32(req.SetLevel)],
-	}).Info("SetLogger Called")
-	setLevel := loggerv1.SetLogLevelRequest_SetValue(req.SetLevel)
-	if setLevel == loggerv1.SetLogLevelRequest_DEFAULT {
-		logrus.SetLevel(service.DefaultLevel)
-	} else {
-		logrus.SetLevel(logrus.Level(req.SetLevel))
+func (service *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequest) (*apitype.Logger, error) {
+	if req.NewLevel == apitype.LogLevel_UNSPECIFIED {
+		return nil, fmt.Errorf("Invalid request NewLevel value cannot be LogLevel_UNSPECIFIED")
 	}
-	logger := &types.Logger{
-		CurrentLevel: types.Logger_LogLevel(logrus.GetLevel()),
-		DefaultLevel: types.Logger_LogLevel(service.DefaultLevel),
+	logrus.WithFields(logrus.Fields{
+		"RequestLevel": strings.ToLower(apitype.LogLevel_name[int32(req.NewLevel)]),
+	}).Info("SetLogLevel Called")
+	logrus.SetLevel(logrus.Level(req.NewLevel))
+	logger := &apitype.Logger{
+		CurrentLevel: ApiLevel[logrus.GetLevel()],
+		LaunchLevel: ApiLevel[service.LaunchLevel],
+	}
+	return logger, nil
+}
+
+func (service *Service) ResetLogLevel(ctx context.Context, req *loggerv1.ResetLogLevelRequest) (*apitype.Logger, error) {
+	logrus.Info("ResetLogLevel Called")
+	logrus.SetLevel(service.LaunchLevel)
+	logger := &apitype.Logger{
+		CurrentLevel: ApiLevel[logrus.GetLevel()],
+		LaunchLevel: ApiLevel[service.LaunchLevel],
 	}
 	return logger, nil
 }

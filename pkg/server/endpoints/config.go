@@ -66,7 +66,7 @@ type Config struct {
 	Log             logrus.FieldLogger
 
 	// The default (original config) log level
-	DefaultLogLevel logrus.Level
+	LaunchLogLevel logrus.Level
 
 	Metrics telemetry.Metrics
 
@@ -164,7 +164,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			DataStore:   ds,
 		}),
 		LoggerServer: loggerv1.New(loggerv1.Config{
-			DefaultLevel: c.DefaultLogLevel,
+			LaunchLevel: c.LaunchLogLevel,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
 			TrustDomain:  c.TrustDomain,

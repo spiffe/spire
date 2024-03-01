@@ -47,13 +47,13 @@ func TestGet(t *testing.T) {
 			args: []string{"-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_info,
-					DefaultLevel: types.Logger_info,
+					CurrentLevel: types.LogLevel_INFO,
+					LaunchLevel: types.LogLevel_INFO,
 				},
 			},
 			expectReturnCode: 0,
-			expectStdout: `Logger Level  : info
-Logger Default: info
+			expectStdout: `Logger Level : info
+Launch Level : info
 
 `,
 		},
@@ -62,13 +62,13 @@ Logger Default: info
 			args: []string{"-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_warn,
-					DefaultLevel: types.Logger_debug,
+					CurrentLevel: types.LogLevel_WARN,
+					LaunchLevel: types.LogLevel_DEBUG,
 				},
 			},
 			expectReturnCode: 0,
-			expectStdout: `Logger Level  : warning
-Logger Default: debug
+			expectStdout: `Logger Level : warning
+Launch Level : debug
 
 `,
 		},
@@ -77,13 +77,13 @@ Logger Default: debug
 			args: []string{"-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_trace,
-					DefaultLevel: types.Logger_error,
+					CurrentLevel: types.LogLevel_TRACE,
+					LaunchLevel: types.LogLevel_ERROR,
 				},
 			},
 			expectReturnCode: 0,
-			expectStdout: `Logger Level  : trace
-Logger Default: error
+			expectStdout: `Logger Level : trace
+Launch Level : error
 
 `,
 		},
@@ -92,13 +92,13 @@ Logger Default: error
 			args: []string{"-output", "pretty"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_fatal,
-					DefaultLevel: types.Logger_panic,
+					CurrentLevel: types.LogLevel_FATAL,
+					LaunchLevel: types.LogLevel_PANIC,
 				},
 			},
 			expectReturnCode: 0,
-			expectStdout: `Logger Level  : fatal
-Logger Default: panic
+			expectStdout: `Logger Level : fatal
+Launch Level : panic
 
 `,
 		},
@@ -107,12 +107,12 @@ Logger Default: panic
 			args: []string{"-output", "json"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_info,
-					DefaultLevel: types.Logger_info,
+					CurrentLevel: types.LogLevel_INFO,
+					LaunchLevel: types.LogLevel_INFO,
 				},
 			},
 			expectReturnCode: 0,
-			expectStdout: `{"current_level":"info","default_level":"info"}
+			expectStdout: `{"current_level":"INFO","launch_level":"INFO"}
 `,
 		},
 		{
@@ -120,12 +120,12 @@ Logger Default: panic
 			args: []string{"-output", "json"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_warn,
-					DefaultLevel: types.Logger_debug,
+					CurrentLevel: types.LogLevel_WARN,
+					LaunchLevel: types.LogLevel_DEBUG,
 				},
 			},
 			expectReturnCode: 0,
-			expectStdout: `{"current_level":"warn","default_level":"debug"}
+			expectStdout: `{"current_level":"WARN","launch_level":"DEBUG"}
 `,
 		},
 		{
@@ -133,12 +133,12 @@ Logger Default: panic
 			args: []string{"-output", "json"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_trace,
-					DefaultLevel: types.Logger_error,
+					CurrentLevel: types.LogLevel_TRACE,
+					LaunchLevel: types.LogLevel_ERROR,
 				},
 			},
 			expectReturnCode: 0,
-			expectStdout: `{"current_level":"trace","default_level":"error"}
+			expectStdout: `{"current_level":"TRACE","launch_level":"ERROR"}
 `,
 		},
 		{
@@ -146,12 +146,12 @@ Logger Default: panic
 			args: []string{"-output", "json"},
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
-					CurrentLevel: types.Logger_fatal,
-					DefaultLevel: types.Logger_panic,
+					CurrentLevel: types.LogLevel_FATAL,
+					LaunchLevel: types.LogLevel_PANIC,
 				},
 			},
 			expectReturnCode: 0,
-			expectStdout: `{"current_level":"fatal","default_level":"panic"}
+			expectStdout: `{"current_level":"FATAL","launch_level":"PANIC"}
 `,
 		},
 		{

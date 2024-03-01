@@ -177,7 +177,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	tcpServer := e.createTCPServer(ctx, unaryInterceptor, streamInterceptor)
 	udsServer := e.createUDSServer(unaryInterceptor, streamInterceptor)
 
-	// TCP and UDP
+	// TCP and UDS
 	agentv1.RegisterAgentServer(tcpServer, e.APIServers.AgentServer)
 	agentv1.RegisterAgentServer(udsServer, e.APIServers.AgentServer)
 	bundlev1.RegisterBundleServer(tcpServer, e.APIServers.BundleServer)
@@ -189,7 +189,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	trustdomainv1.RegisterTrustDomainServer(tcpServer, e.APIServers.TrustDomainServer)
 	trustdomainv1.RegisterTrustDomainServer(udsServer, e.APIServers.TrustDomainServer)
 
-	// UDP only
+	// UDS only
 	loggerv1.RegisterLoggerServer(udsServer, e.APIServers.LoggerServer)
 	grpc_health_v1.RegisterHealthServer(udsServer, e.APIServers.HealthServer)
 	debugv1_pb.RegisterDebugServer(udsServer, e.APIServers.DebugServer)
