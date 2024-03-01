@@ -2886,6 +2886,7 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 func maybeRebind(dbType, query string) string {
 	if isPostgresDbType(dbType) {
 		return postgreSQLRebind(query)
+	}
 	return query
 }
 
@@ -3053,6 +3054,7 @@ func buildQuerySQLite3(builder *strings.Builder, filtered bool, downstream bool)
 func buildQueryPostgreSQL(builder *strings.Builder, filtered bool, downstream bool) {
 	if filtered {
 		builder.WriteString(")")
+	}
 
 	builder.WriteString(`
 	SELECT
