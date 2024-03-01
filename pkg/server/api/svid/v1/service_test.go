@@ -20,7 +20,6 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
@@ -77,7 +76,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				URIs: []*url.URL{workloadID.URL()},
 			},
 			expiredAt: expiredAt,
-			subject:   "O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "O=SPIRE,C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -103,7 +102,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				URIs: []*url.URL{workloadID.URL()},
 			},
 			expiredAt: customExpiresAt,
-			subject:   "O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "O=SPIRE,C=US",
 			ttl:       10 * time.Second,
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
@@ -132,7 +131,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 			dns:       []string{"dns1", "dns2"},
 			expiredAt: expiredAt,
-			subject:   "CN=dns1,O=SPIRE,C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "CN=dns1,O=SPIRE,C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -162,7 +161,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 				},
 			},
 			expiredAt: expiredAt,
-			subject:   "O=ORG,C=EN+C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "O=ORG,C=EN+C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -194,7 +193,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 			dns:       []string{"dns1", "dns2"},
 			expiredAt: expiredAt,
-			subject:   "CN=dns1,O=ORG,C=EN+C=US,2.5.4.45=#13203835323763353230323837636461376436323561613834373664386538336561",
+			subject:   "CN=dns1,O=ORG,C=EN+C=US",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
@@ -470,14 +469,14 @@ func TestServiceMintX509SVID(t *testing.T) {
 				DNSNames: []string{"abc-"},
 			},
 			code: codes.InvalidArgument,
-			err:  "CSR DNS name is invalid: label does not match regex: abc-",
+			err:  "CSR DNS name is invalid: idna error",
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
 						Message: "Invalid argument: CSR DNS name is invalid",
 						Data: logrus.Fields{
-							logrus.ErrorKey: "label does not match regex: abc-",
+							logrus.ErrorKey: "idna error\nidna: invalid label \"abc-\"",
 						},
 					},
 					{
@@ -487,7 +486,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 							telemetry.Status:        "error",
 							telemetry.Type:          "audit",
 							telemetry.StatusCode:    "InvalidArgument",
-							telemetry.StatusMessage: "CSR DNS name is invalid: label does not match regex: abc-",
+							telemetry.StatusMessage: "CSR DNS name is invalid: idna error\nidna: invalid label \"abc-\"",
 							telemetry.Csr:           api.HashByte(csr),
 							telemetry.TTL:           "0",
 						},
@@ -1214,6 +1213,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "workload",
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.ExpiresAt:      expiresAtFromCAStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/workload1",
 						},
 					},
 				}
@@ -1237,6 +1237,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "ttl",
 							telemetry.Csr:            api.HashByte(m["ttl"]),
 							telemetry.ExpiresAt:      expiresAtFromTTLEntryStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/ttl",
 						},
 					},
 				}
@@ -1260,6 +1261,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "x509ttl",
 							telemetry.Csr:            api.HashByte(m["x509ttl"]),
 							telemetry.ExpiresAt:      expiresAtFromX509TTLEntryStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/ttl",
 						},
 					},
 				}
@@ -1283,6 +1285,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "dns",
 							telemetry.Csr:            api.HashByte(m["dns"]),
 							telemetry.ExpiresAt:      expiresAtFromCAStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/dns",
 						},
 					},
 				}
@@ -1315,6 +1318,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "workload",
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.ExpiresAt:      expiresAtFromCAStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/workload1",
 						},
 					},
 					{
@@ -1335,6 +1339,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["invalid"]),
 							telemetry.StatusCode:     "Internal",
 							telemetry.StatusMessage:  "entry has malformed SPIFFE ID: request must specify SPIFFE ID",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 					{
@@ -1346,6 +1351,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "dns",
 							telemetry.Csr:            api.HashByte(m["dns"]),
 							telemetry.ExpiresAt:      expiresAtFromCAStr,
+							telemetry.SPIFFEID:       "spiffe://example.org/dns",
 						},
 					},
 				}
@@ -1478,6 +1484,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m[""]),
 							telemetry.StatusCode:     "InvalidArgument",
 							telemetry.StatusMessage:  "missing entry ID",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1512,6 +1519,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            "",
 							telemetry.StatusCode:     "InvalidArgument",
 							telemetry.StatusMessage:  "missing CSR",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1546,6 +1554,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["invalid entry"]),
 							telemetry.StatusCode:     "NotFound",
 							telemetry.StatusMessage:  "entry not found or not authorized",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1584,6 +1593,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.StatusCode:     "InvalidArgument",
 							telemetry.StatusMessage:  fmt.Sprintf("malformed CSR: %v", invalidCsrErr),
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1625,6 +1635,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.StatusCode:     "InvalidArgument",
 							telemetry.StatusMessage:  "invalid CSR signature: x509: ECDSA verification failure",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1660,6 +1671,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["invalid"]),
 							telemetry.StatusCode:     "Internal",
 							telemetry.StatusMessage:  "entry has malformed SPIFFE ID: request must specify SPIFFE ID",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1697,6 +1709,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.Csr:            api.HashByte(m["workload"]),
 							telemetry.StatusCode:     "Internal",
 							telemetry.StatusMessage:  "failed to sign X509-SVID: oh no",
+							telemetry.SPIFFEID:       "",
 						},
 					},
 				}
@@ -1792,9 +1805,6 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 				expectedSubject := &pkix.Name{
 					Organization: []string{"SPIRE"},
 					Country:      []string{"US"},
-					Names: []pkix.AttributeTypeAndValue{
-						x509svid.UniqueIDAttribute(entrySPIFFEID),
-					},
 				}
 				if len(entry.DnsNames) > 0 {
 					expectedSubject.CommonName = entry.DnsNames[0]

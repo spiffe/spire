@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -91,17 +92,24 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
 	}
 
+	dnsNames := make([]string, 0, len(csr.DNSNames))
 	for _, dnsName := range csr.DNSNames {
-		if err := x509util.ValidateDNS(dnsName); err != nil {
+		err := x509util.ValidateLabel(dnsName)
+		if err != nil {
 			return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name is invalid", err)
 		}
+		dnsNames = append(dnsNames, dnsName)
+	}
+
+	if err := x509util.CheckForWildcardOverlap(dnsNames); err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name contains a wildcard that covers another non-wildcard name", err)
 	}
 
 	x509SVID, err := s.ca.SignWorkloadX509SVID(ctx, ca.WorkloadX509SVIDParams{
 		SPIFFEID:  id,
 		PublicKey: csr.PublicKey,
 		TTL:       time.Duration(req.Ttl) * time.Second,
-		DNSNames:  csr.DNSNames,
+		DNSNames:  dnsNames,
 		Subject:   csr.Subject,
 	})
 	if err != nil {
@@ -168,10 +176,19 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 		//  Create new SVID
 		r := s.newX509SVID(ctx, svidParam, entriesMap)
 		results = append(results, r)
+		spiffeID := ""
+		if r.Svid != nil {
+			id, err := idutil.IDProtoString(r.Svid.Id)
+			if err == nil {
+				spiffeID = id
+			}
+		}
+
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
 			fields := logrus.Fields{
 				telemetry.Csr:            api.HashByte(svidParam.Csr),
 				telemetry.RegistrationID: svidParam.EntryId,
+				telemetry.SPIFFEID:       spiffeID,
 			}
 
 			if r.Svid != nil {

@@ -17,6 +17,8 @@ import (
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/hcl"
+	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
 
@@ -56,24 +58,50 @@ const (
 	PostgreSQL = "postgres"
 	// SQLite database type
 	SQLite = "sqlite3"
+
+	// MySQL database provided by an AWS service
+	AWSMySQL = "aws_mysql"
+
+	// PostgreSQL database type provided by an AWS service
+	AWSPostgreSQL = "aws_postgres"
 )
 
 // Configuration for the sql datastore implementation.
 // Pointer values are used to distinguish between "unset" and "zero" values.
 type configuration struct {
-	DatabaseType       string  `hcl:"database_type" json:"database_type"`
-	ConnectionString   string  `hcl:"connection_string" json:"connection_string"`
-	RoConnectionString string  `hcl:"ro_connection_string" json:"ro_connection_string"`
-	RootCAPath         string  `hcl:"root_ca_path" json:"root_ca_path"`
-	ClientCertPath     string  `hcl:"client_cert_path" json:"client_cert_path"`
-	ClientKeyPath      string  `hcl:"client_key_path" json:"client_key_path"`
-	ConnMaxLifetime    *string `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
-	MaxOpenConns       *int    `hcl:"max_open_conns" json:"max_open_conns"`
-	MaxIdleConns       *int    `hcl:"max_idle_conns" json:"max_idle_conns"`
-	DisableMigration   bool    `hcl:"disable_migration" json:"disable_migration"`
+	DatabaseTypeNode   ast.Node `hcl:"database_type" json:"database_type"`
+	ConnectionString   string   `hcl:"connection_string" json:"connection_string"`
+	RoConnectionString string   `hcl:"ro_connection_string" json:"ro_connection_string"`
+	RootCAPath         string   `hcl:"root_ca_path" json:"root_ca_path"`
+	ClientCertPath     string   `hcl:"client_cert_path" json:"client_cert_path"`
+	ClientKeyPath      string   `hcl:"client_key_path" json:"client_key_path"`
+	ConnMaxLifetime    *string  `hcl:"conn_max_lifetime" json:"conn_max_lifetime"`
+	MaxOpenConns       *int     `hcl:"max_open_conns" json:"max_open_conns"`
+	MaxIdleConns       *int     `hcl:"max_idle_conns" json:"max_idle_conns"`
+	DisableMigration   bool     `hcl:"disable_migration" json:"disable_migration"`
 
+	databaseTypeConfig *dbTypeConfig
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
+}
+
+type dbTypeConfig struct {
+	AWSMySQL     *awsConfig `hcl:"aws_mysql" json:"aws_mysql"`
+	AWSPostgres  *awsConfig `hcl:"aws_postgres" json:"aws_postgres"`
+	databaseType string
+}
+
+type awsConfig struct {
+	Region          string `hcl:"region"`
+	AccessKeyID     string `hcl:"access_key_id"`
+	SecretAccessKey string `hcl:"secret_access_key"`
+}
+
+func (a *awsConfig) validate() error {
+	if a.Region == "" {
+		return sqlError.New("region must be specified")
+	}
+	return nil
 }
 
 type sqlDB struct {
@@ -769,6 +797,13 @@ func (ds *Plugin) Configure(_ context.Context, hclConfiguration string) error {
 		return err
 	}
 
+	dbTypeConfig, err := parseDatabaseTypeASTNode(config.DatabaseTypeNode)
+	if err != nil {
+		return err
+	}
+
+	config.databaseTypeConfig = dbTypeConfig
+
 	if err := config.Validate(); err != nil {
 		return err
 	}
@@ -798,7 +833,7 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 		sqlDb = ds.roDb
 	}
 
-	if sqlDb == nil || connectionString != sqlDb.connectionString || config.DatabaseType != ds.db.databaseType {
+	if sqlDb == nil || connectionString != sqlDb.connectionString || config.databaseTypeConfig.databaseType != ds.db.databaseType {
 		db, version, supportsCTE, dialect, err := ds.openDB(config, isReadOnly)
 		if err != nil {
 			return err
@@ -814,7 +849,7 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 		}
 
 		ds.log.WithFields(logrus.Fields{
-			telemetry.Type:     config.DatabaseType,
+			telemetry.Type:     config.databaseTypeConfig.databaseType,
 			telemetry.Version:  version,
 			telemetry.ReadOnly: isReadOnly,
 		}).Info("Connected to SQL database")
@@ -822,7 +857,7 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 		sqlDb = &sqlDB{
 			DB:               db,
 			raw:              raw,
-			databaseType:     config.DatabaseType,
+			databaseType:     config.databaseTypeConfig.databaseType,
 			dialect:          dialect,
 			connectionString: connectionString,
 			stmtCache:        newStmtCache(raw),
@@ -859,8 +894,8 @@ func (ds *Plugin) Close() error {
 // concurrently.
 func (ds *Plugin) withReadModifyWriteTx(ctx context.Context, op func(tx *gorm.DB) error) error {
 	return ds.withTx(ctx, func(tx *gorm.DB) error {
-		switch ds.db.databaseType {
-		case MySQL:
+		switch {
+		case isMySQLDbType(ds.db.databaseType):
 			// MySQL REPEATABLE READ is weaker than that of PostgreSQL. Namely,
 			// PostgreSQL, beyond providing the minimum consistency guarantees
 			// mandated for REPEATABLE READ in the standard, automatically fails
@@ -872,7 +907,7 @@ func (ds *Plugin) withReadModifyWriteTx(ctx context.Context, op func(tx *gorm.DB
 			// isolation level, like SERIALIZABLE, which is not supported by
 			// some MySQL-compatible databases (i.e. Percona XtraDB cluster)
 			tx = tx.Set("gorm:query_option", "FOR UPDATE")
-		case PostgreSQL:
+		case isPostgresDbType(ds.db.databaseType):
 			// `SELECT .. FOR UPDATE`is also required when PostgreSQL is in
 			// hot standby mode for this operation to work properly (see issue #3039).
 			tx = tx.Set("gorm:query_option", "FOR UPDATE")
@@ -951,21 +986,21 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string, bool, dialect, error) {
 	var dialect dialect
 
-	ds.log.WithField(telemetry.DatabaseType, cfg.DatabaseType).Info("Opening SQL database")
-	switch cfg.DatabaseType {
-	case SQLite:
+	ds.log.WithField(telemetry.DatabaseType, cfg.databaseTypeConfig.databaseType).Info("Opening SQL database")
+	switch {
+	case isSQLiteDbType(cfg.databaseTypeConfig.databaseType):
 		dialect = sqliteDB{log: ds.log}
-	case PostgreSQL:
+	case isPostgresDbType(cfg.databaseTypeConfig.databaseType):
 		dialect = postgresDB{}
-	case MySQL:
+	case isMySQLDbType(cfg.databaseTypeConfig.databaseType):
 		dialect = mysqlDB{}
 	default:
-		return nil, "", false, nil, sqlError.New("unsupported database_type: %v", cfg.DatabaseType)
+		return nil, "", false, nil, sqlError.New("unsupported database_type: %v", cfg.databaseTypeConfig.databaseType)
 	}
 
 	db, version, supportsCTE, err := dialect.connect(cfg, isReadOnly)
 	if err != nil {
-		return nil, "", false, nil, err
+		return nil, "", false, nil, sqlError.Wrap(err)
 	}
 
 	db.SetLogger(gormLogger{
@@ -993,7 +1028,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	}
 
 	if !isReadOnly {
-		if err := migrateDB(db, cfg.DatabaseType, cfg.DisableMigration, ds.log); err != nil {
+		if err := migrateDB(db, cfg.databaseTypeConfig.databaseType, cfg.DisableMigration, ds.log); err != nil {
 			db.Close()
 			return nil, "", false, nil, err
 		}
@@ -1729,10 +1764,10 @@ func listAttestedNodesOnce(ctx context.Context, db *sqlDB, req *datastore.ListAt
 }
 
 func buildListAttestedNodesQuery(dbType string, supportsCTE bool, req *datastore.ListAttestedNodesRequest) (string, []any, error) {
-	switch dbType {
-	case SQLite:
+	switch {
+	case isSQLiteDbType(dbType):
 		return buildListAttestedNodesQueryCTE(req, dbType)
-	case PostgreSQL:
+	case isPostgresDbType(dbType):
 		// The PostgreSQL queries unconditionally leverage CTE since all versions
 		// of PostgreSQL supported by the plugin support CTE.
 		query, args, err := buildListAttestedNodesQueryCTE(req, dbType)
@@ -1740,7 +1775,7 @@ func buildListAttestedNodesQuery(dbType string, supportsCTE bool, req *datastore
 			return query, args, err
 		}
 		return postgreSQLRebind(query), args, nil
-	case MySQL:
+	case isMySQLDbType(dbType):
 		if supportsCTE {
 			return buildListAttestedNodesQueryCTE(req, dbType)
 		}
@@ -1858,7 +1893,7 @@ SELECT
 	builder.WriteString("\nWHERE id IN (\n")
 
 	// MySQL requires a subquery in order to apply pagination
-	if req.Pagination != nil && dbType == MySQL {
+	if req.Pagination != nil && isMySQLDbType(dbType) {
 		builder.WriteString("\tSELECT id FROM (\n")
 	}
 
@@ -1882,9 +1917,9 @@ SELECT
 			}
 		case datastore.Exact, datastore.Superset:
 			for i := range req.BySelectorMatch.Selectors {
-				switch dbType {
+				switch {
 				// MySQL does not support INTERSECT, so use INNER JOIN instead
-				case MySQL:
+				case isMySQLDbType(dbType):
 					if len(req.BySelectorMatch.Selectors) > 1 {
 						builder.WriteString("\t\t(")
 					}
@@ -1929,7 +1964,7 @@ SELECT
 		builder.WriteString(fromQuery)
 	}
 
-	if dbType == PostgreSQL ||
+	if isPostgresDbType(dbType) ||
 		(req.BySelectorMatch != nil &&
 			(req.BySelectorMatch.Match == datastore.Subset || req.BySelectorMatch.Match == datastore.MatchAny || len(req.BySelectorMatch.Selectors) == 1)) {
 		builder.WriteString(" AS result_nodes")
@@ -1940,7 +1975,7 @@ SELECT
 		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
 
 		// Add workaround for limit
-		if dbType == MySQL {
+		if isMySQLDbType(dbType) {
 			builder.WriteString("\n\t) workaround_for_mysql_subquery_limit")
 		}
 	}
@@ -2393,16 +2428,16 @@ func fetchRegistrationEntry(ctx context.Context, db *sqlDB, entryID string) (*co
 }
 
 func buildFetchRegistrationEntryQuery(dbType string, supportsCTE bool, entryID string) (string, []any, error) {
-	switch dbType {
-	case SQLite:
+	switch {
+	case isSQLiteDbType(dbType):
 		// The SQLite3 queries unconditionally leverage CTE since the
 		// embedded version of SQLite3 supports CTE.
 		return buildFetchRegistrationEntryQuerySQLite3(entryID)
-	case PostgreSQL:
+	case isPostgresDbType(dbType):
 		// The PostgreSQL queries unconditionally leverage CTE since all versions
 		// of PostgreSQL supported by the plugin support CTE.
 		return buildFetchRegistrationEntryQueryPostgreSQL(entryID)
-	case MySQL:
+	case isMySQLDbType(dbType):
 		if supportsCTE {
 			return buildFetchRegistrationEntryQueryMySQLCTE(entryID)
 		}
@@ -2794,17 +2829,16 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 }
 
 func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
-	//TODO: check how to add downstream to all querys
-	switch dbType {
-	case SQLite:
+	switch {
+	case isSQLiteDbType(dbType):
 		// The SQLite3 queries unconditionally leverage CTE since the
 		// embedded version of SQLite3 supports CTE.
 		return buildListRegistrationEntriesQuerySQLite3(req)
-	case PostgreSQL:
+	case isPostgresDbType(dbType):
 		// The PostgreSQL queries unconditionally leverage CTE since all versions
 		// of PostgreSQL supported by the plugin support CTE.
 		return buildListRegistrationEntriesQueryPostgreSQL(req)
-	case MySQL:
+	case isMySQLDbType(dbType):
 		if supportsCTE {
 			return buildListRegistrationEntriesQueryMySQLCTE(req)
 		}
@@ -2850,9 +2884,8 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 }
 
 func maybeRebind(dbType, query string) string {
-	if dbType == PostgreSQL {
+	if isPostgresDbType(dbType) {
 		return postgreSQLRebind(query)
-	}
 	return query
 }
 
@@ -3020,7 +3053,6 @@ func buildQuerySQLite3(builder *strings.Builder, filtered bool, downstream bool)
 func buildQueryPostgreSQL(builder *strings.Builder, filtered bool, downstream bool) {
 	if filtered {
 		builder.WriteString(")")
-	}
 
 	builder.WriteString(`
 	SELECT
@@ -3274,7 +3306,7 @@ func (n idFilterNode) render(builder *strings.Builder, dbType string, sibling in
 			}
 			child.render(builder, dbType, i, indentation+1, true, true)
 		}
-	case dbType != MySQL:
+	case !isMySQLDbType(dbType):
 		builder.WriteString("SELECT e_id FROM (\n")
 		for i, child := range n.children {
 			if i > 0 {
@@ -3491,7 +3523,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 	}
 
 	indentation := 1
-	if req.Pagination != nil && dbType == MySQL {
+	if req.Pagination != nil && isMySQLDbType(dbType) {
 		filter()
 		builder.WriteString("\tSELECT e_id FROM (\n")
 		indentation = 2
@@ -3536,7 +3568,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
 		builder.WriteString("\n")
 
-		if dbType == MySQL {
+		if isMySQLDbType(dbType) {
 			builder.WriteString("\t) workaround_for_mysql_subquery_limit\n")
 		}
 	}
@@ -3921,6 +3953,9 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 
 	for _, entry := range registrationEntries {
 		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
+			return err
+		}
+		if err := createRegistrationEntryEvent(tx, entry.EntryID); err != nil {
 			return err
 		}
 		logger.WithFields(logrus.Fields{
@@ -4484,7 +4519,7 @@ func bindVarsFn(fn func(int) string, query string) string {
 }
 
 func (cfg *configuration) Validate() error {
-	if cfg.DatabaseType == "" {
+	if cfg.databaseTypeConfig.databaseType == "" {
 		return sqlError.New("database_type must be set")
 	}
 
@@ -4492,7 +4527,7 @@ func (cfg *configuration) Validate() error {
 		return sqlError.New("connection_string must be set")
 	}
 
-	if cfg.DatabaseType == MySQL {
+	if isMySQLDbType(cfg.databaseTypeConfig.databaseType) {
 		if err := validateMySQLConfig(cfg, false); err != nil {
 			return err
 		}
@@ -4501,6 +4536,18 @@ func (cfg *configuration) Validate() error {
 			if err := validateMySQLConfig(cfg, true); err != nil {
 				return err
 			}
+		}
+	}
+
+	if cfg.databaseTypeConfig.AWSMySQL != nil {
+		if err := cfg.databaseTypeConfig.AWSMySQL.validate(); err != nil {
+			return err
+		}
+	}
+
+	if cfg.databaseTypeConfig.AWSPostgres != nil {
+		if err := cfg.databaseTypeConfig.AWSPostgres.validate(); err != nil {
+			return err
 		}
 	}
 
@@ -4645,4 +4692,58 @@ func deleteCAJournal(tx *gorm.DB, caJournalID uint) error {
 		return sqlError.Wrap(err)
 	}
 	return nil
+}
+
+func parseDatabaseTypeASTNode(node ast.Node) (*dbTypeConfig, error) {
+	lt, ok := node.(*ast.LiteralType)
+	if ok {
+		return &dbTypeConfig{databaseType: strings.Trim(lt.Token.Text, "\"")}, nil
+	}
+
+	// We expect the node to be *ast.ObjectList.
+	objectList, ok := node.(*ast.ObjectList)
+	if !ok {
+		return nil, errors.New("malformed database type configuration")
+	}
+
+	if len(objectList.Items) != 1 {
+		return nil, errors.New("exactly one database type is expected")
+	}
+
+	if len(objectList.Items[0].Keys) != 1 {
+		return nil, errors.New("exactly one key is expected")
+	}
+
+	var data bytes.Buffer
+	if err := printer.DefaultConfig.Fprint(&data, node); err != nil {
+		return nil, err
+	}
+
+	dbTypeConfig := new(dbTypeConfig)
+	if err := hcl.Decode(dbTypeConfig, data.String()); err != nil {
+		return nil, fmt.Errorf("failed to decode configuration: %w", err)
+	}
+
+	databaseType := strings.Trim(objectList.Items[0].Keys[0].Token.Text, "\"")
+	switch databaseType {
+	case AWSMySQL:
+	case AWSPostgreSQL:
+	default:
+		return nil, fmt.Errorf("unknown database type: %s", databaseType)
+	}
+
+	dbTypeConfig.databaseType = databaseType
+	return dbTypeConfig, nil
+}
+
+func isMySQLDbType(dbType string) bool {
+	return dbType == MySQL || dbType == AWSMySQL
+}
+
+func isPostgresDbType(dbType string) bool {
+	return dbType == PostgreSQL || dbType == AWSPostgreSQL
+}
+
+func isSQLiteDbType(dbType string) bool {
+	return dbType == SQLite
 }

@@ -77,7 +77,7 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte, preferredTTL t
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
-		Subject:      csr.Subject,
+		RawSubject:   csr.RawSubject,
 		URIs:         csr.URIs,
 		NotBefore:    notBefore,
 		NotAfter:     notAfter,
@@ -86,7 +86,7 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte, preferredTTL t
 			x509.KeyUsageCRLSign,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
-		ExtraExtensions:       csr.ExtraExtensions,
+		ExtraExtensions:       csr.Extensions,
 	}
 
 	certDER, err := ca.keypair.CreateCertificate(ctx, template, csr.PublicKey)

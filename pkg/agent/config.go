@@ -39,6 +39,9 @@ type Config struct {
 	// If true, the agent will bootstrap insecurely with the server
 	InsecureBootstrap bool
 
+	// If true, the agent retries bootstrap with backoff
+	RetryBootstrap bool
+
 	// HealthChecks provides the configuration for health monitoring
 	HealthChecks health.Config
 
@@ -100,6 +103,9 @@ type Config struct {
 
 	// AvailabilityTarget controls how frequently rotate SVIDs
 	AvailabilityTarget time.Duration
+
+	// Deprecated config option to disable reattest to renew functionality
+	DisableReattestToRenew bool
 }
 
 func New(c *Config) *Agent {

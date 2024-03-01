@@ -196,6 +196,35 @@ func (s *PluginSuite) TestInvalidPluginConfiguration() {
 	s.RequireErrorContains(err, "datastore-sql: unsupported database_type: wrong")
 }
 
+func (s *PluginSuite) TestInvalidAWSConfiguration() {
+	testCases := []struct {
+		name        string
+		config      string
+		expectedErr string
+	}{
+		{
+			name: "aws_mysql - no region",
+			config: `
+			database_type "aws_mysql" {}
+			connection_string = "test_user:@tcp(localhost:1234)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"`,
+			expectedErr: "datastore-sql: region must be specified",
+		},
+		{
+			name: "postgres_mysql - no region",
+			config: `
+			database_type "aws_postgres" {}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "region must be specified",
+		},
+	}
+	for _, testCase := range testCases {
+		s.T().Run(testCase.name, func(t *testing.T) {
+			err := s.ds.Configure(ctx, testCase.config)
+			s.RequireErrorContains(err, testCase.expectedErr)
+		})
+	}
+}
+
 func (s *PluginSuite) TestInvalidMySQLConfiguration() {
 	err := s.ds.Configure(ctx, `
 		database_type = "mysql"
@@ -2047,6 +2076,11 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	}
 	prunedLogMessage := "Pruned an expired registration"
 
+	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(1, len(resp.Events))
+	s.Require().Equal(createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
+
 	for _, tt := range []struct {
 		name                      string
 		time                      time.Time
@@ -2082,11 +2116,26 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	} {
 		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
+			lastEventID, err := s.ds.GetLatestRegistrationEntryEventID(ctx)
+			require.NoError(t, err)
+
 			err = s.ds.PruneRegistrationEntries(ctx, tt.time)
 			require.NoError(t, err)
 			fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
+
+			// Verify pruning triggers event creation
+			resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+				GreaterThanEventID: lastEventID,
+			})
+			require.NoError(t, err)
+			if tt.expectedRegistrationEntry != nil {
+				require.Equal(t, 0, len(resp.Events))
+			} else {
+				require.Equal(t, 1, len(resp.Events))
+				require.Equal(t, createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
+			}
 
 			if tt.expectedLastLog.Message == prunedLogMessage {
 				spiretest.AssertLastLogs(t, s.hook.AllEntries(), []spiretest.LogEntry{tt.expectedLastLog})
