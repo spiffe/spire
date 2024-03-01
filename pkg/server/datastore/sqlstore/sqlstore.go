@@ -2944,7 +2944,7 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 }
 
 // Count Registration Entries
-func countRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
+func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogger, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
 		return 0, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
 	}
@@ -3214,7 +3214,6 @@ func buildQueryMySQLCTE(builder *strings.Builder, filtered bool, downstream bool
 }
 
 func buildQueryMySQL(builder *strings.Builder) {
-
 	builder.WriteString(`
 	SELECT
 		E.id AS e_id,
@@ -3247,7 +3246,6 @@ func buildQueryMySQL(builder *strings.Builder) {
 	LEFT JOIN
 		(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 	`)
-
 }
 
 type idFilterNode struct {
