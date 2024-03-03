@@ -49,9 +49,10 @@ func (service *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLev
 		return nil, fmt.Errorf("Invalid request NewLevel value cannot be LogLevel_UNSPECIFIED")
 	}
 	logrus.WithFields(logrus.Fields{
-		"RequestLevel": strings.ToLower(apitype.LogLevel_name[int32(req.NewLevel)]),
+		"ApiLogLevel": strings.ToLower(apitype.LogLevel_name[int32(req.NewLevel)]),
+		"LogrusLevel": LogrusLevel[req.NewLevel].String(),
 	}).Info("SetLogLevel Called")
-	logrus.SetLevel(logrus.Level(req.NewLevel))
+	logrus.SetLevel(LogrusLevel[req.NewLevel])
 	logger := &apitype.Logger{
 		CurrentLevel: ApiLevel[logrus.GetLevel()],
 		LaunchLevel: ApiLevel[service.LaunchLevel],

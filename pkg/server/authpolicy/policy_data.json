@@ -124,6 +124,11 @@
 			"allow_local": true
 		},
 		{
+			"full_method": "/spire.api.server.logger.v1.Logger/ResetLogLevel",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
 			"full_method": "/spire.api.server.agent.v1.Agent/CountAgents",
 			"allow_admin": true,
 			"allow_local": true
