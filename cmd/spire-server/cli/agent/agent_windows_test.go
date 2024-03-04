@@ -24,12 +24,12 @@ var (
     	Filter by expiration time (format: "2006-01-02 15:04:05 -0700 -07")
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
+  -namedPipeName string
+     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	banUsage = `Usage of agent ban:
   -namedPipeName string
@@ -58,12 +58,12 @@ var (
     	Filter by expiration time (format: "2006-01-02 15:04:05 -0700 -07")
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
+  -namedPipeName string
+     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
   -selector value
     	A colon-delimited type:value selector. Can be used more than once
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	showUsage = `Usage of agent show:
   -namedPipeName string
