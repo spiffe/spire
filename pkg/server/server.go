@@ -390,6 +390,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Catalog:              catalog,
 		ServerCA:             serverCA,
 		Log:                  s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		Logger:               s.config.Logger,
 		LaunchLogLevel:      s.config.LaunchLogLevel,
 		Metrics:              metrics,
 		JWTKeyPublisher:      jwtKeyPublisher,

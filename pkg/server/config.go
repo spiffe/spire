@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/common/log"
 )
 
 type Config struct {
@@ -23,6 +24,8 @@ type Config struct {
 	PluginConfigs common.PluginConfigs
 
 	Log logrus.FieldLogger
+
+	Logger *log.Logger
 
 	LaunchLogLevel logrus.Level
 

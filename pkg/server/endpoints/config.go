@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/svid"
 )
@@ -62,8 +63,11 @@ type Config struct {
 	// Makes policy decisions
 	AuthPolicyEngine *authpolicy.Engine
 
-	// The fielLogger interface
+	// The fieldLogger interface
 	Log             logrus.FieldLogger
+
+	// The logger instance (permits log level changes)
+	Logger		*log.Logger
 
 	// The default (original config) log level
 	LaunchLogLevel logrus.Level
@@ -165,6 +169,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 		}),
 		LoggerServer: loggerv1.New(loggerv1.Config{
 			LaunchLevel: c.LaunchLogLevel,
+			Logger: c.Logger,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
 			TrustDomain:  c.TrustDomain,
