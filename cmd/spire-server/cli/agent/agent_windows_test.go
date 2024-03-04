@@ -25,7 +25,7 @@ var (
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -namedPipeName string
-     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
+    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
   -selector value
@@ -59,7 +59,7 @@ var (
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -namedPipeName string
-     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
+    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
   -selector value
