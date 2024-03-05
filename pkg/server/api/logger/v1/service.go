@@ -33,7 +33,7 @@ type Service struct {
 func New(config Config) *Service {
 	config.Log.WithFields(logrus.Fields{
 		"LaunchLevel": config.LaunchLevel,
-	}).Info("Logger service Configured")
+	}).Info("Logger service configured")
 	return &Service{
 		log:         config.Log,
 		launchLevel: config.LaunchLevel,

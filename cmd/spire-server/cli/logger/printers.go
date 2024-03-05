@@ -26,7 +26,7 @@ func PrettyPrintLogger(env *commoncli.Env, results ...any) error {
 
 	logrusLaunch, found := serverlogger.LogrusLevel[apiLogger.LaunchLevel]
 	if !found {
-		return errors.New("internal error: returned current log level is undefined; please report this as a bug")
+		return errors.New("internal error: returned launch log level is undefined; please report this as a bug")
 	}
 	launchText, err := logrusLaunch.MarshalText()
 	if err != nil {
