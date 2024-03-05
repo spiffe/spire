@@ -13,22 +13,25 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
-	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
-	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
-	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
-	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
-	"github.com/spiffe/spire/pkg/agent/manager"
-	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/test/fakes/fakemetrics"
-	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/reflection/grpc_reflection_v1"
 	"google.golang.org/grpc/status"
+
+	healthv1 "github.com/spiffe/spire/pkg/agent/api/health/v1"
+	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
+	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
+	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
+	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
+	"github.com/spiffe/spire/test/spiretest"
 )
 
 func TestEndpoints(t *testing.T) {
@@ -125,6 +128,39 @@ func TestEndpoints(t *testing.T) {
 		{
 			name:       "access denied to remote caller",
 			fromRemote: true,
+		},
+		{
+			name: "reflection enabled",
+			do: func(t *testing.T, conn *grpc.ClientConn) {
+				exposedServices := []string{
+					middleware.WorkloadAPIServiceName,
+					middleware.EnvoySDSv3ServiceName,
+					middleware.HealthServiceName,
+					middleware.ServerReflectionServiceName,
+					middleware.ServerReflectionV1AlphaServiceName,
+				}
+				client := grpc_reflection_v1.NewServerReflectionClient(conn)
+
+				clientStream, err := client.ServerReflectionInfo(ctx)
+				require.NoError(t, err)
+
+				err = clientStream.Send(&grpc_reflection_v1.ServerReflectionRequest{
+					MessageRequest: &grpc_reflection_v1.ServerReflectionRequest_ListServices{},
+				})
+				require.NoError(t, err)
+
+				resp, err := clientStream.Recv()
+				require.NoError(t, err)
+
+				listResp := resp.GetListServicesResponse()
+				require.NotNil(t, listResp)
+
+				var serviceNames []string
+				for _, service := range listResp.Service {
+					serviceNames = append(serviceNames, service.Name)
+				}
+				assert.ElementsMatch(t, exposedServices, serviceNames)
+			},
 		},
 	} {
 		tt := tt
