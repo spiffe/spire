@@ -95,6 +95,7 @@ func TestNew(t *testing.T) {
 		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
 		JWTKeyPublisher:  &fakeJWTKeyPublisher{},
 		Log:              log,
+		RootLog:          log,
 		Metrics:          metrics,
 		RateLimit:        rateLimit,
 		Clock:            clk,
