@@ -3,10 +3,11 @@ package logger_test
 import (
 	"errors"
 	"testing"
+
 	"github.com/stretchr/testify/require"
 
-	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 )
 
 var (
@@ -31,16 +32,16 @@ func TestGetSynopsis(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	for _, tt := range []struct{
-		name               string
+	for _, tt := range []struct {
+		name string
 		// server state
-                server             *mockLoggerServer
+		server *mockLoggerServer
 		// input
-                args               []string
+		args []string
 		// expected items
-                expectReturnCode   int
-                expectStdout       string
-                expectStderr       string
+		expectReturnCode int
+		expectStdout     string
+		expectStderr     string
 	}{
 		{
 			name: "configured to info, set to info, using pretty output",
@@ -48,7 +49,7 @@ func TestGet(t *testing.T) {
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_INFO,
-					LaunchLevel: types.LogLevel_INFO,
+					LaunchLevel:  types.LogLevel_INFO,
 				},
 			},
 			expectReturnCode: 0,
@@ -63,7 +64,7 @@ Launch Level : info
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_WARN,
-					LaunchLevel: types.LogLevel_DEBUG,
+					LaunchLevel:  types.LogLevel_DEBUG,
 				},
 			},
 			expectReturnCode: 0,
@@ -78,7 +79,7 @@ Launch Level : debug
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_TRACE,
-					LaunchLevel: types.LogLevel_ERROR,
+					LaunchLevel:  types.LogLevel_ERROR,
 				},
 			},
 			expectReturnCode: 0,
@@ -93,7 +94,7 @@ Launch Level : error
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_FATAL,
-					LaunchLevel: types.LogLevel_PANIC,
+					LaunchLevel:  types.LogLevel_PANIC,
 				},
 			},
 			expectReturnCode: 0,
@@ -108,7 +109,7 @@ Launch Level : panic
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_INFO,
-					LaunchLevel: types.LogLevel_INFO,
+					LaunchLevel:  types.LogLevel_INFO,
 				},
 			},
 			expectReturnCode: 0,
@@ -121,7 +122,7 @@ Launch Level : panic
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_WARN,
-					LaunchLevel: types.LogLevel_DEBUG,
+					LaunchLevel:  types.LogLevel_DEBUG,
 				},
 			},
 			expectReturnCode: 0,
@@ -134,7 +135,7 @@ Launch Level : panic
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_TRACE,
-					LaunchLevel: types.LogLevel_ERROR,
+					LaunchLevel:  types.LogLevel_ERROR,
 				},
 			},
 			expectReturnCode: 0,
@@ -147,7 +148,7 @@ Launch Level : panic
 			server: &mockLoggerServer{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_FATAL,
-					LaunchLevel: types.LogLevel_PANIC,
+					LaunchLevel:  types.LogLevel_PANIC,
 				},
 			},
 			expectReturnCode: 0,

@@ -7,23 +7,23 @@ import (
 	"strings"
 
 	"github.com/mitchellh/cli"
+	"github.com/sirupsen/logrus"
 	api "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/cmd/spire-server/util"
-	serverlogger "github.com/spiffe/spire/pkg/server/api/logger/v1"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
+	serverlogger "github.com/spiffe/spire/pkg/server/api/logger/v1"
 )
 
 type setCommand struct {
-	env               *commoncli.Env
-	newLevel          string
-	printer           cliprinter.Printer
+	env      *commoncli.Env
+	newLevel string
+	printer  cliprinter.Printer
 }
 
 // Returns a cli.command that sets the log level using the default
-// cli enviornment.
+// cli environment.
 func NewSetCommand() cli.Command {
 	return NewSetCommandWithEnv(commoncli.DefaultEnv)
 }
@@ -34,12 +34,12 @@ func NewSetCommandWithEnv(env *commoncli.Env) cli.Command {
 }
 
 // The name of the command.
-func (_ *setCommand) Name() string {
+func (*setCommand) Name() string {
 	return "logger set"
 }
 
 // The help presented description of the command.
-func (_ *setCommand) Synopsis() string {
+func (*setCommand) Synopsis() string {
 	return "Sets the logger details"
 }
 
@@ -48,7 +48,6 @@ func (c *setCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.newLevel, "level", "", "The new log level, one of (panic, fatal, error, warn, info, debug, trace, launch)")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintLogger)
 }
-
 
 // The routine that executes the command
 func (c *setCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
@@ -61,11 +60,12 @@ func (c *setCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 	if level == "launch" {
 		logger, err = serverClient.NewLoggerClient().ResetLogLevel(ctx, &api.ResetLogLevelRequest{})
 	} else {
-		logrusLevel, err := logrus.ParseLevel(level)
+		var logrusLevel logrus.Level
+		logrusLevel, err = logrus.ParseLevel(level)
 		if err != nil {
 			return fmt.Errorf("the value %s is not a valid setting", c.newLevel)
 		}
-		apiLevel, found := serverlogger.ApiLevel[logrusLevel]
+		apiLevel, found := serverlogger.APILevel[logrusLevel]
 		if !found {
 			return fmt.Errorf("the logrus level %d could not be transformed into an api log level", logrusLevel)
 		}
@@ -79,6 +79,6 @@ func (c *setCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 	return c.printer.PrintProto(logger)
 }
 
-func (l* setCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error {
+func (c *setCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error {
 	return PrettyPrintLogger(env, results...)
 }

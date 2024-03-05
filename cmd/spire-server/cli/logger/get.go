@@ -13,8 +13,8 @@ import (
 )
 
 type getCommand struct {
-	env               *commoncli.Env
-	printer           cliprinter.Printer
+	env     *commoncli.Env
+	printer cliprinter.Printer
 }
 
 // Returns a cli.command that gets the logger information using
@@ -29,12 +29,12 @@ func NewGetCommandWithEnv(env *commoncli.Env) cli.Command {
 }
 
 // The name of the command.
-func (_ *getCommand) Name() string {
+func (*getCommand) Name() string {
 	return "logger get"
 }
 
 // The help presented description of the command.
-func (_ *getCommand) Synopsis() string {
+func (*getCommand) Synopsis() string {
 	return "Gets the logger details"
 }
 
@@ -45,7 +45,6 @@ func (c *getCommand) AppendFlags(fs *flag.FlagSet) {
 
 // The routine that executes the command
 func (c *getCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
-
 	logger, err := serverClient.NewLoggerClient().GetLogger(ctx, &api.GetLoggerRequest{})
 	if err != nil {
 		return fmt.Errorf("error fetching logger: %w", err)
@@ -55,7 +54,6 @@ func (c *getCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 }
 
 // Formatting for the logger under pretty printing of output.
-func (l* getCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error {
+func (c *getCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error {
 	return PrettyPrintLogger(env, results...)
 }
-

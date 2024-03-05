@@ -3,17 +3,18 @@ package logger_test
 import (
 	"io"
 	"testing"
+
 	"github.com/spiffe/spire/test/spiretest"
 
 	"bytes"
 	"context"
 
 	"github.com/mitchellh/cli"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"google.golang.org/grpc"
-	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
 // an input/output capture struct
@@ -22,7 +23,7 @@ type loggerTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 	args   []string
-        server *mockLoggerServer
+	server *mockLoggerServer
 	client cli.Command
 }
 
@@ -40,7 +41,7 @@ func setupCliTest(t *testing.T, server *mockLoggerServer, newClient func(*common
 		loggerv1.RegisterLoggerServer(s, server)
 	})
 
-	stdin  := new(bytes.Buffer)
+	stdin := new(bytes.Buffer)
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 
@@ -71,8 +72,8 @@ type mockLoggerServer struct {
 	loggerv1.UnimplementedLoggerServer
 
 	receivedSetValue *types.LogLevel
-	returnLogger *types.Logger
-	returnErr error
+	returnLogger     *types.Logger
+	returnErr        error
 }
 
 // mock implementation for GetLogger
@@ -85,17 +86,16 @@ func (s *mockLoggerServer) SetLogLevel(_ context.Context, req *loggerv1.SetLogLe
 	return s.returnLogger, s.returnErr
 }
 
-func (s *mockLoggerServer) ResetLogLevel(_ context.Context, req *loggerv1.ResetLogLevelRequest) (*types.Logger, error) {
+func (s *mockLoggerServer) ResetLogLevel(_ context.Context, _ *loggerv1.ResetLogLevelRequest) (*types.Logger, error) {
 	s.receivedSetValue = nil
 	return s.returnLogger, s.returnErr
 }
-
 
 var _ io.Writer = &errorWriter{}
 
 type errorWriter struct {
 	ReturnError error
-	Buffer bytes.Buffer
+	Buffer      bytes.Buffer
 }
 
 func (e *errorWriter) Write(p []byte) (n int, err error) {
@@ -108,4 +108,3 @@ func (e *errorWriter) Write(p []byte) (n int, err error) {
 func (e *errorWriter) String() string {
 	return e.Buffer.String()
 }
-

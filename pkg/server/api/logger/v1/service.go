@@ -19,14 +19,14 @@ type Logger interface {
 }
 
 type Config struct {
-	Log Logger
+	Log         Logger
 	LaunchLevel logrus.Level
 }
 
 type Service struct {
 	loggerv1.UnsafeLoggerServer
 
-	log Logger
+	log         Logger
 	launchLevel logrus.Level
 }
 
@@ -44,16 +44,16 @@ func RegisterService(server *grpc.Server, service *Service) {
 	loggerv1.RegisterLoggerServer(server, service)
 }
 
-func (service *Service) GetLogger(ctx context.Context, req *loggerv1.GetLoggerRequest) (*apitype.Logger, error) {
+func (service *Service) GetLogger(_ context.Context, _ *loggerv1.GetLoggerRequest) (*apitype.Logger, error) {
 	service.log.Info("GetLogger Called")
 	logger := &apitype.Logger{
-		CurrentLevel: ApiLevel[service.log.GetLevel()],
-		LaunchLevel: ApiLevel[service.launchLevel],
+		CurrentLevel: APILevel[service.log.GetLevel()],
+		LaunchLevel:  APILevel[service.launchLevel],
 	}
 	return logger, nil
 }
 
-func (service *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequest) (*apitype.Logger, error) {
+func (service *Service) SetLogLevel(_ context.Context, req *loggerv1.SetLogLevelRequest) (*apitype.Logger, error) {
 	if req.NewLevel == apitype.LogLevel_UNSPECIFIED {
 		return nil, fmt.Errorf("Invalid request NewLevel value cannot be LogLevel_UNSPECIFIED")
 	}
@@ -63,18 +63,18 @@ func (service *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLev
 	}).Info("SetLogLevel Called")
 	service.log.SetLevel(LogrusLevel[req.NewLevel])
 	logger := &apitype.Logger{
-		CurrentLevel: ApiLevel[service.log.GetLevel()],
-		LaunchLevel: ApiLevel[service.launchLevel],
+		CurrentLevel: APILevel[service.log.GetLevel()],
+		LaunchLevel:  APILevel[service.launchLevel],
 	}
 	return logger, nil
 }
 
-func (service *Service) ResetLogLevel(ctx context.Context, req *loggerv1.ResetLogLevelRequest) (*apitype.Logger, error) {
+func (service *Service) ResetLogLevel(_ context.Context, _ *loggerv1.ResetLogLevelRequest) (*apitype.Logger, error) {
 	service.log.Info("ResetLogLevel Called")
 	service.log.SetLevel(service.launchLevel)
 	logger := &apitype.Logger{
-		CurrentLevel: ApiLevel[service.log.GetLevel()],
-		LaunchLevel: ApiLevel[service.launchLevel],
+		CurrentLevel: APILevel[service.log.GetLevel()],
+		LaunchLevel:  APILevel[service.launchLevel],
 	}
 	return logger, nil
 }

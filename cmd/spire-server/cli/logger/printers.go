@@ -17,20 +17,20 @@ func PrettyPrintLogger(env *commoncli.Env, results ...any) error {
 
 	logrusCurrent, found := serverlogger.LogrusLevel[apiLogger.CurrentLevel]
 	if !found {
-		return errors.New("internal error: returned current log level is undefined; please report this as a bug.")
+		return errors.New("internal error: returned current log level is undefined; please report this as a bug")
 	}
 	currentText, err := logrusCurrent.MarshalText()
 	if err != nil {
-		return fmt.Errorf("internal error: logrus log level %d has no name; please report this as a bug.", logrusCurrent)
+		return fmt.Errorf("internal error: logrus log level %d has no name; please report this as a bug", logrusCurrent)
 	}
 
 	logrusLaunch, found := serverlogger.LogrusLevel[apiLogger.LaunchLevel]
 	if !found {
-		return errors.New("internal error: returned current log level is undefined; please report this as a bug.")
+		return errors.New("internal error: returned current log level is undefined; please report this as a bug")
 	}
 	launchText, err := logrusLaunch.MarshalText()
 	if err != nil {
-		return fmt.Errorf("internal error: logrus log level %d has no name; please report this as a bug.", logrusLaunch)
+		return fmt.Errorf("internal error: logrus log level %d has no name; please report this as a bug", logrusLaunch)
 	}
 
 	if err := env.Printf("Logger Level : %s\nLaunch Level : %s\n\n", currentText, launchText); err != nil {
@@ -38,4 +38,3 @@ func PrettyPrintLogger(env *commoncli.Env, results ...any) error {
 	}
 	return nil
 }
-
