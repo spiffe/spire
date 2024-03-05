@@ -543,19 +543,11 @@ func testLoggerAPI(ctx context.Context, t *testing.T, conns testConns) {
 	})
 
 	t.Run("Admin", func(t *testing.T) {
-		testAuthorization(ctx, t, loggerv1.NewLoggerClient(conns.admin), map[string]bool{
-			"GetLogger":     true,
-			"SetLogLevel":   true,
-			"ResetLogLevel": true,
-		})
+		assertServiceUnavailable(ctx, t, loggerv1.NewLoggerClient(conns.admin))
 	})
 
 	t.Run("Federated Admin", func(t *testing.T) {
-		testAuthorization(ctx, t, loggerv1.NewLoggerClient(conns.federatedAdmin), map[string]bool{
-			"GetLogger":     true,
-			"SetLogLevel":   true,
-			"ResetLogLevel": true,
-		})
+		assertServiceUnavailable(ctx, t, loggerv1.NewLoggerClient(conns.federatedAdmin))
 	})
 
 	t.Run("Downstream", func(t *testing.T) {
