@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.8] - 2024-03-05
+
+### Security
+
+- Update Go to v1.21.8 to patch CVE-2024-24783.
+
 ## [1.8.7] - 2023-12-21
 
 ### Added
