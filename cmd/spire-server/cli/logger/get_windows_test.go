@@ -10,4 +10,3 @@ var (
     	Desired output format (pretty, json); default: pretty.
 `
 )
-
