@@ -10,15 +10,6 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 )
 
-var (
-	getUsage = `Usage of logger get:
-  -output value
-    	Desired output format (pretty, json); default: pretty.
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`
-)
-
 func TestGetHelp(t *testing.T) {
 	test := setupCliTest(t, nil, logger.NewGetCommandWithEnv)
 	test.client.Help()
