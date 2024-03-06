@@ -172,7 +172,7 @@ Launch Level : panic
 				returnLogger: nil,
 			},
 			expectReturnCode: 1,
-			expectStderr: `Error: error fetching logger: rpc error: code = Internal desc = grpc: error while marshaling: proto: Marshal called with nil
+			expectStderr: `Error: internal error: returned current log level is undefined; please report this as a bug
 `,
 		},
 	} {
