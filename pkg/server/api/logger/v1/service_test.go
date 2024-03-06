@@ -405,10 +405,10 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			test := setupServiceTest(t, tt.launchLevel)
 			defer test.Cleanup()
 
-			resp, err := test.client.SetLogLevel(context.Background(), tt.setLogLevelRequest)
-			require.Equal(t, err, tt.expectedErr)
+			resp, _ := test.client.SetLogLevel(context.Background(), tt.setLogLevelRequest)
 			spiretest.RequireProtoEqual(t, resp, tt.expectedResponse)
-			resp, err = test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
+			resp, err := test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
+			require.Equal(t, err, tt.expectedErr)
 			spiretest.RequireProtoEqual(t, resp, tt.expectedResponse)
 
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogs)
@@ -721,13 +721,13 @@ func TestResetLogger(t *testing.T) {
 			test := setupServiceTest(t, tt.launchLevel)
 			defer test.Cleanup()
 
-			_, err := test.client.SetLogLevel(context.Background(), tt.setLogLevelRequest)
-			_, err = test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
+			_, _ = test.client.SetLogLevel(context.Background(), tt.setLogLevelRequest)
+			_, _ = test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
 			resp, err := test.client.ResetLogLevel(context.Background(), &loggerv1.ResetLogLevelRequest{})
 
 			require.Equal(t, err, tt.expectedErr)
 			spiretest.RequireProtoEqual(t, resp, tt.expectedResponse)
-			_, err = test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
+			_, _ = test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogs)
 		})
 	}
