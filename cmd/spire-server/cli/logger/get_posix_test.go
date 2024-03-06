@@ -10,4 +10,3 @@ var (
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 )
-
