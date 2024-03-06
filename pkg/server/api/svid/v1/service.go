@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -175,10 +176,19 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 		//  Create new SVID
 		r := s.newX509SVID(ctx, svidParam, entriesMap)
 		results = append(results, r)
+		spiffeID := ""
+		if r.Svid != nil {
+			id, err := idutil.IDProtoString(r.Svid.Id)
+			if err == nil {
+				spiffeID = id
+			}
+		}
+
 		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
 			fields := logrus.Fields{
 				telemetry.Csr:            api.HashByte(svidParam.Csr),
 				telemetry.RegistrationID: svidParam.EntryId,
+				telemetry.SPIFFEID:       spiffeID,
 			}
 
 			if r.Svid != nil {

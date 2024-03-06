@@ -235,7 +235,6 @@ func (p *Plugin) getUID(proc processInfo) (string, error) {
 func (p *Plugin) getUserName(uid string) (string, bool) {
 	u, err := p.hooks.lookupUserByID(uid)
 	if err != nil {
-		p.log.Warn("Failed to lookup user name by uid", "uid", uid, "error", err)
 		return "", false
 	}
 	return u.Username, true
@@ -260,7 +259,6 @@ func (p *Plugin) getGID(proc processInfo) (string, error) {
 func (p *Plugin) getGroupName(gid string) (string, bool) {
 	g, err := p.hooks.lookupGroupByID(gid)
 	if err != nil {
-		p.log.Warn("Failed to lookup group name by gid", "gid", gid, "error", err)
 		return "", false
 	}
 	return g.Name, true

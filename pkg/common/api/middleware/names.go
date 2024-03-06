@@ -13,16 +13,18 @@ import (
 const (
 	serverAPIPrefix = "spire.api.server."
 
-	WorkloadAPIServiceName            = "SpiffeWorkloadAPI"
-	WorkloadAPIServiceShortName       = "WorkloadAPI"
-	EnvoySDSv3ServiceName             = "envoy.service.secret.v3.SecretDiscoveryService"
-	EnvoySDSv3ServiceShortName        = "SDS.v3"
-	HealthServiceName                 = "grpc.health.v1.Health"
-	HealthServiceShortName            = "Health"
-	DelegatedIdentityServiceName      = "spire.api.agent.delegatedidentity.v1.DelegatedIdentity"
-	DelegatedIdentityServiceShortName = "DelegatedIdentity"
-	SubscribeToX509SVIDsMethodName    = "SubscribeToX509SVIDs"
-	SubscribeToX509SVIDsMetricKey     = "subscribe_to_x509_svids"
+	WorkloadAPIServiceName             = "SpiffeWorkloadAPI"
+	WorkloadAPIServiceShortName        = "WorkloadAPI"
+	EnvoySDSv3ServiceName              = "envoy.service.secret.v3.SecretDiscoveryService"
+	EnvoySDSv3ServiceShortName         = "SDS.v3"
+	HealthServiceName                  = "grpc.health.v1.Health"
+	HealthServiceShortName             = "Health"
+	DelegatedIdentityServiceName       = "spire.api.agent.delegatedidentity.v1.DelegatedIdentity"
+	DelegatedIdentityServiceShortName  = "DelegatedIdentity"
+	ServerReflectionServiceName        = "grpc.reflection.v1.ServerReflection"
+	ServerReflectionV1AlphaServiceName = "grpc.reflection.v1alpha.ServerReflection"
+	SubscribeToX509SVIDsMethodName     = "SubscribeToX509SVIDs"
+	SubscribeToX509SVIDsMetricKey      = "subscribe_to_x509_svids"
 )
 
 var (

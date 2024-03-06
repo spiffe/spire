@@ -214,6 +214,12 @@ import (
 // | v1.8.6  |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.8.7  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.8.8  |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v1.9.0  |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.9.1  |        |                                                                           |
 // ================================================================================================
 
 const (
@@ -411,7 +417,7 @@ func tableOptionsForDialect(tx *gorm.DB, dbType string) *gorm.DB {
 	// This allows for setting table options for a particular DB type.
 	// For MySQL, (for compatibility reasons) we want to make sure that
 	// we can support indexes on strings (varchar(255) in the DB).
-	if dbType == MySQL {
+	if isMySQLDbType(dbType) {
 		return tx.Set("gorm:table_options", "ENGINE=InnoDB  ROW_FORMAT=DYNAMIC DEFAULT CHARSET=utf8")
 	}
 	return tx
