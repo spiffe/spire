@@ -4,23 +4,25 @@ This document is a configuration reference for SPIRE Server. It includes informa
 
 ## Plugin types
 
-| Type              | Description                                                                                                                                                          |
-|:------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| DataStore         | Provides persistent storage and HA features. **Note:** Pluggability for the DataStore is no longer supported. Only the built-in SQL plugin can be used.              |
-| KeyManager        | Implements both signing and key storage logic for the server's signing operations. Useful for leveraging hardware-based key operations.                              |
-| NodeAttestor      | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type.                                   |
-| UpstreamAuthority | Allows SPIRE server to integrate with existing PKI systems.                                                                                                          |
-| Notifier          | Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
+| Type               | Description                                                                                                                                                          |
+|:-------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| DataStore          | Provides persistent storage and HA features. **Note:** Pluggability for the DataStore is no longer supported. Only the built-in SQL plugin can be used.              |
+| KeyManager         | Implements both signing and key storage logic for the server's signing operations. Useful for leveraging hardware-based key operations.                              |
+| CredentialComposer | Allows customization of SVID and CA attributes.                                                                                                                      |
+| NodeAttestor       | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type.                                   |
+| UpstreamAuthority  | Allows SPIRE server to integrate with existing PKI systems.                                                                                                          |
+| Notifier           | Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
+| BundlePublisher    | Publishes trust bundles to additional locations.                                                                                                                     |
 
 ## Built-in plugins
 
 | Type               | Name                                                                 | Description                                                                                                                 |
 |--------------------|----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| CredentialComposer | [uniqueid](/doc/plugin_server_credentialcomposer_uniqueid.md)        | Adds the x509UniqueIdentifier attribute to workload X509-SVIDs.                                                             |
-| DataStore          | [sql](/doc/plugin_server_datastore_sql.md)                           | An sql database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore                                  |
+| DataStore          | [sql](/doc/plugin_server_datastore_sql.md)                           | An SQL database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore                                  |
 | KeyManager         | [aws_kms](/doc/plugin_server_keymanager_aws_kms.md)                  | A key manager which manages keys in AWS KMS                                                                                 |
 | KeyManager         | [disk](/doc/plugin_server_keymanager_disk.md)                        | A key manager which manages keys persisted on disk                                                                          |
 | KeyManager         | [memory](/doc/plugin_server_keymanager_memory.md)                    | A key manager which manages unpersisted keys in memory                                                                      |
+| CredentialComposer | [uniqueid](/doc/plugin_server_credentialcomposer_uniqueid.md)        | Adds the x509UniqueIdentifier attribute to workload X509-SVIDs.                                                             |
 | NodeAttestor       | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md)                | A node attestor which attests agent identity using an AWS Instance Identity Document                                        |
 | NodeAttestor       | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md)            | A node attestor which attests agent identity using an Azure MSI token                                                       |
 | NodeAttestor       | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md)                | A node attestor which attests agent identity using a GCP Instance Identity Token                                            |
@@ -30,8 +32,6 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor       | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md)                  | A node attestor which attests agent identity using an existing ssh certificate                                              |
 | NodeAttestor       | [tpm_devid](/doc/plugin_server_nodeattestor_tpm_devid.md)            | A node attestor which attests agent identity using a TPM that has been provisioned with a DevID certificate                 |
 | NodeAttestor       | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md)                | A node attestor which attests agent identity using an existing X.509 certificate                                            |
-| Notifier           | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md)              | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage.                             |
-| Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.                                        |
 | UpstreamAuthority  | [disk](/doc/plugin_server_upstreamauthority_disk.md)                 | Uses a CA loaded from disk to sign SPIRE server intermediate certificates.                                                  |
 | UpstreamAuthority  | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md)           | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates.           |
 | UpstreamAuthority  | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md)       | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates.                                    |
@@ -39,6 +39,9 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | UpstreamAuthority  | [vault](/doc/plugin_server_upstreamauthority_vault.md)               | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates.                               |
 | UpstreamAuthority  | [spire](/doc/plugin_server_upstreamauthority_spire.md)               | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server.        |
 | UpstreamAuthority  | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md) | Uses a referenced cert-manager Issuer to request intermediate signing certificates.                                         |
+| Notifier           | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md)              | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage.                             |
+| Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.                                        |
+| BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)               | Publishes trust bundles to an Amazon S3 bucket.                                                                             |
 
 ## Server configuration file
 
