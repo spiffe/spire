@@ -9,17 +9,6 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 )
 
-var (
-	setUsage = `Usage of logger set:
-  -level string
-    	The new log level, one of (panic, fatal, error, warn, info, debug, trace, launch)
-  -output value
-    	Desired output format (pretty, json); default: pretty.
-  -socketPath string
-    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
-`
-)
-
 func TestSetHelp(t *testing.T) {
 	test := setupCliTest(t, nil, logger.NewSetCommandWithEnv)
 	test.client.Help()
