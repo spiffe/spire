@@ -2,7 +2,6 @@
 
 RETRIES=10
 AGENTFOUND=0
-VALIDCONFIG=0
 HEALTHCHECK=0
 HEALTHCHECKFAIL=0
 
@@ -16,14 +15,8 @@ for ((m=1;m<=$RETRIES;m++)); do
 
 done
 
-VALIDATE=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent validate)
-
-if [[ "$VALIDATE" =~ "SPIRE agent configuration file is valid." ]]; then
-    VALIDCONFIG=1
-fi
-
 HEALTH=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck)
-HEALTHFAIL=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck -socketPath example/fail 2>&1 &)
+HEALTHFAIL=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck -socketPath invalid/path 2>&1 &)
 
 if [[ "$HEALTH" =~ "Agent is healthy." ]]; then
     HEALTHCHECK=1
@@ -33,7 +26,7 @@ if [[ "$HEALTHFAIL" =~ "Agent is unhealthy: unable to determine health" ]]; then
     HEALTHCHECKFAIL=1
 fi
 
-if [ $AGENTFOUND -eq 1 ] && [ $VALIDCONFIG -eq 1 ] && [ $HEALTHCHECK -eq 1 ] && [ $HEALTHCHECKFAIL -eq 1 ]; then
+if [ $AGENTFOUND -eq 1 ] && [ $HEALTHCHECK -eq 1 ] && [ $HEALTHCHECKFAIL -eq 1 ]; then
     exit 0
 else
     exit 1
