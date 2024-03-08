@@ -19,8 +19,9 @@ const (
 	orgAccRegion             = "org_account_region"  // required for cache key
 	orgAccountStatus         = "ACTIVE"              // Only allow node account id's with status ACTIVE
 	orgAccountListTTL        = "org_account_map_ttl" // Cache the list of account for specific time, if not sent default will be used.
-	orgAccountDefaultListTTL = "3h"                  // pull account list after 3 hrs
-	orgAccountMinListTTL     = "1h"                  // Minimum TTL configuration to pull the org account list
+	orgAccountDefaultListTTL = "3m"                  // pull account list after 3 minutes
+	orgAccountMinListTTL     = "1m"                  // Minimum TTL configuration to pull the org account list
+	orgAccountRetries        = 5
 )
 
 type orgValidationConfig struct {
@@ -37,15 +38,32 @@ type organizationValidation struct {
 	mutex                         sync.RWMutex
 	orgAccountListCacheTTL        time.Duration // set from configuration else will be set to default
 	log                           hclog.Logger
+	retries                       int // fix number of retries before ttl is expired.
 }
 
 func newOrganizationValidationBase(config *orgValidationConfig) *organizationValidation {
 	client := &organizationValidation{
 		orgListAccountMap: make(map[string]bool),
 		orgConfig:         config,
+		retries:           orgAccountRetries,
 	}
 
 	return client
+}
+
+func (o *organizationValidation) getRetries() int {
+	o.mutex.RLock()
+	defer o.mutex.RUnlock()
+	return o.retries
+}
+
+func (o *organizationValidation) decrRetries() int {
+	// Only decr if its greater than 0
+	if o.retries > 0 {
+		o.retries -= 1
+	}
+
+	return o.retries
 }
 
 func (o *organizationValidation) configure(config *orgValidationConfig) error {
@@ -82,19 +100,29 @@ func (o *organizationValidation) ValidateAccountBelongstoOrg(ctx context.Context
 	}
 	// refresh the account map
 	if isStale {
-		orgAccountList, err = o.fetchAccountsListFromOrg(ctx, orgClient)
+		orgAccountList, err = o.fetchAccountsListFromOrg(ctx, orgClient, false)
 		if err != nil {
 			return false, err
 		}
 	}
 
-	// Check if account contains in organization list
-	_, exist := orgAccountList[accoundIDofNode]
+	// Check if account contains in organization list.
+	// If this return false we will check `X` number of times in that window, to avoid
+	// genuine accounts which are newly added
+	exist := checkIfAccountIdExist(orgAccountList, accoundIDofNode)
 	if !exist {
-		return false, nil
+		remRetries := o.getRetries()
+		if remRetries > 0 && !isStale {
+			orgAccountList, err = o.fetchAccountsListFromOrg(ctx, orgClient, true)
+			if err != nil {
+				return false, err
+			}
+			exist = checkIfAccountIdExist(orgAccountList, accoundIDofNode)
+			return exist, nil
+		}
 	}
 
-	return true, nil
+	return exist, nil
 }
 
 // Check if the org account list is stale.
@@ -121,12 +149,18 @@ func (o *organizationValidation) checkIfOrgAccountListIsStale(ctx context.Contex
 }
 
 // Get the list of accounts belonging to organization and catch them
-func (o *organizationValidation) fetchAccountsListFromOrg(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]bool, error) {
+func (o *organizationValidation) fetchAccountsListFromOrg(ctx context.Context, orgClient organizations.ListAccountsAPIClient, catchBurst bool) (map[string]bool, error) {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
-	// Make sure map is not updated from different go routine. This will make sure we dont make extra calls
-	if len(o.orgListAccountMap) != 0 && time.Now().UTC().Sub(o.orgListAccountMapCreationTime) <= time.Duration(o.orgAccountListCacheTTL) {
+	// Make sure : map is not updated from different go routine. This will make sure we dont make extra calls
+	// * if we make this call before ttl expires, we are doing retry/catchburst that means we need to bypass this validation
+	if !catchBurst && len(o.orgListAccountMap) != 0 && time.Now().UTC().Sub(o.orgListAccountMapCreationTime) <= time.Duration(o.orgAccountListCacheTTL) {
+		return o.orgListAccountMap, nil
+	}
+
+	// Avoid if other thread has already updated the map
+	if catchBurst && o.retries == 0 {
 		return o.orgListAccountMap, nil
 	}
 
@@ -161,14 +195,26 @@ func (o *organizationValidation) fetchAccountsListFromOrg(ctx context.Context, o
 		}
 	}
 
-	// Add timestamp to make sure we can validate its expiry
-	t := time.Now().UTC()
-	o.orgListAccountMapCreationTime = t
+	// Add timestamp to make sure we can validate its expiry, only update timestamp if we are not doing catch burst
+	// and its cache refresh after ttl expiry
+	if !catchBurst {
+		t := time.Now().UTC()
+		o.orgListAccountMapCreationTime = t
+		// Also reset the retires
+		o.retries = orgAccountRetries
+	} else {
+		o.decrRetries()
+	}
 
 	// Overwrite the cache/list
 	o.orgListAccountMap = orgAccountsMap
 
 	return o.orgListAccountMap, nil
+}
+
+func checkIfAccountIdExist(orgAccountList map[string]bool, accoundIDofNode string) bool {
+	_, exist := orgAccountList[accoundIDofNode]
+	return exist
 }
 
 func validateOrganizationConfig(config *IIDAttestorConfig) error {
@@ -187,7 +233,7 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	if len(checkTTL) > 0 {
 		t, err := time.ParseDuration(checkTTL)
 		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "make sure %v if configured, should be in hours and is suffix with required `h` for time duration in hour ex. 1h. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "account_ids_belong_to_org_validation", orgAccountDefaultListTTL)
+			return status.Errorf(codes.InvalidArgument, "make sure %v if configured, should be in hours and is suffix with required `m` for time duration in minute ex. 5m. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "account_ids_belong_to_org_validation", orgAccountDefaultListTTL)
 		}
 
 		minTTL, err := time.ParseDuration(orgAccountMinListTTL)
@@ -195,7 +241,7 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 			return status.Errorf(codes.InvalidArgument, "issue parsing default minimum ttl: %v, err : %v", orgAccountMinListTTL, err)
 		}
 
-		if t.Hours() < minTTL.Hours() {
+		if t.Minutes() < minTTL.Minutes() {
 			return status.Errorf(codes.InvalidArgument, "make sure %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "account_ids_belong_to_org_validation", orgAccountDefaultListTTL)
 		}
 

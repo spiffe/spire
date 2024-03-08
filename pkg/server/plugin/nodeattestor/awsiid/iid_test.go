@@ -635,7 +635,7 @@ func TestConfigure(t *testing.T) {
 	})
 
 	t.Run("fail, account belongs to org, if ttl is specified and is less than min ttl required", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "30m" }`)
+		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "30s" }`)
 		require.Error(t, err, orgVerificationFeatureMinTTLErr)
 	})
 
@@ -645,7 +645,7 @@ func TestConfigure(t *testing.T) {
 	})
 
 	t.Run("success, account_ids_belong_to_org_validation featured enabled with all params", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "2h" }`)
+		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "1m30s" }`)
 		require.NoError(t, err)
 	})
 }
