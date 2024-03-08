@@ -71,8 +71,10 @@ func (o *organizationValidation) configure(config *orgValidationConfig) error {
 	defer o.mutex.Unlock()
 
 	o.orgConfig = config
+
 	// While doing configuration invalidate the map so we dont keep using old one.
 	o.orgListAccountMap = make(map[string]bool)
+	o.retries = orgAccountRetries
 
 	t, err := time.ParseDuration(config.AccountListTTL)
 	if err != nil {
