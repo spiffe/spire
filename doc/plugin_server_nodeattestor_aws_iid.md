@@ -61,13 +61,13 @@ For configuring AWS Node attestation method with organization validation followi
         org_account_id     = "7891011"
         org_account_role   = "spire-server-org-role"
         org_account_region = "us-west-2"
-        org_account_map_ttl = "3h"
+        org_account_map_ttl = "3m"
       }
     }
   }
 
 ```
-Using the block `account_ids_belong_to_org_validation` the org validation node attestation method will be enabled. With above configuration spire server will try to assume this role : `arn:aws:iam::7891011:role/spire-server-org-role` and get the list of all accounts in organization. When node attestation request is sent to server, nodes account id will be check against this list. The role, should have permission to make `ListAccounts` request. More on list account request, can be read from aws [docs](https://docs.aws.amazon.com/organizations/latest/APIReference/API_ListAccounts.html). When not used, block ex. `account_ids_belong_to_org_validation = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `org_account_id`, `org_account_role`, `org_account_region`. `org_account_map_ttl` is an optional param to configure TTL in hours, least can be `1h`. If this param is not defined, default TTL for the account list cache is 3hrs, format to specify TTL is `XhYm`, `Xh` etc.
+Using the block `account_ids_belong_to_org_validation` the org validation node attestation method will be enabled. With above configuration spire server will try to assume this role : `arn:aws:iam::7891011:role/spire-server-org-role` and get the list of all accounts in organization. When node attestation request is sent to server, nodes account id will be check against this list. The role, should have permission to make `ListAccounts` request. More on list account request, can be read from aws [docs](https://docs.aws.amazon.com/organizations/latest/APIReference/API_ListAccounts.html). When not used, block ex. `account_ids_belong_to_org_validation = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `org_account_id`, `org_account_role`, `org_account_region`. `org_account_map_ttl` is an optional param to configure TTL in hours, least can be `1m` (1 minute). If this param is not defined, default TTL for the account list cache is 3m (3 minutes), format to specify TTL is `XhYm`, `Xm` etc. we internally use [time.parseDuration](https://pkg.go.dev/time#ParseDuration) lib.
 
 ## Disabling Instance Profile Selectors
 
