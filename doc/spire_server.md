@@ -12,7 +12,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor       | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type.                                   |
 | UpstreamAuthority  | Allows SPIRE server to integrate with existing PKI systems.                                                                                                          |
 | Notifier           | Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
-| BundlePublisher    | Publishes trust bundles to additional locations.                                                                                                                     |
+| BundlePublisher    | Publishes the local trust bundle to a store.                                                                                                                         |
 
 ## Built-in plugins
 
@@ -41,7 +41,8 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | UpstreamAuthority  | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md) | Uses a referenced cert-manager Issuer to request intermediate signing certificates.                                         |
 | Notifier           | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md)              | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage.                             |
 | Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.                                        |
-| BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)               | Publishes trust bundles to an Amazon S3 bucket.                                                                             |
+| BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)               | Publishes the trust bundle to an Amazon S3 bucket.                                                                          |
+| BundlePublisher    | [gcp_cloudstorage](/doc/plugin_server_bundlepublisher_gcp_cloudstorage.md)     | Publishes the trust bundle to a Google Cloud Storage bucket.                                                      |
 
 ## Server configuration file
 
