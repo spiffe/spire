@@ -23,7 +23,7 @@ type loggerTest struct {
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 	args   []string
-	server *mockLoggerServer
+	server *mockLoggerService
 	client cli.Command
 }
 
@@ -36,7 +36,7 @@ func (l *loggerTest) afterTest(t *testing.T) {
 }
 
 // setup of input/output capture
-func setupCliTest(t *testing.T, server *mockLoggerServer, newClient func(*commoncli.Env) cli.Command) *loggerTest {
+func setupCliTest(t *testing.T, server *mockLoggerService, newClient func(*commoncli.Env) cli.Command) *loggerTest {
 	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
 		loggerv1.RegisterLoggerServer(s, server)
 	})
@@ -68,7 +68,7 @@ func setupCliTest(t *testing.T, server *mockLoggerServer, newClient func(*common
 }
 
 // a mock grpc logger server
-type mockLoggerServer struct {
+type mockLoggerService struct {
 	loggerv1.UnimplementedLoggerServer
 
 	receivedSetValue *types.LogLevel
@@ -77,16 +77,16 @@ type mockLoggerServer struct {
 }
 
 // mock implementation for GetLogger
-func (s *mockLoggerServer) GetLogger(_ context.Context, _ *loggerv1.GetLoggerRequest) (*types.Logger, error) {
+func (s *mockLoggerService) GetLogger(context.Context, *loggerv1.GetLoggerRequest) (*types.Logger, error) {
 	return s.returnLogger, s.returnErr
 }
 
-func (s *mockLoggerServer) SetLogLevel(_ context.Context, req *loggerv1.SetLogLevelRequest) (*types.Logger, error) {
+func (s *mockLoggerService) SetLogLevel(_ context.Context, req *loggerv1.SetLogLevelRequest) (*types.Logger, error) {
 	s.receivedSetValue = &req.NewLevel
 	return s.returnLogger, s.returnErr
 }
 
-func (s *mockLoggerServer) ResetLogLevel(_ context.Context, _ *loggerv1.ResetLogLevelRequest) (*types.Logger, error) {
+func (s *mockLoggerService) ResetLogLevel(context.Context, *loggerv1.ResetLogLevelRequest) (*types.Logger, error) {
 	s.receivedSetValue = nil
 	return s.returnLogger, s.returnErr
 }

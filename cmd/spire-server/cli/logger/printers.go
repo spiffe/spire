@@ -12,7 +12,7 @@ import (
 func PrettyPrintLogger(env *commoncli.Env, results ...any) error {
 	apiLogger, ok := results[0].(*apitype.Logger)
 	if !ok {
-		return errors.New("internal error: logger not found; please report this as a bug")
+		return fmt.Errorf("internal error: unexpected type %T returned; please report this as a bug", results[0])
 	}
 
 	logrusCurrent, found := serverlogger.LogrusLevel[apiLogger.CurrentLevel]

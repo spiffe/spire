@@ -167,8 +167,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			DataStore:   ds,
 		}),
 		LoggerServer: loggerv1.New(loggerv1.Config{
-			Log:         c.RootLog,
-			LaunchLevel: c.LaunchLogLevel,
+			Log: c.RootLog,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
 			TrustDomain:  c.TrustDomain,

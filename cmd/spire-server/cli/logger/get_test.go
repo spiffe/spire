@@ -26,7 +26,7 @@ func TestGet(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		// server state
-		server *mockLoggerServer
+		server *mockLoggerService
 		// input
 		args []string
 		// expected items
@@ -37,7 +37,7 @@ func TestGet(t *testing.T) {
 		{
 			name: "configured to info, set to info, using pretty output",
 			args: []string{"-output", "pretty"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_INFO,
 					LaunchLevel:  types.LogLevel_INFO,
@@ -52,7 +52,7 @@ Launch Level : info
 		{
 			name: "configured to debug, set to warn, using pretty output",
 			args: []string{"-output", "pretty"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_WARN,
 					LaunchLevel:  types.LogLevel_DEBUG,
@@ -67,7 +67,7 @@ Launch Level : debug
 		{
 			name: "configured to error, set to trace, using pretty output",
 			args: []string{"-output", "pretty"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_TRACE,
 					LaunchLevel:  types.LogLevel_ERROR,
@@ -82,7 +82,7 @@ Launch Level : error
 		{
 			name: "configured to panic, set to fatal, using pretty output",
 			args: []string{"-output", "pretty"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_FATAL,
 					LaunchLevel:  types.LogLevel_PANIC,
@@ -97,7 +97,7 @@ Launch Level : panic
 		{
 			name: "configured to info, set to info, using json output",
 			args: []string{"-output", "json"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_INFO,
 					LaunchLevel:  types.LogLevel_INFO,
@@ -110,7 +110,7 @@ Launch Level : panic
 		{
 			name: "configured to debug, set to warn, using json output",
 			args: []string{"-output", "json"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_WARN,
 					LaunchLevel:  types.LogLevel_DEBUG,
@@ -123,7 +123,7 @@ Launch Level : panic
 		{
 			name: "configured to error, set to trace, using json output",
 			args: []string{"-output", "json"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_TRACE,
 					LaunchLevel:  types.LogLevel_ERROR,
@@ -136,7 +136,7 @@ Launch Level : panic
 		{
 			name: "configured to panic, set to fatal, using json output",
 			args: []string{"-output", "json"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnLogger: &types.Logger{
 					CurrentLevel: types.LogLevel_FATAL,
 					LaunchLevel:  types.LogLevel_PANIC,
@@ -149,7 +149,7 @@ Launch Level : panic
 		{
 			name: "configured to info, set to info, server will error",
 			args: []string{"-output", "pretty"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnErr: errors.New("server is unavailable"),
 			},
 			expectReturnCode: 1,
@@ -159,7 +159,7 @@ Launch Level : panic
 		{
 			name: "bizzarro world, returns neither logger nor error",
 			args: []string{"-output", "pretty"},
-			server: &mockLoggerServer{
+			server: &mockLoggerService{
 				returnLogger: nil,
 			},
 			expectReturnCode: 1,
