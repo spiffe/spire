@@ -2,6 +2,7 @@ package logger
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -9,7 +10,6 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	api "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
-	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -45,37 +45,33 @@ func (*setCommand) Synopsis() string {
 
 // Adds additional flags specific to the command.
 func (c *setCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.newLevel, "level", "", "The new log level, one of (panic, fatal, error, warn, info, debug, trace, launch)")
+	fs.StringVar(&c.newLevel, "level", "", "The new log level, one of (panic, fatal, error, warn, info, debug, trace)")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintLogger)
 }
 
 // The routine that executes the command
 func (c *setCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
 	if c.newLevel == "" {
-		return fmt.Errorf("a value (-level) must be set")
+		return errors.New("a value (-level) must be set")
 	}
+
 	level := strings.ToLower(c.newLevel)
-	var logger *apitype.Logger
-	var err error
-	if level == "launch" {
-		logger, err = serverClient.NewLoggerClient().ResetLogLevel(ctx, &api.ResetLogLevelRequest{})
-	} else {
-		var logrusLevel logrus.Level
-		logrusLevel, err = logrus.ParseLevel(level)
-		if err != nil {
-			return fmt.Errorf("the value %s is not a valid setting", c.newLevel)
-		}
-		apiLevel, found := serverlogger.APILevel[logrusLevel]
-		if !found {
-			return fmt.Errorf("the logrus level %d could not be transformed into an api log level", logrusLevel)
-		}
-		logger, err = serverClient.NewLoggerClient().SetLogLevel(ctx, &api.SetLogLevelRequest{
-			NewLevel: apiLevel,
-		})
-	}
+	logrusLevel, err := logrus.ParseLevel(level)
 	if err != nil {
-		return fmt.Errorf("error fetching logger: %w", err)
+		return fmt.Errorf("the value %q is not a valid setting", c.newLevel)
 	}
+
+	apiLevel, found := serverlogger.APILevel[logrusLevel]
+	if !found {
+		return fmt.Errorf("the logrus level %q could not be transformed into an api log level", level)
+	}
+	logger, err := serverClient.NewLoggerClient().SetLogLevel(ctx, &api.SetLogLevelRequest{
+		NewLevel: apiLevel,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set log level: %w", err)
+	}
+
 	return c.printer.PrintProto(logger)
 }
 

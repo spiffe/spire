@@ -385,11 +385,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	logger, err := log.NewLogger(logOptions...)
-	sc.LaunchLogLevel, _ = logrus.ParseLevel(c.Server.LogLevel)
 	if err != nil {
 		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	sc.Log = logger
+
 	if reopenableFile != nil {
 		sc.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}

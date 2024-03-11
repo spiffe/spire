@@ -4,16 +4,17 @@ import (
 	"context"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
+	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/api/logger/v1"
+	"github.com/spiffe/spire/pkg/server/api/middleware"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/test/grpctest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-
-	"github.com/sirupsen/logrus"
-	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
-	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/server/api/logger/v1"
-	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )
@@ -23,7 +24,6 @@ func TestGetLogger(t *testing.T) {
 		name        string
 		launchLevel logrus.Level
 
-		expectedErr      error
 		expectedResponse *apitype.Logger
 		expectedLogs     []spiretest.LogEntry
 	}{
@@ -82,14 +82,15 @@ func TestGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "info",
-					},
+					Message: "GetLogger Called",
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
 				},
 			},
 		},
@@ -104,14 +105,15 @@ func TestGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "debug",
-					},
+					Message: "GetLogger Called",
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
 				},
 			},
 		},
@@ -126,14 +128,15 @@ func TestGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "trace",
-					},
+					Message: "GetLogger Called",
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
 				},
 			},
 		},
@@ -144,7 +147,7 @@ func TestGetLogger(t *testing.T) {
 			defer test.Cleanup()
 
 			resp, err := test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
-			require.Equal(t, err, tt.expectedErr)
+			require.NoError(t, err)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogs)
 			spiretest.RequireProtoEqual(t, resp, tt.expectedResponse)
 		})
@@ -173,7 +176,6 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 				CurrentLevel: apitype.LogLevel_FATAL,
 				LaunchLevel:  apitype.LogLevel_PANIC,
 			},
-			expectedLogs: nil,
 		},
 		{
 			name:        "test SetLogger to INFO on initialized to PANIC",
@@ -190,7 +192,12 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.NewLogLevel: "INFO",
+						telemetry.Status:      "success",
+						telemetry.Type:        "audit",
+					},
 				},
 			},
 		},
@@ -209,7 +216,12 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.NewLogLevel: "DEBUG",
+						telemetry.Status:      "success",
+						telemetry.Type:        "audit",
+					},
 				},
 			},
 		},
@@ -228,16 +240,9 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "info",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "SetLogLevel Called",
 					Data: logrus.Fields{
-						"NewLevel": "panic",
+						telemetry.NewLogLevel: "panic",
 					},
 				},
 			},
@@ -256,21 +261,19 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "info",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "SetLogLevel Called",
 					Data: logrus.Fields{
-						"NewLevel": "info",
+						telemetry.NewLogLevel: "info",
 					},
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.NewLogLevel: "INFO",
+						telemetry.Status:      "success",
+						telemetry.Type:        "audit",
+					},
 				},
 			},
 		},
@@ -288,21 +291,19 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "info",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "SetLogLevel Called",
 					Data: logrus.Fields{
-						"NewLevel": "debug",
+						telemetry.NewLogLevel: "debug",
 					},
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.NewLogLevel: "DEBUG",
+						telemetry.Status:      "success",
+						telemetry.Type:        "audit",
+					},
 				},
 			},
 		},
@@ -321,16 +322,9 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "trace",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "SetLogLevel Called",
 					Data: logrus.Fields{
-						"NewLevel": "panic",
+						telemetry.NewLogLevel: "panic",
 					},
 				},
 			},
@@ -349,21 +343,19 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "trace",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "SetLogLevel Called",
 					Data: logrus.Fields{
-						"NewLevel": "info",
+						telemetry.NewLogLevel: "info",
 					},
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.NewLogLevel: "INFO",
+						telemetry.Status:      "success",
+						telemetry.Type:        "audit",
+					},
 				},
 			},
 		},
@@ -381,21 +373,19 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "trace",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "SetLogLevel Called",
 					Data: logrus.Fields{
-						"NewLevel": "debug",
+						telemetry.NewLogLevel: "debug",
 					},
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.NewLogLevel: "DEBUG",
+						telemetry.Status:      "success",
+						telemetry.Type:        "audit",
+					},
 				},
 			},
 		},
@@ -405,13 +395,15 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			test := setupServiceTest(t, tt.launchLevel)
 			defer test.Cleanup()
 
-			resp, _ := test.client.SetLogLevel(context.Background(), tt.setLogLevelRequest)
+			resp, err := test.client.SetLogLevel(context.Background(), tt.setLogLevelRequest)
+			require.NoError(t, err)
 			spiretest.RequireProtoEqual(t, resp, tt.expectedResponse)
-			resp, err := test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
-			require.Equal(t, err, tt.expectedErr)
-			spiretest.RequireProtoEqual(t, resp, tt.expectedResponse)
-
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogs)
+
+			// Verify using get
+			getResp, err := test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
+			require.Equal(t, err, tt.expectedErr)
+			spiretest.RequireProtoEqual(t, getResp, tt.expectedResponse)
 		})
 	}
 }
@@ -424,7 +416,6 @@ func TestResetLogger(t *testing.T) {
 		launchLevel        logrus.Level
 		setLogLevelRequest *loggerv1.SetLogLevelRequest
 
-		expectedErr      error
 		expectedResponse *apitype.Logger
 		expectedLogs     []spiretest.LogEntry
 	}{
@@ -439,7 +430,6 @@ func TestResetLogger(t *testing.T) {
 				CurrentLevel: apitype.LogLevel_PANIC,
 				LaunchLevel:  apitype.LogLevel_PANIC,
 			},
-			expectedLogs: nil,
 		},
 		{
 			name:        "test PANIC Logger set to INFO then RESET",
@@ -456,11 +446,10 @@ func TestResetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "ResetLogLevel Called",
+					Data: logrus.Fields{
+						telemetry.LaunchLogLevel: "panic",
+					},
 				},
 			},
 		},
@@ -479,11 +468,10 @@ func TestResetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "ResetLogLevel Called",
+					Data: logrus.Fields{
+						telemetry.LaunchLogLevel: "panic",
+					},
 				},
 			},
 		},
@@ -502,22 +490,11 @@ func TestResetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"LaunchLevel": "info",
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
 					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "SetLogLevel Called",
-					Data: logrus.Fields{
-						"NewLevel": "panic",
-					},
-				},
-				// the second get, after the reset
-				{
-					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
 				},
 			},
 		},
@@ -535,29 +512,18 @@ func TestResetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "info",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "SetLogLevel Called",
-					Data: logrus.Fields{
-						"NewLevel": "info",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "ResetLogLevel Called",
+					Data: logrus.Fields{
+						telemetry.LaunchLogLevel: "info",
+					},
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
 				},
 			},
 		},
@@ -575,29 +541,18 @@ func TestResetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "info",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "SetLogLevel Called",
-					Data: logrus.Fields{
-						"NewLevel": "debug",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "ResetLogLevel Called",
+					Data: logrus.Fields{
+						telemetry.LaunchLogLevel: "info",
+					},
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
 				},
 			},
 		},
@@ -616,22 +571,11 @@ func TestResetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"LaunchLevel": "trace",
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
 					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "SetLogLevel Called",
-					Data: logrus.Fields{
-						"NewLevel": "panic",
-					},
-				},
-				// the second get logger, after the reset
-				{
-					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
 				},
 			},
 		},
@@ -649,29 +593,18 @@ func TestResetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "trace",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "SetLogLevel Called",
-					Data: logrus.Fields{
-						"NewLevel": "info",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "ResetLogLevel Called",
+					Data: logrus.Fields{
+						telemetry.LaunchLogLevel: "trace",
+					},
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
 				},
 			},
 		},
@@ -689,29 +622,18 @@ func TestResetLogger(t *testing.T) {
 			expectedLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "trace",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "SetLogLevel Called",
-					Data: logrus.Fields{
-						"NewLevel": "debug",
-					},
-				},
-				{
-					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
-				},
-				{
-					Level:   logrus.InfoLevel,
 					Message: "ResetLogLevel Called",
+					Data: logrus.Fields{
+						telemetry.LaunchLogLevel: "trace",
+					},
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "GetLogger Called",
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status: "success",
+						telemetry.Type:   "audit",
+					},
 				},
 			},
 		},
@@ -721,14 +643,22 @@ func TestResetLogger(t *testing.T) {
 			test := setupServiceTest(t, tt.launchLevel)
 			defer test.Cleanup()
 
-			_, _ = test.client.SetLogLevel(context.Background(), tt.setLogLevelRequest)
-			_, _ = test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
-			resp, err := test.client.ResetLogLevel(context.Background(), &loggerv1.ResetLogLevelRequest{})
+			_, err := test.client.SetLogLevel(context.Background(), tt.setLogLevelRequest)
+			require.NoError(t, err)
+			// Remove logs before calling reset
+			test.logHook.Reset()
 
-			require.Equal(t, err, tt.expectedErr)
+			// Call Reset
+			resp, err := test.client.ResetLogLevel(context.Background(), &loggerv1.ResetLogLevelRequest{})
+			require.NoError(t, err)
+
 			spiretest.RequireProtoEqual(t, resp, tt.expectedResponse)
-			_, _ = test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectedLogs)
+
+			// Verify it was really updated
+			getResp, err := test.client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
+			require.NoError(t, err)
+			spiretest.AssertProtoEqual(t, tt.expectedResponse, getResp)
 		})
 	}
 }
@@ -745,101 +675,55 @@ func TestUnsetSetLogLevelRequest(t *testing.T) {
 		expectedLogs     []spiretest.LogEntry
 	}{
 		{
-			name:               "test PANIC Logger set without a log level",
-			launchLevel:        logrus.PanicLevel,
-			setLogLevelRequest: &loggerv1.SetLogLevelRequest{},
-
-			code:             codes.Unknown,
-			expectedErr:      "Invalid request, NewLevel value cannot be LogLevel_UNSPECIFIED",
-			expectedResponse: nil,
-			// the error seems to clear the log capture
-			expectedLogs: nil,
-		},
-		{
-			name:        "test PANIC Logger set to UNSPECIFIED",
-			launchLevel: logrus.PanicLevel,
-			setLogLevelRequest: &loggerv1.SetLogLevelRequest{
-				NewLevel: apitype.LogLevel_UNSPECIFIED,
-			},
-
-			code:             codes.Unknown,
-			expectedErr:      "Invalid request, NewLevel value cannot be LogLevel_UNSPECIFIED",
-			expectedResponse: nil,
-			// the error seems to clear the log capture
-			expectedLogs: nil,
-		},
-		{
-			name:               "test INFO Logger set without a log level",
-			launchLevel:        logrus.InfoLevel,
-			setLogLevelRequest: &loggerv1.SetLogLevelRequest{},
-
-			code:             codes.Unknown,
-			expectedErr:      "Invalid request, NewLevel value cannot be LogLevel_UNSPECIFIED",
-			expectedResponse: nil,
-			expectedLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "info",
-					},
-				},
-			},
-		},
-		{
-			name:        "test INFO Logger set to UNSPECIFIED",
-			launchLevel: logrus.InfoLevel,
-			setLogLevelRequest: &loggerv1.SetLogLevelRequest{
-				NewLevel: apitype.LogLevel_UNSPECIFIED,
-			},
-
-			code:             codes.Unknown,
-			expectedErr:      "Invalid request, NewLevel value cannot be LogLevel_UNSPECIFIED",
-			expectedResponse: nil,
-			expectedLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
-					Data: logrus.Fields{
-						"LaunchLevel": "info",
-					},
-				},
-			},
-		},
-		{
-			name:               "test DEBUG Logger set without a log level",
+			name:               "logger no set without a log level",
 			launchLevel:        logrus.DebugLevel,
 			setLogLevelRequest: &loggerv1.SetLogLevelRequest{},
 
-			code:             codes.Unknown,
-			expectedErr:      "Invalid request, NewLevel value cannot be LogLevel_UNSPECIFIED",
+			code:             codes.InvalidArgument,
+			expectedErr:      "newLevel value cannot be LogLevel_UNSPECIFIED",
 			expectedResponse: nil,
 			expectedLogs: []spiretest.LogEntry{
 				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: newLevel value cannot be LogLevel_UNSPECIFIED",
+				},
+				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"LaunchLevel": "debug",
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.NewLogLevel:   "UNSPECIFIED",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "newLevel value cannot be LogLevel_UNSPECIFIED",
 					},
 				},
 			},
 		},
 		{
-			name:        "test DEBUG Logger set to UNSPECIFIED",
+			name:        "logger no set to UNSPECIFIED",
 			launchLevel: logrus.DebugLevel,
 			setLogLevelRequest: &loggerv1.SetLogLevelRequest{
 				NewLevel: apitype.LogLevel_UNSPECIFIED,
 			},
 
-			code:             codes.Unknown,
-			expectedErr:      "Invalid request, NewLevel value cannot be LogLevel_UNSPECIFIED",
+			code:             codes.InvalidArgument,
+			expectedErr:      "newLevel value cannot be LogLevel_UNSPECIFIED",
 			expectedResponse: nil,
 			expectedLogs: []spiretest.LogEntry{
 				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: newLevel value cannot be LogLevel_UNSPECIFIED",
+				},
+				{
 					Level:   logrus.InfoLevel,
-					Message: "Logger service configured",
+					Message: "API accessed",
 					Data: logrus.Fields{
-						"LaunchLevel": "debug",
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.NewLogLevel:   "UNSPECIFIED",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "newLevel value cannot be LogLevel_UNSPECIFIED",
 					},
 				},
 			},
@@ -876,8 +760,7 @@ func setupServiceTest(t *testing.T, launchLevel logrus.Level) *serviceTest {
 	// logger level should initially match the launch level
 	log.SetLevel(launchLevel)
 	service := logger.New(logger.Config{
-		Log:         log,
-		LaunchLevel: launchLevel,
+		Log: log,
 	})
 
 	registerFn := func(s grpc.ServiceRegistrar) {
@@ -887,8 +770,12 @@ func setupServiceTest(t *testing.T, launchLevel logrus.Level) *serviceTest {
 		ctx = rpccontext.WithLogger(ctx, log)
 		return ctx
 	}
-	server := grpctest.StartServer(t, registerFn, grpctest.OverrideContext(overrideContext))
+	server := grpctest.StartServer(t, registerFn,
+		grpctest.OverrideContext(overrideContext),
+		grpctest.Middleware(middleware.WithAuditLog(false)))
 	conn := server.Dial(t)
+	// Remove configuration logs
+	logHook.Reset()
 
 	test := &serviceTest{
 		done:    server.Stop,

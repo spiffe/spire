@@ -50,7 +50,7 @@ Launch Level : info
 				ReturnError: errors.New("cannot write"),
 			},
 			logger:        &types.Entry{},
-			expectedError: errors.New("internal error: logger not found; please report this as a bug"),
+			expectedError: errors.New("internal error: unexpected type *types.Entry returned; please report this as a bug"),
 		},
 	} {
 		tt := tt
