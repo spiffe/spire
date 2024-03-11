@@ -25,6 +25,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	debugv1_pb "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
@@ -86,6 +87,7 @@ type APIServers struct {
 	DebugServer       debugv1_pb.DebugServer
 	EntryServer       entryv1.EntryServer
 	HealthServer      grpc_health_v1.HealthServer
+	LoggerServer      loggerv1.LoggerServer
 	SVIDServer        svidv1.SVIDServer
 	TrustDomainServer trustdomainv1.TrustDomainServer
 }
@@ -175,7 +177,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	tcpServer := e.createTCPServer(ctx, unaryInterceptor, streamInterceptor)
 	udsServer := e.createUDSServer(unaryInterceptor, streamInterceptor)
 
-	// New APIs
+	// TCP and UDS
 	agentv1.RegisterAgentServer(tcpServer, e.APIServers.AgentServer)
 	agentv1.RegisterAgentServer(udsServer, e.APIServers.AgentServer)
 	bundlev1.RegisterBundleServer(tcpServer, e.APIServers.BundleServer)
@@ -187,7 +189,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	trustdomainv1.RegisterTrustDomainServer(tcpServer, e.APIServers.TrustDomainServer)
 	trustdomainv1.RegisterTrustDomainServer(udsServer, e.APIServers.TrustDomainServer)
 
-	// Register Health and Debug only on UDS server
+	// UDS only
+	loggerv1.RegisterLoggerServer(udsServer, e.APIServers.LoggerServer)
 	grpc_health_v1.RegisterHealthServer(udsServer, e.APIServers.HealthServer)
 	debugv1_pb.RegisterDebugServer(udsServer, e.APIServers.DebugServer)
 

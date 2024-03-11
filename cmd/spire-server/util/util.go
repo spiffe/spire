@@ -14,6 +14,7 @@ import (
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	api_types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -45,6 +46,7 @@ type ServerClient interface {
 	NewAgentClient() agentv1.AgentClient
 	NewBundleClient() bundlev1.BundleClient
 	NewEntryClient() entryv1.EntryClient
+	NewLoggerClient() loggerv1.LoggerClient
 	NewSVIDClient() svidv1.SVIDClient
 	NewTrustDomainClient() trustdomainv1.TrustDomainClient
 	NewHealthClient() grpc_health_v1.HealthClient
@@ -76,6 +78,10 @@ func (c *serverClient) NewBundleClient() bundlev1.BundleClient {
 
 func (c *serverClient) NewEntryClient() entryv1.EntryClient {
 	return entryv1.NewEntryClient(c.conn)
+}
+
+func (c *serverClient) NewLoggerClient() loggerv1.LoggerClient {
+	return loggerv1.NewLoggerClient(c.conn)
 }
 
 func (c *serverClient) NewSVIDClient() svidv1.SVIDClient {
