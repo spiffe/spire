@@ -1,32 +1,37 @@
 #!/bin/bash
 
 RETRIES=10
-AGENTFOUND=0
-VALIDCONFIG=0
-INVALIDCONFIG=0
+AGENT_FOUND=0
+VALID_CONFIG=0
+INVALID_CONFIG=0
+
 
 for ((m=1;m<=$RETRIES;m++)); do
 
     AGENTS=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server agent list)
+    # Break when an agent is found
     if [ "$AGENTS" != "No attested agents found" ]; then
-        AGENTFOUND=1  
+        AGENT_FOUND=1  
         break
     fi
 
 done
 
+# Assert that 'validate' command works
 VALIDATE=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent validate)
-VALIDATEFAIL=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent validate -config invalid/path 2>&1 &)
+
+# Assert that 'validate' command fails with an invalid path
+VALIDATE_FAIL=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent validate -config invalid/path 2>&1 &)
 
 if [[ "$VALIDATE" =~ "SPIRE agent configuration file is valid." ]]; then
-    VALIDCONFIG=1
+    VALID_CONFIG=1
 fi
 
-if [[ "$VALIDATEFAIL" =~ "SPIRE agent configuration file is invalid" ]]; then
-    INVALIDCONFIG=1
+if [[ "$VALIDATE_FAIL" =~ "SPIRE agent configuration file is invalid" ]]; then
+    INVALID_CONFIG=1
 fi
 
-if [ $AGENTFOUND -eq 1 ] && [ $VALIDCONFIG -eq 1 ] && [ $INVALIDCONFIG -eq 1 ]; then
+if [ $AGENT_FOUND -eq 1 ] && [ $VALID_CONFIG -eq 1 ] && [ $INVALID_CONFIG -eq 1 ]; then
     exit 0
 else
     exit 1

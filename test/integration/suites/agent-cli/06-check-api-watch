@@ -1,0 +1,49 @@
+#!/bin/bash
+
+RETRIES=200
+AGENT_FOUND=0
+SVID_RECEIVED=1
+
+for ((m=1;m<=$RETRIES;m++)); do
+
+    AGENTS=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server agent list)
+    # Break when an agent is found
+    if [ "$AGENTS" != "No attested agents found" ]; then
+        AGENT_FOUND=1  
+        break
+    fi
+
+done
+
+echo "$AGENTS"
+SPIFFE_ID=$(echo "$AGENTS" | awk '/SPIFFE ID/ {print $4}')
+echo "$SPIFFE_ID"
+
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload-$m" \
+    -selector "unix:uid:1001" \
+    -ttl 0 &
+
+# Get the PID of the last background process
+API_WATCH_PID=$!
+
+# Run the background process and store its output in a temporary file
+(docker-compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api watch < /dev/null > api_watch_output.txt) &
+
+# Wait for the background process to complete
+wait $API_WATCH_PID
+
+# Continuously check the output file for the desired pattern
+while ! grep -q "Received 1 svid after" api_watch_output.txt; do
+    sleep 1  # Wait for 1 second before checking again
+done
+
+cat api_watch_output.txt  # Print the full content of the output file
+
+# Pattern found, set SVID_RECEIVED to 0
+SVID_RECEIVED=0
+
+# If SVID_RECEIVED is set to 0, the script should succed
+exit $SVID_RECEIVED
