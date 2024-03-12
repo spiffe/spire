@@ -2,7 +2,7 @@
 
 RETRIES=200
 AGENT_FOUND=0
-SVID_RECEIVED=1
+TIMEOUT_REACHED=0
 
 for ((m=1;m<=$RETRIES;m++)); do
 
@@ -35,15 +35,24 @@ API_WATCH_PID=$!
 # Wait for the background process to complete
 wait $API_WATCH_PID
 
-# Continuously check the output file for the desired pattern
+
+# Continuously check the output file for the desired pattern with a timeout of 20 seconds
+timeout=20
+start_time=$(date +%s)
 while ! grep -q "Received 1 svid after" api_watch_output.txt; do
+    current_time=$(date +%s)
+    elapsed_time=$((current_time - start_time))
+    if [ $elapsed_time -gt $timeout ]; then
+        echo "Error: Timeout reached while waiting for 'Received' message."
+        TIMEOUT_REACHED=1
+        break
+    fi
     sleep 1  # Wait for 1 second before checking again
 done
 
-cat api_watch_output.txt  # Print the full content of the output file
+if [ $TIMEOUT_REACHED -eq 1 ]; then
+    exit 1
+fi
 
-# Pattern found, set SVID_RECEIVED to 0
-SVID_RECEIVED=0
-
-# If SVID_RECEIVED is set to 0, the script should succed
-exit $SVID_RECEIVED
+# Pattern found
+exit 0
