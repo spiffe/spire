@@ -41,7 +41,7 @@ TIMEOUT=20
 START_TIME=$(date +%s)
 while ! grep -q "Received 1 svid after" api_watch_output.txt; do
     CURRENT_TIME=$(date +%s)
-    ELAPSED_TIME=$((current_time - start_time))
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
     if [ $ELAPSED_TIME -gt $TIMEOUT ]; then
         echo "Error: Timeout reached while waiting for 'Received' message."
         TIMEOUT_REACHED=1
