@@ -135,7 +135,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(keys, ","))
 	}
 
-	containerHelper, err := createHelper(config)
+	containerHelper, err := createHelper(config, p.log)
 	if err != nil {
 		return nil, err
 	}

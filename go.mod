@@ -88,6 +88,7 @@ require (
 	k8s.io/apimachinery v0.29.4
 	k8s.io/client-go v0.29.4
 	k8s.io/kube-aggregator v0.29.4
+	k8s.io/mount-utils v0.29.2
 	sigs.k8s.io/controller-runtime v0.17.3
 )
 
@@ -257,6 +258,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/moby/sys/mountinfo v0.6.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mozillazg/docker-credential-acr-helper v0.3.0 // indirect

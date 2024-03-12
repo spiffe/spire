@@ -675,8 +675,9 @@ type osConfig struct {
 
 func (o *osConfig) getContainerHelper(p *Plugin) ContainerHelper {
 	return &containerHelper{
-		fs:             p.fs,
-		sigstoreClient: o.fakeClient,
+		rootDir:                p.rootDir,
+		sigstoreClient:         o.fakeClient,
+		useNewContainerLocator: true,
 	}
 }
 

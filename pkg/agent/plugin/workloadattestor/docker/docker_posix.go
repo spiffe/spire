@@ -5,11 +5,15 @@ package docker
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
+	"github.com/spiffe/spire/pkg/common/containerinfo"
 )
 
 type OSConfig struct {
@@ -19,36 +23,68 @@ type OSConfig struct {
 	// ContainerIDCGroupMatchers is a list of patterns used to discover container IDs from cgroup entries.
 	// See the documentation for cgroup.NewContainerIDFinder in the cgroup subpackage for more information. (Unix)
 	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers" json:"container_id_cgroup_matchers"`
+
+	// UseNewContainerLocator, if true, uses the new container locator
+	// mechanism instead of cgroup matchers. Currently defaults to false if
+	// unset. This will default to true in a future release. (Unix)
+	UseNewContainerLocator *bool `hcl:"use_new_container_locator"`
+
+	// Used by tests to use a fake /proc directory instead of the real one
+	rootDir string
 }
 
-func createHelper(c *dockerPluginConfig) (*containerHelper, error) {
-	var containerIDFinder cgroup.ContainerIDFinder = &defaultContainerIDFinder{}
-	var err error
-	if len(c.ContainerIDCGroupMatchers) > 0 {
+func createHelper(c *dockerPluginConfig, log hclog.Logger) (*containerHelper, error) {
+	var containerIDFinder cgroup.ContainerIDFinder
+
+	switch {
+	case c.UseNewContainerLocator != nil && *c.UseNewContainerLocator:
+		log.Info("Using the new container locator")
+	case len(c.ContainerIDCGroupMatchers) > 0:
+		log.Info("Using the legacy container locator with custom cgroup matchers. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
+		var err error
 		containerIDFinder, err = cgroup.NewContainerIDFinder(c.ContainerIDCGroupMatchers)
 		if err != nil {
 			return nil, err
 		}
+		// Custom matchers implies the use of the deprecated cgroup matcher.
+	default:
+		log.Info("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
+		containerIDFinder = &defaultContainerIDFinder{}
+	}
+
+	rootDir := c.rootDir
+	if rootDir == "" {
+		rootDir = "/"
 	}
 
 	return &containerHelper{
-		fs:                cgroups.OSFileSystem{},
+		rootDir:           rootDir,
 		containerIDFinder: containerIDFinder,
 	}, nil
 }
 
-type containerHelper struct {
-	containerIDFinder cgroup.ContainerIDFinder
-	fs                cgroups.FileSystem
+type dirFS string
+
+func (d dirFS) Open(p string) (io.ReadCloser, error) {
+	return os.Open(filepath.Join(string(d), p))
 }
 
-func (h *containerHelper) getContainerID(pID int32, _ hclog.Logger) (string, error) {
-	cgroupList, err := cgroups.GetCgroups(pID, h.fs)
-	if err != nil {
-		return "", err
+type containerHelper struct {
+	rootDir           string
+	containerIDFinder cgroup.ContainerIDFinder
+}
+
+func (h *containerHelper) getContainerID(pID int32, log hclog.Logger) (string, error) {
+	if h.containerIDFinder != nil {
+		cgroupList, err := cgroups.GetCgroups(pID, dirFS(h.rootDir))
+		if err != nil {
+			return "", err
+		}
+		return getContainerIDFromCGroups(h.containerIDFinder, cgroupList)
 	}
 
-	return getContainerIDFromCGroups(h.containerIDFinder, cgroupList)
+	extractor := containerinfo.Extractor{RootDir: h.rootDir}
+	return extractor.GetContainerID(int(pID), log)
 }
 
 func getDockerHost(c *dockerPluginConfig) string {
