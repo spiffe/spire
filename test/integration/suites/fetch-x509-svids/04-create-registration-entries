@@ -2,14 +2,14 @@
 
 SIZE=10
 
-# Create entries for uid 1001
+# Create entries for uid 1000
 for ((m=1;m<=$SIZE;m++)); do
   log-debug "creating registration entry: $m"
   docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/workload-$m" \
-    -selector "unix:uid:1001" \
+    -selector "unix:uid:1000" \
     -ttl 0 &
 done
 

@@ -487,7 +487,7 @@ func batchCreateEntry(ctx context.Context, c *itclient.Client) error {
 		Selectors: []*types.Selector{
 			{
 				Type:  "unix",
-				Value: "uid:1001",
+				Value: "uid:1000",
 			},
 		},
 	}
@@ -583,7 +583,7 @@ func getEntry(ctx context.Context, c *itclient.Client) error {
 		Selectors: []*types.Selector{
 			{
 				Type:  "unix",
-				Value: "uid:1001",
+				Value: "uid:1000",
 			},
 		},
 	}
@@ -620,7 +620,7 @@ func batchUpdateEntry(ctx context.Context, c *itclient.Client) error {
 		Selectors: []*types.Selector{
 			{
 				Type:  "unix",
-				Value: "uid:1001",
+				Value: "uid:1000",
 			},
 			{
 				Type:  "unix",
