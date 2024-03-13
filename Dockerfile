@@ -59,7 +59,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     for f in $(find bin -executable -type f); do xx-verify $f; done
 
 FROM --platform=${BUILDPLATFORM} scratch AS spire-base
-WORKDIR /opt/spire
 CMD []
 COPY --link --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
@@ -75,6 +74,7 @@ USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-server", "run"]
 COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spireserverroot /
 COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-server bin/
+WORKDIR /opt/spire
 
 # SPIRE Agent
 FROM spire-base AS spire-agent
@@ -84,6 +84,7 @@ USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-agent", "run"]
 COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spireagentroot /
 COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-agent bin/
+WORKDIR /opt/spire
 
 # OIDC Discovery Provider
 FROM spire-base AS oidc-discovery-provider
@@ -92,3 +93,4 @@ ARG spiregid=1000
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/oidc-discovery-provider"]
 COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/oidc-discovery-provider bin/
+WORKDIR /opt/spire
