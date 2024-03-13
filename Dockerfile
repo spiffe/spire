@@ -73,7 +73,7 @@ ARG spiregid=1000
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-server", "run"]
 COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spireserverroot /
-COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-server bin/
+COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-server /opt/spire/bin/
 WORKDIR /opt/spire
 
 # SPIRE Agent
@@ -83,7 +83,7 @@ ARG spiregid=1000
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-agent", "run"]
 COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spireagentroot /
-COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-agent bin/
+COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-agent /opt/spire/bin/
 WORKDIR /opt/spire
 
 # OIDC Discovery Provider
@@ -92,5 +92,5 @@ ARG spireuid=1000
 ARG spiregid=1000
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/oidc-discovery-provider"]
-COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/oidc-discovery-provider bin/
+COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/oidc-discovery-provider /opt/spire/bin/
 WORKDIR /opt/spire
