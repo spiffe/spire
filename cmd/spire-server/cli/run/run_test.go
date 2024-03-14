@@ -4,6 +4,7 @@ import (
 	"crypto/x509/pkix"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -477,6 +478,8 @@ func TestMergeInput(t *testing.T) {
 }
 
 func TestNewServerConfig(t *testing.T) {
+	testDir := t.TempDir()
+
 	assertLogsContainEntries := func(expectedEntries []spiretest.LogEntry) func(t *testing.T) []log.Option {
 		return func(t *testing.T) []log.Option {
 			return []log.Option{
@@ -570,6 +573,16 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "ISSUER", c.JWTIssuer)
+			},
+		},
+		{
+			msg: "log_file allows to reopen",
+			input: func(c *Config) {
+				c.Server.LogFile = path.Join(testDir, "foo")
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
 			},
 		},
 		{
