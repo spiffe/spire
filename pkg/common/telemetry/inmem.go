@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/armon/go-metrics"
+	"github.com/hashicorp/go-metrics"
 	"github.com/sirupsen/logrus"
 )
 
