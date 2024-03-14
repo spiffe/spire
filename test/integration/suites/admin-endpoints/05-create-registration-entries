@@ -5,7 +5,7 @@ docker-compose exec -T spire-server-a \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain-a.test/spire/agent/x509pop/$(fingerprint conf/domain-a/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain-a.test/admin" \
-    -selector "unix:uid:1000" \
+    -selector "unix:uid:1001" \
     -admin \
     -ttl 0
 check-synced-entry "spire-agent-a" "spiffe://domain-a.test/admin"
