@@ -17,7 +17,6 @@ require (
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.34.0
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
-	github.com/armon/go-metrics v0.4.1
 	github.com/aws/aws-sdk-go-v2 v1.25.3
 	github.com/aws/aws-sdk-go-v2/config v1.27.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.0
@@ -49,6 +48,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.12.2
 	github.com/gorilla/handlers v1.5.2
 	github.com/hashicorp/go-hclog v1.6.2
+	github.com/hashicorp/go-metrics v0.5.3
 	github.com/hashicorp/go-plugin v1.6.0
 	github.com/hashicorp/hcl v1.0.1-vault-5
 	github.com/hashicorp/vault/api v1.12.1
