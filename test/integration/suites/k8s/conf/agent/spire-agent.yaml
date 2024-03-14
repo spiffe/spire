@@ -111,6 +111,10 @@ spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: spire-agent
+      # Make sure that we can create the directory for the socket in the host
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
       containers:
         - name: spire-agent
           image: spire-agent:latest-local
