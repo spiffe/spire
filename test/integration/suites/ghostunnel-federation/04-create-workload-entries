@@ -7,7 +7,7 @@ docker-compose exec -T downstream-spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://downstream-domain.test/spire/agent/x509pop/$(fingerprint conf/downstream/agent/agent.crt.pem)" \
     -spiffeID "spiffe://downstream-domain.test/downstream-workload" \
-    -selector "unix:uid:0" \
+    -selector "unix:uid:1000" \
     -federatesWith "spiffe://upstream-domain.test" \
     -ttl 0
 
@@ -16,6 +16,6 @@ docker-compose exec -T upstream-spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://upstream-domain.test/spire/agent/x509pop/$(fingerprint conf/upstream/agent/agent.crt.pem)" \
     -spiffeID "spiffe://upstream-domain.test/upstream-workload" \
-    -selector "unix:uid:0" \
+    -selector "unix:uid:1000" \
     -federatesWith "spiffe://downstream-domain.test" \
     -ttl 0
