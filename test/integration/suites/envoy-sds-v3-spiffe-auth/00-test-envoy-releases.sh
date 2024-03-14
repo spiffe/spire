@@ -57,7 +57,7 @@ setup-tests() {
         /opt/spire/bin/spire-server entry create \
         -parentID "spiffe://federated-domain.test/spire/agent/x509pop/$(fingerprint conf/downstream-federated/agent/agent.crt.pem)" \
         -spiffeID "spiffe://federated-domain.test/downstream-proxy" \
-        -selector "unix:uid:1000" \
+        -selector "unix:uid:0" \
         -federatesWith "spiffe://domain.test" \
         -ttl 0
     
@@ -66,7 +66,7 @@ setup-tests() {
         /opt/spire/bin/spire-server entry create \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/upstream/agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/upstream-proxy" \
-        -selector "unix:uid:1000" \
+        -selector "unix:uid:0" \
         -federatesWith "spiffe://federated-domain.test" \
         -ttl 0
 
@@ -75,7 +75,7 @@ setup-tests() {
         /opt/spire/bin/spire-server entry create \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/downstream/agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/downstream-proxy" \
-        -selector "unix:uid:1000" \
+        -selector "unix:uid:0" \
         -ttl 0
 }
 
