@@ -37,19 +37,19 @@ COPY --link --from=builder --chown=root:root --chmod=755 /etc/ssl/certs/ca-certi
 WORKDIR /opt/spire
 
 # Preparation environment for setting up directories
-FROM alpine as prep-server
-RUN mkdir -p /opt/spire/bin \
-    /etc/spire/server \
-    /run/spire/server/private \
-    /tmp/spire-server/private \
-    /var/lib/spire/server
+FROM alpine as prep-spire-server
+RUN mkdir -p /spireroot/opt/spire/bin \
+    /spireroot/etc/spire/server \
+    /spireroot/run/spire/server/private \
+    /spireroot/tmp/spire-server/private \
+    /spireroot/var/lib/spire/server
 
-FROM alpine as prep-agent
-RUN mkdir -p /opt/spire/bin \
-    /etc/spire/agent \
-    /run/spire/agent/public \
-    /tmp/spire-agent/public \
-    /var/lib/spire/agent
+FROM alpine as prep-spire-agent
+RUN mkdir -p /spireroot/opt/spire/bin \
+    /spireroot/etc/spire/agent \
+    /spireroot/run/spire/agent/public \
+    /spireroot/tmp/spire-agent/public \
+    /spireroot/var/lib/spire/agent
 
 # For users that wish to run SPIRE containers as a non-root user,
 # a default unprivileged user is provided such that the default paths
@@ -64,7 +64,7 @@ ARG spireuid=1000
 ARG spiregid=1000
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-server", "run"]
-COPY --link --from=prep-server --chown=${spireuid}:${spiregid} --chmod=755 / /
+COPY --link --from=prep-spire-server --chown=${spireuid}:${spiregid} --chmod=755 /spireroot /
 COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-server /opt/spire/bin/
 
 # SPIRE Agent
@@ -73,7 +73,7 @@ ARG spireuid=1000
 ARG spiregid=1000
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-agent", "run"]
-COPY --link --from=prep-agent --chown=${spireuid}:${spiregid} --chmod=755 / /
+COPY --link --from=prep-spire-agent --chown=${spireuid}:${spiregid} --chmod=755 /spireroot /
 COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-agent /opt/spire/bin/
 
 # OIDC Discovery Provider
