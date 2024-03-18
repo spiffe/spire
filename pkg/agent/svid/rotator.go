@@ -26,6 +26,7 @@ import (
 
 type Rotator interface {
 	Run(ctx context.Context) error
+	Reattest(ctx context.Context) error
 
 	State() State
 	Subscribe() observer.Stream
@@ -135,6 +136,25 @@ func (r *rotator) GetRotationMtx() *sync.RWMutex {
 
 func (r *rotator) SetRotationFinishedHook(f func()) {
 	r.rotationFinishedHook = f
+}
+
+func (r *rotator) Reattest(ctx context.Context) (err error) {
+	state, ok := r.state.Value().(State)
+	if !ok {
+		return fmt.Errorf("unexpected value type: %T", r.state.Value())
+	}
+
+	if state.Reattestable && !r.c.DisableReattestToRenew {
+		err = r.reattest(ctx)
+	} else {
+		return fmt.Errorf("attestation method is not re-attestable or re-attestation disabled")
+	}
+
+	if err == nil && r.rotationFinishedHook != nil {
+		r.rotationFinishedHook()
+	}
+
+	return err
 }
 
 func (r *rotator) rotateSVIDIfNeeded(ctx context.Context) (err error) {
