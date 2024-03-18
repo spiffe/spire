@@ -34,7 +34,6 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM --platform=${BUILDPLATFORM} scratch AS spire-base
 COPY --link --from=builder --chown=root:root --chmod=755 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-WORKDIR /opt/spire
 
 # Preparation environment for setting up directories
 FROM alpine as prep-spire-server

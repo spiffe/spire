@@ -1,9 +1,9 @@
 #!/bin/bash
 
 log-info "Test Delegated Identity API (for success)"
-docker-compose exec -u 1001 -T spire-agent \
+docker-compose exec -u 1001:1000 -T spire-agent \
 	/opt/spire/conf/agent/delegatedidentityclient -expectedID spiffe://domain.test/workload || fail-now "Failed to check Delegated Identity API"
 
 log-info "Test Delegated Identity API (expecting permission denied)"
-docker-compose exec -u 1002 -T spire-agent \
+docker-compose exec -u 1002:1000 -T spire-agent \
 	/opt/spire/conf/agent/delegatedidentityclient || fail-now "Failed to check Delegated Identity API"
