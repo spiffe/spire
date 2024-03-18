@@ -52,22 +52,56 @@ assuming AWS IID document sent from the spire agent contains `accountId : 123456
 
 For configuring AWS Node attestation method with organization validation following configuration can be used : 
 
-```hcl
-  NodeAttestor "aws_iid" {
-    plugin_data {
-      partition          = "aws"
-      assume_role        = "spire_node_attestor"
-      account_ids_belong_to_org_validation {
-        org_account_id     = "7891011"
-        org_account_role   = "spire-server-org-role"
-        org_account_region = "us-west-2"
-        org_account_map_ttl = "3m"
-      }
-    }
-  }
+
+| Field Name          | Description                | 
+|---------------------|----------------------|
+| management_account_id      | Account id of the organzation            |
+| assume_org_role    | IAM Role name, with capablities to list accounts |
+| management_account_region  | "us-west-2"          |
+
+Using the block `verify_organization` the org validation node attestation method will be enabled. With above configuration spire server will form the role as : `arn:aws:iam::management_account_id:role/assume_org_role`. When not used, block ex. `verify_organization = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `management_account_id`, `assume_org_role`, `management_account_region`. 
+
+Above role must be created in management account, and it should have trust relation ship between the `assume_role`.
+
+
+Policy :
+```
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Action": "organizations:ListAccounts",
+			"Effect": "Allow",
+			"Resource": "*",
+			"Sid": "SpireOrganizationListAccountRole"
+		}
+	]
+}
 
 ```
-Using the block `account_ids_belong_to_org_validation` the org validation node attestation method will be enabled. With above configuration spire server will try to assume this role : `arn:aws:iam::7891011:role/spire-server-org-role` and get the list of all accounts in organization. When node attestation request is sent to server, nodes account id will be check against this list. The role, should have permission to make `ListAccounts` request. More on list account request, can be read from aws [docs](https://docs.aws.amazon.com/organizations/latest/APIReference/API_ListAccounts.html). When not used, block ex. `account_ids_belong_to_org_validation = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `org_account_id`, `org_account_role`, `org_account_region`. `org_account_map_ttl` is an optional param to configure TTL in hours, least can be `1m` (1 minute). If this param is not defined, default TTL for the account list cache is 3m (3 minutes), format to specify TTL is `XhYm`, `Xm` etc. we internally use [time.parseDuration](https://pkg.go.dev/time#ParseDuration) lib.
+
+Trust Relationship 
+
+```
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "CrossAccountAssumeRolePolicy",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": [
+                    "arn:aws:iam::account-id-where-spire-is-running:role/spire-control-plane-root-server",
+                    "arn:aws:iam::account-id-where-spire-is-running:role/spire-control-plane-regional-server"
+                ]
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+
+```
+
 
 ## Disabling Instance Profile Selectors
 
