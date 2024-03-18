@@ -19,7 +19,7 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false                                                 |
 | `assume_role`                        | The role to assume                                                                                                                                            | Empty string, Optional parameter.                     |
 | `partition`                          | The AWS partition SPIRE server is running in &lt;aws&vert;aws-cn&vert;aws-us-gov&gt;                                                                          | aws                                                  |
-| `account_ids_belong_to_org_validation`   | Enable the AWS node attestation method, where a node can be verified, if it's account ID belongs to an AWS Organization. | false, Optional config block with parameters. <br/> Sample [config](#enabling-aws-node-attestation-organization-validation).
+| `verify_organization`   | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation) |
 
 
 
