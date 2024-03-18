@@ -397,20 +397,20 @@ func TestAttest(t *testing.T) {
 		},
 		{
 			name:            "fail with account id not belonging to organization", // Default attestation data already has different account id
-			config:          `account_ids_belong_to_org_validation = { org_account_id = "12345" org_account_role = "test-orgrole" org_account_region = "test-region"}`,
+			config:          `verify_organization = { management_account_id = "12345" assume_org_role = "test-orgrole" management_account_region = "test-region"}`,
 			expectCode:      codes.Internal,
 			expectMsgPrefix: fmt.Sprintf("nodeattestor(aws_iid): failed aws ec2 attestation, nodes account id: %v is not part of configured organization or doesn't have ACTIVE status", testAccount),
 		},
 		{
 			name:                "fail call for organization list account",
-			config:              `account_ids_belong_to_org_validation = { org_account_id = "12345" org_account_role = "test-orgrole" org_account_region = "test-region"}`,
+			config:              `verify_organization = { management_account_id = "12345" assume_org_role = "test-orgrole" management_account_region = "test-region"}`,
 			expectCode:          codes.Internal,
 			listOrgAccountError: errors.New("whutt !!!"),
 			expectMsgPrefix:     "nodeattestor(aws_iid): failed aws ec2 attestation, issue while verifying",
 		},
 		{
 			name:       "fail for account id with not ACTIVE status in organization list",
-			config:     `account_ids_belong_to_org_validation = { org_account_id = "12345" org_account_role = "test-orgrole" org_account_region = "test-orgregion" }`,
+			config:     `verify_organization = { management_account_id = "12345" assume_org_role = "test-orgrole" management_account_region = "test-orgregion" }`,
 			expectCode: codes.Internal,
 			mutateListAccountOutput: func(output *organizations.ListAccountsOutput) {
 				output.Accounts = []types.Account{{
@@ -434,7 +434,7 @@ func TestAttest(t *testing.T) {
 		},
 		{
 			name:   "success when organization validation feature is turned on",
-			config: `account_ids_belong_to_org_validation = { org_account_id = "12345" org_account_role = "test-orgrole" org_account_region = "test-orgregion" }`,
+			config: `verify_organization = { management_account_id = "12345" assume_org_role = "test-orgrole" management_account_region = "test-orgregion" }`,
 			overrideAttestationData: func(id caws.IIDAttestationData) caws.IIDAttestationData {
 				doc := imds.InstanceIdentityDocument{
 					AccountID:        testAccountID,
@@ -615,37 +615,37 @@ func TestConfigure(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	orgVerificationFeatureErr := fmt.Errorf("make sure %v, %v & %v are present inside block : %v for feature node attestation using account id verification", "account_ids_belong_to_org_validation", orgAccountID, orgAccountRole, orgAccRegion)
-	orgVerificationFeatureTTLErr := fmt.Errorf("make sure %v if configured, should be in hours and is suffix with required `h` for time duration in hour ex. 1h. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "account_ids_belong_to_org_validation", orgAccountDefaultListTTL)
-	orgVerificationFeatureMinTTLErr := fmt.Errorf("make sure %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "account_ids_belong_to_org_validation", orgAccountDefaultListTTL)
+	orgVerificationFeatureErr := fmt.Errorf("make sure %v, %v & %v are present inside block : %v for feature node attestation using account id verification", "verify_organization", orgAccountID, orgAccountRole, orgAccRegion)
+	orgVerificationFeatureTTLErr := fmt.Errorf("make sure %v if configured, should be in hours and is suffix with required `h` for time duration in hour ex. 1h. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+	orgVerificationFeatureMinTTLErr := fmt.Errorf("make sure %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 
 	t.Run("fail, account belongs to org, if params are not specified and feature enabled", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = {}`)
+		err := doConfig(t, coreConfig, `verify_organization = {}`)
 		require.Error(t, err, orgVerificationFeatureErr)
 	})
 
 	t.Run("fail, account belongs to org, if only account id is specified, roles & region are not specified", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" }`)
+		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" }`)
 		require.Error(t, err, orgVerificationFeatureErr)
 	})
 
 	t.Run("fail, account belongs to org, if ttl is not specified in proper format", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "2" }`)
+		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" management_account_region = "us-west-2" org_account_map_ttl = "2" }`)
 		require.Error(t, err, orgVerificationFeatureTTLErr)
 	})
 
 	t.Run("fail, account belongs to org, if ttl is specified and is less than min ttl required", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "30s" }`)
+		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" management_account_region = "us-west-2" org_account_map_ttl = "30s" }`)
 		require.Error(t, err, orgVerificationFeatureMinTTLErr)
 	})
 
-	t.Run("success, account_ids_belong_to_org_validation featured enabled with required params", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" }`)
+	t.Run("success, verify_organization featured enabled with required params", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" management_account_region = "us-west-2" }`)
 		require.NoError(t, err)
 	})
 
-	t.Run("success, account_ids_belong_to_org_validation featured enabled with all params", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `account_ids_belong_to_org_validation = { org_account_id = "dummy_account" org_account_role = "dummy_role" org_account_region = "us-west-2" org_account_map_ttl = "1m30s" }`)
+	t.Run("success, verify_organization featured enabled with all params", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" management_account_region = "us-west-2" org_account_map_ttl = "1m30s" }`)
 		require.NoError(t, err)
 	})
 }
