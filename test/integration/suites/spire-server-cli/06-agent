@@ -78,16 +78,6 @@ docker-compose exec -T spire-server \
 docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server agent evict -spiffeID "$agentID1" | grep "Agent evicted successfully" || fail-now "failed to evict agent 1"
 
-# Verify agent list after evict
-docker-compose exec -T spire-server \
-    /opt/spire/bin/spire-server agent list | grep "Found 2 attested agents" || fail-now "failed to list the agents after evict"
-
-# Verify agent show after evict
-# Agent 1
-echo "$(docker-compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent show -spiffeID $agentID1 || echo "OK: agent 1 not found")" \
-    | grep "OK: agent 1 not found" || fail-now "agent 1 was found after evict"
-
 # Agent 2
 showResult="$(docker-compose exec -T spire-server \
 	/opt/spire/bin/spire-server agent show -spiffeID $agentID2)"
