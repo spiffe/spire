@@ -60,7 +60,7 @@ For configuring AWS Node attestation method with organization validation followi
 | org_account_map_ttl | Cache the list of accounts for particular time. Should be  >= 1 minute. Defaults to 3 minute. | optional |
 
 
-Using the block `verify_organization` the org validation node attestation method will be enabled. With above configuration spire server will form the role as : `arn:aws:iam::management_account_id:role/assume_org_role`. When not used, block ex. `verify_organization = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `management_account_id`, `assume_org_role`, `management_account_region`. 
+Using the block `verify_organization` the org validation node attestation method will be enabled. With above configuration spire server will form the role as : `arn:aws:iam::management_account_id:role/assume_org_role`. When not used, block ex. `verify_organization = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `management_account_id`, `assume_org_role`. 
 
 The role must be created in the management account, and it should have a trust relationship with the spire server role `assume_role`. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created.
 
