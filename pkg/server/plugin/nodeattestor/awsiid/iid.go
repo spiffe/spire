@@ -169,7 +169,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 			return status.Errorf(codes.Internal, "failed to get org client: %v", err)
 		}
 
-		valid, err := p.orgValidation.ValidateAccountBelongstoOrg(ctx, orgClient, attestationData.AccountID)
+		valid, err := p.orgValidation.IsMemberAccount(ctx, orgClient, attestationData.AccountID)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed aws ec2 attestation, issue while verifying if nodes account id: %v belong to org: %v", attestationData.AccountID, err)
 		}
