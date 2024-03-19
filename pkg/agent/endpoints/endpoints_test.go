@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armon/go-metrics"
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
+	"github.com/hashicorp/go-metrics"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
