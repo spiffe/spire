@@ -603,10 +603,9 @@ func isValidAWSPartition(partition string) bool {
 func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	checkAccid := config.ValidateOrgAccountID.AccountID
 	checkAccRole := config.ValidateOrgAccountID.AccountRole
-	checkAccRegion := config.ValidateOrgAccountID.AccountRegion
 
-	if len(checkAccid) == 0 || len(checkAccRole) == 0 || len(checkAccRegion) == 0 {
-		return status.Errorf(codes.InvalidArgument, "make sure %v, %v & %v are present inside block or remove the block : %v for feature node attestation using account id verification", orgAccountID, orgAccountRole, orgAccRegion, "account_ids_belong_to_org_validation")
+	if len(checkAccid) == 0 || len(checkAccRole) == 0 {
+		return status.Errorf(codes.InvalidArgument, "make sure %v & %v are present inside block or remove the block : %v for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
 	}
 
 	// check TTL if specified
@@ -616,7 +615,7 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	if len(checkTTL) > 0 {
 		t, err := time.ParseDuration(checkTTL)
 		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "make sure %v if configured, should be in hours and is suffix with required `m` for time duration in minute ex. 5m. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "account_ids_belong_to_org_validation", orgAccountDefaultListTTL)
+			return status.Errorf(codes.InvalidArgument, "make sure %v if configured, should be in hours and is suffix with required `m` for time duration in minute ex. 5m. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 		}
 
 		minTTL, err := time.ParseDuration(orgAccountMinListTTL)
@@ -625,7 +624,7 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 		}
 
 		if t.Minutes() < minTTL.Minutes() {
-			return status.Errorf(codes.InvalidArgument, "make sure %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "account_ids_belong_to_org_validation", orgAccountDefaultListTTL)
+			return status.Errorf(codes.InvalidArgument, "make sure %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 		}
 
 		ttl = t
