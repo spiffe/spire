@@ -58,7 +58,8 @@ func (o *orgValidator) getRetries() int {
 }
 
 func (o *orgValidator) decrRetries() int {
-	// Only decr if its greater than 0
+	o.mutex.Lock()
+	defer o.mutex.Unlock()
 	if o.retries > 0 {
 		o.retries -= 1
 	}
@@ -98,45 +99,84 @@ func (o *orgValidator) setLogger(log hclog.Logger) {
 // Method pulls the list of accounts from organization and caches it for certain time, cache time can be configured.
 func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDofNode string) (bool, error) {
 
-	orgAccountList, isStale, err := o.checkIfOrgAccountListIsStale(ctx)
+	reValidatedcache, err := o.validateCache(ctx, orgClient)
 	if err != nil {
 		return false, err
 	}
+
+	accountIsmemberofOrg, err := o.lookupCache(ctx, orgClient, accoundIDofNode, reValidatedcache)
+	if err != nil {
+		return false, err
+	}
+
+	return accountIsmemberofOrg, nil
+}
+
+// Validate cache and refresh if its stale
+func (o *orgValidator) validateCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (bool, error) {
+
+	isStale, err := o.checkIfOrgAccountListIsStale(ctx)
+	if err != nil {
+		return isStale, err
+	}
+
 	// refresh the account map
 	if isStale {
-		orgAccountList, err = o.fetchAccountsListFromOrg(ctx, orgClient, false)
+		_, err = o.reloadAccountList(ctx, orgClient, false)
+		if err != nil {
+			return isStale, err
+		}
+	}
+	return isStale, nil
+}
+
+func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDofNode string, reValidatedcache bool) (bool, error) {
+
+	o.mutex.RLock()
+	orgAccountList := o.orgListAccountMap
+	o.mutex.RUnlock()
+
+	_, accoutIsmemberOfOrg := orgAccountList[accoundIDofNode]
+
+	// Retry if it doesn't exist in cache and cache was not revalidated
+	if !accoutIsmemberOfOrg && !reValidatedcache {
+		orgAccountList, err := o.refreshCache(ctx, orgClient)
 		if err != nil {
 			return false, err
 		}
+		_, accoutIsmemberOfOrg = orgAccountList[accoundIDofNode]
 	}
 
-	// Check if account contains in organization list.
-	// If this return false we will check `X` number of times in that window, to avoid
-	// genuine accounts which are newly added
-	exist := checkIfAccountIdExist(orgAccountList, accoundIDofNode)
-	if !exist {
-		remRetries := o.getRetries()
-		if remRetries > 0 && !isStale {
-			orgAccountList, err = o.fetchAccountsListFromOrg(ctx, orgClient, true)
-			if err != nil {
-				return false, err
-			}
-			exist = checkIfAccountIdExist(orgAccountList, accoundIDofNode)
-			return exist, nil
-		}
+	return accoutIsmemberOfOrg, nil
+}
+
+// If cache miss happens, refresh list with new cache and check if element exist
+func (o *orgValidator) refreshCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]bool, error) {
+	remTries := o.getRetries()
+
+	orgAccountList := make(map[string]bool)
+	if remTries <= 0 {
+		return orgAccountList, nil
 	}
 
-	return exist, nil
+	orgAccountList, err := o.reloadAccountList(ctx, orgClient, true)
+	if err != nil {
+		return nil, err
+	}
+
+	o.decrRetries()
+
+	return orgAccountList, nil
 }
 
 // Check if the org account list is stale.
-func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) (map[string]bool, bool, error) {
+func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) (bool, error) {
 	o.mutex.RLock()
 	defer o.mutex.RUnlock()
 
 	// Map is empty that means this is first time plugin is being initialised
 	if len(o.orgListAccountMap) == 0 {
-		return nil, true, nil
+		return true, nil
 	}
 
 	// Get the timestamp from config
@@ -146,18 +186,18 @@ func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) (map[st
 
 	// Check diff of timestamp of org acc map & current time if its more than ttl, refresh the list
 	if currTimeStamp.Sub(existingTimestamp) >= time.Duration(o.orgAccountListCacheTTL) {
-		return nil, true, nil
+		return true, nil
 	}
 
-	return o.orgListAccountMap, false, nil
+	return false, nil
 }
 
 // Get the list of accounts belonging to organization and catch them
-func (o *orgValidator) fetchAccountsListFromOrg(ctx context.Context, orgClient organizations.ListAccountsAPIClient, catchBurst bool) (map[string]bool, error) {
+func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organizations.ListAccountsAPIClient, catchBurst bool) (map[string]bool, error) {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
-	// Make sure : map is not updated from different go routine. This will make sure we dont make extra calls
+	// Make sure : map is not updated from different go routine.
 	// * if we make this call before ttl expires, we are doing retry/catchburst that means we need to bypass this validation
 	if !catchBurst && len(o.orgListAccountMap) != 0 && time.Now().UTC().Sub(o.orgListAccountMapCreationTime) <= time.Duration(o.orgAccountListCacheTTL) {
 		return o.orgListAccountMap, nil
@@ -199,24 +239,16 @@ func (o *orgValidator) fetchAccountsListFromOrg(ctx context.Context, orgClient o
 		}
 	}
 
-	// Add timestamp to make sure we can validate its expiry, only update timestamp if we are not doing catch burst
-	// and its cache refresh after ttl expiry
+	// Update timestamp, if it was not invoked as part of cache miss.
 	if !catchBurst {
 		t := time.Now().UTC()
 		o.orgListAccountMapCreationTime = t
 		// Also reset the retires
 		o.retries = orgAccountRetries
-	} else {
-		o.decrRetries()
 	}
 
 	// Overwrite the cache/list
 	o.orgListAccountMap = orgAccountsMap
 
 	return o.orgListAccountMap, nil
-}
-
-func checkIfAccountIdExist(orgAccountList map[string]bool, accoundIDofNode string) bool {
-	_, exist := orgAccountList[accoundIDofNode]
-	return exist
 }
