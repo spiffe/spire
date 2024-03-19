@@ -630,22 +630,22 @@ func TestConfigure(t *testing.T) {
 	})
 
 	t.Run("fail, account belongs to org, if ttl is not specified in proper format", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" management_account_region = "us-west-2" org_account_map_ttl = "2" }`)
+		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "2" }`)
 		require.Error(t, err, orgVerificationFeatureTTLErr)
 	})
 
 	t.Run("fail, account belongs to org, if ttl is specified and is less than min ttl required", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" management_account_region = "us-west-2" org_account_map_ttl = "30s" }`)
+		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "30s" }`)
 		require.Error(t, err, orgVerificationFeatureMinTTLErr)
 	})
 
 	t.Run("success, verify_organization featured enabled with required params", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" management_account_region = "us-west-2" }`)
+		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" }`)
 		require.NoError(t, err)
 	})
 
 	t.Run("success, verify_organization featured enabled with all params", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" management_account_region = "us-west-2" org_account_map_ttl = "1m30s" }`)
+		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "1m30s" }`)
 		require.NoError(t, err)
 	})
 }

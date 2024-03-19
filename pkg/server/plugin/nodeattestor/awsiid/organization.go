@@ -27,7 +27,7 @@ const (
 type orgValidationConfig struct {
 	AccountID      string `hcl:"management_account_id"`
 	AccountRole    string `hcl:"assume_org_role"`
-	AccountRegion  string `hcl:"management_account_region"`
+	AccountRegion  string
 	AccountListTTL string `hcl:"org_account_map_ttl"`
 }
 
@@ -71,6 +71,8 @@ func (o *organizationValidation) configure(config *orgValidationConfig) error {
 	defer o.mutex.Unlock()
 
 	o.orgConfig = config
+	// required for the way existing getClient function is designed
+	o.orgConfig.AccountRegion = "us-west-2"
 
 	// While doing configuration invalidate the map so we dont keep using old one.
 	o.orgListAccountMap = make(map[string]bool)
