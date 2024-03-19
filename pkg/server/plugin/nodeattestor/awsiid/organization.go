@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	orgAccountID             = "org_account_id"
-	orgAccountRole           = "org_account_role"
-	orgAccRegion             = "org_account_region"  // required for cache key
-	orgAccountStatus         = "ACTIVE"              // Only allow node account id's with status ACTIVE
-	orgAccountListTTL        = "org_account_map_ttl" // Cache the list of account for specific time, if not sent default will be used.
-	orgAccountDefaultListTTL = "3m"                  // pull account list after 3 minutes
-	orgAccountMinListTTL     = "1m"                  // Minimum TTL configuration to pull the org account list
+	orgAccountID             = "management_account_id"
+	orgAccountRole           = "assume_org_role"
+	orgAccRegion             = "management_account_region" // required for cache key
+	orgAccountStatus         = "ACTIVE"                    // Only allow node account id's with status ACTIVE
+	orgAccountListTTL        = "org_account_map_ttl"       // Cache the list of account for specific time, if not sent default will be used.
+	orgAccountDefaultListTTL = "3m"                        // pull account list after 3 minutes
+	orgAccountMinListTTL     = "1m"                        // Minimum TTL configuration to pull the org account list
 	orgAccountRetries        = 5
 )
 
