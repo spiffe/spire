@@ -100,7 +100,7 @@ type IIDAttestorPlugin struct {
 	mtx     sync.RWMutex
 	clients *clientsCache
 
-	orgValidation *organizationValidation
+	orgValidation *orgValidator
 
 	// test hooks
 	hooks struct {

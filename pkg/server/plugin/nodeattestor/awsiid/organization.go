@@ -31,7 +31,7 @@ type orgValidationConfig struct {
 	AccountListTTL string `hcl:"org_account_map_ttl"`
 }
 
-type organizationValidation struct {
+type orgValidator struct {
 	orgListAccountMap             map[string]bool
 	orgListAccountMapCreationTime time.Time
 	orgConfig                     *orgValidationConfig
@@ -41,8 +41,8 @@ type organizationValidation struct {
 	retries                       int // fix number of retries before ttl is expired.
 }
 
-func newOrganizationValidationBase(config *orgValidationConfig) *organizationValidation {
-	client := &organizationValidation{
+func newOrganizationValidationBase(config *orgValidationConfig) *orgValidator {
+	client := &orgValidator{
 		orgListAccountMap: make(map[string]bool),
 		orgConfig:         config,
 		retries:           orgAccountRetries,
@@ -51,13 +51,13 @@ func newOrganizationValidationBase(config *orgValidationConfig) *organizationVal
 	return client
 }
 
-func (o *organizationValidation) getRetries() int {
+func (o *orgValidator) getRetries() int {
 	o.mutex.RLock()
 	defer o.mutex.RUnlock()
 	return o.retries
 }
 
-func (o *organizationValidation) decrRetries() int {
+func (o *orgValidator) decrRetries() int {
 	// Only decr if its greater than 0
 	if o.retries > 0 {
 		o.retries -= 1
@@ -66,7 +66,7 @@ func (o *organizationValidation) decrRetries() int {
 	return o.retries
 }
 
-func (o *organizationValidation) configure(config *orgValidationConfig) error {
+func (o *orgValidator) configure(config *orgValidationConfig) error {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
@@ -88,7 +88,7 @@ func (o *organizationValidation) configure(config *orgValidationConfig) error {
 	return nil
 }
 
-func (o *organizationValidation) setLogger(log hclog.Logger) {
+func (o *orgValidator) setLogger(log hclog.Logger) {
 	o.log = log
 }
 
@@ -96,7 +96,7 @@ func (o *organizationValidation) setLogger(log hclog.Logger) {
 // If it part of the organisation then validation should be succesfull if not attestation should fail, on enabling this verification method.
 // This could be alternative for not explictly maintaing allowed list of account ids.
 // Method pulls the list of accounts from organization and caches it for certain time, cache time can be configured.
-func (o *organizationValidation) ValidateAccountBelongstoOrg(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDofNode string) (bool, error) {
+func (o *orgValidator) ValidateAccountBelongstoOrg(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDofNode string) (bool, error) {
 
 	orgAccountList, isStale, err := o.checkIfOrgAccountListIsStale(ctx)
 	if err != nil {
@@ -130,7 +130,7 @@ func (o *organizationValidation) ValidateAccountBelongstoOrg(ctx context.Context
 }
 
 // Check if the org account list is stale.
-func (o *organizationValidation) checkIfOrgAccountListIsStale(ctx context.Context) (map[string]bool, bool, error) {
+func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) (map[string]bool, bool, error) {
 	o.mutex.RLock()
 	defer o.mutex.RUnlock()
 
@@ -153,7 +153,7 @@ func (o *organizationValidation) checkIfOrgAccountListIsStale(ctx context.Contex
 }
 
 // Get the list of accounts belonging to organization and catch them
-func (o *organizationValidation) fetchAccountsListFromOrg(ctx context.Context, orgClient organizations.ListAccountsAPIClient, catchBurst bool) (map[string]bool, error) {
+func (o *orgValidator) fetchAccountsListFromOrg(ctx context.Context, orgClient organizations.ListAccountsAPIClient, catchBurst bool) (map[string]bool, error) {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
