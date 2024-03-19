@@ -96,7 +96,7 @@ func (o *orgValidator) setLogger(log hclog.Logger) {
 // If it part of the organisation then validation should be succesfull if not attestation should fail, on enabling this verification method.
 // This could be alternative for not explictly maintaing allowed list of account ids.
 // Method pulls the list of accounts from organization and caches it for certain time, cache time can be configured.
-func (o *orgValidator) ValidateAccountBelongstoOrg(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDofNode string) (bool, error) {
+func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDofNode string) (bool, error) {
 
 	orgAccountList, isStale, err := o.checkIfOrgAccountListIsStale(ctx)
 	if err != nil {
