@@ -9,8 +9,8 @@ import (
 
 	"github.com/hashicorp/hcl"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
@@ -31,6 +31,10 @@ const (
 	googleCertURL               = "https://www.googleapis.com/oauth2/v1/certs"
 	defaultMaxMetadataValueSize = 128
 )
+
+// Per GCP documentation, IITs are always signed using the RS256 signature algorithm:
+// https://cloud.google.com/compute/docs/instances/verifying-instance-identity#verify_signature
+var allowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{jose.RS256}
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
@@ -272,7 +276,7 @@ func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAtt
 		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "missing attestation payload")
 	}
 
-	token, err := jwt.ParseSigned(string(payload))
+	token, err := jwt.ParseSigned(string(payload), allowedJWTSignatureAlgorithms)
 	if err != nil {
 		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "unable to parse the identity token: %v", err)
 	}
@@ -283,8 +287,8 @@ func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAtt
 	}
 
 	if err := identityToken.Validate(jwt.Expected{
-		Audience: []string{tokenAudience},
-		Time:     time.Now(),
+		AnyAudience: []string{tokenAudience},
+		Time:        time.Now(),
 	}); err != nil {
 		return gcp.ComputeEngine{}, status.Errorf(codes.PermissionDenied, "failed to validate the identity token claims: %v", err)
 	}
@@ -350,8 +354,7 @@ func makeSelectorValue(key string, value ...string) string {
 	return fmt.Sprintf("%s:%s", key, strings.Join(value, ":"))
 }
 
-type googleComputeEngineClient struct {
-}
+type googleComputeEngineClient struct{}
 
 func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
 	service, err := c.getService(ctx, serviceAccountFile)
