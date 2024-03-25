@@ -8,7 +8,7 @@
 - Support for adjusting the SPIRE Server log level at runtime (#4880)
 - New `retry_bootstrap` option to SPIRE Agent to retry failed bootstrapping with SPIRE Server, with a backoff, in lieu of failing the startup process (#4597)
 - Improved logging (#4902, #4906)
-- Documentation improvements (#4895)
+- Documentation improvements (#4895, #4951, #4907)
 
 ## [1.9.1] - 2024-03-05
 
