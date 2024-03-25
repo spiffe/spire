@@ -62,28 +62,31 @@ type Config struct {
 }
 
 type serverConfig struct {
-	AdminIDs           []string           `hcl:"admin_ids"`
-	AgentTTL           string             `hcl:"agent_ttl"`
-	AuditLogEnabled    bool               `hcl:"audit_log_enabled"`
-	BindAddress        string             `hcl:"bind_address"`
-	BindPort           int                `hcl:"bind_port"`
-	CAKeyType          string             `hcl:"ca_key_type"`
-	CASubject          *caSubjectConfig   `hcl:"ca_subject"`
-	CATTL              string             `hcl:"ca_ttl"`
-	DataDir            string             `hcl:"data_dir"`
-	DefaultX509SVIDTTL string             `hcl:"default_x509_svid_ttl"`
-	DefaultJWTSVIDTTL  string             `hcl:"default_jwt_svid_ttl"`
-	Experimental       experimentalConfig `hcl:"experimental"`
-	Federation         *federationConfig  `hcl:"federation"`
-	JWTIssuer          string             `hcl:"jwt_issuer"`
-	JWTKeyType         string             `hcl:"jwt_key_type"`
-	LogFile            string             `hcl:"log_file"`
-	LogLevel           string             `hcl:"log_level"`
-	LogFormat          string             `hcl:"log_format"`
-	LogSourceLocation  bool               `hcl:"log_source_location"`
-	RateLimit          rateLimitConfig    `hcl:"ratelimit"`
-	SocketPath         string             `hcl:"socket_path"`
-	TrustDomain        string             `hcl:"trust_domain"`
+	AdminIDs             []string           `hcl:"admin_ids"`
+	AgentTTL             string             `hcl:"agent_ttl"`
+	AuditLogEnabled      bool               `hcl:"audit_log_enabled"`
+	BindAddress          string             `hcl:"bind_address"`
+	BindPort             int                `hcl:"bind_port"`
+	CacheReloadInterval  string             `hcl:"cache_reload_interval"`
+	CAKeyType            string             `hcl:"ca_key_type"`
+	CASubject            *caSubjectConfig   `hcl:"ca_subject"`
+	CATTL                string             `hcl:"ca_ttl"`
+	DataDir              string             `hcl:"data_dir"`
+	DefaultX509SVIDTTL   string             `hcl:"default_x509_svid_ttl"`
+	DefaultJWTSVIDTTL    string             `hcl:"default_jwt_svid_ttl"`
+	EventsBasedCache     bool               `hcl:"events_based_cache"`
+	Experimental         experimentalConfig `hcl:"experimental"`
+	Federation           *federationConfig  `hcl:"federation"`
+	JWTIssuer            string             `hcl:"jwt_issuer"`
+	JWTKeyType           string             `hcl:"jwt_key_type"`
+	LogFile              string             `hcl:"log_file"`
+	LogLevel             string             `hcl:"log_level"`
+	LogFormat            string             `hcl:"log_format"`
+	LogSourceLocation    bool               `hcl:"log_source_location"`
+	PruneEventsOlderThan string             `hcl:"prune_events_older_than"`
+	RateLimit            rateLimitConfig    `hcl:"ratelimit"`
+	SocketPath           string             `hcl:"socket_path"`
+	TrustDomain          string             `hcl:"trust_domain"`
 	// Temporary flag to allow disabling the inclusion of serial number in X509 CAs Subject field
 	ExcludeSNFromCASubject bool `hcl:"exclude_sn_from_ca_subject"`
 
@@ -100,10 +103,7 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	AuthOpaPolicyEngine  *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
-	CacheReloadInterval  string                      `hcl:"cache_reload_interval"`
-	EventsBasedCache     bool                        `hcl:"events_based_cache"`
-	PruneEventsOlderThan string                      `hcl:"prune_events_older_than"`
+	AuthOpaPolicyEngine *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -660,27 +660,27 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.Log.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
 	}
 
-	if c.Server.Experimental.CacheReloadInterval != "" {
-		interval, err := time.ParseDuration(c.Server.Experimental.CacheReloadInterval)
+	if c.Server.CacheReloadInterval != "" {
+		interval, err := time.ParseDuration(c.Server.CacheReloadInterval)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse cache reload interval: %w", err)
 		}
 		sc.CacheReloadInterval = interval
 	}
 
-	if c.Server.Experimental.PruneEventsOlderThan != "" {
-		interval, err := time.ParseDuration(c.Server.Experimental.PruneEventsOlderThan)
+	if c.Server.PruneEventsOlderThan != "" {
+		interval, err := time.ParseDuration(c.Server.PruneEventsOlderThan)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse prune events interval: %w", err)
 		}
 		sc.PruneEventsOlderThan = interval
 	}
 
-	if c.Server.Experimental.EventsBasedCache {
+	if c.Server.EventsBasedCache {
 		sc.Log.Info("Using events based cache")
 	}
 
-	sc.EventsBasedCache = c.Server.Experimental.EventsBasedCache
+	sc.EventsBasedCache = c.Server.EventsBasedCache
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
 
 	for _, f := range c.Server.Experimental.Flags {

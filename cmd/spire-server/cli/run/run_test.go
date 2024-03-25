@@ -1061,7 +1061,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg: "cache_reload_interval is correctly parsed",
 			input: func(c *Config) {
-				c.Server.Experimental.CacheReloadInterval = "1m"
+				c.Server.CacheReloadInterval = "1m"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, time.Minute, c.CacheReloadInterval)
@@ -1071,7 +1071,7 @@ func TestNewServerConfig(t *testing.T) {
 			msg:         "invalid cache_reload_interval returns an error",
 			expectError: true,
 			input: func(c *Config) {
-				c.Server.Experimental.CacheReloadInterval = "b"
+				c.Server.CacheReloadInterval = "b"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
@@ -1080,7 +1080,7 @@ func TestNewServerConfig(t *testing.T) {
 		{
 			msg: "prune_events_older_than is correctly parsed",
 			input: func(c *Config) {
-				c.Server.Experimental.PruneEventsOlderThan = "1m"
+				c.Server.PruneEventsOlderThan = "1m"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, time.Minute, c.PruneEventsOlderThan)
@@ -1090,7 +1090,7 @@ func TestNewServerConfig(t *testing.T) {
 			msg:         "invalid prune_events_older_than returns an error",
 			expectError: true,
 			input: func(c *Config) {
-				c.Server.Experimental.PruneEventsOlderThan = "b"
+				c.Server.PruneEventsOlderThan = "b"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
