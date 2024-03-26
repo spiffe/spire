@@ -22,8 +22,8 @@ func (c *Config) getServerAPITargetName() string {
 // validateOS performs os specific validations of the configuration
 func (c *Config) validateOS() (err error) {
 	switch {
-	case c.ACME == nil && c.ListenSocketPath == "" && c.ServingCertFile == nil && c.InsecureAddr == "":
-		return errs.New("either acme, serving_cert_file, insecure_addr or listen_socket_path must be configured")
+	case c.ListenTLSAddr == "" && c.ACME == nil && c.ListenSocketPath == "" && c.ServingCertFile == nil && c.InsecureAddr == "":
+		return errs.New("either acme, listen_tls_addr, serving_cert_file, insecure_addr or listen_socket_path must be configured")
 	case c.ACME != nil && c.ServingCertFile != nil:
 		return errs.New("acme and serving_cert_file are mutually exclusive")
 	case c.ACME != nil && c.ListenSocketPath != "":
@@ -36,6 +36,14 @@ func (c *Config) validateOS() (err error) {
 		return errs.New("acme and insecure_addr are mutually exclusive")
 	case c.InsecureAddr != "" && c.ListenSocketPath != "":
 		return errs.New("insecure_addr and listen_socket_path are mutually exclusive")
+	case c.ListenTLSAddr != "" && c.ACME != nil:
+		return errs.New("listen_tls_addr and acme are mutually exclusive")
+	case c.ListenTLSAddr != "" && c.InsecureAddr != "":
+		return errs.New("listen_tls_addr and insecure_addr are mutually exclusive")
+	case c.ListenTLSAddr != "" && c.ListenSocketPath != "":
+		return errs.New("listen_tls_addr and listen_socket_path are mutually exclusive")
+	case c.ListenTLSAddr != "" && c.ServingCertFile != nil:
+		return errs.New("listen_tls_addr and serving_cert_file are mutually exclusive")
 	}
 
 	if c.ServerAPI != nil {

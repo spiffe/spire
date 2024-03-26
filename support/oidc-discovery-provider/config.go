@@ -50,6 +50,12 @@ type Config struct {
 	// going to be deployed behind an HTTPS proxy.
 	InsecureAddr string `hcl:"insecure_addr"`
 
+	// ListenTLSAddr is the HTTPS address. When set, the server does not
+	// perform ACME to obtain certificates. Instead, the server mint x509
+	// svid from ServerAPI and use certificates in x509 svid to serve.
+	// When ListenTLSAddr is set, ServerAPI must be set.
+	ListenTLSAddr string `hcl:"listen_tls_addr"`
+
 	// ListenSocketPath specifies a unix socket to listen for plaintext HTTP
 	// on, for when deployed behind another webserver or sidecar.
 	ListenSocketPath string `hcl:"listen_socket_path"`
@@ -133,6 +139,18 @@ type ServerAPIConfig struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalServerAPIConfig `hcl:"experimental"`
+
+	// SVIDTTL is used for setting the ttl of minted x509 SVID by calling Server
+	// API. This value is calculated by LoadConfig()/ParseConfig() from
+	// RawSVIDTTL.
+	SVIDTTL time.Duration `hcl:"-"`
+
+	// RawSVIDTTL holds the string version of the SVIDTTL. Consumers
+	// should use SVIDTTL instead.
+	RawSVIDTTL string `hcl:"svid_ttl"`
+
+	// SPIFFEIDPath is the spiffeid used for minted x509 SVID
+	SPIFFEID string `hcl:"spiffe_id"`
 }
 
 type WorkloadAPIConfig struct {
@@ -219,6 +237,12 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		}
 	}
 
+	if c.ListenTLSAddr != "" {
+		if c.ServerAPI == nil || c.ServerAPI.SPIFFEID == "" {
+			return nil, errs.New("listen_tls_addr require using server_api instead of workload_api, and server_api.spiffe_id must be set")
+		}
+	}
+
 	if c.ServingCertFile != nil {
 		if c.ServingCertFile.CertFilePath == "" {
 			return nil, errs.New("cert_file_path must be configured in the serving_cert_file configuration section")
@@ -249,6 +273,10 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		c.ServerAPI.PollInterval, err = parseDurationField(c.ServerAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
 			return nil, errs.New("invalid poll_interval in the server_api configuration section: %v", err)
+		}
+		c.ServerAPI.SVIDTTL, err = parseDurationField(c.ServerAPI.RawSVIDTTL, DefaultServerSVIDTTL)
+		if err != nil {
+			return nil, errs.New("invalid svid_ttl in the server_api configuration section: %v", err)
 		}
 		methodCount++
 	}

@@ -50,7 +50,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					socket_path = "/other/socket/path"
 				}
 			`,
-			err: "either acme, serving_cert_file, insecure_addr or listen_socket_path must be configured",
+			err: "either acme, listen_tls_addr, serving_cert_file, insecure_addr or listen_socket_path must be configured",
 		},
 		{
 			name: "ACME ToS not accepted",
@@ -303,6 +303,86 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 			`,
 			err: "serving_cert_file and listen_socket_path are mutually exclusive",
+		},
+		{
+			name: "both listen_tls_addr and insecure_addr configured",
+			in: `
+				domains = ["domain.test"]
+				insecure_addr = ":8080"
+				listen_tls_addr = ":8081"
+				server_api {
+					socket_path = "/other/socket/path"
+					spiffe_id = "spiffe://example.org/oidc-provider"
+				}
+			`,
+			err: "listen_tls_addr and insecure_addr are mutually exclusive",
+		},
+		{
+			name: "both listen_tls_addr and listen_socket_path configured",
+			in: `
+				domains = ["domain.test"]
+				listen_socket_path = "test"
+				listen_tls_addr = ":8081"
+				server_api {
+					socket_path = "/other/socket/path"
+					spiffe_id = "spiffe://example.org/oidc-provider"
+				}
+			`,
+			err: "listen_tls_addr and listen_socket_path are mutually exclusive",
+		},
+		{
+			name: "both listen_tls_addr and serving_cert_file configured",
+			in: `
+				domains = ["domain.test"]
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				listen_tls_addr = ":8081"
+				server_api {
+					socket_path = "/other/socket/path"
+					spiffe_id = "spiffe://example.org/oidc-provider"
+				}
+			`,
+			err: "listen_tls_addr and serving_cert_file are mutually exclusive",
+		},
+		{
+			name: "both acme and listen_tls_addr configured",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				listen_tls_addr = ":8081"
+				server_api {
+					socket_path = "/other/socket/path"
+					spiffe_id = "spiffe://example.org/oidc-provider"
+				}
+			`,
+			err: "listen_tls_addr and acme are mutually exclusive",
+		},
+		{
+			name: "listen_tls_addr with workload_api configured",
+			in: `
+				domains = ["domain.test"]
+				listen_tls_addr = ":8081"
+
+				workload_api { socket_path = "/some/socket/path" trust_domain="foo.test" }
+			`,
+			err: "listen_tls_addr require using server_api instead of workload_api",
+		},
+		{
+			name: "listen_tls_addr and server_api configured without spiffe_id",
+			in: `
+				domains = ["domain.test"]
+				listen_tls_addr = ":8081"
+
+				server_api {
+					socket_path = "/other/socket/path"
+				}
+			`,
+			err: "spiffe_id must be set",
 		},
 		{
 			name: "with insecure addr and key use",
