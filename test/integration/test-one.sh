@@ -68,6 +68,13 @@ trap cleanup EXIT
 #################################################
 # Prepare the run directory
 #################################################
+
+# Prepare common directories used by tests.
+# These directories on the host are mapped to paths in containers, possibly
+# running with a different user.
+mkdir -p -m 777 "${RUNDIR}/conf/agent"
+mkdir -p -m 777 "${RUNDIR}/conf/server"
+
 cp -R "${TESTDIR}"/* "${RUNDIR}/"
 
 #################################################

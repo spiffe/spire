@@ -23,7 +23,7 @@ check-stored-svids() {
       fi
     done
 
-    docker-compose exec -u 1001 -T spire-server \
+    docker-compose exec -u 1000 -T spire-server \
       /opt/spire/conf/server/checkstoredsvids /opt/spire/conf/agent/svids.json  || fail-now "failed to check stored svids"
 }
 
@@ -48,6 +48,6 @@ check-deleted-svids() {
       fail-now "timed out waiting for agent to delete all svids"
     fi
 
-    docker-compose exec -u 1001 -T spire-server \
+    docker-compose exec -u 1000 -T spire-server \
       /opt/spire/conf/server/checkstoredsvids /opt/spire/conf/agent/svids.json  || fail-now "failed to check stored svids"
 }
