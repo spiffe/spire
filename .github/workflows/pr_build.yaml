@@ -6,7 +6,7 @@ on:
     types:
       - checks_requested
 env:
-  GO_VERSION: 1.21.8
+  GO_VERSION: 1.22.1
 permissions:
   contents: read
 

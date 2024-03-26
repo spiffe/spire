@@ -19,7 +19,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/lestrrat-go/jwx/v2/jwk"
@@ -141,7 +141,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	var serverID = config.KeyIdentifierValue
+	serverID := config.KeyIdentifierValue
 	if serverID == "" && config.KeyMetadataFile != "" {
 		p.log.Warn("'key_metadata_file' is deprecated in favor of 'key_identifier_file' and will be removed in a future version")
 		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
