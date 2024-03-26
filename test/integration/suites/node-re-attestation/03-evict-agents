@@ -12,4 +12,7 @@ docker-compose exec -T spire-server \
     /opt/spire/bin/spire-server agent evict -spiffeID $AGENT_B_SPIFFE_ID || fail-now "failed to evict agent b."
 
 check-evict-agents $AGENT_A_SPIFFE_ID $AGENT_B_SPIFFE_ID
-check-attested-agents
+
+# spire-agent-a will re-attest but spire-agent-b won't because join_token implements trust on first use model.
+AGENT_A_SPIFFE_ID_PATH="/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
+check-attested-agents $AGENT_A_SPIFFE_ID_PATH

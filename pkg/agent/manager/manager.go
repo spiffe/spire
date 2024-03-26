@@ -192,6 +192,7 @@ func (m *manager) Initialize(ctx context.Context) error {
 func (m *manager) Run(ctx context.Context) error {
 	defer m.client.Release()
 
+restart:
 	err := util.RunTasks(ctx,
 		m.runSynchronizer,
 		m.runSyncSVIDs,
@@ -204,9 +205,14 @@ func (m *manager) Run(ctx context.Context) error {
 		m.c.Log.Info("Cache manager stopped")
 		return nil
 	case nodeutil.ShouldAgentReattest(err):
-		m.c.Log.WithError(err).Warn("Agent needs to re-attest; removing SVID and shutting down")
-		m.deleteSVID()
-		return err
+		m.c.Log.WithError(err).Warn("Agent needs to re-attest; will attempt to re-attest")
+		reattestError := m.svid.Reattest(ctx)
+		if reattestError != nil {
+			m.c.Log.WithError(reattestError).Error("Agent failed re-attestation; removing SVID and shutting down")
+			m.deleteSVID()
+			return err
+		}
+		goto restart
 	case nodeutil.ShouldAgentShutdown(err):
 		m.c.Log.WithError(err).Warn("Agent is banned: removing SVID and shutting down")
 		m.deleteSVID()
