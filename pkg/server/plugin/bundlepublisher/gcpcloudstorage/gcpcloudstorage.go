@@ -132,14 +132,18 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		return nil, status.Error(codes.Internal, "could not initialize storage writer")
 	}
 
+	log := p.log.With(
+		"bucket_name", config.BucketName,
+		"object_name", config.ObjectName)
+
 	_, err = storageWriter.Write(bundleBytes)
 	// The number of bytes written can be safely ignored. To determine if an
 	// object was successfully uploaded, we need to look at the error returned
 	// from storageWriter.Close().
 	if err != nil {
 		// Close the storage writer before returning.
-		if closeErr := storageWriter.Close(); err != nil {
-			p.log.With(telemetry.Error, closeErr).Error("Failed to close storage writer")
+		if closeErr := storageWriter.Close(); closeErr != nil {
+			log.With(telemetry.Error, closeErr).Error("Failed to close storage writer")
 		}
 		return nil, status.Errorf(codes.Internal, "failed to write bundle: %v", err)
 	}
@@ -153,7 +157,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 	}
 
 	p.setBundle(req.Bundle)
-	p.log.Debug("Bundle published")
+	log.Debug("Bundle published")
 	return &bundlepublisherv1.PublishBundleResponse{}, nil
 }
 

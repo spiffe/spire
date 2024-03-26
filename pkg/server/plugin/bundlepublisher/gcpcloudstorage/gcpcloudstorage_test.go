@@ -22,10 +22,6 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-var (
-	writeObjectCount int
-)
-
 func TestConfigure(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -145,6 +141,11 @@ func TestConfigure(t *testing.T) {
 
 func TestPublishBundle(t *testing.T) {
 	testBundle := getTestBundle(t)
+	config := &Config{
+		BucketName: "bucket-name",
+		ObjectName: "object-name",
+		Format:     "spiffe",
+	}
 
 	for _, tt := range []struct {
 		name string
@@ -152,7 +153,7 @@ func TestPublishBundle(t *testing.T) {
 		newClientErr error
 		expectCode   codes.Code
 		expectMsg    string
-		config       *Config
+		noConfig     bool
 		bundle       *types.Bundle
 		writeErr     error
 		closeErr     error
@@ -160,57 +161,33 @@ func TestPublishBundle(t *testing.T) {
 		{
 			name:   "success",
 			bundle: testBundle,
-			config: &Config{
-				BucketName: "bucket-name",
-				ObjectName: "object-name",
-				Format:     "spiffe",
-			},
 		},
 		{
 			name:   "multiple times",
 			bundle: testBundle,
-			config: &Config{
-				BucketName: "bucket-name",
-				ObjectName: "object-name",
-				Format:     "spiffe",
-			},
 		},
 		{
-			name:   "write failure",
-			bundle: testBundle,
-			config: &Config{
-				BucketName: "bucket-name",
-				ObjectName: "object-name",
-				Format:     "spiffe",
-			},
+			name:       "write failure",
+			bundle:     testBundle,
 			writeErr:   errors.New("write error"),
 			expectCode: codes.Internal,
 			expectMsg:  "failed to write bundle: write error",
 		},
 		{
-			name:   "close failure",
-			bundle: testBundle,
-			config: &Config{
-				BucketName: "bucket-name",
-				ObjectName: "object-name",
-				Format:     "spiffe",
-			},
+			name:       "close failure",
+			bundle:     testBundle,
 			closeErr:   errors.New("close error"),
 			expectCode: codes.Internal,
 			expectMsg:  "failed to close storage writer: close error",
 		},
 		{
 			name:       "not configured",
+			noConfig:   true,
 			expectCode: codes.FailedPrecondition,
 			expectMsg:  "not configured",
 		},
 		{
-			name: "missing bundle",
-			config: &Config{
-				BucketName: "bucket-name",
-				ObjectName: "object-name",
-				Format:     "spiffe",
-			},
+			name:       "missing bundle",
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "missing bundle in request",
 		},
@@ -222,7 +199,7 @@ func TestPublishBundle(t *testing.T) {
 				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
-				plugintest.ConfigureJSON(tt.config),
+				plugintest.ConfigureJSON(config),
 			}
 
 			newClient := func(ctx context.Context, opts ...option.ClientOption) (gcsService, error) {
@@ -239,7 +216,7 @@ func TestPublishBundle(t *testing.T) {
 			}
 			p := newPlugin(newClient, newStorageWriter)
 
-			if tt.config != nil {
+			if !tt.noConfig {
 				plugintest.Load(t, builtin(p), nil, options...)
 				require.NoError(t, err)
 			}
@@ -281,7 +258,9 @@ func TestPublishMultiple(t *testing.T) {
 	}
 	newStorageWriter := getFakeNewStorageWriterFunc(nil, nil)
 	p := newPlugin(newClient, newStorageWriter)
-	p.hooks.wroteObjectFunc = func() { writeObjectCount++ }
+
+	var testWriteObjectCount int
+	p.hooks.wroteObjectFunc = func() { testWriteObjectCount++ }
 	plugintest.Load(t, builtin(p), nil, options...)
 	require.NoError(t, err)
 
@@ -293,14 +272,14 @@ func TestPublishMultiple(t *testing.T) {
 	bundle := getTestBundle(t)
 	bundle.SequenceNumber = 1
 
-	// Reset the writeObjectCount counter.
-	writeObjectCount = 0
+	// Reset the testWriteObjectCount counter.
+	testWriteObjectCount = 0
 	resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
 		Bundle: bundle,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Equal(t, 1, writeObjectCount)
+	require.Equal(t, 1, testWriteObjectCount)
 
 	// Call PublishBundle with the same bundle.
 	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
@@ -309,8 +288,8 @@ func TestPublishMultiple(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// The same bundle was used, the writeObjectCount counter should be still 1.
-	require.Equal(t, 1, writeObjectCount)
+	// The same bundle was used, the testWriteObjectCount counter should be still 1.
+	require.Equal(t, 1, testWriteObjectCount)
 
 	// Have a new bundle and call PublishBundle.
 	bundle = getTestBundle(t)
@@ -321,9 +300,9 @@ func TestPublishMultiple(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// PublishBundle was called with a different bundle, writeObjectCount should
+	// PublishBundle was called with a different bundle, testWriteObjectCount should
 	// be incremented to be 2.
-	require.Equal(t, 2, writeObjectCount)
+	require.Equal(t, 2, testWriteObjectCount)
 
 	// Simulate that there is an error writing to the storage.
 	p.hooks.newStorageWriterFunc = getFakeNewStorageWriterFunc(errors.New("write error"), nil)
@@ -336,8 +315,8 @@ func TestPublishMultiple(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// The same bundle was used, the writeObjectCount counter should be still 2.
-	require.Equal(t, 2, writeObjectCount)
+	// The same bundle was used, the testWriteObjectCount counter should be still 2.
+	require.Equal(t, 2, testWriteObjectCount)
 
 	// Have a new bundle and call PublishBundle. Write should be called this
 	// time and return an error.
@@ -349,9 +328,9 @@ func TestPublishMultiple(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, resp)
 
-	// Since the bundle could not be published, writeObjectCount should be
+	// Since the bundle could not be published, testWriteObjectCount should be
 	// still 2.
-	require.Equal(t, 2, writeObjectCount)
+	require.Equal(t, 2, testWriteObjectCount)
 
 	// Clear the Write error and call PublishBundle.
 	p.hooks.newStorageWriterFunc = getFakeNewStorageWriterFunc(nil, nil)
@@ -363,9 +342,9 @@ func TestPublishMultiple(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// The writeObjectCount counter should be incremented to 3, since the bundle
+	// The testWriteObjectCount counter should be incremented to 3, since the bundle
 	// should have been published successfully.
-	require.Equal(t, 3, writeObjectCount)
+	require.Equal(t, 3, testWriteObjectCount)
 }
 
 type fakeClient struct {

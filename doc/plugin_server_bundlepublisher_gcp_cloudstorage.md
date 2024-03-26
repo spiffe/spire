@@ -39,13 +39,28 @@ storage.objects.delete
 
 The `storage.objects.delete` permission is required to overwrite the object when the bundle is updated.
 
-## Sample configuration
+## Sample configuration using Application Default Credentials
 
-The following configuration uploads the local trust bundle contents to the `example.org` object in the `spire-trust-bundle` bucket. The AWS access key id and secret access key are obtained from the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESSKEY environment variables.
+The following configuration uploads the local trust bundle contents to the `example.org` object in the `spire-bundle` bucket. Since `service_account_file` is not configured, [Application Default Credentials](https://cloud.google.com/docs/authentication/client-libraries#adc) are used.
 
 ```hcl
     BundlePublisher "gcp_cloudstorage" {
         plugin_data {
+            bucket = "spire-bundle"
+            object_name = "example.org"
+            format = "spiffe"
+        }
+    }
+```
+
+## Sample configuration using service account file
+
+The following configuration uploads the local trust bundle contents to the `example.org` object in the `spire-bundle` bucket. Since `service_account_file` is configured, authentication to the Cloud Storage API is done with the given service account file.
+
+```hcl
+    BundlePublisher "gcp_cloudstorage" {
+        plugin_data {
+            service_account_file = "/path/to/service/account/file"
             bucket = "spire-bundle"
             object_name = "example.org"
             format = "spiffe"
