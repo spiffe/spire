@@ -17,7 +17,7 @@ REPODIR=$(git rev-parse --show-toplevel)
 
 # Set and export the PATH to one that includes a go binary installed by the
 # Makefile, if necessary.
-PATH=$(cd "${REPODIR}" || exit; make go-bin-path)
+PATH=$(cd "${REPODIR}" || exit; make --silent go-bin-path)
 export PATH
 
 log-info "running \"${TESTNAME}\" test suite..."
