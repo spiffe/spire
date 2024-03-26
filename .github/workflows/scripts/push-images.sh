@@ -68,5 +68,5 @@ for img in "${OCI_IMAGES[@]}"; do
 
   image_digest="$(jq -r '.manifests[0].digest' "${ROOTDIR}oci/${img}/index.json")"
 
-  cosign sign "${registry}/${img}@${image_digest}"
+  cosign sign -y "${registry}/${img}@${image_digest}"
 done
