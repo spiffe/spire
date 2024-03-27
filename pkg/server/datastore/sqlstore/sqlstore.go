@@ -310,7 +310,11 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attes
 }
 
 // CountAttestedNodes counts all attested nodes
-func (ds *Plugin) CountAttestedNodes(ctx context.Context) (count int32, err error) {
+func (ds *Plugin) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (count int32, err error) {
+	if countAttestedNodesHasFilters(req) {
+		resp, err := countAttestedNodesWithFilters(ctx, ds.db, ds.log, req)
+		return resp, err
+	}
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		count, err = countAttestedNodes(tx)
 		return err
@@ -474,15 +478,14 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 }
 
 // CountRegistrationEntries counts all registrations (pagination available)
-func (ds *Plugin) CountRegistrationEntries(ctx context.Context) (count int32, err error) {
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		count, err = countRegistrationEntries(tx)
-		return err
-	}); err != nil {
-		return 0, err
+func (ds *Plugin) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (count int32, err error) {
+	var actDb = ds.db
+	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
+		actDb = ds.roDb
 	}
 
-	return count, nil
+	resp, err := countRegistrationEntries(ctx, actDb, ds.log, req)
+	return resp, err
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -1550,6 +1553,16 @@ func countAttestedNodes(tx *gorm.DB) (int32, error) {
 	return int32(count), nil
 }
 
+func countAttestedNodesHasFilters(req *datastore.CountAttestedNodesRequest) bool {
+	if req.ByAttestationType != "" || req.ByBanned != nil || !req.ByExpiresBefore.IsZero() {
+		return true
+	}
+	if req.BySelectorMatch != nil || !req.FetchSelectors || req.ByCanReattest != nil {
+		return true
+	}
+	return false
+}
+
 func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
@@ -1597,6 +1610,48 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, r
 		}
 
 		req.Pagination = resp.Pagination
+	}
+}
+
+func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, _ logrus.FieldLogger, req *datastore.CountAttestedNodesRequest) (int32, error) {
+	if req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) == 0 {
+		return -1, status.Error(codes.InvalidArgument, "cannot list by empty selectors set")
+	}
+
+	var val int32
+	listReq := &datastore.ListAttestedNodesRequest{
+		ByAttestationType: req.ByAttestationType,
+		ByBanned:          req.ByBanned,
+		ByExpiresBefore:   req.ByExpiresBefore,
+		BySelectorMatch:   req.BySelectorMatch,
+		FetchSelectors:    req.FetchSelectors,
+		ByCanReattest:     req.ByCanReattest,
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: 1000,
+		},
+	}
+	for {
+		resp, err := listAttestedNodesOnce(ctx, db, listReq)
+		if err != nil {
+			return -1, err
+		}
+
+		if len(resp.Nodes) == 0 {
+			return val, nil
+		}
+
+		if req.BySelectorMatch != nil {
+			switch req.BySelectorMatch.Match {
+			case datastore.Exact, datastore.Subset:
+				resp.Nodes = filterNodesBySelectorSet(resp.Nodes, req.BySelectorMatch.Selectors)
+			default:
+			}
+		}
+
+		val += int32(len(resp.Nodes))
+
+		listReq.Pagination = resp.Pagination
 	}
 }
 
@@ -1740,7 +1795,6 @@ func listAttestedNodesOnce(ctx context.Context, db *sqlDB, req *datastore.ListAt
 			resp.Pagination.Token = strconv.FormatUint(lastEID, 10)
 		}
 	}
-
 	return resp, nil
 }
 
@@ -1798,7 +1852,6 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 		builder.WriteString("\t\tAND data_type = ?\n")
 		args = append(args, req.ByAttestationType)
 	}
-
 	// Filter by banned, an Attestation Node is banned when serial number is empty.
 	// This filter allows 3 outputs:
 	// - nil:  returns all
@@ -1811,8 +1864,11 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 			builder.WriteString("\t\tAND serial_number <> ''\n")
 		}
 	}
-
-	// Filter by CanReattest. This is similar to ByBanned
+	// Filter by canReattest,
+	// This filter allows 3 outputs:
+	//  - nil:  returns all
+	// - true: returns nodes with canReattest=true
+	// - false: returns nodes with canReattest=false
 	if req.ByCanReattest != nil {
 		if *req.ByCanReattest {
 			builder.WriteString("\t\tAND can_reattest = true\n")
@@ -1960,7 +2016,6 @@ SELECT
 	}
 
 	builder.WriteString("\n) ORDER BY id ASC\n")
-
 	return builder.String(), args, nil
 }
 
@@ -2654,15 +2709,6 @@ ORDER BY selector_id, dns_name_id
 	return query, []any{entryID}, nil
 }
 
-func countRegistrationEntries(tx *gorm.DB) (int32, error) {
-	var count int
-	if err := tx.Model(&RegisteredEntry{}).Count(&count).Error; err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-
-	return int32(count), nil
-}
-
 func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
@@ -2757,7 +2803,6 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		return nil, sqlError.Wrap(err)
 	}
 	defer rows.Close()
-
 	var entries []*common.RegistrationEntry
 	if req.Pagination != nil {
 		entries = make([]*common.RegistrationEntry, 0, req.Pagination.PageSize)
@@ -2840,8 +2885,12 @@ func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *dat
 
 func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
 	builder := new(strings.Builder)
-
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -2873,8 +2922,16 @@ SELECT
 FROM
 	registered_entries
 `)
+
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
 	}
 	builder.WriteString(`
 UNION
@@ -2924,6 +2981,11 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -2957,6 +3019,13 @@ FROM
 `)
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
 	}
 	builder.WriteString(`
 UNION ALL
@@ -3051,6 +3120,11 @@ LEFT JOIN
 `)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -3058,7 +3132,13 @@ LEFT JOIN
 	if filtered {
 		builder.WriteString(")")
 	}
-
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
 	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
 
 	return builder.String(), args, nil
@@ -3068,6 +3148,11 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, MySQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -3101,6 +3186,13 @@ FROM
 `)
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
 	}
 	builder.WriteString(`
 UNION
@@ -3144,6 +3236,52 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`)
 
 	return builder.String(), args, nil
+}
+
+// Count Registration Entries
+func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogger, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
+		return 0, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
+	}
+
+	var val int32
+	listReq := &datastore.ListRegistrationEntriesRequest{
+		DataConsistency: req.DataConsistency,
+		ByParentID:      req.ByParentID,
+		BySelectors:     req.BySelectors,
+		BySpiffeID:      req.BySpiffeID,
+		ByFederatesWith: req.ByFederatesWith,
+		ByHint:          req.ByHint,
+		ByDownstream:    req.ByDownstream,
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: 1000,
+		},
+	}
+
+	for {
+		resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, listReq)
+
+		if err != nil {
+			return -1, err
+		}
+
+		if len(resp.Entries) == 0 {
+			return val, nil
+		}
+
+		if req.BySelectors != nil {
+			switch req.BySelectors.Match {
+			case datastore.Exact, datastore.Subset:
+				resp.Entries = filterEntriesBySelectorSet(resp.Entries, req.BySelectors.Selectors)
+			default:
+			}
+		}
+
+		val += int32(len(resp.Entries))
+
+		listReq.Pagination = resp.Pagination
+	}
 }
 
 type idFilterNode struct {
