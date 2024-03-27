@@ -1613,12 +1613,12 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, r
 	}
 }
 
-func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.CountAttestedNodesRequest) (int32, error) {
+func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, _ logrus.FieldLogger, req *datastore.CountAttestedNodesRequest) (int32, error) {
 	if req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) == 0 {
 		return -1, status.Error(codes.InvalidArgument, "cannot list by empty selectors set")
 	}
 
-	var val int32 = 0
+	var val int32
 	listReq := &datastore.ListAttestedNodesRequest{
 		ByAttestationType: req.ByAttestationType,
 		ByBanned:          req.ByBanned,
@@ -2979,12 +2979,12 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 }
 
 // Count Registration Entries
-func countRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
+func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogger, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
 		return 0, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
 	}
 
-	var val int32 = 0
+	var val int32
 	listReq := &datastore.ListRegistrationEntriesRequest{
 		DataConsistency: req.DataConsistency,
 		ByParentID:      req.ByParentID,
