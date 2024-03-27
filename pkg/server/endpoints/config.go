@@ -20,6 +20,7 @@ import (
 	debugv1 "github.com/spiffe/spire/pkg/server/api/debug/v1"
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
 	healthv1 "github.com/spiffe/spire/pkg/server/api/health/v1"
+	loggerv1 "github.com/spiffe/spire/pkg/server/api/logger/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire/pkg/server/api/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
@@ -61,7 +62,15 @@ type Config struct {
 	// Makes policy decisions
 	AuthPolicyEngine *authpolicy.Engine
 
-	Log     logrus.FieldLogger
+	// The logger for the endpoints subsystem
+	Log logrus.FieldLogger
+
+	// The root logger for the entire process
+	RootLog loggerv1.Logger
+
+	// The default (original config) log level
+	LaunchLogLevel logrus.Level
+
 	Metrics telemetry.Metrics
 
 	// RateLimit holds rate limiting configurations.
@@ -156,6 +165,9 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 		HealthServer: healthv1.New(healthv1.Config{
 			TrustDomain: c.TrustDomain,
 			DataStore:   ds,
+		}),
+		LoggerServer: loggerv1.New(loggerv1.Config{
+			Log: c.RootLog,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
 			TrustDomain:  c.TrustDomain,

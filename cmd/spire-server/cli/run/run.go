@@ -389,6 +389,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	sc.Log = logger
+
 	if reopenableFile != nil {
 		sc.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}

@@ -3,7 +3,7 @@ package telemetry
 import (
 	"context"
 
-	"github.com/armon/go-metrics"
+	"github.com/hashicorp/go-metrics"
 )
 
 type statsdRunner struct {

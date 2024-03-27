@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.9.2] - 2024-03-25
+
+### Added
+
+- Support for AWS IAM-based authentication with AWS RDS backed databases (#4828)
+- Support for adjusting the SPIRE Server log level at runtime (#4880)
+- New `retry_bootstrap` option to SPIRE Agent to retry failed bootstrapping with SPIRE Server, with a backoff, in lieu of failing the startup process (#4597)
+- Improved logging (#4902, #4906)
+- Documentation improvements (#4895, #4951, #4907)
+
+## [1.9.1] - 2024-03-05
+
+### Security
+
+- Update Go to v1.21.8 to patch CVE-2024-24783
+
 ## [1.9.0] - 2024-02-22
 
 ### Added
@@ -35,6 +51,12 @@
 ### Removed
 
 - X509-SVIDs issued by the server no longer have the x509UniqueIdentifier attribute as part of the subject (#4862)
+
+## [1.8.8] - 2024-03-05
+
+### Security
+
+- Update Go to v1.21.8 to patch CVE-2024-24783
 
 ## [1.8.7] - 2023-12-21
 
