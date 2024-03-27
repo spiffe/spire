@@ -637,8 +637,6 @@ func TestMergeInput(t *testing.T) {
 }
 
 func TestNewAgentConfig(t *testing.T) {
-	testDir := t.TempDir()
-
 	cases := []newAgentConfigCase{
 		{
 			msg: "server_address and server_port should be correctly parsed",
@@ -738,16 +736,6 @@ func TestNewAgentConfig(t *testing.T) {
 				l := c.Log.(*log.Logger)
 				require.Equal(t, logrus.WarnLevel, l.Level)
 				require.IsType(t, &logrus.TextFormatter{}, l.Formatter)
-			},
-		},
-		{
-			msg: "log_file allows to reopen",
-			input: func(c *Config) {
-				c.Agent.LogFile = path.Join(testDir, "foo")
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.NotNil(t, c.Log)
-				require.NotNil(t, c.LogReopener)
 			},
 		},
 		{
@@ -1053,7 +1041,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 	}
-	cases = append(cases, newAgentConfigCasesOS()...)
+	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {
 		testCase := testCase
 
