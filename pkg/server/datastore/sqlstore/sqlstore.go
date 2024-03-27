@@ -312,15 +312,8 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attes
 // CountAttestedNodes counts all attested nodes
 func (ds *Plugin) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (count int32, err error) {
 	if countAttestedNodesHasFilters(req) {
-		resp, err := listAttestedNodes(ctx, ds.db, ds.log, &datastore.ListAttestedNodesRequest{
-			ByAttestationType: req.ByAttestationType,
-			ByBanned:          req.ByBanned,
-			ByExpiresBefore:   req.ByExpiresBefore,
-			BySelectorMatch:   req.BySelectorMatch,
-			FetchSelectors:    req.FetchSelectors,
-			ByCanReattest:     req.ByCanReattest,
-		})
-		return int32(len(resp.Nodes)), err
+		resp, err := countAttestedNodesWithFilters(ctx, ds.db, ds.log, req)
+		return resp, err
 	}
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		count, err = countAttestedNodes(tx)
@@ -1617,6 +1610,48 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, r
 		}
 
 		req.Pagination = resp.Pagination
+	}
+}
+
+func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.CountAttestedNodesRequest) (int32, error) {
+	if req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) == 0 {
+		return -1, status.Error(codes.InvalidArgument, "cannot list by empty selectors set")
+	}
+
+	var val int32 = 0
+	listReq := &datastore.ListAttestedNodesRequest{
+		ByAttestationType: req.ByAttestationType,
+		ByBanned:          req.ByBanned,
+		ByExpiresBefore:   req.ByExpiresBefore,
+		BySelectorMatch:   req.BySelectorMatch,
+		FetchSelectors:    req.FetchSelectors,
+		ByCanReattest:     req.ByCanReattest,
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: 1000,
+		},
+	}
+	for {
+		resp, err := listAttestedNodesOnce(ctx, db, listReq)
+		if err != nil {
+			return -1, err
+		}
+
+		if len(resp.Nodes) == 0 {
+			return val, nil
+		}
+
+		if req.BySelectorMatch != nil {
+			switch req.BySelectorMatch.Match {
+			case datastore.Exact, datastore.Subset:
+				resp.Nodes = filterNodesBySelectorSet(resp.Nodes, req.BySelectorMatch.Selectors)
+			default:
+			}
+		}
+
+		val += int32(len(resp.Nodes))
+
+		listReq.Pagination = resp.Pagination
 	}
 }
 
@@ -2944,29 +2979,49 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 }
 
 // Count Registration Entries
-func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogger, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
+func countRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
 	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
 		return 0, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
 	}
 
-	// Exact/subset selector matching requires filtering out all registration
-	// entries returned by the query whose selectors are not fully represented
-	// in the request selectors. For this reason, it's possible that a paged
-	// query returns rows that are completely filtered out. If that happens,
-	// keep querying until a page gets at least one result.
-	resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE,
-		&datastore.ListRegistrationEntriesRequest{
-			DataConsistency: req.DataConsistency,
-			ByParentID:      req.ByParentID,
-			BySelectors:     req.BySelectors,
-			BySpiffeID:      req.BySpiffeID,
-			ByFederatesWith: req.ByFederatesWith,
-			ByHint:          req.ByHint,
-			ByDownstream:    req.ByDownstream,
+	var val int32 = 0
+	listReq := &datastore.ListRegistrationEntriesRequest{
+		DataConsistency: req.DataConsistency,
+		ByParentID:      req.ByParentID,
+		BySelectors:     req.BySelectors,
+		BySpiffeID:      req.BySpiffeID,
+		ByFederatesWith: req.ByFederatesWith,
+		ByHint:          req.ByHint,
+		ByDownstream:    req.ByDownstream,
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: 1000,
 		},
-	)
+	}
 
-	return int32(len(resp.Entries)), err
+	for {
+		resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, listReq)
+
+		if err != nil {
+			return -1, err
+		}
+
+		if len(resp.Entries) == 0 {
+			return val, nil
+		}
+
+		if req.BySelectors != nil {
+			switch req.BySelectors.Match {
+			case datastore.Exact, datastore.Subset:
+				resp.Entries = filterEntriesBySelectorSet(resp.Entries, req.BySelectors.Selectors)
+			default:
+			}
+		}
+
+		val += int32(len(resp.Entries))
+
+		listReq.Pagination = resp.Pagination
+	}
 }
 
 func buildQuerySQLite3(builder *strings.Builder, filtered bool, downstream bool) {

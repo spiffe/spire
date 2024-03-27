@@ -143,7 +143,6 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 		}
 
 		// err is verified previously
-		// countReq.ByExpiresBefore, _ = time.Parse("2006-01-02", filter.ByExpiresBefore)
 		if filter.ByExpiresBefore != "" {
 			listReq.ByExpiresBefore, _ = time.Parse("2006-01-02 15:04:05 -0700 -07", filter.ByExpiresBefore)
 		}
