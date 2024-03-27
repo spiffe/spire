@@ -180,7 +180,7 @@ func mergeInputCasesOS(*testing.T) []mergeInputCase {
 	}
 }
 
-func newServerConfigCasesOS() []newServerConfigCase {
+func newServerConfigCasesOS(*testing.T) []newServerConfigCase {
 	return []newServerConfigCase{
 		{
 			msg: "named_pipe_name should be correctly configured",
