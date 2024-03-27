@@ -5,7 +5,7 @@ go 1.22
 require (
 	cloud.google.com/go/iam v1.1.6
 	cloud.google.com/go/kms v1.15.7
-	cloud.google.com/go/secretmanager v1.11.5
+	cloud.google.com/go/secretmanager v1.12.0
 	cloud.google.com/go/security v1.15.5
 	cloud.google.com/go/storage v1.39.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.10.0
