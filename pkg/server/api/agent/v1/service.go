@@ -90,7 +90,6 @@ func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsReque
 			countReq.ByAttestationType = filter.ByAttestationType
 		}
 
-		// err is verified previously
 		if filter.ByExpiresBefore != "" {
 			countReq.ByExpiresBefore, _ = time.Parse("2006-01-02 15:04:05 -0700 -07", filter.ByExpiresBefore)
 		}
@@ -142,7 +141,6 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 			listReq.ByAttestationType = filter.ByAttestationType
 		}
 
-		// err is verified previously
 		if filter.ByExpiresBefore != "" {
 			listReq.ByExpiresBefore, _ = time.Parse("2006-01-02 15:04:05 -0700 -07", filter.ByExpiresBefore)
 		}
