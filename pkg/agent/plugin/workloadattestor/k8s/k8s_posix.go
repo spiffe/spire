@@ -128,14 +128,15 @@ var cgroupREs = []*regexp.Regexp{
 
 	// This regex applies for container runtimes, that won't put the PodUID into
 	// the cgroup name.
-	// Currently only cri-o in combination with kubeedge is known for this abnormally.
+	// cri-o in combination with kubeedge or processes in the same pod as
+	// spire will cause this.
 	regexp.MustCompile(`` +
 		// intentionally empty poduid group
 		`(?P<poduid>)` +
 		// mustnotmatch group: cgroup path must not include a poduid
 		`(?P<mustnotmatch>pod[[:xdigit:]]{8}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{4}[[:punct:]]?[[:xdigit:]]{12}[[:punct:]])?` +
 		// /crio-
-		`(?:[[:^punct:]]*/*)*crio[[:punct:]]` +
+		`(?:[[:^punct:]]*/*)*cri(o)*(-containerd)*[[:punct:]]` +
 		// non-punctuation end of string, i.e., the container ID
 		`(?P<containerid>[[:xdigit:]]{64})$`),
 }
