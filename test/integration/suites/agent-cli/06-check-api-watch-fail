@@ -1,22 +1,7 @@
 #!/bin/bash
 
-RETRIES=50
-AGENT_FOUND=0
 SVID_RECEIVED=1
 TIMEOUT_REACHED=0
-
-for ((m=1;m<=$RETRIES;m++)); do
-    AGENTS=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server agent list)
-    # Break when an agent is found
-    if [ "$AGENTS" != "No attested agents found" ]; then
-        AGENT_FOUND=1  
-        break
-    fi
-done
-
-echo "$AGENTS"
-SPIFFE_ID=$(echo "$AGENTS" | awk '/SPIFFE ID/ {print $4}')
-echo "$SPIFFE_ID"
 
 # Run the background process and store its output in a temporary file
 (docker-compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api watch < /dev/null > api_watch_output.txt) &
