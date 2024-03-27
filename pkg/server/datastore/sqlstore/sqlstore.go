@@ -2894,8 +2894,85 @@ func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEnt
 	if err != nil {
 		return "", nil, err
 	}
+	if filtered {
+		builder.WriteString(")")
+	}
 
-	buildQuerySQLite3(builder, filtered, downstream)
+	builder.WriteString(`
+SELECT
+	id AS e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	store_svid,
+	hint,
+	created_at,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name,
+	revision_number,
+	jwt_svid_ttl AS reg_jwt_svid_ttl
+FROM
+	registered_entries
+`)
+
+	if filtered {
+		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
+	builder.WriteString(`
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+`)
+	if filtered {
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+FROM
+	dns_names
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+FROM
+	selectors
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+ORDER BY e_id, selector_id, dns_name_id
+;`)
 
 	return builder.String(), args, nil
 }
@@ -2912,8 +2989,84 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 	if err != nil {
 		return "", nil, err
 	}
+	if filtered {
+		builder.WriteString(")")
+	}
 
-	buildQueryPostgreSQL(builder, filtered, downstream)
+	builder.WriteString(`
+SELECT
+	id AS e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	store_svid,
+	hint,
+	created_at,
+	NULL ::integer AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL ::integer AS dns_name_id,
+	NULL AS dns_name,
+	revision_number,
+	jwt_svid_ttl AS reg_jwt_svid_ttl
+FROM
+	registered_entries
+`)
+	if filtered {
+		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
+	builder.WriteString(`
+UNION ALL
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+`)
+	if filtered {
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+UNION ALL
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+FROM
+	dns_names
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+UNION ALL
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+FROM
+	selectors
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+ORDER BY e_id, selector_id, dns_name_id
+;`)
 
 	return postgreSQLRebind(builder.String()), args, nil
 }
@@ -2933,8 +3086,39 @@ func postgreSQLRebind(s string) string {
 
 func buildListRegistrationEntriesQueryMySQL(req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
 	builder := new(strings.Builder)
+	builder.WriteString(`
+SELECT
+	E.id AS e_id,
+	E.entry_id AS entry_id,
+	E.spiffe_id,
+	E.parent_id,
+	E.ttl AS reg_ttl,
+	E.admin,
+	E.downstream,
+	E.expiry,
+	E.store_svid,
+	E.hint,
+	E.created_at,
+	S.id AS selector_id,
+	S.type AS selector_type,
+	S.value AS selector_value,
+	B.trust_domain,
+	D.id AS dns_name_id,
+	D.value AS dns_name,
+	E.revision_number,
+	E.jwt_svid_ttl AS reg_jwt_svid_ttl
+FROM
+	registered_entries E
+LEFT JOIN
+	(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
+LEFT JOIN
+	selectors S ON joinItem=1 AND E.id=S.registered_entry_id
+LEFT JOIN
+	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
+LEFT JOIN
+	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
+`)
 
-	buildQueryMySQL(builder)
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
 	var downstream = false
 	if req.ByDownstream != nil {
@@ -2955,9 +3139,7 @@ func buildListRegistrationEntriesQueryMySQL(req *datastore.ListRegistrationEntri
 			builder.WriteString("\t\tAND downstream = true\n")
 		}
 	}
-	builder.WriteString(`
-	ORDER BY e_id, selector_id, dns_name_id
-	`)
+	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
 
 	return builder.String(), args, nil
 }
@@ -2974,7 +3156,85 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 	if err != nil {
 		return "", nil, err
 	}
-	buildQueryMySQLCTE(builder, filtered, downstream)
+	if filtered {
+		builder.WriteString(")")
+	}
+
+	builder.WriteString(`
+SELECT
+	id AS e_id,
+	entry_id,
+	spiffe_id,
+	parent_id,
+	ttl AS reg_ttl,
+	admin,
+	downstream,
+	expiry,
+	store_svid,
+	hint,
+	created_at,
+	NULL AS selector_id,
+	NULL AS selector_type,
+	NULL AS selector_value,
+	NULL AS trust_domain,
+	NULL AS dns_name_id,
+	NULL AS dns_name,
+	revision_number,
+	jwt_svid_ttl AS reg_jwt_svid_ttl
+FROM
+	registered_entries
+`)
+	if filtered {
+		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
+	builder.WriteString(`
+UNION
+
+SELECT
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+FROM
+	bundles B
+INNER JOIN
+	federated_registration_entries F
+ON
+	B.id = F.bundle_id
+`)
+	if filtered {
+		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+FROM
+	dns_names
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+UNION
+
+SELECT
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+FROM
+	selectors
+`)
+	if filtered {
+		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
+	}
+	builder.WriteString(`
+ORDER BY e_id, selector_id, dns_name_id
+;`)
+
 	return builder.String(), args, nil
 }
 
@@ -3022,285 +3282,6 @@ func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogg
 
 		listReq.Pagination = resp.Pagination
 	}
-}
-
-func buildQuerySQLite3(builder *strings.Builder, filtered bool, downstream bool) {
-	if filtered {
-		builder.WriteString(")")
-	}
-
-	builder.WriteString(`
-	SELECT
-		id AS e_id,
-		entry_id,
-		spiffe_id,
-		parent_id,
-		ttl AS reg_ttl,
-		admin,
-		downstream,
-		expiry,
-		store_svid,
-		hint,
-		created_at,
-		NULL AS selector_id,
-		NULL AS selector_type,
-		NULL AS selector_value,
-		NULL AS trust_domain,
-		NULL AS dns_name_id,
-		NULL AS dns_name,
-		revision_number,
-		jwt_svid_ttl AS reg_jwt_svid_ttl
-	FROM
-		registered_entries
-	`)
-
-	if filtered {
-		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
-	}
-	if downstream {
-		if !filtered {
-			builder.WriteString("\t\tWHERE downstream = true\n")
-		} else {
-			builder.WriteString("\t\tAND downstream = true\n")
-		}
-	}
-	builder.WriteString(`
-	UNION
-
-	SELECT
-		F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
-	FROM
-		bundles B
-	INNER JOIN
-		federated_registration_entries F
-	ON
-		B.id = F.bundle_id
-	`)
-	if filtered {
-		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-	UNION
-
-	SELECT
-		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
-	FROM
-		dns_names
-	`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-	UNION
-
-	SELECT
-		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
-	FROM
-		selectors
-	`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-	ORDER BY e_id, selector_id, dns_name_id
-	`)
-}
-
-func buildQueryPostgreSQL(builder *strings.Builder, filtered bool, downstream bool) {
-	if filtered {
-		builder.WriteString(")")
-	}
-
-	builder.WriteString(`
-	SELECT
-		id AS e_id,
-		entry_id,
-		spiffe_id,
-		parent_id,
-		ttl AS reg_ttl,
-		admin,
-		downstream,
-		expiry,
-		store_svid,
-		hint,
-		created_at,
-		NULL ::integer AS selector_id,
-		NULL AS selector_type,
-		NULL AS selector_value,
-		NULL AS trust_domain,
-		NULL ::integer AS dns_name_id,
-		NULL AS dns_name,
-		revision_number,
-		jwt_svid_ttl AS reg_jwt_svid_ttl
-	FROM
-		registered_entries
-	`)
-	if filtered {
-		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
-	}
-	if downstream {
-		if !filtered {
-			builder.WriteString("\t\tWHERE downstream = true\n")
-		} else {
-			builder.WriteString("\t\tAND downstream = true\n")
-		}
-	}
-	builder.WriteString(`
-	UNION ALL
-
-	SELECT
-		F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
-	FROM
-		bundles B
-	INNER JOIN
-		federated_registration_entries F
-	ON
-		B.id = F.bundle_id
-	`)
-	if filtered {
-		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-	UNION ALL
-
-	SELECT
-		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
-	FROM
-		dns_names
-	`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-	UNION ALL
-
-	SELECT
-		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
-	FROM
-		selectors
-	`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-	ORDER BY e_id, selector_id, dns_name_id
-	`)
-}
-
-func buildQueryMySQLCTE(builder *strings.Builder, filtered bool, downstream bool) {
-	if filtered {
-		builder.WriteString(")")
-	}
-
-	builder.WriteString(`
-	SELECT
-		id AS e_id,
-		entry_id,
-		spiffe_id,
-		parent_id,
-		ttl AS reg_ttl,
-		admin,
-		downstream,
-		expiry,
-		store_svid,
-		hint,
-		created_at,
-		NULL AS selector_id,
-		NULL AS selector_type,
-		NULL AS selector_value,
-		NULL AS trust_domain,
-		NULL AS dns_name_id,
-		NULL AS dns_name,
-		revision_number,
-		jwt_svid_ttl AS reg_jwt_svid_ttl
-	FROM
-		registered_entries
-	`)
-	if filtered {
-		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
-	}
-	if downstream {
-		if !filtered {
-			builder.WriteString("\t\tWHERE downstream = true\n")
-		} else {
-			builder.WriteString("\t\tAND downstream = true\n")
-		}
-	}
-	builder.WriteString(`
-	UNION
-
-	SELECT
-		F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
-	FROM
-		bundles B
-	INNER JOIN
-		federated_registration_entries F
-	ON
-		B.id = F.bundle_id
-	`)
-	if filtered {
-		builder.WriteString("WHERE\n\tF.registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-	UNION
-
-	SELECT
-		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
-	FROM
-		dns_names
-	`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-	UNION
-
-	SELECT
-		registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
-	FROM
-		selectors
-	`)
-	if filtered {
-		builder.WriteString("WHERE registered_entry_id IN (SELECT e_id FROM listing)\n")
-	}
-	builder.WriteString(`
-	ORDER BY e_id, selector_id, dns_name_id
-	`)
-}
-
-func buildQueryMySQL(builder *strings.Builder) {
-	builder.WriteString(`
-	SELECT
-		E.id AS e_id,
-		E.entry_id AS entry_id,
-		E.spiffe_id,
-		E.parent_id,
-		E.ttl AS reg_ttl,
-		E.admin,
-		E.downstream,
-		E.expiry,
-		E.store_svid,
-		E.hint,
-		E.created_at,
-		S.id AS selector_id,
-		S.type AS selector_type,
-		S.value AS selector_value,
-		B.trust_domain,
-		D.id AS dns_name_id,
-		D.value AS dns_name,
-		E.revision_number,
-		E.jwt_svid_ttl AS reg_jwt_svid_ttl
-	FROM
-		registered_entries E
-	LEFT JOIN
-		(SELECT 1 AS joinItem UNION SELECT 2 UNION SELECT 3) AS joinItems ON TRUE
-	LEFT JOIN
-		selectors S ON joinItem=1 AND E.id=S.registered_entry_id
-	LEFT JOIN
-		dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
-	LEFT JOIN
-		(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-	`)
 }
 
 type idFilterNode struct {
