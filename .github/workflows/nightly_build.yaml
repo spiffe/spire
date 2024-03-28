@@ -17,6 +17,9 @@ jobs:
       id-token: write
       packages: write
 
+    env:
+      PLATFORMS: linux/amd64,linux/arm64,linux/s390x
+
     steps:
       - name: Checkout
         uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
