@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/armon/go-metrics"
+	"github.com/hashicorp/go-metrics"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 

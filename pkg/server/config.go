@@ -6,11 +6,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	loggerv1 "github.com/spiffe/spire/pkg/server/api/logger/v1"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/endpoints"
@@ -22,7 +22,7 @@ type Config struct {
 	// Configurations for server plugins
 	PluginConfigs common.PluginConfigs
 
-	Log logrus.FieldLogger
+	Log loggerv1.Logger
 
 	// LogReopener facilitates handling a signal to rotate log file.
 	LogReopener func(context.Context) error

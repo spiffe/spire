@@ -19,6 +19,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -95,6 +96,7 @@ func TestNew(t *testing.T) {
 		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
 		JWTKeyPublisher:  &fakeJWTKeyPublisher{},
 		Log:              log,
+		RootLog:          log,
 		Metrics:          metrics,
 		RateLimit:        rateLimit,
 		Clock:            clk,
@@ -110,6 +112,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, endpoints.APIServers.DebugServer)
 	assert.NotNil(t, endpoints.APIServers.EntryServer)
 	assert.NotNil(t, endpoints.APIServers.HealthServer)
+	assert.NotNil(t, endpoints.APIServers.LoggerServer)
 	assert.NotNil(t, endpoints.APIServers.SVIDServer)
 	assert.NotNil(t, endpoints.BundleEndpointServer)
 	assert.NotNil(t, endpoints.EntryFetcherPruneEventsTask)
@@ -208,6 +211,7 @@ func TestListenAndServe(t *testing.T) {
 			DebugServer:       debugServer{},
 			EntryServer:       entryServer{},
 			HealthServer:      healthServer{},
+			LoggerServer:      loggerServer{},
 			SVIDServer:        svidServer{},
 			TrustDomainServer: trustDomainServer{},
 		},
@@ -300,6 +304,9 @@ func TestListenAndServe(t *testing.T) {
 	})
 	t.Run("Health", func(t *testing.T) {
 		testHealthAPI(ctx, t, conns)
+	})
+	t.Run("Logger", func(t *testing.T) {
+		testLoggerAPI(ctx, t, conns)
 	})
 	t.Run("Bundle", func(t *testing.T) {
 		testBundleAPI(ctx, t, conns)
@@ -515,6 +522,36 @@ func testHealthAPI(ctx context.Context, t *testing.T, conns testConns) {
 
 	t.Run("Downstream", func(t *testing.T) {
 		assertServiceUnavailable(ctx, t, grpc_health_v1.NewHealthClient(conns.downstream))
+	})
+}
+
+func testLoggerAPI(ctx context.Context, t *testing.T, conns testConns) {
+	t.Run("Local", func(t *testing.T) {
+		testAuthorization(ctx, t, loggerv1.NewLoggerClient(conns.local), map[string]bool{
+			"GetLogger":     true,
+			"SetLogLevel":   true,
+			"ResetLogLevel": true,
+		})
+	})
+
+	t.Run("NoAuth", func(t *testing.T) {
+		assertServiceUnavailable(ctx, t, loggerv1.NewLoggerClient(conns.noAuth))
+	})
+
+	t.Run("Agent", func(t *testing.T) {
+		assertServiceUnavailable(ctx, t, loggerv1.NewLoggerClient(conns.agent))
+	})
+
+	t.Run("Admin", func(t *testing.T) {
+		assertServiceUnavailable(ctx, t, loggerv1.NewLoggerClient(conns.admin))
+	})
+
+	t.Run("Federated Admin", func(t *testing.T) {
+		assertServiceUnavailable(ctx, t, loggerv1.NewLoggerClient(conns.federatedAdmin))
+	})
+
+	t.Run("Downstream", func(t *testing.T) {
+		assertServiceUnavailable(ctx, t, loggerv1.NewLoggerClient(conns.downstream))
 	})
 }
 
@@ -1146,6 +1183,22 @@ func (healthServer) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 
 func (healthServer) Watch(_ *grpc_health_v1.HealthCheckRequest, stream grpc_health_v1.Health_WatchServer) error {
 	return stream.Send(&grpc_health_v1.HealthCheckResponse{})
+}
+
+type loggerServer struct {
+	loggerv1.UnsafeLoggerServer
+}
+
+func (loggerServer) GetLogger(context.Context, *loggerv1.GetLoggerRequest) (*types.Logger, error) {
+	return &types.Logger{}, nil
+}
+
+func (loggerServer) SetLogLevel(context.Context, *loggerv1.SetLogLevelRequest) (*types.Logger, error) {
+	return &types.Logger{}, nil
+}
+
+func (loggerServer) ResetLogLevel(context.Context, *loggerv1.ResetLogLevelRequest) (*types.Logger, error) {
+	return &types.Logger{}, nil
 }
 
 type svidServer struct {

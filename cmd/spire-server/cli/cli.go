@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/federation"
 	"github.com/spiffe/spire/cmd/spire-server/cli/healthcheck"
 	"github.com/spiffe/spire/cmd/spire-server/cli/jwt"
+	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
 	"github.com/spiffe/spire/cmd/spire-server/cli/token"
 	"github.com/spiffe/spire/cmd/spire-server/cli/validate"
@@ -95,6 +96,15 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		},
 		"federation update": func() (cli.Command, error) {
 			return federation.NewUpdateCommand(), nil
+		},
+		"logger get": func() (cli.Command, error) {
+			return logger.NewGetCommand(), nil
+		},
+		"logger set": func() (cli.Command, error) {
+			return logger.NewSetCommand(), nil
+		},
+		"logger reset": func() (cli.Command, error) {
+			return logger.NewResetCommand(), nil
 		},
 		"run": func() (cli.Command, error) {
 			return run.NewRunCommand(ctx, cc.LogOptions, cc.AllowUnknownConfig), nil
