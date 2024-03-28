@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/cryptosigner"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/cryptosigner"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
@@ -367,7 +367,7 @@ func (ca *CA) signJWTSVID(jwtKey *JWTKey, claims map[string]any) (string, error)
 		return "", fmt.Errorf("failed to configure JWT signer: %w", err)
 	}
 
-	signedToken, err := jwt.Signed(jwtSigner).Claims(claims).CompactSerialize()
+	signedToken, err := jwt.Signed(jwtSigner).Claims(claims).Serialize()
 	if err != nil {
 		return "", fmt.Errorf("failed to sign JWT SVID: %w", err)
 	}

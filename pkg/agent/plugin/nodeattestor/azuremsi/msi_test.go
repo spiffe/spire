@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"testing"
 
-	jose "github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
@@ -105,11 +105,12 @@ func (s *MSIAttestorSuite) makeAccessToken(principalID, tenantID string) string 
 		TenantID: tenantID,
 	}
 
-	signingKey := jose.SigningKey{Algorithm: jose.HS256, Key: []byte("KEY")}
+	key := make([]byte, 256)
+	signingKey := jose.SigningKey{Algorithm: jose.HS256, Key: key}
 	signer, err := jose.NewSigner(signingKey, nil)
 	s.Require().NoError(err)
 
-	token, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	token, err := jwt.Signed(signer).Claims(claims).Serialize()
 	s.Require().NoError(err)
 	return token
 }

@@ -2,6 +2,9 @@ package azuremsi
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"errors"
 	"fmt"
@@ -14,8 +17,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
-	jose "github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -148,9 +151,12 @@ func (s *MSIAttestorSuite) TestAttestFailsWithBadSignature() {
 func (s *MSIAttestorSuite) TestAttestFailsWithAlgorithmMismatch() {
 	// sign a token with a different key algorithm than that of the key in
 	// the key set.
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	s.Require().NoError(err)
+
 	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: jose.HS256,
-		Key:       []byte("0123456789ABCDEF"),
+		Algorithm: jose.ES256,
+		Key:       key,
 	}, &jose.SignerOptions{
 		ExtraHeaders: map[jose.HeaderKey]any{
 			"kid": "KEYID",
@@ -158,7 +164,7 @@ func (s *MSIAttestorSuite) TestAttestFailsWithAlgorithmMismatch() {
 	})
 	s.Require().NoError(err)
 
-	token, err := jwt.Signed(signer).CompactSerialize()
+	token, err := jwt.Signed(signer).Serialize()
 	s.Require().NoError(err)
 
 	s.requireAttestError(s.T(), makeAttestPayload(token),
@@ -651,7 +657,7 @@ func (s *MSIAttestorSuite) signToken(keyID, audience, tenantID, principalID stri
 		})
 	}
 
-	token, err := builder.CompactSerialize()
+	token, err := builder.Serialize()
 	s.Require().NoError(err)
 	return token
 }

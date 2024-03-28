@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 )
 
 type Config struct {
@@ -105,7 +106,7 @@ func (v *Validator) ValidateX509SVID(svid *x509.Certificate, id spiffeid.ID) err
 }
 
 func (v *Validator) ValidateWorkloadJWTSVID(rawToken string, id spiffeid.ID) error {
-	token, err := jwt.ParseSigned(rawToken)
+	token, err := jwt.ParseSigned(rawToken, jwtsvid.AllowedSignatureAlgorithms)
 	if err != nil {
 		return fmt.Errorf("failed to parse JWT-SVID for validation: %w", err)
 	}

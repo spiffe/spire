@@ -14,7 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gofrs/uuid/v5"
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -36,6 +37,20 @@ const (
 	// validation may fail unless we give a little leeway.
 	tokenLeeway = time.Minute * 5
 )
+
+// Kubernetes doesn't appear to publicly document what signature algorithms it uses for tokens it issues.
+// Accommodate the most commonly used signature algorithms that are known to be secure.
+var allowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
+	jose.RS256,
+	jose.RS384,
+	jose.RS512,
+	jose.ES256,
+	jose.ES384,
+	jose.ES512,
+	jose.PS256,
+	jose.PS384,
+	jose.PS512,
+}
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
@@ -183,7 +198,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 			return status.Errorf(codes.Internal, "fail to parse username from token review status: %v", err)
 		}
 	} else {
-		token, err := jwt.ParseSigned(attestationData.Token)
+		token, err := jwt.ParseSigned(attestationData.Token, allowedJWTSignatureAlgorithms)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "unable to parse token: %v", err)
 		}

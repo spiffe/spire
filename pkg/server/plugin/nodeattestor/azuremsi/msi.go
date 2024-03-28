@@ -15,7 +15,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -48,6 +49,20 @@ var (
 	reNetworkSecurityGroupID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/networkSecurityGroups/([^/]+)$`)
 	reNetworkInterfaceID     = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/networkInterfaces/([^/]+)$`)
 	reVirtualNetworkSubnetID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/virtualNetworks/([^/]+)/subnets/([^/]+)$`)
+	// Azure doesn't appear to publicly document which signature algorithms they use for MSI tokens,
+	// but a couple examples online were showing RS256.
+	// To ensure compatibility, accept the most common signature algorithms that are known to be secure.
+	allowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
+		jose.RS256,
+		jose.RS384,
+		jose.RS512,
+		jose.ES256,
+		jose.ES384,
+		jose.ES512,
+		jose.PS256,
+		jose.PS384,
+		jose.PS512,
+	}
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -160,7 +175,7 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return status.Errorf(codes.Internal, "unable to obtain JWKS: %v", err)
 	}
 
-	token, err := jwt.ParseSigned(attestationData.Token)
+	token, err := jwt.ParseSigned(attestationData.Token, allowedJWTSignatureAlgorithms)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "unable to parse token: %v", err)
 	}
@@ -204,8 +219,8 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	}
 
 	if err := claims.ValidateWithLeeway(jwt.Expected{
-		Audience: []string{tenant.resourceID},
-		Time:     p.hooks.now(),
+		AnyAudience: []string{tenant.resourceID},
+		Time:        p.hooks.now(),
 	}, tokenLeeway); err != nil {
 		return status.Errorf(codes.Internal, "unable to validate token claims: %v", err)
 	}

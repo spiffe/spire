@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
@@ -81,7 +81,7 @@ func TestMintRun(t *testing.T) {
 	builder := jwt.Signed(signer).Claims(jwt.Claims{
 		Expiry: jwt.NewNumericDate(expiry),
 	})
-	token, err := builder.CompactSerialize()
+	token, err := builder.Serialize()
 	require.NoError(t, err)
 
 	// Create expired token
@@ -89,7 +89,7 @@ func TestMintRun(t *testing.T) {
 	builder = jwt.Signed(signer).Claims(jwt.Claims{
 		Expiry: jwt.NewNumericDate(expiredAt),
 	})
-	expiredToken, err := builder.CompactSerialize()
+	expiredToken, err := builder.Serialize()
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -205,7 +205,8 @@ func TestMintRun(t *testing.T) {
     "hint": "",
     "issued_at": "1628500000"
   }
-}`, token)},
+}`, token),
+		},
 
 		{
 			name:     "write on invalid path",

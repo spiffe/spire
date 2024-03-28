@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
@@ -16,6 +16,7 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 )
 
 func NewMintCommand() cli.Command {
@@ -38,6 +39,7 @@ type mintCommand struct {
 func (c *mintCommand) Name() string {
 	return "jwt mint"
 }
+
 func (c *mintCommand) Synopsis() string {
 	return "Mints a JWT-SVID"
 }
@@ -63,10 +65,11 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	}
 
 	client := serverClient.NewSVIDClient()
-	resp, err := client.MintJWTSVID(ctx, &svidv1.MintJWTSVIDRequest{Id: &types.SPIFFEID{
-		TrustDomain: spiffeID.TrustDomain().Name(),
-		Path:        spiffeID.Path(),
-	},
+	resp, err := client.MintJWTSVID(ctx, &svidv1.MintJWTSVIDRequest{
+		Id: &types.SPIFFEID{
+			TrustDomain: spiffeID.TrustDomain().Name(),
+			Path:        spiffeID.Path(),
+		},
 		Ttl:      ttlToSeconds(c.ttl),
 		Audience: c.audience,
 	})
@@ -108,8 +111,9 @@ func (c *mintCommand) validateToken(token string, env *commoncli.Env) error {
 
 	return nil
 }
+
 func getJWTSVIDEndOfLife(token string) (time.Time, error) {
-	t, err := jwt.ParseSigned(token)
+	t, err := jwt.ParseSigned(token, jwtsvid.AllowedSignatureAlgorithms)
 	if err != nil {
 		return time.Time{}, err
 	}

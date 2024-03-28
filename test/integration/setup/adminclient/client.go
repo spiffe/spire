@@ -13,7 +13,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
@@ -21,6 +21,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"google.golang.org/grpc/codes"
@@ -64,6 +65,7 @@ func main() {
 	if msg := run(); msg != "" {
 		log.Fatal(msg)
 	}
+
 	log.Println("Admin client finished successfully")
 }
 
@@ -204,7 +206,7 @@ func mintJWTSVID(ctx context.Context, c *itclient.Client) error {
 	}
 
 	// Parse token
-	token, err := jwt.ParseSigned(resp.Svid.Token)
+	token, err := jwt.ParseSigned(resp.Svid.Token, jwtsvid.AllowedSignatureAlgorithms)
 	if err != nil {
 		return fmt.Errorf("failed to parse token: %w", err)
 	}

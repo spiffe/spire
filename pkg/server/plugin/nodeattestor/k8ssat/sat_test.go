@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
-	jose "github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -195,7 +195,7 @@ func (s *AttestorSuite) TestAttestFailsWithMalformedToken() {
 
 	builder := jwt.Signed(s.fooSigner)
 	builder = builder.Claims(claims)
-	token, err := builder.CompactSerialize()
+	token, err := builder.Serialize()
 	s.Require().NoError(err)
 	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "malformed token: namespace found in two claims")
 
@@ -205,7 +205,7 @@ func (s *AttestorSuite) TestAttestFailsWithMalformedToken() {
 	claims.K8s.ServiceAccount.Name = "sa2"
 
 	builder = builder.Claims(claims)
-	token, err = builder.CompactSerialize()
+	token, err = builder.Serialize()
 	s.Require().NoError(err)
 	s.requireAttestError(makePayload("FOO", token), codes.InvalidArgument, "malformed token: service account name found in two claims")
 }
@@ -346,7 +346,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireErrorContains(err, `failed to load cluster "FOO" service account keys`)
 
 	// no keys in PEM file
-	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0600))
+	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, "nokeys.pem"), []byte{}, 0o600))
 	err = doConfig(coreConfig, fmt.Sprintf(`clusters = {
 		"FOO" = {
 			service_account_key_file = %q
@@ -362,7 +362,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(os.WriteFile(fooPKCS1KeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "RSA PUBLIC KEY",
 		Bytes: fooPKCS1Bytes,
-	}), 0600))
+	}), 0o600))
 
 	fooPKIXKeyPath := filepath.Join(s.dir, "foo-pkix.pem")
 	fooPKIXBytes, err := x509.MarshalPKIXPublicKey(s.fooKey.Public())
@@ -370,7 +370,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(os.WriteFile(fooPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: fooPKIXBytes,
-	}), 0600))
+	}), 0o600))
 
 	barPKIXKeyPath := filepath.Join(s.dir, "bar-pkix.pem")
 	barPKIXBytes, err := x509.MarshalPKIXPublicKey(s.barKey.Public())
@@ -378,7 +378,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 	s.Require().NoError(os.WriteFile(barPKIXKeyPath, pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: barPKIXBytes,
-	}), 0600))
+	}), 0o600))
 
 	plugintest.Load(s.T(), BuiltIn(), nil,
 		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
@@ -419,7 +419,7 @@ func (s *AttestorSuite) TestAttestTokenExpiration() {
 func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountName string) string {
 	builder := s.createBuilder(signer, namespace, serviceAccountName, jwt.NewNumericDate(time.Time{}))
 
-	token, err := builder.CompactSerialize()
+	token, err := builder.Serialize()
 	s.Require().NoError(err)
 	return token
 }
@@ -427,7 +427,7 @@ func (s *AttestorSuite) signToken(signer jose.Signer, namespace, serviceAccountN
 func (s *AttestorSuite) signTokenWithExpiry(signer jose.Signer, namespace, serviceAccountName string) string {
 	builder := s.createBuilder(signer, namespace, serviceAccountName, jwt.NewNumericDate(s.now.Add(time.Minute)))
 
-	token, err := builder.CompactSerialize()
+	token, err := builder.Serialize()
 	s.Require().NoError(err)
 	return token
 }
@@ -512,7 +512,7 @@ func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) 
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0600)
+	return os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}), 0o600)
 }
 
 func createTokenStatus(namespace, serviceAccountName string, authenticated bool) *authv1.TokenReviewStatus {

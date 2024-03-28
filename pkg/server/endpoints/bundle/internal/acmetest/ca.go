@@ -62,9 +62,21 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v4"
 	"golang.org/x/crypto/acme"
 )
+
+var allowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
+	jose.RS256,
+	jose.RS384,
+	jose.RS512,
+	jose.ES256,
+	jose.ES384,
+	jose.ES512,
+	jose.PS256,
+	jose.PS384,
+	jose.PS512,
+}
 
 // CAServer is a simple test server which implements ACME spec bits needed for testing.
 type CAServer struct {
@@ -585,7 +597,7 @@ func (ca *CAServer) decodePayload(v any, r io.Reader) error {
 	if _, err := buf.ReadFrom(r); err != nil {
 		return errors.New("unable to read JOSE body")
 	}
-	jws, err := jose.ParseSigned(buf.String())
+	jws, err := jose.ParseSigned(buf.String(), allowedJWTSignatureAlgorithms)
 	if err != nil {
 		return errors.New("malformed JOSE body")
 	}
@@ -616,7 +628,7 @@ func (ca *CAServer) decodePayload(v any, r io.Reader) error {
 		}
 	}
 
-	//payload := jws.UnsafePayloadWithoutVerification()
+	// payload := jws.UnsafePayloadWithoutVerification()
 	payload, err := jws.Verify(key)
 	if err != nil {
 		return fmt.Errorf("invalid signature: %v", err)
