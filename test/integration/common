@@ -48,7 +48,7 @@ docker-wait-for-healthy() {
     local ctr_name=$1
     local maxchecks=$2
     local interval=$3
-    for ((i=1;i<=maxchecks;i++)); do
+    for ((i=1;i<=${maxchecks};i++)); do
         set +e
         health_status=$(docker inspect --format '{{.State.Health.Status}}' "${ctr_name}" 2>/dev/null)
         if [ "${health_status}" == "healthy" ]; then
@@ -95,7 +95,7 @@ check-synced-entry() {
   # successfully synced down the workload entry.
   MAXCHECKS=30
   CHECKINTERVAL=1
-  for ((i=1;i<=MAXCHECKS;i++)); do
+  for ((i=1;i<=$MAXCHECKS;i++)); do
       log-info "checking for synced entry ($i of $MAXCHECKS max)..."
       docker-compose logs "$1"
       if docker-compose logs "$1" | grep "$2"; then
@@ -111,7 +111,7 @@ check-x509-svid-count() {
   MAXCHECKS=50
   CHECKINTERVAL=1
 
-  for ((i=1;i<=MAXCHECKS;i++)); do
+  for ((i=1;i<=$MAXCHECKS;i++)); do
     log-info "check X.509-SVID count on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
     COUNT=$(docker-compose exec -T "$1" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq '.svidsCount')
     log-info "X.509-SVID Count: ${COUNT}"

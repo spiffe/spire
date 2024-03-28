@@ -3,7 +3,7 @@
 check-equal-keys() {
   PROVIDER_SOCKET_PATH=$1
 
-  JWK=$(curl --unix-socket $PROVIDER_SOCKET_PATH http://localhost/keys | jq ".keys[0]" || fail-now "Failed to fetch JWK from provider")
+  JWK=$(curl -s --unix-socket $PROVIDER_SOCKET_PATH http://localhost/keys | jq ".keys[0]" || fail-now "Failed to fetch JWK from provider")
   BUNDLE=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle show -socketPath /opt/spire/conf/server/api.sock -output json | jq ".jwt_authorities[0]" || fail-now "Failed to fetch JWT bundle from SPIRE server")
 
   PROVIDER_KEY_ID=$(echo ${JWK} | jq -r ".kid")
@@ -13,7 +13,7 @@ check-equal-keys() {
     fail-now "JWK key id (${PROVIDER_KEY_ID}) does not match bundle key id (${BUNDLE_KEY_ID})"
   fi
 
-  OIDC_CONFIG=$(curl --unix-socket ${RUNDIR}/conf/oidc-discovery-provider/provider-server.sock http://localhost/.well-known/openid-configuration | jq)
+  OIDC_CONFIG=$(curl -s --unix-socket ${RUNDIR}/conf/oidc-discovery-provider/provider-server.sock http://localhost/.well-known/openid-configuration | jq)
 
   EXPECTED_OIDC_CONFIG=$(jq <./expected-oidc-config.json)
 
@@ -47,9 +47,9 @@ check-provider-start() {
   CHECKINTERVAL=1
   PROVIDER_SOCKET_PATH=$1
 
-  for ((i = 1; i <= MAXCHECKS; i++)); do
+  for ((i = 1; i <= $MAXCHECKS; i++)); do
     log-info "check oidc-discovery-provider status ($(($i)) of $MAXCHECKS max)..."
-    curl --unix-socket $PROVIDER_SOCKET_PATH http://localhost && return 0
+    curl -f --unix-socket $PROVIDER_SOCKET_PATH http://localhost/.well-known/openid-configuration && return 0
     sleep "${CHECKINTERVAL}"
   done
 
