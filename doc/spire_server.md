@@ -12,36 +12,37 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | NodeAttestor       | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type.                                   |
 | UpstreamAuthority  | Allows SPIRE server to integrate with existing PKI systems.                                                                                                          |
 | Notifier           | Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
-| BundlePublisher    | Publishes trust bundles to additional locations.                                                                                                                     |
+| BundlePublisher    | Publishes the local trust bundle to a store.                                                                                                                         |
 
 ## Built-in plugins
 
-| Type               | Name                                                                 | Description                                                                                                                 |
-|--------------------|----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| DataStore          | [sql](/doc/plugin_server_datastore_sql.md)                           | An SQL database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore                                  |
-| KeyManager         | [aws_kms](/doc/plugin_server_keymanager_aws_kms.md)                  | A key manager which manages keys in AWS KMS                                                                                 |
-| KeyManager         | [disk](/doc/plugin_server_keymanager_disk.md)                        | A key manager which manages keys persisted on disk                                                                          |
-| KeyManager         | [memory](/doc/plugin_server_keymanager_memory.md)                    | A key manager which manages unpersisted keys in memory                                                                      |
-| CredentialComposer | [uniqueid](/doc/plugin_server_credentialcomposer_uniqueid.md)        | Adds the x509UniqueIdentifier attribute to workload X509-SVIDs.                                                             |
-| NodeAttestor       | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md)                | A node attestor which attests agent identity using an AWS Instance Identity Document                                        |
-| NodeAttestor       | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md)            | A node attestor which attests agent identity using an Azure MSI token                                                       |
-| NodeAttestor       | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md)                | A node attestor which attests agent identity using a GCP Instance Identity Token                                            |
-| NodeAttestor       | [join_token](/doc/plugin_server_nodeattestor_jointoken.md)           | A node attestor which validates agents attesting with server-generated join tokens                                          |
-| NodeAttestor       | [k8s_sat](/doc/plugin_server_nodeattestor_k8s_sat.md) (deprecated)   | A node attestor which attests agent identity using a Kubernetes Service Account token                                       |
-| NodeAttestor       | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md)              | A node attestor which attests agent identity using a Kubernetes Projected Service Account token                             |
-| NodeAttestor       | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md)                  | A node attestor which attests agent identity using an existing ssh certificate                                              |
-| NodeAttestor       | [tpm_devid](/doc/plugin_server_nodeattestor_tpm_devid.md)            | A node attestor which attests agent identity using a TPM that has been provisioned with a DevID certificate                 |
-| NodeAttestor       | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md)                | A node attestor which attests agent identity using an existing X.509 certificate                                            |
-| UpstreamAuthority  | [disk](/doc/plugin_server_upstreamauthority_disk.md)                 | Uses a CA loaded from disk to sign SPIRE server intermediate certificates.                                                  |
-| UpstreamAuthority  | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md)           | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates.           |
-| UpstreamAuthority  | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md)       | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates.                                    |
-| UpstreamAuthority  | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md)           | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates. |
-| UpstreamAuthority  | [vault](/doc/plugin_server_upstreamauthority_vault.md)               | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates.                               |
-| UpstreamAuthority  | [spire](/doc/plugin_server_upstreamauthority_spire.md)               | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server.        |
-| UpstreamAuthority  | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md) | Uses a referenced cert-manager Issuer to request intermediate signing certificates.                                         |
-| Notifier           | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md)              | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage.                             |
-| Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.                                        |
-| BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)               | Publishes trust bundles to an Amazon S3 bucket.                                                                             |
+| Type               | Name                                                                       | Description                                                                                                                 |
+|--------------------|----------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| DataStore          | [sql](/doc/plugin_server_datastore_sql.md)                                 | An SQL database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore                                  |
+| KeyManager         | [aws_kms](/doc/plugin_server_keymanager_aws_kms.md)                        | A key manager which manages keys in AWS KMS                                                                                 |
+| KeyManager         | [disk](/doc/plugin_server_keymanager_disk.md)                              | A key manager which manages keys persisted on disk                                                                          |
+| KeyManager         | [memory](/doc/plugin_server_keymanager_memory.md)                          | A key manager which manages unpersisted keys in memory                                                                      |
+| CredentialComposer | [uniqueid](/doc/plugin_server_credentialcomposer_uniqueid.md)              | Adds the x509UniqueIdentifier attribute to workload X509-SVIDs.                                                             |
+| NodeAttestor       | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md)                      | A node attestor which attests agent identity using an AWS Instance Identity Document                                        |
+| NodeAttestor       | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md)                  | A node attestor which attests agent identity using an Azure MSI token                                                       |
+| NodeAttestor       | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md)                      | A node attestor which attests agent identity using a GCP Instance Identity Token                                            |
+| NodeAttestor       | [join_token](/doc/plugin_server_nodeattestor_jointoken.md)                 | A node attestor which validates agents attesting with server-generated join tokens                                          |
+| NodeAttestor       | [k8s_sat](/doc/plugin_server_nodeattestor_k8s_sat.md) (deprecated)         | A node attestor which attests agent identity using a Kubernetes Service Account token                                       |
+| NodeAttestor       | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md)                    | A node attestor which attests agent identity using a Kubernetes Projected Service Account token                             |
+| NodeAttestor       | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md)                        | A node attestor which attests agent identity using an existing ssh certificate                                              |
+| NodeAttestor       | [tpm_devid](/doc/plugin_server_nodeattestor_tpm_devid.md)                  | A node attestor which attests agent identity using a TPM that has been provisioned with a DevID certificate                 |
+| NodeAttestor       | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md)                      | A node attestor which attests agent identity using an existing X.509 certificate                                            |
+| UpstreamAuthority  | [disk](/doc/plugin_server_upstreamauthority_disk.md)                       | Uses a CA loaded from disk to sign SPIRE server intermediate certificates.                                                  |
+| UpstreamAuthority  | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md)                 | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates.           |
+| UpstreamAuthority  | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md)             | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates.                                    |
+| UpstreamAuthority  | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md)                 | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates. |
+| UpstreamAuthority  | [vault](/doc/plugin_server_upstreamauthority_vault.md)                     | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates.                               |
+| UpstreamAuthority  | [spire](/doc/plugin_server_upstreamauthority_spire.md)                     | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server.        |
+| UpstreamAuthority  | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md)       | Uses a referenced cert-manager Issuer to request intermediate signing certificates.                                         |
+| Notifier           | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md)                    | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage.                             |
+| Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                      | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.                                        |
+| BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)                     | Publishes the trust bundle to an Amazon S3 bucket.                                                                          |
+| BundlePublisher    | [gcp_cloudstorage](/doc/plugin_server_bundlepublisher_gcp_cloudstorage.md) | Publishes the trust bundle to a Google Cloud Storage bucket.                                                                |
 
 ## Server configuration file
 
