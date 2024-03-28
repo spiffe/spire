@@ -377,7 +377,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	var reopenableFile *log.ReopenableFile
 	if c.Server.LogFile != "" {
-		reopenableFile, err := log.NewReopenableFile(c.Server.LogFile)
+		var err error
+		reopenableFile, err = log.NewReopenableFile(c.Server.LogFile)
 		if err != nil {
 			return nil, err
 		}
