@@ -493,7 +493,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	var reopenableFile *log.ReopenableFile
 	if c.Agent.LogFile != "" {
-		reopenableFile, err := log.NewReopenableFile(c.Agent.LogFile)
+		var err error
+		reopenableFile, err = log.NewReopenableFile(c.Agent.LogFile)
 		if err != nil {
 			return nil, err
 		}

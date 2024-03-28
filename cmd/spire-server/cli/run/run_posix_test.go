@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -255,7 +256,9 @@ func mergeInputCasesOS(*testing.T) []mergeInputCase {
 	}
 }
 
-func newServerConfigCasesOS() []newServerConfigCase {
+func newServerConfigCasesOS(t *testing.T) []newServerConfigCase {
+	testDir := t.TempDir()
+
 	return []newServerConfigCase{
 		{
 			msg: "socket_path should be correctly configured",
@@ -265,6 +268,16 @@ func newServerConfigCasesOS() []newServerConfigCase {
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "/foo", c.BindLocalAddress.String())
 				require.Equal(t, "unix", c.BindLocalAddress.Network())
+			},
+		},
+		{
+			msg: "log_file allows to reopen",
+			input: func(c *Config) {
+				c.Server.LogFile = path.Join(testDir, "foo")
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
 			},
 		},
 	}
