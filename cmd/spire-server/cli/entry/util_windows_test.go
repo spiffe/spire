@@ -112,9 +112,25 @@ const (
     	Desired output format (pretty, json); default: pretty.
 `
 	countUsage = `Usage of entry count:
+  -downstream
+    	A boolean value that, when set, indicates that the entry describes a downstream SPIRE server
+  -federatesWith value
+    	SPIFFE ID of a trust domain an entry is federate with. Can be used more than once
+  -hint string
+    	The Hint of the records to count (optional)
+  -matchFederatesWithOn string
+    	The match mode used when filtering by federates with. Options: exact, any, superset and subset (default "superset")
+  -matchSelectorsOn string
+    	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
+  -parentID string
+    	The Parent ID of the records to count
+  -selector value
+    	A colon-delimited type:value selector. Can be used more than once
+  -spiffeID string
+    	The SPIFFE ID of the records to count
 `
 )

@@ -507,7 +507,7 @@ func (s *PluginSuite) TestCountBundles() {
 
 func (s *PluginSuite) TestCountAttestedNodes() {
 	// Count empty attested nodes
-	count, err := s.ds.CountAttestedNodes(ctx)
+	count, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(int32(0), count)
 
@@ -531,14 +531,14 @@ func (s *PluginSuite) TestCountAttestedNodes() {
 	s.Require().NoError(err)
 
 	// Count all
-	count, err = s.ds.CountAttestedNodes(ctx)
+	count, err = s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(int32(2), count)
 }
 
 func (s *PluginSuite) TestCountRegistrationEntries() {
 	// Count empty registration entries
-	count, err := s.ds.CountRegistrationEntries(ctx)
+	count, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(int32(0), count)
 
@@ -560,7 +560,7 @@ func (s *PluginSuite) TestCountRegistrationEntries() {
 	s.Require().NoError(err)
 
 	// Count all
-	count, err = s.ds.CountRegistrationEntries(ctx)
+	count, err = s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(int32(2), count)
 }

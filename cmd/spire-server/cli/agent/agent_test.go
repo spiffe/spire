@@ -225,6 +225,12 @@ func TestCount(t *testing.T) {
 			expectedReturnCode: 1,
 			expectedStderr:     common.AddrError,
 		},
+		{
+			name:               "Count by expiresBefore: month out of range",
+			args:               []string{"-expiresBefore", "2001-13-05"},
+			expectedReturnCode: 1,
+			expectedStderr:     "Error: date is not valid: parsing time \"2001-13-05\": month out of range\n",
+		},
 	} {
 		for _, format := range availableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
@@ -390,6 +396,45 @@ func TestList(t *testing.T) {
 			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false,"can_reattest":true}],"next_page_token":""}`,
 		},
 		{
+			name: "by expiresBefore",
+			args: []string{"-expiresBefore", "2000-01-01 15:04:05 -0700 -07"},
+			expectReq: &agentv1.ListAgentsRequest{
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					ByExpiresBefore: "2000-01-01 15:04:05 -0700 -07",
+				},
+				PageSize: 1000,
+			},
+			existentAgents:       testAgents,
+			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false,"can_reattest":true}],"next_page_token":""}`,
+		},
+		{
+			name: "by banned",
+			args: []string{"-banned", "true"},
+			expectReq: &agentv1.ListAgentsRequest{
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					ByBanned: wrapperspb.Bool(true),
+				},
+				PageSize: 1000,
+			},
+			existentAgents:       testAgentsWithBanned,
+			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/banned",
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/banned"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":true,"can_reattest":false}],"next_page_token":""}`,
+		},
+		{
+			name: "by canReattest",
+			args: []string{"-canReattest", "true"},
+			expectReq: &agentv1.ListAgentsRequest{
+				Filter: &agentv1.ListAgentsRequest_Filter{
+					ByCanReattest: wrapperspb.Bool(true),
+				},
+				PageSize: 1000,
+			},
+			existentAgents:       testAgents,
+			expectedStdoutPretty: "Found 1 attested agent:\n\nSPIFFE ID         : spiffe://example.org/spire/agent/agent1",
+			expectedStdoutJSON:   `{"agents":[{"id":{"trust_domain":"example.org","path":"/spire/agent/agent1"},"attestation_type":"","x509svid_serial_number":"","x509svid_expires_at":"0","selectors":[],"banned":false,"can_reattest":true}],"next_page_token":""}`,
+		},
+		{
 			name:               "List by selectors: Invalid matcher",
 			args:               []string{"-selector", "foo:bar", "-selector", "bar:baz", "-matchSelectorsOn", "NO-MATCHER"},
 			expectedReturnCode: 1,
@@ -406,6 +451,12 @@ func TestList(t *testing.T) {
 			args:               []string{common.AddrArg, common.AddrValue},
 			expectedReturnCode: 1,
 			expectedStderr:     common.AddrError,
+		},
+		{
+			name:               "List by expiresBefore: month out of range",
+			args:               []string{"-expiresBefore", "2001-13-05"},
+			expectedReturnCode: 1,
+			expectedStderr:     "Error: date is not valid: parsing time \"2001-13-05\": month out of range\n",
 		},
 	} {
 		for _, format := range availableFormats {
