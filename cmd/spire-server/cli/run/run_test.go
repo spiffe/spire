@@ -1144,7 +1144,7 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 	}
-	cases = append(cases, newServerConfigCasesOS()...)
+	cases = append(cases, newServerConfigCasesOS(t)...)
 
 	for _, testCase := range cases {
 		testCase := testCase

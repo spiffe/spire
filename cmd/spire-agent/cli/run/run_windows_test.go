@@ -258,7 +258,7 @@ func mergeInputCasesOS() []mergeInputCase {
 	}
 }
 
-func newAgentConfigCasesOS() []newAgentConfigCase {
+func newAgentConfigCasesOS(*testing.T) []newAgentConfigCase {
 	return []newAgentConfigCase{
 		{
 			msg: "named_pipe_name should be correctly configured",
