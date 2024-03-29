@@ -78,12 +78,11 @@ func (s *Service) GetInfo(ctx context.Context, _ *debugv1.GetInfoRequest) (*debu
 
 	// Update cache when expired or does not exists
 	if s.getInfoResp.ts.IsZero() || s.clock.Now().Sub(s.getInfoResp.ts) >= cacheExpiry {
-		nodes, err := s.ds.CountAttestedNodes(ctx)
+		nodes, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
 		}
-
-		entries, err := s.ds.CountRegistrationEntries(ctx)
+		entries, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
 		if err != nil {
 			return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
 		}

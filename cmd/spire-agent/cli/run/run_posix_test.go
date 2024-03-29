@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent"
@@ -271,7 +272,9 @@ func mergeInputCasesOS() []mergeInputCase {
 	}
 }
 
-func newAgentConfigCasesOS() []newAgentConfigCase {
+func newAgentConfigCasesOS(t *testing.T) []newAgentConfigCase {
+	testDir := t.TempDir()
+
 	return []newAgentConfigCase{
 		{
 			msg: "socket_path should be correctly configured",
@@ -357,6 +360,16 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c.AdminBindAddress)
+			},
+		},
+		{
+			msg: "log_file allows to reopen",
+			input: func(c *Config) {
+				c.Agent.LogFile = path.Join(testDir, "foo")
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
 			},
 		},
 	}
