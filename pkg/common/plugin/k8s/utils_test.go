@@ -16,20 +16,12 @@ const (
 	rawPSAT = "eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJhdWQiOlsic3BpcmUtc2VydmVyIl0sImV4cCI6MTU1MTMwNzk0MCwiaWF0IjoxNTUxMzAwNzQwLCJpc3MiOiJhcGkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6InNwaXJlIiwicG9kIjp7Im5hbWUiOiJzcGlyZS1hZ2VudC1qY2RncCIsInVpZCI6IjkzNDQwOWMyLTNhZDEtMTFlOS1hOTU2LTA4MDAyNzI1OTE3NSJ9LCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoic3BpcmUtYWdlbnQiLCJ1aWQiOiI5MmYzOGU4My0zYWQxLTExZTktYTk1Ni0wODAwMjcyNTkxNzUifX0sIm5iZiI6MTU1MTMwMDc0MCwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OnNwaXJlOnNwaXJlLWFnZW50In0.KSNfey5GKFJoI94KruLzfZKfRlSu66gWK-Ks9Wx_KIBA2cWG_hmSYvmx_19BPzFe_YFEpTkdfnAmRPzC7f14SKmFqaewfQyoI7oiuqstHkOk-Qhc3Er42XQdCTPNvQ--ZbKZE0zgjFyuAySiQe2yeHxBoXnf6Nd29PFrvI6qvoJVEvqdrhcd0sl0qptFOoXfxOOc6mEdFLRmUqh1t3BRVFiULDVaKl_15LELdSUonf38O88y5_7xl0sOtv_TF2fxFucGssUVww794djSy-u3DCfDx4m6GsDJFfdsMbpUGhlg0j9TpVkv7xmI-ZumE-CNll-LNxyn9vlEomnxUZRZzg"
 )
 
-var allowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
+var testAllowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
 	jose.RS256,
-	jose.RS384,
-	jose.RS512,
-	jose.ES256,
-	jose.ES384,
-	jose.ES512,
-	jose.PS256,
-	jose.PS384,
-	jose.PS512,
 }
 
 func TestSATClaims(t *testing.T) {
-	token, err := jwt.ParseSigned(rawSAT, allowedJWTSignatureAlgorithms)
+	token, err := jwt.ParseSigned(rawSAT, testAllowedJWTSignatureAlgorithms)
 	require.NoError(t, err)
 
 	claims := new(SATClaims)
@@ -42,7 +34,7 @@ func TestSATClaims(t *testing.T) {
 }
 
 func TestPSATClaims(t *testing.T) {
-	token, err := jwt.ParseSigned(rawPSAT, allowedJWTSignatureAlgorithms)
+	token, err := jwt.ParseSigned(rawPSAT, testAllowedJWTSignatureAlgorithms)
 	require.NoError(t, err)
 
 	claims := new(PSATClaims)

@@ -2,9 +2,6 @@ package azuremsi
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/rsa"
 	"errors"
 	"fmt"
@@ -151,9 +148,7 @@ func (s *MSIAttestorSuite) TestAttestFailsWithBadSignature() {
 func (s *MSIAttestorSuite) TestAttestFailsWithAlgorithmMismatch() {
 	// sign a token with a different key algorithm than that of the key in
 	// the key set.
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	s.Require().NoError(err)
-
+	key := testkey.MustEC256()
 	signer, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.ES256,
 		Key:       key,
