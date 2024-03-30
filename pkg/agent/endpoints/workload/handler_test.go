@@ -1018,6 +1018,26 @@ func TestFetchJWTBundles(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "empty federated JWT bundle",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID, "id1"),
+					},
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): spiffebundle.New(federatedBundle.TrustDomain()),
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.JWTBundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString(): bundleJWKS,
+				},
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
