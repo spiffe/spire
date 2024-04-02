@@ -1479,7 +1479,6 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 
 func (s *PluginSuite) TestListAttestedNodesEvents() {
 	var expectedEvents []datastore.AttestedNodeEvent
-	var expectedEventID uint = 1
 
 	// Create an attested node
 	node1, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -1489,15 +1488,14 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	})
 	s.Require().NoError(err)
-	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
-		EventID:  expectedEventID,
-		SpiffeID: node1.SpiffeId,
-	})
-	expectedEventID++
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node1.SpiffeId)
 
-	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(expectedEvents, resp.Events)
+	// Create selectors for attested node
+	selectors1 := []*common.Selector{
+		{Type: "FOO1", Value: "1"},
+	}
+	s.setNodeSelectors(node1.SpiffeId, selectors1)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node1.SpiffeId)
 
 	// Create second attested node
 	node2, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -1507,40 +1505,35 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	})
 	s.Require().NoError(err)
-	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
-		EventID:  expectedEventID,
-		SpiffeID: node2.SpiffeId,
-	})
-	expectedEventID++
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node2.SpiffeId)
 
-	resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(expectedEvents, resp.Events)
+	// Create selectors for second attested node
+	selectors2 := []*common.Selector{
+		{Type: "BAR1", Value: "1"},
+	}
+	s.setNodeSelectors(node2.SpiffeId, selectors2)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node2.SpiffeId)
 
 	// Update first attested node
 	updatedNode, err := s.ds.UpdateAttestedNode(ctx, node1, nil)
 	s.Require().NoError(err)
-	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
-		EventID:  expectedEventID,
-		SpiffeID: updatedNode.SpiffeId,
-	})
-	expectedEventID++
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, updatedNode.SpiffeId)
 
-	resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(expectedEvents, resp.Events)
+	// Update selectors for first attested node
+	updatedSelectors := []*common.Selector{
+		{Type: "FOO2", Value: "2"},
+	}
+	s.setNodeSelectors(updatedNode.SpiffeId, updatedSelectors)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, updatedNode.SpiffeId)
 
 	// Delete second atttested node
 	deletedNode, err := s.ds.DeleteAttestedNode(ctx, node2.SpiffeId)
 	s.Require().NoError(err)
-	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
-		EventID:  expectedEventID,
-		SpiffeID: deletedNode.SpiffeId,
-	})
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, deletedNode.SpiffeId)
 
-	resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(expectedEvents, resp.Events)
+	// Delete selectors for second attested node
+	s.setNodeSelectors(deletedNode.SpiffeId, nil)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, deletedNode.SpiffeId)
 
 	// Check filtering events by id
 	tests := []struct {
@@ -1557,32 +1550,32 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 		},
 		{
 			name:                 "Half of the Events",
-			greaterThanEventID:   2,
-			expectedFirstEventID: 3,
-			expectedEvents:       expectedEvents[2:],
+			greaterThanEventID:   uint(len(expectedEvents) / 2),
+			expectedFirstEventID: uint(len(expectedEvents)/2) + 1,
+			expectedEvents:       expectedEvents[len(expectedEvents)/2:],
 		},
 		{
 			name:                 "None of the  Events",
-			greaterThanEventID:   4,
+			greaterThanEventID:   uint(len(expectedEvents)),
 			expectedFirstEventID: 0,
 			expectedEvents:       []datastore.AttestedNodeEvent{},
 		},
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
-			resp, err = s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{
+			resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{
 				GreaterThanEventID: test.greaterThanEventID,
 			})
-			s.Require().NoError(err)
-			s.Require().Equal(test.expectedFirstEventID, resp.FirstEventID)
-			s.Require().Equal(test.expectedEvents, resp.Events)
+			s.Assert().NoError(err)
+			s.Assert().Equal(test.expectedFirstEventID, resp.FirstEventID)
+			s.Assert().Equal(test.expectedEvents, resp.Events)
 		})
 	}
 
 	// Check we can get the last event id
 	lastEventID, err := s.ds.GetLatestAttestedNodeEventID(ctx)
 	s.Require().NoError(err)
-	s.Require().Equal(expectedEventID, lastEventID)
+	s.Require().Equal(uint(len(expectedEvents)), lastEventID)
 }
 
 func (s *PluginSuite) TestPruneAttestedNodesEvents() {
@@ -5225,6 +5218,19 @@ func (s *PluginSuite) assertCreatedAtField(entry *common.RegistrationEntry, now 
 	// We can't compare the exact time because we don't have control over the clock used by the database.
 	s.Assert().GreaterOrEqual(entry.CreatedAt, now)
 	entry.CreatedAt = 0
+}
+
+func (s *PluginSuite) checkAttestedNodeEvents(expectedEvents []datastore.AttestedNodeEvent, spiffeID string) []datastore.AttestedNodeEvent {
+	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
+		EventID:  uint(len(expectedEvents) + 1),
+		SpiffeID: spiffeID,
+	})
+
+	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEvents, resp.Events)
+
+	return expectedEvents
 }
 
 // assertBundlesEqual asserts that the two bundle lists are equal independent
