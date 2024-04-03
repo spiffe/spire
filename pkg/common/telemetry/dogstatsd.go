@@ -3,7 +3,7 @@ package telemetry
 import (
 	"context"
 
-	"github.com/armon/go-metrics/datadog"
+	"github.com/hashicorp/go-metrics/datadog"
 )
 
 type dogStatsdRunner struct {

@@ -4,6 +4,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/awss3"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/gcpcloudstorage"
 )
 
 type bundlePublisherRepository struct {
@@ -25,6 +26,7 @@ func (repo *bundlePublisherRepository) Versions() []catalog.Version {
 func (repo *bundlePublisherRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
 		awss3.BuiltIn(),
+		gcpcloudstorage.BuiltIn(),
 	}
 }
 

@@ -135,6 +135,78 @@ If you need to use custom Root CA, just specify `root_ca_path` in the plugin con
     }
 ```
 
+### IAM Authentication
+
+Identity and Access Management (IAM) authentication allows for secure authentication to databases hosted on cloud services. Unlike traditional methods, it uses an authentication token instead of a password. When using IAM authentication, it is required to exclude the password from the connection string.
+
+The `database_type` configuration allows specifying the type of database with IAM authentication support. The configuration always follows this structure:
+
+```hcl
+    database_type "dbtype-with-iam-support" {
+        setting_1 = "value-1"
+        setting_2 = "value-2"
+        ...
+    }
+```
+
+_Note: Replace `dbtype-with-iam-support` with the specific database type that supports IAM authentication._
+
+Supported IAM authentication database types include:
+
+#### "aws_postgres"
+
+For PostgreSQL databases on AWS RDS using IAM authentication. The `region` setting is mandatory, specifying the AWS service region.
+
+This is the complete list of configuration options under the `database_type` setting when `aws_postgres` is set:
+
+| Configuration     | Description                           | Required                                                               | Default                                             |
+|-------------------|---------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------|
+| access_key_id     | AWS access key id.                    | Required only if AWS_ACCESS_KEY_ID environment variable is not set.    | Value of AWS_ACCESS_KEY_ID environment variable.    |
+| secret_access_key | AWS secret access key.                | Required only if AWS_SECRET_ACCESSKEY environment variable is not set. | Value of AWS_SECRET_ACCESSKEY environment variable. |
+| region            | AWS region of the database.           | Yes.                                                                   |                                                     |
+
+Settings of the [`postgres`](#database_type--postgres) database type also apply here.
+
+##### Sample configuration
+
+```hcl
+    DataStore "sql" {
+        plugin_data {
+            database_type "aws_postgres" {
+                region = "us-east-2"
+            }
+            connection_string = "dbname=spire user=test_user host=spire-test.example.us-east-2.rds.amazonaws.com port=5432 sslmode=require"
+        }
+   }
+```
+
+#### "aws_mysql"
+
+For MySQL databases on AWS RDS using IAM authentication. The `region` setting is required.
+
+This is the complete list of configuration options under the `database_type` setting when `aws_mysql` is set:
+
+| Configuration     | Description                           | Required                                                               | Default                                             |
+|-------------------|---------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------|
+| access_key_id     | AWS access key id.                    | Required only if AWS_ACCESS_KEY_ID environment variable is not set.    | Value of AWS_ACCESS_KEY_ID environment variable.    |
+| secret_access_key | AWS secret access key.                | Required only if AWS_SECRET_ACCESSKEY environment variable is not set. | Value of AWS_SECRET_ACCESSKEY environment variable. |
+| region            | AWS region of the database.           | Yes.                                                                   |                                                     |
+
+Settings of the [`mysql`](#database_type--mysql) database type also apply here.
+
+##### Sample configuration
+
+```hcl
+    DataStore "sql" {
+        plugin_data {
+            database_type "aws_mysql" {
+                region = "us-east-2"
+            }
+            connection_string="test_user:@tcp(spire-test.example.us-east-2.rds.amazonaws.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
+        }
+    }
+```
+
 #### Read Only connection
 
 Read Only connection will be used when the optional `ro_connection_string` is set. The formatted string takes the same form as connection_string. This option is not applicable for SQLite3.

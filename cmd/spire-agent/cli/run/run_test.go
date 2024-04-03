@@ -1041,7 +1041,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 	}
-	cases = append(cases, newAgentConfigCasesOS()...)
+	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {
 		testCase := testCase
 

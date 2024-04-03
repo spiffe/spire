@@ -1144,7 +1144,7 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 	}
-	cases = append(cases, newServerConfigCasesOS()...)
+	cases = append(cases, newServerConfigCasesOS(t)...)
 
 	for _, testCase := range cases {
 		testCase := testCase
@@ -1526,10 +1526,10 @@ func TestLogOptions(t *testing.T) {
 		log.WithReopenableOutputFile(logFile),
 	}
 
-	agentConfig, err := NewServerConfig(defaultValidConfig(), logOptions, false)
+	serverConfig, err := NewServerConfig(defaultValidConfig(), logOptions, false)
 	require.NoError(t, err)
 
-	logger := agentConfig.Log.(*log.Logger).Logger
+	logger := serverConfig.Log.(*log.Logger).Logger
 
 	// defaultConfig() sets level to info,  which should override DEBUG set above
 	require.Equal(t, logrus.InfoLevel, logger.Level)

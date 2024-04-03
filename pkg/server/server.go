@@ -71,8 +71,9 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) run(ctx context.Context) (err error) {
 	// Log configuration values that are useful for debugging
 	s.config.Log.WithFields(logrus.Fields{
-		telemetry.AdminIDs: s.config.AdminIDs,
-		telemetry.DataDir:  s.config.DataDir,
+		telemetry.AdminIDs:       s.config.AdminIDs,
+		telemetry.DataDir:        s.config.DataDir,
+		telemetry.LaunchLogLevel: s.config.Log.GetLevel(),
 	}).Info("Configured")
 
 	// create the data directory if needed
@@ -386,6 +387,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Catalog:              catalog,
 		ServerCA:             serverCA,
 		Log:                  s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		RootLog:              s.config.Log,
 		Metrics:              metrics,
 		JWTKeyPublisher:      jwtKeyPublisher,
 		RateLimit:            s.config.RateLimit,
