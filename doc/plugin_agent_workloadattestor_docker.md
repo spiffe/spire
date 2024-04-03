@@ -61,6 +61,29 @@ language that enforces a forward slash-delimited schema.
 
 ## Example
 
+### Image ID
+
+Example of an image_id selector for an Envoy proxy container. First run `docker images` to see the images available:
+
+```shell
+$ docker images
+REPOSITORY                    TAG               IMAGE ID       CREATED        SIZE
+prom/prometheus               latest            1d3b7f56885b   2 weeks ago    262MB
+spiffe.io                     latest            02acdde06edc   2 weeks ago    1.17GB
+ghcr.io/spiffe/spire-agent    1.9.1             622ce7acc7e8   4 weeks ago    57.9MB
+ghcr.io/spiffe/spire-server   1.9.1             e3b24c3cd9e1   4 weeks ago    103MB
+envoyproxy/envoy              contrib-v1.29.1   644f45f6626c   7 weeks ago    181MB
+```
+Then use the `REPOSITORY:TAG` as the selector, not the `IMAGE ID` column.
+
+```shell
+$ spire-server entry create \
+    -parentID spiffe://example.org/host \
+    -spiffeID spiffe://example.org/host/foo \
+    -selector docker:image_id:envoyproxy/envoy:contrib-v1.29.1
+```
+
+
 ### Labels
 
 If a workload container is started with `docker run --label com.example.name=foo [...]`, then workload registration would occur as:
