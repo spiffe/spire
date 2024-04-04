@@ -62,11 +62,13 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) RunUpdateCacheTask(ctx cont
 		select {
 		case <-ctx.Done():
 			a.log.Debug("Stopping in-memory entry cache hydrator")
-			return nil
+			return ctx.Err()
 		case <-a.clk.After(a.cacheReloadInterval):
-			err := a.updateCache(ctx)
-			if err != nil {
+			if err := a.updateCache(ctx); err != nil {
 				a.log.WithError(err).Error("Failed to update entry cache")
+			}
+			if pruned := a.cache.PruneExpiredAgents(); pruned > 0 {
+				a.log.Debugf("Pruned %d expired agents from entry cache", pruned)
 			}
 		}
 	}
@@ -78,7 +80,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) PruneEventsTask(ctx context
 		select {
 		case <-ctx.Done():
 			a.log.Debug("Stopping event pruner")
-			return nil
+			return ctx.Err()
 		case <-a.clk.After(a.pruneEventsOlderThan / 2):
 			a.log.Debug("Pruning events")
 			if err := a.pruneEvents(ctx, a.pruneEventsOlderThan); err != nil {
@@ -162,6 +164,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 		}
 		a.lastAttestedNodeEventID = event.EventID
 
+		// Node was deleted
 		if node == nil {
 			a.cache.RemoveAgent(event.SpiffeID)
 			continue
@@ -174,11 +177,6 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 		node.Selectors = selectors
 
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
-		if agentExpiresAt.Before(a.clk.Now()) {
-			a.cache.RemoveAgent(event.SpiffeID)
-			continue
-		}
-
 		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
 	}
 
@@ -186,7 +184,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 }
 
 func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*authorizedentries.Cache, uint, uint, error) {
-	cache := authorizedentries.NewCache()
+	cache := authorizedentries.NewCache(clk)
 
 	lastRegistrationEntryEventID, err := buildRegistrationEntriesCache(ctx, ds, cache, buildCachePageSize)
 	if err != nil {
