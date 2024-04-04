@@ -44,6 +44,9 @@ type DataStore interface {
 	ListRegistrationEntriesEvents(ctx context.Context, req *ListRegistrationEntriesEventsRequest) (*ListRegistrationEntriesEventsResponse, error)
 	PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) error
 	GetLatestRegistrationEntryEventID(ctx context.Context) (uint, error)
+	CreateRegistrationEntryEvent(ctx context.Context, event *RegistrationEntryEvent) (*RegistrationEntryEvent, error)
+	DeleteRegistrationEntryEvent(ctx context.Context, eventID uint) error
+	FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*RegistrationEntryEvent, error)
 
 	// Nodes
 	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (int32, error)
@@ -57,6 +60,9 @@ type DataStore interface {
 	ListAttestedNodesEvents(ctx context.Context, req *ListAttestedNodesEventsRequest) (*ListAttestedNodesEventsResponse, error)
 	PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) error
 	GetLatestAttestedNodeEventID(ctx context.Context) (uint, error)
+	CreateAttestedNodeEvent(ctx context.Context, event *AttestedNodeEvent) (*AttestedNodeEvent, error)
+	DeleteAttestedNodeEvent(ctx context.Context, eventID uint) error
+	FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*AttestedNodeEvent, error)
 
 	// Node selectors
 	GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency DataConsistency) ([]*common.Selector, error)

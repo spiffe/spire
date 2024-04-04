@@ -59,6 +59,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "CreateAttestedNode",
 		},
 		{
+			key:        "datastore.node_event.create",
+			methodName: "CreateAttestedNodeEvent",
+		},
+		{
 			key:        "datastore.bundle.create",
 			methodName: "CreateBundle",
 		},
@@ -79,8 +83,16 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "CreateOrReturnRegistrationEntry",
 		},
 		{
+			key:        "datastore.registration_entry_event.create",
+			methodName: "CreateRegistrationEntryEvent",
+		},
+		{
 			key:        "datastore.node.delete",
 			methodName: "DeleteAttestedNode",
+		},
+		{
+			key:        "datastore.node_event.delete",
+			methodName: "DeleteAttestedNodeEvent",
 		},
 		{
 			key:        "datastore.bundle.delete",
@@ -99,8 +111,16 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "DeleteRegistrationEntry",
 		},
 		{
+			key:        "datastore.registration_entry_event.delete",
+			methodName: "DeleteRegistrationEntryEvent",
+		},
+		{
 			key:        "datastore.node.fetch",
 			methodName: "FetchAttestedNode",
+		},
+		{
+			key:        "datastore.node_event.fetch",
+			methodName: "FetchAttestedNodeEvent",
 		},
 		{
 			key:        "datastore.bundle.fetch",
@@ -113,6 +133,10 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.registration_entry.fetch",
 			methodName: "FetchRegistrationEntry",
+		},
+		{
+			key:        "datastore.registration_entry_event.fetch",
+			methodName: "FetchRegistrationEntryEvent",
 		},
 		{
 			key:        "datastore.federation_relationship.fetch",
@@ -334,6 +358,10 @@ func (ds *fakeDataStore) CreateAttestedNode(context.Context, *common.AttestedNod
 	return &common.AttestedNode{}, ds.err
 }
 
+func (ds *fakeDataStore) CreateAttestedNodeEvent(context.Context, *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
+	return &datastore.AttestedNodeEvent{}, ds.err
+}
+
 func (ds *fakeDataStore) CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
 	return &common.Bundle{}, ds.err
 }
@@ -358,8 +386,16 @@ func (ds *fakeDataStore) CreateOrReturnRegistrationEntry(context.Context, *commo
 	return &common.RegistrationEntry{}, true, ds.err
 }
 
+func (ds *fakeDataStore) CreateRegistrationEntryEvent(context.Context, *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
+	return &datastore.RegistrationEntryEvent{}, ds.err
+}
+
 func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error) {
 	return &common.AttestedNode{}, ds.err
+}
+
+func (ds *fakeDataStore) DeleteAttestedNodeEvent(context.Context, uint) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) DeleteBundle(context.Context, string, datastore.DeleteMode) error {
@@ -378,8 +414,16 @@ func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, string) (*comm
 	return &common.RegistrationEntry{}, ds.err
 }
 
+func (ds *fakeDataStore) DeleteRegistrationEntryEvent(context.Context, uint) error {
+	return ds.err
+}
+
 func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.AttestedNode, error) {
 	return &common.AttestedNode{}, ds.err
+}
+
+func (ds *fakeDataStore) FetchAttestedNodeEvent(context.Context, uint) (*datastore.AttestedNodeEvent, error) {
+	return &datastore.AttestedNodeEvent{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchBundle(context.Context, string) (*common.Bundle, error) {
@@ -396,6 +440,10 @@ func (ds *fakeDataStore) FetchJoinToken(context.Context, string) (*datastore.Joi
 
 func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, string) (*common.RegistrationEntry, error) {
 	return &common.RegistrationEntry{}, ds.err
+}
+
+func (ds *fakeDataStore) FetchRegistrationEntryEvent(context.Context, uint) (*datastore.RegistrationEntryEvent, error) {
+	return &datastore.RegistrationEntryEvent{}, ds.err
 }
 
 func (ds *fakeDataStore) GetLatestAttestedNodeEventID(context.Context) (uint, error) {

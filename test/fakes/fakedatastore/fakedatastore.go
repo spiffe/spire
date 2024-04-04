@@ -184,6 +184,27 @@ func (s *DataStore) GetLatestAttestedNodeEventID(ctx context.Context) (uint, err
 	return s.ds.GetLatestAttestedNodeEventID(ctx)
 }
 
+func (s *DataStore) CreateAttestedNodeEvent(ctx context.Context, event *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.CreateAttestedNodeEvent(ctx, event)
+}
+
+func (s *DataStore) DeleteAttestedNodeEvent(ctx context.Context, eventID uint) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.DeleteAttestedNodeEvent(ctx, eventID)
+}
+
+func (s *DataStore) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*datastore.AttestedNodeEvent, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.FetchAttestedNodeEvent(ctx, eventID)
+}
+
 func (s *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
 	if err := s.getNextError(); err != nil {
 		return err
@@ -318,6 +339,27 @@ func (s *DataStore) GetLatestRegistrationEntryEventID(ctx context.Context) (uint
 		return 0, err
 	}
 	return s.ds.GetLatestRegistrationEntryEventID(ctx)
+}
+
+func (s *DataStore) CreateRegistrationEntryEvent(ctx context.Context, event *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.CreateRegistrationEntryEvent(ctx, event)
+}
+
+func (s *DataStore) DeleteRegistrationEntryEvent(ctx context.Context, eventID uint) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.DeleteRegistrationEntryEvent(ctx, eventID)
+}
+
+func (s *DataStore) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*datastore.RegistrationEntryEvent, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.FetchRegistrationEntryEvent(ctx, eventID)
 }
 
 func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {
