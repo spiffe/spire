@@ -176,6 +176,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
 		if agentExpiresAt.Before(a.clk.Now()) {
 			a.cache.RemoveAgent(event.SpiffeID)
+			a.lastAttestedNodeEventID = event.EventID
 			continue
 		}
 
