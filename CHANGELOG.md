@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.9] - 2024-04-03
+
+### Security
+
+- Updated to Go 1.21.9 to address CVE-2023-45288
+- Limit the preallocation of memory when making paginated requests to the ListEntries and ListAgents RPCs
+
 ## [1.8.8] - 2024-03-05
 
 ### Security
