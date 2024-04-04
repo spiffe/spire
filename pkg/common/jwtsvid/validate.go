@@ -41,7 +41,7 @@ func (t *keyStore) FindPublicKey(_ context.Context, td spiffeid.TrustDomain, key
 func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (spiffeid.ID, map[string]any, error) {
 	tok, err := jwt.ParseSigned(token, AllowedSignatureAlgorithms)
 	if err != nil {
-		return spiffeid.ID{}, nil, errs.New("unable to parse JWT token")
+		return spiffeid.ID{}, nil, errs.New("unable to parse JWT token: %v", err)
 	}
 
 	if len(tok.Headers) != 1 {
