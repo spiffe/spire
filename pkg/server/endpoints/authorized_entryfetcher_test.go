@@ -187,3 +187,65 @@ func TestBuildRegistrationEntriesCache(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateAttestedNodesCache(t *testing.T) {
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	agentID, err := spiffeid.FromString("spiffe://example.org/myagent")
+	require.NoError(t, err)
+
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agentID.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name                            string
+		errs                            []error
+		expectedLastAttestedNodeEventID uint
+	}{
+		{
+			name:                            "Error Listing Attested Node Events",
+			errs:                            []error{errors.New("listing attested node events")},
+			expectedLastAttestedNodeEventID: uint(0),
+		},
+		{
+			name:                            "Error Fetching Attested Node",
+			errs:                            []error{nil, errors.New("fetching attested node")},
+			expectedLastAttestedNodeEventID: uint(0),
+		},
+		{
+			name:                            "Error Getting Node Selectors",
+			errs:                            []error{nil, nil, errors.New("getting node selectors")},
+			expectedLastAttestedNodeEventID: uint(0),
+		},
+		{
+			name:                            "No Errors",
+			expectedLastAttestedNodeEventID: uint(1),
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			for _, err = range tt.errs {
+				ds.AppendNextError(err)
+			}
+
+			err = ef.updateAttestedNodesCache(ctx)
+			if len(tt.errs) > 0 {
+				assert.EqualError(t, err, tt.errs[len(tt.errs)-1].Error())
+			} else {
+				assert.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.expectedLastAttestedNodeEventID, ef.lastAttestedNodeEventID)
+		})
+	}
+}
