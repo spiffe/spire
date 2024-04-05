@@ -68,7 +68,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) RunUpdateCacheTask(ctx cont
 				a.log.WithError(err).Error("Failed to update entry cache")
 			}
 			if pruned := a.cache.PruneExpiredAgents(); pruned > 0 {
-				a.log.Debugf("Pruned %d expired agents from entry cache", pruned)
+				a.log.WithField("count", pruned).Debug("Pruned expired agents from entry cache")
 			}
 		}
 	}
