@@ -162,11 +162,11 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 		if err != nil {
 			return err
 		}
-		a.lastAttestedNodeEventID = event.EventID
 
 		// Node was deleted
 		if node == nil {
 			a.cache.RemoveAgent(event.SpiffeID)
+			a.lastAttestedNodeEventID = event.EventID
 			continue
 		}
 
@@ -178,6 +178,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
 		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+		a.lastAttestedNodeEventID = event.EventID
 	}
 
 	return nil
