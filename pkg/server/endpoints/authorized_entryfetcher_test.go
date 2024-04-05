@@ -3,7 +3,6 @@ package endpoints
 import (
 	"context"
 	"errors"
-	"regexp"
 	"sort"
 	"strconv"
 	"testing"
@@ -305,13 +304,14 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 
 	// Make sure nothing was pruned yet
 	for _, entry := range hook.AllEntries() {
-		require.NotRegexp(t, regexp.MustCompile(`Pruned \d* expired agents from entry cache`), entry.Message)
+		require.NotEqual(t, "Pruned expired agents from entry cache", entry.Message)
 	}
 
 	// Bump clock so entry expires and is pruned
 	clk.Add(defaultCacheReloadInterval)
 	clk.WaitForAfter(time.Second, "waiting for task to pause after expiring agent")
-	assert.Equal(t, "Pruned 1 expired agents from entry cache", hook.LastEntry().Message)
+	assert.Equal(t, 1, hook.LastEntry().Data["count"])
+	assert.Equal(t, "Pruned expired agents from entry cache", hook.LastEntry().Message)
 
 	// Stop the task
 	cancel()
