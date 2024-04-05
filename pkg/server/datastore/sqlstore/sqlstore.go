@@ -64,6 +64,9 @@ const (
 
 	// PostgreSQL database type provided by an AWS service
 	AWSPostgreSQL = "aws_postgres"
+
+	// Maximum size for preallocation in a paginated request
+	maxResultPreallocation = 1000
 )
 
 // Configuration for the sql datastore implementation.
@@ -1746,13 +1749,7 @@ func listAttestedNodesOnce(ctx context.Context, db *sqlDB, req *datastore.ListAt
 	}
 	defer rows.Close()
 
-	var nodes []*common.AttestedNode
-	if req.Pagination != nil {
-		nodes = make([]*common.AttestedNode, 0, req.Pagination.PageSize)
-	} else {
-		nodes = make([]*common.AttestedNode, 0, 64)
-	}
-
+	nodes := make([]*common.AttestedNode, 0, calculateResultPreallocation(req.Pagination))
 	pushNode := func(node *common.AttestedNode) {
 		if node != nil && node.SpiffeId != "" {
 			nodes = append(nodes, node)
@@ -2803,15 +2800,7 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		return nil, sqlError.Wrap(err)
 	}
 	defer rows.Close()
-	var entries []*common.RegistrationEntry
-	if req.Pagination != nil {
-		entries = make([]*common.RegistrationEntry, 0, req.Pagination.PageSize)
-	} else {
-		// start the slice off with a little capacity to avoid the first few
-		// reallocations
-		entries = make([]*common.RegistrationEntry, 0, 64)
-	}
-
+	entries := make([]*common.RegistrationEntry, 0, calculateResultPreallocation(req.Pagination))
 	pushEntry := func(entry *common.RegistrationEntry) {
 		// Due to previous bugs (i.e. #1191), there can be cruft rows related
 		// to a deleted registration entries that are fetched with the list
@@ -4782,4 +4771,15 @@ func isPostgresDbType(dbType string) bool {
 
 func isSQLiteDbType(dbType string) bool {
 	return dbType == SQLite
+}
+
+func calculateResultPreallocation(pagination *datastore.Pagination) int32 {
+	switch {
+	case pagination == nil:
+		return 64
+	case pagination.PageSize < maxResultPreallocation:
+		return pagination.PageSize
+	default:
+		return maxResultPreallocation
+	}
 }
