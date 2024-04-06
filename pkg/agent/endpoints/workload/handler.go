@@ -458,10 +458,6 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
-			if federatedBundle.JWTBundle().Empty() {
-				continue
-			}
-
 			jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
 			if err != nil {
 				return nil, err

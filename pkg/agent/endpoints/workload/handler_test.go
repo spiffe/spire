@@ -888,6 +888,8 @@ func TestFetchJWTBundles(t *testing.T) {
 	require.NoError(t, err)
 	bundleJWKS = indent(bundleJWKS)
 
+	emptyJWKSBytes := indent([]byte(`{"keys": []}`))
+
 	federatedBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
 	federatedBundleJWKS, err := federatedBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
@@ -1019,7 +1021,7 @@ func TestFetchJWTBundles(t *testing.T) {
 			},
 		},
 		{
-			name: "empty federated JWT bundle",
+			name: "federated bundle with JWKS empty keys array",
 			updates: []*cache.WorkloadUpdate{
 				{
 					Identities: []cache.Identity{
@@ -1034,7 +1036,8 @@ func TestFetchJWTBundles(t *testing.T) {
 			expectCode: codes.OK,
 			expectResp: &workloadPB.JWTBundlesResponse{
 				Bundles: map[string][]byte{
-					bundle.TrustDomain().IDString(): bundleJWKS,
+					bundle.TrustDomain().IDString():          bundleJWKS,
+					federatedBundle.TrustDomain().IDString(): emptyJWKSBytes,
 				},
 			},
 		},
