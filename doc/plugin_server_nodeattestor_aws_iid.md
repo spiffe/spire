@@ -98,8 +98,6 @@ Trust Relationship
     ]
 }
 
-```
-
 
 ## Disabling Instance Profile Selectors
 

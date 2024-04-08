@@ -161,7 +161,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
 	defer cancel()
 
-	// Feature account belongs to organisation
+	// Feature account belongs to organization
 	// Get the account id of the node from attestation and then check if respective account belongs to organisation
 	if c.ValidateOrgAccountID != nil {
 		orgClient, err := p.clients.getClient(ctx, c.ValidateOrgAccountID.AccountRegion, c.ValidateOrgAccountID.AccountID)
@@ -177,7 +177,6 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		if !valid {
 			return status.Errorf(codes.Internal, "failed aws ec2 attestation, nodes account id: %v is not part of configured organization or doesn't have ACTIVE status", attestationData.AccountID)
 		}
-
 	}
 
 	inTrustAcctList := false
@@ -189,7 +188,6 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	}
 
 	awsClient, err := p.clients.getClient(ctx, attestationData.Region, attestationData.AccountID)
-
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to get client: %v", err)
 	}

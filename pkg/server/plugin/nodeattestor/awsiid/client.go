@@ -92,7 +92,6 @@ func (cc *clientsCache) getClient(ctx context.Context, region, accountID string)
 	}
 
 	client, err := cc.newClient(ctx, cc.config, region, assumeRoleArn, orgRoleArn)
-
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
