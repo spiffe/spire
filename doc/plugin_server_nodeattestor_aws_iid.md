@@ -65,7 +65,7 @@ Using the block `verify_organization` the org validation node attestation method
 The role must be created in the management account, and it should have a trust relationship with the spire server role `assume_role`. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created.
 
 Policy :
-```
+```json
 {
 	"Version": "2012-10-17",
 	"Statement": [
