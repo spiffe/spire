@@ -19,7 +19,7 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false                                                 |
 | `assume_role`                        | The role to assume                                                                                                                                            | Empty string, Optional parameter.                     |
 | `partition`                          | The AWS partition SPIRE server is running in &lt;aws&vert;aws-cn&vert;aws-us-gov&gt;                                                                          | aws                                                  |
-| `verify_organization`   | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation) |
+| `verify_organization`                | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation) |
 
 
 
@@ -60,9 +60,9 @@ For configuring AWS Node attestation method with organization validation followi
 | org_account_map_ttl | Cache the list of accounts for particular time. Should be  >= 1 minute. Defaults to 3 minute. | optional |
 
 
-Using the block `verify_organization` the org validation node attestation method will be enabled. With above configuration spire server will form the role as : `arn:aws:iam::management_account_id:role/assume_org_role`. When not used, block ex. `verify_organization = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `management_account_id`, `assume_org_role`. 
+Using the block `verify_organization` the org validation node attestation method will be enabled. With above configuration spire server will form and try to assume the role as: `arn:aws:iam::management_account_id:role/assume_org_role`. When not used, block ex. `verify_organization = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `management_account_id`, `assume_org_role`. 
 
-The role must be created in the management account, and it should have a trust relationship with the spire server role `assume_role`. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created.
+The role under: `assume_role`  must be created in the management account: `management_account_id`, and it should have a trust relationship with the role assumed by spire server. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created in management account.
 
 Policy :
 ```json
