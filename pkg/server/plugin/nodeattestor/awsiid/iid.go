@@ -599,10 +599,10 @@ func isValidAWSPartition(partition string) bool {
 }
 
 func validateOrganizationConfig(config *IIDAttestorConfig) error {
-	checkAccid := config.ValidateOrgAccountID.AccountID
+	checkAccID := config.ValidateOrgAccountID.AccountID
 	checkAccRole := config.ValidateOrgAccountID.AccountRole
 
-	if len(checkAccid) == 0 || len(checkAccRole) == 0 {
+	if len(checkAccID) == 0 || len(checkAccRole) == 0 {
 		return status.Errorf(codes.InvalidArgument, "make sure %v & %v are present inside block or remove the block : %v for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
 	}
 
