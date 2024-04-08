@@ -78,8 +78,6 @@ Policy :
 	]
 }
 
-```
-
 Trust Relationship 
 
 ```
