@@ -670,20 +670,6 @@ func TestInstanceProfileArnParsing(t *testing.T) {
 	require.Equal(t, testInstanceProfileName, name)
 }
 
-func TestTTLExpiry(t *testing.T) {
-	testCurrentTime := time.Now()
-	testCreationTime := testCurrentTime.Add(time.Duration(-2 * time.Minute))
-	testTTL := time.Minute * 1
-
-	// expect expired, creation time of 2 minutes back and ttl as 1 minute should return expire
-	expired := checkIfTTLIsExpired(testCreationTime, testTTL)
-	require.Equal(t, expired, true)
-
-	// expect not expired, current time and ttl as 1 minute should return not expire
-	expired = checkIfTTLIsExpired(testCurrentTime, testTTL)
-	require.Equal(t, expired, false)
-}
-
 type fakeClient struct {
 	DescribeInstancesOutput  *ec2.DescribeInstancesOutput
 	DescribeInstancesError   error
