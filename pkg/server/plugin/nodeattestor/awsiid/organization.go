@@ -37,7 +37,7 @@ type orgValidationConfig struct {
 }
 
 type orgValidator struct {
-	orgListAccountMap             map[string]bool
+	orgListAccountMap             map[string]any
 	orgListAccountMapCreationTime time.Time
 	orgConfig                     *orgValidationConfig
 	mutex                         sync.RWMutex
@@ -50,7 +50,7 @@ type orgValidator struct {
 
 func newOrganizationValidationBase(config *orgValidationConfig) *orgValidator {
 	client := &orgValidator{
-		orgListAccountMap: make(map[string]bool),
+		orgListAccountMap: make(map[string]any),
 		orgConfig:         config,
 		retries:           orgAccountRetries,
 	}
@@ -83,7 +83,7 @@ func (o *orgValidator) configure(config *orgValidationConfig) error {
 	o.orgConfig.AccountRegion = "us-west-2"
 
 	// While doing configuration invalidate the map so we dont keep using old one.
-	o.orgListAccountMap = make(map[string]bool)
+	o.orgListAccountMap = make(map[string]any)
 	o.retries = orgAccountRetries
 
 	t, err := time.ParseDuration(config.AccountListTTL)
@@ -155,10 +155,10 @@ func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.
 }
 
 // If cache miss happens, refresh list with new cache and check if element exist
-func (o *orgValidator) refreshCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]bool, error) {
+func (o *orgValidator) refreshCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]any, error) {
 	remTries := o.getRetries()
 
-	orgAccountList := make(map[string]bool)
+	orgAccountList := make(map[string]any)
 	if remTries <= 0 {
 		return orgAccountList, nil
 	}
@@ -197,7 +197,7 @@ func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) (bool, 
 }
 
 // reloadAccountList gets the list of accounts belonging to organization and catch them
-func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organizations.ListAccountsAPIClient, catchBurst bool) (map[string]bool, error) {
+func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organizations.ListAccountsAPIClient, catchBurst bool) (map[string]any, error) {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
@@ -219,7 +219,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	}
 
 	//Build new org accounts list
-	orgAccountsMap := make(map[string]bool)
+	orgAccountsMap := make(map[string]any)
 
 	// Update the org account list cache with ACTIVE accounts & handle pagination
 	for {
