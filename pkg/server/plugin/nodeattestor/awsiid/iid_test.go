@@ -405,7 +405,7 @@ func TestAttest(t *testing.T) {
 			name:                "fail call for organization list account",
 			config:              `verify_organization = { management_account_id = "12345" assume_org_role = "test-orgrole" management_account_region = "test-region"}`,
 			expectCode:          codes.Internal,
-			listOrgAccountError: errors.New("whutt !!!"),
+			listOrgAccountError: errors.New("oh no"),
 			expectMsgPrefix:     "nodeattestor(aws_iid): failed aws ec2 attestation, issue while verifying",
 		},
 		{
