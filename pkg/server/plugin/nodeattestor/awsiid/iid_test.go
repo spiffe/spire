@@ -615,9 +615,9 @@ func TestConfigure(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	orgVerificationFeatureErr := fmt.Errorf("make sure %v, %v & %v are present inside block : %v for feature node attestation using account id verification", "verify_organization", orgAccountID, orgAccountRole, orgAccRegion)
-	orgVerificationFeatureTTLErr := fmt.Errorf("make sure %v if configured, should be in hours and is suffix with required `h` for time duration in hour ex. 1h. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
-	orgVerificationFeatureMinTTLErr := fmt.Errorf("make sure %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+	orgVerificationFeatureErr := fmt.Errorf("make %v, %v & %v are present inside block : %v for feature node attestation using account id verification", "verify_organization", orgAccountID, orgAccountRole, orgAccRegion)
+	orgVerificationFeatureTTLErr := fmt.Errorf("make %v if configured, should be in hours and is suffix with required `h` for time duration in hour ex. 1h. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+	orgVerificationFeatureMinTTLErr := fmt.Errorf("make %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 
 	t.Run("fail, account belongs to org, if params are not specified and feature enabled", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = {}`)

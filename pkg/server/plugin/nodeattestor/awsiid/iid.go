@@ -620,6 +620,7 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 		}
 
 		ttl = t
+
 	}
 
 	// Assign default ttl if ttl doesnt exist.
