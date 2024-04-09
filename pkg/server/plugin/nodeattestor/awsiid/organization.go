@@ -131,12 +131,12 @@ func (o *orgValidator) validateCache(ctx context.Context, orgClient organization
 	return false, nil
 }
 
-func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDofNode string, reValidatedcache bool) (bool, error) {
+func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDOfNode string, reValidatedcache bool) (bool, error) {
 	o.mutex.RLock()
 	orgAccountList := o.orgListAccountMap
 	o.mutex.RUnlock()
 
-	_, accoutIsmemberOfOrg := orgAccountList[accoundIDofNode]
+	_, accoutIsmemberOfOrg := orgAccountList[accoundIDOfNode]
 
 	// Retry if it doesn't exist in cache and cache was not revalidated
 	if !accoutIsmemberOfOrg && !reValidatedcache {
@@ -144,7 +144,7 @@ func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.
 		if err != nil {
 			return false, err
 		}
-		_, accoutIsmemberOfOrg = orgAccountList[accoundIDofNode]
+		_, accoutIsmemberOfOrg = orgAccountList[accoundIDOfNode]
 	}
 
 	return accoutIsmemberOfOrg, nil
