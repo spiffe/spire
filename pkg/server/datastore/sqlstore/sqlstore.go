@@ -402,8 +402,10 @@ func (ds *Plugin) GetLatestAttestedNodeEventID(ctx context.Context) (eventID uin
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
 func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = setNodeSelectors(tx, spiffeID, selectors)
-		return err
+		if err = setNodeSelectors(tx, spiffeID, selectors); err != nil {
+			return err
+		}
+		return createAttestedNodeEvent(tx, spiffeID)
 	})
 }
 
