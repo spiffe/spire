@@ -182,10 +182,7 @@ func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) bool {
 	// Get the timestamp from config
 	existingTimestamp := o.orgListAccountMapCreationTime
 
-	currTimeStamp := time.Now().UTC()
-
-	// Check diff of timestamp of org acc map & current time if its more than ttl, refresh the list
-	return currTimeStamp.Sub(existingTimestamp) >= time.Duration(o.orgAccountListCacheTTL)
+	return checkIfTTLIsExpired(existingTimestamp, o.orgAccountListCacheTTL)
 }
 
 // reloadAccountList gets the list of accounts belonging to organization and catch them
@@ -193,9 +190,8 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
-	// Make sure: map is not updated from different go routine.
-	// * if we make this call before ttl expires, we are doing retry/catchburst that means we need to bypass this validation
-	if !catchBurst && len(o.orgListAccountMap) != 0 && time.Now().UTC().Sub(o.orgListAccountMapCreationTime) <= time.Duration(o.orgAccountListCacheTTL) {
+	// Make sure: we are not doing cache burst and account map is not updated recently from different go routine.
+	if !catchBurst && len(o.orgListAccountMap) != 0 && !checkIfTTLIsExpired(o.orgListAccountMapCreationTime, o.orgAccountListCacheTTL) {
 		return o.orgListAccountMap, nil
 	}
 
@@ -247,4 +243,10 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	o.orgListAccountMap = orgAccountsMap
 
 	return o.orgListAccountMap, nil
+}
+
+// checkIFTTLIsExpire check if the creation time is pass defined ttl
+func checkIfTTLIsExpired(creationTime time.Time, ttl time.Duration) bool {
+	currTimeStamp := time.Now().UTC()
+	return currTimeStamp.Sub(creationTime) >= time.Duration(ttl)
 }
