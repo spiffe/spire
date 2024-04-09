@@ -120,26 +120,67 @@ func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizati
 
 // validateCache validates cache and refresh if its stale
 func (o *orgValidator) validateCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (bool, error) {
-	isStale := o.checkIfOrgAccountListIsStale(ctx)
+	isStale, err := o.checkIfOrgAccountListIsStale(ctx)
+	if err != nil {
+		return isStale, err
+	}
 
 	// refresh the account map
 	if isStale {
-		_, err := o.reloadAccountList(ctx, orgClient, false)
+		_, err = o.reloadAccountList(ctx, orgClient, false)
 		if err != nil {
-			return true, err
+			return isStale, err
 		}
 	}
-	return false, nil
+	return isStale, nil
+}
+
+func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDofNode string, reValidatedcache bool) (bool, error) {
+	o.mutex.RLock()
+	orgAccountList := o.orgListAccountMap
+	o.mutex.RUnlock()
+
+	_, accoutIsmemberOfOrg := orgAccountList[accoundIDofNode]
+
+	// Retry if it doesn't exist in cache and cache was not revalidated
+	if !accoutIsmemberOfOrg && !reValidatedcache {
+		orgAccountList, err := o.refreshCache(ctx, orgClient)
+		if err != nil {
+			return false, err
+		}
+		_, accoutIsmemberOfOrg = orgAccountList[accoundIDofNode]
+	}
+
+	return accoutIsmemberOfOrg, nil
+}
+
+// If cache miss happens, refresh list with new cache and check if element exist
+func (o *orgValidator) refreshCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]any, error) {
+	remTries := o.getRetries()
+
+	orgAccountList := make(map[string]any)
+	if remTries <= 0 {
+		return orgAccountList, nil
+	}
+
+	orgAccountList, err := o.reloadAccountList(ctx, orgClient, true)
+	if err != nil {
+		return nil, err
+	}
+
+	o.decrRetries()
+
+	return orgAccountList, nil
 }
 
 // Check if the org account list is stale.
-func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) bool {
+func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) (bool, error) {
 	o.mutex.RLock()
 	defer o.mutex.RUnlock()
 
 	// Map is empty that means this is first time plugin is being initialised
 	if len(o.orgListAccountMap) == 0 {
-		return true
+		return true, nil
 	}
 
 	// Get the timestamp from config
@@ -148,7 +189,11 @@ func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) bool {
 	currTimeStamp := time.Now().UTC()
 
 	// Check diff of timestamp of org acc map & current time if its more than ttl, refresh the list
-	return currTimeStamp.Sub(existingTimestamp) >= time.Duration(o.orgAccountListCacheTTL)
+	if currTimeStamp.Sub(existingTimestamp) >= time.Duration(o.orgAccountListCacheTTL) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // reloadAccountList gets the list of accounts belonging to organization and catch them
@@ -210,42 +255,4 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	o.orgListAccountMap = orgAccountsMap
 
 	return o.orgListAccountMap, nil
-}
-
-func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDOfNode string, reValidatedcache bool) (bool, error) {
-	o.mutex.RLock()
-	orgAccountList := o.orgListAccountMap
-	o.mutex.RUnlock()
-
-	_, accoutIsmemberOfOrg := orgAccountList[accoundIDOfNode]
-
-	// Retry if it doesn't exist in cache and cache was not revalidated
-	if !accoutIsmemberOfOrg && !reValidatedcache {
-		orgAccountList, err := o.refreshCache(ctx, orgClient)
-		if err != nil {
-			return false, err
-		}
-		_, accoutIsmemberOfOrg = orgAccountList[accoundIDOfNode]
-	}
-
-	return accoutIsmemberOfOrg, nil
-}
-
-// If cache miss happens, refresh list with new cache and check if element exist
-func (o *orgValidator) refreshCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]any, error) {
-	remTries := o.getRetries()
-
-	orgAccountList := make(map[string]any)
-	if remTries <= 0 {
-		return orgAccountList, nil
-	}
-
-	orgAccountList, err := o.reloadAccountList(ctx, orgClient, true)
-	if err != nil {
-		return nil, err
-	}
-
-	o.decrRetries()
-
-	return orgAccountList, nil
 }
