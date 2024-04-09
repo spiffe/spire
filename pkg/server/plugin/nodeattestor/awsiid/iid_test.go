@@ -406,7 +406,7 @@ func TestAttest(t *testing.T) {
 			config:              `verify_organization = { management_account_id = "12345" assume_org_role = "test-orgrole" management_account_region = "test-region"}`,
 			expectCode:          codes.Internal,
 			listOrgAccountError: errors.New("oh no"),
-			expectMsgPrefix:     "nodeattestor(aws_iid): failed aws ec2 attestation, issue while verifying",
+			expectMsgPrefix:     fmt.Sprintf("nodeattestor(aws_iid): failed aws ec2 attestation, issue while verifying if nodes account id: %v belong to org: %v", testAccount, "issue while getting list of accounts"),
 		},
 		{
 			name:       "fail for account id with not ACTIVE status in organization list",
