@@ -120,19 +120,15 @@ func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizati
 
 // validateCache validates cache and refresh if its stale
 func (o *orgValidator) validateCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (bool, error) {
-	isStale, err := o.checkIfOrgAccountListIsStale(ctx)
-	if err != nil {
-		return isStale, err
-	}
-
+	isStale := o.checkIfOrgAccountListIsStale(ctx)
 	// refresh the account map
 	if isStale {
-		_, err = o.reloadAccountList(ctx, orgClient, false)
+		_, err := o.reloadAccountList(ctx, orgClient, false)
 		if err != nil {
-			return isStale, err
+			return true, err
 		}
 	}
-	return isStale, nil
+	return false, nil
 }
 
 func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDofNode string, reValidatedcache bool) (bool, error) {
@@ -174,13 +170,13 @@ func (o *orgValidator) refreshCache(ctx context.Context, orgClient organizations
 }
 
 // Check if the org account list is stale.
-func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) (bool, error) {
+func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) bool {
 	o.mutex.RLock()
 	defer o.mutex.RUnlock()
 
 	// Map is empty that means this is first time plugin is being initialised
 	if len(o.orgListAccountMap) == 0 {
-		return true, nil
+		return true
 	}
 
 	// Get the timestamp from config
@@ -189,11 +185,7 @@ func (o *orgValidator) checkIfOrgAccountListIsStale(ctx context.Context) (bool, 
 	currTimeStamp := time.Now().UTC()
 
 	// Check diff of timestamp of org acc map & current time if its more than ttl, refresh the list
-	if currTimeStamp.Sub(existingTimestamp) >= time.Duration(o.orgAccountListCacheTTL) {
-		return true, nil
-	}
-
-	return false, nil
+	return currTimeStamp.Sub(existingTimestamp) >= time.Duration(o.orgAccountListCacheTTL)
 }
 
 // reloadAccountList gets the list of accounts belonging to organization and catch them
