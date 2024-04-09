@@ -100,7 +100,7 @@ func (o *orgValidator) setLogger(log hclog.Logger) {
 	o.log = log
 }
 
-// This verification method checks if the Account ID attached on the node is part of the organisation.
+// IsMemberAccount method checks if the Account ID attached on the node is part of the organisation.
 // If it part of the organisation then validation should be succesfull if not attestation should fail, on enabling this verification method.
 // This could be alternative for not explictly maintaing allowed list of account ids.
 // Method pulls the list of accounts from organization and caches it for certain time, cache time can be configured.
@@ -110,12 +110,12 @@ func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizati
 		return false, err
 	}
 
-	accountIsmemberofOrg, err := o.lookupCache(ctx, orgClient, accoundIDofNode, reValidatedcache)
+	accountIsmemberOfOrg, err := o.lookupCache(ctx, orgClient, accoundIDofNode, reValidatedcache)
 	if err != nil {
 		return false, err
 	}
 
-	return accountIsmemberofOrg, nil
+	return accountIsmemberOfOrg, nil
 }
 
 // validateCache validates cache and refresh if its stale
