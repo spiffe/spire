@@ -24,6 +24,11 @@ const (
 	orgAccountRetries        = 5
 )
 
+var (
+	orgAccountDefaultListDuration, _ = time.ParseDuration(orgAccountDefaultListTTL)
+	orgAccountMinTTL, _              = time.ParseDuration(orgAccountMinListTTL)
+)
+
 type orgValidationConfig struct {
 	AccountID      string `hcl:"management_account_id"`
 	AccountRole    string `hcl:"assume_org_role"`
@@ -36,11 +41,11 @@ type orgValidator struct {
 	orgListAccountMapCreationTime time.Time
 	orgConfig                     *orgValidationConfig
 	mutex                         sync.RWMutex
-        // orgAccountListCacheTTL holds the cache ttl from configuration; otherwise, it will be set to the default value.
-	orgAccountListCacheTTL        time.Duration 
-	log                           hclog.Logger
-        // retries fix number of retries before ttl is expired.
-	retries                       int
+	// orgAccountListCacheTTL holds the cache ttl from configuration; otherwise, it will be set to the default value.
+	orgAccountListCacheTTL time.Duration
+	log                    hclog.Logger
+	// retries fix number of retries before ttl is expired.
+	retries int
 }
 
 func newOrganizationValidationBase(config *orgValidationConfig) *orgValidator {

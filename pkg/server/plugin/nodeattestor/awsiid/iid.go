@@ -607,32 +607,19 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	}
 
 	// check TTL if specified
+	ttl := orgAccountDefaultListDuration
 	checkTTL := config.ValidateOrgAccountID.AccountListTTL
-	var ttl time.Duration
-
 	if len(checkTTL) > 0 {
 		t, err := time.ParseDuration(checkTTL)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "Please ensure that %q if configured, it should be in duration and is suffixed with required 'm' for time duration in minute ex. '5m'. Otherwise, remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 		}
 
-		minTTL, err := time.ParseDuration(orgAccountMinListTTL)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "issue parsing default minimum ttl: %q, err : %v", orgAccountMinListTTL, err)
-		}
-
-		if t.Minutes() < minTTL.Minutes() {
+		if t.Minutes() < orgAccountMinTTL.Minutes() {
 			return status.Errorf(codes.InvalidArgument, "Please ensure that %q if configured, it should be greater than or equal to %q. Otherwise remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 		}
 
 		ttl = t
-
-	} else {
-		defaultTTL, err := time.ParseDuration(orgAccountDefaultListTTL)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "issue parsing default ttl: %v, err : %v", orgAccountDefaultListTTL, err)
-		}
-		ttl = defaultTTL
 	}
 
 	// Assign default ttl if ttl doesnt exist.
