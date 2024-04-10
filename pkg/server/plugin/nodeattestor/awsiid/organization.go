@@ -203,7 +203,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	// Get the list of accounts
 	listAccountsOp, err := orgClient.ListAccounts(ctx, &organizations.ListAccountsInput{})
 	if err != nil {
-		return nil, fmt.Errorf("issue while getting list of accounts: %v", err)
+		return nil, fmt.Errorf("issue while getting list of accounts: %w", err)
 	}
 
 	//Build new org accounts list
