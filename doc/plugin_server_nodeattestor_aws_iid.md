@@ -21,9 +21,7 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `partition`                          | The AWS partition SPIRE server is running in &lt;aws&vert;aws-cn&vert;aws-us-gov&gt;                                                                          | aws                                                  |
 | `verify_organization`                | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation) |
 
-
-
-A sample configuration:
+Sample configuration:
 
 ```hcl
     NodeAttestor "aws_iid" {
