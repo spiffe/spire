@@ -94,7 +94,6 @@ Trust Relationship
     ]
 }
 
-
 ## Disabling Instance Profile Selectors
 
 In cases where spire-server is running in a location with no public internet access available, setting `disable_instance_profile_selectors = true` will prevent the server from making requests to `iam.amazonaws.com`. This is needed as spire-server will fail to attest nodes as it cannot retrieve the metadata information.
