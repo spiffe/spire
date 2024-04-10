@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.9.4] - 2023-04-05
+
+### Security
+
+- Updated to google.golang.org/grpc v1.62.2 and golang.org/x/net v0.24.0 to address CVE-2023-45288
+
 ## [1.9.3] - 2024-04-03
 
 ### Security
@@ -58,6 +64,12 @@
 ### Removed
 
 - X509-SVIDs issued by the server no longer have the x509UniqueIdentifier attribute as part of the subject (#4862)
+
+## [1.8.10] - 2023-04-05
+
+### Security
+
+- Updated to google.golang.org/grpc v1.62.2 and golang.org/x/net v0.24.0 to address CVE-2023-45288
 
 ## [1.8.9] - 2024-04-03
 
