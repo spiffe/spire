@@ -50,13 +50,11 @@ assuming AWS IID document sent from the spire agent contains `accountId : 123456
 
 For configuring AWS Node attestation method with organization validation following configuration can be used : 
 
-
 | Field Name             | Description                                                                                   | Constraints                                |
 |------------------------|-----------------------------------------------------------------------------------------------|--------------------------------------------|
 | management_account_id  | Account id of the organzation                                                                 | required                                   |
 | assume_org_role        | IAM Role name, with capablities to list accounts                                              | required                                   |
 | org_account_map_ttl    | Cache the list of accounts for particular time. Should be  >= 1 minute. Defaults to 3 minute. | optional                                   |
-
 
 Using the block `verify_organization` the org validation node attestation method will be enabled. With above configuration spire server will form and try to assume the role as: `arn:aws:iam::management_account_id:role/assume_org_role`. When not used, block ex. `verify_organization = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `management_account_id`, `assume_org_role`. 
 
