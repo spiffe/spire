@@ -227,7 +227,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 			NextToken: listAccountsOp.NextToken,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("issue while getting list of accounts in pagination: %v", err)
+			return nil, fmt.Errorf("issue while getting list of accounts in pagination: %w", err)
 		}
 	}
 
