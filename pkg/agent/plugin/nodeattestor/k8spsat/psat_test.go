@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	jose "github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -112,9 +112,9 @@ func (s *AttestorSuite) joinPath(path string) string {
 
 func (s *AttestorSuite) writeValue(path, data string) string {
 	valuePath := s.joinPath(path)
-	err := os.MkdirAll(filepath.Dir(valuePath), 0755)
+	err := os.MkdirAll(filepath.Dir(valuePath), 0o755)
 	s.Require().NoError(err)
-	err = os.WriteFile(valuePath, []byte(data), 0600)
+	err = os.WriteFile(valuePath, []byte(data), 0o600)
 	s.Require().NoError(err)
 	return valuePath
 }
@@ -136,7 +136,7 @@ func createPSAT(namespace, podName string) (string, error) {
 	builder = builder.Claims(claims)
 
 	// Serialize and return token
-	token, err := builder.CompactSerialize()
+	token, err := builder.Serialize()
 	if err != nil {
 		return "", err
 	}
@@ -154,7 +154,6 @@ func createSigner() (jose.Signer, error) {
 		Algorithm: jose.RS256,
 		Key:       sampleKey,
 	}, nil)
-
 	if err != nil {
 		return nil, err
 	}

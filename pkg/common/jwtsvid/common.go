@@ -4,12 +4,12 @@ import (
 	"errors"
 	"time"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/zeebo/errs"
 )
 
 func GetTokenExpiry(token string) (time.Time, time.Time, error) {
-	tok, err := jwt.ParseSigned(token)
+	tok, err := jwt.ParseSigned(token, AllowedSignatureAlgorithms)
 	if err != nil {
 		return time.Time{}, time.Time{}, errs.Wrap(err)
 	}

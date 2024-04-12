@@ -19,6 +19,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
@@ -34,7 +35,7 @@ import (
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -2140,18 +2141,18 @@ func createCSR(tb testing.TB, template *x509.CertificateRequest) []byte {
 	return csr
 }
 
-func verifyJWTSVIDResponse(t *testing.T, jwtsvid *types.JWTSVID, id spiffeid.ID, audience []string, issuedAt, expiresAt, defaultExpiresAt time.Time, ttl time.Duration) {
-	require.NotNil(t, jwtsvid)
-	require.NotEmpty(t, jwtsvid.Token)
+func verifyJWTSVIDResponse(t *testing.T, svid *types.JWTSVID, id spiffeid.ID, audience []string, issuedAt, expiresAt, defaultExpiresAt time.Time, ttl time.Duration) {
+	require.NotNil(t, svid)
+	require.NotEmpty(t, svid.Token)
 
-	token, err := jwt.ParseSigned(jwtsvid.Token)
+	token, err := jwt.ParseSigned(svid.Token, jwtsvid.AllowedSignatureAlgorithms)
 	require.NoError(t, err)
 
 	var claims jwt.Claims
 	err = token.UnsafeClaimsWithoutVerification(&claims)
 	require.NoError(t, err)
 
-	jwtsvidID, err := api.TrustDomainWorkloadIDFromProto(context.Background(), td, jwtsvid.Id)
+	jwtsvidID, err := api.TrustDomainWorkloadIDFromProto(context.Background(), td, svid.Id)
 	require.NoError(t, err)
 	require.Equal(t, id, jwtsvidID)
 	require.Equal(t, id.String(), claims.Subject)
@@ -2159,15 +2160,15 @@ func verifyJWTSVIDResponse(t *testing.T, jwtsvid *types.JWTSVID, id spiffeid.ID,
 	require.Equal(t, jwt.Audience(audience), claims.Audience)
 
 	require.NotNil(t, claims.IssuedAt)
-	require.Equal(t, issuedAt.Unix(), jwtsvid.IssuedAt)
+	require.Equal(t, issuedAt.Unix(), svid.IssuedAt)
 	require.Equal(t, issuedAt.Unix(), int64(*claims.IssuedAt))
 
 	require.NotNil(t, claims.Expiry)
 	if ttl == 0 {
-		require.Equal(t, defaultExpiresAt.Unix(), jwtsvid.ExpiresAt)
+		require.Equal(t, defaultExpiresAt.Unix(), svid.ExpiresAt)
 		require.Equal(t, defaultExpiresAt.Unix(), int64(*claims.Expiry))
 	} else {
-		require.Equal(t, expiresAt.Unix(), jwtsvid.ExpiresAt)
+		require.Equal(t, expiresAt.Unix(), svid.ExpiresAt)
 		require.Equal(t, expiresAt.Unix(), int64(*claims.Expiry))
 	}
 }
