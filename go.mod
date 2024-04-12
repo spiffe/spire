@@ -38,7 +38,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.0.1
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/godbus/dbus/v5 v5.1.0
-	github.com/gofrs/uuid/v5 v5.0.0
+	github.com/gofrs/uuid/v5 v5.1.0
 	github.com/google/btree v1.1.2
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-containerregistry v0.19.1
