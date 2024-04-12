@@ -24,7 +24,7 @@ validateX509SVID() {
 validateJWTSVID() {
    # Fetch JWT-SVID and extract token
   token=$(docker-compose exec -u 1001 -T $1 \
-      /opt/spire/bin/spire-agent api fetch jwt -audience testIt -socketPath /opt/spire/sockets/workload_api.sock | sed -n '2p') || fail-now "JWT-SVID check failed"
+      /opt/spire/bin/spire-agent api fetch jwt -audience testIt -socketPath /opt/spire/sockets/workload_api.sock -output json | jq -r '.[0].svids[0].svid') || fail-now "JWT-SVID check failed"
 
   # Validate token
   docker-compose exec -u 1001 -T $2 \
