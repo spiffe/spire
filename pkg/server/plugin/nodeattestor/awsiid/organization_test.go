@@ -20,7 +20,8 @@ func TestIsMemberAccount(t *testing.T) {
 		AccountListTTL: testAccountListTTL,
 	}
 	testOrgValidator := newOrganizationValidationBase(testOrgValidationConfig)
-	testOrgValidator.configure(testOrgValidationConfig)
+	err := testOrgValidator.configure(testOrgValidationConfig)
+	require.NoError(t, err)
 
 	testClient := newFakeClient()
 
@@ -43,7 +44,8 @@ func TestCheckIfOrgAccountListIsStale(t *testing.T) {
 		AccountListTTL: testAccountListTTL,
 	}
 	testOrgValidator := newOrganizationValidationBase(testOrgValidationConfig)
-	testOrgValidator.configure(testOrgValidationConfig)
+	err := testOrgValidator.configure(testOrgValidationConfig)
+	require.NoError(t, err)
 
 	testIsStale := testOrgValidator.checkIfOrgAccountListIsStale(context.Background())
 	require.Equal(t, testIsStale, true)
@@ -64,7 +66,8 @@ func TestReloadAccountList(t *testing.T) {
 		AccountListTTL: testAccountListTTL,
 	}
 	testOrgValidator := newOrganizationValidationBase(testOrgValidationConfig)
-	testOrgValidator.configure(testOrgValidationConfig)
+	err := testOrgValidator.configure(testOrgValidationConfig)
+	require.NoError(t, err)
 
 	testClient := newFakeClient()
 

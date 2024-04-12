@@ -725,7 +725,7 @@ func (c *fakeClient) GetInstanceProfile(_ context.Context, input *iam.GetInstanc
 	return c.GetInstanceProfileOutput, c.GetInstanceProfileError
 }
 
-func (c *fakeClient) ListAccounts(_ context.Context, input *organizations.ListAccountsInput, _ ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error) {
+func (c *fakeClient) ListAccounts(_ context.Context, _ *organizations.ListAccountsInput, _ ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error) {
 	// Only modify the output if its not being mutated in test for : mutateListAccountOutput.
 	if c.ListAccountOutput.Accounts == nil {
 		c.ListAccountOutput = &organizations.ListAccountsOutput{

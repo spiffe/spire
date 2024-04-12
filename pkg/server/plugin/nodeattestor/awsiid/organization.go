@@ -68,7 +68,7 @@ func (o *orgValidator) decrRetries() int {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 	if o.retries > 0 {
-		o.retries -= 1
+		o.retries--;
 	}
 
 	return o.retries
@@ -102,7 +102,7 @@ func (o *orgValidator) setLogger(log hclog.Logger) {
 
 // IsMemberAccount method checks if the Account ID attached on the node is part of the organisation.
 // If it part of the organisation then validation should be succesfull if not attestation should fail, on enabling this verification method.
-// This could be alternative for not explictly maintaing allowed list of account ids.
+// This could be alternative for not explicitly maintaing allowed list of account ids.
 // Method pulls the list of accounts from organization and caches it for certain time, cache time can be configured.
 func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDOfNode string) (bool, error) {
 	reValidatedcache, err := o.validateCache(ctx, orgClient)
@@ -206,7 +206,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 		return nil, fmt.Errorf("issue while getting list of accounts: %w", err)
 	}
 
-	//Build new org accounts list
+	// Build new org accounts list
 	orgAccountsMap := make(map[string]any)
 
 	// Update the org account list cache with ACTIVE accounts & handle pagination
@@ -214,8 +214,8 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 
 		for _, acc := range listAccountsOp.Accounts {
 			if acc.Status == types.AccountStatusActive {
-				accId := *acc.Id
-				orgAccountsMap[accId] = true
+				accID := *acc.Id
+				orgAccountsMap[accID] = true
 			}
 		}
 
