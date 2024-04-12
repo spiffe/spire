@@ -51,11 +51,10 @@ func TestCheckIfOrgAccountListIsStale(t *testing.T) {
 	require.Equal(t, testIsStale, true)
 
 	// seed account list and it should return false
-	_, err := testOrgValidator.reloadAccountList(context.Background(), newFakeClient(), false)
+	_, err = testOrgValidator.reloadAccountList(context.Background(), newFakeClient(), false)
 	require.NoError(t, err)
 	testIsStale = testOrgValidator.checkIfOrgAccountListIsStale(context.Background())
 	require.Equal(t, testIsStale, false)
-
 }
 
 func TestReloadAccountList(t *testing.T) {
@@ -72,10 +71,10 @@ func TestReloadAccountList(t *testing.T) {
 	testClient := newFakeClient()
 
 	// check once config is provided correctly and catchburst is false, account list popped up along with timestamp
-	_, err := testOrgValidator.reloadAccountList(context.Background(), testClient, false)
+	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, false)
 	require.NoError(t, err)
 	require.Equal(t, len(testOrgValidator.orgListAccountMap), 1)
-	require.Greater(t, testOrgValidator.orgListAccountMapCreationTime, time.Now().Add(time.Duration(-10*time.Second)))
+	require.Greater(t, testOrgValidator.orgListAccountMapCreationTime, time.Now().Add(-10*time.Second))
 	require.Equal(t, testOrgValidator.retries, orgAccountRetries)
 
 	// do catchburst and confirm timestamp is not updated, but account list is popped up correctly
@@ -92,7 +91,7 @@ func TestReloadAccountList(t *testing.T) {
 
 func TestCheckIfTTLIsExpired(t *testing.T) {
 	testCurrentTime := time.Now()
-	testCreationTime := testCurrentTime.Add(time.Duration(-2 * time.Minute))
+	testCreationTime := testCurrentTime.Add(-2 * time.Minute)
 	testTTL := time.Minute * 1
 
 	// expect expired, creation time of 2 minutes back and ttl as 1 minute should return expire

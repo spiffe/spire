@@ -211,7 +211,6 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 
 	// Update the org account list cache with ACTIVE accounts & handle pagination
 	for {
-
 		for _, acc := range listAccountsOp.Accounts {
 			if acc.Status == types.AccountStatusActive {
 				accID := *acc.Id
@@ -248,5 +247,5 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 // checkIFTTLIsExpire check if the creation time is pass defined ttl
 func checkIfTTLIsExpired(creationTime time.Time, ttl time.Duration) bool {
 	currTimeStamp := time.Now().UTC()
-	return currTimeStamp.Sub(creationTime) >= time.Duration(ttl)
+	return currTimeStamp.Sub(creationTime) >= ttl
 }
