@@ -19,7 +19,7 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false                                                 |
 | `assume_role`                        | The role to assume                                                                                                                                            | Empty string, Optional parameter.                     |
 | `partition`                          | The AWS partition SPIRE server is running in &lt;aws&vert;aws-cn&vert;aws-us-gov&gt;                                                                          | aws                                                  |
-| `verify_organization`                | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation) |
+| `verify_organization`                | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation) |                                |
 
 Sample configuration:
 
@@ -46,7 +46,7 @@ In the following configuration,
 
 assuming AWS IID document sent from the spire agent contains `accountId : 12345678`, the spire server will assume "arn:aws:iam::12345678:role/spire-server-delegate" role before making any AWS call for the node attestation. If `assume_role` is configured, the spire server will always assume the role even if the both the spire-server and the spire agent is deployed in the same account.
 
-##### Enabling AWS Node Attestation Organization Validation
+## Enabling AWS Node Attestation Organization Validation
 
 For configuring AWS Node attestation method with organization validation following configuration can be used:
 
@@ -76,7 +76,7 @@ Policy :
 }
 ```
 
-Trust Relationship 
+Trust Relationship
 
 ```json
 {
