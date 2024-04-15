@@ -24,8 +24,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.4.2
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.29.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.156.0
-	github.com/aws/aws-sdk-go-v2/service/iam v1.31.1
-	github.com/aws/aws-sdk-go-v2/service/kms v1.30.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.32.0
+	github.com/aws/aws-sdk-go-v2/service/kms v1.31.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.28.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.28.5
