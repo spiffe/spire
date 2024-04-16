@@ -605,7 +605,7 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	checkAccRole := config.ValidateOrgAccountID.AccountRole
 
 	if checkAccID == ""  || checkAccRole == "" {
-		return status.Errorf(codes.InvalidArgument, "Please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
+		return status.Errorf(codes.InvalidArgument, "please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
 	}
 
 	// check TTL if specified
@@ -614,11 +614,11 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	if checkTTL != "" {
 		t, err := time.ParseDuration(checkTTL)
 		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "Please ensure that %q if configured, it should be in duration and is suffixed with required 'm' for time duration in minute ex. '5m'. Otherwise, remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+			return status.Errorf(codes.InvalidArgument, "please ensure that %q if configured, it should be in duration and is suffixed with required 'm' for time duration in minute ex. '5m'. Otherwise, remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 		}
 
 		if t.Minutes() < orgAccountMinTTL.Minutes() {
-			return status.Errorf(codes.InvalidArgument, "Please ensure that %q if configured, it should be greater than or equal to %q. Otherwise remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+			return status.Errorf(codes.InvalidArgument, "please ensure that %q if configured, it should be greater than or equal to %q. Otherwise remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 		}
 
 		ttl = t

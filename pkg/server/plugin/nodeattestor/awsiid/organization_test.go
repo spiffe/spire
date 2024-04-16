@@ -81,7 +81,7 @@ func TestReloadAccountList(t *testing.T) {
 	existingTimeStamp := testOrgValidator.orgListAccountMapCreationTime
 	// empty the account list before making call again
 	testOrgValidator.orgListAccountMap = make(map[string]any)
-	require.Empty(t,  testOrgValidator.orgListAccountMap)
+	require.Empty(t, testOrgValidator.orgListAccountMap)
 
 	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, true)
 	require.NoError(t, err)
