@@ -22,7 +22,7 @@ func TestMarshal(t *testing.T) {
 		{
 			name:  "empty bundle",
 			empty: true,
-			out:   `{"keys":null, "spiffe_refresh_hint": 60, "spiffe_sequence": 42}`,
+			out:   `{"keys":[], "spiffe_refresh_hint": 60, "spiffe_sequence": 42}`,
 		},
 		{
 			name:  "with refresh hint override",
@@ -30,7 +30,7 @@ func TestMarshal(t *testing.T) {
 			opts: []MarshalOption{
 				OverrideRefreshHint(time.Second * 10),
 			},
-			out: `{"keys":null, "spiffe_refresh_hint": 10, "spiffe_sequence": 42}`,
+			out: `{"keys":[], "spiffe_refresh_hint": 10, "spiffe_sequence": 42}`,
 		},
 		{
 			name:  "with sequence number override",
@@ -38,7 +38,7 @@ func TestMarshal(t *testing.T) {
 			opts: []MarshalOption{
 				OverrideSequenceNumber(1),
 			},
-			out: `{"keys":null, "spiffe_refresh_hint": 60, "spiffe_sequence": 1}`,
+			out: `{"keys":[], "spiffe_refresh_hint": 60, "spiffe_sequence": 1}`,
 		},
 		{
 			name: "without X509 SVID keys",
