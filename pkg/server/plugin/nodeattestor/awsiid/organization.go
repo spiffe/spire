@@ -38,7 +38,7 @@ type orgValidationConfig struct {
 }
 
 type orgValidator struct {
-	orgListAccountMap           map[string]any
+	orgAccountList              map[string]any
 	orgAccountListValidDuration time.Time
 	orgConfig                   *orgValidationConfig
 	mutex                       sync.RWMutex
@@ -51,9 +51,9 @@ type orgValidator struct {
 
 func newOrganizationValidationBase(config *orgValidationConfig) *orgValidator {
 	client := &orgValidator{
-		orgListAccountMap: make(map[string]any),
-		orgConfig:         config,
-		retries:           orgAccountRetries,
+		orgAccountList: make(map[string]any),
+		orgConfig:      config,
+		retries:        orgAccountRetries,
 	}
 
 	return client
@@ -82,7 +82,7 @@ func (o *orgValidator) configure(config *orgValidationConfig) error {
 	o.orgConfig = config
 
 	// While doing configuration invalidate the map so we dont keep using old one.
-	o.orgListAccountMap = make(map[string]any)
+	o.orgAccountList = make(map[string]any)
 	o.retries = orgAccountRetries
 
 	t, err := time.ParseDuration(config.AccountListTTL)
@@ -135,7 +135,7 @@ func (o *orgValidator) validateCache(ctx context.Context, orgClient organization
 
 func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accountIDOfNode string, reValidatedCache bool) (bool, error) {
 	o.mutex.RLock()
-	orgAccountList := o.orgListAccountMap
+	orgAccountList := o.orgAccountList
 	o.mutex.RUnlock()
 
 	_, accoutIsmemberOfOrg := orgAccountList[accountIDOfNode]
@@ -178,7 +178,7 @@ func (o *orgValidator) checkIfOrgAccountListIsStale() bool {
 	defer o.mutex.RUnlock()
 
 	// Map is empty that means this is first time plugin is being initialised
-	if len(o.orgListAccountMap) == 0 {
+	if len(o.orgAccountList) == 0 {
 		return true
 	}
 
@@ -191,13 +191,13 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	defer o.mutex.Unlock()
 
 	// Make sure: we are not doing cache burst and account map is not updated recently from different go routine.
-	if !catchBurst && len(o.orgListAccountMap) != 0 && !checkIfTTLIsExpired(o.orgAccountListValidDuration) {
-		return o.orgListAccountMap, nil
+	if !catchBurst && len(o.orgAccountList) != 0 && !checkIfTTLIsExpired(o.orgAccountListValidDuration) {
+		return o.orgAccountList, nil
 	}
 
 	// Avoid if other thread has already updated the map
 	if catchBurst && o.retries == 0 {
-		return o.orgListAccountMap, nil
+		return o.orgAccountList, nil
 	}
 
 	// Get the list of accounts
@@ -238,9 +238,9 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	}
 
 	// Overwrite the cache/list
-	o.orgListAccountMap = orgAccountsMap
+	o.orgAccountList = orgAccountsMap
 
-	return o.orgListAccountMap, nil
+	return o.orgAccountList, nil
 }
 
 // checkIFTTLIsExpire check if the creation time is pass defined ttl
