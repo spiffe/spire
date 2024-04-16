@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/zeebo/errs"
 )
@@ -40,23 +39,13 @@ func (t *keyStore) FindPublicKey(_ context.Context, td spiffeid.TrustDomain, key
 }
 
 func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (spiffeid.ID, map[string]any, error) {
-	tok, err := jwt.ParseSigned(token)
+	tok, err := jwt.ParseSigned(token, AllowedSignatureAlgorithms)
 	if err != nil {
-		return spiffeid.ID{}, nil, errs.New("unable to parse JWT token")
+		return spiffeid.ID{}, nil, errs.New("unable to parse JWT token: %v", err)
 	}
 
 	if len(tok.Headers) != 1 {
 		return spiffeid.ID{}, nil, errs.New("expected a single token header; got %d", len(tok.Headers))
-	}
-
-	// Make sure it has an algorithm supported by JWT-SVID
-	alg := tok.Headers[0].Algorithm
-	switch jose.SignatureAlgorithm(alg) {
-	case jose.RS256, jose.RS384, jose.RS512,
-		jose.ES256, jose.ES384, jose.ES512,
-		jose.PS256, jose.PS384, jose.PS512:
-	default:
-		return spiffeid.ID{}, nil, errs.New("unsupported token signature algorithm %q", alg)
 	}
 
 	// Obtain the key ID from the header
@@ -95,8 +84,8 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 	// Now that the signature over the claims has been verified, validate the
 	// standard claims.
 	if err := claims.Validate(jwt.Expected{
-		Audience: audience,
-		Time:     time.Now(),
+		AnyAudience: audience,
+		Time:        time.Now(),
 	}); err != nil {
 		// Convert expected validation errors for pretty errors
 		switch {

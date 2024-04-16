@@ -6,7 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	authv1 "k8s.io/api/authentication/v1"
 
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,8 +16,12 @@ const (
 	rawPSAT = "eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJhdWQiOlsic3BpcmUtc2VydmVyIl0sImV4cCI6MTU1MTMwNzk0MCwiaWF0IjoxNTUxMzAwNzQwLCJpc3MiOiJhcGkiLCJrdWJlcm5ldGVzLmlvIjp7Im5hbWVzcGFjZSI6InNwaXJlIiwicG9kIjp7Im5hbWUiOiJzcGlyZS1hZ2VudC1qY2RncCIsInVpZCI6IjkzNDQwOWMyLTNhZDEtMTFlOS1hOTU2LTA4MDAyNzI1OTE3NSJ9LCJzZXJ2aWNlYWNjb3VudCI6eyJuYW1lIjoic3BpcmUtYWdlbnQiLCJ1aWQiOiI5MmYzOGU4My0zYWQxLTExZTktYTk1Ni0wODAwMjcyNTkxNzUifX0sIm5iZiI6MTU1MTMwMDc0MCwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50OnNwaXJlOnNwaXJlLWFnZW50In0.KSNfey5GKFJoI94KruLzfZKfRlSu66gWK-Ks9Wx_KIBA2cWG_hmSYvmx_19BPzFe_YFEpTkdfnAmRPzC7f14SKmFqaewfQyoI7oiuqstHkOk-Qhc3Er42XQdCTPNvQ--ZbKZE0zgjFyuAySiQe2yeHxBoXnf6Nd29PFrvI6qvoJVEvqdrhcd0sl0qptFOoXfxOOc6mEdFLRmUqh1t3BRVFiULDVaKl_15LELdSUonf38O88y5_7xl0sOtv_TF2fxFucGssUVww794djSy-u3DCfDx4m6GsDJFfdsMbpUGhlg0j9TpVkv7xmI-ZumE-CNll-LNxyn9vlEomnxUZRZzg"
 )
 
+var testAllowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
+	jose.RS256,
+}
+
 func TestSATClaims(t *testing.T) {
-	token, err := jwt.ParseSigned(rawSAT)
+	token, err := jwt.ParseSigned(rawSAT, testAllowedJWTSignatureAlgorithms)
 	require.NoError(t, err)
 
 	claims := new(SATClaims)
@@ -29,7 +34,7 @@ func TestSATClaims(t *testing.T) {
 }
 
 func TestPSATClaims(t *testing.T) {
-	token, err := jwt.ParseSigned(rawPSAT)
+	token, err := jwt.ParseSigned(rawPSAT, testAllowedJWTSignatureAlgorithms)
 	require.NoError(t, err)
 
 	claims := new(PSATClaims)
@@ -41,6 +46,7 @@ func TestPSATClaims(t *testing.T) {
 	require.Equal(t, "spire-agent", claims.K8s.ServiceAccount.Name)
 	require.Equal(t, "spire-agent-jcdgp", claims.K8s.Pod.Name)
 }
+
 func TestAgentID(t *testing.T) {
 	require.Equal(t, "spiffe://example.org/spire/agent/k8s_psat/production/1234", AgentID("k8s_psat", "example.org", "production", "1234"))
 }
@@ -58,6 +64,7 @@ func TestGetNamesFromTokenStatusFailIfUsernameIsEmpty(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "empty username")
 }
+
 func TestGetNamesFromTokenStatusFailIfUsernameHasWrongFormat(t *testing.T) {
 	status := createTokenStatusWithUsername("not expected username format")
 	namespace, serviceAccount, err := GetNamesFromTokenStatus(status)

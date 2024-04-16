@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/google/btree"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -33,7 +34,8 @@ func (s Selector) String() string {
 }
 
 type Cache struct {
-	mu sync.RWMutex
+	mu  sync.RWMutex
+	clk clock.Clock
 
 	agentsByID        *btree.BTreeG[agentRecord]
 	agentsByExpiresAt *btree.BTreeG[agentRecord]
@@ -45,8 +47,9 @@ type Cache struct {
 	entriesByParentID *btree.BTreeG[entryRecord]
 }
 
-func NewCache() *Cache {
+func NewCache(clk clock.Clock) *Cache {
 	return &Cache{
+		clk:               clk,
 		agentsByID:        btree.NewG(agentRecordDegree, agentRecordByID),
 		agentsByExpiresAt: btree.NewG(agentRecordDegree, agentRecordByExpiresAt),
 		aliasesByEntryID:  btree.NewG(aliasRecordDegree, aliasRecordByEntryID),
@@ -130,7 +133,7 @@ func (c *Cache) RemoveAgent(agentID string) {
 }
 
 func (c *Cache) PruneExpiredAgents() int {
-	now := time.Now().Unix()
+	now := c.clk.Now().Unix()
 	pruned := 0
 
 	c.mu.Lock()

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 )
 
@@ -89,6 +89,8 @@ func Marshal(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error)
 	}
 
 	var jwks jose.JSONWebKeySet
+	jwks.Keys = make([]jose.JSONWebKey, 0)
+
 	maybeUse := func(use string) string {
 		if !c.standardJWKS {
 			return use
