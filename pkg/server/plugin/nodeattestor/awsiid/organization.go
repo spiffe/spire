@@ -217,7 +217,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 		for _, acc := range listAccountsOp.Accounts {
 			if acc.Status == types.AccountStatusActive {
 				accID := *acc.Id
-				orgAccountsMap[accID] = true
+				orgAccountsMap[accID] = struct{}{}
 			}
 		}
 
