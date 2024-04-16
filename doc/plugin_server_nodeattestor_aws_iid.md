@@ -53,7 +53,7 @@ For configuring AWS Node attestation method with organization validation followi
 | Field Name                 | Description                                                                                   | Constraints                                |
 |----------------------------|-----------------------------------------------------------------------------------------------|--------------------------------------------|
 | management_account_id      | Account id of the organzation                                                                 | required                                   |
-| management_account_region  | Region of management account id required                                                      | optional                                   |
+| management_account_region  | Region of management account id                                                               | optional                                   |
 | assume_org_role            | IAM Role name, with capablities to list accounts                                              | required                                   |
 | org_account_map_ttl        | Cache the list of accounts for particular time. Should be  >= 1 minute. Defaults to 3 minute. | optional                                   |
 
