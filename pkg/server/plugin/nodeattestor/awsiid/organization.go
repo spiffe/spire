@@ -153,7 +153,7 @@ func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.
 	return accoutIsmemberOfOrg, nil
 }
 
-// If cache miss happens, refresh list with new cache and check if element exist
+// refreshCache refreshes list with new cache if cache miss happens and check if element exist
 func (o *orgValidator) refreshCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]any, error) {
 	remTries := o.getRetries()
 
