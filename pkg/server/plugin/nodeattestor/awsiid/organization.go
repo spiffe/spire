@@ -104,12 +104,12 @@ func (o *orgValidator) setLogger(log hclog.Logger) {
 // This could be alternative for not explicitly maintaining allowed list of account ids.
 // Method pulls the list of accounts from organization and caches it for certain time, cache time can be configured.
 func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accountIDOfNode string) (bool, error) {
-	reValidatedcache, err := o.validateCache(ctx, orgClient)
+	reValidatedCache, err := o.validateCache(ctx, orgClient)
 	if err != nil {
 		return false, err
 	}
 
-	accountIsmemberOfOrg, err := o.lookupCache(ctx, orgClient, accountIDOfNode, reValidatedcache)
+	accountIsmemberOfOrg, err := o.lookupCache(ctx, orgClient, accountIDOfNode, reValidatedCache)
 	if err != nil {
 		return false, err
 	}
@@ -130,7 +130,7 @@ func (o *orgValidator) validateCache(ctx context.Context, orgClient organization
 	return false, nil
 }
 
-func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accountIDOfNode string, reValidatedcache bool) (bool, error) {
+func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accountIDOfNode string, reValidatedCache bool) (bool, error) {
 	o.mutex.RLock()
 	orgAccountList := o.orgListAccountMap
 	o.mutex.RUnlock()
@@ -138,7 +138,7 @@ func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.
 	_, accoutIsmemberOfOrg := orgAccountList[accountIDOfNode]
 
 	// Retry if it doesn't exist in cache and cache was not revalidated
-	if !accoutIsmemberOfOrg && !reValidatedcache {
+	if !accoutIsmemberOfOrg && !reValidatedCache {
 		orgAccountList, err := o.refreshCache(ctx, orgClient)
 		if err != nil {
 			return false, err
