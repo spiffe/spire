@@ -103,13 +103,13 @@ func (o *orgValidator) setLogger(log hclog.Logger) {
 // If it part of the organisation then validation should be succesfull if not attestation should fail, on enabling this verification method.
 // This could be alternative for not explicitly maintaining allowed list of account ids.
 // Method pulls the list of accounts from organization and caches it for certain time, cache time can be configured.
-func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDOfNode string) (bool, error) {
+func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accountIDOfNode string) (bool, error) {
 	reValidatedcache, err := o.validateCache(ctx, orgClient)
 	if err != nil {
 		return false, err
 	}
 
-	accountIsmemberOfOrg, err := o.lookupCache(ctx, orgClient, accoundIDOfNode, reValidatedcache)
+	accountIsmemberOfOrg, err := o.lookupCache(ctx, orgClient, accountIDOfNode, reValidatedcache)
 	if err != nil {
 		return false, err
 	}
@@ -130,12 +130,12 @@ func (o *orgValidator) validateCache(ctx context.Context, orgClient organization
 	return false, nil
 }
 
-func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accoundIDOfNode string, reValidatedcache bool) (bool, error) {
+func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accountIDOfNode string, reValidatedcache bool) (bool, error) {
 	o.mutex.RLock()
 	orgAccountList := o.orgListAccountMap
 	o.mutex.RUnlock()
 
-	_, accoutIsmemberOfOrg := orgAccountList[accoundIDOfNode]
+	_, accoutIsmemberOfOrg := orgAccountList[accountIDOfNode]
 
 	// Retry if it doesn't exist in cache and cache was not revalidated
 	if !accoutIsmemberOfOrg && !reValidatedcache {
@@ -143,7 +143,7 @@ func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.
 		if err != nil {
 			return false, err
 		}
-		_, accoutIsmemberOfOrg = orgAccountList[accoundIDOfNode]
+		_, accoutIsmemberOfOrg = orgAccountList[accountIDOfNode]
 	}
 
 	return accoutIsmemberOfOrg, nil
