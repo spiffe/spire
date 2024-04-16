@@ -232,7 +232,7 @@ func (j *Journal) saveInDatastore(ctx context.Context, entriesBytes []byte) (caJ
 	// the datastore. If not, log that we are creating a new CA journal entry.
 	if j.caJournalID == 0 {
 		if j.activeX509AuthorityID == "" {
-			j.config.log.Debug("There is no active X509 authority yet. Can't save CA journal in the datastore")
+			j.config.log.Debug("There is no active X.509 authority yet. Can't save CA journal in the datastore")
 			return 0, nil
 		}
 		j.config.log.Info("Creating a new CA journal entry")
