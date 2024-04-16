@@ -158,18 +158,17 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
-	defer cancel()
-
 	// Feature account belongs to organization
 	// Get the account id of the node from attestation and then check if respective account belongs to organization
 	if c.ValidateOrgAccountID != nil {
-		orgClient, err := p.clients.getClient(ctx, c.ValidateOrgAccountID.AccountRegion, c.ValidateOrgAccountID.AccountID)
+		ctxValidateOrg, cancel := context.WithTimeout(stream.Context(), awsTimeout)
+		defer cancel()
+		orgClient, err := p.clients.getClient(ctxValidateOrg, c.ValidateOrgAccountID.AccountRegion, c.ValidateOrgAccountID.AccountID)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to get org client: %v", err)
 		}
 
-		valid, err := p.orgValidation.IsMemberAccount(ctx, orgClient, attestationData.AccountID)
+		valid, err := p.orgValidation.IsMemberAccount(ctxValidateOrg, orgClient, attestationData.AccountID)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed aws ec2 attestation, issue while verifying if nodes account id: %v belong to org: %v", attestationData.AccountID, err)
 		}
@@ -186,6 +185,9 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 			break
 		}
 	}
+
+	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
+	defer cancel()
 
 	awsClient, err := p.clients.getClient(ctx, attestationData.Region, attestationData.AccountID)
 	if err != nil {
