@@ -38,10 +38,10 @@ type orgValidationConfig struct {
 }
 
 type orgValidator struct {
-	orgListAccountMap             map[string]any
-	orgListAccountMapCreationTime time.Time
-	orgConfig                     *orgValidationConfig
-	mutex                         sync.RWMutex
+	orgListAccountMap           map[string]any
+	orgAccountListValidDuration time.Time
+	orgConfig                   *orgValidationConfig
+	mutex                       sync.RWMutex
 	// orgAccountListCacheTTL holds the cache ttl from configuration; otherwise, it will be set to the default value.
 	orgAccountListCacheTTL time.Duration
 	log                    hclog.Logger
@@ -182,10 +182,7 @@ func (o *orgValidator) checkIfOrgAccountListIsStale() bool {
 		return true
 	}
 
-	// Get the timestamp from config
-	existingTimestamp := o.orgListAccountMapCreationTime
-
-	return checkIfTTLIsExpired(existingTimestamp, o.orgAccountListCacheTTL)
+	return checkIfTTLIsExpired(o.orgAccountListValidDuration)
 }
 
 // reloadAccountList gets the list of accounts belonging to organization and catch them
@@ -194,7 +191,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	defer o.mutex.Unlock()
 
 	// Make sure: we are not doing cache burst and account map is not updated recently from different go routine.
-	if !catchBurst && len(o.orgListAccountMap) != 0 && !checkIfTTLIsExpired(o.orgListAccountMapCreationTime, o.orgAccountListCacheTTL) {
+	if !catchBurst && len(o.orgListAccountMap) != 0 && !checkIfTTLIsExpired(o.orgAccountListValidDuration) {
 		return o.orgListAccountMap, nil
 	}
 
@@ -235,8 +232,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 
 	// Update timestamp, if it was not invoked as part of cache miss.
 	if !catchBurst {
-		t := time.Now().UTC()
-		o.orgListAccountMapCreationTime = t
+		o.orgAccountListValidDuration = time.Now().UTC().Add(o.orgAccountListCacheTTL)
 		// Also reset the retries
 		o.retries = orgAccountRetries
 	}
@@ -248,7 +244,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 }
 
 // checkIFTTLIsExpire check if the creation time is pass defined ttl
-func checkIfTTLIsExpired(creationTime time.Time, ttl time.Duration) bool {
+func checkIfTTLIsExpired(ttl time.Time) bool {
 	currTimeStamp := time.Now().UTC()
-	return currTimeStamp.Sub(creationTime) >= ttl
+	return currTimeStamp.After(ttl)
 }
