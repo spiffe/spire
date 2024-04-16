@@ -144,6 +144,7 @@ func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.
 	if !accoutIsmemberOfOrg && !reValidatedCache {
 		orgAccountList, err := o.refreshCache(ctx, orgClient)
 		if err != nil {
+			o.log.Error("Failed to refesh cache, while validating account id: %v", accountIDOfNode, "error", err.Error())
 			return false, err
 		}
 		_, accoutIsmemberOfOrg = orgAccountList[accountIDOfNode]
