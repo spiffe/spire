@@ -22,6 +22,7 @@ const (
 	orgAccountDefaultListTTL = "3m"                        // pull account list after 3 minutes
 	orgAccountMinListTTL     = "1m"                        // Minimum TTL configuration to pull the org account list
 	orgAccountRetries        = 5
+	orgDefaultAccRegion      = "us-west-2"
 )
 
 var (
@@ -32,7 +33,7 @@ var (
 type orgValidationConfig struct {
 	AccountID      string `hcl:"management_account_id"`
 	AccountRole    string `hcl:"assume_org_role"`
-	AccountRegion  string
+	AccountRegion  string `hcl:"management_account_region"`
 	AccountListTTL string `hcl:"org_account_map_ttl"`
 }
 
@@ -79,8 +80,6 @@ func (o *orgValidator) configure(config *orgValidationConfig) error {
 	defer o.mutex.Unlock()
 
 	o.orgConfig = config
-	// required for the way existing getClient function is designed
-	o.orgConfig.AccountRegion = "us-west-2"
 
 	// While doing configuration invalidate the map so we dont keep using old one.
 	o.orgListAccountMap = make(map[string]any)

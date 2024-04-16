@@ -603,9 +603,14 @@ func isValidAWSPartition(partition string) bool {
 func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	checkAccID := config.ValidateOrgAccountID.AccountID
 	checkAccRole := config.ValidateOrgAccountID.AccountRole
+	checkAccRegion := config.ValidateOrgAccountID.AccountRegion
 
 	if checkAccID == "" || checkAccRole == "" {
 		return status.Errorf(codes.InvalidArgument, "please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
+	}
+
+	if checkAccRegion == "" {
+		config.ValidateOrgAccountID.AccountRegion = orgDefaultAccRegion
 	}
 
 	// check TTL if specified
