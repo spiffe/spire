@@ -120,7 +120,7 @@ type IIDAttestorConfig struct {
 	AgentPathTemplate               string               `hcl:"agent_path_template"`
 	AssumeRole                      string               `hcl:"assume_role"`
 	Partition                       string               `hcl:"partition"`
-	ValidateOrgAccountID            *orgValidationConfig `hcl:"verify_organization, block"`
+	ValidateOrgAccountID            *orgValidationConfig `hcl:"verify_organization"`
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
 	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
