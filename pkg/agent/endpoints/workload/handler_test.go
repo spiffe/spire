@@ -1289,7 +1289,7 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:       "BAD",
 			audience:   "AUDIENCE",
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "unable to parse JWT token",
+			expectMsg:  "unable to parse JWT token: go-jose/go-jose: compact JWS format must have three parts",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
@@ -1298,7 +1298,7 @@ func TestValidateJWTSVID(t *testing.T) {
 						"audience":      "AUDIENCE",
 						"service":       "WorkloadAPI",
 						"method":        "ValidateJWTSVID",
-						logrus.ErrorKey: "unable to parse JWT token",
+						logrus.ErrorKey: "unable to parse JWT token: go-jose/go-jose: compact JWS format must have three parts",
 					},
 				},
 			},

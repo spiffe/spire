@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -114,6 +115,7 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCacheErrorBuildingCache(t *test
 
 func TestBuildRegistrationEntriesCache(t *testing.T) {
 	ctx := context.Background()
+	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 
 	agentID, err := spiffeid.FromString("spiffe://example.org/myagent")
@@ -160,7 +162,7 @@ func TestBuildRegistrationEntriesCache(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			cache := authorizedentries.NewCache()
+			cache := authorizedentries.NewCache(clk)
 			lastRegistrationEntryEventID, err := buildRegistrationEntriesCache(ctx, ds, cache, tt.pageSize)
 			if tt.err != "" {
 				require.Equal(t, uint(0), lastRegistrationEntryEventID)
@@ -248,4 +250,71 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			assert.Equal(t, tt.expectedLastAttestedNodeEventID, ef.lastAttestedNodeEventID)
 		})
 	}
+}
+
+func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	log, hook := test.NewNullLogger()
+	log.SetLevel(logrus.DebugLevel)
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	agentID, err := spiffeid.FromString("spiffe://example.org/myagent")
+	require.NoError(t, err)
+
+	// Start Update Task
+	updateCacheTaskErr := make(chan error)
+	go func() {
+		updateCacheTaskErr <- ef.RunUpdateCacheTask(ctx)
+	}()
+	clk.WaitForAfter(time.Second, "waiting for initial task pause")
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
+	assert.NoError(t, err)
+	require.Zero(t, entries)
+
+	// Create Attested Node and Registration Entry
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agentID.String(),
+		CertNotAfter: clk.Now().Add(6 * time.Second).Unix(),
+	})
+	assert.NoError(t, err)
+
+	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "one",
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Bump clock and rerun UpdateCacheTask
+	clk.Add(defaultCacheReloadInterval)
+	clk.WaitForAfter(time.Second, "waiting for task to pause after creating entries")
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	assert.NoError(t, err)
+	require.Equal(t, 1, len(entries))
+
+	// Make sure nothing was pruned yet
+	for _, entry := range hook.AllEntries() {
+		require.NotEqual(t, "Pruned expired agents from entry cache", entry.Message)
+	}
+
+	// Bump clock so entry expires and is pruned
+	clk.Add(defaultCacheReloadInterval)
+	clk.WaitForAfter(time.Second, "waiting for task to pause after expiring agent")
+	assert.Equal(t, 1, hook.LastEntry().Data["count"])
+	assert.Equal(t, "Pruned expired agents from entry cache", hook.LastEntry().Message)
+
+	// Stop the task
+	cancel()
+	err = <-updateCacheTaskErr
+	require.ErrorIs(t, err, context.Canceled)
 }

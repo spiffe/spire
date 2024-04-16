@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +59,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		workload := makeWorkload(agent1)
 		cache := testCache().
 			withAgent(agent1, sel1).
-			withEntries(workload).hydrate()
+			withEntries(workload).hydrate(t)
 		cache.RemoveEntry(workload.Id)
 		assertAuthorizedEntries(t, cache, agent1)
 	})
@@ -116,7 +117,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		cache := testCache().
 			withEntries(workloadEntry, aliasEntry).
 			withAgent(agent1, sel1, sel2).
-			hydrate()
+			hydrate(t)
 
 		cache.RemoveEntry(aliasEntry.Id)
 		assertAuthorizedEntries(t, cache, agent1)
@@ -131,7 +132,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 		cache := testCache().
 			withEntries(workloadEntry, aliasEntry).
 			withAgent(agent1, sel1, sel2).
-			hydrate()
+			hydrate(t)
 
 		cache.RemoveAgent(agent1.String())
 		assertAuthorizedEntries(t, cache, agent1)
@@ -149,7 +150,7 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			withExpiredAgent(agent2, time.Hour, sel1, sel2).
 			withExpiredAgent(agent3, time.Hour*2, sel1, sel2).
 			withAgent(agent4, sel1, sel2).
-			hydrate()
+			hydrate(t)
 		assertAuthorizedEntries(t, cache, agent1, workloadEntry)
 		assertAuthorizedEntries(t, cache, agent2, workloadEntry)
 		assertAuthorizedEntries(t, cache, agent3, workloadEntry)
@@ -169,8 +170,9 @@ func TestCacheInternalStats(t *testing.T) {
 	// across various operations. The motivation is to ensure that as the cache
 	// is updated that we are appropriately inserting and removing records from
 	// the indexees.
+	clk := clock.NewMock(t)
 	t.Run("pristine", func(t *testing.T) {
-		cache := NewCache()
+		cache := NewCache(clk)
 		require.Zero(t, cache.stats())
 	})
 
@@ -182,7 +184,7 @@ func TestCacheInternalStats(t *testing.T) {
 		entry2b := makeAlias(alias1, sel1, sel2)
 		entry2b.Id = entry2a.Id
 
-		cache := NewCache()
+		cache := NewCache(clk)
 		cache.UpdateEntry(entry1)
 		require.Equal(t, cacheStats{
 			EntriesByEntryID:  1,
@@ -218,7 +220,7 @@ func TestCacheInternalStats(t *testing.T) {
 	})
 
 	t.Run("agents", func(t *testing.T) {
-		cache := NewCache()
+		cache := NewCache(clk)
 		cache.UpdateAgent(agent1.String(), now.Add(time.Hour), []*types.Selector{sel1})
 		require.Equal(t, cacheStats{
 			AgentsByID:        1,
@@ -297,8 +299,9 @@ func (a *cacheTest) withExpiredAgent(node spiffeid.ID, expiredBy time.Duration, 
 	return a
 }
 
-func (a *cacheTest) hydrate() *Cache {
-	cache := NewCache()
+func (a *cacheTest) hydrate(tb testing.TB) *Cache {
+	clk := clock.NewMock(tb)
+	cache := NewCache(clk)
 	for _, entry := range a.entries {
 		cache.UpdateEntry(entry)
 	}
@@ -310,7 +313,7 @@ func (a *cacheTest) hydrate() *Cache {
 
 func (a *cacheTest) assertAuthorizedEntries(t *testing.T, agent spiffeid.ID, expectEntries ...*types.Entry) {
 	t.Helper()
-	assertAuthorizedEntries(t, a.hydrate(), agent, expectEntries...)
+	assertAuthorizedEntries(t, a.hydrate(t), agent, expectEntries...)
 }
 
 func makeAlias(alias spiffeid.ID, selectors ...*types.Selector) *types.Entry {
@@ -407,7 +410,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 		})
 	}
 
-	cache := test.hydrate()
+	cache := test.hydrate(b)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		cache.GetAuthorizedEntries(test.pickAgent())
