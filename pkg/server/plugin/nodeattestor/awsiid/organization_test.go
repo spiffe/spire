@@ -47,13 +47,13 @@ func TestCheckIfOrgAccountListIsStale(t *testing.T) {
 	err := testOrgValidator.configure(testOrgValidationConfig)
 	require.NoError(t, err)
 
-	testIsStale := testOrgValidator.checkIfOrgAccountListIsStale(context.Background())
+	testIsStale := testOrgValidator.checkIfOrgAccountListIsStale()
 	require.True(t, testIsStale)
 
 	// seed account list and it should return false
 	_, err = testOrgValidator.reloadAccountList(context.Background(), newFakeClient(), false)
 	require.NoError(t, err)
-	testIsStale = testOrgValidator.checkIfOrgAccountListIsStale(context.Background())
+	testIsStale = testOrgValidator.checkIfOrgAccountListIsStale()
 	require.False(t, testIsStale)
 }
 
