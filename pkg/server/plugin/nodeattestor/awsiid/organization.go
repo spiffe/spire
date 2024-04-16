@@ -120,14 +120,17 @@ func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizati
 // validateCache validates cache and refresh if its stale
 func (o *orgValidator) validateCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (bool, error) {
 	isStale := o.checkIfOrgAccountListIsStale()
-	// refresh the account map
-	if isStale {
-		_, err := o.reloadAccountList(ctx, orgClient, false)
-		if err != nil {
-			return true, err
-		}
+	if !isStale {
+		return false, nil
 	}
-	return false, nil
+
+	// cache is stale, reload the account map
+	_, err := o.reloadAccountList(ctx, orgClient, false)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accountIDOfNode string, reValidatedCache bool) (bool, error) {
