@@ -170,7 +170,7 @@ func (o *orgValidator) refreshCache(ctx context.Context, orgClient organizations
 }
 
 // checkIfOrgAccountListIsStale checks if the cached org account list is stale.
-func (o *orgValidator) checkIfOrgAccountListIsStale(_ context.Context) bool {
+func (o *orgValidator) checkIfOrgAccountListIsStale() bool {
 	o.mutex.RLock()
 	defer o.mutex.RUnlock()
 

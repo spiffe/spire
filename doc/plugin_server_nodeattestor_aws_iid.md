@@ -58,7 +58,7 @@ For configuring AWS Node attestation method with organization validation followi
 
 Using the block `verify_organization` the org validation node attestation method will be enabled. With above configuration spire server will form and try to assume the role as: `arn:aws:iam::management_account_id:role/assume_org_role`. When not used, block ex. `verify_organization = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `management_account_id`, `assume_org_role`.
 
-The role under: `assume_role`  must be created in the management account: `management_account_id`, and it should have a trust relationship with the role assumed by spire server. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created in management account.
+The role under: `assume_role` must be created in the management account: `management_account_id`, and it should have a trust relationship with the role assumed by spire server. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created in management account.
 
 Policy :
 

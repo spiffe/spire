@@ -162,7 +162,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	defer cancel()
 
 	// Feature account belongs to organization
-	// Get the account id of the node from attestation and then check if respective account belongs to organisation
+	// Get the account id of the node from attestation and then check if respective account belongs to organization
 	if c.ValidateOrgAccountID != nil {
 		orgClient, err := p.clients.getClient(ctx, c.ValidateOrgAccountID.AccountRegion, c.ValidateOrgAccountID.AccountID)
 		if err != nil {
@@ -602,14 +602,14 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	checkAccID := config.ValidateOrgAccountID.AccountID
 	checkAccRole := config.ValidateOrgAccountID.AccountRole
 
-	if len(checkAccID) == 0 || len(checkAccRole) == 0 {
+	if checkAccID == ""  || checkAccRole == "" {
 		return status.Errorf(codes.InvalidArgument, "Please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
 	}
 
 	// check TTL if specified
 	ttl := orgAccountDefaultListDuration
 	checkTTL := config.ValidateOrgAccountID.AccountListTTL
-	if len(checkTTL) > 0 {
+	if checkTTL != "" {
 		t, err := time.ParseDuration(checkTTL)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "Please ensure that %q if configured, it should be in duration and is suffixed with required 'm' for time duration in minute ex. '5m'. Otherwise, remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)

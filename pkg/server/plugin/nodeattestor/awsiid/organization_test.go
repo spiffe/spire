@@ -48,13 +48,13 @@ func TestCheckIfOrgAccountListIsStale(t *testing.T) {
 	require.NoError(t, err)
 
 	testIsStale := testOrgValidator.checkIfOrgAccountListIsStale(context.Background())
-	require.Equal(t, testIsStale, true)
+	require.True(t, testIsStale)
 
 	// seed account list and it should return false
 	_, err = testOrgValidator.reloadAccountList(context.Background(), newFakeClient(), false)
 	require.NoError(t, err)
 	testIsStale = testOrgValidator.checkIfOrgAccountListIsStale(context.Background())
-	require.Equal(t, testIsStale, false)
+	require.False(t, testIsStale)
 }
 
 func TestReloadAccountList(t *testing.T) {
@@ -81,7 +81,7 @@ func TestReloadAccountList(t *testing.T) {
 	existingTimeStamp := testOrgValidator.orgListAccountMapCreationTime
 	// empty the account list before making call again
 	testOrgValidator.orgListAccountMap = make(map[string]any)
-	require.Equal(t, len(testOrgValidator.orgListAccountMap), 0)
+	require.Empty(t,  testOrgValidator.orgListAccountMap)
 
 	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, true)
 	require.NoError(t, err)
@@ -96,9 +96,9 @@ func TestCheckIfTTLIsExpired(t *testing.T) {
 
 	// expect expired, creation time of 2 minutes back and ttl as 1 minute should return expire
 	expired := checkIfTTLIsExpired(testCreationTime, testTTL)
-	require.Equal(t, expired, true)
+	require.True(t, expired)
 
 	// expect not expired, current time and ttl as 1 minute should return not expire
 	expired = checkIfTTLIsExpired(testCurrentTime, testTTL)
-	require.Equal(t, expired, false)
+	require.False(t, expired)
 }
