@@ -604,7 +604,7 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	checkAccID := config.ValidateOrgAccountID.AccountID
 	checkAccRole := config.ValidateOrgAccountID.AccountRole
 
-	if checkAccID == ""  || checkAccRole == "" {
+	if checkAccID == "" || checkAccRole == "" {
 		return status.Errorf(codes.InvalidArgument, "please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
 	}
 
