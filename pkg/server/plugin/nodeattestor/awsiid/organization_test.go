@@ -5,24 +5,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/stretchr/testify/require"
 )
 
 const (
 	testAccountListTTL = "1m"
+	testClockMutAfter  = "after"
+	testClockMutBefore = "before"
 )
 
 func TestIsMemberAccount(t *testing.T) {
-	testOrgValidationConfig := &orgValidationConfig{
-		AccountID:      testAccountID,
-		AccountRole:    testProfile,
-		AccountRegion:  testRegion,
-		AccountListTTL: testAccountListTTL,
-	}
-	testOrgValidator := newOrganizationValidationBase(testOrgValidationConfig)
-	err := testOrgValidator.configure(testOrgValidationConfig)
-	require.NoError(t, err)
-
+	testOrgValidator := buildOrgValidationClient()
 	testClient := newFakeClient()
 
 	// pass valid account
@@ -37,41 +31,24 @@ func TestIsMemberAccount(t *testing.T) {
 }
 
 func TestCheckIfOrgAccountListIsStale(t *testing.T) {
-	testOrgValidationConfig := &orgValidationConfig{
-		AccountID:      testAccountID,
-		AccountRole:    testProfile,
-		AccountRegion:  testRegion,
-		AccountListTTL: testAccountListTTL,
-	}
-	testOrgValidator := newOrganizationValidationBase(testOrgValidationConfig)
-	err := testOrgValidator.configure(testOrgValidationConfig)
-	require.NoError(t, err)
+	testOrgValidator := buildOrgValidationClient()
 
 	testIsStale := testOrgValidator.checkIfOrgAccountListIsStale()
 	require.True(t, testIsStale)
 
 	// seed account list and it should return false
-	_, err = testOrgValidator.reloadAccountList(context.Background(), newFakeClient(), false)
+	_, err := testOrgValidator.reloadAccountList(context.Background(), newFakeClient(), false)
 	require.NoError(t, err)
 	testIsStale = testOrgValidator.checkIfOrgAccountListIsStale()
 	require.False(t, testIsStale)
 }
 
 func TestReloadAccountList(t *testing.T) {
-	testOrgValidationConfig := &orgValidationConfig{
-		AccountID:      testAccountID,
-		AccountRole:    testProfile,
-		AccountRegion:  testRegion,
-		AccountListTTL: testAccountListTTL,
-	}
-	testOrgValidator := newOrganizationValidationBase(testOrgValidationConfig)
-	err := testOrgValidator.configure(testOrgValidationConfig)
-	require.NoError(t, err)
-
+	testOrgValidator := buildOrgValidationClient()
 	testClient := newFakeClient()
 
 	// check once config is provided correctly and catchburst is false, account list popped up along with timestamp
-	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, false)
+	_, err := testOrgValidator.reloadAccountList(context.Background(), testClient, false)
 	require.NoError(t, err)
 	require.Equal(t, len(testOrgValidator.orgAccountList), 1)
 	require.Greater(t, testOrgValidator.orgAccountListValidDuration, time.Now().Add(-10*time.Second))
@@ -90,14 +67,39 @@ func TestReloadAccountList(t *testing.T) {
 }
 
 func TestCheckIfTTLIsExpired(t *testing.T) {
-	testCurrentTime := time.Now()
-	testCreationTime := testCurrentTime.Add(-2 * time.Minute)
+	testOrgValidator := buildOrgValidationClient()
 
-	// expect expired, creation time of 2 minutes back and if ttl is 1 minute should return expire
-	expired := checkIfTTLIsExpired(testCreationTime)
-	require.True(t, expired)
-
-	// expect not expired, current time and ttl as 1 minute should return not expire
-	expired = checkIfTTLIsExpired(testCurrentTime.Add(2 * time.Second))
+	// expect not expired, move clock back by 10 minutes
+	testOrgValidator.clk = buildNewMockClock(10*time.Minute, testClockMutBefore)
+	expired := testOrgValidator.checkIfTTLIsExpired(time.Now())
 	require.False(t, expired)
+
+	// expect expired, move clock forward by 10 minute
+	testOrgValidator.clk = buildNewMockClock(10*time.Minute, testClockMutAfter)
+	expired = testOrgValidator.checkIfTTLIsExpired(time.Now())
+	require.True(t, expired)
+}
+
+func buildOrgValidationClient() *orgValidator {
+	testOrgValidationConfig := &orgValidationConfig{
+		AccountID:      testAccountID,
+		AccountRole:    testProfile,
+		AccountRegion:  testRegion,
+		AccountListTTL: testAccountListTTL,
+	}
+	testOrgValidator := newOrganizationValidationBase(testOrgValidationConfig)
+	_ = testOrgValidator.configure(testOrgValidationConfig)
+	return testOrgValidator
+}
+
+func buildNewMockClock(t time.Duration, mut string) *clock.Mock {
+	testClock := clock.NewMock()
+	switch mut := mut; mut {
+	case testClockMutAfter:
+		testClock.Set(time.Now().UTC())
+		testClock.Add(t)
+	case testClockMutBefore:
+		testClock.Set(time.Now().UTC().Add(-t))
+	}
+	return testClock
 }
