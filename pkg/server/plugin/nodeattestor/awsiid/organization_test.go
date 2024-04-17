@@ -86,7 +86,8 @@ func TestReloadAccountList(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testOrgValidator.retries, orgAccountRetries)
 
-	// pass the next token
+	// make sure errors is handled when list accounts call fails
+	// while making subsequent calls
 	testOrgValidator = buildOrgValidationClient()
 	testToken := "uncooolrandomtoken"
 	testClient.ListAccountOutput = &organizations.ListAccountsOutput{
