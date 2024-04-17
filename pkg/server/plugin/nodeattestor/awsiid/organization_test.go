@@ -50,20 +50,19 @@ func TestReloadAccountList(t *testing.T) {
 	// check once config is provided correctly and catchburst is false, account list popped up along with timestamp
 	_, err := testOrgValidator.reloadAccountList(context.Background(), testClient, false)
 	require.NoError(t, err)
-	require.Equal(t, len(testOrgValidator.orgAccountList), 1)
-	require.Greater(t, testOrgValidator.orgAccountListValidDuration, time.Now().Add(-10*time.Second))
+	require.Len(t, testOrgValidator.orgAccountList, 1)
+	require.Greater(t, testOrgValidator.orgAccountListValidDuration, time.Now())
 	require.Equal(t, testOrgValidator.retries, orgAccountRetries)
 
-	// do catchburst and confirm timestamp is not updated, but account list is popped up correctly
-	existingTimeStamp := testOrgValidator.orgAccountListValidDuration
-	// empty the account list before making call again
+	// check if the list of accounts is updated when catchburst is true
+	// but the timestamp is not updated
+	existingValidDuration := testOrgValidator.orgAccountListValidDuration
 	testOrgValidator.orgAccountList = make(map[string]any)
-	require.Empty(t, testOrgValidator.orgAccountList)
 
 	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, true)
 	require.NoError(t, err)
-	require.Equal(t, existingTimeStamp, testOrgValidator.orgAccountListValidDuration)
-	require.Equal(t, len(testOrgValidator.orgAccountList), 1)
+	require.Equal(t, existingValidDuration, testOrgValidator.orgAccountListValidDuration)
+	require.Len(t, testOrgValidator.orgAccountList, 1)
 }
 
 func TestCheckIfTTLIsExpired(t *testing.T) {
