@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
+	"github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -83,6 +85,19 @@ func TestReloadAccountList(t *testing.T) {
 	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, false)
 	require.NoError(t, err)
 	require.Equal(t, testOrgValidator.retries, orgAccountRetries)
+
+	// pass the next token
+	testOrgValidator = buildOrgValidationClient()
+	testToken := "uncooolrandomtoken"
+	testClient.ListAccountOutput = &organizations.ListAccountsOutput{
+		Accounts: []types.Account{{
+			Id:     &testAccountID,
+			Status: types.AccountStatusActive,
+		}},
+		NextToken: &testToken,
+	}
+	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, false)
+	require.ErrorContains(t, err, "issue while getting list of accounts")
 }
 
 func TestCheckIfTTLIsExpired(t *testing.T) {
