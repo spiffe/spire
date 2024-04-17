@@ -58,11 +58,31 @@ func TestReloadAccountList(t *testing.T) {
 	// but the timestamp is not updated
 	existingValidDuration := testOrgValidator.orgAccountListValidDuration
 	testOrgValidator.orgAccountList = make(map[string]any)
-
 	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, true)
 	require.NoError(t, err)
 	require.Equal(t, existingValidDuration, testOrgValidator.orgAccountListValidDuration)
 	require.Len(t, testOrgValidator.orgAccountList, 1)
+
+	// set retry to 0 and make sure the list is not updated
+	testOrgValidator.retries = 0
+	testOrgValidator.orgAccountList = make(map[string]any)
+	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, true)
+	require.NoError(t, err)
+	require.Empty(t, testOrgValidator.orgAccountList)
+
+	// make sure retry is reset, once we are over TTL
+	// move clock ahead by 10 minutes. And as our TTL is 1 minute, it should refresh
+	// the list
+	testOrgValidator = buildOrgValidationClient()
+	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, false)
+	require.NoError(t, err)
+	require.Len(t, testOrgValidator.orgAccountList, 1)
+	testOrgValidator.clk = buildNewMockClock(10*time.Minute, testClockMutAfter)
+	testOrgValidator.retries = 0 // trigger refresh to reset retries
+	require.Equal(t, testOrgValidator.retries, 0)
+	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, false)
+	require.NoError(t, err)
+	require.Equal(t, testOrgValidator.retries, orgAccountRetries)
 }
 
 func TestCheckIfTTLIsExpired(t *testing.T) {
