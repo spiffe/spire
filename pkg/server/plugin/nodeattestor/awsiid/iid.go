@@ -100,6 +100,8 @@ type IIDAttestorPlugin struct {
 	mtx     sync.RWMutex
 	clients *clientsCache
 
+	orgValidation *orgValidator
+
 	// test hooks
 	hooks struct {
 		getAWSCACertificate func(string, PublicKeyType) (*x509.Certificate, error)
@@ -112,12 +114,13 @@ type IIDAttestorPlugin struct {
 // IIDAttestorConfig holds hcl configuration for IID attestor plugin
 type IIDAttestorConfig struct {
 	SessionConfig                   `hcl:",squash"`
-	SkipBlockDevice                 bool     `hcl:"skip_block_device"`
-	DisableInstanceProfileSelectors bool     `hcl:"disable_instance_profile_selectors"`
-	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation"`
-	AgentPathTemplate               string   `hcl:"agent_path_template"`
-	AssumeRole                      string   `hcl:"assume_role"`
-	Partition                       string   `hcl:"partition"`
+	SkipBlockDevice                 bool                 `hcl:"skip_block_device"`
+	DisableInstanceProfileSelectors bool                 `hcl:"disable_instance_profile_selectors"`
+	LocalValidAcctIDs               []string             `hcl:"account_ids_for_local_validation"`
+	AgentPathTemplate               string               `hcl:"agent_path_template"`
+	AssumeRole                      string               `hcl:"assume_role"`
+	Partition                       string               `hcl:"partition"`
+	ValidateOrgAccountID            *orgValidationConfig `hcl:"verify_organization"`
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
 	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
@@ -126,6 +129,7 @@ type IIDAttestorConfig struct {
 // New creates a new IIDAttestorPlugin.
 func New() *IIDAttestorPlugin {
 	p := &IIDAttestorPlugin{}
+	p.orgValidation = newOrganizationValidationBase(&orgValidationConfig{})
 	p.clients = newClientsCache(defaultNewClientCallback)
 	p.hooks.getAWSCACertificate = getAWSCACertificate
 	p.hooks.getenv = os.Getenv
@@ -152,6 +156,26 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	attestationData, err := unmarshalAndValidateIdentityDocument(payload, c.getAWSCACertificate)
 	if err != nil {
 		return err
+	}
+
+	// Feature account belongs to organization
+	// Get the account id of the node from attestation and then check if respective account belongs to organization
+	if c.ValidateOrgAccountID != nil {
+		ctxValidateOrg, cancel := context.WithTimeout(stream.Context(), awsTimeout)
+		defer cancel()
+		orgClient, err := p.clients.getClient(ctxValidateOrg, c.ValidateOrgAccountID.AccountRegion, c.ValidateOrgAccountID.AccountID)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to get org client: %v", err)
+		}
+
+		valid, err := p.orgValidation.IsMemberAccount(ctxValidateOrg, orgClient, attestationData.AccountID)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed aws ec2 attestation, issue while verifying if nodes account id: %v belong to org: %v", attestationData.AccountID, err)
+		}
+
+		if !valid {
+			return status.Errorf(codes.Internal, "failed aws ec2 attestation, nodes account id: %v is not part of configured organization or doesn't have ACTIVE status", attestationData.AccountID)
+		}
 	}
 
 	inTrustAcctList := false
@@ -272,11 +296,27 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 		return nil, status.Errorf(codes.InvalidArgument, "invalid partition %q, must be one of: %v", config.Partition, partitions)
 	}
 
+	// Check if Feature flag for account belongs to organization is enabled.
+	orgConfig := &orgValidationConfig{}
+	if config.ValidateOrgAccountID != nil {
+		err = validateOrganizationConfig(config)
+		if err != nil {
+			return nil, err
+		}
+		orgConfig = config.ValidateOrgAccountID
+	}
+
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
 	p.config = config
-	p.clients.configure(config.SessionConfig)
+	p.clients.configure(config.SessionConfig, *orgConfig)
+	if config.ValidateOrgAccountID != nil {
+		// Setup required config, for validation and for bootstrapping org client
+		if err := p.orgValidation.configure(orgConfig); err != nil {
+			return nil, err
+		}
+	}
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -284,6 +324,7 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 // SetLogger sets this plugin's logger
 func (p *IIDAttestorPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
+	p.orgValidation.setLogger(log)
 }
 
 func (p *IIDAttestorPlugin) checkBlockDevice(instance ec2types.Instance) error {
@@ -557,4 +598,39 @@ func isValidAWSPartition(partition string) bool {
 		}
 	}
 	return false
+}
+
+func validateOrganizationConfig(config *IIDAttestorConfig) error {
+	checkAccID := config.ValidateOrgAccountID.AccountID
+	checkAccRole := config.ValidateOrgAccountID.AccountRole
+	checkAccRegion := config.ValidateOrgAccountID.AccountRegion
+
+	if checkAccID == "" || checkAccRole == "" {
+		return status.Errorf(codes.InvalidArgument, "please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
+	}
+
+	if checkAccRegion == "" {
+		config.ValidateOrgAccountID.AccountRegion = orgDefaultAccRegion
+	}
+
+	// check TTL if specified
+	ttl := orgAccountDefaultListDuration
+	checkTTL := config.ValidateOrgAccountID.AccountListTTL
+	if checkTTL != "" {
+		t, err := time.ParseDuration(checkTTL)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "please ensure that %q if configured, it should be in duration and is suffixed with required 'm' for time duration in minute ex. '5m'. Otherwise, remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+		}
+
+		if t.Minutes() < orgAccountMinTTL.Minutes() {
+			return status.Errorf(codes.InvalidArgument, "please ensure that %q if configured, it should be greater than or equal to %q. Otherwise remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+		}
+
+		ttl = t
+	}
+
+	// Assign default ttl if ttl doesnt exist.
+	config.ValidateOrgAccountID.AccountListTTL = ttl.String()
+
+	return nil
 }
