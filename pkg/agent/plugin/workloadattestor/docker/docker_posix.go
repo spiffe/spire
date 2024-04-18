@@ -46,7 +46,6 @@ func createHelper(c *dockerPluginConfig, log hclog.Logger) (*containerHelper, er
 		if err != nil {
 			return nil, err
 		}
-		// Custom matchers implies the use of the deprecated cgroup matcher.
 	default:
 		log.Info("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
 		containerIDFinder = &defaultContainerIDFinder{}
