@@ -248,9 +248,7 @@ func withDisabledRetryer() testPluginOpt {
 
 func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 	p := New()
-	err := doConfigure(t, p, `
-		use_new_container_locator = true
-	`)
+	err := doConfigure(t, p, defaultPluginConfig)
 	require.NoError(t, err)
 
 	for _, o := range opts {

@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	testCgroupEntries = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	testCgroupEntries   = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	defaultPluginConfig = "use_new_container_locator = true"
 )
 
 func TestContainerExtraction(t *testing.T) {
