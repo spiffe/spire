@@ -114,7 +114,7 @@ func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int, log hclog.
 			continue
 		}
 
-		log := log.With("mount-info-root", mountInfo.Root)
+		log := log.With("mount_info_root", mountInfo.Root)
 		if err := ex.Extract(mountInfo.Root, log); err != nil {
 			return "", "", err
 		}
@@ -143,7 +143,7 @@ func (e *Extractor) extractPodUIDAndContainerIDFromCGroups(pid int, log hclog.Lo
 
 	ex := &extractor{extractPodUID: extractPodUID}
 	for _, cgroup := range cgroups {
-		log := log.With("cgroup-path", cgroup.GroupPath)
+		log := log.With("cgroup_path", cgroup.GroupPath)
 		if err := ex.Extract(cgroup.GroupPath, log); err != nil {
 			return "", "", err
 		}
