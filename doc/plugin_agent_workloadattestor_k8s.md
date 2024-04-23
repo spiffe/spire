@@ -63,7 +63,6 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `use_new_container_locator`      | If true, enables the new container locator algorithm that has support for cgroups v2. Defaults to false.                                                                                                                                |
 | `verbose_container_locator_logs` | If true, enables verbose logging of mountinfo and cgroup information used to locate containers. Defaults to false.                                                                                                                                          |
 
-
 | Experimental options | Description                                                                                                                  |
 |----------------------|----------------------------------------------------------------------------------------------------------------------------- |
 | `sigstore`           | Sigstore options. Options described below. See [Sigstore workload attestor for SPIRE](#sigstore-workload-attestor-for-spire) |
