@@ -73,6 +73,10 @@ data:
           # Minikube does not have a cert in the cluster CA bundle that
           # can authenticate the kubelet cert, so skip validation.
           skip_kubelet_verification = true
+
+          # Use the new container locator method. This can be removed
+          # once it is on by default.
+          use_new_container_locator = true
         }
       }
     }
