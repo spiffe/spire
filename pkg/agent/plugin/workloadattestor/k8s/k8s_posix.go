@@ -66,7 +66,7 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 	if h.useNewContainerLocator {
 		log.Info("Using the new container locator")
 	} else {
-		log.Info("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
+		log.Warn("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
 	}
 
 	return nil

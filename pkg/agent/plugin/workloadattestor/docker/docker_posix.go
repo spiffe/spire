@@ -49,14 +49,14 @@ func createHelper(c *dockerPluginConfig, log hclog.Logger) (*containerHelper, er
 		}
 		log.Info("Using the new container locator")
 	case len(c.ContainerIDCGroupMatchers) > 0:
-		log.Info("Using the legacy container locator with custom cgroup matchers. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
+		log.Warn("Using the legacy container locator with custom cgroup matchers. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
 		var err error
 		containerIDFinder, err = cgroup.NewContainerIDFinder(c.ContainerIDCGroupMatchers)
 		if err != nil {
 			return nil, err
 		}
 	default:
-		log.Info("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
+		log.Warn("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
 		containerIDFinder = &defaultContainerIDFinder{}
 	}
 
