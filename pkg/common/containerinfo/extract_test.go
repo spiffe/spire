@@ -63,6 +63,10 @@ func TestExtractPodUIDAndContainerID(t *testing.T) {
 		assertErrorContains(t, "testdata/k8s/pod-uid-conflict", "multiple pod UIDs found")
 	})
 
+	t.Run("ignore non-pod UID entry after pod UID found", func(t *testing.T) {
+		assertFound(t, "testdata/k8s/pod-uid-override", testPodUID, testContainerID)
+	})
+
 	t.Run("container ID conflict", func(t *testing.T) {
 		assertErrorContains(t, "testdata/k8s/container-id-conflict", "multiple container IDs found")
 	})

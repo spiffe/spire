@@ -36,7 +36,8 @@ var (
 )
 
 type Extractor struct {
-	RootDir string
+	RootDir        string
+	VerboseLogging bool
 }
 
 func (e *Extractor) GetContainerID(pid int, log hclog.Logger) (string, error) {
@@ -84,13 +85,15 @@ func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int, log hclog.
 		return "", "", status.Errorf(codes.Internal, "failed to parse mount info at %q: %v", mountInfoPath, err)
 	}
 
-	for i, mountInfo := range mountInfos {
-		log.Debug("PID mount enumerated",
-			"index", i+1,
-			"total", len(mountInfos),
-			"type", mountInfo.FsType,
-			"root", mountInfo.Root,
-		)
+	if e.VerboseLogging {
+		for i, mountInfo := range mountInfos {
+			log.Debug("PID mount enumerated",
+				"index", i+1,
+				"total", len(mountInfos),
+				"type", mountInfo.FsType,
+				"root", mountInfo.Root,
+			)
+		}
 	}
 
 	// Scan the cgroup mounts for the pod UID and container ID. The container
@@ -111,7 +114,7 @@ func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int, log hclog.
 			continue
 		}
 
-		log := log.With("mountInfoRoot", mountInfo.Root)
+		log := log.With("mount-info-root", mountInfo.Root)
 		if err := ex.Extract(mountInfo.Root, log); err != nil {
 			return "", "", err
 		}
@@ -128,17 +131,19 @@ func (e *Extractor) extractPodUIDAndContainerIDFromCGroups(pid int, log hclog.Lo
 		return "", "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
 	}
 
-	for i, cgroup := range cgroups {
-		log.Debug("PID cgroup enumerated",
-			"index", i+1,
-			"total", len(cgroups),
-			"path", cgroup.GroupPath,
-		)
+	if e.VerboseLogging {
+		for i, cgroup := range cgroups {
+			log.Debug("PID cgroup enumerated",
+				"index", i+1,
+				"total", len(cgroups),
+				"path", cgroup.GroupPath,
+			)
+		}
 	}
 
 	ex := &extractor{extractPodUID: extractPodUID}
 	for _, cgroup := range cgroups {
-		log := log.With("cgroupPath", cgroup.GroupPath)
+		log := log.With("cgroup-path", cgroup.GroupPath)
 		if err := ex.Extract(cgroup.GroupPath, log); err != nil {
 			return "", "", err
 		}
@@ -174,7 +179,7 @@ func (e *extractor) Extract(cgroupPathOrMountRoot string, log hclog.Logger) erro
 	// don't have a pod UID and the new entry does, then override what we have
 	// so far.
 	//
-	// This helps mitigate situations where there is hybrid cgroups configured
+	// This helps mitigate situations where there is unified cgroups configured
 	// while running kind on macOS, which ends up with something like:
 	//     1:cpuset:/docker/93529524695bb00d91c1f6dba692ea8d3550c3b94fb2463af7bc9ec82f992d26/kubepods/besteffort/poda2830d0d-b0f0-4ff0-81b5-0ee4e299cf80/09bc3d7ade839efec32b6bec4ec79d099027a668ddba043083ec21d3c3b8f1e6
 	//     0::/docker/93529524695bb00d91c1f6dba692ea8d3550c3b94fb2463af7bc9ec82f992d26/system.slice/containerd.service

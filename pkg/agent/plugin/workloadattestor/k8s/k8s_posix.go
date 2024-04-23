@@ -42,9 +42,10 @@ func createHelper(c *Plugin) ContainerHelper {
 }
 
 type containerHelper struct {
-	rootDir                string
-	sigstoreClient         sigstore.Sigstore
-	useNewContainerLocator bool
+	rootDir                     string
+	sigstoreClient              sigstore.Sigstore
+	useNewContainerLocator      bool
+	verboseContainerLocatorLogs bool
 }
 
 func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
@@ -60,6 +61,7 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 		}
 	}
 
+	h.verboseContainerLocatorLogs = config.VerboseContainerLocatorLogs
 	h.useNewContainerLocator = config.UseNewContainerLocator != nil && *config.UseNewContainerLocator
 	if h.useNewContainerLocator {
 		log.Info("Using the new container locator")
@@ -94,7 +96,7 @@ func (h *containerHelper) GetPodUIDAndContainerID(pID int32, log hclog.Logger) (
 		return getPodUIDAndContainerIDFromCGroups(cgroups)
 	}
 
-	extractor := containerinfo.Extractor{RootDir: h.rootDir}
+	extractor := containerinfo.Extractor{RootDir: h.rootDir, VerboseLogging: h.verboseContainerLocatorLogs}
 	return extractor.GetPodUIDAndContainerID(int(pID), log)
 }
 

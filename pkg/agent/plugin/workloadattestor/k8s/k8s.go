@@ -127,6 +127,10 @@ type HCLConfig struct {
 	// unset. This will default to true in a future release.
 	UseNewContainerLocator *bool `hcl:"use_new_container_locator"`
 
+	// VerboseContainerLocatorLogs, if true, dumps extra information to the log
+	// about mountinfo and cgroup information used to locate the container.
+	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
+
 	// Experimental enables experimental features.
 	Experimental *ExperimentalK8SConfig `hcl:"experimental,omitempty"`
 }
@@ -207,8 +211,6 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Printf("attest: containerHelper=%#v\n", containerHelper)
 
 	podUID, containerID, err := containerHelper.GetPodUIDAndContainerID(req.Pid, p.log)
 	if err != nil {
@@ -406,7 +408,6 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (r
 	}
 
 	// Set the config
-	fmt.Printf("setContainerHelper(%p)\n", containerHelper)
 	p.setConfig(c, containerHelper)
 	return &configv1.ConfigureResponse{}, nil
 }

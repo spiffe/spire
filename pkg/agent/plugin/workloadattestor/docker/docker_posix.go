@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/gogo/status"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/pkg/common/containerinfo"
+	"google.golang.org/grpc/codes"
 )
 
 type OSConfig struct {
@@ -29,6 +31,10 @@ type OSConfig struct {
 	// unset. This will default to true in a future release. (Unix)
 	UseNewContainerLocator *bool `hcl:"use_new_container_locator"`
 
+	// VerboseContainerLocatorLogs, if true, dumps extra information to the log
+	// about mountinfo and cgroup information used to locate the container.
+	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
+
 	// Used by tests to use a fake /proc directory instead of the real one
 	rootDir string
 }
@@ -38,6 +44,9 @@ func createHelper(c *dockerPluginConfig, log hclog.Logger) (*containerHelper, er
 
 	switch {
 	case c.UseNewContainerLocator != nil && *c.UseNewContainerLocator:
+		if len(c.ContainerIDCGroupMatchers) > 0 {
+			return nil, status.Error(codes.InvalidArgument, "the new container locator and custom cgroup matchers cannot both be used")
+		}
 		log.Info("Using the new container locator")
 	case len(c.ContainerIDCGroupMatchers) > 0:
 		log.Info("Using the legacy container locator with custom cgroup matchers. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
@@ -57,8 +66,9 @@ func createHelper(c *dockerPluginConfig, log hclog.Logger) (*containerHelper, er
 	}
 
 	return &containerHelper{
-		rootDir:           rootDir,
-		containerIDFinder: containerIDFinder,
+		rootDir:                     rootDir,
+		containerIDFinder:           containerIDFinder,
+		verboseContainerLocatorLogs: c.VerboseContainerLocatorLogs,
 	}, nil
 }
 
@@ -69,8 +79,9 @@ func (d dirFS) Open(p string) (io.ReadCloser, error) {
 }
 
 type containerHelper struct {
-	rootDir           string
-	containerIDFinder cgroup.ContainerIDFinder
+	rootDir                     string
+	containerIDFinder           cgroup.ContainerIDFinder
+	verboseContainerLocatorLogs bool
 }
 
 func (h *containerHelper) getContainerID(pID int32, log hclog.Logger) (string, error) {
@@ -82,7 +93,7 @@ func (h *containerHelper) getContainerID(pID int32, log hclog.Logger) (string, e
 		return getContainerIDFromCGroups(h.containerIDFinder, cgroupList)
 	}
 
-	extractor := containerinfo.Extractor{RootDir: h.rootDir}
+	extractor := containerinfo.Extractor{RootDir: h.rootDir, VerboseLogging: h.verboseContainerLocatorLogs}
 	return extractor.GetContainerID(int(pID), log)
 }
 
