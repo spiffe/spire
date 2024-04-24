@@ -12,6 +12,10 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+const (
+	defaultPluginConfig = ""
+)
+
 func TestFailToGetContainerID(t *testing.T) {
 	h := &fakeProcessHelper{
 		err: errors.New("oh no"),
@@ -50,7 +54,7 @@ func verifyConfigDefault(t *testing.T, c *containerHelper) {
 	require.NotNil(t, c.ph)
 }
 
-func withDefaultDataOpt() testPluginOpt {
+func withDefaultDataOpt(testing.TB) testPluginOpt {
 	h := &fakeProcessHelper{
 		containerID: testContainerID,
 	}

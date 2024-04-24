@@ -76,7 +76,7 @@ func TestDockerSelectors(t *testing.T) {
 				Env:    tt.mockEnv,
 			}
 
-			p := newTestPlugin(t, withDocker(d), withDefaultDataOpt())
+			p := newTestPlugin(t, withDocker(d), withDefaultDataOpt(t))
 
 			selectorValues, err := doAttest(t, p)
 			require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestDockerSelectors(t *testing.T) {
 func TestDockerError(t *testing.T) {
 	p := newTestPlugin(
 		t,
-		withDefaultDataOpt(),
+		withDefaultDataOpt(t),
 		withDocker(dockerError{}),
 		withDisabledRetryer(),
 	)
@@ -107,7 +107,7 @@ func TestDockerErrorRetries(t *testing.T) {
 		t,
 		withMockClock(mockClock),
 		withDocker(dockerError{}),
-		withDefaultDataOpt(),
+		withDefaultDataOpt(t),
 	)
 
 	go func() {
@@ -131,7 +131,7 @@ func TestDockerErrorContextCancel(t *testing.T) {
 	p := newTestPlugin(
 		t,
 		withMockClock(mockClock),
-		withDefaultDataOpt(),
+		withDefaultDataOpt(t),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -248,7 +248,7 @@ func withDisabledRetryer() testPluginOpt {
 
 func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 	p := New()
-	err := doConfigure(t, p, "")
+	err := doConfigure(t, p, defaultPluginConfig)
 	require.NoError(t, err)
 
 	for _, o := range opts {
