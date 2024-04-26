@@ -139,7 +139,7 @@ jobs:
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive artifacts
-        uses: actions/upload-artifact@1746f4ab65b179e0ea60a494b83293b640dd5bba # v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         with:
           name: binaries-linux
           path: ./artifacts/
@@ -174,7 +174,7 @@ jobs:
       - name: Export images
         run: tar -czvf images.tar.gz *-image.tar
       - name: Archive images
-        uses: actions/upload-artifact@1746f4ab65b179e0ea60a494b83293b640dd5bba # v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         with:
           name: images
           path: images.tar.gz
@@ -202,7 +202,7 @@ jobs:
           docker save spire-server-windows:latest-local spire-agent-windows:latest-local oidc-discovery-provider-windows:latest-local -o images-windows.tar
           gzip images-windows.tar
       - name: Archive images
-        uses: actions/upload-artifact@1746f4ab65b179e0ea60a494b83293b640dd5bba # v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         with:
           name: images-windows
           path: images-windows.tar.gz
@@ -542,7 +542,7 @@ jobs:
           path: ./bin/
           key: ${{ runner.os }}-executables-${{ hashFiles('**/*.exe') }}
       - name: Archive artifacts
-        uses: actions/upload-artifact@1746f4ab65b179e0ea60a494b83293b640dd5bba # v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         with:
           name: binaries-windows
           path: ./artifacts/
