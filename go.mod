@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.0
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.4.2
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.29.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.157.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.159.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.32.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.31.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.27.3
