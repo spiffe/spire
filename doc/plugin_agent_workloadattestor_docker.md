@@ -4,12 +4,14 @@ The `docker` plugin generates selectors based on docker labels for workloads cal
 It does so by retrieving the workload's container ID from its cgroup membership on Unix systems or Job Object names on Windows,
 then querying the docker daemon for the container's labels.
 
-| Configuration                | Description                                                                  | Default                          |
-|------------------------------|------------------------------------------------------------------------------|----------------------------------|
-| docker_socket_path           | The location of the docker daemon socket (Unix)                              | "unix:///var/run/docker.sock"    |
-| docker_version               | The API version of the docker daemon. If not specified                       |                                  |
-| container_id_cgroup_matchers | A list of patterns used to discover container IDs from cgroup entries (Unix) |
-| docker_host                  | The location of the Docker Engine API endpoint (Windows only)                | "npipe:////./pipe/docker_engine" |
+| Configuration                  | Description                                                                                    | Default                          |
+|--------------------------------|------------------------------------------------------------------------------------------------|----------------------------------|
+| docker_socket_path             | The location of the docker daemon socket (Unix)                                                | "unix:///var/run/docker.sock"    |
+| docker_version                 | The API version of the docker daemon. If not specified                                         |                                  |
+| container_id_cgroup_matchers   | A list of patterns used to discover container IDs from cgroup entries (Unix)                   |                                  |
+| docker_host                    | The location of the Docker Engine API endpoint (Windows only)                                  | "npipe:////./pipe/docker_engine" |
+| use_new_container_locator      | If true, enables the new container locator algorithm that has support for cgroups v2           | false                            |
+| verbose_container_locator_logs | If true, enables verbose logging of mountinfo and cgroup information used to locate containers | false                            |
 
 A sample configuration:
 

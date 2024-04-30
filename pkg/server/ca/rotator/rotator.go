@@ -124,6 +124,12 @@ func (r *Rotator) rotate(ctx context.Context) error {
 	if x509CAErr != nil {
 		atomic.AddUint64(&r.failedRotationNum, 1)
 		r.c.Log.WithError(x509CAErr).Error("Unable to rotate X509 CA")
+		if r.c.Manager.GetCurrentX509CASlot().IsEmpty() {
+			// Preparation of the X509 CA failed, and there is no active X509
+			// authority. We will be unable to store the JWT authority, so we
+			// don't try to rotate the JWT key in this case.
+			return x509CAErr
+		}
 	}
 
 	jwtKeyErr := r.rotateJWTKey(ctx)

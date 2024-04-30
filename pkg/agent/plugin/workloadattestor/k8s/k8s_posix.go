@@ -4,7 +4,10 @@ package k8s
 
 import (
 	"context"
+	"io"
 	"log"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
@@ -12,6 +15,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
+	"github.com/spiffe/spire/pkg/common/containerinfo"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,14 +32,20 @@ func (p *Plugin) defaultTokenPath() string {
 }
 
 func createHelper(c *Plugin) ContainerHelper {
+	rootDir := c.rootDir
+	if rootDir == "" {
+		rootDir = "/"
+	}
 	return &containerHelper{
-		fs: c.fs,
+		rootDir: c.rootDir,
 	}
 }
 
 type containerHelper struct {
-	fs             cgroups.FileSystem
-	sigstoreClient sigstore.Sigstore
+	rootDir                     string
+	sigstoreClient              sigstore.Sigstore
+	useNewContainerLocator      bool
+	verboseContainerLocatorLogs bool
 }
 
 func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
@@ -49,6 +59,14 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 		if err := configureSigstoreClient(h.sigstoreClient, config.Experimental.Sigstore, log); err != nil {
 			return err
 		}
+	}
+
+	h.verboseContainerLocatorLogs = config.VerboseContainerLocatorLogs
+	h.useNewContainerLocator = config.UseNewContainerLocator != nil && *config.UseNewContainerLocator
+	if h.useNewContainerLocator {
+		log.Info("Using the new container locator")
+	} else {
+		log.Warn("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
 	}
 
 	return nil
@@ -69,13 +87,17 @@ func (h *containerHelper) GetOSSelectors(ctx context.Context, log hclog.Logger, 
 	return selectors, nil
 }
 
-func (h *containerHelper) GetPodUIDAndContainerID(pID int32, _ hclog.Logger) (types.UID, string, error) {
-	cgroups, err := cgroups.GetCgroups(pID, h.fs)
-	if err != nil {
-		return "", "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
+func (h *containerHelper) GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error) {
+	if !h.useNewContainerLocator {
+		cgroups, err := cgroups.GetCgroups(pID, dirFS(h.rootDir))
+		if err != nil {
+			return "", "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
+		}
+		return getPodUIDAndContainerIDFromCGroups(cgroups)
 	}
 
-	return getPodUIDAndContainerIDFromCGroups(cgroups)
+	extractor := containerinfo.Extractor{RootDir: h.rootDir, VerboseLogging: h.verboseContainerLocatorLogs}
+	return extractor.GetPodUIDAndContainerID(int(pID), log)
 }
 
 func getPodUIDAndContainerIDFromCGroups(cgroups []cgroups.Cgroup) (types.UID, string, error) {
@@ -240,4 +262,10 @@ func configureSigstoreClient(client sigstore.Sigstore, c *SigstoreHCLConfig, log
 		}
 	}
 	return nil
+}
+
+type dirFS string
+
+func (d dirFS) Open(p string) (io.ReadCloser, error) {
+	return os.Open(filepath.Join(string(d), p))
 }
