@@ -13,14 +13,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 )
 
-const iso8601BasicFormat = "20060102T150405Z"
+const (
+	iso8601BasicFormat = "20060102T150405Z"
+	clockSkew          = time.Minute // Make sure that the authentication token is valid for one more minute.
+)
 
 type authTokenBuilder interface {
 	buildAuthToken(ctx context.Context, endpoint string, region string, dbUser string, creds aws.CredentialsProvider, optFns ...func(options *auth.BuildAuthTokenOptions)) (string, error)
-}
-
-type tokenGetter interface {
-	getAuthToken(ctx context.Context, params *Config, tokenBuilder authTokenBuilder) (string, error)
 }
 
 type authToken struct {
@@ -86,7 +85,7 @@ func (a *authToken) getAuthToken(ctx context.Context, config *Config, tokenBuild
 
 func (a *authToken) isExpired() bool {
 	clockSkew := time.Minute // Make sure that the authentication token is valid for one more minute.
-	return nowFunc().Add(-clockSkew).Sub(a.expiresAt) >= 0
+	return nowFunc().Add(clockSkew).Sub(a.expiresAt) >= 0
 }
 
 type awsTokenBuilder struct{}
