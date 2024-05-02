@@ -199,25 +199,29 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 
 	// Create Registration Entry Events with a gap
 	_, err := ds.CreateRegistrationEntryEvent(ctx, &datastore.RegistrationEntryEvent{
-		EventID:  1,
+		EventID: 1,
 		EntryID: "test",
 	})
+	require.NoError(t, err)
 
 	_, err = ds.CreateRegistrationEntryEvent(ctx, &datastore.RegistrationEntryEvent{
-		EventID:  3,
+		EventID: 3,
 		EntryID: "test",
 	})
+	require.NoError(t, err)
 
 	// Create AttestedNode Events with a gap
 	_, err = ds.CreateAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
 		EventID:  1,
 		SpiffeID: "test",
 	})
+	require.NoError(t, err)
 
 	_, err = ds.CreateAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
 		EventID:  4,
 		SpiffeID: "test",
 	})
+	require.NoError(t, err)
 
 	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
