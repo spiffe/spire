@@ -3,19 +3,19 @@
 package docker
 
 import (
-	"io"
 	"os"
-	"strings"
+	"path/filepath"
 	"testing"
 
 	dockerclient "github.com/docker/docker/client"
-	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	testCgroupEntries = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	testCgroupEntries   = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	defaultPluginConfig = "use_new_container_locator = true"
 )
 
 func TestContainerExtraction(t *testing.T) {
@@ -75,8 +75,7 @@ func TestContainerExtraction(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
-			fs := newFakeFileSystem(tt.cgroups)
-
+			withRootDirOpt := prepareRootDirOpt(t, tt.cgroups)
 			var d Docker = dockerError{}
 			if tt.hasMatch {
 				d = fakeContainer{
@@ -88,7 +87,7 @@ func TestContainerExtraction(t *testing.T) {
 				t,
 				withConfig(t, tt.cfg), // this must be the first option
 				withDocker(d),
-				withFileSystem(fs),
+				withRootDirOpt,
 			)
 
 			selectorValues, err := doAttest(t, p)
@@ -110,12 +109,14 @@ func TestContainerExtraction(t *testing.T) {
 }
 
 func TestCgroupFileNotFound(t *testing.T) {
-	p := newTestPlugin(t, withFileSystem(FakeFileSystem{}))
+	p := newTestPlugin(t, withRootDir(spiretest.TempDir(t)))
 
+	// The new container info extraction code does not consider a missing file
+	// to be an error. It just won't return any container ID so attestation
+	// won't produce any selectors.
 	selectorValues, err := doAttest(t, p)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "file does not exist")
-	require.Nil(t, selectorValues)
+	require.NoError(t, err)
+	require.Empty(t, selectorValues)
 }
 
 func TestDockerConfigPosix(t *testing.T) {
@@ -148,17 +149,27 @@ container_id_cgroup_matchers = [
 }
 
 func verifyConfigDefault(t *testing.T, c *containerHelper) {
-	require.Equal(t, &defaultContainerIDFinder{}, c.containerIDFinder)
+	// The unit tests configure the plugin to use the new container info
+	// extraction code so the legacy finder should be set to nil.
+	require.Nil(t, c.containerIDFinder)
 }
 
-func withDefaultDataOpt() testPluginOpt {
-	fs := newFakeFileSystem(testCgroupEntries)
-	return withFileSystem(fs)
+func withDefaultDataOpt(tb testing.TB) testPluginOpt {
+	return prepareRootDirOpt(tb, testCgroupEntries)
 }
 
-func withFileSystem(m cgroups.FileSystem) testPluginOpt {
+func prepareRootDirOpt(tb testing.TB, cgroups string) testPluginOpt {
+	rootDir := spiretest.TempDir(tb)
+	procPidPath := filepath.Join(rootDir, "proc", "123")
+	require.NoError(tb, os.MkdirAll(procPidPath, 0755))
+	cgroupsPath := filepath.Join(procPidPath, "cgroup")
+	require.NoError(tb, os.WriteFile(cgroupsPath, []byte(cgroups), 0600))
+	return withRootDir(rootDir)
+}
+
+func withRootDir(dir string) testPluginOpt {
 	return func(p *Plugin) {
-		p.c.fs = m
+		p.c.rootDir = dir
 	}
 }
 
@@ -168,24 +179,4 @@ func withConfig(t *testing.T, cfg string) testPluginOpt {
 		err := doConfigure(t, p, cfg)
 		require.NoError(t, err)
 	}
-}
-
-func newFakeFileSystem(cgroups string) FakeFileSystem {
-	return FakeFileSystem{
-		Files: map[string]string{
-			"/proc/123/cgroup": cgroups,
-		},
-	}
-}
-
-type FakeFileSystem struct {
-	Files map[string]string
-}
-
-func (fs FakeFileSystem) Open(path string) (io.ReadCloser, error) {
-	data, ok := fs.Files[path]
-	if !ok {
-		return nil, os.ErrNotExist
-	}
-	return io.NopCloser(strings.NewReader(data)), nil
 }

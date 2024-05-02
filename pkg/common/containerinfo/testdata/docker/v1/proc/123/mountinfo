@@ -1,0 +1,13 @@
+572 571 0:63 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - tmpfs tmpfs rw,mode=755
+573 572 0:33 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/systemd ro,nosuid,nodev,noexec,relatime master:11 - cgroup cgroup rw,xattr,name=systemd
+574 572 0:37 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/memory ro,nosuid,nodev,noexec,relatime master:16 - cgroup cgroup rw,memory
+575 572 0:38 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/hugetlb ro,nosuid,nodev,noexec,relatime master:17 - cgroup cgroup rw,hugetlb
+576 572 0:39 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/net_cls,net_prio ro,nosuid,nodev,noexec,relatime master:18 - cgroup cgroup rw,net_cls,net_prio
+577 572 0:40 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/cpu,cpuacct ro,nosuid,nodev,noexec,relatime master:19 - cgroup cgroup rw,cpu,cpuacct
+578 572 0:41 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/cpuset ro,nosuid,nodev,noexec,relatime master:20 - cgroup cgroup rw,cpuset
+579 572 0:42 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/blkio ro,nosuid,nodev,noexec,relatime master:21 - cgroup cgroup rw,blkio
+580 572 0:43 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/freezer ro,nosuid,nodev,noexec,relatime master:22 - cgroup cgroup rw,freezer
+581 572 0:44 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/perf_event ro,nosuid,nodev,noexec,relatime master:23 - cgroup cgroup rw,perf_event
+582 572 0:45 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/pids ro,nosuid,nodev,noexec,relatime master:24 - cgroup cgroup rw,pids
+583 572 0:46 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/rdma ro,nosuid,nodev,noexec,relatime master:25 - cgroup cgroup rw,rdma
+584 572 0:47 /docker/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef /sys/fs/cgroup/devices ro,nosuid,nodev,noexec,relatime master:26 - cgroup cgroup rw,devices

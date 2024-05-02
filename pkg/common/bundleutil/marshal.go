@@ -89,6 +89,8 @@ func Marshal(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error)
 	}
 
 	var jwks jose.JSONWebKeySet
+	jwks.Keys = make([]jose.JSONWebKey, 0)
+
 	maybeUse := func(use string) string {
 		if !c.standardJWKS {
 			return use

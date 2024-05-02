@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -18,11 +19,13 @@ var (
 type Client interface {
 	ec2.DescribeInstancesAPIClient
 	iam.GetInstanceProfileAPIClient
+	organizations.ListAccountsAPIClient
 }
 
 type clientsCache struct {
 	mtx       sync.RWMutex
 	config    *SessionConfig
+	orgConfig *orgValidationConfig
 	clients   map[string]*cacheEntry
 	newClient newClientCallback
 }
@@ -32,7 +35,7 @@ type cacheEntry struct {
 	client Client
 }
 
-type newClientCallback func(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string) (Client, error)
+type newClientCallback func(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string, orgRoleARN string) (Client, error)
 
 func newClientsCache(newClient newClientCallback) *clientsCache {
 	return &clientsCache{
@@ -41,10 +44,11 @@ func newClientsCache(newClient newClientCallback) *clientsCache {
 	}
 }
 
-func (cc *clientsCache) configure(config SessionConfig) {
+func (cc *clientsCache) configure(config SessionConfig, orgConfig orgValidationConfig) {
 	cc.mtx.Lock()
 	cc.clients = make(map[string]*cacheEntry)
 	cc.config = &config
+	cc.orgConfig = &orgConfig
 	cc.mtx.Unlock()
 }
 
@@ -81,7 +85,13 @@ func (cc *clientsCache) getClient(ctx context.Context, region, accountID string)
 		assumeRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", cc.config.Partition, accountID, cc.config.AssumeRole)
 	}
 
-	client, err := cc.newClient(ctx, cc.config, region, assumeRoleArn)
+	// If organization attestation feature is enabled, assume org role
+	var orgRoleArn string
+	if cc.orgConfig.AccountRole != "" {
+		orgRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", cc.config.Partition, cc.orgConfig.AccountID, cc.orgConfig.AccountRole)
+	}
+
+	client, err := cc.newClient(ctx, cc.config, region, assumeRoleArn, orgRoleArn)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
@@ -103,16 +113,25 @@ func (cc *clientsCache) getCachedClient(cacheKey string) *cacheEntry {
 	return r
 }
 
-func newClient(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string) (Client, error) {
+func newClient(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string, orgRoleArn string) (Client, error) {
 	conf, err := newAWSConfig(ctx, config.AccessKeyID, config.SecretAccessKey, region, assumeRoleARN)
 	if err != nil {
 		return nil, err
 	}
+
+	// If the orgnizationAttestation feature is enabled, use the role configured for feature.
+	orgConf, err := newAWSConfig(ctx, config.AccessKeyID, config.SecretAccessKey, region, orgRoleArn)
+	if err != nil {
+		return nil, err
+	}
+
 	return struct {
 		iam.GetInstanceProfileAPIClient
 		ec2.DescribeInstancesAPIClient
+		organizations.ListAccountsAPIClient
 	}{
 		GetInstanceProfileAPIClient: iam.NewFromConfig(conf),
 		DescribeInstancesAPIClient:  ec2.NewFromConfig(conf),
+		ListAccountsAPIClient:       organizations.NewFromConfig(orgConf),
 	}, nil
 }

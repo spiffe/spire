@@ -8,6 +8,7 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"net/url"
 	"testing"
@@ -1161,6 +1162,43 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadNoopV1Plugin(t)}
 			},
 		},
+		{
+			desc: "real grpc composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadGrpcPlugin(t)}
+			},
+			overrideExpected: func(expected map[string]any) {
+				expected["aud"] = []interface{}{"AUDIENCE"}
+				expected["iat"] = now.Unix()
+				expected["exp"] = jwtSVIDNotAfter.Unix()
+			},
+		},
+		{
+			desc: "real grpc composer overriding first composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1, onlyFoo: true, addInt64: true}, loadGrpcPlugin(t)}
+			},
+			overrideExpected: func(expected map[string]any) {
+				expected["aud"] = []interface{}{"AUDIENCE"}
+				expected["iat"] = now.Unix()
+				expected["exp"] = jwtSVIDNotAfter.Unix()
+				expected["foo"] = "VALUE-1"
+				expected["i64"] = float64(math.MaxInt64)
+			},
+		},
+		{
+			desc: "real grpc composer with second composer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadGrpcPlugin(t), fakeCC{id: 1, onlyFoo: true, addInt64: true}}
+			},
+			overrideExpected: func(expected map[string]any) {
+				expected["aud"] = []interface{}{"AUDIENCE"}
+				expected["iat"] = now.Unix()
+				expected["exp"] = jwtSVIDNotAfter.Unix()
+				expected["foo"] = "VALUE-1"
+				expected["i64"] = math.MaxInt64
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			testBuilder(t, tc.overrideConfig, func(t *testing.T, credBuilder *credtemplate.Builder) {
@@ -1239,6 +1277,7 @@ type fakeCC struct {
 	id             byte
 	onlyCommonName bool
 	onlyFoo        bool
+	addInt64       bool
 }
 
 func (cc fakeCC) ComposeServerX509CA(_ context.Context, attributes credentialcomposer.X509CAAttributes) (credentialcomposer.X509CAAttributes, error) {
@@ -1266,6 +1305,9 @@ func (cc fakeCC) ComposeWorkloadJWTSVID(_ context.Context, _ spiffeid.ID, attrib
 	attributes.Claims["foo"] = cc.applySuffix("VALUE")
 	if !cc.onlyFoo {
 		attributes.Claims["bar"] = cc.applySuffix("VALUE")
+	}
+	if cc.addInt64 {
+		attributes.Claims["i64"] = math.MaxInt64
 	}
 	return attributes, nil
 }
@@ -1295,5 +1337,22 @@ func loadNoopV1Plugin(t *testing.T) credentialcomposer.CredentialComposer {
 	server := credentialcomposerv1.CredentialComposerPluginServer(credentialcomposerv1.UnimplementedCredentialComposerServer{})
 	cc := new(credentialcomposer.V1)
 	plugintest.Load(t, catalog.MakeBuiltIn("noop", server), cc)
+	return cc
+}
+
+type grpcPlugin struct {
+	credentialcomposerv1.UnimplementedCredentialComposerServer
+}
+
+func (p grpcPlugin) ComposeWorkloadJWTSVID(_ context.Context, a *credentialcomposerv1.ComposeWorkloadJWTSVIDRequest) (*credentialcomposerv1.ComposeWorkloadJWTSVIDResponse, error) {
+	return &credentialcomposerv1.ComposeWorkloadJWTSVIDResponse{
+		Attributes: a.Attributes,
+	}, nil
+}
+
+func loadGrpcPlugin(t *testing.T) credentialcomposer.CredentialComposer {
+	server := credentialcomposerv1.CredentialComposerPluginServer(grpcPlugin{})
+	cc := new(credentialcomposer.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn("grpcPlugin", server), cc)
 	return cc
 }

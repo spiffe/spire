@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +22,6 @@ import (
 	"github.com/hashicorp/hcl"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -122,6 +122,15 @@ type HCLConfig struct {
 	// (e.g. when a postStart hook has yet to complete).
 	DisableContainerSelectors bool `hcl:"disable_container_selectors"`
 
+	// UseNewContainerLocator, if true, uses the new container locator
+	// mechanism instead of the legacy cgroup matchers. Defaults to false if
+	// unset. This will default to true in a future release.
+	UseNewContainerLocator *bool `hcl:"use_new_container_locator"`
+
+	// VerboseContainerLocatorLogs, if true, dumps extra information to the log
+	// about mountinfo and cgroup information used to locate the container.
+	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
+
 	// Experimental enables experimental features.
 	Experimental *ExperimentalK8SConfig `hcl:"experimental,omitempty"`
 }
@@ -176,19 +185,18 @@ type Plugin struct {
 	workloadattestorv1.UnsafeWorkloadAttestorServer
 	configv1.UnsafeConfigServer
 
-	log    hclog.Logger
-	clock  clock.Clock
-	fs     cgroups.FileSystem
-	c      ContainerHelper
-	getenv func(string) string
+	log     hclog.Logger
+	clock   clock.Clock
+	rootDir string
+	getenv  func(string) string
 
-	mu     sync.RWMutex
-	config *k8sConfig
+	mu              sync.RWMutex
+	config          *k8sConfig
+	containerHelper ContainerHelper
 }
 
 func New() *Plugin {
 	return &Plugin{
-		fs:     cgroups.OSFileSystem{},
 		clock:  clock.New(),
 		getenv: os.Getenv,
 	}
@@ -199,12 +207,12 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	config, err := p.getConfig()
+	config, containerHelper, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	podUID, containerID, err := p.c.GetPodUIDAndContainerID(req.Pid, p.log)
+	podUID, containerID, err := containerHelper.GetPodUIDAndContainerID(req.Pid, p.log)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +276,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 				if !config.DisableContainerSelectors {
 					selectorValues = append(selectorValues, getSelectorValuesFromWorkloadContainerStatus(containerStatus)...)
 
-					osSelector, err := p.c.GetOSSelectors(ctx, log, containerStatus)
+					osSelector, err := containerHelper.GetOSSelectors(ctx, log, containerStatus)
 					switch {
 					case err != nil:
 						return nil, err
@@ -400,34 +408,34 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (r
 	}
 
 	// Set the config
-	p.setConfig(c)
-	p.setContainerHelper(containerHelper)
+	p.setConfig(c, containerHelper)
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) setConfig(config *k8sConfig) {
+func (p *Plugin) setConfig(config *k8sConfig, containerHelper ContainerHelper) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
+	p.containerHelper = containerHelper
 }
 
-func (p *Plugin) getConfig() (*k8sConfig, error) {
+func (p *Plugin) getConfig() (*k8sConfig, ContainerHelper, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	if p.config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
+		return nil, nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	if err := p.reloadKubeletClient(p.config); err != nil {
 		p.log.Warn("Unable to load kubelet client", "err", err)
 	}
-	return p.config, nil
+	return p.config, p.containerHelper, nil
 }
 
 func (p *Plugin) setContainerHelper(c ContainerHelper) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.c = c
+	p.containerHelper = c
 }
 
 func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
@@ -580,7 +588,7 @@ func (p *Plugin) loadToken(path string) (string, error) {
 
 // readFile reads the contents of a file through the filesystem interface
 func (p *Plugin) readFile(path string) ([]byte, error) {
-	f, err := p.fs.Open(path)
+	f, err := os.Open(filepath.Join(p.rootDir, path))
 	if err != nil {
 		return nil, err
 	}
