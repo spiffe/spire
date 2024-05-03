@@ -1,4 +1,4 @@
-package main
+package diskcertmanager
 
 import (
 	"context"
@@ -28,7 +28,13 @@ type DiskCertManager struct {
 	log              logrus.FieldLogger
 }
 
-func NewDiskCertManager(config *ServingCertFileConfig, clk clock.Clock, log logrus.FieldLogger) (*DiskCertManager, error) {
+type DiskCertManagerConfig struct {
+	CertFilePath     string
+	KeyFilePath      string
+	FileSyncInterval time.Duration
+}
+
+func NewDiskCertManager(config *DiskCertManagerConfig, clk clock.Clock, log logrus.FieldLogger) (*DiskCertManager, error) {
 	if config == nil {
 		return nil, errors.New("missing serving cert file configuration")
 	}

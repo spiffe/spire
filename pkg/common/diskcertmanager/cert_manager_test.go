@@ -1,4 +1,4 @@
-package main
+package diskcertmanager
 
 import (
 	"context"
@@ -27,6 +27,8 @@ import (
 var (
 	oidcServerKey    = testkey.MustEC256()
 	oidcServerKeyNew = testkey.MustEC256()
+
+	fileDontExistMessage = "no such file or directory"
 )
 
 func TestTLSConfig(t *testing.T) {
@@ -92,7 +94,7 @@ func TestTLSConfig(t *testing.T) {
 	}
 
 	ctx, cancelFn := context.WithCancel(context.Background())
-	certManager, err := NewDiskCertManager(&ServingCertFileConfig{
+	certManager, err := NewDiskCertManager(&DiskCertManagerConfig{
 		CertFilePath:     certFilePath,
 		KeyFilePath:      keyFilePath,
 		FileSyncInterval: 10 * time.Millisecond,
@@ -111,7 +113,7 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("error when provided cert path do not exist", func(t *testing.T) {
-		_, err := NewDiskCertManager(&ServingCertFileConfig{
+		_, err := NewDiskCertManager(&DiskCertManagerConfig{
 			CertFilePath: filepath.Join(tmpDir, "nonexistent_cert.pem"),
 			KeyFilePath:  keyFilePath,
 		}, clk, logger)
@@ -120,7 +122,7 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("error when provided key path do not exist", func(t *testing.T) {
-		_, err := NewDiskCertManager(&ServingCertFileConfig{
+		_, err := NewDiskCertManager(&DiskCertManagerConfig{
 			CertFilePath: certFilePath,
 			KeyFilePath:  filepath.Join(tmpDir, "nonexistent_key.pem"),
 		}, clk, logger)
@@ -129,7 +131,7 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("error when provided cert is invalid", func(t *testing.T) {
-		_, err := NewDiskCertManager(&ServingCertFileConfig{
+		_, err := NewDiskCertManager(&DiskCertManagerConfig{
 			CertFilePath: invalidCertFilePath,
 			KeyFilePath:  keyFilePath,
 		}, clk, logger)
@@ -138,7 +140,7 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("error when provided key is invalid", func(t *testing.T) {
-		_, err := NewDiskCertManager(&ServingCertFileConfig{
+		_, err := NewDiskCertManager(&DiskCertManagerConfig{
 			CertFilePath: certFilePath,
 			KeyFilePath:  invalidKeyFilePath,
 		}, clk, logger)
