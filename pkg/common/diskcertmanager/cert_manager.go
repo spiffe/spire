@@ -59,7 +59,7 @@ func NewDiskCertManager(config *DiskCertManagerConfig, clk clock.Clock, log logr
 }
 
 // TLSConfig returns a TLS configuration that uses the provided certificate stored on disk.
-func (m *DiskCertManager) TLSConfig() *tls.Config {
+func (m *DiskCertManager) GetTLSConfig() *tls.Config {
 	return &tls.Config{
 		GetCertificate: m.getCertificate,
 		NextProtos: []string{

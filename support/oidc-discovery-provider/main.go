@@ -184,7 +184,7 @@ func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, con
 		certManager.WatchFileChanges(ctx)
 	}()
 
-	tlsConfig := certManager.TLSConfig()
+	tlsConfig := certManager.GetTLSConfig()
 
 	tcpListener, err := net.ListenTCP("tcp", config.ServingCertFile.Addr)
 	if err != nil {

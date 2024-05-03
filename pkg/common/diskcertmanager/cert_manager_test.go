@@ -105,7 +105,7 @@ func TestTLSConfig(t *testing.T) {
 		certManager.WatchFileChanges(ctx)
 	}()
 
-	tlsConfig := certManager.TLSConfig()
+	tlsConfig := certManager.GetTLSConfig()
 
 	t.Run("error when configuration does not contain serving cert file settings", func(t *testing.T) {
 		_, err := NewDiskCertManager(nil, nil, logger)
