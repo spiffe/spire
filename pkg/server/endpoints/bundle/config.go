@@ -3,6 +3,8 @@ package bundle
 import (
 	"net"
 	"time"
+
+	"github.com/spiffe/spire/pkg/common/diskcertmanager"
 )
 
 type EndpointConfig struct {
@@ -12,6 +14,8 @@ type EndpointConfig struct {
 	// ACME is the ACME configuration for the bundle endpoint.
 	// If unset, the bundle endpoint will use SPIFFE auth.
 	ACME *ACMEConfig
+
+	DiskCertManager *diskcertmanager.DiskCertManager
 
 	RefreshHint time.Duration
 }

@@ -110,6 +110,8 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 	var serverAuth bundle.ServerAuth
 	if c.BundleEndpoint.ACME != nil {
 		serverAuth = bundle.ACMEAuth(c.Log.WithField(telemetry.SubsystemName, "bundle_acme"), c.Catalog.GetKeyManager(), *c.BundleEndpoint.ACME)
+	} else if c.BundleEndpoint.DiskCertManager != nil {
+		serverAuth = c.BundleEndpoint.DiskCertManager
 	} else {
 		serverAuth = bundle.SPIFFEAuth(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
 			state := c.SVIDObserver.State()
