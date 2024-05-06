@@ -10,9 +10,7 @@ import (
 )
 
 type rolesAnywhere interface {
-	ListTrustAnchors(ctx context.Context, params *rolesanywhere.ListTrustAnchorsInput, optFns ...func(*rolesanywhere.Options)) (*rolesanywhere.ListTrustAnchorsOutput, error)
 	UpdateTrustAnchor(ctx context.Context, params *rolesanywhere.UpdateTrustAnchorInput, optFns ...func(*rolesanywhere.Options)) (*rolesanywhere.UpdateTrustAnchorOutput, error)
-	CreateTrustAnchor(ctx context.Context, params *rolesanywhere.CreateTrustAnchorInput, optFns ...func(*rolesanywhere.Options)) (*rolesanywhere.CreateTrustAnchorOutput, error)
 }
 
 func newAWSConfig(ctx context.Context, c *Config) (aws.Config, error) {

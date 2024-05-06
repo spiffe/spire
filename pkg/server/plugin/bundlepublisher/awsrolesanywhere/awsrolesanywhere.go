@@ -40,7 +40,7 @@ type Config struct {
 	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	Region          string `hcl:"region" json:"region"`
-	TrustAnchorName string `hcl:"trust_anchor_name" json:"trust_anchor_name"`
+	TrustAnchorID   string `hcl:"trust_anchor_id" json:"trust_anchor_id"`
 }
 
 // Plugin is the main representation of this bundle publisher plugin.
@@ -86,8 +86,8 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	return &configv1.ConfigureResponse{}, nil
 }
 
-// PublishBundle puts the bundle in the first Roles Anywhere trust anchor
-// found with the configured name. If one doesn't exist, it is created.
+// PublishBundle puts the bundle in the Roles Anywhere trust anchor, with
+// the configured id.
 func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.PublishBundleRequest) (*bundlepublisherv1.PublishBundleResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
@@ -106,82 +106,36 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 
 	formatter := bundleformat.NewFormatter(req.GetBundle())
 	bundleBytes, err := formatter.Format(bundleformat.PEM)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "could not format bundle to PEM format")
+	}
 	bundleStr := string(bundleBytes)
 
-	// Check whether there already exists a trust anchor with the name requested
-	// If so, perform an update of its trust bundle
-	var trustAnchor rolesanywheretypes.TrustAnchorDetail
-	foundTrustAnchor := false
-	prevNextToken := ""
-	for ok := true; ok; {
-		// List trust anchors
-		listTrustAnchorsInput := rolesanywhere.ListTrustAnchorsInput{}
-		if prevNextToken != "" {
-			listTrustAnchorsInput.NextToken = &prevNextToken
-		}
-		listTrustAnchorsOutput, err := p.rolesAnywhereClient.ListTrustAnchors(ctx, &listTrustAnchorsInput)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to list trust anchors: %v", err)
-		}
-
-		// Iterate through trust anchors in response
-		for _, curTrustAnchor := range listTrustAnchorsOutput.TrustAnchors {
-			if *curTrustAnchor.Name == config.TrustAnchorName {
-				trustAnchor = curTrustAnchor
-				foundTrustAnchor = true
-				break
-			}
-		}
-
-		if foundTrustAnchor {
-			break
-		}
-
-		if listTrustAnchorsOutput.NextToken == nil {
-			break
-		}
-		prevNextToken = *listTrustAnchorsOutput.NextToken
+	// To prevent flooding of the logs in the case that the bundle is
+	// too large.
+	if len(bundleStr) > 8000 {
+		return nil, status.Error(codes.InvalidArgument, "bundle too large")
 	}
 
-	trustAnchorArn := ""
-	if foundTrustAnchor {
-		// Update the trust anchor that was found
-		updateTrustAnchorInput := rolesanywhere.UpdateTrustAnchorInput{
-			TrustAnchorId: trustAnchor.TrustAnchorId,
-			Source: &rolesanywheretypes.Source{
-				SourceType: rolesanywheretypes.TrustAnchorTypeCertificateBundle,
-				SourceData: &rolesanywheretypes.SourceDataMemberX509CertificateData{
-					Value: bundleStr,
-				},
+	// Update the trust anchor that was found
+	updateTrustAnchorInput := rolesanywhere.UpdateTrustAnchorInput{
+		TrustAnchorId: &config.TrustAnchorID,
+		Source: &rolesanywheretypes.Source{
+			SourceType: rolesanywheretypes.TrustAnchorTypeCertificateBundle,
+			SourceData: &rolesanywheretypes.SourceDataMemberX509CertificateData{
+				Value: bundleStr,
 			},
-		}
-		updateTrustAnchorOutput, err := p.rolesAnywhereClient.UpdateTrustAnchor(ctx, &updateTrustAnchorInput)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to update trust anchor: %v", err)
-		}
-		trustAnchorArn = *updateTrustAnchorOutput.TrustAnchor.TrustAnchorArn
-	} else {
-		// Create a new trust anchor, since an existing one with the requsted name couldn't be found
-		createTrustAnchorInput := rolesanywhere.CreateTrustAnchorInput{
-			Name: &config.TrustAnchorName,
-			Source: &rolesanywheretypes.Source{
-				SourceType: rolesanywheretypes.TrustAnchorTypeCertificateBundle,
-				SourceData: &rolesanywheretypes.SourceDataMemberX509CertificateData{
-					Value: bundleStr,
-				},
-			},
-			Enabled: func() *bool { b := true; return &b }(),
-		}
-
-		createTrustAnchorOutput, err := p.rolesAnywhereClient.CreateTrustAnchor(ctx, &createTrustAnchorInput)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create trust anchor: %v", err)
-		}
-		trustAnchorArn = *createTrustAnchorOutput.TrustAnchor.TrustAnchorArn
+		},
 	}
+	updateTrustAnchorOutput, err := p.rolesAnywhereClient.UpdateTrustAnchor(ctx, &updateTrustAnchorInput)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to update trust anchor: %v", err)
+	}
+	trustAnchorArn := *updateTrustAnchorOutput.TrustAnchor.TrustAnchorArn
+	trustAnchorName := *updateTrustAnchorOutput.TrustAnchor.Name
 
 	p.setBundle(req.GetBundle())
-	p.log.Debug("Trust anchor bundle updated", "ARN", trustAnchorArn)
+	p.log.Debug("Bundle published", "arn", trustAnchorArn, "trust_anchor_name", trustAnchorName)
 	return &bundlepublisherv1.PublishBundleResponse{}, nil
 }
 
@@ -250,8 +204,8 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing the region")
 	}
 
-	if config.TrustAnchorName == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the trust anchor name")
+	if config.TrustAnchorID == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration is missing the trust anchor id")
 	}
 	return config, nil
 }

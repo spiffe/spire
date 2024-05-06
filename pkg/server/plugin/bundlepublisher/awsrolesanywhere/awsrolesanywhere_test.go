@@ -38,24 +38,24 @@ func TestConfigure(t *testing.T) {
 				AccessKeyID:     "access-key-id",
 				SecretAccessKey: "secret-access-key",
 				Region:          "region",
-				TrustAnchorName: "trust-anchor-name",
+				TrustAnchorID:   "trust-anchor-id",
 			},
 		},
 		{
 			name: "no region",
 			config: &Config{
-				TrustAnchorName: "trust-anchor-name",
+				TrustAnchorID: "trust-anchor-id",
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "configuration is missing the region",
 		},
 		{
-			name: "no trust anchor name",
+			name: "no trust anchor id",
 			config: &Config{
 				Region: "region",
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "configuration is missing the trust anchor name",
+			expectMsg:  "configuration is missing the trust anchor id",
 		},
 		{
 			name: "client error",
@@ -63,7 +63,7 @@ func TestConfigure(t *testing.T) {
 				AccessKeyID:     "access-key-id",
 				SecretAccessKey: "secret-access-key",
 				Region:          "region",
-				TrustAnchorName: "trust-anchor-name",
+				TrustAnchorID:   "trust-anchor-id",
 			},
 			expectCode:   codes.Internal,
 			expectMsg:    "failed to create client: client creation error",
@@ -127,10 +127,7 @@ func TestPublishBundle(t *testing.T) {
 		expectMsg            string
 		config               *Config
 		bundle               *types.Bundle
-		createTrustAnchorErr error
 		updateTrustAnchorErr error
-		listTrustAnchorsErr  error
-		listTrustAnchor      bool
 	}{
 		{
 			name:   "success",
@@ -139,9 +136,8 @@ func TestPublishBundle(t *testing.T) {
 				AccessKeyID:     "access-key-id",
 				SecretAccessKey: "secret-access-key",
 				Region:          "region",
-				TrustAnchorName: "trust-anchor-name",
+				TrustAnchorID:   "trust-anchor-id",
 			},
-			listTrustAnchor: true,
 		},
 		{
 			name:   "multiple times",
@@ -150,22 +146,8 @@ func TestPublishBundle(t *testing.T) {
 				AccessKeyID:     "access-key-id",
 				SecretAccessKey: "secret-access-key",
 				Region:          "region",
-				TrustAnchorName: "trust-anchor-name",
+				TrustAnchorID:   "trust-anchor-id",
 			},
-			listTrustAnchor: true,
-		},
-		{
-			name:   "create trust anchor failure",
-			bundle: testBundle,
-			config: &Config{
-				AccessKeyID:     "access-key-id",
-				SecretAccessKey: "secret-access-key",
-				Region:          "region",
-				TrustAnchorName: "trust-anchor-name",
-			},
-			createTrustAnchorErr: errors.New("some error"),
-			expectCode:           codes.Internal,
-			expectMsg:            "failed to create trust anchor: some error",
 		},
 		{
 			name:   "update trust anchor failure",
@@ -174,25 +156,11 @@ func TestPublishBundle(t *testing.T) {
 				AccessKeyID:     "access-key-id",
 				SecretAccessKey: "secret-access-key",
 				Region:          "region",
-				TrustAnchorName: "trust-anchor-name",
+				TrustAnchorID:   "trust-anchor-id",
 			},
 			updateTrustAnchorErr: errors.New("some error"),
 			expectCode:           codes.Internal,
 			expectMsg:            "failed to update trust anchor: some error",
-			listTrustAnchor:      true,
-		},
-		{
-			name:   "list trust anchors failure",
-			bundle: testBundle,
-			config: &Config{
-				AccessKeyID:     "access-key-id",
-				SecretAccessKey: "secret-access-key",
-				Region:          "region",
-				TrustAnchorName: "trust-anchor-name",
-			},
-			listTrustAnchorsErr: errors.New("some error"),
-			expectCode:          codes.Internal,
-			expectMsg:           "failed to list trust anchors: some error",
 		},
 		{
 			name:       "not configured",
@@ -205,7 +173,7 @@ func TestPublishBundle(t *testing.T) {
 				AccessKeyID:     "access-key-id",
 				SecretAccessKey: "secret-access-key",
 				Region:          "region",
-				TrustAnchorName: "trust-anchor-name",
+				TrustAnchorID:   "trust-anchor-id",
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "missing bundle in request",
@@ -223,14 +191,9 @@ func TestPublishBundle(t *testing.T) {
 
 			newClient := func(awsConfig aws.Config) (rolesAnywhere, error) {
 				mockClient := fakeClient{
-					t:                     t,
-					expectTrustAnchorName: aws.String(tt.config.TrustAnchorName),
-					createTrustAnchorErr:  tt.createTrustAnchorErr,
-					updateTrustAnchorErr:  tt.updateTrustAnchorErr,
-					listTrustAnchorsErr:   tt.listTrustAnchorsErr,
-				}
-				if tt.listTrustAnchor {
-					mockClient.trustAnchorName = aws.String(tt.config.TrustAnchorName)
+					t:                    t,
+					expectTrustAnchorID:  aws.String(tt.config.TrustAnchorID),
+					updateTrustAnchorErr: tt.updateTrustAnchorErr,
 				}
 				return &mockClient, nil
 			}
@@ -260,7 +223,7 @@ func TestPublishMultiple(t *testing.T) {
 		AccessKeyID:     "access-key-id",
 		SecretAccessKey: "secret-access-key",
 		Region:          "region",
-		TrustAnchorName: "trust-anchor-name",
+		TrustAnchorID:   "trust-anchor-id",
 	}
 
 	var err error
@@ -274,17 +237,17 @@ func TestPublishMultiple(t *testing.T) {
 
 	newClient := func(awsConfig aws.Config) (rolesAnywhere, error) {
 		return &fakeClient{
-			t:                     t,
-			expectTrustAnchorName: aws.String(config.TrustAnchorName),
+			t:                   t,
+			expectTrustAnchorID: aws.String(config.TrustAnchorID),
 		}, nil
 	}
 	p := newPlugin(newClient)
 	plugintest.Load(t, builtin(p), nil, options...)
 	require.NoError(t, err)
 
-	// Test multiple create/update trust anchor operations, and check that only a call
-	// to CreateTrustAnchor/UpdateTrustAnchor is done when there is a modified bundle
-	// that was not successfully published before.
+	// Test multiple update trust anchor operations, and check that only a call to
+	// UpdateTrustAnchor is made when there is a modified bundle that was not successfully
+	// published before.
 
 	// Have an initial bundle with SequenceNumber = 1.
 	bundle := getTestBundle(t)
@@ -294,57 +257,43 @@ func TestPublishMultiple(t *testing.T) {
 	require.True(t, ok)
 
 	// Reset the API call counters.
-	client.createTrustAnchorCount = 0
 	client.updateTrustAnchorCount = 0
-	client.listTrustAnchorsCount = 0
 
-	// Throw an error when calling CreateTrustAnchor.
-	client.createTrustAnchorErr = errors.New("error calling CreateTrustAnchor")
+	// Throw an error when calling UpdateTrustAnchor.
+	client.updateTrustAnchorErr = errors.New("error calling UpdateTrustAnchor")
 
-	// Call PublishBundle. CreateTrustAnchor should be called and return an error.
+	// Call PublishBundle. UpdateTrustAnchor should be called and return an error.
 	resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
 		Bundle: bundle,
 	})
 	require.Error(t, err)
 	require.Nil(t, resp)
 
-	// Since the bundle could not be published, createTrustAnchorCount should be 0.
-	require.Equal(t, 0, client.createTrustAnchorCount)
-	require.Equal(t, 0, client.updateTrustAnchorCount)
-	require.Equal(t, 5, client.listTrustAnchorsCount)
+	// UpdateTrustAnchor was called, even though it failed, so its counter should be incremented.
+	require.Equal(t, 1, client.updateTrustAnchorCount)
 
-	// Remove the createTrustAnchorErr and try again.
-	client.createTrustAnchorErr = nil
-	client.listTrustAnchorsCount = 0
+	// Remove the updateTrustAnchorErr and try again.
+	client.updateTrustAnchorErr = nil
 	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
 		Bundle: bundle,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Equal(t, 1, client.createTrustAnchorCount)
-	require.Equal(t, 0, client.updateTrustAnchorCount)
-	require.Equal(t, 5, client.listTrustAnchorsCount)
-
-	// So that the client calls UpdateTrustAnchor from here on out
-	client.trustAnchorName = &config.TrustAnchorName
+	require.Equal(t, 2, client.updateTrustAnchorCount)
 
 	// Call PublishBundle with the same bundle.
-	client.listTrustAnchorsCount = 0
 	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
 		Bundle: bundle,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// The same bundle was used, the counters should be the same as before.
-	require.Equal(t, 1, client.createTrustAnchorCount)
-	require.Equal(t, 0, client.updateTrustAnchorCount)
-	require.Equal(t, 0, client.listTrustAnchorsCount)
+	// The same bundle was used, the counter should be the same as before.
+	require.Equal(t, 2, client.updateTrustAnchorCount)
 
 	// Have a new bundle and call PublishBundle.
 	bundle = getTestBundle(t)
-	bundle.SequenceNumber = 3
-	client.listTrustAnchorsCount = 0
+	bundle.SequenceNumber = 2
 	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
 		Bundle: bundle,
 	})
@@ -352,128 +301,44 @@ func TestPublishMultiple(t *testing.T) {
 	require.NotNil(t, resp)
 
 	// PublishBundle was called with a different bundle, updateTrustAnchorCount should
-	// be incremented to be 1.
-	require.Equal(t, 1, client.createTrustAnchorCount)
-	require.Equal(t, 1, client.updateTrustAnchorCount)
-	require.Equal(t, 5, client.listTrustAnchorsCount)
+	// be incremented to be 3.
+	require.Equal(t, 3, client.updateTrustAnchorCount)
 
-	// Simulate that calling to UpdateTrustAnchor fails with an error.
-	client.updateTrustAnchorErr = errors.New("error calling UpdateTrustAnchor")
-	client.listTrustAnchorsCount = 0
-	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
-		Bundle: bundle,
-	})
-	// Since there is no change in the bundle, UpdateTrustAnchor should not be called
-	// and there should be no error.
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-
-	// The same bundle was used, the updateTrustAnchorCount counter should be still 1.
-	require.Equal(t, 1, client.createTrustAnchorCount)
-	require.Equal(t, 1, client.updateTrustAnchorCount)
-	require.Equal(t, 0, client.listTrustAnchorsCount)
-
-	// Have a new bundle and call PublishBundle. UpdateTrustAnchor should be called this
-	// time and return an error.
-	bundle = getTestBundle(t)
-	bundle.SequenceNumber = 4
-	client.listTrustAnchorsCount = 0
+	// Try to publish a bundle that's too large, and expect that we receive an error.
+	bundle = getLargeTestBundle(t)
+	bundle.SequenceNumber = 3
 	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
 		Bundle: bundle,
 	})
 	require.Error(t, err)
-	require.Nil(t, resp)
-
-	// Since the bundle could not be published, updateTrustAnchorCount should be
-	// still 1.
-	require.Equal(t, 1, client.createTrustAnchorCount)
-	require.Equal(t, 1, client.updateTrustAnchorCount)
-	require.Equal(t, 5, client.listTrustAnchorsCount)
-
-	// Clear the UpdateTrustAnchor error and call PublishBundle.
-	client.updateTrustAnchorErr = nil
-	client.listTrustAnchorsCount = 0
-	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
-		Bundle: bundle,
-	})
-
-	// No error should happen this time.
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-
-	// The updateTrustAnchorCount counter should be incremented to 2, since the bundle
-	// should have been published successfully.
-	require.Equal(t, 1, client.createTrustAnchorCount)
-	require.Equal(t, 2, client.updateTrustAnchorCount)
-	require.Equal(t, 5, client.listTrustAnchorsCount)
 }
 
 type fakeClient struct {
 	t *testing.T
 
 	awsConfig              aws.Config
-	createTrustAnchorErr   error
-	createTrustAnchorCount int
 	updateTrustAnchorErr   error
 	updateTrustAnchorCount int
-	listTrustAnchorsErr    error
-	listTrustAnchorsCount  int
-	trustAnchorName        *string
 
-	expectTrustAnchorName *string
-}
-
-func (c *fakeClient) CreateTrustAnchor(_ context.Context, params *rolesanywhere.CreateTrustAnchorInput, _ ...func(*rolesanywhere.Options)) (*rolesanywhere.CreateTrustAnchorOutput, error) {
-	if c.createTrustAnchorErr != nil {
-		return nil, c.createTrustAnchorErr
-	}
-
-	require.Equal(c.t, c.expectTrustAnchorName, params.Name, "trust anchor name mismatch")
-	c.createTrustAnchorCount++
-	trustAnchorArn := "trustAnchorArn"
-	return &rolesanywhere.CreateTrustAnchorOutput{
-		TrustAnchor: &rolesanywheretypes.TrustAnchorDetail{
-			TrustAnchorArn: &trustAnchorArn,
-		},
-	}, nil
+	expectTrustAnchorID *string
 }
 
 func (c *fakeClient) UpdateTrustAnchor(_ context.Context, params *rolesanywhere.UpdateTrustAnchorInput, _ ...func(*rolesanywhere.Options)) (*rolesanywhere.UpdateTrustAnchorOutput, error) {
+	c.updateTrustAnchorCount++
+
 	if c.updateTrustAnchorErr != nil {
 		return nil, c.updateTrustAnchorErr
 	}
 
-	c.updateTrustAnchorCount++
+	require.Equal(c.t, c.expectTrustAnchorID, params.TrustAnchorId, "trust anchor id mismatch")
 	trustAnchorArn := "trustAnchorArn"
+	trustAnchorName := "trustAnchorName"
 	return &rolesanywhere.UpdateTrustAnchorOutput{
 		TrustAnchor: &rolesanywheretypes.TrustAnchorDetail{
 			TrustAnchorArn: &trustAnchorArn,
+			Name:           &trustAnchorName,
 		},
 	}, nil
-}
-
-func (c *fakeClient) ListTrustAnchors(_ context.Context, params *rolesanywhere.ListTrustAnchorsInput, _ ...func(*rolesanywhere.Options)) (*rolesanywhere.ListTrustAnchorsOutput, error) {
-	if c.listTrustAnchorsErr != nil {
-		return nil, c.listTrustAnchorsErr
-	}
-
-	c.listTrustAnchorsCount++
-	if c.listTrustAnchorsCount == 5 {
-		listTrustAnchorsOutput := rolesanywhere.ListTrustAnchorsOutput{}
-		if c.trustAnchorName != nil {
-			listTrustAnchorsOutput.TrustAnchors = []rolesanywheretypes.TrustAnchorDetail{
-				rolesanywheretypes.TrustAnchorDetail{
-					Name: c.trustAnchorName,
-				},
-			}
-		}
-		return &listTrustAnchorsOutput, nil
-	} else {
-		nextToken := "next-token"
-		return &rolesanywhere.ListTrustAnchorsOutput{
-			NextToken: &nextToken,
-		}, nil
-	}
 }
 
 func getTestBundle(t *testing.T) *types.Bundle {
@@ -494,5 +359,18 @@ func getTestBundle(t *testing.T) *types.Bundle {
 		},
 		RefreshHint:    1440,
 		SequenceNumber: 100,
+	}
+}
+
+func getLargeTestBundle(t *testing.T) *types.Bundle {
+	largeBundle, err := util.LoadLargeBundleFixture()
+	require.NoError(t, err)
+
+	return &types.Bundle{
+		TrustDomain:     "example.org",
+		X509Authorities: []*types.X509Certificate{{Asn1: largeBundle[0].Raw}},
+		JwtAuthorities:  []*types.JWTKey{},
+		RefreshHint:     1440,
+		SequenceNumber:  101,
 	}
 }
