@@ -1,4 +1,4 @@
-# Server plugin: BundlePublisher "aws_s3"
+# Server plugin: BundlePublisher "aws_rolesanywhere_trustanchor"
 
 The `aws_rolesanywhere_trustanchor` plugin puts the current trust bundle of the server
 in a trust anchor, keeping it updated. If a trust anchor with the specified name doesn't 

@@ -43,7 +43,7 @@ type Config struct {
 	TrustAnchorName string `hcl:"trust_anchor_name" json:"trust_anchor_name"`
 }
 
-// Plugin is the main representation of tihs bundle publisher plugin.
+// Plugin is the main representation of this bundle publisher plugin.
 type Plugin struct {
 	bundlepublisherv1.UnsafeBundlePublisherServer
 	configv1.UnsafeConfigServer
