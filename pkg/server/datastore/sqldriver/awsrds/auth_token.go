@@ -13,19 +13,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/rds/auth"
 )
 
-const iso8601BasicFormat = "20060102T150405Z"
+const (
+	iso8601BasicFormat = "20060102T150405Z"
+	clockSkew          = time.Minute // Make sure that the authentication token is valid for one more minute.
+)
 
 type authTokenBuilder interface {
 	buildAuthToken(ctx context.Context, endpoint string, region string, dbUser string, creds aws.CredentialsProvider, optFns ...func(options *auth.BuildAuthTokenOptions)) (string, error)
 }
 
-type tokenGetter interface {
-	getAuthToken(ctx context.Context, params *Config, tokenBuilder authTokenBuilder) (string, error)
-}
-
 type authToken struct {
-	token     string
-	expiresAt time.Time
+	cachedToken string
+	expiresAt   time.Time
 }
 
 func (a *authToken) getAuthToken(ctx context.Context, config *Config, tokenBuilder authTokenBuilder) (string, error) {
@@ -37,8 +36,8 @@ func (a *authToken) getAuthToken(ctx context.Context, config *Config, tokenBuild
 		return "", errors.New("missing token builder")
 	}
 
-	if !a.isExpired() {
-		return a.token, nil
+	if !a.shouldRotate() {
+		return a.cachedToken, nil
 	}
 
 	awsClientConfig, err := newAWSClientConfig(ctx, config)
@@ -79,14 +78,18 @@ func (a *authToken) getAuthToken(ctx context.Context, config *Config, tokenBuild
 	if err != nil {
 		return "", fmt.Errorf("failed to parse X-Amz-Expires duration: %w", err)
 	}
-	a.token = authenticationToken
+	a.cachedToken = authenticationToken
 	a.expiresAt = dateTime.Add(durationTime)
 	return authenticationToken, nil
 }
 
-func (a *authToken) isExpired() bool {
-	clockSkew := time.Minute // Make sure that the authentication token is valid for one more minute.
-	return nowFunc().Add(-clockSkew).Sub(a.expiresAt) >= 0
+// shouldRotate returns true if the cached token is either expired or is
+// expiring soon. This means that this function will return true also if the
+// token is still valid but should be rotated because it's expiring soon. The
+// time window that establish when a cached token should be rotated even if it's
+// still valid is adjusted by a clock skew, defined in the clockSkew constant.
+func (a *authToken) shouldRotate() bool {
+	return nowFunc().Add(clockSkew).Sub(a.expiresAt) >= 0
 }
 
 type awsTokenBuilder struct{}

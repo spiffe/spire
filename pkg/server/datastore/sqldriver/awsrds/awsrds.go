@@ -67,7 +67,7 @@ func (c *Config) getConnStringWithPassword(password string) (string, error) {
 	}
 }
 
-type tokens map[string]tokenGetter
+type tokens map[string]*authToken
 
 // sqlDriverWrapper is a wrapper for SQL drivers, adding IAM authentication.
 type sqlDriverWrapper struct {
