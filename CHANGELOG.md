@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.8.11] - 2024-05-07
+
+### Security
+
+- Updated to Go 1.21.10 to address CVE-2024-24788
+
 ## [1.8.10] - 2023-04-05
 
 ### Security
