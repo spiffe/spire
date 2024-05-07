@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.9.5] - 2024-05-07
+
+### Security
+
+- Updated to Go 1.21.10 to address CVE-2024-24788
+
 ## [1.9.4] - 2023-04-05
 
 ### Security
@@ -64,6 +70,12 @@
 ### Removed
 
 - X509-SVIDs issued by the server no longer have the x509UniqueIdentifier attribute as part of the subject (#4862)
+
+## [1.8.11] - 2024-05-07
+
+### Security
+
+- Updated to Go 1.21.10 to address CVE-2024-24788
 
 ## [1.8.10] - 2023-04-05
 
