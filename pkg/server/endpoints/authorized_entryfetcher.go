@@ -98,6 +98,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneEvents(ctx context.Con
 	pruneRegistrationEntriesEventsErr := a.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
 	pruneAttestedNodesEventsErr := a.ds.PruneAttestedNodesEvents(ctx, olderThan)
 	a.pruneMissedRegistrationEntriesEvents()
+	a.pruneMissedAttestedNodeEvents()
 
 	return errors.Join(pruneRegistrationEntriesEventsErr, pruneAttestedNodesEventsErr)
 }
@@ -109,6 +110,17 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneMissedRegistrationEntr
 	for eventID, eventTime := range a.missedRegistrationEntryEvents {
 		if time.Since(eventTime) > a.pruneEventsOlderThan {
 			delete(a.missedRegistrationEntryEvents, eventID)
+		}
+	}
+}
+
+func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneMissedAttestedNodeEvents() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	for eventID, eventTime := range a.missedAttestedNodeEvents {
+		if time.Since(eventTime) > a.pruneEventsOlderThan {
+			delete(a.missedAttestedNodeEvents, eventID)
 		}
 	}
 }
