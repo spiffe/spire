@@ -61,7 +61,7 @@ func New() *Plugin {
 
 func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err error) {
 	h := http.NewServeMux()
-	s := &http.Server {
+	s := &http.Server{
 		Handler: h,
 	}
 	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, nonce)

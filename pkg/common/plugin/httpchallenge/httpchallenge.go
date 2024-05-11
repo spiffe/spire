@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -56,6 +57,18 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 
 
 func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challenge, _ *Response) error {
+	if strings.Contains(attestationData.HostName, "/") {
+		return fmt.Errorf("Hostname can not contain a /")
+	}
+	if strings.Contains(attestationData.HostName, "/") {
+		return fmt.Errorf("Hostname can not contain a :")
+	}
+	if strings.Contains(attestationData.AgentName, ".") {
+		return fmt.Errorf("AgentName can not contain a dot.")
+	}
+	if strings.Contains(attestationData.Nonce, ".") {
+		return fmt.Errorf("Nonce can not contain a dot.")
+	}
 	url := fmt.Sprintf("http://%s:%d/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.HostName, attestationData.Port, attestationData.AgentName, challenge.Nonce)
 	resp, err := http.Get(url)
 	if err != nil {
