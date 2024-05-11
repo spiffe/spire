@@ -64,7 +64,7 @@ func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err
 	s := &http.Server {
 		Handler: h,
 	}
-	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, string(nonce))
+	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, nonce)
 	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%s", nonce)
 		go func() {

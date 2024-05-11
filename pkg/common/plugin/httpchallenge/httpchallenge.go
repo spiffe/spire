@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/base64"
-	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -51,24 +50,25 @@ func GenerateChallenge() (*Challenge, error) {
 	return &Challenge{Nonce: nonce}, nil
 }
 
-func CalculateResponse(challenge *Challenge) (*Response, error) {
+func CalculateResponse(_ *Challenge) (*Response, error) {
 	return &Response{}, nil
 }
 
-func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challenge, response *Response) error {
+
+func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challenge, _ *Response) error {
 	url := fmt.Sprintf("http://%s:%d/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.HostName, attestationData.Port, attestationData.AgentName, challenge.Nonce)
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 	if bytes.Equal(body, challenge.Nonce) {
 		return nil
 	}
-	return errors.New(fmt.Sprintf("Nonce did not match, %s %s", string(body), string(challenge.Nonce)))
+	return fmt.Errorf("Nonce did not match, %s %s", string(body), string(challenge.Nonce))
 }
 
 // MakeAgentID creates an agent ID
@@ -90,7 +90,7 @@ func generateNonce() ([]byte, error) {
 		return nil, err
 	}
 	retval := make([]byte, base64.StdEncoding.EncodedLen(len(b)))
-	base64.StdEncoding.Encode(retval, []byte(b))
+	base64.StdEncoding.Encode(retval, b)
 
 	return retval, nil
 }
