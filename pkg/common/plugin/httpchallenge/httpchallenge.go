@@ -55,7 +55,6 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 	return &Response{}, nil
 }
 
-
 func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challenge, _ *Response) error {
 	if strings.Contains(attestationData.HostName, "/") {
 		return fmt.Errorf("hostname can not contain a slash")

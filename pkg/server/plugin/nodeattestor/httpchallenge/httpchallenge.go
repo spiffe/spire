@@ -42,10 +42,10 @@ type configuration struct {
 }
 
 type Config struct {
-	DNSPatterns         []string `hcl:"dns_patterns"`
-	RequiredPort        *int     `hcl:"required_port"`
-	AllowNonRootPorts   *bool    `hcl:"allow_non_root_ports"`
-	AgentPathTemplate   string   `hcl:"agent_path_template"`
+	DNSPatterns       []string `hcl:"dns_patterns"`
+	RequiredPort      *int     `hcl:"required_port"`
+	AllowNonRootPorts *bool    `hcl:"allow_non_root_ports"`
+	AgentPathTemplate string   `hcl:"agent_path_template"`
 }
 
 type Plugin struct {
@@ -196,12 +196,12 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	}
 
 	p.setConfiguration(&configuration{
-		trustDomain:         trustDomain,
-		pathTemplate:        pathTemplate,
-		dnsPatterns:         dnsPatterns,
-		requiredPort:        hclConfig.RequiredPort,
-		allowNonRootPorts:   allowNonRootPorts,
-		agentNamePattern:    agentNamePattern,
+		trustDomain:       trustDomain,
+		pathTemplate:      pathTemplate,
+		dnsPatterns:       dnsPatterns,
+		requiredPort:      hclConfig.RequiredPort,
+		allowNonRootPorts: allowNonRootPorts,
+		agentNamePattern:  agentNamePattern,
 	})
 
 	return &configv1.ConfigureResponse{}, nil
