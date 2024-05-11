@@ -66,7 +66,7 @@ func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challe
 	if strings.Contains(attestationData.AgentName, ".") {
 		return fmt.Errorf("AgentName can not contain a dot.")
 	}
-	if strings.Contains(attestationData.Nonce, ".") {
+	if strings.Contains(string(challenge.Nonce), ".") {
 		return fmt.Errorf("Nonce can not contain a dot.")
 	}
 	url := fmt.Sprintf("http://%s:%d/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.HostName, attestationData.Port, attestationData.AgentName, challenge.Nonce)
