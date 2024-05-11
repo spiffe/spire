@@ -56,7 +56,7 @@ func CalculateResponse(challenge *Challenge) (*Response, error) {
 }
 
 func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challenge, response *Response) error {
-	url := fmt.Sprintf("http://%s:%d/.well-known/spiffe/nodeattestor/httpchallenge/%s/%s", attestationData.HostName, attestationData.Port, attestationData.AgentName, challenge.Nonce)
+	url := fmt.Sprintf("http://%s:%d/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.HostName, attestationData.Port, attestationData.AgentName, challenge.Nonce)
 	resp, err := http.Get(url)
 	if err != nil {
 		return err

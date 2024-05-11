@@ -52,6 +52,7 @@ type Plugin struct {
 
 	m sync.Mutex
 	c *Config
+	l *net.Listener
 }
 
 func New() *Plugin {
@@ -63,19 +64,21 @@ func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err
 	s := &http.Server {
 		Handler:        h,
 	}
-	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/httpchallenge/%s/%s", agentName, string(nonce))
+	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, string(nonce))
 	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%s", nonce)
 		go s.Shutdown(context.Background())
 	})
-	// FIXME
-	go func() {
 
-	err = s.Serve(l)
-	if err == http.ErrServerClosed {
-		//return nil
-		return
-	}
+        go func() {
+		err = s.Serve(l)
+		l.Close()
+		if err == http.ErrServerClosed {
+			return
+		}
+		if err != nil {
+			fmt.Printf("Unexpected error while serving. %e", err)
+		}
 	}()
 	return err
 }
@@ -88,11 +91,14 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 
 	port := data.port
 
+	if p.l != nil {
+		(*p.l).Close()
+	}
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	p.l = &l
 	if err != nil {
 		return status.Errorf(codes.Internal, "could not listen on port %d: %v", port, err)
 	}
-	defer l.Close()
 
 	advertisedPort := data.advertisedPort
 	if advertisedPort == 0 {
@@ -105,6 +111,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		Port:      advertisedPort,
 	})
 	if err != nil {
+		l.Close()
 		return status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)
 	}
 
@@ -114,17 +121,20 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 			Payload: attestationPayload,
 		},
 	}); err != nil {
+		l.Close()
 		return err
 	}
 
 	// receive challenge
 	resp, err := stream.Recv()
 	if err != nil {
+		l.Close()
 		return err
 	}
 
 	challenge := new(httpchallenge.Challenge)
 	if err := json.Unmarshal(resp.Challenge, challenge); err != nil {
+		l.Close()
 		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %v", err)
 	}
 
