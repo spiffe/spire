@@ -6,8 +6,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
 	"io/ioutil"
+	"net/http"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -65,10 +65,6 @@ func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challe
 	if err != nil {
 		return err
 	}
-	//dec, err := base64.StdEncoding.DecodeString(string(body))
-	//if err != nil {
-	//	return err
-	//}
 	if bytes.Equal(body, challenge.Nonce) {
 		return nil
 	}

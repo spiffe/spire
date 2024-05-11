@@ -62,12 +62,14 @@ func New() *Plugin {
 func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err error) {
 	h := http.NewServeMux()
 	s := &http.Server {
-		Handler:        h,
+		Handler: h,
 	}
 	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, string(nonce))
 	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%s", nonce)
-		go s.Shutdown(context.Background())
+		go func() {
+			_ = s.Shutdown(context.Background())
+		}()
 	})
 
         go func() {

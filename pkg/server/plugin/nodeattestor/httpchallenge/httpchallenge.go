@@ -33,12 +33,12 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type configuration struct {
-	trustDomain         spiffeid.TrustDomain
-	pathTemplate        *agentpathtemplate.Template
-	requiredPort        *int
-	allowNonRootPorts   bool
-	dnsPatterns         []*regexp.Regexp
-	agentNamePattern    *regexp.Regexp
+	trustDomain       spiffeid.TrustDomain
+	pathTemplate      *agentpathtemplate.Template
+	requiredPort      *int
+	allowNonRootPorts bool
+	dnsPatterns       []*regexp.Regexp
+	agentNamePattern  *regexp.Regexp
 }
 
 type Config struct {
@@ -89,7 +89,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	l := config.agentNamePattern.FindAllStringSubmatch(attestationData.AgentName, -1)
-	if len(l) != 1 || len(l[0]) <= 0 || len(l[0]) > 32 {
+	if len(l) != 1 || len(l[0]) == 0 || len(l[0]) > 32 {
 		return status.Error(codes.InvalidArgument, "agent name is not valid")
 	}
 
