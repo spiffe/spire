@@ -63,7 +63,7 @@ func New() *Plugin {
 func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err error) {
 	h := http.NewServeMux()
 	s := &http.Server{
-		Handler: h,
+		Handler:      h,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
@@ -75,7 +75,7 @@ func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err
 		}()
 	})
 
-        go func() {
+	go func() {
 		err = s.Serve(l)
 		l.Close()
 		if err == http.ErrServerClosed {

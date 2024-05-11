@@ -58,16 +58,16 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 
 func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challenge, _ *Response) error {
 	if strings.Contains(attestationData.HostName, "/") {
-		return fmt.Errorf("hostname can not contain a /")
+		return fmt.Errorf("hostname can not contain a slash")
 	}
 	if strings.Contains(attestationData.HostName, "/") {
-		return fmt.Errorf("hostname can not contain a :")
+		return fmt.Errorf("hostname can not contain a colon")
 	}
 	if strings.Contains(attestationData.AgentName, ".") {
-		return fmt.Errorf("agentname can not contain a dot.")
+		return fmt.Errorf("agentname can not contain a dot")
 	}
 	if strings.Contains(string(challenge.Nonce), ".") {
-		return fmt.Errorf("nonce can not contain a dot.")
+		return fmt.Errorf("nonce can not contain a dot")
 	}
 	url := fmt.Sprintf("http://%s:%d/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.HostName, attestationData.Port, attestationData.AgentName, challenge.Nonce)
 	resp, err := http.Get(url)
