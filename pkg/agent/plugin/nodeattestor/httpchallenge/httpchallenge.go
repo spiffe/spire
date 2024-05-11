@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
@@ -63,6 +64,8 @@ func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err
 	h := http.NewServeMux()
 	s := &http.Server{
 		Handler: h,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, nonce)
 	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
