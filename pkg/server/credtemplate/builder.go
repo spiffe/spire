@@ -345,6 +345,18 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 		}
 	}
 
+	// AWS will otherwise reject validating timestamps serialized in scientific notation.
+	// Protobuf serializes large integers as float since Claims are represented as google.protobuf.Struct.
+	if len(b.config.CredentialComposers) > 0 {
+		if iat, ok := attributes.Claims["iat"].(float64); ok {
+			attributes.Claims["iat"] = int64(iat)
+		}
+
+		if exp, ok := attributes.Claims["exp"].(float64); ok {
+			attributes.Claims["exp"] = int64(exp)
+		}
+	}
+
 	return attributes.Claims, nil
 }
 

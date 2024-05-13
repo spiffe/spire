@@ -270,11 +270,12 @@ func TestCacheToken(t *testing.T) {
 	dsn, err := config.FormatDSN()
 	require.NoError(t, err)
 
-	now := time.Now().UTC()
-	nowString := now.Format(iso8601BasicFormat)
+	initialTime := time.Now().UTC()
+	nowString := initialTime.Format(iso8601BasicFormat)
+	ttl := 900
 
 	// Set a first token to be always returned by the token builder.
-	firstToken := fmt.Sprintf("X-Amz-Date=%s&X-Amz-Expires=900&X-Amz-Signature=first-token", nowString)
+	firstToken := fmt.Sprintf("X-Amz-Date=%s&X-Amz-Expires=%d&X-Amz-Signature=first-token", nowString, ttl)
 	fakeSQLDriverWrapper.tokenBuilder = &fakeTokenBuilder{
 		authToken: firstToken,
 	}
@@ -299,10 +300,14 @@ func TestCacheToken(t *testing.T) {
 	// token (not expired) that we can use. For that, we start by setting a new
 	// token that will be returned by the token builder when getAWSAuthToken is
 	// called.
-	newToken := fmt.Sprintf("X-Amz-Date=%s&X-Amz-Expires=900&X-Amz-Signature=second-token", nowString)
+
+	newToken := fmt.Sprintf("X-Amz-Date=%s&X-Amz-Expires=%d&X-Amz-Signature=second-token", nowString, ttl)
 	fakeSQLDriverWrapper.tokenBuilder = &fakeTokenBuilder{
 		authToken: newToken,
 	}
+
+	// Advance the clock just a few seconds.
+	nowFunc = func() time.Time { return initialTime.Add(time.Second * 15) }
 
 	// Call Open again, the cached token should be used.
 	db, err = gorm.Open(fakeSQLDriverName, dsn)
@@ -318,8 +323,14 @@ func TestCacheToken(t *testing.T) {
 
 	// We will now make firstToken to expire, so we can test that the token
 	// builder is called to get a new token when the current token has expired.
-	// For that, we advance the clock one hour.
-	nowFunc = func() time.Time { return now.Add(time.Hour) }
+	// For that, we advance the clock the number of seconds of the ttl of the
+	// token.
+	newTime := initialTime.Add(time.Second * time.Duration(ttl))
+
+	// nowFunc will subtract the clock skew from the new time, to make sure
+	// that we get a new token even if it's not expired but it's within the
+	// clock skew period.
+	nowFunc = func() time.Time { return newTime.Add(-clockSkew) }
 
 	// Call Open again, the new token should be used.
 	db, err = gorm.Open(fakeSQLDriverName, dsn)
