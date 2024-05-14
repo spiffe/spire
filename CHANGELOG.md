@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.9.6] - 2024-05-14
+
+### Added
+
+- Support for CGroups v2 in K8s and Docker workload attestors (#5076)
+- `gcp_cloudstorage` BundlePublisher plugin (#4961)
+- Allow to verify if the account ID is part of an AWS Organization in `aws_iid` node attestor (#4838)
+- Add more filtering options to entries and agents endpoints (#4714)
+
+### Changed
+
+- Credential composer to parse timestamps claims to integer (#5115)
+- FetchJWTBundles no longer return nil keys in favor of empty (#5031)
+
+### Fixed
+
+- Prevent to use expired tokens when connecting to database (#5119)
+- Server no longer try to create JWT authority when X.509 authority fails (#5064)
+- Issues in experimental events-based entry cache (#5030, #5037, #5042)
+
 ## [1.9.5] - 2024-05-07
 
 ### Security
