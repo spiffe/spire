@@ -76,7 +76,8 @@ ghcr.io/spiffe/spire-agent    1.9.1             622ce7acc7e8   4 weeks ago    57
 ghcr.io/spiffe/spire-server   1.9.1             e3b24c3cd9e1   4 weeks ago    103MB
 envoyproxy/envoy              contrib-v1.29.1   644f45f6626c   7 weeks ago    181MB
 ```
-Then use the `REPOSITORY:TAG` as the selector, not the `IMAGE ID` column.
+
+Then u4se the `REPOSITORY:TAG` as the selector, not the `IMAGE ID` column.
 
 ```shell
 $ spire-server entry create \
@@ -84,7 +85,6 @@ $ spire-server entry create \
     -spiffeID spiffe://example.org/host/foo \
     -selector docker:image_id:envoyproxy/envoy:contrib-v1.29.1
 ```
-
 
 ### Labels
 
