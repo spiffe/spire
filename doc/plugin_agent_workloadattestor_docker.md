@@ -31,7 +31,7 @@ Instead, each of the container's labels are used in creating the list of selecto
 |-------------------|-------------------------------------|------------------------------------------------------------------------|
 | `docker:label`    | `docker:label:com.example.name:foo` | The key:value pair of each of the container's labels.                  |
 | `docker:env`      | `docker:env:VAR=val`                | The raw string value of each of the container's environment variables. |
-| `docker:image_id` | `docker:image_id:77af4d6b9913`      | The image id of the container.                                         |
+| `docker:image_id` | `docker:image_id:77af4d6b9913`      | The image name and version of the container.                           |
 
 ## Container ID CGroup Matchers
 
