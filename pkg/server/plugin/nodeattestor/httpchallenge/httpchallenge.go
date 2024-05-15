@@ -7,12 +7,14 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+        "github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
+        nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -39,6 +41,7 @@ type configuration struct {
 	allowNonRootPorts bool
 	dnsPatterns       []*regexp.Regexp
 	agentNamePattern  *regexp.Regexp
+	tofu              bool
 }
 
 type Config struct {
@@ -46,14 +49,18 @@ type Config struct {
 	RequiredPort      *int     `hcl:"required_port"`
 	AllowNonRootPorts *bool    `hcl:"allow_non_root_ports"`
 	AgentPathTemplate string   `hcl:"agent_path_template"`
+	TOFU              *bool    `hcl:"tofu"`
 }
 
 type Plugin struct {
+        nodeattestorbase.Base
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
 	m      sync.Mutex
 	config *configuration
+
+        log hclog.Logger
 }
 
 func New() *Plugin {
@@ -144,12 +151,19 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
 
+
+	if config.tofu {
+		if err := p.AssessTOFU(stream.Context(), spiffeid.String(), p.log); err != nil {
+			return err
+		}
+	}
+
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       spiffeid.String(),
 				SelectorValues: buildSelectorValues(attestationData.HostName),
-				CanReattest:    true,
+				CanReattest:    !config.tofu,
 			},
 		},
 	})
@@ -195,6 +209,27 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		allowNonRootPorts = *hclConfig.AllowNonRootPorts
 	}
 
+	tofu := true
+	if hclConfig.TOFU != nil {
+		tofu = *hclConfig.TOFU
+	}
+
+	mustUseTOFU := false
+	// User has explicitly asked for a required port that is untrusted
+	if hclConfig.RequiredPort != nil && *hclConfig.RequiredPort >= 1024 {
+		mustUseTOFU = true
+	// User has just chosen the defaults, any port is allowed
+	} else if hclConfig.AllowNonRootPorts == nil && hclConfig.RequiredPort == nil {
+		mustUseTOFU = true
+	// User explicitly set AllowNonRootPorts to true and no requried port specified
+	} else if hclConfig.AllowNonRootPorts != nil && *hclConfig.AllowNonRootPorts && hclConfig.RequiredPort == nil {
+		mustUseTOFU = true
+	}
+
+	if tofu == false && mustUseTOFU {
+		return nil, status.Errorf(codes.InvalidArgument, "you can not turn off trust on first use (TOFU) when non root ports are allowed")
+	}
+
 	p.setConfiguration(&configuration{
 		trustDomain:       trustDomain,
 		pathTemplate:      pathTemplate,
@@ -202,9 +237,15 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		requiredPort:      hclConfig.RequiredPort,
 		allowNonRootPorts: allowNonRootPorts,
 		agentNamePattern:  agentNamePattern,
+		tofu:              tofu,
 	})
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+// SetLogger sets this plugin's logger
+func (p *Plugin) SetLogger(log hclog.Logger) {
+        p.log = log
 }
 
 func (p *Plugin) getConfig() (*configuration, error) {
