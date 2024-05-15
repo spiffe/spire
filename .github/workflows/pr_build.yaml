@@ -6,7 +6,9 @@ on:
     types:
       - checks_requested
 env:
-  WINDOWS_GO_PATH: 'D:\golang\'
+  WINDOWS_GO_PATH: 'D:\golang\go'
+  WINDOWS_GO_CACHE: 'D:\golang\cache'
+  WINDOWS_GO_MODCACHE: 'D:\golang\modcache'
 permissions:
   contents: read
 
@@ -364,13 +366,14 @@ jobs:
 
   integration-windows:
     name: integration (windows)
-    env:
-      GOPATH: ${{ WINDOWS_GO_PATH }}go
-      GOCACHE: ${{ WINDOWS_GO_PATH }}cache
-      GOMODCACHE: ${{ WINDOWS_GO_PATH }}modcache
     runs-on: windows-2022
     needs: images-windows
     timeout-minutes: 45
+
+    env:
+      GOPATH: ${{ WINDOWS_GO_PATH }}
+      GOCACHE: ${{ WINDOWS_GO_CACHE }}
+      GOMODCACHE: ${{ WINDOWS_GO_MODCACHE }}
 
     permissions:
       contents: read
@@ -419,10 +422,11 @@ jobs:
     name: cache-deps (windows)
     runs-on: windows-2022
     timeout-minutes: 45
+
     env:
-      GOPATH: ${{ WINDOWS_GO_PATH }}go
-      GOCACHE: ${{ WINDOWS_GO_PATH }}cache
-      GOMODCACHE: ${{ WINDOWS_GO_PATH }}modcache
+      GOPATH: ${{ WINDOWS_GO_PATH }}
+      GOCACHE: ${{ WINDOWS_GO_CACHE }}
+      GOMODCACHE: ${{ WINDOWS_GO_MODCACHE }}
 
     permissions:
       contents: read
@@ -450,10 +454,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: ${{ WINDOWS_GO_PATH }}go
-      GOCACHE: ${{ WINDOWS_GO_PATH }}cache
-      GOMODCACHE: ${{ WINDOWS_GO_PATH }}modcache
-
+      GOPATH: ${{ WINDOWS_GO_PATH }}
+      GOCACHE: ${{ WINDOWS_GO_CACHE }}
+      GOMODCACHE: ${{ WINDOWS_GO_MODCACHE }}
 
     permissions:
       contents: read
@@ -500,9 +503,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: ${{ WINDOWS_GO_PATH }}go
-      GOCACHE: ${{ WINDOWS_GO_PATH }}cache
-      GOMODCACHE: ${{ WINDOWS_GO_PATH }}modcache
+      GOPATH: ${{ WINDOWS_GO_PATH }}
+      GOCACHE: ${{ WINDOWS_GO_CACHE }}
+      GOMODCACHE: ${{ WINDOWS_GO_MODCACHE }}
 
     permissions:
       contents: read
@@ -540,9 +543,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: ${{ WINDOWS_GO_PATH }}go
-      GOCACHE: ${{ WINDOWS_GO_PATH }}cache
-      GOMODCACHE: ${{ WINDOWS_GO_PATH }}modcache
+      GOPATH: ${{ WINDOWS_GO_PATH }}
+      GOCACHE: ${{ WINDOWS_GO_CACHE }}
+      GOMODCACHE: ${{ WINDOWS_GO_MODCACHE }}
 
     permissions:
       contents: read
