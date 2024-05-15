@@ -539,9 +539,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: ${{ env.WINDOWS_GO_PATH }}
-      GOCACHE: ${{ env.WINDOWS_GO_CACHE }}
-      GOMODCACHE: ${{ env.WINDOWS_GO_MODCACHE }}
+      GOPATH: 'D:\golang\go'
+      GOCACHE: 'D:\golang\cache'
+      GOMODCACHE: 'D:\golang\modcache'
 
     permissions:
       contents: read
