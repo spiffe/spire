@@ -5,6 +5,8 @@ on:
   merge_group:
     types:
       - checks_requested
+env:
+  WINDOWS_GO_PATH: 'D:\golang\'
 permissions:
   contents: read
 
@@ -363,9 +365,9 @@ jobs:
   integration-windows:
     name: integration (windows)
     env:
-      GOPATH: 'd:\go\path'
-      GOCACHE: 'd:\go\cache'
-      GOMODCACHE: 'd:\go\modcache'
+      GOPATH: ${{WINDOWS_GO_PATH}}\go
+      GOCACHE: ${{WINDOWS_GO_PATH}}\cache
+      GOMODCACHE: ${{WINDOWS_GO_PATH}}\modcache
     runs-on: windows-2022
     needs: images-windows
     timeout-minutes: 45
@@ -417,11 +419,10 @@ jobs:
     name: cache-deps (windows)
     runs-on: windows-2022
     timeout-minutes: 45
-
     env:
-      GOPATH: 'd:\go\path'
-      GOCACHE: 'd:\go\cache'
-      GOMODCACHE: 'd:\go\modcache'
+      GOPATH: ${{WINDOWS_GO_PATH}}\go
+      GOCACHE: ${{WINDOWS_GO_PATH}}\cache
+      GOMODCACHE: ${{WINDOWS_GO_PATH}}\modcache
 
     permissions:
       contents: read
@@ -449,9 +450,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: 'd:\go\path'
-      GOCACHE: 'd:\go\cache'
-      GOMODCACHE: 'd:\go\modcache'
+      GOPATH: ${{WINDOWS_GO_PATH}}\go
+      GOCACHE: ${{WINDOWS_GO_PATH}}\cache
+      GOMODCACHE: ${{WINDOWS_GO_PATH}}\modcache
 
     permissions:
       contents: read
@@ -498,9 +499,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: 'd:\go\path'
-      GOCACHE: 'd:\go\cache'
-      GOMODCACHE: 'd:\go\modcache'
+      GOPATH: ${{WINDOWS_GO_PATH}}\go
+      GOCACHE: ${{WINDOWS_GO_PATH}}\cache
+      GOMODCACHE: ${{WINDOWS_GO_PATH}}\modcache
 
     permissions:
       contents: read
@@ -538,9 +539,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: 'd:\go\path'
-      GOCACHE: 'd:\go\cache'
-      GOMODCACHE: 'd:\go\modcache'
+      GOPATH: ${{WINDOWS_GO_PATH}}\go
+      GOCACHE: ${{WINDOWS_GO_PATH}}\cache
+      GOMODCACHE: ${{WINDOWS_GO_PATH}}\modcache
 
     permissions:
       contents: read
