@@ -5,10 +5,6 @@ on:
   merge_group:
     types:
       - checks_requested
-env:
-  WINDOWS_GO_PATH: 'D:\golang\go'
-  WINDOWS_GO_CACHE: 'D:\golang\cache'
-  WINDOWS_GO_MODCACHE: 'D:\golang\modcache'
 permissions:
   contents: read
 
@@ -371,9 +367,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: ${{ env.WINDOWS_GO_PATH }}
-      GOCACHE: ${{ env.WINDOWS_GO_CACHE }}
-      GOMODCACHE: ${{ env.WINDOWS_GO_MODCACHE }}
+      GOPATH: 'D:\golang\go'
+      GOCACHE: 'D:\golang\cache'
+      GOMODCACHE: 'D:\golang\modcache'
 
     permissions:
       contents: read
@@ -424,9 +420,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: ${{ env.WINDOWS_GO_PATH }}
-      GOCACHE: ${{ env.WINDOWS_GO_CACHE }}
-      GOMODCACHE: ${{ env.WINDOWS_GO_MODCACHE }}
+      GOPATH: 'D:\golang\go'
+      GOCACHE: 'D:\golang\cache'
+      GOMODCACHE: 'D:\golang\modcache'
 
     permissions:
       contents: read
@@ -454,9 +450,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: ${{ env.WINDOWS_GO_PATH }}
-      GOCACHE: ${{ env.WINDOWS_GO_CACHE }}
-      GOMODCACHE: ${{ env.WINDOWS_GO_MODCACHE }}
+      GOPATH: 'D:\golang\go'
+      GOCACHE: 'D:\golang\cache'
+      GOMODCACHE: 'D:\golang\modcache'
 
     permissions:
       contents: read
@@ -503,9 +499,9 @@ jobs:
     timeout-minutes: 45
 
     env:
-      GOPATH: ${{ env.WINDOWS_GO_PATH }}
-      GOCACHE: ${{ env.WINDOWS_GO_CACHE }}
-      GOMODCACHE: ${{ env.WINDOWS_GO_MODCACHE }}
+      GOPATH: 'D:\golang\go'
+      GOCACHE: 'D:\golang\cache'
+      GOMODCACHE: 'D:\golang\modcache'
 
     permissions:
       contents: read
