@@ -362,6 +362,10 @@ jobs:
 
   integration-windows:
     name: integration (windows)
+    env:
+      GOPATH: 'd:\go\path'
+      GOCACHE: 'd:\go\cache'
+      GOMODCACHE: 'd:\go\modcache'
     runs-on: windows-2022
     needs: images-windows
     timeout-minutes: 45
@@ -379,6 +383,7 @@ jobs:
         uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
         with:
           go-version-file: 'go.mod'
+          cache: true
       - name: Load cached deps
         uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
         with:
@@ -413,6 +418,11 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 45
 
+    env:
+      GOPATH: 'd:\go\path'
+      GOCACHE: 'd:\go\cache'
+      GOMODCACHE: 'd:\go\modcache'
+
     permissions:
       contents: read
 
@@ -423,6 +433,7 @@ jobs:
         uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
         with:
           go-version-file: 'go.mod'
+          cache: true
       - name: Setup dep cache
         uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
         with:
@@ -437,6 +448,11 @@ jobs:
     needs: cache-deps-windows
     timeout-minutes: 45
 
+    env:
+      GOPATH: 'd:\go\path'
+      GOCACHE: 'd:\go\cache'
+      GOMODCACHE: 'd:\go\modcache'
+
     permissions:
       contents: read
 
@@ -450,6 +466,7 @@ jobs:
         uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
         with:
           go-version-file: 'go.mod'
+          cache: true
       - name: Load cached deps
         uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
         with:
@@ -480,6 +497,11 @@ jobs:
     needs: cache-deps-windows
     timeout-minutes: 45
 
+    env:
+      GOPATH: 'd:\go\path'
+      GOCACHE: 'd:\go\cache'
+      GOMODCACHE: 'd:\go\modcache'
+
     permissions:
       contents: read
 
@@ -493,6 +515,7 @@ jobs:
         uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
         with:
           go-version-file: 'go.mod'
+          cache: true
       - name: Load cached deps
         uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
         with:
@@ -514,6 +537,11 @@ jobs:
     needs: cache-deps-windows
     timeout-minutes: 45
 
+    env:
+      GOPATH: 'd:\go\path'
+      GOCACHE: 'd:\go\cache'
+      GOMODCACHE: 'd:\go\modcache'
+
     permissions:
       contents: read
 
@@ -527,6 +555,7 @@ jobs:
         uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5.0.1
         with:
           go-version-file: 'go.mod'
+          cache: true
       - name: Load cached deps
         uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
         with:
