@@ -6,7 +6,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -68,8 +70,13 @@ func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challe
 	if strings.Contains(string(challenge.Nonce), ".") {
 		return fmt.Errorf("nonce can not contain a dot")
 	}
-	url := fmt.Sprintf("http://%s:%d/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.HostName, attestationData.Port, attestationData.AgentName, challenge.Nonce)
-	resp, err := http.Get(url)
+	turl := url.URL{
+		Scheme: "http",
+		Host:   net.JoinHostPort(attestationData.HostName, string(attestationData.Port)),
+		Path:   fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.AgentName, challenge.Nonce),
+	}
+
+	resp, err := http.Get(turl.String())
 	if err != nil {
 		return err
 	}

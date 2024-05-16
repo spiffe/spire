@@ -215,18 +215,19 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	}
 
 	mustUseTOFU := false
+	switch {
 	// User has explicitly asked for a required port that is untrusted
-	if hclConfig.RequiredPort != nil && *hclConfig.RequiredPort >= 1024 {
+	case hclConfig.RequiredPort != nil && *hclConfig.RequiredPort >= 1024:
 		mustUseTOFU = true
 	// User has just chosen the defaults, any port is allowed
-	} else if hclConfig.AllowNonRootPorts == nil && hclConfig.RequiredPort == nil {
+	case hclConfig.AllowNonRootPorts == nil && hclConfig.RequiredPort == nil:
 		mustUseTOFU = true
 	// User explicitly set AllowNonRootPorts to true and no requried port specified
-	} else if hclConfig.AllowNonRootPorts != nil && *hclConfig.AllowNonRootPorts && hclConfig.RequiredPort == nil {
+	case hclConfig.AllowNonRootPorts != nil && *hclConfig.AllowNonRootPorts && hclConfig.RequiredPort == nil:
 		mustUseTOFU = true
 	}
 
-	if tofu == false && mustUseTOFU {
+	if !tofu && mustUseTOFU {
 		return nil, status.Errorf(codes.InvalidArgument, "you can not turn off trust on first use (TOFU) when non root ports are allowed")
 	}
 
