@@ -6,15 +6,15 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-        "github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
-        nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
+	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -53,14 +53,14 @@ type Config struct {
 }
 
 type Plugin struct {
-        nodeattestorbase.Base
+	nodeattestorbase.Base
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
 	m      sync.Mutex
 	config *configuration
 
-        log hclog.Logger
+	log hclog.Logger
 }
 
 func New() *Plugin {
@@ -150,7 +150,6 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
-
 
 	if config.tofu {
 		if err := p.AssessTOFU(stream.Context(), spiffeid.String(), p.log); err != nil {
@@ -246,7 +245,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 
 // SetLogger sets this plugin's logger
 func (p *Plugin) SetLogger(log hclog.Logger) {
-        p.log = log
+	p.log = log
 }
 
 func (p *Plugin) getConfig() (*configuration, error) {

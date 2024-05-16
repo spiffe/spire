@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -72,7 +73,7 @@ func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challe
 	}
 	turl := url.URL{
 		Scheme: "http",
-		Host:   net.JoinHostPort(attestationData.HostName, fmt.Sprint("%d", attestationData.Port)),
+		Host:   net.JoinHostPort(attestationData.HostName, strconv.Itoa(attestationData.Port)),
 		Path:   fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.AgentName, challenge.Nonce),
 	}
 
