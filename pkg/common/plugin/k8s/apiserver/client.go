@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	authv1 "k8s.io/api/authentication/v1"
 	v1 "k8s.io/api/core/v1"
@@ -124,6 +125,23 @@ func (c *client) ValidateToken(ctx context.Context, token string, audiences []st
 
 	if resp.Status.Error != "" {
 		return nil, fmt.Errorf("token review API response contains an error: %v", resp.Status.Error)
+	}
+
+	// Ensure the audiences returned in the status are compatible with those requested
+	// in the TokenReviewSpec (if any). This is to ensure the validator is
+	// audience aware.
+	// See the documentation on the Status Audiences field.
+	if resp.Status.Authenticated && len(audiences) > 0 {
+		atLeastOnePresent := false
+		for _, audience := range audiences {
+			if slices.Contains(resp.Status.Audiences, audience) {
+				atLeastOnePresent = true
+				break
+			}
+		}
+		if !atLeastOnePresent {
+			return nil, fmt.Errorf("token review API did not validate audience: wanted one of %q but got %q", audiences, resp.Status.Audiences)
+		}
 	}
 
 	return &resp.Status, nil
