@@ -72,7 +72,7 @@ func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challe
 	}
 	turl := url.URL{
 		Scheme: "http",
-		Host:   net.JoinHostPort(attestationData.HostName, string(attestationData.Port)),
+		Host:   net.JoinHostPort(attestationData.HostName, fmt.Sprint("%d", attestationData.Port)),
 		Path:   fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.AgentName, challenge.Nonce),
 	}
 
@@ -80,6 +80,8 @@ func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challe
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err

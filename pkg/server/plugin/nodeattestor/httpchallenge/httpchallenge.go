@@ -222,7 +222,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	// User has just chosen the defaults, any port is allowed
 	case hclConfig.AllowNonRootPorts == nil && hclConfig.RequiredPort == nil:
 		mustUseTOFU = true
-	// User explicitly set AllowNonRootPorts to true and no requried port specified
+	// User explicitly set AllowNonRootPorts to true and no required port specified
 	case hclConfig.AllowNonRootPorts != nil && *hclConfig.AllowNonRootPorts && hclConfig.RequiredPort == nil:
 		mustUseTOFU = true
 	}
