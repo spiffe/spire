@@ -29,7 +29,7 @@ func (s *Server) Dial(tb testing.TB, extraOptions ...grpc.DialOption) grpc.Clien
 	dialOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	dialOptions = append(dialOptions, s.dialOptions...)
 	dialOptions = append(dialOptions, extraOptions...)
-	conn, err := grpc.DialContext(context.Background(), s.dialTarget, dialOptions...)
+	conn, err := grpc.DialContext(context.Background(), s.dialTarget, dialOptions...) //nolint: staticcheck // It is going to be resolved on #5152
 	require.NoError(tb, err, "failed to dial")
 	tb.Cleanup(func() {
 		_ = conn.Close()

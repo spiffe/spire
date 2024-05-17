@@ -145,7 +145,7 @@ func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, 
 	}()
 
 	// Dial the server
-	conn, err := grpc.Dial("IGNORED", grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(pipeNet.DialContext))
+	conn, err := grpc.Dial("IGNORED", grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(pipeNet.DialContext)) //nolint: staticcheck // It is going to be resolved on #5152
 	if err != nil {
 		return nil, errs.Wrap(err)
 	}

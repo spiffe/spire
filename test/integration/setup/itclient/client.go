@@ -51,7 +51,7 @@ func New(ctx context.Context) *Client {
 
 	// Create connection
 	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
-	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))) //nolint: staticcheck // It is going to be resolved on #5152
 	if err != nil {
 		source.Close()
 		log.Fatalf("Error creating dial: %v", err)
@@ -70,7 +70,8 @@ func NewInsecure(ctx context.Context) *Client {
 	tlsConfig := tls.Config{
 		InsecureSkipVerify: true, //nolint: gosec // this is intentional for the integration test
 	}
-	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
+	conn, err := grpc.DialContext(ctx, *serverAddrFlag, //nolint: staticcheck // It is going to be resolved on #5152
+		grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
 	if err != nil {
 		log.Fatalf("Error creating dial: %v", err)
 	}
@@ -93,7 +94,8 @@ func NewWithCert(ctx context.Context, cert *x509.Certificate, key crypto.Signer)
 		},
 		InsecureSkipVerify: true, //nolint: gosec // this is intentional for the integration test
 	}
-	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
+	conn, err := grpc.DialContext(ctx, *serverAddrFlag, //nolint: staticcheck // It is going to be resolved on #5152
+		grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
 	if err != nil {
 		log.Fatalf("Error creating dial: %v", err)
 	}
@@ -161,7 +163,8 @@ func (c *LocalServerClient) Release() {
 
 func NewLocalServerClient(ctx context.Context) *LocalServerClient {
 	flag.Parse()
-	conn, err := grpc.DialContext(ctx, *serverSocketPathFlag, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(ctx, *serverSocketPathFlag, //nolint: staticcheck // It is going to be resolved on #5152
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Error creating dial: %v", err)
 	}

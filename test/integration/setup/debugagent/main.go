@@ -73,7 +73,7 @@ func printDebugPage(ctx context.Context) error {
 }
 
 func retrieveDebugPage(ctx context.Context) (string, error) {
-	conn, err := grpc.Dial(*socketPathFlag, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(*socketPathFlag, grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint: staticcheck // It is going to be resolved on #5152
 	if err != nil {
 		return "", fmt.Errorf("failed to connect server: %w", err)
 	}
