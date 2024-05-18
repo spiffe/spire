@@ -257,7 +257,7 @@ When setting a `bundle_endpoint`, it is `required` to specify the bundle profile
 
 Allowed profiles:
 
-- `https_web` allow to configure the [Automated Certificate Management Environment](#Configuration options for `federation.bundle_endpoint.profile "https_web".acme`) section.
+- `https_web` allow to configure either the [Automated Certificate Management Environment](#Configuration options for `federation.bundle_endpoint.profile "https_web".acme`) or the [serving cert file](#Configure options for 'federation.bundle_endpoint.porfile "https_web".serving_cert_file') section.
 - `https_spiffe`
 
 ### Configuration options for `federation.bundle_endpoint.profile "https_web".acme`
@@ -268,6 +268,14 @@ Allowed profiles:
 | domain_name   | Domain for which the certificate manager tries to retrieve new certificates                                               |                                                |
 | email         | Contact email address. This is used by CAs, such as Let's Encrypt, to notify about problems with issued certificates      |                                                |
 | tos_accepted  | ACME Terms of Service acceptance. If not true, and the provider requires acceptance, then certificate retrieval will fail | false                                          |
+
+### Configuration options for `federation.bundle_endpoint.profile "https_web".serving_cert_file`
+
+| Configuration      | Description                                     | Default |
+|--------------------|-------------------------------------------------|---------|
+| cert_file_path     | Path to the certificate file, in PEM format     |         |
+| key_file_path      | Path to the key file, in PEM format             |         |
+| file_sync_interval | Interval on which to reload the files from disk | 1h      |
 
 ### Configuration options for `federation.bundle_endpoint.profile "https_spiffe"`
 
