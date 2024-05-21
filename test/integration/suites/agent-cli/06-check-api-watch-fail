@@ -1,0 +1,32 @@
+#!/bin/bash
+
+SVID_RECEIVED=1
+TIMEOUT_REACHED=0
+
+# Run the background process and store its output in a temporary file
+(docker-compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api watch < /dev/null > api_watch_output.txt) &
+
+# Get the PID of the last background process
+API_WATCH_PID=$!
+
+# Continuously check the output file for the desired pattern with a timeout of 20 seconds
+TIMEOUT=20
+START_TIME=$(date +%s)
+while ! grep -q "Received 1 svid after" api_watch_output.txt; do
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+    if [ $ELAPSED_TIME -gt $TIMEOUT ]; then
+        echo "Timeout reached while waiting for 'Received' message, as expected"
+        TIMEOUT_REACHED=1
+        break
+    fi
+    sleep 1  # Wait for 1 second before checking again
+done
+
+# If timeout is reached, the test was succesful
+if [ $TIMEOUT_REACHED -eq 1 ]; then
+    kill -9 $API_WATCH_PID  # If timeout reached, kill the background process
+    exit 0
+fi
+
+exit 1

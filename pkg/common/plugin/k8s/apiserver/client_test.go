@@ -111,6 +111,8 @@ CFEm0wKBgQCwARG9qV4sUoBvwLyBHQbPFZi/9PYwvDsnzjmKTUPa+kd4ATrv7gBY
 oN1CqmWqJQYVB6oGxFMaebeijY82beDN3WSBAK2FGvmdi3vZUAHHXyNOBS2Wq6PA
 oIrPuyjOmscrC627wX3LGUHwPKtNArBT8lKFfda1B1BqAk0q1/ui/A==
 -----END RSA PRIVATE KEY-----`)
+
+	wantAudiences = []string{"aud1", "aud2"}
 )
 
 const (
@@ -275,15 +277,38 @@ func (s *ClientSuite) TestValidateTokenFailsIfStatusContainsError() {
 	s.Nil(status)
 }
 
+func (s *ClientSuite) TestValidateTokenFailsDueToAudienceUnawareValidator() {
+	fakeClient := fake.NewSimpleClientset()
+	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
+		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+			return true, &authv1.TokenReview{
+				Status: authv1.TokenReviewStatus{
+					Authenticated: true,
+					Audiences:     []string{"aud3"},
+				},
+			}, nil
+		})
+
+	client := s.createClient(fakeClient)
+	status, err := client.ValidateToken(ctx, testToken, wantAudiences)
+	s.AssertErrorContains(err, `token review API did not validate audience: wanted one of ["aud1" "aud2"] but got ["aud3"]`)
+	s.Nil(status)
+}
+
 func (s *ClientSuite) TestValidateTokenSucceeds() {
 	fakeClient := fake.NewSimpleClientset()
 	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
 		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-			return true, &authv1.TokenReview{Status: authv1.TokenReviewStatus{Authenticated: true}}, nil
+			return true, &authv1.TokenReview{
+				Status: authv1.TokenReviewStatus{
+					Authenticated: true,
+					Audiences:     wantAudiences[:1],
+				},
+			}, nil
 		})
 
 	client := s.createClient(fakeClient)
-	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
+	status, err := client.ValidateToken(ctx, testToken, wantAudiences)
 	s.NoError(err)
 	s.NotNil(status)
 	s.True(status.Authenticated)
