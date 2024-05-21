@@ -101,7 +101,7 @@ type Config struct {
 	BundleManager *bundle_client.Manager
 }
 
-func (c *Config) maybeMakeBundleEndpointServer() Server {
+func (c *Config) maybeMakeBundleEndpointServer(ctx context.Context) Server {
 	if c.BundleEndpoint.Address == nil {
 		return nil
 	}
@@ -112,6 +112,8 @@ func (c *Config) maybeMakeBundleEndpointServer() Server {
 		serverAuth = bundle.ACMEAuth(c.Log.WithField(telemetry.SubsystemName, "bundle_acme"), c.Catalog.GetKeyManager(), *c.BundleEndpoint.ACME)
 	} else if c.BundleEndpoint.DiskCertManager != nil {
 		serverAuth = c.BundleEndpoint.DiskCertManager
+		// Start watching for file changes
+		go c.BundleEndpoint.DiskCertManager.WatchFileChanges(ctx)
 	} else {
 		serverAuth = bundle.SPIFFEAuth(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
 			state := c.SVIDObserver.State()

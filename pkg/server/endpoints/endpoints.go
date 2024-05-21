@@ -161,7 +161,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		DataStore:                    ds,
 		BundleCache:                  bundle.NewCache(ds, c.Clock),
 		APIServers:                   c.makeAPIServers(ef),
-		BundleEndpointServer:         c.maybeMakeBundleEndpointServer(),
+		BundleEndpointServer:         c.maybeMakeBundleEndpointServer(ctx),
 		Log:                          c.Log,
 		Metrics:                      c.Metrics,
 		RateLimit:                    c.RateLimit,
