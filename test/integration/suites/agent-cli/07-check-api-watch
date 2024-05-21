@@ -49,9 +49,7 @@ while true; do
     CURRENT_TIME=$(date +%s)
     ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
     if [ $ELAPSED_TIME -gt $TIMEOUT ]; then
-        echo "Error: Timeout reached while waiting for 'Received' message."
-        TIMEOUT_REACHED=1
-        break
+        fail-now "Timeout reached while waiting for 'Received' message."
     fi
 
     # Count the number of SVID received
@@ -63,10 +61,6 @@ while true; do
     fi
     sleep 1  # Wait for 1 second before checking again
 done
-
-if [ $TIMEOUT_REACHED -eq 1 ]; then
-    exit 1
-fi
 
 # SVID rotated more than 4 times
 exit 0
