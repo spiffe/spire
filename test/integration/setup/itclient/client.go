@@ -51,7 +51,7 @@ func New(ctx context.Context) *Client {
 
 	// Create connection
 	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeAny())
-	conn, err := grpc.DialContext(ctx, *serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))) //nolint: staticcheck // It is going to be resolved on #5152
+	conn, err := grpc.NewClient(*serverAddrFlag, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
 		source.Close()
 		log.Fatalf("Error creating dial: %v", err)
@@ -65,12 +65,12 @@ func New(ctx context.Context) *Client {
 	}
 }
 
-func NewInsecure(ctx context.Context) *Client {
+func NewInsecure() *Client {
 	flag.Parse()
 	tlsConfig := tls.Config{
 		InsecureSkipVerify: true, //nolint: gosec // this is intentional for the integration test
 	}
-	conn, err := grpc.DialContext(ctx, *serverAddrFlag, //nolint: staticcheck // It is going to be resolved on #5152
+	conn, err := grpc.NewClient(*serverAddrFlag,
 		grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
 	if err != nil {
 		log.Fatalf("Error creating dial: %v", err)
@@ -82,7 +82,7 @@ func NewInsecure(ctx context.Context) *Client {
 	}
 }
 
-func NewWithCert(ctx context.Context, cert *x509.Certificate, key crypto.Signer) *Client {
+func NewWithCert(cert *x509.Certificate, key crypto.Signer) *Client {
 	flag.Parse()
 
 	tlsConfig := tls.Config{
@@ -94,7 +94,7 @@ func NewWithCert(ctx context.Context, cert *x509.Certificate, key crypto.Signer)
 		},
 		InsecureSkipVerify: true, //nolint: gosec // this is intentional for the integration test
 	}
-	conn, err := grpc.DialContext(ctx, *serverAddrFlag, //nolint: staticcheck // It is going to be resolved on #5152
+	conn, err := grpc.NewClient(*serverAddrFlag,
 		grpc.WithTransportCredentials(credentials.NewTLS(&tlsConfig)))
 	if err != nil {
 		log.Fatalf("Error creating dial: %v", err)
@@ -161,9 +161,9 @@ func (c *LocalServerClient) Release() {
 	c.connection.Close()
 }
 
-func NewLocalServerClient(ctx context.Context) *LocalServerClient {
+func NewLocalServerClient() *LocalServerClient {
 	flag.Parse()
-	conn, err := grpc.DialContext(ctx, *serverSocketPathFlag, //nolint: staticcheck // It is going to be resolved on #5152
+	conn, err := grpc.NewClient(*serverSocketPathFlag,
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Error creating dial: %v", err)

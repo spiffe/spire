@@ -60,7 +60,7 @@ func (c *serverClient) start(ctx context.Context) error {
 	}
 
 	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeID(c.serverID))
-	conn, err := grpc.DialContext(ctx, c.serverAddr, //nolint: staticcheck // It is going to be resolved on #5152
+	conn, err := grpc.NewClient(c.serverAddr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
 		source.Close()

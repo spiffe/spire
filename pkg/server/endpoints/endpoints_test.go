@@ -331,7 +331,7 @@ func TestListenAndServe(t *testing.T) {
 		unfederatedConfig := tlsconfig.MTLSClientConfig(unfederatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 
 		for _, config := range []*tls.Config{unauthenticatedConfig, unauthorizedConfig, unfederatedConfig} {
-			conn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(), //nolint: staticcheck // It is going to be resolved on #5152
+			conn, err := grpc.NewClient(endpoints.TCPAddr.String(),
 				grpc.WithTransportCredentials(credentials.NewTLS(config)),
 			)
 			require.NoError(t, err)

@@ -29,7 +29,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	client := itclient.NewLocalServerClient(ctx)
+	client := itclient.NewLocalServerClient()
 	defer client.Release()
 
 	entriesResp := getEntries(ctx, client)
