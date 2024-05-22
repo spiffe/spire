@@ -150,7 +150,7 @@ Please see the [built-in plugins](#built-in-plugins) section below for informati
 
 #### Built-in Plugin with Static Configuration
 
-```
+```hcl
 plugins {
     SomeType "some_plugin" {
         plugin_data = {
@@ -166,7 +166,7 @@ plugins {
 In the `agent.conf`, declare the plugin using the `plugin_data_file` option to
 source the plugin configuration from file.
 
-```
+```hcl
 plugins {
     SomeType "some_plugin" {
         plugin_data_file = "some_plugin.conf"
@@ -176,14 +176,14 @@ plugins {
 
 And then in `some_plugin.conf` you place the plugin configuration:
 
-```
+```hcl
 option1 = "foo"
 option2 = 3
 ```
 
 #### External Plugin with Static Configuration
 
-```
+```hcl
 plugins {
     SomeType "some_plugin" {
         plugin_cmd = "./path/to/plugin"
