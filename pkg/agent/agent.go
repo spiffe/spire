@@ -167,7 +167,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		storeService.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
-		catalog.ReconfigureTask(cat),
+		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
 		util.SerialRun(a.waitForTestDial, healthChecker.ListenAndServe),
 	}
 

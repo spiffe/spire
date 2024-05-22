@@ -52,9 +52,9 @@ func ConfigurePlugin(ctx context.Context, coreConfig CoreConfig, configurer Conf
 	return dataHash, nil
 }
 
-func ReconfigureTask(reconfigurer Reconfigurer) func(context.Context) error {
+func ReconfigureTask(log logrus.FieldLogger, reconfigurer Reconfigurer) func(context.Context) error {
 	return func(ctx context.Context) error {
-		return ReconfigureOnSignal(ctx, reconfigurer)
+		return ReconfigureOnSignal(ctx, log, reconfigurer)
 	}
 }
 

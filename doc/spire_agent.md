@@ -146,6 +146,56 @@ The following configuration options are available to configure a plugin:
 
 Please see the [built-in plugins](#built-in-plugins) section below for information on plugins that are available out-of-the-box.
 
+### Examples
+
+#### Built-in Plugin with Static Configuration
+
+```
+plugins {
+    SomeType "some_plugin" {
+        plugin_data = {
+            option1 = "foo"
+            option2 = 3
+        }
+    }
+}
+```
+
+#### Built-in Plugin with Dynamic Configuration
+
+In the `agent.conf`, declare the plugin using the `plugin_data_file` option to
+source the plugin configuration from file.
+
+```
+plugins {
+    SomeType "some_plugin" {
+        plugin_data_file = "some_plugin.conf"
+    }
+}
+```
+
+And then in `some_plugin.conf` you place the plugin configuration:
+
+```
+option1 = "foo"
+option2 = 3
+```
+
+#### External Plugin with Static Configuration
+
+```
+plugins {
+    SomeType "some_plugin" {
+        plugin_cmd = "./path/to/plugin"
+        plugin_checksum = "4e1243bd22c66e76c2ba9eddc1f91394e57f9f83"
+        plugin_data = {
+            option1 = "foo"
+            option2 = 3
+        }
+    }
+}
+```
+
 ### Reconfiguring plugins (Posix only)
 
 Plugins that use dynamic configuration sources (i.e. `plugin_data_file`) can be reconfigured at runtime by sending a `SIGUSR1` signal to SPIRE Agent.

@@ -208,7 +208,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		bundleManager.Run,
 		registrationManager.Run,
 		bundlePublishingManager.Run,
-		catalog.ReconfigureTask(cat),
+		catalog.ReconfigureTask(s.config.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
 		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
 	}
 
