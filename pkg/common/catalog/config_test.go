@@ -24,43 +24,49 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 		require.NoError(t, err)
 
 		pluginA := PluginConfig{
-			Name:     "NAME3",
-			Type:     "TYPE1",
-			Data:     `"DATA3"`,
-			Disabled: true,
+			Name:       "NAME3",
+			Type:       "TYPE1",
+			DataSource: FixedData(`"DATA3"`),
+			Disabled:   true,
 		}
 		pluginB := PluginConfig{
 			Name: "NAME4",
 			Type: "TYPE4",
 		}
 		pluginC := PluginConfig{
-			Name:     "NAME1",
-			Type:     "TYPE1",
-			Path:     "CMD1",
-			Data:     `"DATA1"`,
-			Disabled: false,
+			Name:       "NAME1",
+			Type:       "TYPE1",
+			Path:       "CMD1",
+			DataSource: FixedData(`"DATA1"`),
+			Disabled:   false,
 		}
 		pluginD := PluginConfig{
-			Name:     "NAME5",
-			Type:     "TYPE1",
-			Data:     `"foo" = "bar"`,
-			Disabled: false,
+			Name:       "NAME5",
+			Type:       "TYPE1",
+			DataSource: FixedData(`"foo" = "bar"`),
+			Disabled:   false,
 		}
 		pluginE := PluginConfig{
-			Name:     "NAME2",
-			Type:     "TYPE2",
-			Path:     "CMD2",
-			Args:     []string{"foo", "bar", "baz"},
-			Checksum: "CHECKSUM2",
-			Data:     `"DATA2"`,
-			Disabled: false,
+			Name:       "NAME2",
+			Type:       "TYPE2",
+			Path:       "CMD2",
+			Args:       []string{"foo", "bar", "baz"},
+			Checksum:   "CHECKSUM2",
+			DataSource: FixedData(`"DATA2"`),
+			Disabled:   false,
 		}
 		pluginF := PluginConfig{
-			Name:     "NAME6",
-			Type:     "TYPE3",
-			Data:     `"foo" = "bar"`,
-			Disabled: false,
+			Name:       "NAME6",
+			Type:       "TYPE3",
+			DataSource: FixedData(`"foo" = "bar"`),
+			Disabled:   false,
 		}
+		pluginG := PluginConfig{
+			Name:       "NAME7",
+			Type:       "TYPE5",
+			DataSource: FileData("FILE7"),
+		}
+
 		// The declaration order should be preserved.
 		require.Equal(t, PluginConfigs{
 			pluginA,
@@ -69,6 +75,7 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 			pluginD,
 			pluginE,
 			pluginF,
+			pluginG,
 		}, configs)
 
 		// A, C, and D are of type TYPE1
@@ -84,6 +91,7 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 			pluginB,
 			pluginE,
 			pluginF,
+			pluginG,
 		}, remaining)
 
 		c, ok := configs.Find("TYPE1", "NAME1")
@@ -124,6 +132,9 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 				}
 				TYPE3 "NAME6" "plugin_data" {
 					"foo" = "bar"
+				}
+				TYPE5 "NAME7" {
+					plugin_data_file = "FILE7"
 				}
 			}
 		`
@@ -190,6 +201,13 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 						}
 					}
 				],
+				"TYPE5": [
+					{
+						"NAME7": {
+							"plugin_data_file": "FILE7"
+						}
+					}
+				],
 			  }
 			}`
 		test(t, config)
@@ -218,5 +236,24 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 
 		_, err = PluginConfigsFromHCLNode(root.Plugins)
 		require.EqualError(t, err, `plugin "TYPE"/"NAME" declared more than once`)
+	})
+
+	t.Run("Both plugin_data and plugin_data_file are declared", func(t *testing.T) {
+		config := `
+			plugins {
+				TYPE "NAME" {
+					plugin_data = "DATA"
+					plugin_data_file = "DATAFILE"
+				}
+			}
+		`
+		root := struct {
+			Plugins ast.Node `hcl:"plugins"`
+		}{}
+		err := hcl.Decode(&root, config)
+		require.NoError(t, err)
+
+		_, err = PluginConfigsFromHCLNode(root.Plugins)
+		require.EqualError(t, err, `failed to create plugin config for "TYPE"/"NAME": only one of [plugin_data, plugin_data_file] can be used`)
 	})
 }

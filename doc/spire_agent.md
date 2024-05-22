@@ -136,14 +136,25 @@ plugins {
 
 The following configuration options are available to configure a plugin:
 
-| Configuration   | Description                                                                   |
-|-----------------|-------------------------------------------------------------------------------|
-| plugin_cmd      | Path to the plugin implementation binary (optional, not needed for built-ins) |
-| plugin_checksum | An optional sha256 of the plugin binary  (optional, not needed for built-ins) |
-| enabled         | Enable or disable the plugin (enabled by default)                             |
-| plugin_data     | Plugin-specific data                                                          |
+| Configuration    | Description                                                                            |
+|------------------|----------------------------------------------------------------------------------------|
+| plugin_cmd       | Path to the plugin implementation binary (optional, not needed for built-ins)          |
+| plugin_checksum  | An optional sha256 of the plugin binary  (optional, not needed for built-ins)          |
+| enabled          | Enable or disable the plugin (enabled by default)                                      |
+| plugin_data      | Plugin-specific data (mutually exclusive with `plugin_data_file`)                      |
+| plugin_data_file | Path to a file containing plugin-specific data (mutually exclusive with `plugin_data`) |
 
-Please see the [built-in plugins](#built-in-plugins) section for information on plugins that are available out-of-the-box.
+Please see the [built-in plugins](#built-in-plugins) section below for information on plugins that are available out-of-the-box.
+
+### Reconfiguring plugins (Posix only)
+
+Plugins that use dynamic configuration sources (i.e. `plugin_data_file`) can be reconfigured at runtime by sending a `SIGUSR1` signal to SPIRE Agent.
+
+SPIRE Agent, upon receipt of the signal, does the following:
+
+1. Reloads the plugin data
+2. Compares the plugin data to the previous data
+3. If changed, the plugin is reconfigured with the new data
 
 ## Telemetry configuration
 

@@ -208,6 +208,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		bundleManager.Run,
 		registrationManager.Run,
 		bundlePublishingManager.Run,
+		catalog.ReconfigureTask(cat),
 		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
 	}
 
