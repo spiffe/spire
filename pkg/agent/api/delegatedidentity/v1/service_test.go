@@ -722,7 +722,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	conn, _ := grpc.DialContext(ctx, "unix:"+addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, _ := grpc.DialContext(ctx, "unix:"+addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint: staticcheck // It is going to be resolved on #5152
 	t.Cleanup(func() { conn.Close() })
 
 	fn(ctx, delegatedidentityv1.NewDelegatedIdentityClient(conn))
