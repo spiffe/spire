@@ -161,14 +161,15 @@ plugins {
 }
 ```
 
-#### Built-in Plugin with Dynamic Configuration
+#### External Plugin with Dynamic Configuration
 
-In the `agent.conf`, declare the plugin using the `plugin_data_file` option to
-source the plugin configuration from file.
+In the `agent.conf`, declare the plugin using the `plugin_data_file` option to source the plugin configuration from file.
 
 ```hcl
 plugins {
     SomeType "some_plugin" {
+        plugin_cmd = "./path/to/plugin"
+        plugin_checksum = "4e1243bd22c66e76c2ba9eddc1f91394e57f9f83"
         plugin_data_file = "some_plugin.conf"
     }
 }
@@ -181,24 +182,9 @@ option1 = "foo"
 option2 = 3
 ```
 
-#### External Plugin with Static Configuration
-
-```hcl
-plugins {
-    SomeType "some_plugin" {
-        plugin_cmd = "./path/to/plugin"
-        plugin_checksum = "4e1243bd22c66e76c2ba9eddc1f91394e57f9f83"
-        plugin_data = {
-            option1 = "foo"
-            option2 = 3
-        }
-    }
-}
-```
-
 ### Reconfiguring plugins (Posix only)
 
-Plugins that use dynamic configuration sources (i.e. `plugin_data_file`) can be reconfigured at runtime by sending a `SIGUSR1` signal to SPIRE Agent.
+Plugins that use dynamic configuration sources (i.e. `plugin_data_file`) can be reconfigured at runtime by sending a `SIGUSR1` signal to SPIRE Agent. This is true for both built-in and external plugins.
 
 SPIRE Agent, upon receipt of the signal, does the following:
 
