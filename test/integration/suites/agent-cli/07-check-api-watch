@@ -1,0 +1,66 @@
+#!/bin/bash
+
+TIMEOUT_REACHED=0
+RETRIES=3
+
+docker-compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload-$m" \
+    -selector "unix:uid:1001" \
+    -ttl 20 &
+
+# Get the PID of the last background process
+API_WATCH_PID=$!
+
+# Run the background process and store its output in a temporary file
+(docker-compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api watch < /dev/null > api_watch_output.txt) &
+
+# Wait for the background process to complete
+wait $API_WATCH_PID
+
+
+# Continuously check the output file for the desired pattern with a timeout of 20 seconds
+# Here we just care about the first one received
+
+TIMEOUT=20
+START_TIME=$(date +%s)
+while ! grep -q "Received 1 svid after" api_watch_output.txt; do
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+    if [ $ELAPSED_TIME -gt $TIMEOUT ]; then
+        echo "Error: Timeout reached while waiting for 'Received' message."
+        TIMEOUT_REACHED=1
+        break
+    fi
+    sleep 1  # Wait for 1 second before checking again
+done
+
+if [ $TIMEOUT_REACHED -eq 1 ]; then
+    exit 1
+fi
+
+# Continuously check the output file for the desired pattern with a timeout of 60 seconds
+# Here we care about the number of SVID received
+
+TIMEOUT=60
+START_TIME=$(date +%s)
+while true; do
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+    if [ $ELAPSED_TIME -gt $TIMEOUT ]; then
+        fail-now "Timeout reached while waiting for 'Received' message."
+    fi
+
+    # Count the number of SVID received
+    COUNT_NOW=$(grep -c "Received 1 svid after" api_watch_output.txt)
+    
+    if [ $COUNT_NOW -gt 4 ]; then 
+        echo "SVID rotated more than 4 times"
+        break
+    fi
+    sleep 1  # Wait for 1 second before checking again
+done
+
+# SVID rotated more than 4 times
+exit 0
