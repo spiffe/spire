@@ -219,7 +219,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntryCach
 // updateAttestedNodesCache Fetches all the events since the last time this function was running and updates
 // the cache with all the changes.
 func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ctx context.Context) error {
-	// Pocess events skipped over previously
+	// Process events skipped over previously
 	a.replayMissedAttestedNodeEvents(ctx)
 
 	req := &datastore.ListAttestedNodesEventsRequest{
