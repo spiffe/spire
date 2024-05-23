@@ -33,12 +33,12 @@ const (
 )
 
 func Dial(addr net.Addr) (*grpc.ClientConn, error) {
-	return grpc.Dial(addr.String(),
+	return grpc.Dial(addr.String(), //nolint: staticcheck // It is going to be resolved on #5152
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
-		grpc.WithBlock(),
-		grpc.FailOnNonTempDialError(true),
-		grpc.WithReturnConnectionError())
+		grpc.WithBlock(),                  //nolint: staticcheck // It is going to be resolved on #5152
+		grpc.FailOnNonTempDialError(true), //nolint: staticcheck // It is going to be resolved on #5152
+		grpc.WithReturnConnectionError())  //nolint: staticcheck // It is going to be resolved on #5152
 }
 
 type ServerClient interface {

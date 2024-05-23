@@ -70,7 +70,7 @@ func run() error {
 }
 
 func doJoinTokenStep(ctx context.Context) error {
-	c := itclient.NewLocalServerClient(ctx)
+	c := itclient.NewLocalServerClient()
 	defer c.Release()
 
 	tokenID, err := rand.Int(rand.Reader, big.NewInt(1000000))
@@ -92,7 +92,7 @@ func doJoinTokenStep(ctx context.Context) error {
 
 func doJoinTokenAttestStep(ctx context.Context, tokenName string) error {
 	// Now do agent attestation using the join token and save the resulting SVID to a file. This will give us an SVID
-	agentRemoteConn := itclient.NewInsecure(ctx)
+	agentRemoteConn := itclient.NewInsecure()
 	defer agentRemoteConn.Release()
 	agentRemoteClient := agentRemoteConn.AgentClient()
 
@@ -147,7 +147,7 @@ func doRenewStep(ctx context.Context) error {
 		return fmt.Errorf("failed to parse cert: %w", err)
 	}
 
-	agentRemoteConn := itclient.NewWithCert(ctx, cert, key)
+	agentRemoteConn := itclient.NewWithCert(cert, key)
 	defer agentRemoteConn.Release()
 	agentRemoteClient := agentRemoteConn.AgentClient()
 
@@ -179,7 +179,7 @@ func doRenewStep(ctx context.Context) error {
 }
 
 func doBanStep(ctx context.Context) error {
-	c := itclient.NewLocalServerClient(ctx)
+	c := itclient.NewLocalServerClient()
 	defer c.Release()
 
 	agentClient := c.AgentClient()
@@ -265,7 +265,7 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 	log.Println("Attesting agent...")
 
 	// Create insecure connection
-	conn := itclient.NewInsecure(ctx)
+	conn := itclient.NewInsecure()
 	defer conn.Release()
 	client := conn.AgentClient()
 
@@ -361,7 +361,7 @@ func x509popRenew(ctx context.Context, x509Svid *types.X509SVID) error {
 		return fmt.Errorf("failed to parse cert: %w", err)
 	}
 
-	conn := itclient.NewWithCert(ctx, cert, key)
+	conn := itclient.NewWithCert(cert, key)
 	defer conn.Release()
 	client := conn.AgentClient()
 
