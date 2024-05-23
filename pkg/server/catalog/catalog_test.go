@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	commoncatalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/test/spiretest"
@@ -54,10 +55,10 @@ func Test(t *testing.T) {
 					{
 						Type: "DataStore",
 						Name: "sql",
-						Data: fmt.Sprintf(`
+						DataSource: commoncatalog.FixedData(fmt.Sprintf(`
 						database_type = "sqlite3"
 						connection_string = %q
-					`, filepath.Join(dir, "test.sql")),
+					`, filepath.Join(dir, "test.sql"))),
 					},
 					{
 						Type: "KeyManager",
