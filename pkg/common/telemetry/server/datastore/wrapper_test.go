@@ -60,7 +60,7 @@ func TestWithMetrics(t *testing.T) {
 		},
 		{
 			key:        "datastore.node_event.create",
-			methodName: "CreateAttestedNodeEvent",
+			methodName: "CreateAttestedNodeEventForTesting",
 		},
 		{
 			key:        "datastore.bundle.create",
@@ -84,7 +84,7 @@ func TestWithMetrics(t *testing.T) {
 		},
 		{
 			key:        "datastore.registration_entry_event.create",
-			methodName: "CreateRegistrationEntryEvent",
+			methodName: "CreateRegistrationEntryEventForTesting",
 		},
 		{
 			key:        "datastore.node.delete",
@@ -92,7 +92,7 @@ func TestWithMetrics(t *testing.T) {
 		},
 		{
 			key:        "datastore.node_event.delete",
-			methodName: "DeleteAttestedNodeEvent",
+			methodName: "DeleteAttestedNodeEventForTesting",
 		},
 		{
 			key:        "datastore.bundle.delete",
@@ -112,7 +112,7 @@ func TestWithMetrics(t *testing.T) {
 		},
 		{
 			key:        "datastore.registration_entry_event.delete",
-			methodName: "DeleteRegistrationEntryEvent",
+			methodName: "DeleteRegistrationEntryEventForTesting",
 		},
 		{
 			key:        "datastore.node.fetch",
@@ -350,7 +350,7 @@ func (ds *fakeDataStore) CreateAttestedNode(context.Context, *common.AttestedNod
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) CreateAttestedNodeEvent(context.Context, *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
+func (ds *fakeDataStore) CreateAttestedNodeEventForTesting(context.Context, *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
 	return &datastore.AttestedNodeEvent{}, ds.err
 }
 
@@ -378,7 +378,7 @@ func (ds *fakeDataStore) CreateOrReturnRegistrationEntry(context.Context, *commo
 	return &common.RegistrationEntry{}, true, ds.err
 }
 
-func (ds *fakeDataStore) CreateRegistrationEntryEvent(context.Context, *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
+func (ds *fakeDataStore) CreateRegistrationEntryEventForTesting(context.Context, *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
 	return &datastore.RegistrationEntryEvent{}, ds.err
 }
 
@@ -386,7 +386,7 @@ func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.At
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteAttestedNodeEvent(context.Context, uint) error {
+func (ds *fakeDataStore) DeleteAttestedNodeEventForTesting(context.Context, uint) error {
 	return ds.err
 }
 
@@ -406,7 +406,7 @@ func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, string) (*comm
 	return &common.RegistrationEntry{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteRegistrationEntryEvent(context.Context, uint) error {
+func (ds *fakeDataStore) DeleteRegistrationEntryEventForTesting(context.Context, uint) error {
 	return ds.err
 }
 

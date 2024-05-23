@@ -199,26 +199,26 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	ds := fakedatastore.New(t)
 
 	// Create Registration Entry Events with a gap
-	_, err := ds.CreateRegistrationEntryEvent(ctx, &datastore.RegistrationEntryEvent{
+	_, err := ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
 		EventID: 1,
 		EntryID: "test",
 	})
 	require.NoError(t, err)
 
-	_, err = ds.CreateRegistrationEntryEvent(ctx, &datastore.RegistrationEntryEvent{
+	_, err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
 		EventID: 3,
 		EntryID: "test",
 	})
 	require.NoError(t, err)
 
 	// Create AttestedNode Events with a gap
-	_, err = ds.CreateAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
+	_, err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
 		EventID:  1,
 		SpiffeID: "test",
 	})
 	require.NoError(t, err)
 
-	_, err = ds.CreateAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
+	_, err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
 		EventID:  4,
 		SpiffeID: "test",
 	})
@@ -409,7 +409,7 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete the event for now and then add it back later to simulate out of order events
-	err = ds.DeleteRegistrationEntryEvent(ctx, 2)
+	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 2)
 	require.NoError(t, err)
 
 	// Create Second entry
@@ -434,7 +434,7 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	require.Equal(t, 2, len(entries))
 
 	// Add back in deleted event
-	_, err = ds.CreateRegistrationEntryEvent(ctx, &datastore.RegistrationEntryEvent{
+	_, err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
 		EventID: 2,
 		EntryID: entry.EntryId,
 	})
@@ -531,9 +531,9 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Delete the events for agent 2 for now and then add it back later to simulate out of order events
-	err = ds.DeleteAttestedNodeEvent(ctx, 2)
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 2)
 	require.NoError(t, err)
-	err = ds.DeleteAttestedNodeEvent(ctx, 3)
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 3)
 	require.NoError(t, err)
 
 	// Should not be in cache yet
@@ -547,12 +547,12 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	require.Equal(t, 0, len(entries))
 
 	// Add back in deleted events
-	_, err = ds.CreateAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
+	_, err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
 		EventID:  2,
 		SpiffeID: agent2.String(),
 	})
 	require.NoError(t, err)
-	_, err = ds.CreateAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
+	_, err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
 		EventID:  3,
 		SpiffeID: agent2.String(),
 	})

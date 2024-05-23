@@ -16,15 +16,15 @@ func StartPruneRegistrationEntriesEventsCall(m telemetry.Metrics) *telemetry.Cal
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntryEvent, telemetry.Prune)
 }
 
-// StartCreateRegistrationEntryEventCall return metric
+// StartCreateRegistrationEntryEventForTestingCall return metric
 // for server's datastore, on creating a registration entry event.
-func StartCreateRegistrationEntryEventCall(m telemetry.Metrics) *telemetry.CallCounter {
+func StartCreateRegistrationEntryEventForTestingCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntryEvent, telemetry.Create)
 }
 
-// StartDeleteRegistrationEntryEventCall return metric
+// StartDeleteRegistrationEntryEventForTestingCall return metric
 // for server's datastore, on deleting a registration entry event.
-func StartDeleteRegistrationEntryEventCall(m telemetry.Metrics) *telemetry.CallCounter {
+func StartDeleteRegistrationEntryEventForTestingCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntryEvent, telemetry.Delete)
 }
 
@@ -46,15 +46,15 @@ func StartPruneAttestedNodesEventsCall(m telemetry.Metrics) *telemetry.CallCount
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.NodeEvent, telemetry.Prune)
 }
 
-// StartCreateAttestedNodeEventCall return metric
+// StartCreateAttestedNodeEventForTestingCall return metric
 // for server's datastore, on creating an attested node event.
-func StartCreateAttestedNodeEventCall(m telemetry.Metrics) *telemetry.CallCounter {
+func StartCreateAttestedNodeEventForTestingCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.NodeEvent, telemetry.Create)
 }
 
-// StartDeleteAttestedNodeEventCall return metric
+// StartDeleteAttestedNodeEventForTestingCall return metric
 // for server's datastore, on deleting an attested node event.
-func StartDeleteAttestedNodeEventCall(m telemetry.Metrics) *telemetry.CallCounter {
+func StartDeleteAttestedNodeEventForTestingCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.NodeEvent, telemetry.Delete)
 }
 

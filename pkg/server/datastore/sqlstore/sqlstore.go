@@ -394,15 +394,15 @@ func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.D
 	})
 }
 
-// CreateRegistrationEntryEvent creates an attested node event. Used for unit testing.
-func (ds *Plugin) CreateAttestedNodeEvent(ctx context.Context, event *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
+// CreateRegistrationEntryEventForTestingForTesting creates an attested node event. Used for unit testing.
+func (ds *Plugin) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
 	return event, ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return createAttestedNodeEvent(tx, event)
 	})
 }
 
-// DeleteAttestedNodeEvent deletes an attested node event by event ID. Used for unit testing.
-func (ds *Plugin) DeleteAttestedNodeEvent(ctx context.Context, eventID uint) error {
+// DeleteAttestedNodeEventForTesting deletes an attested node event by event ID. Used for unit testing.
+func (ds *Plugin) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return deleteAttestedNodeEvent(tx, eventID)
 	})
@@ -585,15 +585,15 @@ func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan 
 	})
 }
 
-// CreateRegistrationEntryEvent creates a registration entry event. Used for unit testing.
-func (ds *Plugin) CreateRegistrationEntryEvent(ctx context.Context, event *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
+// CreateRegistrationEntryEventForTesting creates a registration entry event. Used for unit testing.
+func (ds *Plugin) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
 	return event, ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return createRegistrationEntryEvent(tx, event)
 	})
 }
 
-// DeleteRegistrationEntryEvent deletes the given registration entry event. Used for unit testing.
-func (ds *Plugin) DeleteRegistrationEntryEvent(ctx context.Context, eventID uint) error {
+// DeleteRegistrationEntryEventForTesting deletes the given registration entry event. Used for unit testing.
+func (ds *Plugin) DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return deleteRegistrationEntryEvent(tx, eventID)
 	})

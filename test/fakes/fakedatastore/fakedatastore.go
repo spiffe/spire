@@ -177,18 +177,18 @@ func (s *DataStore) PruneAttestedNodesEvents(ctx context.Context, olderThan time
 	return s.ds.PruneAttestedNodesEvents(ctx, olderThan)
 }
 
-func (s *DataStore) CreateAttestedNodeEvent(ctx context.Context, event *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
+func (s *DataStore) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.CreateAttestedNodeEvent(ctx, event)
+	return s.ds.CreateAttestedNodeEventForTesting(ctx, event)
 }
 
-func (s *DataStore) DeleteAttestedNodeEvent(ctx context.Context, eventID uint) error {
+func (s *DataStore) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.DeleteAttestedNodeEvent(ctx, eventID)
+	return s.ds.DeleteAttestedNodeEventForTesting(ctx, eventID)
 }
 
 func (s *DataStore) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*datastore.AttestedNodeEvent, error) {
@@ -327,18 +327,18 @@ func (s *DataStore) PruneRegistrationEntriesEvents(ctx context.Context, olderTha
 	return s.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
 }
 
-func (s *DataStore) CreateRegistrationEntryEvent(ctx context.Context, event *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
+func (s *DataStore) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.CreateRegistrationEntryEvent(ctx, event)
+	return s.ds.CreateRegistrationEntryEventForTesting(ctx, event)
 }
 
-func (s *DataStore) DeleteRegistrationEntryEvent(ctx context.Context, eventID uint) error {
+func (s *DataStore) DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.DeleteRegistrationEntryEvent(ctx, eventID)
+	return s.ds.DeleteRegistrationEntryEventForTesting(ctx, eventID)
 }
 
 func (s *DataStore) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*datastore.RegistrationEntryEvent, error) {
