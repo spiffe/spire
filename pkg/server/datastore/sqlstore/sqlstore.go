@@ -409,8 +409,15 @@ func (ds *Plugin) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID
 }
 
 // FetchAttestedNodeEvent fetches an existing attested node event by event ID
-func (ds *Plugin) FetchAttestedNodeEvent(_ context.Context, eventID uint) (*datastore.AttestedNodeEvent, error) {
-	return fetchAttestedNodeEvent(ds.db, eventID)
+func (ds *Plugin) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (event *datastore.AttestedNodeEvent, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		event, err = fetchAttestedNodeEvent(ds.db, eventID)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	return event, nil
 }
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
@@ -600,8 +607,15 @@ func (ds *Plugin) DeleteRegistrationEntryEventForTesting(ctx context.Context, ev
 }
 
 // FetchRegistrationEntryEvent fetches an existing registration entry event by event ID
-func (ds *Plugin) FetchRegistrationEntryEvent(_ context.Context, eventID uint) (*datastore.RegistrationEntryEvent, error) {
-	return fetchRegistrationEntryEvent(ds.db, eventID)
+func (ds *Plugin) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (event *datastore.RegistrationEntryEvent, err error) {
+	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		event, err = fetchRegistrationEntryEvent(ds.db, eventID)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	return event, nil
 }
 
 // CreateJoinToken takes a Token message and stores it
