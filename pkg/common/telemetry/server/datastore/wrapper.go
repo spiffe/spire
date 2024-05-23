@@ -36,7 +36,7 @@ func (w metricsWrapper) CreateAttestedNode(ctx context.Context, node *common.Att
 	return w.ds.CreateAttestedNode(ctx, node)
 }
 
-func (w metricsWrapper) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) (_ *datastore.AttestedNodeEvent, err error) {
+func (w metricsWrapper) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) (err error) {
 	callCounter := StartCreateAttestedNodeEventForTestingCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.CreateAttestedNodeEventForTesting(ctx, event)
@@ -66,7 +66,7 @@ func (w metricsWrapper) CreateOrReturnRegistrationEntry(ctx context.Context, ent
 	return w.ds.CreateOrReturnRegistrationEntry(ctx, entry)
 }
 
-func (w metricsWrapper) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) (_ *datastore.RegistrationEntryEvent, err error) {
+func (w metricsWrapper) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) (err error) {
 	callCounter := StartCreateRegistrationEntryEventForTestingCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.CreateRegistrationEntryEventForTesting(ctx, event)

@@ -177,9 +177,9 @@ func (s *DataStore) PruneAttestedNodesEvents(ctx context.Context, olderThan time
 	return s.ds.PruneAttestedNodesEvents(ctx, olderThan)
 }
 
-func (s *DataStore) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
+func (s *DataStore) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
 	return s.ds.CreateAttestedNodeEventForTesting(ctx, event)
 }
@@ -327,9 +327,9 @@ func (s *DataStore) PruneRegistrationEntriesEvents(ctx context.Context, olderTha
 	return s.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
 }
 
-func (s *DataStore) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
+func (s *DataStore) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) error {
 	if err := s.getNextError(); err != nil {
-		return nil, err
+		return err
 	}
 	return s.ds.CreateRegistrationEntryEventForTesting(ctx, event)
 }

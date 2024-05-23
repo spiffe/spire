@@ -199,26 +199,26 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	ds := fakedatastore.New(t)
 
 	// Create Registration Entry Events with a gap
-	_, err := ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
+	err := ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
 		EventID: 1,
 		EntryID: "test",
 	})
 	require.NoError(t, err)
 
-	_, err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
+	err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
 		EventID: 3,
 		EntryID: "test",
 	})
 	require.NoError(t, err)
 
 	// Create AttestedNode Events with a gap
-	_, err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
+	err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
 		EventID:  1,
 		SpiffeID: "test",
 	})
 	require.NoError(t, err)
 
-	_, err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
+	err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
 		EventID:  4,
 		SpiffeID: "test",
 	})
@@ -434,7 +434,7 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	require.Equal(t, 2, len(entries))
 
 	// Add back in deleted event
-	_, err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
+	err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
 		EventID: 2,
 		EntryID: entry.EntryId,
 	})
@@ -547,12 +547,12 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	require.Equal(t, 0, len(entries))
 
 	// Add back in deleted events
-	_, err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
+	err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
 		EventID:  2,
 		SpiffeID: agent2.String(),
 	})
 	require.NoError(t, err)
-	_, err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
+	err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
 		EventID:  3,
 		SpiffeID: agent2.String(),
 	})

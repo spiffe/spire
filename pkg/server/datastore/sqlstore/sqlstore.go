@@ -395,8 +395,8 @@ func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.D
 }
 
 // CreateRegistrationEntryEventForTestingForTesting creates an attested node event. Used for unit testing.
-func (ds *Plugin) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
-	return event, ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+func (ds *Plugin) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) error {
 		return createAttestedNodeEvent(tx, event)
 	})
 }
@@ -593,8 +593,8 @@ func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan 
 }
 
 // CreateRegistrationEntryEventForTesting creates a registration entry event. Used for unit testing.
-func (ds *Plugin) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
-	return event, ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+func (ds *Plugin) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return createRegistrationEntryEvent(tx, event)
 	})
 }

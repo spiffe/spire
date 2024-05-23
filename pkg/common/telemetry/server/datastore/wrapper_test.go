@@ -350,8 +350,8 @@ func (ds *fakeDataStore) CreateAttestedNode(context.Context, *common.AttestedNod
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) CreateAttestedNodeEventForTesting(context.Context, *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
-	return &datastore.AttestedNodeEvent{}, ds.err
+func (ds *fakeDataStore) CreateAttestedNodeEventForTesting(context.Context, *datastore.AttestedNodeEvent) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
@@ -378,8 +378,8 @@ func (ds *fakeDataStore) CreateOrReturnRegistrationEntry(context.Context, *commo
 	return &common.RegistrationEntry{}, true, ds.err
 }
 
-func (ds *fakeDataStore) CreateRegistrationEntryEventForTesting(context.Context, *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
-	return &datastore.RegistrationEntryEvent{}, ds.err
+func (ds *fakeDataStore) CreateRegistrationEntryEventForTesting(context.Context, *datastore.RegistrationEntryEvent) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error) {
