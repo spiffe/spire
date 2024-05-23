@@ -226,7 +226,7 @@ func testPlugin(t *testing.T, pluginPath string) {
 			expectServiceClient: true,
 		})
 	})
-	t.Run("configure from file success", func(t *testing.T) {
+	t.Run("configure and reconfigure from file success", func(t *testing.T) {
 		configPath := filepath.Join(spiretest.TempDir(t), "plugin.conf")
 		require.NoError(t, os.WriteFile(configPath, []byte("GOOD1"), 0600))
 

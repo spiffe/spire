@@ -66,6 +66,11 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 			Type:       "TYPE5",
 			DataSource: FileData("FILE7"),
 		}
+		pluginH := PluginConfig{
+			Name:       "NAME8",
+			Type:       "TYPE5",
+			DataSource: nil,
+		}
 
 		// The declaration order should be preserved.
 		require.Equal(t, PluginConfigs{
@@ -76,6 +81,7 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 			pluginE,
 			pluginF,
 			pluginG,
+			pluginH,
 		}, configs)
 
 		// A, C, and D are of type TYPE1
@@ -92,6 +98,7 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 			pluginE,
 			pluginF,
 			pluginG,
+			pluginH,
 		}, remaining)
 
 		c, ok := configs.Find("TYPE1", "NAME1")
@@ -135,6 +142,9 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 				}
 				TYPE5 "NAME7" {
 					plugin_data_file = "FILE7"
+				}
+				TYPE5 "NAME8" {
+					plugin_data = {}
 				}
 			}
 		`
@@ -205,6 +215,11 @@ func TestParsePluginConfigsFromHCLNode(t *testing.T) {
 					{
 						"NAME7": {
 							"plugin_data_file": "FILE7"
+						}
+					},
+					{
+						"NAME8": {
+							"plugin_data": {}
 						}
 					}
 				],
