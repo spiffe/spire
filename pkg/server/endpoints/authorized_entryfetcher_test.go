@@ -164,7 +164,7 @@ func TestBuildRegistrationEntriesCache(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			cache := authorizedentries.NewCache(clk)
-			lastRegistrationEntryEventID, _, err := buildRegistrationEntriesCache(ctx, ds, clk, cache, tt.pageSize)
+			receivedFirstRegistrationEntryEvent, lastRegistrationEntryEventID, _, err := buildRegistrationEntriesCache(ctx, ds, clk, cache, tt.pageSize)
 			if tt.err != "" {
 				require.Equal(t, uint(0), lastRegistrationEntryEventID)
 				require.ErrorContains(t, err, tt.err)
@@ -172,6 +172,7 @@ func TestBuildRegistrationEntriesCache(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+			require.True(t,receivedFirstRegistrationEntryEvent)
 
 			entries := cache.GetAuthorizedEntries(agentID)
 			require.Equal(t, numEntries, len(entries))

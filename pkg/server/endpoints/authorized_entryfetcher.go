@@ -21,38 +21,42 @@ var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithEventsBasedCache)
 const buildCachePageSize = 10000
 
 type AuthorizedEntryFetcherWithEventsBasedCache struct {
-	mu                            sync.RWMutex
-	cache                         *authorizedentries.Cache
-	clk                           clock.Clock
-	log                           logrus.FieldLogger
-	ds                            datastore.DataStore
-	cacheReloadInterval           time.Duration
-	pruneEventsOlderThan          time.Duration
-	lastRegistrationEntryEventID  uint
-	lastAttestedNodeEventID       uint
-	missedRegistrationEntryEvents map[uint]time.Time
-	missedAttestedNodeEvents      map[uint]time.Time
+	mu                                  sync.RWMutex
+	cache                               *authorizedentries.Cache
+	clk                                 clock.Clock
+	log                                 logrus.FieldLogger
+	ds                                  datastore.DataStore
+	cacheReloadInterval                 time.Duration
+	pruneEventsOlderThan                time.Duration
+	lastRegistrationEntryEventID        uint
+	lastAttestedNodeEventID             uint
+	missedRegistrationEntryEvents       map[uint]time.Time
+	missedAttestedNodeEvents            map[uint]time.Time
+	receivedFirstRegistrationEntryEvent bool
+	receivedFirstAttestedNodeEvent      bool
 }
 
 func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
 	log.Info("Building event-based in-memory entry cache")
-	cache, lastRegistrationEntryEventID, missedRegistrationEntryEvents, missedAttestedNodeEvents, lastAttestedNodeEventID, err := buildCache(ctx, ds, clk)
+	cache, receivedFirstRegistrationEntryEvent, lastRegistrationEntryEventID, missedRegistrationEntryEvents, receivedFirstAttestedNodeEvent, lastAttestedNodeEventID, missedAttestedNodeEvents, err := buildCache(ctx, ds, clk)
 	if err != nil {
 		return nil, err
 	}
 	log.Info("Completed building event-based in-memory entry cache")
 
 	return &AuthorizedEntryFetcherWithEventsBasedCache{
-		cache:                         cache,
-		clk:                           clk,
-		log:                           log,
-		ds:                            ds,
-		cacheReloadInterval:           cacheReloadInterval,
-		pruneEventsOlderThan:          pruneEventsOlderThan,
-		lastRegistrationEntryEventID:  lastRegistrationEntryEventID,
-		lastAttestedNodeEventID:       lastAttestedNodeEventID,
-		missedRegistrationEntryEvents: missedRegistrationEntryEvents,
-		missedAttestedNodeEvents:      missedAttestedNodeEvents,
+		cache:                               cache,
+		clk:                                 clk,
+		log:                                 log,
+		ds:                                  ds,
+		cacheReloadInterval:                 cacheReloadInterval,
+		pruneEventsOlderThan:                pruneEventsOlderThan,
+		lastRegistrationEntryEventID:        lastRegistrationEntryEventID,
+		lastAttestedNodeEventID:             lastAttestedNodeEventID,
+		missedRegistrationEntryEvents:       missedRegistrationEntryEvents,
+		missedAttestedNodeEvents:            missedAttestedNodeEvents,
+		receivedFirstAttestedNodeEvent:      receivedFirstAttestedNodeEvent,
+		receivedFirstRegistrationEntryEvent: receivedFirstRegistrationEntryEvent,
 	}, nil
 }
 
@@ -300,38 +304,41 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodeCache(ctx
 	return nil
 }
 
-func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*authorizedentries.Cache, uint, map[uint]time.Time, map[uint]time.Time, uint, error) {
+func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*authorizedentries.Cache, bool, uint, map[uint]time.Time, bool, uint, map[uint]time.Time, error) {
 	cache := authorizedentries.NewCache(clk)
 
-	lastRegistrationEntryEventID, missedRegistrationEntryEvents, err := buildRegistrationEntriesCache(ctx, ds, clk, cache, buildCachePageSize)
+	receivedFirstRegisteredEntryEvent, lastRegistrationEntryEventID, missedRegistrationEntryEvents, err := buildRegistrationEntriesCache(ctx, ds, clk, cache, buildCachePageSize)
 	if err != nil {
-		return nil, 0, nil, nil, 0, err
+		return nil, false, 0, nil, false, 0, nil, err
 	}
 
-	lastAttestedNodeEventID, missedAttestedNodeEvents, err := buildAttestedNodesCache(ctx, ds, clk, cache)
+	receivedFirstAttestedNodeEvent, lastAttestedNodeEventID, missedAttestedNodeEvents, err := buildAttestedNodesCache(ctx, ds, clk, cache)
 	if err != nil {
-		return nil, 0, nil, nil, 0, err
+		return nil, false, 0, nil, false, 0, nil, err
 	}
 
-	return cache, lastRegistrationEntryEventID, missedRegistrationEntryEvents, missedAttestedNodeEvents, lastAttestedNodeEventID, nil
+	return cache, receivedFirstRegisteredEntryEvent, lastRegistrationEntryEventID, missedRegistrationEntryEvents, receivedFirstAttestedNodeEvent, lastAttestedNodeEventID, missedAttestedNodeEvents, nil
 }
 
 // buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
-func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32) (uint, map[uint]time.Time, error) {
-	// Gather any events that may have been skipped during restart
-	var lastEventID uint
-	missedRegistrationEntryEvents := make(map[uint]time.Time)
+func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32) (bool, uint, map[uint]time.Time, error) {
 	resp, err := ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	if err != nil {
-		return 0, nil, err
+		return false, 0, nil, err
 	}
+
+	// Gather any events that may have been skipped during restart
+	var lastEventID uint
+	var receivedFirstEvent bool
+	missedRegistrationEntryEvents := make(map[uint]time.Time)
 	for _, event := range resp.Events {
-		if event.EventID != lastEventID+1 && lastEventID != 0 {
+		if receivedFirstEvent && event.EventID != lastEventID+1 {
 			for i := lastEventID + 1; i < event.EventID; i++ {
 				missedRegistrationEntryEvents[i] = clk.Now()
 			}
 		}
 		lastEventID = event.EventID
+		receivedFirstEvent = true
 	}
 
 	// Build the cache
@@ -345,7 +352,7 @@ func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, 
 			},
 		})
 		if err != nil {
-			return 0, nil, fmt.Errorf("failed to list registration entries: %w", err)
+			return false, 0, nil, fmt.Errorf("failed to list registration entries: %w", err)
 		}
 
 		token = resp.Pagination.Token
@@ -355,7 +362,7 @@ func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, 
 
 		entries, err := api.RegistrationEntriesToProto(resp.Entries)
 		if err != nil {
-			return 0, nil, fmt.Errorf("failed to convert registration entries: %w", err)
+			return false, 0, nil, fmt.Errorf("failed to convert registration entries: %w", err)
 		}
 
 		for _, entry := range entries {
@@ -363,25 +370,28 @@ func buildRegistrationEntriesCache(ctx context.Context, ds datastore.DataStore, 
 		}
 	}
 
-	return lastEventID, missedRegistrationEntryEvents, nil
+	return receivedFirstEvent, lastEventID, missedRegistrationEntryEvents, nil
 }
 
 // buildAttestedNodesCache Fetches all attested nodes and adds the unexpired ones to the cache
-func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache) (uint, map[uint]time.Time, error) {
-	// Gather any events that may have been skipped during restart
-	var lastEventID uint
-	missedAttestedNodeEvents := make(map[uint]time.Time)
+func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache) (bool, uint, map[uint]time.Time, error) {
 	resp, err := ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
 	if err != nil {
-		return 0, nil, err
+		return false, 0, nil, err
 	}
+
+	// Gather any events that may have been skipped during restart
+	var lastEventID uint
+	var receivedFirstEvent bool
+	missedAttestedNodeEvents := make(map[uint]time.Time)
 	for _, event := range resp.Events {
-		if event.EventID != lastEventID+1 && lastEventID != 0 {
+		if receivedFirstEvent && event.EventID != lastEventID+1 {
 			for i := lastEventID + 1; i < event.EventID; i++ {
 				missedAttestedNodeEvents[i] = clk.Now()
 			}
 		}
 		lastEventID = event.EventID
+		receivedFirstEvent = true
 	}
 
 	// Build the cache
@@ -389,7 +399,7 @@ func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, clk cl
 		FetchSelectors: true,
 	})
 	if err != nil {
-		return 0, nil, fmt.Errorf("failed to list attested nodes: %w", err)
+		return false, 0, nil, fmt.Errorf("failed to list attested nodes: %w", err)
 	}
 
 	for _, node := range nodesResp.Nodes {
@@ -400,5 +410,5 @@ func buildAttestedNodesCache(ctx context.Context, ds datastore.DataStore, clk cl
 		cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
 	}
 
-	return lastEventID, missedAttestedNodeEvents, nil
+	return receivedFirstEvent, lastEventID, missedAttestedNodeEvents, nil
 }
