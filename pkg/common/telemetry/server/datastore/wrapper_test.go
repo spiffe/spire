@@ -143,14 +143,6 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "FetchFederationRelationship",
 		},
 		{
-			key:        "datastore.node_event.fetch",
-			methodName: "GetLatestAttestedNodeEventID",
-		},
-		{
-			key:        "datastore.registration_entry_event.fetch",
-			methodName: "GetLatestRegistrationEntryEventID",
-		},
-		{
 			key:        "datastore.node.selectors.fetch",
 			methodName: "GetNodeSelectors",
 		},
@@ -444,14 +436,6 @@ func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, string) (*commo
 
 func (ds *fakeDataStore) FetchRegistrationEntryEvent(context.Context, uint) (*datastore.RegistrationEntryEvent, error) {
 	return &datastore.RegistrationEntryEvent{}, ds.err
-}
-
-func (ds *fakeDataStore) GetLatestAttestedNodeEventID(context.Context) (uint, error) {
-	return 0, ds.err
-}
-
-func (ds *fakeDataStore) GetLatestRegistrationEntryEventID(context.Context) (uint, error) {
-	return 0, ds.err
 }
 
 func (ds *fakeDataStore) GetNodeSelectors(context.Context, string, datastore.DataConsistency) ([]*common.Selector, error) {

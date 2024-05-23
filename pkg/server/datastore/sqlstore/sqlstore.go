@@ -394,31 +394,21 @@ func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.D
 	})
 }
 
-// GetLatestAttestedNodeEventID get the id of the last event
-func (ds *Plugin) GetLatestAttestedNodeEventID(ctx context.Context) (eventID uint, err error) {
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		eventID, err = getLatestAttestedNodeEventID(tx)
-		return err
-	}); err != nil {
-		return 0, err
-	}
-	return eventID, nil
-}
-
+// CreateRegistrationEntryEvent creates an attested node event. Used for unit testing.
 func (ds *Plugin) CreateAttestedNodeEvent(ctx context.Context, event *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
 	return event, ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return createAttestedNodeEvent(tx, event)
 	})
 }
 
-// DeleteAttestedNodeEvent deletes an attested node event by event ID
+// DeleteAttestedNodeEvent deletes an attested node event by event ID. Used for unit testing.
 func (ds *Plugin) DeleteAttestedNodeEvent(ctx context.Context, eventID uint) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return deleteAttestedNodeEvent(tx, eventID)
 	})
 }
 
-// FetchAttestedNodeEvent fetches an existing event by event ID
+// FetchAttestedNodeEvent fetches an existing attested node event by event ID
 func (ds *Plugin) FetchAttestedNodeEvent(_ context.Context, eventID uint) (*datastore.AttestedNodeEvent, error) {
 	return fetchAttestedNodeEvent(ds.db, eventID)
 }
@@ -595,30 +585,21 @@ func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan 
 	})
 }
 
-// GetLatestRegistrationEntryEventID get the id of the last event
-func (ds *Plugin) GetLatestRegistrationEntryEventID(ctx context.Context) (eventID uint, err error) {
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		eventID, err = getLatestRegistrationEntryEventID(tx)
-		return err
-	}); err != nil {
-		return 0, err
-	}
-	return eventID, nil
-}
-
+// CreateRegistrationEntryEvent creates a registration entry event. Used for unit testing.
 func (ds *Plugin) CreateRegistrationEntryEvent(ctx context.Context, event *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
 	return event, ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return createRegistrationEntryEvent(tx, event)
 	})
 }
 
+// DeleteRegistrationEntryEvent deletes the given registration entry event. Used for unit testing.
 func (ds *Plugin) DeleteRegistrationEntryEvent(ctx context.Context, eventID uint) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return deleteRegistrationEntryEvent(tx, eventID)
 	})
 }
 
-// FetchRegistrationEntryEvent fetches an existing event by event ID
+// FetchRegistrationEntryEvent fetches an existing registration entry event by event ID
 func (ds *Plugin) FetchRegistrationEntryEvent(_ context.Context, eventID uint) (*datastore.RegistrationEntryEvent, error) {
 	return fetchRegistrationEntryEvent(ds.db, eventID)
 }
@@ -1748,15 +1729,6 @@ func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration) error {
 	}
 
 	return nil
-}
-
-func getLatestAttestedNodeEventID(tx *gorm.DB) (uint, error) {
-	lastAttestedNodeEvent := AttestedNodeEvent{}
-	if err := tx.Last(&lastAttestedNodeEvent).Error; err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-
-	return lastAttestedNodeEvent.ID, nil
 }
 
 func fetchAttestedNodeEvent(db *sqlDB, eventID uint) (*datastore.AttestedNodeEvent, error) {
@@ -4134,15 +4106,6 @@ func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error 
 	}
 
 	return nil
-}
-
-func getLatestRegistrationEntryEventID(tx *gorm.DB) (uint, error) {
-	lastRegisteredEntryEvent := RegisteredEntryEvent{}
-	if err := tx.Last(&lastRegisteredEntryEvent).Error; err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-
-	return lastRegisteredEntryEvent.ID, nil
 }
 
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {

@@ -172,7 +172,7 @@ func TestBuildRegistrationEntriesCache(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.True(t,receivedFirstRegistrationEntryEvent)
+			require.True(t, receivedFirstRegistrationEntryEvent)
 
 			entries := cache.GetAuthorizedEntries(agentID)
 			require.Equal(t, numEntries, len(entries))

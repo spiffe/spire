@@ -177,13 +177,6 @@ func (s *DataStore) PruneAttestedNodesEvents(ctx context.Context, olderThan time
 	return s.ds.PruneAttestedNodesEvents(ctx, olderThan)
 }
 
-func (s *DataStore) GetLatestAttestedNodeEventID(ctx context.Context) (uint, error) {
-	if err := s.getNextError(); err != nil {
-		return 0, err
-	}
-	return s.ds.GetLatestAttestedNodeEventID(ctx)
-}
-
 func (s *DataStore) CreateAttestedNodeEvent(ctx context.Context, event *datastore.AttestedNodeEvent) (*datastore.AttestedNodeEvent, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
@@ -332,13 +325,6 @@ func (s *DataStore) PruneRegistrationEntriesEvents(ctx context.Context, olderTha
 		return err
 	}
 	return s.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
-}
-
-func (s *DataStore) GetLatestRegistrationEntryEventID(ctx context.Context) (uint, error) {
-	if err := s.getNextError(); err != nil {
-		return 0, err
-	}
-	return s.ds.GetLatestRegistrationEntryEventID(ctx)
 }
 
 func (s *DataStore) CreateRegistrationEntryEvent(ctx context.Context, event *datastore.RegistrationEntryEvent) (*datastore.RegistrationEntryEvent, error) {
