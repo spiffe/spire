@@ -285,6 +285,9 @@ const (
 	// non-error level.
 	Error = "error"
 
+	// EventID tags an event ID
+	EventID = "event_id"
+
 	// Expect tags an expected value, as opposed to the one received. Message should clarify
 	// what kind of value was expected, and a different field should show the received value
 	Expect = "expect"

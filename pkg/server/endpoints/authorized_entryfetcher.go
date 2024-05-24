@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -185,7 +186,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) replayMissedRegistrationEnt
 	defer a.mu.Unlock()
 
 	for eventID := range a.missedRegistrationEntryEvents {
-		log := a.log.WithField("eventID", eventID)
+		log := a.log.WithField(telemetry.EventID, eventID)
 		event, err := a.ds.FetchRegistrationEntryEvent(ctx, eventID)
 		if err != nil {
 			log.WithError(err).Error("Failed to fetch info about missed event")
@@ -265,7 +266,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) replayMissedAttestedNodeEve
 	defer a.mu.Unlock()
 
 	for eventID := range a.missedAttestedNodeEvents {
-		log := a.log.WithField("eventID", eventID)
+		log := a.log.WithField(telemetry.EventID, eventID)
 		event, err := a.ds.FetchAttestedNodeEvent(ctx, eventID)
 		if err != nil {
 			log.WithError(err).Error("Failed to fetch info about missed Attested Node event")
