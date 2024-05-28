@@ -15,6 +15,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithEventsBasedCache)(nil)
@@ -187,15 +189,23 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) replayMissedRegistrationEnt
 
 	for eventID := range a.missedRegistrationEntryEvents {
 		log := a.log.WithField(telemetry.EventID, eventID)
+
 		event, err := a.ds.FetchRegistrationEntryEvent(ctx, eventID)
-		if err != nil {
+		switch status.Code(err) {
+		case codes.OK:
+		case codes.NotFound:
+			log.Debug("Event not yet populated in database")
+			continue
+		default:
 			log.WithError(err).Error("Failed to fetch info about missed event")
 			continue
 		}
+
 		if err := a.updateRegistrationEntryCache(ctx, event.EntryID); err != nil {
 			log.WithError(err).Error("Failed to process missed event")
 			continue
 		}
+
 		delete(a.missedRegistrationEntryEvents, eventID)
 	}
 }
@@ -267,15 +277,23 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) replayMissedAttestedNodeEve
 
 	for eventID := range a.missedAttestedNodeEvents {
 		log := a.log.WithField(telemetry.EventID, eventID)
+
 		event, err := a.ds.FetchAttestedNodeEvent(ctx, eventID)
-		if err != nil {
+		switch status.Code(err) {
+		case codes.OK:
+		case codes.NotFound:
+			log.Debug("Event not yet populated in database")
+			continue
+		default:
 			log.WithError(err).Error("Failed to fetch info about missed Attested Node event")
 			continue
 		}
+
 		if err := a.updateAttestedNodeCache(ctx, event.SpiffeID); err != nil {
 			log.WithError(err).Error("Failed to process missed Attested Node event")
 			continue
 		}
+
 		delete(a.missedAttestedNodeEvents, eventID)
 	}
 }

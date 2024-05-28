@@ -568,3 +568,35 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
 }
+
+func TestAttestedNodesCacheMissedEventNotFound(t *testing.T) {
+	ctx := context.Background()
+	log, hook := test.NewNullLogger()
+	log.SetLevel(logrus.DebugLevel)
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	ef.missedAttestedNodeEvents[1] = clk.Now()
+	ef.replayMissedAttestedNodeEvents(ctx)
+	require.Equal(t, "Event not yet populated in database", hook.LastEntry().Message)
+}
+
+func TestRegistrationEntriesCacheMissedEventNotFound(t *testing.T) {
+	ctx := context.Background()
+	log, hook := test.NewNullLogger()
+	log.SetLevel(logrus.DebugLevel)
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	ef.missedRegistrationEntryEvents[1] = clk.Now()
+	ef.replayMissedRegistrationEntryEvents(ctx)
+	require.Equal(t, "Event not yet populated in database", hook.LastEntry().Message)
+}
