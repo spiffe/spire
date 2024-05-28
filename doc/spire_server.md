@@ -139,14 +139,63 @@ plugins {
 
 The following configuration options are available to configure a plugin:
 
-| Configuration   | Description                                                                   |
-|-----------------|-------------------------------------------------------------------------------|
-| plugin_cmd      | Path to the plugin implementation binary (optional, not needed for built-ins) |
-| plugin_checksum | An optional sha256 of the plugin binary  (optional, not needed for built-ins) |
-| enabled         | Enable or disable the plugin (enabled by default)                             |
-| plugin_data     | Plugin-specific data                                                          |
+| Configuration    | Description                                                                            |
+|------------------|----------------------------------------------------------------------------------------|
+| plugin_cmd       | Path to the plugin implementation binary (optional, not needed for built-ins)          |
+| plugin_checksum  | An optional sha256 of the plugin binary  (optional, not needed for built-ins)          |
+| enabled          | Enable or disable the plugin (enabled by default)                                      |
+| plugin_data      | Plugin-specific data (mutually exclusive with `plugin_data_file`)                      |
+| plugin_data_file | Path to a file containing plugin-specific data (mutually exclusive with `plugin_data`) |
 
 Please see the [built-in plugins](#built-in-plugins) section below for information on plugins that are available out-of-the-box.
+
+### Examples
+
+#### Built-in Plugin with Static Configuration
+
+```hcl
+plugins {
+    SomeType "some_plugin" {
+        plugin_data = {
+            option1 = "foo"
+            option2 = 3
+        }
+    }
+}
+```
+
+#### External Plugin with Dynamic Configuration
+
+In the `agent.conf`, declare the plugin using the `plugin_data_file` option to source the plugin configuration from file.
+
+```hcl
+plugins {
+    SomeType "some_plugin" {
+        plugin_cmd = "./path/to/plugin"
+        plugin_checksum = "4e1243bd22c66e76c2ba9eddc1f91394e57f9f83"
+        plugin_data_file = "some_plugin.conf"
+    }
+}
+```
+
+And then in `some_plugin.conf` you place the plugin configuration:
+
+```hcl
+option1 = "foo"
+option2 = 3
+```
+
+### Reconfiguring plugins (Posix only)
+
+Plugins that use dynamic configuration sources (i.e. `plugin_data_file`) can be reconfigured at runtime by sending a `SIGUSR1` signal to SPIRE Server. This is true for both built-in and external plugins.
+
+SPIRE Server, upon receipt of the signal, does the following:
+
+1. Reloads the plugin data
+2. Compares the plugin data to the previous data
+3. If changed, the plugin is reconfigured with the new data
+
+**Note** The DataStore is not reconfigurable even when configured with a dynamic data source (e.g. `plugin_data_file`).
 
 ## Federation configuration
 

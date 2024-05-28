@@ -14,7 +14,7 @@ import (
 
 func GRPCDialContext(ctx context.Context, target string, options ...grpc.DialOption) (*grpc.ClientConn, error) {
 	options = append(options, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	return grpc.DialContext(ctx, target, options...)
+	return grpc.DialContext(ctx, target, options...) //nolint: staticcheck // It is going to be resolved on #5152
 }
 
 func GetWorkloadAPIClientOption(addr net.Addr) (workloadapi.ClientOption, error) {

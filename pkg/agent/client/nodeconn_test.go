@@ -33,9 +33,9 @@ func newTestConn(t *testing.T) *grpc.ClientConn {
 		KeysAndBundle: emptyKeysAndBundle,
 		TrustDomain:   trustDomain,
 	})
-	client.dialContext = func(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	client.dialContext = func(_ context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
 		// make a normal grpc dial but without any of the provided options that may cause it to fail
-		return grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		return grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 	conn, err := client.dial(context.Background())
 	require.NoError(t, err)

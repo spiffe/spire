@@ -27,7 +27,7 @@ func testRemoteCaller(ctx context.Context, t *testing.T, target string) {
 
 	// Use the host name instead of "." in the target, as it would be a remote caller
 	targetAsRemote := strings.ReplaceAll(target, "\\\\.\\", fmt.Sprintf("\\\\%s\\", hostName))
-	_, err = util.GRPCDialContext(ctx, targetAsRemote, grpc.WithBlock(), grpc.FailOnNonTempDialError(true))
+	_, err = util.GRPCDialContext(ctx, targetAsRemote, grpc.WithBlock(), grpc.FailOnNonTempDialError(true)) //nolint: staticcheck // It is going to be resolved on #5152
 
 	// Remote calls must be denied
 	require.ErrorIs(t, err, windows.ERROR_ACCESS_DENIED)
