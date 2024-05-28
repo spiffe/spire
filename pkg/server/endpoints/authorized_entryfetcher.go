@@ -156,7 +156,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntriesCa
 	seenMap := map[string]struct{}{}
 	for _, event := range resp.Events {
 		// If there is a gap in the event stream, log the missed events for later processing
-		if event.EventID != a.lastRegistrationEntryEventID+1 && a.lastRegistrationEntryEventID != 0 {
+		if a.receivedFirstRegistrationEntryEvent && event.EventID != a.lastRegistrationEntryEventID+1 {
 			for i := a.lastRegistrationEntryEventID + 1; i < event.EventID; i++ {
 				a.mu.Lock()
 				a.missedRegistrationEntryEvents[i] = a.clk.Now()
@@ -176,6 +176,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntriesCa
 			return err
 		}
 		a.lastRegistrationEntryEventID = event.EventID
+		a.receivedFirstRegistrationEntryEvent = true
 	}
 
 	return nil
@@ -244,7 +245,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 	seenMap := map[string]struct{}{}
 	for _, event := range resp.Events {
 		// If there is a gap in the event stream, log the missed events for later processing
-		if event.EventID != a.lastAttestedNodeEventID+1 && a.lastAttestedNodeEventID != 0 {
+		if a.receivedFirstAttestedNodeEvent && event.EventID != a.lastRegistrationEntryEventID+1 {
 			for i := a.lastAttestedNodeEventID + 1; i < event.EventID; i++ {
 				a.mu.Lock()
 				a.missedAttestedNodeEvents[i] = a.clk.Now()
@@ -264,6 +265,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 			return err
 		}
 		a.lastAttestedNodeEventID = event.EventID
+		a.receivedFirstAttestedNodeEvent = true
 	}
 
 	return nil
@@ -326,7 +328,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodeCache(ctx
 func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*authorizedentries.Cache, bool, uint, map[uint]time.Time, bool, uint, map[uint]time.Time, error) {
 	cache := authorizedentries.NewCache(clk)
 
-	receivedFirstRegisteredEntryEvent, lastRegistrationEntryEventID, missedRegistrationEntryEvents, err := buildRegistrationEntriesCache(ctx, ds, clk, cache, buildCachePageSize)
+	receivedFirstRegistrationEntryEvent, lastRegistrationEntryEventID, missedRegistrationEntryEvents, err := buildRegistrationEntriesCache(ctx, ds, clk, cache, buildCachePageSize)
 	if err != nil {
 		return nil, false, 0, nil, false, 0, nil, err
 	}
@@ -336,7 +338,7 @@ func buildCache(ctx context.Context, ds datastore.DataStore, clk clock.Clock) (*
 		return nil, false, 0, nil, false, 0, nil, err
 	}
 
-	return cache, receivedFirstRegisteredEntryEvent, lastRegistrationEntryEventID, missedRegistrationEntryEvents, receivedFirstAttestedNodeEvent, lastAttestedNodeEventID, missedAttestedNodeEvents, nil
+	return cache, receivedFirstRegistrationEntryEvent, lastRegistrationEntryEventID, missedRegistrationEntryEvents, receivedFirstAttestedNodeEvent, lastAttestedNodeEventID, missedAttestedNodeEvents, nil
 }
 
 // buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
