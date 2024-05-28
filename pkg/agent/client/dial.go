@@ -61,14 +61,14 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 	defer cancel()
 
 	if config.dialContext == nil {
-		config.dialContext = grpc.DialContext
+		config.dialContext = grpc.DialContext //nolint: staticcheck // It is going to be resolved on #5152
 	}
 	client, err := config.dialContext(ctx, config.Address,
 		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
 		grpc.WithDisableServiceConfig(),
-		grpc.FailOnNonTempDialError(true),
-		grpc.WithBlock(),
-		grpc.WithReturnConnectionError(),
+		grpc.FailOnNonTempDialError(true), //nolint: staticcheck // It is going to be resolved on #5152
+		grpc.WithBlock(),                  //nolint: staticcheck // It is going to be resolved on #5152
+		grpc.WithReturnConnectionError(),  //nolint: staticcheck // It is going to be resolved on #5152
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
 	switch {

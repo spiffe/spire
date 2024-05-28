@@ -147,7 +147,7 @@ func WaitForTestDial(ctx context.Context, addr net.Addr) {
 	ctx, cancel := context.WithTimeout(ctx, testDialTimeout)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx,
+	conn, err := grpc.DialContext(ctx, //nolint: staticcheck // It is going to be resolved on #5152
 		addr.String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, name string) (net.Conn, error) {
@@ -156,7 +156,7 @@ func WaitForTestDial(ctx context.Context, addr net.Addr) {
 				Name: name,
 			})
 		}),
-		grpc.WithBlock())
+		grpc.WithBlock()) //nolint: staticcheck // It is going to be resolved on #5152
 	if err != nil {
 		return
 	}

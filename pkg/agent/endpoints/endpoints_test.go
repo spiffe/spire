@@ -233,7 +233,7 @@ func TestEndpoints(t *testing.T) {
 				return
 			}
 
-			conn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock())
+			conn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock()) //nolint: staticcheck // It is going to be resolved on #5152
 			require.NoError(t, err)
 			defer conn.Close()
 
