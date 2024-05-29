@@ -31,6 +31,7 @@ type AuthorizedEntryFetcherWithEventsBasedCache struct {
 	ds                                  datastore.DataStore
 	cacheReloadInterval                 time.Duration
 	pruneEventsOlderThan                time.Duration
+	sqlTransactionTimeout               time.Duration
 	lastRegistrationEntryEventID        uint
 	lastAttestedNodeEventID             uint
 	missedRegistrationEntryEvents       map[uint]time.Time
@@ -39,7 +40,7 @@ type AuthorizedEntryFetcherWithEventsBasedCache struct {
 	receivedFirstAttestedNodeEvent      bool
 }
 
-func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
+func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan, sqlTransactionTimeout time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
 	log.Info("Building event-based in-memory entry cache")
 	cache, receivedFirstRegistrationEntryEvent, lastRegistrationEntryEventID, missedRegistrationEntryEvents, receivedFirstAttestedNodeEvent, lastAttestedNodeEventID, missedAttestedNodeEvents, err := buildCache(ctx, ds, clk)
 	if err != nil {
@@ -54,6 +55,7 @@ func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logr
 		ds:                                  ds,
 		cacheReloadInterval:                 cacheReloadInterval,
 		pruneEventsOlderThan:                pruneEventsOlderThan,
+		sqlTransactionTimeout:               sqlTransactionTimeout,
 		lastRegistrationEntryEventID:        lastRegistrationEntryEventID,
 		lastAttestedNodeEventID:             lastAttestedNodeEventID,
 		missedRegistrationEntryEvents:       missedRegistrationEntryEvents,
@@ -115,7 +117,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneMissedRegistrationEntr
 	defer a.mu.Unlock()
 
 	for eventID, eventTime := range a.missedRegistrationEntryEvents {
-		if time.Since(eventTime) > a.pruneEventsOlderThan {
+		if time.Since(eventTime) > a.sqlTransactionTimeout {
 			delete(a.missedRegistrationEntryEvents, eventID)
 		}
 	}
@@ -126,7 +128,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneMissedAttestedNodeEven
 	defer a.mu.Unlock()
 
 	for eventID, eventTime := range a.missedAttestedNodeEvents {
-		if time.Since(eventTime) > a.pruneEventsOlderThan {
+		if time.Since(eventTime) > a.sqlTransactionTimeout {
 			delete(a.missedAttestedNodeEvents, eventID)
 		}
 	}

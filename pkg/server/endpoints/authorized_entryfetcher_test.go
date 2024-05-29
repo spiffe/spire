@@ -27,7 +27,7 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCache(t *testing.T) {
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 
@@ -109,7 +109,7 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCacheErrorBuildingCache(t *test
 	buildErr := errors.New("build error")
 	ds.SetNextError(buildErr)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 }
@@ -224,7 +224,7 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -242,7 +242,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -305,7 +305,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -371,7 +371,7 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -455,7 +455,7 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -576,7 +576,7 @@ func TestAttestedNodesCacheMissedEventNotFound(t *testing.T) {
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -592,7 +592,7 @@ func TestRegistrationEntriesCacheMissedEventNotFound(t *testing.T) {
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
