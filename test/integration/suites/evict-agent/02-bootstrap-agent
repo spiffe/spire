@@ -1,5 +1,15 @@
 #!/bin/bash
 
 log-debug "bootstrapping agent..."
-docker-compose exec -T spire-server \
-    /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
+
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "trying to bootstrap agent ($i of $MAXCHECKS max)..."
+    docker-compose logs spire-agent
+    if docker-compose exec -T spire-server \
+        /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt; then
+	    exit 0
+    fi
+    sleep "${CHECKINTERVAL}"
+done

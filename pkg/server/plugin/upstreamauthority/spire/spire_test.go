@@ -157,7 +157,7 @@ func TestMintX509CA(t *testing.T) {
 			},
 			customServerAddr: "localhost",
 			expectCode:       codes.Internal,
-			expectMsgPrefix:  `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unavailable desc = connection error: desc = "transport: Error while dialing: dial tcp :0`,
+			expectMsgPrefix:  `upstreamauthority(spire): unable to request a new Downstream X509CA: failed to exit idle mode: dns resolver: missing port after port-separator colon`,
 		},
 		{
 			name: "invalid scheme",

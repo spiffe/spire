@@ -242,8 +242,8 @@ func TestListenAndServe(t *testing.T) {
 	}()
 
 	dialTCP := func(tlsConfig *tls.Config) *grpc.ClientConn {
-		conn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(),
-			grpc.WithBlock(),
+		conn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(), //nolint: staticcheck // It is going to be resolved on #5152
+			grpc.WithBlock(), //nolint: staticcheck // It is going to be resolved on #5152
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		)
 		require.NoError(t, err)
@@ -253,7 +253,7 @@ func TestListenAndServe(t *testing.T) {
 	target, err := util.GetTargetName(endpoints.LocalAddr)
 	require.NoError(t, err)
 
-	localConn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock())
+	localConn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock()) //nolint: staticcheck // It is going to be resolved on #5152
 	require.NoError(t, err)
 	defer localConn.Close()
 
@@ -278,7 +278,7 @@ func TestListenAndServe(t *testing.T) {
 		badSVID := testca.New(t, testTD).CreateX509SVID(agentID)
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
-		badConn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(), grpc.WithBlock(), grpc.FailOnNonTempDialError(true),
+		badConn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(), grpc.WithBlock(), grpc.FailOnNonTempDialError(true), //nolint: staticcheck // It is going to be resolved on #5152
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsconfig.MTLSClientConfig(badSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))),
 		)
 		if !assert.Error(t, err, "dialing should have failed") {
@@ -331,7 +331,7 @@ func TestListenAndServe(t *testing.T) {
 		unfederatedConfig := tlsconfig.MTLSClientConfig(unfederatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 
 		for _, config := range []*tls.Config{unauthenticatedConfig, unauthorizedConfig, unfederatedConfig} {
-			conn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(),
+			conn, err := grpc.NewClient(endpoints.TCPAddr.String(),
 				grpc.WithTransportCredentials(credentials.NewTLS(config)),
 			)
 			require.NoError(t, err)

@@ -62,10 +62,11 @@ func TestRotator(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name         string
-		notAfter     time.Duration
-		shouldRotate bool
-		reattest     bool
+		name          string
+		notAfter      time.Duration
+		shouldRotate  bool
+		reattest      bool
+		forceRotation bool
 	}{
 		{
 			name:         "not expired at startup",
@@ -93,6 +94,13 @@ func TestRotator(t *testing.T) {
 			notAfter:     2 * time.Minute,
 			shouldRotate: true,
 			reattest:     true,
+		},
+		{
+			name:          "reattest when requested",
+			notAfter:      time.Minute,
+			shouldRotate:  false,
+			reattest:      true,
+			forceRotation: true,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -200,6 +208,9 @@ func TestRotator(t *testing.T) {
 					}
 					t.Fatal("timed out waiting for rotation check to finish")
 				}
+			} else if tt.forceRotation {
+				err := rotator.Reattest(context.Background())
+				require.NoError(t, err)
 			}
 
 			// Shut down the rotator
@@ -213,7 +224,7 @@ func TestRotator(t *testing.T) {
 
 			// If rotation was supposed to happen, wait for the SVID changes
 			// on the state stream.
-			if tt.shouldRotate {
+			if tt.shouldRotate || tt.forceRotation {
 				require.True(t, stream.HasNext(), "SVID stream should have changes")
 				stream.Next()
 			} else {
@@ -224,7 +235,7 @@ func TestRotator(t *testing.T) {
 			// the appropriate number of times.
 			state := stream.Value().(State)
 			require.Len(t, state.SVID, 1)
-			if tt.shouldRotate {
+			if tt.shouldRotate || tt.forceRotation {
 				assert.NotEqual(t, svid, state.SVID)
 				assert.NotEqual(t, svidKey, state.Key)
 				assert.Equal(t, 2, mockClient.releaseCount, "client might not released after rotation")
