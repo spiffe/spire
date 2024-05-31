@@ -210,7 +210,7 @@ func TestAWSRDS(t *testing.T) {
 			tokenProvider: &fakeTokenBuilder{
 				authToken: token,
 			},
-			expectedError: "could not parse connection string: cannot parse `not-valid!`: failed to parse as DSN (invalid dsn)",
+			expectedError: "could not parse connection string: cannot parse `not-valid!`: failed to parse as keyword/value (invalid keyword/value)",
 		},
 		{
 			name: "postgres - success with static credentials",
