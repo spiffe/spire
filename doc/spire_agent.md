@@ -72,12 +72,12 @@ This may be useful for templating configuration files, for example across differ
 | `availability_target`             | The minimum amount of time desired to gracefully handle SPIRE Server or Agent downtime. This configurable influences how aggressively X509 SVIDs should be rotated. If set, must be at least 24h. See [Availability Target](#availability-target) |                                  |
 | `disable_reattest_to_renew`       | Allow agent to renew certificate when it expires rather than reattest                                                                                                                                                                             | false                            |
 
-| experimental               | Description                                                           | Default                 |
-|:---------------------------|-----------------------------------------------------------------------|-------------------------|
-| `named_pipe_name`          | Pipe name to bind the SPIRE Agent API named pipe (Windows only)       | \spire-agent\public\api |
-| `sync_interval`            | Sync interval with SPIRE server with exponential backoff              | 5 sec                   |
-| `x509_svid_cache_max_size` | Soft limit of max number of SVIDs that would be stored in LRU cache   | 1000                    |
-| `disable_lru_cache`        | Reverts back to use the SPIRE Agent non-LRU cache for storing SVIDs   | false                   |
+| experimental               | Description                                                                        | Default                 |
+|:---------------------------|------------------------------------------------------------------------------------|-------------------------|
+| `named_pipe_name`          | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                    | \spire-agent\public\api |
+| `sync_interval`            | Sync interval with SPIRE server with exponential backoff                           | 5 sec                   |
+| `x509_svid_cache_max_size` | Soft limit of max number of SVIDs that would be stored in LRU cache (deprecated)   | 1000                    |
+| `disable_lru_cache`        | Reverts back to use the SPIRE Agent non-LRU cache for storing SVIDs (deprecated)   | false                   |
 
 ### Initial trust bundle configuration
 
