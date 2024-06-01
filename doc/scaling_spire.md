@@ -62,7 +62,7 @@ Another use case is SPIFFE interoperability between organizations, such as betwe
 
 These multiple trust domain and interoperability use cases both require a well-defined, interoperable method for a Workload in one trust domain to authenticate a Workload in a different trust domain. Trust between the different trust domains is established by first authenticating the respective bundle endpoint, followed by retrieval of the foreign trust domain bundle via the authenticated endpoint.
 
-For additional detail on how this is achieved, refer to the following SPIFFE spec that describes the mechanism: <https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#5-spiffe-bundle-endpoint>
+For additional detail on how this is achieved, refer to the following SPIFFE spec that describes the mechanism: <https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md#4-spiffe-bundle-endpoint>
 
 For a tutorial on configuring Federated SPIRE, refer to: <https://github.com/spiffe/spire-tutorials/tree/main/docker-compose/federation>
 
