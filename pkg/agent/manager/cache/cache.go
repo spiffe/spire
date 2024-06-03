@@ -24,17 +24,6 @@ type Identity struct {
 	PrivateKey crypto.Signer
 }
 
-// WorkloadUpdate is used to convey workload information to cache subscribers
-type WorkloadUpdate struct {
-	Identities       []Identity
-	Bundle           *spiffebundle.Bundle
-	FederatedBundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
-}
-
-func (u *WorkloadUpdate) HasIdentity() bool {
-	return len(u.Identities) > 0
-}
-
 // Update holds information for an entries update to the cache.
 type UpdateEntries struct {
 	// Bundles is a set of ALL trust bundles available to the agent, keyed by trust domain
