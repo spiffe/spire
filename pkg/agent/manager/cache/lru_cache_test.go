@@ -777,12 +777,12 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	clk := clock.NewMock(t)
 	cache := newTestLRUCacheWithConfig(clk)
 
-	updateEntries := createUpdateEntries(5, makeBundles(bundleV1))
+	updateEntries := createUpdateEntries(1000, makeBundles(bundleV1))
 	cache.UpdateEntries(updateEntries, nil)
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDsFromStaleEntries(cache.GetStaleEntries()),
 	})
-	assert.Equal(t, 5, cache.CountSVIDs())
+	assert.Equal(t, 1000, cache.CountSVIDs())
 
 	// Update foo but its SVID is not yet cached
 	foo := makeRegistrationEntry("FOO", "A")
@@ -800,7 +800,7 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	require.Len(t, cache.GetStaleEntries(), 1)
 	assert.Equal(t, []*StaleEntry{{Entry: cache.records[foo.EntryId].entry}}, cache.GetStaleEntries())
 
-	assert.Equal(t, 5, cache.CountSVIDs())
+	assert.Equal(t, 1000, cache.CountSVIDs())
 }
 
 func TestNotify(t *testing.T) {
