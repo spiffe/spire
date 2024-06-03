@@ -41,12 +41,6 @@ type UpdateSVIDs struct {
 	X509SVIDs map[string]*X509SVID
 }
 
-// X509SVID holds onto the SVID certificate chain and private key.
-type X509SVID struct {
-	Chain      []*x509.Certificate
-	PrivateKey crypto.Signer
-}
-
 // Cache caches each registration entry, signed X509-SVIDs for those entries,
 // bundles, and JWT SVIDs for the agent. It allows subscriptions by (workload)
 // selector sets and notifies subscribers when:
