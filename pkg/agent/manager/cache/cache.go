@@ -16,7 +16,6 @@ import (
 )
 
 type Selectors []*common.Selector
-type Bundle = spiffebundle.Bundle
 
 // Identity holds the data for a single workload identity
 type Identity struct {
