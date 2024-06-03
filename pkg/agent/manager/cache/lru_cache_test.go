@@ -699,8 +699,8 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 
 	// Move clk by 2 seconds
 	clk.Add(2 * time.Second)
-	// update total of 12 entries
-	updateEntries := createUpdateEntries(10, makeBundles(bundleV1))
+	// update total of 1002 entries
+	updateEntries := createUpdateEntries(1000, makeBundles(bundleV1))
 	updateEntries.RegistrationEntries[foo.EntryId] = foo
 	updateEntries.RegistrationEntries[bar.EntryId] = bar
 
@@ -717,10 +717,10 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 			sub.Finish()
 		}
 	}
-	assert.Equal(t, 12, cache.CountSVIDs())
+	assert.Equal(t, 1002, cache.CountSVIDs())
 
 	cache.UpdateEntries(updateEntries, nil)
-	assert.Equal(t, 10, cache.CountSVIDs())
+	assert.Equal(t, 1000, cache.CountSVIDs())
 
 	// foo SVID should be removed from cache as it does not have active subscriber
 	assert.False(t, cache.Notify(makeSelectors("A")))
@@ -736,7 +736,7 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 	require.Len(t, cache.GetStaleEntries(), 1)
 	assert.Equal(t, foo, cache.GetStaleEntries()[0].Entry)
 
-	assert.Equal(t, 10, cache.CountSVIDs())
+	assert.Equal(t, 1000, cache.CountSVIDs())
 }
 
 func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
