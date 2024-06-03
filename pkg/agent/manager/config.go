@@ -39,7 +39,6 @@ type Config struct {
 	UseSyncAuthorizedEntries bool
 	RotationInterval         time.Duration
 	SVIDStoreCache           *storecache.Cache
-	SVIDCacheMaxSize         int
 	NodeAttestor             nodeattestor.NodeAttestor
 	RotationStrategy         *rotationutil.RotationStrategy
 
@@ -65,8 +64,7 @@ func newManager(c *Config) *manager {
 		c.Clk = clock.New()
 	}
 
-	cache := managerCache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
-		c.Metrics, c.SVIDCacheMaxSize, c.Clk)
+	cache := managerCache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle, c.Metrics, c.Clk)
 
 	rotCfg := &svid.RotatorConfig{
 		SVIDKeyManager:         keymanager.ForSVID(c.Catalog.GetKeyManager()),

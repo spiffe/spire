@@ -129,12 +129,7 @@ type LRUCache struct {
 	subscribeBackoffFn func() backoff.BackOff
 }
 
-func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics,
-	svidCacheMaxSize int, clk clock.Clock) *LRUCache {
-	if svidCacheMaxSize <= 0 {
-		svidCacheMaxSize = DefaultSVIDCacheMaxSize
-	}
-
+func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics, clk clock.Clock) *LRUCache {
 	return &LRUCache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
 		JWTSVIDCache: NewJWTSVIDCache(),
