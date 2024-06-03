@@ -8,6 +8,13 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 )
 
+// Update holds information for an SVIDs update to the cache.
+type UpdateSVIDs struct {
+	// X509SVIDs is a set of updated X509-SVIDs that should be merged into
+	// the cache, keyed by registration entry id.
+	X509SVIDs map[string]*X509SVID
+}
+
 // WorkloadUpdate is used to convey workload information to cache subscribers
 type WorkloadUpdate struct {
 	Identities       []Identity

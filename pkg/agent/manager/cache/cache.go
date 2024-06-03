@@ -34,13 +34,6 @@ type UpdateEntries struct {
 	RegistrationEntries map[string]*common.RegistrationEntry
 }
 
-// Update holds information for an SVIDs update to the cache.
-type UpdateSVIDs struct {
-	// X509SVIDs is a set of updated X509-SVIDs that should be merged into
-	// the cache, keyed by registration entry id.
-	X509SVIDs map[string]*X509SVID
-}
-
 // Cache caches each registration entry, signed X509-SVIDs for those entries,
 // bundles, and JWT SVIDs for the agent. It allows subscriptions by (workload)
 // selector sets and notifies subscribers when:
