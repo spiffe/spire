@@ -2,8 +2,6 @@ package cache
 
 import (
 	"context"
-	"crypto"
-	"crypto/x509"
 	"sort"
 	"sync"
 	"time"
@@ -16,13 +14,6 @@ import (
 )
 
 type Selectors []*common.Selector
-
-// Identity holds the data for a single workload identity
-type Identity struct {
-	Entry      *common.RegistrationEntry
-	SVID       []*x509.Certificate
-	PrivateKey crypto.Signer
-}
 
 // Update holds information for an entries update to the cache.
 type UpdateEntries struct {

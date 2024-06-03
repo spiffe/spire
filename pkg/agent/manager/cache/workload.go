@@ -6,7 +6,15 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/proto/spire/common"
 )
+
+// Identity holds the data for a single workload identity
+type Identity struct {
+	Entry      *common.RegistrationEntry
+	SVID       []*x509.Certificate
+	PrivateKey crypto.Signer
+}
 
 // Update holds information for an SVIDs update to the cache.
 type UpdateSVIDs struct {
