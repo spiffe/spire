@@ -78,14 +78,6 @@ type Cache struct {
 	bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
 }
 
-// StaleEntry holds stale entries with SVIDs expiration time
-type StaleEntry struct {
-	// Entry stale registration entry
-	Entry *common.RegistrationEntry
-	// SVIDs expiration time
-	SVIDExpiresAt time.Time
-}
-
 func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics) *Cache {
 	return &Cache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),

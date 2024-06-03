@@ -34,6 +34,14 @@ type UpdateEntries struct {
 	RegistrationEntries map[string]*common.RegistrationEntry
 }
 
+// StaleEntry holds stale entries with SVIDs expiration time
+type StaleEntry struct {
+	// Entry stale registration entry
+	Entry *common.RegistrationEntry
+	// SVIDs expiration time
+	SVIDExpiresAt time.Time
+}
+
 // Cache caches each registration entry, bundles, and JWT SVIDs for the agent.
 // The signed X509-SVIDs for those entries are stored in LRU-like cache.
 // It allows subscriptions by (workload) selector sets and notifies subscribers when:
