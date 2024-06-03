@@ -744,16 +744,16 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 	cache := newTestLRUCacheWithConfig(clk)
 
 	// create entries more than maxSvidCacheSize
-	updateEntries := createUpdateEntries(12, makeBundles(bundleV1))
+	updateEntries := createUpdateEntries(1002, makeBundles(bundleV1))
 	cache.UpdateEntries(updateEntries, nil)
 
-	require.Len(t, cache.GetStaleEntries(), 10)
+	require.Len(t, cache.GetStaleEntries(), 1000)
 
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDsFromStaleEntries(cache.GetStaleEntries()),
 	})
 	require.Len(t, cache.GetStaleEntries(), 0)
-	assert.Equal(t, 10, cache.CountSVIDs())
+	assert.Equal(t, 1000, cache.CountSVIDs())
 
 	// Validate that active subscriber will still get SVID even if SVID count is at maxSvidCacheSize
 	foo := makeRegistrationEntry("FOO", "A")
@@ -764,12 +764,12 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 
 	cache.UpdateEntries(updateEntries, nil)
 	require.Len(t, cache.GetStaleEntries(), 1)
-	assert.Equal(t, 10, cache.CountSVIDs())
+	assert.Equal(t, 1000, cache.CountSVIDs())
 
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo),
 	})
-	assert.Equal(t, 11, cache.CountSVIDs())
+	assert.Equal(t, 1001, cache.CountSVIDs())
 	require.Len(t, cache.GetStaleEntries(), 0)
 }
 
