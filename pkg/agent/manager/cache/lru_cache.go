@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// DefaultSVIDCacheMaxSize is set when svidCacheMaxSize is not provided
+	// DefaultSVIDCacheMaxSize is the size for the cache
 	DefaultSVIDCacheMaxSize = 1000
 	// SVIDSyncInterval is the interval at which SVIDs are synced with subscribers
 	SVIDSyncInterval = 500 * time.Millisecond
@@ -144,7 +144,7 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 			trustDomain: bundle,
 		},
 		svids:            make(map[string]*X509SVID),
-		svidCacheMaxSize: svidCacheMaxSize,
+		svidCacheMaxSize: DefaultSVIDCacheMaxSize,
 		clk:              clk,
 		subscribeBackoffFn: func() backoff.BackOff {
 			return backoff.NewBackoff(clk, SVIDSyncInterval)

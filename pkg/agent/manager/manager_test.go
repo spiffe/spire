@@ -866,7 +866,6 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 		Clk:              clk,
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
-		SVIDCacheMaxSize: 10,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
@@ -1184,7 +1183,6 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 		Clk:              clk,
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
-		SVIDCacheMaxSize: 1,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
