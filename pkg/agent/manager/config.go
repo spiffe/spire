@@ -40,7 +40,6 @@ type Config struct {
 	RotationInterval         time.Duration
 	SVIDStoreCache           *storecache.Cache
 	SVIDCacheMaxSize         int
-	DisableLRUCache          bool
 	NodeAttestor             nodeattestor.NodeAttestor
 	RotationStrategy         *rotationutil.RotationStrategy
 
