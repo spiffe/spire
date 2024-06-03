@@ -24,6 +24,16 @@ const (
 	SVIDSyncInterval = 500 * time.Millisecond
 )
 
+// Update holds information for an entries update to the cache.
+type UpdateEntries struct {
+	// Bundles is a set of ALL trust bundles available to the agent, keyed by trust domain
+	Bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
+
+	// RegistrationEntries is a set of ALL registration entries available to the
+	// agent, keyed by registration entry id.
+	RegistrationEntries map[string]*common.RegistrationEntry
+}
+
 // Cache caches each registration entry, bundles, and JWT SVIDs for the agent.
 // The signed X509-SVIDs for those entries are stored in LRU-like cache.
 // It allows subscriptions by (workload) selector sets and notifies subscribers when:
