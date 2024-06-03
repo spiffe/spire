@@ -2,7 +2,6 @@ package cache
 
 import (
 	"context"
-	"sort"
 	"sync"
 	"time"
 
@@ -725,12 +724,6 @@ func newSelectorIndex() *selectorIndex {
 		subs:    make(map[*subscriber]struct{}),
 		records: make(map[*cacheRecord]struct{}),
 	}
-}
-
-func sortIdentities(identities []Identity) {
-	sort.Slice(identities, func(a, b int) bool {
-		return identities[a].Entry.EntryId < identities[b].Entry.EntryId
-	})
 }
 
 func makeIdentity(record *cacheRecord) Identity {
