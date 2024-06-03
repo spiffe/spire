@@ -12,8 +12,6 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
-type Selectors []*common.Selector
-
 // Cache caches each registration entry, signed X509-SVIDs for those entries,
 // bundles, and JWT SVIDs for the agent. It allows subscriptions by (workload)
 // selector sets and notifies subscribers when:

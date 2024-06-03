@@ -9,6 +9,8 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
+type Selectors []*common.Selector
+
 // Identity holds the data for a single workload identity
 type Identity struct {
 	Entry      *common.RegistrationEntry
