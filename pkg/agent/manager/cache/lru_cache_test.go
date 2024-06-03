@@ -826,10 +826,10 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 	// Creating test entries, but this will not affect current test...
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
-	cache.UpdateEntries(&UpdateEntries{
-		Bundles:             makeBundles(bundleV1),
-		RegistrationEntries: makeRegistrationEntries(foo, bar),
-	}, nil)
+	updateEntries := createUpdateEntries(1000, makeBundles(bundleV1))
+	updateEntries.RegistrationEntries[foo.EntryId] = foo
+	updateEntries.RegistrationEntries[bar.EntryId] = bar
+	cache.UpdateEntries(updateEntries, nil)
 
 	subWaitCh := make(chan struct{}, 1)
 	subErrCh := make(chan error, 1)
@@ -867,7 +867,7 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 	<-subWaitCh
 	cache.SyncSVIDsWithSubscribers()
 
-	assert.Len(t, cache.GetStaleEntries(), 1)
+	assert.Len(t, cache.GetStaleEntries(), 1000)
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo, bar),
 	})
