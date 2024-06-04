@@ -27,7 +27,7 @@ The following metrics are emitted:
 | Call Counter | `datastore`, `bundle`, `update`                  |                              | The Datastore is updating a bundle.                                                   |
 | Call Counter | `datastore`, `join_token`, `create`              |                              | The Datastore is creating a join token.                                               |
 | Call Counter | `datastore`, `join_token`, `delete`              |                              | The Datastore is deleting a join token.                                               |
-| Call Counter | `datastore`, `join_token`, `fetch`               |                              | The Datastore is fetching a join token.                                               |    
+| Call Counter | `datastore`, `join_token`, `fetch`               |                              | The Datastore is fetching a join token.                                               |
 | Call Counter | `datastore`, `join_token`, `prune`               |                              | The Datastore is pruning join tokens.                                                 |
 | Call Counter | `datastore`, `node`, `count`                     |                              | The Datastore is counting nodes.                                                      |
 | Call Counter | `datastore`, `node`, `create`                    |                              | The Datastore  is creating a node.                                                    |
