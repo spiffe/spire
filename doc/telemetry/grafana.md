@@ -7,9 +7,9 @@ This walkthrough will guide you through the different dashboards available in Gr
 
 The steps to get started include:
 
-1.  **Connecting Grafana to Prometheus:** Ensure Grafana is configured to use Prometheus as a data source (DataSource name: uid_prometheus_grafana_datasource)
-2.  **Loading the Dashboard JSON:** Import the provided JSON file into Grafana to set up the dashboards.
-3.  **Understanding the Metrics:** Familiarize yourself with the metrics provided by SPIRE Server and Agent to effectively use the dashboards.
+1. **Connecting Grafana to Prometheus:** Ensure Grafana is configured to use Prometheus as a data source (DataSource name: uid_prometheus_grafana_datasource)
+2. **Loading the Dashboard JSON:** Import the provided JSON file into Grafana to set up the dashboards.
+3. **Understanding the Metrics:** Familiarize yourself with the metrics provided by SPIRE Server and Agent to effectively use the dashboards.
 
 ## Dashboards Overview
 
@@ -21,28 +21,28 @@ This JSON configuration for Grafana offers a comprehensive set of dashboards tha
 
 This dashboard provides an overview of the agents, including:
 
--   **Number of Agents:** Displays the total number of agents categorized by trust domain and version.
+- **Number of Agents:** Displays the total number of agents categorized by trust domain and version.
 
 #### 2. Agent
 
 This dashboard offers detailed information about individual agents, including:
 
--   **Request Metrics:** Shows the number of requests each agent has made.
--   **Request Status:** Displays the status of each request made by the agents.
+- **Request Metrics:** Shows the number of requests each agent has made.
+- **Request Status:** Displays the status of each request made by the agents.
 
 #### 3. Agent Latency
 
 This dashboard focuses on the latency of various operations, such as:
 
--   **Retrieval Operations:** Measures the time taken to retrieve data.
--   **Sync Operations:** Tracks the latency involved in synchronization processes.
+- **Retrieval Operations:** Measures the time taken to retrieve data.
+- **Sync Operations:** Tracks the latency involved in synchronization processes.
 
 #### 4. Agent Runtime Info
 
 This dashboard provides runtime information about the agents, including:
 
--   **Alloc Bytes:** Shows the amount of memory allocated by the agents.
--   **Heap Objects:** Displays the number of heap objects in use.
+- **Alloc Bytes:** Shows the amount of memory allocated by the agents.
+- **Heap Objects:** Displays the number of heap objects in use.
 
 ### Server Dashboards
 
@@ -50,50 +50,51 @@ This dashboard provides runtime information about the agents, including:
 
 This dashboard provides an overview of the server, including:
 
--   **Trust Domain & Version:** Displays the server trust domain and version.
--   **Uptime:** Shows the duration the server has been up.
+- **Trust Domain & Version:** Displays the server trust domain and version.
+- **Uptime:** Shows the duration the server has been up.
 
 #### 2. Server Requests
 
 This dashboard focuses on the API requests received for the following entities:
 
--   **Agent**
--   **Entry**
--   **Bundle**
+- **Agent**
+- **Entry**
+- **Bundle**
 
 #### 3. Server Latency
 
 This dashboard focuses on the latency of various operations, such as:
 
--   **Retrieval:** Measures the time taken to retrieve data.
--   **Signing:** Tracks the latency involved in signing processes.
--   **Cache Reload:** Monitors the time taken for cache reload operations.
--   **Datastore:** Measures the latency of datastore interactions.
+- **Retrieval:** Measures the time taken to retrieve data.
+- **Signing:** Tracks the latency involved in signing processes.
+- **Cache Reload:** Monitors the time taken for cache reload operations.
+- **Datastore:** Measures the latency of datastore interactions.
 
 #### 4. Server Runtime Info
 
 This dashboard provides runtime information about the server, including:
 
--   **Alloc Bytes:** Shows the amount of memory allocated by the server.
--   **Heap Objects:** Displays the number of heap objects in use.
+- **Alloc Bytes:** Shows the amount of memory allocated by the server.
+- **Heap Objects:** Displays the number of heap objects in use.
 
 ## Filters
 
 To refine the data displayed on the dashboards, several filters are available:
 
--   **Agent Filter:** Select a specific agent to view detailed information about it.
--   **Server Filter:** Select a specific server to view detailed information about it.
--   **Time Filter:** Choose the time period for which you want to view the data.
+- **Agent Filter:** Select a specific agent to view detailed information about it.
+- **Server Filter:** Select a specific server to view detailed information about it.
+- **Time Filter:** Choose the time period for which you want to view the data.
 
 ## Steps to Import a JSON Dashboard
 
-1.  **Open Grafana:** Log in to your Grafana instance.
-2.  **Import Dashboard:** Click on the "+" icon in the sidebar and select "Import dashboard".
-3.  **Upload JSON File:** Use the upload option to import the provided JSON file, or replace into "Import via dashboard JSON model".
-4.  **Configure Data Source:** Ensure that the Prometheus data source is configured correctly for the imported dashboard to function properly. This could be done by looking for "Data sources" in the search bar.
+1. **Open Grafana:** Log in to your Grafana instance.
+2. **Import Dashboard:** Click on the "+" icon in the sidebar and select "Import dashboard".
+3. **Upload JSON File:** Use the upload option to import the provided JSON file, or replace into "Import via dashboard JSON model".
+4. **Configure Data Source:** Ensure that the Prometheus data source is configured correctly for the imported dashboard to function properly. This could be done by looking for "Data sources" in the search bar.
 
 By following these steps, you can set up and explore the Grafana dashboards to monitor and analyze the metrics generated by SPIRE Server and Agent, enabling effective performance and health management of your systems.
 
 ## Example images
+
 ![ServerGrafana](images/ServerGrafana.png)
 ![LatencyGrafana](images/LatencyGrafana.png)
