@@ -49,7 +49,7 @@ const (
 	// entry cache.
 	defaultCacheReloadInterval = 5 * time.Second
 
-	// This is the default amoount of time events live before they are pruned
+	// This is the default amount of time events live before they are pruned
 	defaultPruneEventsOlderThan = 12 * time.Hour
 
 	// This is the default SQL transaction timeout. This value matches Postgres's default.
