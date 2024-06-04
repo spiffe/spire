@@ -52,8 +52,8 @@ const (
 	// This is the default amoount of time events live before they are pruned
 	defaultPruneEventsOlderThan = 12 * time.Hour
 
-	// This is the default SQL transaction timeout. This value matches MYSQL's default.
-	defaultSQLTransactionTimeout = 8 * time.Hour
+	// This is the default SQL transaction timeout. This value matches Postgres's default.
+	defaultSQLTransactionTimeout = 24 * time.Hour
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle

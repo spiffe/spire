@@ -117,7 +117,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneMissedRegistrationEntr
 	defer a.mu.Unlock()
 
 	for eventID, eventTime := range a.missedRegistrationEntryEvents {
-		if time.Since(eventTime) > a.sqlTransactionTimeout {
+		if a.clk.Now().Sub(eventTime) > a.sqlTransactionTimeout {
 			delete(a.missedRegistrationEntryEvents, eventID)
 		}
 	}
@@ -128,7 +128,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneMissedAttestedNodeEven
 	defer a.mu.Unlock()
 
 	for eventID, eventTime := range a.missedAttestedNodeEvents {
-		if time.Since(eventTime) > a.sqlTransactionTimeout {
+		if a.clk.Now().Sub(eventTime) > a.sqlTransactionTimeout {
 			delete(a.missedAttestedNodeEvents, eventID)
 		}
 	}
