@@ -45,7 +45,7 @@ type configuration struct {
 }
 
 type Config struct {
-	DNSPatterns       []string `hcl:"dns_patterns"`
+	AllowedDNSPatterns       []string `hcl:"allowed_dns_patterns"`
 	RequiredPort      *int     `hcl:"required_port"`
 	AllowNonRootPorts *bool    `hcl:"allow_non_root_ports"`
 	AgentPathTemplate string   `hcl:"agent_path_template"`
@@ -196,7 +196,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	}
 
 	var dnsPatterns []*regexp.Regexp
-	for _, r := range hclConfig.DNSPatterns {
+	for _, r := range hclConfig.AllowedDNSPatterns {
 		re := regexp.MustCompile(r)
 		dnsPatterns = append(dnsPatterns, re)
 	}
