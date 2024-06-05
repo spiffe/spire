@@ -60,7 +60,7 @@ Some useful values are:
 
 Generally, tcp ports are accessable to any user of the node. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.
 
-To mitigate the associated risk, the `http_challenge` node attestor implements multiple features that can be used to minimize the risk.
+The `http_challenge` node attestor implements multiple features to mitigate the risk.
 
 Trust On First Use (or TOFU) is one such option. For any given node, attestation may occur only once when enabled. Subsequent attestation attempts will be rejected.
 
