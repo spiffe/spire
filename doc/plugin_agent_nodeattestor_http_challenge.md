@@ -43,6 +43,7 @@ Example spire agent configuration:
     NodeAttestor "http_challenge" {
         plugin_data {
             port = 8080
+            advertised_port = 80
         }
     }
 ```
