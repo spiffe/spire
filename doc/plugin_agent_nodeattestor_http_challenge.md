@@ -15,7 +15,7 @@ spiffe://<trust_domain>/spire/agent/http_challenge/<hostname>
 | Configuration     | Description                                                                                                                                      | Default   |
 |-------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
 | `hostname`        | Hostname to use for handshaking. If unset, it will be automatically detected.                                                                    |           |
-| `agentname`       | Name of this agent on the host. Useful if you have multilpe agents bound to different spire servers on the same host and sharing the same port.  | "default" |
+| `agentname`       | Name of this agent on the host. Useful if you have multiple agents bound to different spire servers on the same host and sharing the same port.  | "default" |
 | `port`            | The port to listen on. If unspecified, a random value will be used.                                                                              | random    |
 | `advertised_port` | The port to tell the server to call back on.                                                                                                     | $port     |
 
@@ -33,7 +33,7 @@ A sample configuration:
 
 ## Proxies
 
-Say you want to validate using port 80 to be internet firewall friendly. If you already have a webserver on port 80 or want to use multilple agents with different SPIRE servers and use the same port,
+Say you want to validate using port 80 to be internet firewall friendly. If you already have a webserver on port 80 or want to use multiple agents with different SPIRE servers and use the same port,
 you can have your webserver proxy over to the SPIRE agent(s) by setting up a proxy on `/.well-known/spiffe/nodeattestor/http_challenge/$agentname` to
 `http://localhost:$port/.well-known/spiffe/nodeattestor/http_challenge/$agentname`.
 

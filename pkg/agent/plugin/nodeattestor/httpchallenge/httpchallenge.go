@@ -60,34 +60,6 @@ func New() *Plugin {
 	return &Plugin{}
 }
 
-func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err error) {
-	h := http.NewServeMux()
-	s := &http.Server{
-		Handler:      h,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
-	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, nonce)
-	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "%s", nonce)
-		go func() {
-			_ = s.Shutdown(context.Background())
-		}()
-	})
-
-	go func() {
-		err = s.Serve(l)
-		l.Close()
-		if err == http.ErrServerClosed {
-			return
-		}
-		if err != nil {
-			fmt.Printf("Unexpected error while serving. %e", err)
-		}
-	}()
-	return err
-}
-
 func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) (err error) {
 	data, err := p.loadConfigData()
 	if err != nil {
@@ -181,6 +153,34 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.setConfig(config)
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err error) {
+	h := http.NewServeMux()
+	s := &http.Server{
+		Handler:      h,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, nonce)
+	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%s", nonce)
+		go func() {
+			_ = s.Shutdown(context.Background())
+		}()
+	})
+
+	go func() {
+		err = s.Serve(l)
+		l.Close()
+		if err == http.ErrServerClosed {
+			return
+		}
+		if err != nil {
+			fmt.Printf("Unexpected error while serving. %e", err)
+		}
+	}()
+	return err
 }
 
 func (p *Plugin) getConfig() *Config {

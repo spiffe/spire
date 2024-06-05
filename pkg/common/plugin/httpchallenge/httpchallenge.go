@@ -60,9 +60,6 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 
 func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challenge, _ *Response) error {
 	if strings.Contains(attestationData.HostName, "/") {
-		return fmt.Errorf("hostname can not contain a slash")
-	}
-	if strings.Contains(attestationData.HostName, "/") {
 		return fmt.Errorf("hostname can not contain a colon")
 	}
 	if strings.Contains(attestationData.AgentName, ".") {

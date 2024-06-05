@@ -14,7 +14,7 @@ spiffe://<trust_domain>/spire/agent/http_challenge/<hostname>
 
 | Configuration           | Description                                                                                                                                               | Default                             |
 |-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
-| `dns_patterns`          | A list of regular expressions to apply to the hostname being attested. If none match, attestation will fail. If unset, all hostnames are allowed.         |                                     |
+| `allowed_dns_patterns`  | A list of regular expressions to match to the hostname being attested. If none match, attestation will fail. If unset, all hostnames are allowed.         |                                     |
 | `required_port`         | Set to a port number to require clients to listen only on that port. If unset, all port numbers are allowed                                               |                                     |
 | `allow_non_root_ports`  | Set to true to allow ports >= 1024 to be used by the agents with the advertised_port                                                                      | true                                |
 | `agent_path_template`   | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                         | "{{ .PluginName }}/{{ .HostName }}" |
@@ -26,7 +26,7 @@ A sample configuration:
     NodeAttestor "http_challenge" {
         plugin_data {
             # Only match hosts that start with p, have a number, then end in example.com. Ex: 'p1.example.com'
-            dns_patterns = ["p[0-9]\.example\.com"]
+            allowed_dns_patterns = ["p[0-9]\.example\.com"]
 
             # Only allow clients to use port 80
             required_port = 80
@@ -58,7 +58,7 @@ Some useful values are:
 
 ## Security Considerations
 
-Generally, tcp ports are accessable to any user of the node. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.
+Generally, TCP ports are accessible to any user of the node. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.
 
 To mitigate the associated risk, the `http_challenge` node attestor implements multiple features that can be used to minimize the risk.
 
