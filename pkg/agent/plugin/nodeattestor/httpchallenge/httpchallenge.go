@@ -145,7 +145,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
-	// make sure the configuration produces valid data
+	// Make sure the configuration produces valid data
 	if _, err := loadConfigData(config); err != nil {
 		return nil, err
 	}

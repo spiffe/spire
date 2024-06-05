@@ -87,7 +87,7 @@ func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challe
 	if bytes.Equal(body, challenge.Nonce) {
 		return nil
 	}
-	return fmt.Errorf("Nonce did not match, %s %s", string(body), string(challenge.Nonce))
+	return fmt.Errorf("expected nonce %q but got %q", string(challenge.Nonce), string(body))
 }
 
 // MakeAgentID creates an agent ID

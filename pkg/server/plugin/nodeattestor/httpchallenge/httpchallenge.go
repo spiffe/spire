@@ -266,7 +266,7 @@ func (p *Plugin) setConfiguration(config *configuration) {
 func buildSelectorValues(hostName string) []string {
 	var selectorValues []string
 
-	selectorValues = append(selectorValues, "httpchallenge:hostname:"+hostName)
+	selectorValues = append(selectorValues, "hostname:"+hostName)
 
 	return selectorValues
 }
