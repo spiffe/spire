@@ -64,7 +64,7 @@ require (
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.65.0
 	github.com/prometheus/client_golang v1.19.1
-	github.com/shirou/gopsutil/v3 v3.24.4
+	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/sigstore/cosign/v2 v2.2.4
 	github.com/sigstore/rekor v1.3.6
 	github.com/sigstore/sigstore v1.8.4
