@@ -19,6 +19,8 @@ services:
       - ./root/agent:/opt/spire/conf/agent
       - /var/run/docker.sock:/var/run/docker.sock
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+    # Make sure that we can access the Docker daemon socket
+    user: 0:0
   # IntermediateA
   intermediateA-server:
     # Share the host pid namespace so this server can be attested by the root agent

@@ -23,38 +23,6 @@ ARG TARGETPLATFORM
 ARG TARGETARCH
 COPY --link --from=xx / /
 
-# For users that wish to run SPIRE containers as a non-root user,
-# provide a default unprivileged user such that the default paths
-# that SPIRE will try to read from, write to, and create at runtime
-# can be given the correct file ownership/permissions at build time.
-ARG spireuid=1000
-ARG spiregid=1000
-
-# Set up directories that SPIRE expects by default
-# Set up base directories
-RUN install -d -o root -g root -m 777 /spireroot
-RUN install -d -o root -g root -m 755 /spireroot/etc/ssl/certs
-RUN install -d -o root -g root -m 755 /spireroot/run
-RUN install -d -o root -g root -m 755 /spireroot/var/lib
-RUN install -d -o root -g root -m 1777 /spireroot/tmp
-
-# Set up directories used by SPIRE
-RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireroot/etc/spire
-RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireroot/run/spire
-RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireroot/var/lib/spire
-
-# Set up spire-server directories
-RUN cp -r /spireroot /spireserverroot
-RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireserverroot/etc/spire/server
-RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireserverroot/run/spire/server/private
-RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireserverroot/var/lib/spire/server
-
-# Set up spire-agent directories
-RUN cp -r /spireroot /spireagentroot
-RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireagentroot/etc/spire/agent
-RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireagentroot/run/spire/agent/public
-RUN install -d -o ${spireuid} -g ${spiregid} -m 755 /spireagentroot/var/lib/spire/agent
-
 RUN xx-go --wrap
 RUN set -e ; xx-apk --no-cache --update add build-base musl-dev libseccomp-dev
 ENV CGO_ENABLED=1
@@ -65,26 +33,53 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     for f in $(find bin -executable -type f); do xx-verify --static $f; done
 
 FROM --platform=${BUILDPLATFORM} scratch AS spire-base
+COPY --link --from=builder --chown=root:root --chmod=755 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 WORKDIR /opt/spire
-CMD []
-COPY --link --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Preparation environment for setting up directories
+FROM alpine as prep-spire-server
+RUN mkdir -p /spireroot/opt/spire/bin \
+    /spireroot/etc/spire/server \
+    /spireroot/run/spire/server/private \
+    /spireroot/tmp/spire-server/private \
+    /spireroot/var/lib/spire/server
+
+FROM alpine as prep-spire-agent
+RUN mkdir -p /spireroot/opt/spire/bin \
+    /spireroot/etc/spire/agent \
+    /spireroot/run/spire/agent/public \
+    /spireroot/tmp/spire-agent/public \
+    /spireroot/var/lib/spire/agent
+
+# For users that wish to run SPIRE containers as a non-root user,
+# a default unprivileged user is provided such that the default paths
+# that SPIRE will try to read from, write to, and create at runtime
+# can be given the correct file ownership/permissions at build time.
+# This is done through the spireuid and spiregid arguments that the
+# spire-server, spire-agent, and oidc-discovery-provider build stages use.
 
 # SPIRE Server
 FROM spire-base AS spire-server
+ARG spireuid=1000
+ARG spiregid=1000
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-server", "run"]
-COPY --link --from=builder /spireserverroot /
-COPY --link --from=builder /spire/bin/static/spire-server bin/
+COPY --link --from=prep-spire-server --chown=${spireuid}:${spiregid} --chmod=755 /spireroot /
+COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-server /opt/spire/bin/
 
 # SPIRE Agent
 FROM spire-base AS spire-agent
+ARG spireuid=1000
+ARG spiregid=1000
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-agent", "run"]
-COPY --link --from=builder /spireagentroot /
-COPY --link --from=builder /spire/bin/static/spire-agent bin/
+COPY --link --from=prep-spire-agent --chown=${spireuid}:${spiregid} --chmod=755 /spireroot /
+COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/spire-agent /opt/spire/bin/
 
 # OIDC Discovery Provider
 FROM spire-base AS oidc-discovery-provider
+ARG spireuid=1000
+ARG spiregid=1000
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/oidc-discovery-provider"]
-COPY --link --from=builder /spire/bin/static/oidc-discovery-provider bin/
+COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bin/static/oidc-discovery-provider /opt/spire/bin/

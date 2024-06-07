@@ -6,36 +6,32 @@ metadata:
   namespace: spire
 
 ---
-
 # Required cluster role to allow spire-agent to query k8s API server
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: spire-agent-cluster-role
 rules:
-- apiGroups: [""]
-  resources: ["pods","nodes","nodes/proxy"]
-  verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "nodes/proxy"]
+    verbs: ["get"]
 
 ---
-
 # Binds above cluster role to spire-agent service account
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: spire-agent-cluster-role-binding
 subjects:
-- kind: ServiceAccount
-  name: spire-agent
-  namespace: spire
+  - kind: ServiceAccount
+    name: spire-agent
+    namespace: spire
 roleRef:
   kind: ClusterRole
   name: spire-agent-cluster-role
   apiGroup: rbac.authorization.k8s.io
 
-
 ---
-
 # ConfigMap for the SPIRE agent featuring:
 # 1) PSAT node attestation
 # 2) K8S Workload Attestation over the secure kubelet port
@@ -90,7 +86,6 @@ data:
     }
 
 ---
-
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -117,6 +112,12 @@ spec:
       serviceAccountName: spire-agent
       containers:
         - name: spire-agent
+          # Make sure that we can create the directory for the socket in the host,
+          # this is needed because we use a hostPath volume to share the socket
+          # for the Workload API.
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
           image: spire-agent:latest-local
           imagePullPolicy: Never
           args: ["-config", "/run/spire/config/agent.conf"]
@@ -151,6 +152,8 @@ spec:
         - name: spire-bundle
           configMap:
             name: spire-bundle
+          # The volume containing the SPIRE Agent socket that will be used by
+          # the workload container.
         - name: spire-agent-socket
           hostPath:
             path: /run/spire/agent-sockets
@@ -158,7 +161,7 @@ spec:
         - name: spire-token
           projected:
             sources:
-            - serviceAccountToken:
-                path: spire-agent
-                expirationSeconds: 7200
-                audience: spire-server
+              - serviceAccountToken:
+                  path: spire-agent
+                  expirationSeconds: 7200
+                  audience: spire-server

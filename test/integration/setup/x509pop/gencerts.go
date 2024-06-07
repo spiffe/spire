@@ -74,7 +74,7 @@ func writeKey(path string, key crypto.Signer) {
 		Type:  "PRIVATE KEY",
 		Bytes: keyBytes,
 	})
-	writeFile(path, pemBytes, 0o600)
+	writeFile(path, pemBytes, 0o644) // This key is used only for testing purposes.
 }
 
 func writeCerts(path string, certs ...*x509.Certificate) {
