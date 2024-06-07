@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent"
@@ -186,28 +187,28 @@ func TestParseConfigGood(t *testing.T) {
 	// Check for plugins configurations
 	expectedPluginConfigs := catalog.PluginConfigs{
 		{
-			Type:     "plugin_type_agent",
-			Name:     "plugin_name_agent",
-			Path:     "./pluginAgentCmd",
-			Checksum: "pluginAgentChecksum",
-			Data:     data,
-			Disabled: false,
+			Type:       "plugin_type_agent",
+			Name:       "plugin_name_agent",
+			Path:       "./pluginAgentCmd",
+			Checksum:   "pluginAgentChecksum",
+			DataSource: catalog.FixedData(data),
+			Disabled:   false,
 		},
 		{
-			Type:     "plugin_type_agent",
-			Name:     "plugin_disabled",
-			Path:     "./pluginAgentCmd",
-			Checksum: "pluginAgentChecksum",
-			Data:     data,
-			Disabled: true,
+			Type:       "plugin_type_agent",
+			Name:       "plugin_disabled",
+			Path:       "./pluginAgentCmd",
+			Checksum:   "pluginAgentChecksum",
+			DataSource: catalog.FixedData(data),
+			Disabled:   true,
 		},
 		{
-			Type:     "plugin_type_agent",
-			Name:     "plugin_enabled",
-			Path:     "./pluginAgentCmd",
-			Checksum: "pluginAgentChecksum",
-			Data:     data,
-			Disabled: false,
+			Type:       "plugin_type_agent",
+			Name:       "plugin_enabled",
+			Path:       "./pluginAgentCmd",
+			Checksum:   "pluginAgentChecksum",
+			DataSource: catalog.FileData("plugin.conf"),
+			Disabled:   false,
 		},
 	}
 
@@ -271,7 +272,9 @@ func mergeInputCasesOS() []mergeInputCase {
 	}
 }
 
-func newAgentConfigCasesOS() []newAgentConfigCase {
+func newAgentConfigCasesOS(t *testing.T) []newAgentConfigCase {
+	testDir := t.TempDir()
+
 	return []newAgentConfigCase{
 		{
 			msg: "socket_path should be correctly configured",
@@ -357,6 +360,16 @@ func newAgentConfigCasesOS() []newAgentConfigCase {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c.AdminBindAddress)
+			},
+		},
+		{
+			msg: "log_file allows to reopen",
+			input: func(c *Config) {
+				c.Agent.LogFile = path.Join(testDir, "foo")
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
 			},
 		},
 	}

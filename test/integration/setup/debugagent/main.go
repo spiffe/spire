@@ -73,7 +73,7 @@ func printDebugPage(ctx context.Context) error {
 }
 
 func retrieveDebugPage(ctx context.Context) (string, error) {
-	conn, err := grpc.Dial(*socketPathFlag, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(*socketPathFlag, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return "", fmt.Errorf("failed to connect server: %w", err)
 	}
@@ -103,7 +103,7 @@ func serverWithWorkload(ctx context.Context) error {
 }
 
 func serverWithInsecure(ctx context.Context) error {
-	itClient := itclient.NewInsecure(ctx)
+	itClient := itclient.NewInsecure()
 	defer itClient.Release()
 
 	debugClient := itClient.DebugClient()

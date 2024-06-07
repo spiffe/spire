@@ -2,7 +2,9 @@ package catalog
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
@@ -33,13 +35,13 @@ func (cs PluginConfigs) Find(pluginType, pluginName string) (PluginConfig, bool)
 }
 
 type PluginConfig struct {
-	Type     string
-	Name     string
-	Path     string
-	Args     []string
-	Checksum string
-	Data     string
-	Disabled bool
+	Type       string
+	Name       string
+	Path       string
+	Args       []string
+	Checksum   string
+	DataSource DataSource
+	Disabled   bool
 }
 
 func (c PluginConfig) IsEnabled() bool {
@@ -50,11 +52,41 @@ func (c *PluginConfig) IsExternal() bool {
 	return c.Path != ""
 }
 
+type DataSource interface {
+	Load() (string, error)
+	IsDynamic() bool
+}
+
+type FixedData string
+
+func (d FixedData) Load() (string, error) {
+	return string(d), nil
+}
+
+func (d FixedData) IsDynamic() bool {
+	return false
+}
+
+type FileData string
+
+func (d FileData) Load() (string, error) {
+	data, err := os.ReadFile(string(d))
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func (d FileData) IsDynamic() bool {
+	return true
+}
+
 type hclPluginConfig struct {
 	PluginCmd      string   `hcl:"plugin_cmd"`
 	PluginArgs     []string `hcl:"plugin_args"`
 	PluginChecksum string   `hcl:"plugin_checksum"`
 	PluginData     ast.Node `hcl:"plugin_data"`
+	PluginDataFile *string  `hcl:"plugin_data_file"`
 	Enabled        *bool    `hcl:"enabled"`
 }
 
@@ -218,21 +250,34 @@ func (m pluginsMapList) Len() int {
 }
 
 func pluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig hclPluginConfig) (PluginConfig, error) {
-	var data bytes.Buffer
+	if hclPluginConfig.PluginData != nil && hclPluginConfig.PluginDataFile != nil {
+		return PluginConfig{}, errors.New("only one of [plugin_data, plugin_data_file] can be used")
+	}
+
+	var dataSource DataSource
+
 	if hclPluginConfig.PluginData != nil {
-		if err := printer.DefaultConfig.Fprint(&data, hclPluginConfig.PluginData); err != nil {
+		var buf bytes.Buffer
+		if err := printer.DefaultConfig.Fprint(&buf, hclPluginConfig.PluginData); err != nil {
 			return PluginConfig{}, err
+		}
+		if data := buf.String(); data != "" {
+			dataSource = FixedData(data)
 		}
 	}
 
+	if hclPluginConfig.PluginDataFile != nil {
+		dataSource = FileData(*hclPluginConfig.PluginDataFile)
+	}
+
 	return PluginConfig{
-		Name:     pluginName,
-		Type:     pluginType,
-		Path:     hclPluginConfig.PluginCmd,
-		Args:     hclPluginConfig.PluginArgs,
-		Checksum: hclPluginConfig.PluginChecksum,
-		Data:     data.String(),
-		Disabled: !hclPluginConfig.IsEnabled(),
+		Name:       pluginName,
+		Type:       pluginType,
+		Path:       hclPluginConfig.PluginCmd,
+		Args:       hclPluginConfig.PluginArgs,
+		Checksum:   hclPluginConfig.PluginChecksum,
+		DataSource: dataSource,
+		Disabled:   !hclPluginConfig.IsEnabled(),
 	}, nil
 }
 

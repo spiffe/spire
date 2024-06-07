@@ -6,7 +6,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
@@ -24,8 +23,6 @@ type Config struct {
 	PluginConfigs common.PluginConfigs
 
 	Log loggerv1.Logger
-
-	LaunchLogLevel logrus.Level
 
 	// LogReopener facilitates handling a signal to rotate log file.
 	LogReopener func(context.Context) error
@@ -106,6 +103,9 @@ type Config struct {
 
 	// PruneEventsOlderThan controls how long events can live before they are pruned
 	PruneEventsOlderThan time.Duration
+
+	// SQLTransactionTimeout controls how long to wait for an event before giving up
+	SQLTransactionTimeout time.Duration
 
 	// AuthPolicyEngineConfig determines the config for authz policy
 	AuthOpaPolicyEngineConfig *authpolicy.OpaEngineConfig

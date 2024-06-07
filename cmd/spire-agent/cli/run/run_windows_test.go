@@ -173,28 +173,28 @@ func TestParseConfigGood(t *testing.T) {
 	// Check for plugins configurations
 	expectedPluginConfigs := catalog.PluginConfigs{
 		{
-			Type:     "plugin_type_agent",
-			Name:     "plugin_name_agent",
-			Path:     "./pluginAgentCmd",
-			Checksum: "pluginAgentChecksum",
-			Data:     data,
-			Disabled: false,
+			Type:       "plugin_type_agent",
+			Name:       "plugin_name_agent",
+			Path:       "./pluginAgentCmd",
+			Checksum:   "pluginAgentChecksum",
+			DataSource: catalog.FixedData(data),
+			Disabled:   false,
 		},
 		{
-			Type:     "plugin_type_agent",
-			Name:     "plugin_disabled",
-			Path:     ".\\pluginAgentCmd",
-			Checksum: "pluginAgentChecksum",
-			Data:     data,
-			Disabled: true,
+			Type:       "plugin_type_agent",
+			Name:       "plugin_disabled",
+			Path:       ".\\pluginAgentCmd",
+			Checksum:   "pluginAgentChecksum",
+			DataSource: catalog.FixedData(data),
+			Disabled:   true,
 		},
 		{
-			Type:     "plugin_type_agent",
-			Name:     "plugin_enabled",
-			Path:     "c:/temp/pluginAgentCmd",
-			Checksum: "pluginAgentChecksum",
-			Data:     data,
-			Disabled: false,
+			Type:       "plugin_type_agent",
+			Name:       "plugin_enabled",
+			Path:       "c:/temp/pluginAgentCmd",
+			Checksum:   "pluginAgentChecksum",
+			DataSource: catalog.FileData("plugin.conf"),
+			Disabled:   false,
 		},
 	}
 
@@ -258,7 +258,7 @@ func mergeInputCasesOS() []mergeInputCase {
 	}
 }
 
-func newAgentConfigCasesOS() []newAgentConfigCase {
+func newAgentConfigCasesOS(*testing.T) []newAgentConfigCase {
 	return []newAgentConfigCase{
 		{
 			msg: "named_pipe_name should be correctly configured",

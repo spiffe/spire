@@ -31,7 +31,7 @@ type DataStore interface {
 	RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error)
 
 	// Entries
-	CountRegistrationEntries(context.Context) (int32, error)
+	CountRegistrationEntries(context.Context, *CountRegistrationEntriesRequest) (int32, error)
 	CreateRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, error)
 	CreateOrReturnRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, bool, error)
 	DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error)
@@ -43,10 +43,12 @@ type DataStore interface {
 	// Entries Events
 	ListRegistrationEntriesEvents(ctx context.Context, req *ListRegistrationEntriesEventsRequest) (*ListRegistrationEntriesEventsResponse, error)
 	PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) error
-	GetLatestRegistrationEntryEventID(ctx context.Context) (uint, error)
+	FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*RegistrationEntryEvent, error)
+	CreateRegistrationEntryEventForTesting(ctx context.Context, event *RegistrationEntryEvent) error
+	DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error
 
 	// Nodes
-	CountAttestedNodes(context.Context) (int32, error)
+	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (int32, error)
 	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
 	DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
 	FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
@@ -56,7 +58,9 @@ type DataStore interface {
 	// Nodes Events
 	ListAttestedNodesEvents(ctx context.Context, req *ListAttestedNodesEventsRequest) (*ListAttestedNodesEventsResponse, error)
 	PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) error
-	GetLatestAttestedNodeEventID(ctx context.Context) (uint, error)
+	FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*AttestedNodeEvent, error)
+	CreateAttestedNodeEventForTesting(ctx context.Context, event *AttestedNodeEvent) error
+	DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error
 
 	// Node selectors
 	GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency DataConsistency) ([]*common.Selector, error)
@@ -206,6 +210,7 @@ type ListRegistrationEntriesRequest struct {
 	Pagination      *Pagination
 	ByFederatesWith *ByFederatesWith
 	ByHint          string
+	ByDownstream    *bool
 }
 
 type CAJournal struct {
@@ -240,6 +245,25 @@ type ListFederationRelationshipsRequest struct {
 type ListFederationRelationshipsResponse struct {
 	FederationRelationships []*FederationRelationship
 	Pagination              *Pagination
+}
+
+type CountAttestedNodesRequest struct {
+	ByAttestationType string
+	ByBanned          *bool
+	ByExpiresBefore   time.Time
+	BySelectorMatch   *BySelectors
+	FetchSelectors    bool
+	ByCanReattest     *bool
+}
+
+type CountRegistrationEntriesRequest struct {
+	DataConsistency DataConsistency
+	ByParentID      string
+	BySelectors     *BySelectors
+	BySpiffeID      string
+	ByFederatesWith *ByFederatesWith
+	ByHint          string
+	ByDownstream    *bool
 }
 
 type BundleEndpointType string

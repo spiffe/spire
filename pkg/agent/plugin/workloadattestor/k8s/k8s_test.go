@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
-	"io"
 	"math/big"
 	"net"
 	"net/http"
@@ -525,7 +524,7 @@ func (s *Suite) TestConfigure() {
 			require.NotNil(t, testCase.config, "test case missing expected config")
 			assert.NoError(t, err)
 
-			c, err := p.getConfig()
+			c, _, err := p.getConfig()
 			require.NoError(t, err)
 
 			switch {
@@ -557,7 +556,7 @@ func (s *Suite) TestConfigure() {
 
 func (s *Suite) newPlugin() *Plugin {
 	p := New()
-	p.fs = testFS(s.dir)
+	p.rootDir = s.dir
 	p.clock = s.clock
 	p.getenv = func(key string) string {
 		return s.env[key]
@@ -615,6 +614,7 @@ func (s *Suite) loadInsecurePlugin() workloadattestor.WorkloadAttestor {
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
+		use_new_container_locator = true
 `, s.kubeletPort()))
 }
 
@@ -623,6 +623,7 @@ func (s *Suite) loadInsecurePluginWithExtra(extraConfig string) workloadattestor
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
+		use_new_container_locator = true
 		%s
 `, s.kubeletPort(), extraConfig))
 }
@@ -807,10 +808,4 @@ func (s *Suite) addPodListResponse(fixturePath string) {
 	s.Require().NoError(err)
 
 	s.podList = append(s.podList, podList)
-}
-
-type testFS string
-
-func (fs testFS) Open(path string) (io.ReadCloser, error) {
-	return os.Open(filepath.Join(string(fs), path))
 }

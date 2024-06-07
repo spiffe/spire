@@ -1,0 +1,3 @@
+2032 2031 0:309 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - tmpfs tmpfs rw,mode=755
+2033 2032 0:33 /kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-pod00000000_1111_2222_3333_444444444444.slice/cri-containerd-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.scope /sys/fs/cgroup/systemd ro,nosuid,nodev,noexec,relatime - cgroup systemd rw,xattr,name=systemd
+2034 2032 0:37 /fake/just/to/test/condition/cri-containerd-fedcba98765432100123456789abcdef0123456789abcdef0123456789abcdef.scope /sys/fs/cgroup/cpu,cpuacct ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,cpu,cpuacct

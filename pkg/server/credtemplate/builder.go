@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -342,6 +342,18 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 		attributes, err = cc.ComposeWorkloadJWTSVID(ctx, params.SPIFFEID, attributes)
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// AWS will otherwise reject validating timestamps serialized in scientific notation.
+	// Protobuf serializes large integers as float since Claims are represented as google.protobuf.Struct.
+	if len(b.config.CredentialComposers) > 0 {
+		if iat, ok := attributes.Claims["iat"].(float64); ok {
+			attributes.Claims["iat"] = int64(iat)
+		}
+
+		if exp, ok := attributes.Claims["exp"].(float64); ok {
+			attributes.Claims["exp"] = int64(exp)
 		}
 	}
 

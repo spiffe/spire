@@ -89,6 +89,9 @@ type Config struct {
 	// PruneEventsOlderThan controls how long events can live before they are pruned
 	PruneEventsOlderThan time.Duration
 
+	// SQLTransactionTimeout controls how long to wait for an event before giving up
+	SQLTransactionTimeout time.Duration
+
 	AuditLogEnabled bool
 
 	// AdminIDs are a list of fixed IDs that when presented by a caller in an
@@ -167,8 +170,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			DataStore:   ds,
 		}),
 		LoggerServer: loggerv1.New(loggerv1.Config{
-			Log:         c.RootLog,
-			LaunchLevel: c.LaunchLogLevel,
+			Log: c.RootLog,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
 			TrustDomain:  c.TrustDomain,

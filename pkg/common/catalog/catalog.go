@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc"
 )
 
-// Catalog is a set of plugin and service repositories.
-type Catalog interface {
+// Repository is a set of plugin and service repositories.
+type Repository interface {
 	// Plugins returns a map of plugin repositories, keyed by the plugin type.
 	Plugins() map[string]PluginRepo
 
@@ -109,6 +109,19 @@ type Config struct {
 	CoreConfig CoreConfig
 }
 
+type Catalog struct {
+	closers       io.Closer
+	reconfigurers Reconfigurers
+}
+
+func (c *Catalog) Reconfigure(ctx context.Context) {
+	c.reconfigurers.Reconfigure(ctx)
+}
+
+func (c *Catalog) Close() error {
+	return c.closers.Close()
+}
+
 // Load loads and configures plugins defined in the configuration. The given
 // catalog is populated with plugin and service facades for versions
 // implemented by the loaded plugins. The returned io.Closer can be used to
@@ -116,32 +129,33 @@ type Config struct {
 // given catalog are considered invalidated. If any plugin fails to load or
 // configure, all plugins are unloaded, the catalog is cleared, and the
 // function returns an error.
-func Load(ctx context.Context, config Config, cat Catalog) (_ io.Closer, err error) {
+func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err error) {
 	closers := make(closerGroup, 0)
 	defer func() {
 		// If loading fails, clear out the catalog and close down all plugins
 		// that have been loaded thus far.
 		if err != nil {
-			for _, pluginRepo := range cat.Plugins() {
+			for _, pluginRepo := range repo.Plugins() {
 				pluginRepo.Clear()
 			}
-			for _, serviceRepo := range cat.Services() {
+			for _, serviceRepo := range repo.Services() {
 				serviceRepo.Clear()
 			}
 			closers.Close()
 		}
 	}()
 
-	pluginRepos, err := makeBindablePluginRepos(cat.Plugins())
+	pluginRepos, err := makeBindablePluginRepos(repo.Plugins())
 	if err != nil {
 		return nil, err
 	}
-	serviceRepos, err := makeBindableServiceRepos(cat.Services())
+	serviceRepos, err := makeBindableServiceRepos(repo.Services())
 	if err != nil {
 		return nil, err
 	}
 
 	pluginCounts := make(map[string]int)
+	var reconfigurers Reconfigurers
 
 	for _, pluginConfig := range config.PluginConfigs {
 		pluginLog := makePluginLog(config.Log, pluginConfig)
@@ -175,15 +189,13 @@ func Load(ctx context.Context, config Config, cat Catalog) (_ io.Closer, err err
 			return nil, fmt.Errorf("failed to bind plugin %q: %w", pluginConfig.Name, err)
 		}
 
-		switch {
-		case configurer != nil:
-			if err := configurer.Configure(ctx, config.CoreConfig, pluginConfig.Data); err != nil {
-				pluginLog.WithError(err).Error("Failed to configure plugin")
-				return nil, fmt.Errorf("failed to configure plugin %q: %w", pluginConfig.Name, err)
-			}
-		case pluginConfig.Data != "":
-			pluginLog.WithField(telemetry.Reason, "no supported configuration interface").Error("Failed to configure plugin")
-			return nil, fmt.Errorf("failed to configure plugin %q: no supported configuration interface found", pluginConfig.Name)
+		reconfigurer, err := configurePlugin(ctx, pluginLog, config.CoreConfig, configurer, pluginConfig.DataSource)
+		if err != nil {
+			pluginLog.WithError(err).Error("Failed to configure plugin")
+			return nil, fmt.Errorf("failed to configure plugin %q: %w", pluginConfig.Name, err)
+		}
+		if reconfigurer != nil {
+			reconfigurers = append(reconfigurers, reconfigurer)
 		}
 
 		pluginLog.Info("Plugin loaded")
@@ -197,7 +209,10 @@ func Load(ctx context.Context, config Config, cat Catalog) (_ io.Closer, err err
 		}
 	}
 
-	return closers, nil
+	return &Catalog{
+		closers:       closers,
+		reconfigurers: reconfigurers,
+	}, nil
 }
 
 func makePluginLog(log logrus.FieldLogger, pluginConfig PluginConfig) logrus.FieldLogger {

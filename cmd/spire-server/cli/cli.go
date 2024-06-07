@@ -103,6 +103,9 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		"logger set": func() (cli.Command, error) {
 			return logger.NewSetCommand(), nil
 		},
+		"logger reset": func() (cli.Command, error) {
+			return logger.NewResetCommand(), nil
+		},
 		"run": func() (cli.Command, error) {
 			return run.NewRunCommand(ctx, cc.LogOptions, cc.AllowUnknownConfig), nil
 		},

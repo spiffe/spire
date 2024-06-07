@@ -1013,9 +1013,10 @@ func createClient(t *testing.T) (*client, *testServer) {
 	spiretest.ServeGRPCServerOnListener(t, server, listener)
 
 	client.dialContext = func(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-		return grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-			return listener.DialContext(ctx)
-		}))
+		return grpc.DialContext(ctx, addr, //nolint: staticcheck // It is going to be resolved on #5152
+			grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+				return listener.DialContext(ctx)
+			}))
 	}
 	return client, tc
 }

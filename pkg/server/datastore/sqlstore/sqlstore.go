@@ -64,6 +64,9 @@ const (
 
 	// PostgreSQL database type provided by an AWS service
 	AWSPostgreSQL = "aws_postgres"
+
+	// Maximum size for preallocation in a paginated request
+	maxResultPreallocation = 1000
 )
 
 // Configuration for the sql datastore implementation.
@@ -291,7 +294,9 @@ func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedN
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, node.SpiffeId)
+		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
+			SpiffeID: node.SpiffeId,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -310,7 +315,11 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attes
 }
 
 // CountAttestedNodes counts all attested nodes
-func (ds *Plugin) CountAttestedNodes(ctx context.Context) (count int32, err error) {
+func (ds *Plugin) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (count int32, err error) {
+	if countAttestedNodesHasFilters(req) {
+		resp, err := countAttestedNodesWithFilters(ctx, ds.db, ds.log, req)
+		return resp, err
+	}
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		count, err = countAttestedNodes(tx)
 		return err
@@ -341,7 +350,9 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, n.SpiffeId)
+		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
+			SpiffeID: n.SpiffeId,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -355,7 +366,9 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, spiffeID)
+		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
+			SpiffeID: spiffeID,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -381,22 +394,41 @@ func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.D
 	})
 }
 
-// GetLatestAttestedNodeEventID get the id of the last event
-func (ds *Plugin) GetLatestAttestedNodeEventID(ctx context.Context) (eventID uint, err error) {
+// CreateRegistrationEntryEventForTestingForTesting creates an attested node event. Used for unit testing.
+func (ds *Plugin) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) error {
+		return createAttestedNodeEvent(tx, event)
+	})
+}
+
+// DeleteAttestedNodeEventForTesting deletes an attested node event by event ID. Used for unit testing.
+func (ds *Plugin) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return deleteAttestedNodeEvent(tx, eventID)
+	})
+}
+
+// FetchAttestedNodeEvent fetches an existing attested node event by event ID
+func (ds *Plugin) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (event *datastore.AttestedNodeEvent, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		eventID, err = getLatestAttestedNodeEventID(tx)
+		event, err = fetchAttestedNodeEvent(ds.db, eventID)
 		return err
 	}); err != nil {
-		return 0, err
+		return nil, err
 	}
-	return eventID, nil
+
+	return event, nil
 }
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
 func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = setNodeSelectors(tx, spiffeID, selectors)
-		return err
+		if err = setNodeSelectors(tx, spiffeID, selectors); err != nil {
+			return err
+		}
+		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
+			SpiffeID: spiffeID,
+		})
 	})
 }
 
@@ -459,7 +491,9 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
+		return createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+			EntryID: registrationEntry.EntryId,
+		})
 	}); err != nil {
 		return nil, false, err
 	}
@@ -474,15 +508,14 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 }
 
 // CountRegistrationEntries counts all registrations (pagination available)
-func (ds *Plugin) CountRegistrationEntries(ctx context.Context) (count int32, err error) {
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		count, err = countRegistrationEntries(tx)
-		return err
-	}); err != nil {
-		return 0, err
+func (ds *Plugin) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (count int32, err error) {
+	var actDb = ds.db
+	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
+		actDb = ds.roDb
 	}
 
-	return count, nil
+	resp, err := countRegistrationEntries(ctx, actDb, ds.log, req)
+	return resp, err
 }
 
 // ListRegistrationEntries lists all registrations (pagination available)
@@ -503,7 +536,9 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.Registr
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, entry.EntryId)
+		return createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+			EntryID: entry.EntryId,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -520,7 +555,9 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, entryID)
+		return createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+			EntryID: entryID,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -555,15 +592,30 @@ func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan 
 	})
 }
 
-// GetLatestRegistrationEntryEventID get the id of the last event
-func (ds *Plugin) GetLatestRegistrationEntryEventID(ctx context.Context) (eventID uint, err error) {
+// CreateRegistrationEntryEventForTesting creates a registration entry event. Used for unit testing.
+func (ds *Plugin) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return createRegistrationEntryEvent(tx, event)
+	})
+}
+
+// DeleteRegistrationEntryEventForTesting deletes the given registration entry event. Used for unit testing.
+func (ds *Plugin) DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return deleteRegistrationEntryEvent(tx, eventID)
+	})
+}
+
+// FetchRegistrationEntryEvent fetches an existing registration entry event by event ID
+func (ds *Plugin) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (event *datastore.RegistrationEntryEvent, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		eventID, err = getLatestRegistrationEntryEventID(tx)
+		event, err = fetchRegistrationEntryEvent(ds.db, eventID)
 		return err
 	}); err != nil {
-		return 0, err
+		return nil, err
 	}
-	return eventID, nil
+
+	return event, nil
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -1550,6 +1602,16 @@ func countAttestedNodes(tx *gorm.DB) (int32, error) {
 	return int32(count), nil
 }
 
+func countAttestedNodesHasFilters(req *datastore.CountAttestedNodesRequest) bool {
+	if req.ByAttestationType != "" || req.ByBanned != nil || !req.ByExpiresBefore.IsZero() {
+		return true
+	}
+	if req.BySelectorMatch != nil || !req.FetchSelectors || req.ByCanReattest != nil {
+		return true
+	}
+	return false
+}
+
 func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
@@ -1600,12 +1662,55 @@ func listAttestedNodes(ctx context.Context, db *sqlDB, log logrus.FieldLogger, r
 	}
 }
 
-func createAttestedNodeEvent(tx *gorm.DB, spiffeID string) error {
-	newAttestedNodeEvent := AttestedNodeEvent{
-		SpiffeID: spiffeID,
+func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, _ logrus.FieldLogger, req *datastore.CountAttestedNodesRequest) (int32, error) {
+	if req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) == 0 {
+		return -1, status.Error(codes.InvalidArgument, "cannot list by empty selectors set")
 	}
 
-	if err := tx.Create(&newAttestedNodeEvent).Error; err != nil {
+	var val int32
+	listReq := &datastore.ListAttestedNodesRequest{
+		ByAttestationType: req.ByAttestationType,
+		ByBanned:          req.ByBanned,
+		ByExpiresBefore:   req.ByExpiresBefore,
+		BySelectorMatch:   req.BySelectorMatch,
+		FetchSelectors:    req.FetchSelectors,
+		ByCanReattest:     req.ByCanReattest,
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: 1000,
+		},
+	}
+	for {
+		resp, err := listAttestedNodesOnce(ctx, db, listReq)
+		if err != nil {
+			return -1, err
+		}
+
+		if len(resp.Nodes) == 0 {
+			return val, nil
+		}
+
+		if req.BySelectorMatch != nil {
+			switch req.BySelectorMatch.Match {
+			case datastore.Exact, datastore.Subset:
+				resp.Nodes = filterNodesBySelectorSet(resp.Nodes, req.BySelectorMatch.Selectors)
+			default:
+			}
+		}
+
+		val += int32(len(resp.Nodes))
+
+		listReq.Pagination = resp.Pagination
+	}
+}
+
+func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) error {
+	if err := tx.Create(&AttestedNodeEvent{
+		Model: Model{
+			ID: event.EventID,
+		},
+		SpiffeID: event.SpiffeID,
+	}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
@@ -1640,13 +1745,28 @@ func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration) error {
 	return nil
 }
 
-func getLatestAttestedNodeEventID(tx *gorm.DB) (uint, error) {
-	lastAttestedNodeEvent := AttestedNodeEvent{}
-	if err := tx.Last(&lastAttestedNodeEvent).Error; err != nil {
-		return 0, sqlError.Wrap(err)
+func fetchAttestedNodeEvent(db *sqlDB, eventID uint) (*datastore.AttestedNodeEvent, error) {
+	event := AttestedNodeEvent{}
+	if err := db.Find(&event, "id = ?", eventID).Error; err != nil {
+		return nil, sqlError.Wrap(err)
 	}
 
-	return lastAttestedNodeEvent.ID, nil
+	return &datastore.AttestedNodeEvent{
+		EventID:  event.ID,
+		SpiffeID: event.SpiffeID,
+	}, nil
+}
+
+func deleteAttestedNodeEvent(tx *gorm.DB, eventID uint) error {
+	if err := tx.Delete(&AttestedNodeEvent{
+		Model: Model{
+			ID: eventID,
+		},
+	}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
 }
 
 // filterNodesBySelectorSet filters nodes based on provided selectors
@@ -1691,13 +1811,7 @@ func listAttestedNodesOnce(ctx context.Context, db *sqlDB, req *datastore.ListAt
 	}
 	defer rows.Close()
 
-	var nodes []*common.AttestedNode
-	if req.Pagination != nil {
-		nodes = make([]*common.AttestedNode, 0, req.Pagination.PageSize)
-	} else {
-		nodes = make([]*common.AttestedNode, 0, 64)
-	}
-
+	nodes := make([]*common.AttestedNode, 0, calculateResultPreallocation(req.Pagination))
 	pushNode := func(node *common.AttestedNode) {
 		if node != nil && node.SpiffeId != "" {
 			nodes = append(nodes, node)
@@ -1740,7 +1854,6 @@ func listAttestedNodesOnce(ctx context.Context, db *sqlDB, req *datastore.ListAt
 			resp.Pagination.Token = strconv.FormatUint(lastEID, 10)
 		}
 	}
-
 	return resp, nil
 }
 
@@ -1798,7 +1911,6 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 		builder.WriteString("\t\tAND data_type = ?\n")
 		args = append(args, req.ByAttestationType)
 	}
-
 	// Filter by banned, an Attestation Node is banned when serial number is empty.
 	// This filter allows 3 outputs:
 	// - nil:  returns all
@@ -1811,8 +1923,11 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 			builder.WriteString("\t\tAND serial_number <> ''\n")
 		}
 	}
-
-	// Filter by CanReattest. This is similar to ByBanned
+	// Filter by canReattest,
+	// This filter allows 3 outputs:
+	//  - nil:  returns all
+	// - true: returns nodes with canReattest=true
+	// - false: returns nodes with canReattest=false
 	if req.ByCanReattest != nil {
 		if *req.ByCanReattest {
 			builder.WriteString("\t\tAND can_reattest = true\n")
@@ -1960,7 +2075,6 @@ SELECT
 	}
 
 	builder.WriteString("\n) ORDER BY id ASC\n")
-
 	return builder.String(), args, nil
 }
 
@@ -2654,15 +2768,6 @@ ORDER BY selector_id, dns_name_id
 	return query, []any{entryID}, nil
 }
 
-func countRegistrationEntries(tx *gorm.DB) (int32, error) {
-	var count int
-	if err := tx.Model(&RegisteredEntry{}).Count(&count).Error; err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-
-	return int32(count), nil
-}
-
 func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
@@ -2757,16 +2862,7 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		return nil, sqlError.Wrap(err)
 	}
 	defer rows.Close()
-
-	var entries []*common.RegistrationEntry
-	if req.Pagination != nil {
-		entries = make([]*common.RegistrationEntry, 0, req.Pagination.PageSize)
-	} else {
-		// start the slice off with a little capacity to avoid the first few
-		// reallocations
-		entries = make([]*common.RegistrationEntry, 0, 64)
-	}
-
+	entries := make([]*common.RegistrationEntry, 0, calculateResultPreallocation(req.Pagination))
 	pushEntry := func(entry *common.RegistrationEntry) {
 		// Due to previous bugs (i.e. #1191), there can be cruft rows related
 		// to a deleted registration entries that are fetched with the list
@@ -2840,8 +2936,12 @@ func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *dat
 
 func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
 	builder := new(strings.Builder)
-
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -2873,8 +2973,16 @@ SELECT
 FROM
 	registered_entries
 `)
+
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
 	}
 	builder.WriteString(`
 UNION
@@ -2924,6 +3032,11 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -2957,6 +3070,13 @@ FROM
 `)
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
 	}
 	builder.WriteString(`
 UNION ALL
@@ -3051,6 +3171,11 @@ LEFT JOIN
 `)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -3058,7 +3183,13 @@ LEFT JOIN
 	if filtered {
 		builder.WriteString(")")
 	}
-
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
+	}
 	builder.WriteString("\nORDER BY e_id, selector_id, dns_name_id\n;")
 
 	return builder.String(), args, nil
@@ -3068,6 +3199,11 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, MySQL, req)
+	var downstream = false
+	if req.ByDownstream != nil {
+		downstream = *req.ByDownstream
+	}
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -3101,6 +3237,13 @@ FROM
 `)
 	if filtered {
 		builder.WriteString("WHERE id IN (SELECT e_id FROM listing)\n")
+	}
+	if downstream {
+		if !filtered {
+			builder.WriteString("\t\tWHERE downstream = true\n")
+		} else {
+			builder.WriteString("\t\tAND downstream = true\n")
+		}
 	}
 	builder.WriteString(`
 UNION
@@ -3144,6 +3287,52 @@ ORDER BY e_id, selector_id, dns_name_id
 ;`)
 
 	return builder.String(), args, nil
+}
+
+// Count Registration Entries
+func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogger, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
+		return 0, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
+	}
+
+	var val int32
+	listReq := &datastore.ListRegistrationEntriesRequest{
+		DataConsistency: req.DataConsistency,
+		ByParentID:      req.ByParentID,
+		BySelectors:     req.BySelectors,
+		BySpiffeID:      req.BySpiffeID,
+		ByFederatesWith: req.ByFederatesWith,
+		ByHint:          req.ByHint,
+		ByDownstream:    req.ByDownstream,
+		Pagination: &datastore.Pagination{
+			Token:    "",
+			PageSize: 1000,
+		},
+	}
+
+	for {
+		resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, listReq)
+
+		if err != nil {
+			return -1, err
+		}
+
+		if len(resp.Entries) == 0 {
+			return val, nil
+		}
+
+		if req.BySelectors != nil {
+			switch req.BySelectors.Match {
+			case datastore.Exact, datastore.Subset:
+				resp.Entries = filterEntriesBySelectorSet(resp.Entries, req.BySelectors.Selectors)
+			default:
+			}
+		}
+
+		val += int32(len(resp.Entries))
+
+		listReq.Pagination = resp.Pagination
+	}
 }
 
 type idFilterNode struct {
@@ -3853,7 +4042,9 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
 			return err
 		}
-		if err := createRegistrationEntryEvent(tx, entry.EntryID); err != nil {
+		if err := createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+			EntryID: entry.EntryID,
+		}); err != nil {
 			return err
 		}
 		logger.WithFields(logrus.Fields{
@@ -3866,12 +4057,37 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 	return nil
 }
 
-func createRegistrationEntryEvent(tx *gorm.DB, entryID string) error {
-	newRegisteredEntryEvent := RegisteredEntryEvent{
-		EntryID: entryID,
+func createRegistrationEntryEvent(tx *gorm.DB, event *datastore.RegistrationEntryEvent) error {
+	if err := tx.Create(&RegisteredEntryEvent{
+		Model: Model{
+			ID: event.EventID,
+		},
+		EntryID: event.EntryID,
+	}).Error; err != nil {
+		return sqlError.Wrap(err)
 	}
 
-	if err := tx.Create(&newRegisteredEntryEvent).Error; err != nil {
+	return nil
+}
+
+func fetchRegistrationEntryEvent(db *sqlDB, eventID uint) (*datastore.RegistrationEntryEvent, error) {
+	event := RegisteredEntryEvent{}
+	if err := db.Find(&event, "id = ?", eventID).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	return &datastore.RegistrationEntryEvent{
+		EventID: event.ID,
+		EntryID: event.EntryID,
+	}, nil
+}
+
+func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
+	if err := tx.Delete(&RegisteredEntryEvent{
+		Model: Model{
+			ID: eventID,
+		},
+	}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
@@ -3904,15 +4120,6 @@ func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error 
 	}
 
 	return nil
-}
-
-func getLatestRegistrationEntryEventID(tx *gorm.DB) (uint, error) {
-	lastRegisteredEntryEvent := RegisteredEntryEvent{}
-	if err := tx.Last(&lastRegisteredEntryEvent).Error; err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-
-	return lastRegisteredEntryEvent.ID, nil
 }
 
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {
@@ -4644,4 +4851,15 @@ func isPostgresDbType(dbType string) bool {
 
 func isSQLiteDbType(dbType string) bool {
 	return dbType == SQLite
+}
+
+func calculateResultPreallocation(pagination *datastore.Pagination) int32 {
+	switch {
+	case pagination == nil:
+		return 64
+	case pagination.PageSize < maxResultPreallocation:
+		return pagination.PageSize
+	default:
+		return maxResultPreallocation
+	}
 }

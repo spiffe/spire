@@ -61,8 +61,70 @@ func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 }
 
 // CountEntries returns the total number of entries.
-func (s *Service) CountEntries(ctx context.Context, _ *entryv1.CountEntriesRequest) (*entryv1.CountEntriesResponse, error) {
-	count, err := s.ds.CountRegistrationEntries(ctx)
+func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesRequest) (*entryv1.CountEntriesResponse, error) {
+	log := rpccontext.Logger(ctx)
+	countReq := &datastore.CountRegistrationEntriesRequest{}
+
+	if req.Filter != nil {
+		rpccontext.AddRPCAuditFields(ctx, fieldsFromCountEntryFilter(ctx, s.td, req.Filter))
+		if req.Filter.ByHint != nil {
+			countReq.ByHint = req.Filter.ByHint.GetValue()
+		}
+
+		if req.Filter.ByParentId != nil {
+			parentID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, req.Filter.ByParentId)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
+			}
+			countReq.ByParentID = parentID.String()
+		}
+
+		if req.Filter.BySpiffeId != nil {
+			spiffeID, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, req.Filter.BySpiffeId)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
+			}
+			countReq.BySpiffeID = spiffeID.String()
+		}
+
+		if req.Filter.BySelectors != nil {
+			dsSelectors, err := api.SelectorsFromProto(req.Filter.BySelectors.Selectors)
+			if err != nil {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", err)
+			}
+			if len(dsSelectors) == 0 {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", errors.New("empty selector set"))
+			}
+			countReq.BySelectors = &datastore.BySelectors{
+				Match:     datastore.MatchBehavior(req.Filter.BySelectors.Match),
+				Selectors: dsSelectors,
+			}
+		}
+
+		if req.Filter.ByFederatesWith != nil {
+			trustDomains := make([]string, 0, len(req.Filter.ByFederatesWith.TrustDomains))
+			for _, tdStr := range req.Filter.ByFederatesWith.TrustDomains {
+				td, err := spiffeid.TrustDomainFromString(tdStr)
+				if err != nil {
+					return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", err)
+				}
+				trustDomains = append(trustDomains, td.IDString())
+			}
+			if len(trustDomains) == 0 {
+				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", errors.New("empty trust domain set"))
+			}
+			countReq.ByFederatesWith = &datastore.ByFederatesWith{
+				Match:        datastore.MatchBehavior(req.Filter.ByFederatesWith.Match),
+				TrustDomains: trustDomains,
+			}
+		}
+
+		if req.Filter.ByDownstream != nil {
+			countReq.ByDownstream = &req.Filter.ByDownstream.Value
+		}
+	}
+
+	count, err := s.ds.CountRegistrationEntries(ctx, countReq)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
 		return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
@@ -138,6 +200,10 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 				Match:        datastore.MatchBehavior(req.Filter.ByFederatesWith.Match),
 				TrustDomains: trustDomains,
 			}
+		}
+
+		if req.Filter.ByDownstream != nil {
+			listReq.ByDownstream = &req.Filter.ByDownstream.Value
 		}
 	}
 
@@ -723,6 +789,46 @@ func fieldsFromListEntryFilter(ctx context.Context, td spiffeid.TrustDomain, fil
 	if filter.ByFederatesWith != nil {
 		fields[telemetry.FederatesWithMatch] = filter.ByFederatesWith.Match.String()
 		fields[telemetry.FederatesWith] = strings.Join(filter.ByFederatesWith.TrustDomains, ",")
+	}
+
+	if filter.ByDownstream != nil {
+		fields[telemetry.Downstream] = &filter.ByDownstream.Value
+	}
+
+	return fields
+}
+
+func fieldsFromCountEntryFilter(ctx context.Context, td spiffeid.TrustDomain, filter *entryv1.CountEntriesRequest_Filter) logrus.Fields {
+	fields := logrus.Fields{}
+
+	if filter.ByHint != nil {
+		fields[telemetry.Hint] = filter.ByHint.Value
+	}
+
+	if filter.ByParentId != nil {
+		if parentID, err := api.TrustDomainMemberIDFromProto(ctx, td, filter.ByParentId); err == nil {
+			fields[telemetry.ParentID] = parentID.String()
+		}
+	}
+
+	if filter.BySpiffeId != nil {
+		if id, err := api.TrustDomainWorkloadIDFromProto(ctx, td, filter.BySpiffeId); err == nil {
+			fields[telemetry.SPIFFEID] = id.String()
+		}
+	}
+
+	if filter.BySelectors != nil {
+		fields[telemetry.BySelectorMatch] = filter.BySelectors.Match.String()
+		fields[telemetry.BySelectors] = api.SelectorFieldFromProto(filter.BySelectors.Selectors)
+	}
+
+	if filter.ByFederatesWith != nil {
+		fields[telemetry.FederatesWithMatch] = filter.ByFederatesWith.Match.String()
+		fields[telemetry.FederatesWith] = strings.Join(filter.ByFederatesWith.TrustDomains, ",")
+	}
+
+	if filter.ByDownstream != nil {
+		fields[telemetry.Downstream] = &filter.ByDownstream.Value
 	}
 
 	return fields

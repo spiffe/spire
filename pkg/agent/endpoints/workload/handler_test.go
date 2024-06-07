@@ -888,6 +888,8 @@ func TestFetchJWTBundles(t *testing.T) {
 	require.NoError(t, err)
 	bundleJWKS = indent(bundleJWKS)
 
+	emptyJWKSBytes := indent([]byte(`{"keys": []}`))
+
 	federatedBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
 	federatedBundleJWKS, err := federatedBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
@@ -1015,6 +1017,27 @@ func TestFetchJWTBundles(t *testing.T) {
 			expectResp: &workloadPB.JWTBundlesResponse{
 				Bundles: map[string][]byte{
 					bundle.TrustDomain().IDString(): bundleJWKS,
+				},
+			},
+		},
+		{
+			name: "federated bundle with JWKS empty keys array",
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identityFromX509SVID(x509SVID, "id1"),
+					},
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): spiffebundle.New(federatedBundle.TrustDomain()),
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.JWTBundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString():          bundleJWKS,
+					federatedBundle.TrustDomain().IDString(): emptyJWKSBytes,
 				},
 			},
 		},
@@ -1266,7 +1289,7 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:       "BAD",
 			audience:   "AUDIENCE",
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "unable to parse JWT token",
+			expectMsg:  "unable to parse JWT token: go-jose/go-jose: compact JWS format must have three parts",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
@@ -1275,7 +1298,7 @@ func TestValidateJWTSVID(t *testing.T) {
 						"audience":      "AUDIENCE",
 						"service":       "WorkloadAPI",
 						"method":        "ValidateJWTSVID",
-						logrus.ErrorKey: "unable to parse JWT token",
+						logrus.ErrorKey: "unable to parse JWT token: go-jose/go-jose: compact JWS format must have three parts",
 					},
 				},
 			},

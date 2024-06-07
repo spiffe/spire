@@ -100,10 +100,11 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	AuthOpaPolicyEngine  *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
-	CacheReloadInterval  string                      `hcl:"cache_reload_interval"`
-	EventsBasedCache     bool                        `hcl:"events_based_cache"`
-	PruneEventsOlderThan string                      `hcl:"prune_events_older_than"`
+	AuthOpaPolicyEngine   *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
+	CacheReloadInterval   string                      `hcl:"cache_reload_interval"`
+	EventsBasedCache      bool                        `hcl:"events_based_cache"`
+	PruneEventsOlderThan  string                      `hcl:"prune_events_older_than"`
+	SQLTransactionTimeout string                      `hcl:"sql_transaction_timeout"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -377,7 +378,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	var reopenableFile *log.ReopenableFile
 	if c.Server.LogFile != "" {
-		reopenableFile, err := log.NewReopenableFile(c.Server.LogFile)
+		var err error
+		reopenableFile, err = log.NewReopenableFile(c.Server.LogFile)
 		if err != nil {
 			return nil, err
 		}
@@ -385,11 +387,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	logger, err := log.NewLogger(logOptions...)
-	sc.LaunchLogLevel, _ = logrus.ParseLevel(c.Server.LogLevel)
 	if err != nil {
 		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	sc.Log = logger
+
 	if reopenableFile != nil {
 		sc.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}
@@ -674,6 +676,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			return nil, fmt.Errorf("could not parse prune events interval: %w", err)
 		}
 		sc.PruneEventsOlderThan = interval
+	}
+
+	if c.Server.Experimental.SQLTransactionTimeout != "" {
+		interval, err := time.ParseDuration(c.Server.Experimental.SQLTransactionTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse SQL transaction timeout interval: %w", err)
+		}
+		sc.SQLTransactionTimeout = interval
 	}
 
 	if c.Server.Experimental.EventsBasedCache {

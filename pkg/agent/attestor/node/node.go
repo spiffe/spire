@@ -295,12 +295,12 @@ func (a *attestor) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) 
 		},
 	}
 
-	return grpc.DialContext(ctx, a.c.ServerAddress,
+	return grpc.DialContext(ctx, a.c.ServerAddress, //nolint: staticcheck // It is going to be resolved on #5152
 		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
 		grpc.WithDisableServiceConfig(),
-		grpc.FailOnNonTempDialError(true),
+		grpc.FailOnNonTempDialError(true), //nolint: staticcheck // It is going to be resolved on #5152
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithReturnConnectionError(),
+		grpc.WithReturnConnectionError(), //nolint: staticcheck // It is going to be resolved on #5152
 	)
 }
 

@@ -121,11 +121,11 @@ func (s *DataStore) PruneBundle(ctx context.Context, trustDomainID string, expir
 	return s.ds.PruneBundle(ctx, trustDomainID, expiresBefore)
 }
 
-func (s *DataStore) CountAttestedNodes(ctx context.Context) (int32, error) {
+func (s *DataStore) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (int32, error) {
 	if err := s.getNextError(); err != nil {
 		return 0, err
 	}
-	return s.ds.CountAttestedNodes(ctx)
+	return s.ds.CountAttestedNodes(ctx, req)
 }
 
 func (s *DataStore) CreateAttestedNode(ctx context.Context, node *common.AttestedNode) (*common.AttestedNode, error) {
@@ -177,11 +177,25 @@ func (s *DataStore) PruneAttestedNodesEvents(ctx context.Context, olderThan time
 	return s.ds.PruneAttestedNodesEvents(ctx, olderThan)
 }
 
-func (s *DataStore) GetLatestAttestedNodeEventID(ctx context.Context) (uint, error) {
+func (s *DataStore) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
 	if err := s.getNextError(); err != nil {
-		return 0, err
+		return err
 	}
-	return s.ds.GetLatestAttestedNodeEventID(ctx)
+	return s.ds.CreateAttestedNodeEventForTesting(ctx, event)
+}
+
+func (s *DataStore) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.DeleteAttestedNodeEventForTesting(ctx, eventID)
+}
+
+func (s *DataStore) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*datastore.AttestedNodeEvent, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.FetchAttestedNodeEvent(ctx, eventID)
 }
 
 func (s *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
@@ -238,11 +252,11 @@ func (s *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, dataC
 	return selectors, err
 }
 
-func (s *DataStore) CountRegistrationEntries(ctx context.Context) (int32, error) {
+func (s *DataStore) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
 	if err := s.getNextError(); err != nil {
 		return 0, err
 	}
-	return s.ds.CountRegistrationEntries(ctx)
+	return s.ds.CountRegistrationEntries(ctx, req)
 }
 
 func (s *DataStore) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
@@ -313,11 +327,25 @@ func (s *DataStore) PruneRegistrationEntriesEvents(ctx context.Context, olderTha
 	return s.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
 }
 
-func (s *DataStore) GetLatestRegistrationEntryEventID(ctx context.Context) (uint, error) {
+func (s *DataStore) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) error {
 	if err := s.getNextError(); err != nil {
-		return 0, err
+		return err
 	}
-	return s.ds.GetLatestRegistrationEntryEventID(ctx)
+	return s.ds.CreateRegistrationEntryEventForTesting(ctx, event)
+}
+
+func (s *DataStore) DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.DeleteRegistrationEntryEventForTesting(ctx, eventID)
+}
+
+func (s *DataStore) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*datastore.RegistrationEntryEvent, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.FetchRegistrationEntryEvent(ctx, eventID)
 }
 
 func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {

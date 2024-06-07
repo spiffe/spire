@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestShowHelp(t *testing.T) {
@@ -61,7 +62,9 @@ func TestShow(t *testing.T) {
 			name: "List all entries (empty filter)",
 			expListReq: &entryv1.ListEntriesRequest{
 				PageSize: listEntriesRequestPageSize,
-				Filter:   &entryv1.ListEntriesRequest_Filter{},
+				Filter: &entryv1.ListEntriesRequest_Filter{
+					ByDownstream: wrapperspb.Bool(false),
+				},
 			},
 			fakeListResp: fakeRespAll,
 			expOutPretty: fmt.Sprintf("Found 4 entries\n%s%s%s%s",
@@ -103,7 +106,8 @@ func TestShow(t *testing.T) {
 			expListReq: &entryv1.ListEntriesRequest{
 				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
-					ByParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
+					ByParentId:   &types.SPIFFEID{TrustDomain: "example.org", Path: "/father"},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespFather,
@@ -124,7 +128,8 @@ func TestShow(t *testing.T) {
 			expListReq: &entryv1.ListEntriesRequest{
 				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
-					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
+					BySpiffeId:   &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespDaughter,
@@ -152,6 +157,7 @@ func TestShow(t *testing.T) {
 						},
 						Match: types.SelectorMatch_MATCH_SUPERSET,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
@@ -173,6 +179,7 @@ func TestShow(t *testing.T) {
 						},
 						Match: types.SelectorMatch_MATCH_EXACT,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
@@ -194,6 +201,7 @@ func TestShow(t *testing.T) {
 						},
 						Match: types.SelectorMatch_MATCH_SUPERSET,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
@@ -215,6 +223,7 @@ func TestShow(t *testing.T) {
 						},
 						Match: types.SelectorMatch_MATCH_SUBSET,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
@@ -236,6 +245,7 @@ func TestShow(t *testing.T) {
 						},
 						Match: types.SelectorMatch_MATCH_ANY,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespFatherDaughter,
@@ -260,7 +270,8 @@ func TestShow(t *testing.T) {
 			expListReq: &entryv1.ListEntriesRequest{
 				PageSize: listEntriesRequestPageSize,
 				Filter: &entryv1.ListEntriesRequest_Filter{
-					BySpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
+					BySpiffeId:   &types.SPIFFEID{TrustDomain: "example.org", Path: "/daughter"},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			serverErr: status.Error(codes.Internal, "internal server error"),
@@ -276,6 +287,7 @@ func TestShow(t *testing.T) {
 						TrustDomains: []string{"spiffe://domain.test"},
 						Match:        types.FederatesWithMatch_MATCH_SUPERSET,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,
@@ -294,6 +306,7 @@ func TestShow(t *testing.T) {
 						TrustDomains: []string{"spiffe://domain.test"},
 						Match:        types.FederatesWithMatch_MATCH_EXACT,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,
@@ -312,6 +325,7 @@ func TestShow(t *testing.T) {
 						TrustDomains: []string{"spiffe://domain.test"},
 						Match:        types.FederatesWithMatch_MATCH_ANY,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,
@@ -330,6 +344,7 @@ func TestShow(t *testing.T) {
 						TrustDomains: []string{"spiffe://domain.test"},
 						Match:        types.FederatesWithMatch_MATCH_SUPERSET,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,
@@ -348,6 +363,7 @@ func TestShow(t *testing.T) {
 						TrustDomains: []string{"spiffe://domain.test"},
 						Match:        types.FederatesWithMatch_MATCH_SUBSET,
 					},
+					ByDownstream: wrapperspb.Bool(false),
 				},
 			},
 			fakeListResp: fakeRespMotherDaughter,

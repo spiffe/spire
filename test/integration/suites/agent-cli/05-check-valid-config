@@ -1,0 +1,24 @@
+#!/bin/bash
+
+VALID_CONFIG=0
+INVALID_CONFIG=0
+
+# Assert that 'validate' command works
+VALIDATE=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent validate)
+
+# Assert that 'validate' command fails with an invalid path
+VALIDATE_FAIL=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent validate -config invalid/path 2>&1 &)
+
+if [[ "$VALIDATE" =~ "SPIRE agent configuration file is valid." ]]; then
+    VALID_CONFIG=1
+fi
+
+if [[ "$VALIDATE_FAIL" =~ "SPIRE agent configuration file is invalid" ]]; then
+    INVALID_CONFIG=1
+fi
+
+if [ $VALID_CONFIG -eq 1 ] && [ $INVALID_CONFIG -eq 1 ]; then
+    exit 0
+else
+    exit 1
+fi

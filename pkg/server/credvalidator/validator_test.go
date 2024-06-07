@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/credvalidator"
 	"github.com/spiffe/spire/test/clock"
@@ -394,7 +394,7 @@ func makeJWT(t *testing.T, claims any) string {
 	signer, err := jose.NewSigner(signingKey, nil)
 	require.NoError(t, err)
 
-	token, err := jwt.Signed(signer).Claims(claims).CompactSerialize()
+	token, err := jwt.Signed(signer).Claims(claims).Serialize()
 	require.NoError(t, err)
 	return token
 }

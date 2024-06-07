@@ -1,5 +1,54 @@
 # Changelog
 
+## [1.9.6] - 2024-05-14
+
+### Added
+
+- Opt-in support for CGroups v2 in K8s and Docker workload attestors (#5076)
+- `gcp_cloudstorage` BundlePublisher plugin (#4961)
+- The `aws_iid` node attestor can now check if the AWS account ID is part of an AWS Organization (#4838)
+- More filtering options to count and show entries and agents (#4714)
+
+### Changed
+
+- Credential composer to not convert timestamp related claims (i.e., exp and iat) to floating point values (#5115)
+- FetchJWTBundles now returns an empty collection of keys instead of null (#5031)
+
+### Fixed
+
+- Using expired tokens when connecting to database (#5119)
+- Server no longer tries to create JWT authority when X.509 authority fails (#5064)
+- Issues in experimental events-based entry cache (#5030, #5037, #5042)
+
+## [1.9.5] - 2024-05-07
+
+### Security
+
+- Updated to Go 1.21.10 to address CVE-2024-24788
+
+## [1.9.4] - 2023-04-05
+
+### Security
+
+- Updated to google.golang.org/grpc v1.62.2 and golang.org/x/net v0.24.0 to address CVE-2023-45288
+
+## [1.9.3] - 2024-04-03
+
+### Security
+
+- Updated to Go 1.21.9 to address CVE-2023-45288
+- Limit the preallocation of memory when making paginated requests to the ListEntries and ListAgents RPCs
+
+## [1.9.2] - 2024-03-25
+
+### Added
+
+- Support for AWS IAM-based authentication with AWS RDS backed databases (#4828)
+- Support for adjusting the SPIRE Server log level at runtime (#4880)
+- New `retry_bootstrap` option to SPIRE Agent to retry failed bootstrapping with SPIRE Server, with a backoff, in lieu of failing the startup process (#4597)
+- Improved logging (#4902, #4906)
+- Documentation improvements (#4895, #4951, #4907)
+
 ## [1.9.1] - 2024-03-05
 
 ### Security
@@ -41,6 +90,25 @@
 ### Removed
 
 - X509-SVIDs issued by the server no longer have the x509UniqueIdentifier attribute as part of the subject (#4862)
+
+## [1.8.11] - 2024-05-07
+
+### Security
+
+- Updated to Go 1.21.10 to address CVE-2024-24788
+
+## [1.8.10] - 2023-04-05
+
+### Security
+
+- Updated to google.golang.org/grpc v1.62.2 and golang.org/x/net v0.24.0 to address CVE-2023-45288
+
+## [1.8.9] - 2024-04-03
+
+### Security
+
+- Updated to Go 1.21.9 to address CVE-2023-45288
+- Limit the preallocation of memory when making paginated requests to the ListEntries and ListAgents RPCs
 
 ## [1.8.8] - 2024-03-05
 

@@ -45,3 +45,29 @@ func (s *StringsFlag) Set(val string) error {
 	*s = append(*s, val)
 	return nil
 }
+
+// BoolFlag is used to define 3 possible states: true, false, or all.
+// Take care that false=1, and true=2
+type BoolFlag int
+
+const BoolFlagAll = 0
+const BoolFlagFalse = 1
+const BoolFlagTrue = 2
+
+func (b *BoolFlag) String() string {
+	return ""
+}
+
+func (b *BoolFlag) Set(val string) error {
+	if val == "false" {
+		*b = BoolFlagFalse
+		return nil
+	}
+	if val == "true" {
+		*b = BoolFlagTrue
+		return nil
+	}
+	// if the value received isn't true or false, it will set the default value
+	*b = BoolFlagAll
+	return nil
+}

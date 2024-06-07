@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
@@ -65,11 +66,11 @@ func (p *Plugin) ServiceEcho(ctx context.Context, req *test.EchoRequest) (*test.
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	p.log.Info("CONFIGURED")
+	p.log.Info("CONFIGURED", "config", req.HclConfiguration)
 	if req.CoreConfiguration.TrustDomain != "example.org" {
 		return nil, status.Errorf(codes.InvalidArgument, "expected trust domain %q; got %q", "example.org", req.CoreConfiguration.TrustDomain)
 	}
-	if req.HclConfiguration != "GOOD" {
+	if !strings.HasPrefix(req.HclConfiguration, "GOOD") {
 		return nil, status.Error(codes.InvalidArgument, "bad config")
 	}
 	return &configv1.ConfigureResponse{}, nil
