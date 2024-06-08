@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -57,9 +58,8 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	log := s.Log
 
 	jc := &journalConfig{
-		cat:      s.Catalog,
-		log:      log,
-		filePath: s.journalPath(),
+		cat: s.Catalog,
+		log: log,
 	}
 
 	// Load the journal and see if we can figure out the next and current
@@ -109,6 +109,10 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		slots[NextJWTKeySlot] = nextJWTKey
 	}
 
+	// TODO: Remove after 1.11.0 release.
+	// No point in checking for errors here, we're just trying to clean up the
+	// CA journal file that was used before 1.9.0.
+	os.Remove(s.journalPath())
 	return loadedJournal, slots, nil
 }
 

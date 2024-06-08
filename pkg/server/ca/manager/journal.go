@@ -3,14 +3,11 @@ package manager
 import (
 	"context"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/ca"
@@ -25,15 +22,11 @@ const (
 	// journalCap is the maximum number of entries per type that we'll
 	// hold onto.
 	journalCap = 10
-
-	// journalPEMType is the type in the PEM header
-	journalPEMType = "SPIRE CA JOURNAL"
 )
 
 type journalConfig struct {
-	cat      catalog.Catalog
-	log      logrus.FieldLogger
-	filePath string
+	cat catalog.Catalog
+	log logrus.FieldLogger
 }
 
 // Journal stores X509 CAs and JWT keys on disk as they are rotated by the
@@ -49,27 +42,11 @@ type Journal struct {
 
 func LoadJournal(ctx context.Context, config *journalConfig) (*Journal, error) {
 	// Look for the CA journal of this server in the datastore.
-	journalDS, err := loadJournalFromDS(ctx, config)
+	j, err := loadJournalFromDS(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load journal from datastore: %w", err)
 	}
-	if journalDS != nil {
-		// A CA journal record corresponding to this server was found in the
-		// datastore.
-		return journalDS, nil
-	}
-
-	// There is no CA journal record corresponding to this server in the
-	// datastore. Try to load the journal from disk.
-
-	// TODO: stop trying to load the journal from disk in v1.10 and delete
-	// the journal file if exists.
-	journalDisk, err := loadJournalFromDisk(config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load journal from disk: %w", err)
-	}
-
-	return journalDisk, nil
+	return j, nil
 }
 
 func (j *Journal) getEntries() *journal.Entries {
@@ -311,15 +288,6 @@ func (j *Journal) save(ctx context.Context) error {
 	}
 	j.caJournalID = caJournalID
 
-	pemBytes := pem.EncodeToMemory(&pem.Block{
-		Type:  journalPEMType,
-		Bytes: entriesBytes,
-	})
-
-	if err := diskutil.AtomicWritePubliclyReadableFile(j.config.filePath, pemBytes); err != nil {
-		return errs.Wrap(err)
-	}
-
 	return nil
 }
 
@@ -329,40 +297,6 @@ func chainDER(chain []*x509.Certificate) [][]byte {
 		der = append(der, cert.Raw)
 	}
 	return der
-}
-
-// loadJournalFromDisk loads the journal from disk if it exists.
-// TODO: stop loading the journal from disk in v1.10 and remove this function.
-func loadJournalFromDisk(config *journalConfig) (*Journal, error) {
-	config.log.WithField(telemetry.Path, config.filePath).Debug("Loading journal from disk")
-
-	j := &Journal{
-		config:  config,
-		entries: new(journal.Entries),
-	}
-
-	pemBytes, err := os.ReadFile(config.filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// There is no journal on disk. A new CA journal is created and will
-			// be stored in the next save operation.
-			return j, nil
-		}
-		return nil, errs.Wrap(err)
-	}
-	pemBlock, _ := pem.Decode(pemBytes)
-	if pemBlock == nil {
-		return nil, errs.New("invalid PEM block")
-	}
-	if pemBlock.Type != journalPEMType {
-		return nil, errs.New("invalid PEM block type %q", pemBlock.Type)
-	}
-
-	if err := proto.Unmarshal(pemBlock.Bytes, j.entries); err != nil {
-		return nil, errs.New("unable to unmarshal entries: %v", err)
-	}
-
-	return j, nil
 }
 
 // loadJournalFromDS loads the CA journal from the datastore.
@@ -382,7 +316,7 @@ func loadJournalFromDS(ctx context.Context, config *journalConfig) (*Journal, er
 	}
 	if caJournal == nil {
 		j.config.log.Info("There is not a CA journal record that matches any of the local X509 authority IDs")
-		return nil, nil
+		return j, nil
 	}
 
 	j.caJournalID = caJournal.ID
