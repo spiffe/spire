@@ -43,13 +43,6 @@ func Open(dir string) (Storage, error) {
 		return nil, err
 	}
 
-	// TODO: Can be removed after 1.10 release
-	// No point in checking for errors here, we're just
-	// trying to clean up some files that we will no longer
-	// use.
-	os.Remove(legacySVIDPath(dir))
-	os.Remove(legacyBundlePath(dir))
-
 	return &storage{
 		dir:  dir,
 		data: data,
@@ -233,12 +226,4 @@ func encodeCertificates(certs []*x509.Certificate) ([][]byte, error) {
 
 func dataPath(dir string) string {
 	return filepath.Join(dir, "agent-data.json")
-}
-
-func legacyBundlePath(dir string) string {
-	return filepath.Join(dir, "bundle.der")
-}
-
-func legacySVIDPath(dir string) string {
-	return filepath.Join(dir, "agent_svid.der")
 }
