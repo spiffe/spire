@@ -132,8 +132,8 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "pass with keys",
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, validServerID),
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: createKeyIdentifierFile(t, validServerID),
+				KeyRing:           validKeyRing,
 			},
 			fakeCryptoKeys: []*fakeCryptoKey{
 				{
@@ -209,8 +209,8 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "pass without keys",
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, validServerID),
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: createKeyIdentifierFile(t, validServerID),
+				KeyRing:           validKeyRing,
 			},
 		},
 		{
@@ -230,7 +230,7 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "pass without keys - using a service account file",
 			config: &Config{
-				KeyMetadataFile:    createKeyIdentifierFile(t, validServerID),
+				KeyIdentifierFile:  createKeyIdentifierFile(t, validServerID),
 				KeyRing:            validKeyRing,
 				ServiceAccountFile: "service-account-file",
 			},
@@ -239,39 +239,33 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "missing key ring",
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, validServerID),
+				KeyIdentifierFile: createKeyIdentifierFile(t, validServerID),
 			},
 			expectMsg:  "configuration is missing the key ring",
 			expectCode: codes.InvalidArgument,
 		},
 		{
-			name: "missing key metadata file",
+			name: "missing key identifier file and key identifier value",
 			config: &Config{
 				KeyRing: validKeyRing,
 			},
-			expectMsg:  "configuration requires server id or server id file path",
+			expectMsg:  "configuration requires a key identifier file or a key identifier value",
 			expectCode: codes.InvalidArgument,
 		},
 		{
-			name:             "key identifier file and key identifier value",
+			name:             "both key identifier file and key identifier value",
 			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_file":"key_identifier_file","key_identifier_value":"key_identifier_value","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
-			expectMsg:        "configuration must not contain both server id and server id file path",
+			expectMsg:        "configuration can't have a key identifier file and a key identifier value at the same time",
 			expectCode:       codes.InvalidArgument,
 		},
 		{
-			name:             "key metadata file and key identifier file",
-			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_metadata_file":"key_metadata_file","key_identifier_file":"key_identifier_file","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
-			expectMsg:        "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'",
-			expectCode:       codes.InvalidArgument,
-		},
-		{
-			name:             "key metadata value invalid character",
+			name:             "key identifier value invalid character",
 			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"key identifier value","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
 			expectMsg:        "Key identifier must contain only letters, numbers, underscores (_), and dashes (-)",
 			expectCode:       codes.InvalidArgument,
 		},
 		{
-			name:             "key metadata value too long",
+			name:             "key identifier value too long",
 			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
 			expectMsg:        "Key identifier must not be longer than 63 characters",
 			expectCode:       codes.InvalidArgument,
@@ -279,9 +273,9 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "custom policy file does not exist",
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, validServerID),
-				KeyPolicyFile:   "non-existent-file.json",
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: createKeyIdentifierFile(t, validServerID),
+				KeyPolicyFile:     "non-existent-file.json",
+				KeyRing:           validKeyRing,
 			},
 			expectMsg:  fmt.Sprintf("could not parse policy file: failed to read file: open non-existent-file.json: %s", spiretest.FileNotFound()),
 			expectCode: codes.Internal,
@@ -289,32 +283,32 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "use custom policy file",
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, validServerID),
-				KeyPolicyFile:   getCustomPolicyFile(t),
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: createKeyIdentifierFile(t, validServerID),
+				KeyPolicyFile:     getCustomPolicyFile(t),
+				KeyRing:           validKeyRing,
 			},
 		},
 		{
-			name: "empty key metadata file",
+			name: "empty key identifier file",
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, ""),
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: createKeyIdentifierFile(t, ""),
+				KeyRing:           validKeyRing,
 			},
 		},
 		{
-			name: "invalid server ID in metadata file",
+			name: "invalid server ID in key identifier file",
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, "invalid-id"),
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: createKeyIdentifierFile(t, "invalid-id"),
+				KeyRing:           validKeyRing,
 			},
 			expectMsg:  "failed to parse server ID from path: uuid: incorrect UUID length 10 in string \"invalid-id\"",
 			expectCode: codes.Internal,
 		},
 		{
-			name: "invalid metadata file path",
+			name: "invalid key identifier file path",
 			config: &Config{
-				KeyMetadataFile: "/",
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: "/",
+				KeyRing:           validKeyRing,
 			},
 			expectMsg:  "failed to read server ID from path: read /:",
 			expectCode: codes.Internal,
@@ -328,8 +322,8 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "ListCryptoKeys error",
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, validServerID),
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: createKeyIdentifierFile(t, validServerID),
+				KeyRing:           validKeyRing,
 			},
 			expectMsg:         "failed to list SPIRE Server keys in Cloud KMS: error listing CryptoKeys",
 			expectCode:        codes.Internal,
@@ -340,8 +334,8 @@ func TestConfigure(t *testing.T) {
 			expectMsg:  "failed to fetch entries: unsupported CryptoKeyVersionAlgorithm: GOOGLE_SYMMETRIC_ENCRYPTION",
 			expectCode: codes.Internal,
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, validServerID),
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: createKeyIdentifierFile(t, validServerID),
+				KeyRing:           validKeyRing,
 			},
 			fakeCryptoKeys: []*fakeCryptoKey{
 				{
@@ -368,8 +362,8 @@ func TestConfigure(t *testing.T) {
 			expectMsg:  "failed to fetch entries: error getting public key: get public key error",
 			expectCode: codes.Internal,
 			config: &Config{
-				KeyMetadataFile: createKeyIdentifierFile(t, validServerID),
-				KeyRing:         validKeyRing,
+				KeyIdentifierFile: createKeyIdentifierFile(t, validServerID),
+				KeyRing:           validKeyRing,
 			},
 			fakeCryptoKeys: []*fakeCryptoKey{
 				{
@@ -721,7 +715,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			configureReq: configureRequestWithVars(KeyMetadataFile, createKeyIdentifierFile(t, ""), "", validKeyRing, "service_account_file"),
+			configureReq: configureRequestWithVars(KeyIdentifierFile, createKeyIdentifierFile(t, ""), "", validKeyRing, "service_account_file"),
 		},
 		{
 			name: "success: non existing key with custom policy",
@@ -729,7 +723,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID1,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			configureReq: configureRequestWithVars(KeyMetadataFile, createKeyIdentifierFile(t, ""), getCustomPolicyFile(t), validKeyRing, "service_account_file"),
+			configureReq: configureRequestWithVars(KeyIdentifierFile, createKeyIdentifierFile(t, ""), getCustomPolicyFile(t), validKeyRing, "service_account_file"),
 		},
 		{
 			name: "success: replace old key",
@@ -1387,11 +1381,11 @@ func TestKeyManagerContract(t *testing.T) {
 			},
 		)
 		km := new(keymanager.V1)
-		keyMetadataFile := filepath.ToSlash(filepath.Join(dir, "metadata.json"))
+		keyIdentifierFile := filepath.ToSlash(filepath.Join(dir, "key_identifier.json"))
 		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
-        key_metadata_file = %q
+        key_identifier_file = %q
         key_ring = "projects/project-id/locations/location/keyRings/keyring"
-		`, keyMetadataFile))
+		`, keyIdentifierFile))
 		return km
 	}
 
@@ -1450,7 +1444,7 @@ func TestSetIAMPolicy(t *testing.T) {
 			if tt.useCustomPolicy {
 				customPolicyFile := getCustomPolicyFile(t)
 				configureReq = configureRequestFromConfig(&Config{
-					KeyMetadataFile:    createKeyIdentifierFile(t, validServerID),
+					KeyIdentifierFile:  createKeyIdentifierFile(t, validServerID),
 					KeyPolicyFile:      customPolicyFile,
 					KeyRing:            validKeyRing,
 					ServiceAccountFile: "service_account_file",
@@ -1702,16 +1696,11 @@ func TestSignData(t *testing.T) {
 type KeyIdentifierConfigName string
 
 const (
-	KeyMetadataFile    KeyIdentifierConfigName = "key_metadata_file"
 	KeyIdentifierFile  KeyIdentifierConfigName = "key_identifier_file"
 	KeyIdentifierValue KeyIdentifierConfigName = "key_identifier_value"
 )
 
 func configureRequestFromConfig(c *Config) *configv1.ConfigureRequest {
-	keyMetadataFileHcl := fmt.Sprintf(`"key_metadata_file":"%s",`, c.KeyMetadataFile)
-	if c.KeyMetadataFile == "" {
-		keyMetadataFileHcl = ""
-	}
 	keyIdentifierFileHcl := fmt.Sprintf(`"key_identifier_file":"%s",`, c.KeyIdentifierFile)
 	if c.KeyIdentifierFile == "" {
 		keyIdentifierFileHcl = ""
@@ -1724,12 +1713,10 @@ func configureRequestFromConfig(c *Config) *configv1.ConfigureRequest {
 		HclConfiguration: fmt.Sprintf(`{
 			%s
 			%s
-			%s
 			"key_policy_file":"%s",
 			"key_ring":"%s",
 			"service_account_file":"%s"
 			}`,
-			keyMetadataFileHcl,
 			keyIdentifierFileHcl,
 			keyIdentifierValueHcl,
 			c.KeyPolicyFile,
@@ -1741,7 +1728,7 @@ func configureRequestFromConfig(c *Config) *configv1.ConfigureRequest {
 
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(KeyMetadataFile, createKeyIdentifierFile(t, validServerID), validKeyRing),
+		HclConfiguration:  serializedConfiguration(KeyIdentifierFile, createKeyIdentifierFile(t, validServerID), validKeyRing),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
 	}
 }

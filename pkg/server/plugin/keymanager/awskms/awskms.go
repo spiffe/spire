@@ -96,7 +96,6 @@ type Config struct {
 	AccessKeyID        string `hcl:"access_key_id" json:"access_key_id"`
 	SecretAccessKey    string `hcl:"secret_access_key" json:"secret_access_key"`
 	Region             string `hcl:"region" json:"region"`
-	KeyMetadataFile    string `hcl:"key_metadata_file" json:"key_metadata_file"`
 	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file"`
 	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
 	KeyPolicyFile      string `hcl:"key_policy_file" json:"key_policy_file"`
@@ -143,15 +142,8 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		p.keyPolicy = &policyStr
 	}
 
-	var serverID = config.KeyIdentifierValue
-	if serverID == "" && config.KeyMetadataFile != "" {
-		p.log.Warn("'key_metadata_file' is deprecated in favor of 'key_identifier_file' and will be removed in a future version")
-		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if serverID == "" && config.KeyIdentifierFile != "" {
+	serverID := config.KeyIdentifierValue
+	if serverID == "" {
 		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
 		if err != nil {
 			return nil, err
@@ -857,14 +849,13 @@ func parseAndValidateConfig(c string) (*Config, error) {
 			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 256 characters")
 		}
 	}
-	if config.KeyMetadataFile == "" && config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration requires server id or server id file path")
+
+	if config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration requires a key identifier file or a key identifier value")
 	}
-	if (config.KeyMetadataFile != "" || config.KeyIdentifierFile != "") && config.KeyIdentifierValue != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both server id and server id file path")
-	}
-	if config.KeyMetadataFile != "" && config.KeyIdentifierFile != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'")
+
+	if config.KeyIdentifierFile != "" && config.KeyIdentifierValue != "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration can't have a key identifier file and a key identifier value at the same time")
 	}
 
 	return config, nil
