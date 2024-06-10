@@ -76,15 +76,14 @@ func TestNewBuilderSetsDefaults(t *testing.T) {
 	config.NewSerialNumber = nil
 
 	assert.Equal(t, credtemplate.Config{
-		TrustDomain:            td,
-		X509CASubject:          credtemplate.DefaultX509CASubject(),
-		X509CATTL:              credtemplate.DefaultX509CATTL,
-		X509SVIDSubject:        credtemplate.DefaultX509SVIDSubject(),
-		X509SVIDTTL:            credtemplate.DefaultX509SVIDTTL,
-		JWTSVIDTTL:             credtemplate.DefaultJWTSVIDTTL,
-		JWTIssuer:              "",
-		AgentSVIDTTL:           credtemplate.DefaultX509SVIDTTL,
-		ExcludeSNFromCASubject: false,
+		TrustDomain:     td,
+		X509CASubject:   credtemplate.DefaultX509CASubject(),
+		X509CATTL:       credtemplate.DefaultX509CATTL,
+		X509SVIDSubject: credtemplate.DefaultX509SVIDSubject(),
+		X509SVIDTTL:     credtemplate.DefaultX509SVIDTTL,
+		JWTSVIDTTL:      credtemplate.DefaultJWTSVIDTTL,
+		JWTIssuer:       "",
+		AgentSVIDTTL:    credtemplate.DefaultX509SVIDTTL,
 	}, config)
 }
 
@@ -148,15 +147,6 @@ func TestBuildSelfSignedX509CATemplate(t *testing.T) {
 			},
 			overrideExpected: func(expected *x509.Certificate) {
 				expected.NotAfter = now.Add(time.Minute * 23)
-			},
-		},
-		{
-			desc: "exclude serial number from subject",
-			overrideConfig: func(config *credtemplate.Config) {
-				config.ExcludeSNFromCASubject = true
-			},
-			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject = pkix.Name{Country: []string{"US"}, Organization: []string{"SPIFFE"}}
 			},
 		},
 		{
@@ -273,15 +263,6 @@ func TestBuildUpstreamSignedX509CACSR(t *testing.T) {
 				params.PublicKey = nil
 			},
 			expectErr: "x509: unsupported public key type: <nil>",
-		},
-		{
-			desc: "exclude serial number from subject",
-			overrideConfig: func(config *credtemplate.Config) {
-				config.ExcludeSNFromCASubject = true
-			},
-			overrideExpected: func(expected *x509.CertificateRequest) {
-				expected.Subject = pkix.Name{Country: []string{"US"}, Organization: []string{"SPIFFE"}}
-			},
 		},
 		{
 			desc: "override X509CASubject",
