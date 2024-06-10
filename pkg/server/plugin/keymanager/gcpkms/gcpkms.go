@@ -117,8 +117,7 @@ type Plugin struct {
 
 // Config provides configuration context for the plugin.
 type Config struct {
-	// File path location where key metadata used by the plugin is persisted.
-	KeyMetadataFile   string `hcl:"key_metadata_file" json:"key_metadata_file"`
+	// File path location where information about generated keys will be persisted.
 	KeyIdentifierFile string `hcl:"key_identifier_file" json:"key_identifier_file"`
 
 	// Key metadata used by the plugin.
@@ -172,15 +171,8 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	var serverID = config.KeyIdentifierValue
-	if serverID == "" && config.KeyMetadataFile != "" {
-		p.log.Warn("'key_metadata_file' is deprecated in favor of 'key_identifier_file' and will be removed in a future version")
-		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if serverID == "" && config.KeyIdentifierFile != "" {
+	serverID := config.KeyIdentifierValue
+	if serverID == "" {
 		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
 		if err != nil {
 			return nil, err
@@ -1119,15 +1111,14 @@ func parseAndValidateConfig(c string) (*Config, error) {
 		return nil, status.Error(codes.InvalidArgument, "configuration is missing the key ring")
 	}
 
-	if config.KeyMetadataFile == "" && config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration requires server id or server id file path")
+	if config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration requires a key identifier file or a key identifier value")
 	}
-	if (config.KeyMetadataFile != "" || config.KeyIdentifierFile != "") && config.KeyIdentifierValue != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both server id and server id file path")
+
+	if config.KeyIdentifierFile != "" && config.KeyIdentifierValue != "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration can't have a key identifier file and a key identifier value at the same time")
 	}
-	if config.KeyMetadataFile != "" && config.KeyIdentifierFile != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'")
-	}
+
 	if config.KeyIdentifierValue != "" {
 		if !validateCharacters(config.KeyIdentifierValue) {
 			return nil, status.Error(codes.InvalidArgument, "Key identifier must contain only letters, numbers, underscores (_), and dashes (-)")

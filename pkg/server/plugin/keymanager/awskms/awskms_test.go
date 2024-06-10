@@ -97,7 +97,7 @@ func TestKeyManagerContract(t *testing.T) {
 		}
 		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
 			region = "fake-region"
-			key_metadata_file = %q
+			key_identifier_file = %q
 		`, keyIdentifierFile))
 		return km
 	}
@@ -210,76 +210,70 @@ func TestConfigure(t *testing.T) {
 			configureRequest: configureRequestWithDefaults(t),
 		},
 		{
-			name:             "pass with identity file",
+			name:             "pass with key identifier file",
 			configureRequest: configureRequestWithVars("", "secret_access_key", "region", KeyIdentifierFile, getKeyIdentifierFile(t), ""),
 		},
 		{
-			name:             "pass with identity value",
+			name:             "pass with key identifier value",
 			configureRequest: configureRequestWithVars("", "secret_access_key", "region", KeyIdentifierValue, "server-id", ""),
 		},
 		{
 			name:             "missing access key id",
-			configureRequest: configureRequestWithVars("", "secret_access_key", "region", KeyMetadataFile, getKeyIdentifierFile(t), ""),
+			configureRequest: configureRequestWithVars("", "secret_access_key", "region", KeyIdentifierFile, getKeyIdentifierFile(t), ""),
 		},
 		{
 			name:             "missing secret access key",
-			configureRequest: configureRequestWithVars("access_key", "", "region", KeyMetadataFile, getKeyIdentifierFile(t), ""),
+			configureRequest: configureRequestWithVars("access_key", "", "region", KeyIdentifierFile, getKeyIdentifierFile(t), ""),
 		},
 		{
 			name:             "missing region",
-			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "", KeyMetadataFile, getKeyIdentifierFile(t), ""),
+			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "", KeyIdentifierFile, getKeyIdentifierFile(t), ""),
 			err:              "configuration is missing a region",
 			code:             codes.InvalidArgument,
 		},
 		{
-			name:             "missing server id file path",
-			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyMetadataFile, "", ""),
-			err:              "configuration requires server id or server id file path",
+			name:             "missing key identifier file and key identifier value",
+			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyIdentifierFile, "", ""),
+			err:              "configuration requires a key identifier file or a key identifier value",
 			code:             codes.InvalidArgument,
 		},
 		{
-			name:             "key identifier file and key identifier value",
+			name:             "both key identifier file and key identifier value",
 			configureRequest: configureRequestWithString(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_file":"key_identifier_file","key_identifier_value":"key_identifier_value","key_policy_file":""}`),
-			err:              "configuration must not contain both server id and server id file path",
+			err:              "configuration can't have a key identifier file and a key identifier value at the same time",
 			code:             codes.InvalidArgument,
 		},
 		{
-			name:             "key metadata file and key identifier file",
-			configureRequest: configureRequestWithString(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_metadata_file":"key_metadata_file","key_identifier_file":"key_identifier_file","key_policy_file":""}`),
-			err:              "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'",
-			code:             codes.InvalidArgument,
-		},
-		{
-			name:             "key metadata value invalid character",
+			name:             "key identifier value invalid character",
 			configureRequest: configureRequestWithString(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"@key_identifier_value@","key_policy_file":""}`),
 			err:              "Key identifier must contain only alphanumeric characters, forward slashes (/), underscores (_), and dashes (-)",
 			code:             codes.InvalidArgument,
 		},
 		{
-			name:             "key metadata value too long",
+			name:             "key identifier value too long",
 			configureRequest: configureRequestWithString(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","key_policy_file":""}`),
 			err:              "Key identifier must not be longer than 256 characters",
 			code:             codes.InvalidArgument,
 		},
 		{
-			name:             "key metadata value starts with illegal alias",
+			name:             "key identifier value starts with illegal alias",
 			configureRequest: configureRequestWithString(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"alias/aws/key_identifier_value","key_policy_file":""}`),
 			err:              "Key identifier must not start with alias/aws/",
 			code:             codes.InvalidArgument,
 		},
 		{
 			name:             "custom policy file does not exists",
-			configureRequest: configureRequestWithVars("access_key", "secret_access_key", "region", KeyMetadataFile, getEmptyKeyIdentifierFile(t), "non-existent-file.json"),
+			configureRequest: configureRequestWithVars("access_key", "secret_access_key", "region", KeyIdentifierFile, getEmptyKeyIdentifierFile(t), "non-existent-file.json"),
 			err:              fmt.Sprintf("failed to read file configured in 'key_policy_file': open non-existent-file.json: %s", spiretest.FileNotFound()),
 			code:             codes.Internal,
 		},
 		{
 			name:             "use custom policy file",
-			configureRequest: configureRequestWithVars("access_key", "secret_access_key", "region", KeyMetadataFile, getEmptyKeyIdentifierFile(t), getCustomPolicyFile(t)),
+			configureRequest: configureRequestWithVars("access_key", "secret_access_key", "region", KeyIdentifierFile, getEmptyKeyIdentifierFile(t), getCustomPolicyFile(t)),
 		},
 		{
 			name:             "new server id file path",
-			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyMetadataFile, getEmptyKeyIdentifierFile(t), ""),
+			configureRequest: configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyIdentifierFile, getEmptyKeyIdentifierFile(t), ""),
 		},
 		{
 			name:             "decode error",
@@ -420,7 +414,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			configureReq:      configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyMetadataFile, getEmptyKeyIdentifierFile(t), ""),
+			configureReq:      configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyIdentifierFile, getEmptyKeyIdentifierFile(t), ""),
 			instanceAccountID: "example-account-id",
 			instanceRoleARN:   "arn:aws:sts::example-account-id:assumed-role/example-assumed-role-name/example-instance-id",
 			expectedKeyPolicy: &roleBasedPolicy,
@@ -431,7 +425,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			configureReq:      configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyMetadataFile, getEmptyKeyIdentifierFile(t), getCustomPolicyFile(t)),
+			configureReq:      configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyIdentifierFile, getEmptyKeyIdentifierFile(t), getCustomPolicyFile(t)),
 			instanceAccountID: "example-account-id",
 			instanceRoleARN:   "arn:aws:sts::example-account-id:assumed-role/example-assumed-role-name/example-instance-id",
 			expectedKeyPolicy: &customPolicy,
@@ -703,7 +697,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			configureReq:         configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyMetadataFile, getEmptyKeyIdentifierFile(t), ""),
+			configureReq:         configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyIdentifierFile, getEmptyKeyIdentifierFile(t), ""),
 			getCallerIdentityErr: "something went wrong",
 			err:                  "cannot get caller identity: something went wrong",
 			code:                 codes.Internal,
@@ -714,7 +708,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			configureReq:    configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyMetadataFile, getEmptyKeyIdentifierFile(t), ""),
+			configureReq:    configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyIdentifierFile, getEmptyKeyIdentifierFile(t), ""),
 			instanceRoleARN: "arn:aws:sts::example-account-id",
 			logs: []spiretest.LogEntry{
 				{
@@ -729,7 +723,7 @@ func TestGenerateKey(t *testing.T) {
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
-			configureReq:    configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyMetadataFile, getKeyIdentifierFile(t), ""),
+			configureReq:    configureRequestWithVars("access_key_id", "secret_access_key", "region", KeyIdentifierFile, getKeyIdentifierFile(t), ""),
 			instanceRoleARN: "arn:aws:sts::example-account-id:user/development",
 			logs: []spiretest.LogEntry{
 				{
@@ -1978,7 +1972,6 @@ func configureRequestWithString(config string) *configv1.ConfigureRequest {
 type KeyIdentifierConfigName string
 
 const (
-	KeyMetadataFile    KeyIdentifierConfigName = "key_metadata_file"
 	KeyIdentifierFile  KeyIdentifierConfigName = "key_identifier_file"
 	KeyIdentifierValue KeyIdentifierConfigName = "key_identifier_value"
 )
@@ -2004,7 +1997,7 @@ func configureRequestWithVars(accessKeyID, secretAccessKey, region, keyIdentifie
 
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, KeyMetadataFile, getKeyIdentifierFile(t)),
+		HclConfiguration:  serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, KeyIdentifierFile, getKeyIdentifierFile(t)),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
 	}
 }
