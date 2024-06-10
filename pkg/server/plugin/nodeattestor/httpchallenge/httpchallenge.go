@@ -95,22 +95,12 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.InvalidArgument, "port %d is not allowed to be >= 1024", attestationData.Port)
 	}
 
-	l := config.agentNamePattern.FindAllStringSubmatch(attestationData.AgentName, -1)
-	if len(l) != 1 || len(l[0]) == 0 || len(l[0]) > 32 {
-		return status.Error(codes.InvalidArgument, "agent name is not valid")
+	if err = validateAgentName(attestationData.AgentName, config.agentNamePattern); err != nil {
+		return err
 	}
 
-	notfound := false
-	for _, re := range config.dnsPatterns {
-		notfound = true
-		l := re.FindAllStringSubmatch(attestationData.HostName, -1)
-		if len(l) > 0 {
-			notfound = false
-			break
-		}
-	}
-	if notfound {
-		return status.Errorf(codes.PermissionDenied, "the requested hostname is not allowed to connect")
+	if err = validateHostName(attestationData.HostName, config.dnsPatterns); err != nil {
+		return err
 	}
 
 	challenge, err := httpchallenge.GenerateChallenge()
@@ -269,4 +259,25 @@ func buildSelectorValues(hostName string) []string {
 	selectorValues = append(selectorValues, "hostname:"+hostName)
 
 	return selectorValues
+}
+
+func validateAgentName(agentName string, agentNamePattern *regexp.Regexp) error {
+	l := agentNamePattern.FindAllStringSubmatch(agentName, -1)
+	if len(l) != 1 || len(l[0]) == 0 || len(l[0]) > 32 {
+		return status.Error(codes.InvalidArgument, "agent name is not valid")
+	}
+	return nil
+}
+
+func validateHostName(hostName string, dnsPatterns []*regexp.Regexp) error {
+	if len(dnsPatterns) == 0 {
+		return nil
+	}
+	for _, re := range dnsPatterns {
+		l := re.FindAllStringSubmatch(hostName, -1)
+		if len(l) > 0 {
+			return nil
+		}
+	}
+	return status.Errorf(codes.PermissionDenied, "the requested hostname is not allowed to connect")
 }
