@@ -68,8 +68,8 @@ Consequently, if the file is lost, the plugin will not be able to identify keys
 that it has previously managed and will recreate new keys on demand.
 
 If you need more control over the identifier that's used for the server, the
-`key_identifier_value` setting can be used instead. This allows to specify a
-static identifier for the server instance, and is appropriate in situations
+`key_identifier_value` setting can be used to specify a
+static identifier for the server instance. This setting is appropriate in situations
 where a key identifier file can't be persisted.
 
 The plugin attempts to detect and prune stale CryptoKeys. To facilitate stale

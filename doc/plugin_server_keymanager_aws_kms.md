@@ -28,11 +28,11 @@ Consequently, if the file is lost, the plugin will not be able to identify keys
 that it has previously managed and will recreate new keys on demand.
 
 If you need more control over the identifier that's used for the server, the
-`key_identifier_value` setting can be used instead. This allows to specify a
-static identifier for the server instance, and is appropriate in situations
+`key_identifier_value` setting can be used to specify a
+static identifier for the server instance. This setting is appropriate in situations
 where a key identifier file can't be persisted.
 
-The plugin assigns [aliases](https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html) to the Customer Master Keys that manages. The aliases are used to identify and name keys that are managed by the plugin.
+The plugin assigns [aliases](https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html) to the Customer Master Keys that it manages. The aliases are used to identify and name keys that are managed by the plugin.
 
 Aliases managed by the plugin have the following form: `alias/SPIRE_SERVER/{TRUST_DOMAIN}/{SERVER_ID}/{KEY_ID}`. The `{SERVER_ID}` is the identifier handled by the `key_identifier_file` or `key_identifier_value` setting. This ID allows multiple servers in the same trust domain (e.g. servers in HA deployments) to manage keys with identical `{KEY_ID}`'s without collision. The `{KEY_ID}` in the alias name is encoded to use a [character set accepted by KMS](https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html#API_CreateAlias_RequestSyntax).
 
