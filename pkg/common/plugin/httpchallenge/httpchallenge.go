@@ -1,7 +1,6 @@
 package httpchallenge
 
 import (
-	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -40,7 +39,7 @@ type AttestationData struct {
 }
 
 type Challenge struct {
-	Nonce []byte `json:"nonce"`
+	Nonce string `json:"nonce"`
 }
 
 type Response struct {
@@ -80,11 +79,12 @@ func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challe
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
 	if err != nil {
 		return err
 	}
-	if bytes.Equal(body, challenge.Nonce) {
+	nonce := strings.TrimSpace(string(body))
+	if nonce == challenge.Nonce {
 		return nil
 	}
 	return fmt.Errorf("expected nonce %q but got %q", string(challenge.Nonce), string(body))
@@ -103,13 +103,13 @@ func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.T
 	return idutil.AgentID(td, agentPath)
 }
 
-func generateNonce() ([]byte, error) {
+func generateNonce() (string, error) {
 	b := make([]byte, nonceLen)
 	if _, err := rand.Read(b); err != nil {
-		return nil, err
+		return "", err
 	}
 	retval := make([]byte, base64.StdEncoding.EncodedLen(len(b)))
 	base64.StdEncoding.Encode(retval, b)
 
-	return retval, nil
+	return string(retval), nil
 }

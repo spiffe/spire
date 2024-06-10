@@ -53,7 +53,6 @@ type Plugin struct {
 
 	m sync.Mutex
 	c *Config
-	l *net.Listener
 }
 
 func New() *Plugin {
@@ -68,14 +67,11 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 
 	port := data.port
 
-	if p.l != nil {
-		(*p.l).Close()
-	}
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	p.l = &l
 	if err != nil {
 		return status.Errorf(codes.Internal, "could not listen on port %d: %v", port, err)
 	}
+	defer l.Close()
 
 	advertisedPort := data.advertisedPort
 	if advertisedPort == 0 {
@@ -88,7 +84,6 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		Port:      advertisedPort,
 	})
 	if err != nil {
-		l.Close()
 		return status.Errorf(codes.Internal, "unable to marshal attestation data: %v", err)
 	}
 
@@ -98,25 +93,22 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 			Payload: attestationPayload,
 		},
 	}); err != nil {
-		l.Close()
 		return err
 	}
 
 	// receive challenge
 	resp, err := stream.Recv()
 	if err != nil {
-		l.Close()
 		return err
 	}
 
 	challenge := new(httpchallenge.Challenge)
 	if err := json.Unmarshal(resp.Challenge, challenge); err != nil {
-		l.Close()
 		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %v", err)
 	}
 
 	// FIXME open http port and post nonce here. When nonce fetched, auto remove webserver.
-	err = p.serveNonce(l, data.agentName, string(challenge.Nonce))
+	err = p.serveNonce(l, data.agentName, challenge.Nonce)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to start webserver: %v", err)
 	}
@@ -131,11 +123,21 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return status.Errorf(codes.Internal, "unable to marshal challenge response: %v", err)
 	}
 
-	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+	if err := stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
 		Data: &nodeattestorv1.PayloadOrChallengeResponse_ChallengeResponse{
 			ChallengeResponse: responseBytes,
 		},
-	})
+	}); err != nil {
+		return err
+	}
+
+	// This is expected to not be get a response. Its here to block so that cleanup of the listener can happen.
+	resp, err = stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
