@@ -207,13 +207,12 @@ func doX509popStep(ctx context.Context) error {
 	client := c.AgentClient()
 
 	// Attest agent
-	svidResp, err := x509popAttest(ctx)
-	if err != nil {
+	if _, err := x509popAttest(ctx); err != nil {
 		return fmt.Errorf("failed to attest: %w", err)
 	}
 
 	// Reattest agent to "renew"
-	svidResp, err = x509popAttest(ctx)
+	svidResp, err := x509popAttest(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to re-attest agent for renewal: %w", err)
 	}
