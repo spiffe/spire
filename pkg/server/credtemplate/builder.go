@@ -99,18 +99,17 @@ type WorkloadJWTSVIDParams struct {
 }
 
 type Config struct {
-	TrustDomain            spiffeid.TrustDomain
-	Clock                  clock.Clock
-	X509CASubject          pkix.Name
-	X509CATTL              time.Duration
-	X509SVIDSubject        pkix.Name
-	X509SVIDTTL            time.Duration
-	JWTSVIDTTL             time.Duration
-	JWTIssuer              string
-	AgentSVIDTTL           time.Duration
-	CredentialComposers    []credentialcomposer.CredentialComposer
-	NewSerialNumber        func() (*big.Int, error)
-	ExcludeSNFromCASubject bool
+	TrustDomain         spiffeid.TrustDomain
+	Clock               clock.Clock
+	X509CASubject       pkix.Name
+	X509CATTL           time.Duration
+	X509SVIDSubject     pkix.Name
+	X509SVIDTTL         time.Duration
+	JWTSVIDTTL          time.Duration
+	JWTIssuer           string
+	AgentSVIDTTL        time.Duration
+	CredentialComposers []credentialcomposer.CredentialComposer
+	NewSerialNumber     func() (*big.Int, error)
 }
 
 type Builder struct {
@@ -367,7 +366,7 @@ func (b *Builder) buildX509CATemplate(publicKey crypto.PublicKey, parentChain []
 	}
 
 	tmpl.Subject = b.config.X509CASubject
-	if tmpl.Subject.SerialNumber == "" && !b.config.ExcludeSNFromCASubject {
+	if tmpl.Subject.SerialNumber == "" {
 		tmpl.Subject.SerialNumber = tmpl.SerialNumber.String()
 	}
 	tmpl.NotBefore, tmpl.NotAfter = b.computeX509CALifetime(parentChain, ttl)
