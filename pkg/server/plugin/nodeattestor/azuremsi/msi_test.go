@@ -259,11 +259,8 @@ func (s *MSIAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
 		tenants = {
 			"TENANTID" = {
 				resource_id = "https://example.org/app/"
-				use_msi = true
 			}
-			"TENANTID2" = {
-				use_msi = true
-			}
+			"TENANTID2" = { }
 		}
 		agent_path_template = "/{{ .PluginName }}/{{ .TenantID }}"
 	`)
@@ -484,7 +481,6 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		tenants = {
 			"TENANTID" = {
 				resource_id = "https://example.org/app/"
-				use_msi = true
 			}
 		}
 		`, nil)
@@ -516,31 +512,11 @@ func (s *MSIAttestorSuite) TestConfigure() {
 				app_id = "APPID"
 				app_secret = "APPSECRET"
 			}
-			"TENANTID2" = {
-				use_msi = true
-			}
+			"TENANTID2" = {	}
 		}
 		`, nil)
 		require.NoError(t, err)
 		require.ElementsMatch(t, []string{"TENANTSUBSCRIPTIONID", "SUBSCRIPTIONID"}, clients)
-	})
-
-	s.T().Run("failure with both app creds and msi", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `
-		tenants = {
-			"TENANTID" = {
-				resource_id = "https://example.org/app/"
-				use_msi = true
-				subscription_id = "TENANTSUBSCRIPTIONID"
-				app_id = "APPID"
-				app_secret = "APPSECRET"
-			}
-			"TENANTID2" = {
-				use_msi = true
-			}
-		}
-		`, nil)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `misconfigured tenant "TENANTID": cannot use both MSI and app authentication`)
 	})
 
 	s.T().Run("failure with tenant missing subscription id", func(t *testing.T) {
@@ -666,11 +642,8 @@ func (s *MSIAttestorSuite) loadPlugin(options ...plugintest.Option) nodeattestor
 		tenants = {
 			"TENANTID" = {
 				resource_id = "https://example.org/app/"
-				use_msi = true
 			}
-			"TENANTID2" = {
-				use_msi = true
-			}
+			"TENANTID2" = { }
 		}
 	`, options...)
 }
