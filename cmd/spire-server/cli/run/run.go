@@ -84,8 +84,6 @@ type serverConfig struct {
 	RateLimit          rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath         string             `hcl:"socket_path"`
 	TrustDomain        string             `hcl:"trust_domain"`
-	// Temporary flag to allow disabling the inclusion of serial number in X509 CAs Subject field
-	ExcludeSNFromCASubject bool `hcl:"exclude_sn_from_ca_subject"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -637,12 +635,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	// RFC3280(4.1.2.4) requires the issuer DN be set.
 	if isPKIXNameEmpty(sc.CASubject) {
 		sc.CASubject = credtemplate.DefaultX509CASubject()
-	}
-
-	sc.ExcludeSNFromCASubject = c.Server.ExcludeSNFromCASubject
-	// TODO: remove exclude_sn_from_ca_subject in SPIRE v1.10.0
-	if sc.ExcludeSNFromCASubject {
-		sc.Log.Warn("The deprecated exclude_sn_from_ca_subject configurable will be removed in a future release")
 	}
 
 	sc.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
