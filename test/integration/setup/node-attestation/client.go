@@ -22,7 +22,6 @@ import (
 	"github.com/spiffe/spire/test/integration/setup/itclient"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -208,14 +207,14 @@ func doX509popStep(ctx context.Context) error {
 	client := c.AgentClient()
 
 	// Attest agent
-	svidResp, err := x509popAttest(ctx)
-	if err != nil {
+	if _, err := x509popAttest(ctx); err != nil {
 		return fmt.Errorf("failed to attest: %w", err)
 	}
 
-	// Renew agent
-	if err := x509popRenew(ctx, svidResp); err != nil {
-		return fmt.Errorf("failed to renew agent: %w", err)
+	// Reattest agent to "renew"
+	svidResp, err := x509popAttest(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to re-attest agent for renewal: %w", err)
 	}
 
 	// Delete agent
@@ -345,40 +344,6 @@ func x509popAttest(ctx context.Context) (*types.X509SVID, error) {
 	}
 
 	return resp.GetResult().Svid, nil
-}
-
-// x509popRenew creates a connection using provided svid and renew it
-func x509popRenew(ctx context.Context, x509Svid *types.X509SVID) error {
-	log.Println("Renewing agent...")
-
-	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, key)
-	if err != nil {
-		return fmt.Errorf("failed to create CSR: %w", err)
-	}
-
-	cert, err := x509.ParseCertificate(x509Svid.CertChain[0])
-	if err != nil {
-		return fmt.Errorf("failed to parse cert: %w", err)
-	}
-
-	conn := itclient.NewWithCert(cert, key)
-	defer conn.Release()
-	client := conn.AgentClient()
-
-	resp, err := client.RenewAgent(ctx, &agent.RenewAgentRequest{
-		Params: &agent.AgentX509SVIDParams{
-			Csr: csr,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to renew agent: %w", err)
-	}
-
-	if !proto.Equal(resp.Svid.Id, x509Svid.Id) {
-		return fmt.Errorf("uxexpected ID: %q, expected: %q", resp.Svid.Id.String(), x509Svid.Id.String())
-	}
-
-	return nil
 }
 
 // deleteAgent delete agent using "admin" connection

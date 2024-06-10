@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/selector"
@@ -433,10 +434,9 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	}
 
 	// Agent attempted to renew when it should've been reattesting
-	// TODO: Uncomment in 1.10.0
-	/*if attestedNode.CanReattest {
-		return nil, errorutil.PermissionDenied(types.PermissionDeniedDetails_AGENT_MUST_REATTEST, "agent can't renew SVID, must reattest")
-	}*/
+	if attestedNode.CanReattest {
+		return nil, errorutil.PermissionDenied(types.PermissionDeniedDetails_AGENT_MUST_REATTEST, "agent must reattest instead of renew")
+	}
 
 	log.Info("Renewing agent SVID")
 
