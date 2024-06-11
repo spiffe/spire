@@ -1,6 +1,7 @@
 package httpchallenge
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -57,7 +59,7 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 	return &Response{}, nil
 }
 
-func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challenge, _ *Response) error {
+func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) error {
 	if strings.Contains(attestationData.HostName, "/") {
 		return fmt.Errorf("hostname can not contain a colon")
 	}
@@ -73,7 +75,16 @@ func VerifyChallengeResponse(attestationData *AttestationData, challenge *Challe
 		Path:   fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.AgentName, challenge.Nonce),
 	}
 
-	resp, err := http.Get(turl.String())
+	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", turl.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	client := http.DefaultClient
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

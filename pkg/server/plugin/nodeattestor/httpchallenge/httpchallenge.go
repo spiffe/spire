@@ -121,19 +121,16 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return err
 	}
 
-	// receive and validate the challenge response
-	responseReq, err := stream.Recv()
+	// receive the response. We dont really care what it is but the plugin system requiries it.
+	//responseReq, err := stream.Recv()
+	_, err = stream.Recv()
 	if err != nil {
 		return err
 	}
 
-	response := new(httpchallenge.Response)
-	if err := json.Unmarshal(responseReq.GetChallengeResponse(), response); err != nil {
-		return status.Errorf(codes.InvalidArgument, "unable to unmarshal challenge response: %v", err)
-	}
-
-	if err := httpchallenge.VerifyChallengeResponse(attestationData, challenge, response); err != nil {
-		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
+	p.log.Debug("Verifying challenge")
+	if err := httpchallenge.VerifyChallenge(attestationData, challenge); err != nil {
+		return status.Errorf(codes.PermissionDenied, "challenge verification failed: %v", err)
 	}
 
 	spiffeid, err := httpchallenge.MakeAgentID(config.trustDomain, config.pathTemplate, attestationData.HostName)

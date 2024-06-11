@@ -65,6 +65,8 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return err
 	}
 
+	ctx := stream.Context()
+
 	port := data.port
 
 	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
@@ -107,22 +109,8 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %v", err)
 	}
 
-	// FIXME open http port and post nonce here. When nonce fetched, auto remove webserver.
-	err = p.serveNonce(l, data.agentName, challenge.Nonce)
-	if err != nil {
-		return status.Errorf(codes.Internal, "failed to start webserver: %v", err)
-	}
-
-	response, err := httpchallenge.CalculateResponse(challenge)
-	if err != nil {
-		return status.Errorf(codes.Internal, "failed to calculate challenge response: %v", err)
-	}
-
-	responseBytes, err := json.Marshal(response)
-	if err != nil {
-		return status.Errorf(codes.Internal, "unable to marshal challenge response: %v", err)
-	}
-
+        // due to https://github.com/spiffe/spire/blob/8f9fa036e182a2fab968e03cd25a7fdb2d8c88bb/pkg/agent/plugin/nodeattestor/v1.go#L63, we must respond with a non blank challenge response
+	responseBytes := []byte{'\n'}
 	if err := stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
 		Data: &nodeattestorv1.PayloadOrChallengeResponse_ChallengeResponse{
 			ChallengeResponse: responseBytes,
@@ -131,12 +119,10 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return err
 	}
 
-	// This is expected to not be get a response. Its here to block so that cleanup of the listener can happen.
-	resp, err = stream.Recv()
+	err = p.serveNonce(ctx, l, data.agentName, challenge.Nonce)
 	if err != nil {
-		return err
+		return status.Errorf(codes.Internal, "failed to start webserver: %v", err)
 	}
-
 	return nil
 }
 
@@ -157,7 +143,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err error) {
+func (p *Plugin) serveNonce(ctx context.Context, l net.Listener, agentName string, nonce string) (err error) {
 	h := http.NewServeMux()
 	s := &http.Server{
 		Handler:      h,
@@ -167,21 +153,20 @@ func (p *Plugin) serveNonce(l net.Listener, agentName string, nonce string) (err
 	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, nonce)
 	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, nonce)
-		go func() {
-			_ = s.Shutdown(context.Background())
-		}()
 	})
 
 	go func() {
-		err = s.Serve(l)
-		l.Close()
-		if err == http.ErrServerClosed {
-			return
-		}
-		if err != nil {
-			fmt.Printf("Unexpected error while serving. %e", err)
+		select {
+			case <-ctx.Done():
+				_ = s.Shutdown(context.Background())
+				break
 		}
 	}()
+
+	err = s.Serve(l)
+	if err == http.ErrServerClosed {
+		return nil
+	}
 	return err
 }
 
