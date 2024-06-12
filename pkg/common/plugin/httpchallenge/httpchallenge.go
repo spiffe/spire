@@ -75,7 +75,7 @@ func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) err
 		Path:   fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.AgentName, challenge.Nonce),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", turl.String(), nil)
@@ -98,7 +98,7 @@ func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) err
 	if nonce == challenge.Nonce {
 		return nil
 	}
-	return fmt.Errorf("expected nonce %q but got %q", string(challenge.Nonce), string(body))
+	return fmt.Errorf("expected nonce %q but got %q", challenge.Nonce, body)
 }
 
 // MakeAgentID creates an agent ID

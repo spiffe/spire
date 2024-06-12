@@ -109,7 +109,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return status.Errorf(codes.Internal, "unable to unmarshal challenge: %v", err)
 	}
 
-        // due to https://github.com/spiffe/spire/blob/8f9fa036e182a2fab968e03cd25a7fdb2d8c88bb/pkg/agent/plugin/nodeattestor/v1.go#L63, we must respond with a non blank challenge response
+	// due to https://github.com/spiffe/spire/blob/8f9fa036e182a2fab968e03cd25a7fdb2d8c88bb/pkg/agent/plugin/nodeattestor/v1.go#L63, we must respond with a non blank challenge response
 	responseBytes := []byte{'\n'}
 	if err := stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
 		Data: &nodeattestorv1.PayloadOrChallengeResponse_ChallengeResponse{
@@ -156,11 +156,8 @@ func (p *Plugin) serveNonce(ctx context.Context, l net.Listener, agentName strin
 	})
 
 	go func() {
-		select {
-			case <-ctx.Done():
-				_ = s.Shutdown(context.Background())
-				break
-		}
+		<-ctx.Done()
+		_ = s.Shutdown(context.Background())
 	}()
 
 	err = s.Serve(l)

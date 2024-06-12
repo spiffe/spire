@@ -45,11 +45,11 @@ type configuration struct {
 }
 
 type Config struct {
-	AllowedDNSPatterns       []string `hcl:"allowed_dns_patterns"`
-	RequiredPort      *int     `hcl:"required_port"`
-	AllowNonRootPorts *bool    `hcl:"allow_non_root_ports"`
-	AgentPathTemplate string   `hcl:"agent_path_template"`
-	TOFU              *bool    `hcl:"tofu"`
+	AllowedDNSPatterns []string `hcl:"allowed_dns_patterns"`
+	RequiredPort       *int     `hcl:"required_port"`
+	AllowNonRootPorts  *bool    `hcl:"allow_non_root_ports"`
+	AgentPathTemplate  string   `hcl:"agent_path_template"`
+	TOFU               *bool    `hcl:"tofu"`
 }
 
 type Plugin struct {
@@ -122,7 +122,6 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	// receive the response. We dont really care what it is but the plugin system requiries it.
-	//responseReq, err := stream.Recv()
 	_, err = stream.Recv()
 	if err != nil {
 		return err
