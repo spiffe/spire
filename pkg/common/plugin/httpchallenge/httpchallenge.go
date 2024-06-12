@@ -66,7 +66,7 @@ func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) err
 	if strings.Contains(attestationData.AgentName, ".") {
 		return fmt.Errorf("agentname can not contain a dot")
 	}
-	if strings.Contains(string(challenge.Nonce), ".") {
+	if strings.Contains(challenge.Nonce, ".") {
 		return fmt.Errorf("nonce can not contain a dot")
 	}
 	turl := url.URL{
