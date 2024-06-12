@@ -74,7 +74,6 @@ func builtin(p *Plugin) catalog.BuiltIn {
 // Config defines the configuration for the plugin.
 type Config struct {
 	Hostname               string          `hcl:"hostname" json:"hostname"`
-	CaCert                 string          `hcl:"ca_cert" json:"ca_cert"`
 	CaCertPath             string          `hcl:"ca_cert_path" json:"ca_cert_path"`
 	CertAuth               *CertAuthConfig `hcl:"cert_auth" json:"cert_auth,omitempty"`
 	OAuth                  *OAuthConfig    `hcl:"oauth" json:"oauth,omitempty"`
@@ -86,9 +85,7 @@ type Config struct {
 }
 
 type CertAuthConfig struct {
-	ClientCert     string `hcl:"client_cert" json:"client_cert"`
 	ClientCertPath string `hcl:"client_cert_path" json:"client_cert_path"`
-	ClientKey      string `hcl:"client_key" json:"client_key"`
 	ClientKeyPath  string `hcl:"client_key_path" json:"client_key_path"`
 }
 

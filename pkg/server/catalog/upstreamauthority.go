@@ -40,7 +40,7 @@ func (repo *upstreamAuthorityRepository) BuiltIns() []catalog.BuiltIn {
 		spireplugin.BuiltIn(),
 		disk.BuiltIn(),
 		certmanager.BuiltIn(),
-        ejbca.BuiltIn(),
+		ejbca.BuiltIn(),
 	}
 }
 

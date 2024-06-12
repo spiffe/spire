@@ -66,11 +66,11 @@ func (p *Plugin) parseConfig(req *configv1.ConfigureRequest) (*Config, error) {
 			config.CertAuth.ClientKeyPath = p.hooks.getEnv("EJBCA_CLIENT_CERT_KEY_PATH")
 		}
 
-		if config.CertAuth.ClientCertPath == "" && config.CertAuth.ClientCert == "" {
+		if config.CertAuth.ClientCertPath == "" {
 			logger.Error("Client certificate is required for mTLS authentication")
 			return nil, status.Error(codes.InvalidArgument, "client_cert or EJBCA_CLIENT_CERT_PATH is required for mTLS authentication")
 		}
-		if config.CertAuth.ClientKeyPath == "" && config.CertAuth.ClientKey == "" {
+		if config.CertAuth.ClientKeyPath == "" {
 			logger.Error("Client key is required for mTLS authentication")
 			return nil, status.Error(codes.InvalidArgument, "client_key or EJBCA_CLIENT_KEY_PATH is required for mTLS authentication")
 		}
@@ -104,19 +104,8 @@ func (p *Plugin) getAuthenticator(config *Config) (ejbcaclient.Authenticator, er
 	logger := p.logger.Named("getAuthenticator")
 
 	var caChain []*x509.Certificate
-	if config.CaCert != "" {
-		logger.Trace("Parsing CA chain from configuration")
-
-		chain, err := pemutil.ParseCertificates([]byte(config.CaCert))
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse CA chain: %w", err)
-		}
-
-		caChain = chain
-		logger.Debug("Parsed CA chain", "length", len(caChain))
-	} else if config.CaCertPath != "" {
+	if config.CaCertPath != "" {
 		logger.Trace("Parsing CA chain from file", "path", config.CaCertPath)
-
 		caChainBytes, err := p.hooks.readFile(config.CaCertPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read CA chain from file: %w", err)
@@ -127,8 +116,8 @@ func (p *Plugin) getAuthenticator(config *Config) (ejbcaclient.Authenticator, er
 			return nil, fmt.Errorf("failed to parse CA chain: %w", err)
 		}
 
-		caChain = chain
 		logger.Debug("Parsed CA chain", "length", len(caChain))
+		caChain = chain
 	}
 
 	var authenticator ejbcaclient.Authenticator
@@ -154,25 +143,18 @@ func (p *Plugin) getAuthenticator(config *Config) (ejbcaclient.Authenticator, er
 	case config.CertAuth != nil:
 		logger.Trace("Creating mTLS authenticator")
 
-		var tlsCert tls.Certificate
-		if config.CertAuth.ClientCertPath != "" {
-			logger.Debug("Reading client certificate from file", "path", config.CertAuth.ClientCertPath)
-			clientCertBytes, err := p.hooks.readFile(config.CertAuth.ClientCertPath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read client certificate from file: %w", err)
-			}
-			config.CertAuth.ClientCert = string(clientCertBytes)
+		logger.Debug("Reading client certificate from file", "path", config.CertAuth.ClientCertPath)
+		clientCertBytes, err := p.hooks.readFile(config.CertAuth.ClientCertPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read client certificate from file: %w", err)
 		}
-		if config.CertAuth.ClientKeyPath != "" {
-			logger.Debug("Reading client key from file", "path", config.CertAuth.ClientKeyPath)
-			clientKeyBytes, err := p.hooks.readFile(config.CertAuth.ClientKeyPath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read client key from file: %w", err)
-			}
-			config.CertAuth.ClientKey = string(clientKeyBytes)
+		logger.Debug("Reading client key from file", "path", config.CertAuth.ClientKeyPath)
+		clientKeyBytes, err := p.hooks.readFile(config.CertAuth.ClientKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read client key from file: %w", err)
 		}
 
-		tlsCert, err := tls.X509KeyPair([]byte(config.CertAuth.ClientCert), []byte(config.CertAuth.ClientKey))
+		tlsCert, err := tls.X509KeyPair(clientCertBytes, clientKeyBytes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load client certificate: %w", err)
 		}
