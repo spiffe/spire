@@ -226,6 +226,10 @@ func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureReq
 		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
 	}
 
+	if len(hclConfig.Clusters) < 1 {
+		p.log.Warn("No clusters configured, PSAT attestation is effectively disabled")
+	}
+
 	config := &attestorConfig{
 		trustDomain: req.CoreConfiguration.TrustDomain,
 		clusters:    make(map[string]*clusterConfig),
