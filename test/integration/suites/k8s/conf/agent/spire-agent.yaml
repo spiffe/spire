@@ -112,12 +112,6 @@ spec:
       serviceAccountName: spire-agent
       containers:
         - name: spire-agent
-          # Make sure that we can create the directory for the socket in the host,
-          # this is needed because we use a hostPath volume to share the socket
-          # for the Workload API.
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
           image: spire-agent:latest-local
           imagePullPolicy: Never
           args: ["-config", "/run/spire/config/agent.conf"]
