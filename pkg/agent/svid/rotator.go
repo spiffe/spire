@@ -138,22 +138,17 @@ func (r *rotator) SetRotationFinishedHook(f func()) {
 	r.rotationFinishedHook = f
 }
 
-func (r *rotator) Reattest(ctx context.Context) (err error) {
+func (r *rotator) Reattest(ctx context.Context) error {
 	state, ok := r.state.Value().(State)
 	if !ok {
 		return fmt.Errorf("unexpected value type: %T", r.state.Value())
 	}
 
-	if state.Reattestable {
-		if !r.c.DisableReattestToRenew {
-			err = r.reattest(ctx)
-		} else {
-			return errors.New("re-attestation is disabled")
-		}
-	} else {
+	if !state.Reattestable {
 		return errors.New("attestation method is not re-attestable")
 	}
 
+	err := r.reattest(ctx)
 	if err == nil && r.rotationFinishedHook != nil {
 		r.rotationFinishedHook()
 	}
@@ -168,7 +163,7 @@ func (r *rotator) rotateSVIDIfNeeded(ctx context.Context) (err error) {
 	}
 
 	if r.c.RotationStrategy.ShouldRotateX509(r.clk.Now(), state.SVID[0]) {
-		if state.Reattestable && !r.c.DisableReattestToRenew {
+		if state.Reattestable {
 			err = r.reattest(ctx)
 		} else {
 			err = r.rotateSVID(ctx)

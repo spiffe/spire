@@ -60,7 +60,7 @@ func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
 
 		// Valid KMS alias name must match the expression below:
 		// https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html#API_CreateAlias_RequestSyntax
-		validAliasName: regexp.MustCompile(`alias[a-zA-Z0-9/_-]+$`),
+		validAliasName: regexp.MustCompile(`^alias/[a-zA-Z0-9/_-]+$`),
 	}
 }
 
