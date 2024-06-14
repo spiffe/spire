@@ -21,8 +21,8 @@ The main configuration accepts the following values:
 |---------------|-----------------------------------------------------------------------------------|---------|
 | `clusters`    | A map of clusters, keyed by an arbitrary ID, that are authorized for attestation. |         |
 
-[!WARNING]
-When clusters is empty, no clusters are authorized for attestation.
+> [!WARNING]
+> When clusters is empty, no clusters are authorized for attestation.
 
 Each cluster in the main configuration requires the following configuration:
 
