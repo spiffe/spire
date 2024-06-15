@@ -94,7 +94,7 @@ func TestTLSConfig(t *testing.T) {
 	}
 
 	ctx, cancelFn := context.WithCancel(context.Background())
-	certManager, err := NewDiskCertManager(&DiskCertManagerConfig{
+	certManager, err := New(&Config{
 		CertFilePath:     certFilePath,
 		KeyFilePath:      keyFilePath,
 		FileSyncInterval: 10 * time.Millisecond,
@@ -108,12 +108,12 @@ func TestTLSConfig(t *testing.T) {
 	tlsConfig := certManager.GetTLSConfig()
 
 	t.Run("error when configuration does not contain serving cert file settings", func(t *testing.T) {
-		_, err := NewDiskCertManager(nil, nil, logger)
+		_, err := New(nil, nil, logger)
 		require.EqualError(t, err, "missing serving cert file configuration")
 	})
 
 	t.Run("error when provided cert path do not exist", func(t *testing.T) {
-		_, err := NewDiskCertManager(&DiskCertManagerConfig{
+		_, err := New(&Config{
 			CertFilePath: filepath.Join(tmpDir, "nonexistent_cert.pem"),
 			KeyFilePath:  keyFilePath,
 		}, clk, logger)
@@ -122,7 +122,7 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("error when provided key path do not exist", func(t *testing.T) {
-		_, err := NewDiskCertManager(&DiskCertManagerConfig{
+		_, err := New(&Config{
 			CertFilePath: certFilePath,
 			KeyFilePath:  filepath.Join(tmpDir, "nonexistent_key.pem"),
 		}, clk, logger)
@@ -131,7 +131,7 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("error when provided cert is invalid", func(t *testing.T) {
-		_, err := NewDiskCertManager(&DiskCertManagerConfig{
+		_, err := New(&Config{
 			CertFilePath: invalidCertFilePath,
 			KeyFilePath:  keyFilePath,
 		}, clk, logger)
@@ -140,7 +140,7 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("error when provided key is invalid", func(t *testing.T) {
-		_, err := NewDiskCertManager(&DiskCertManagerConfig{
+		_, err := New(&Config{
 			CertFilePath: certFilePath,
 			KeyFilePath:  invalidKeyFilePath,
 		}, clk, logger)

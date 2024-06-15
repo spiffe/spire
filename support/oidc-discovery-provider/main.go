@@ -172,7 +172,7 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 }
 
 func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, config *Config) (net.Listener, error) {
-	certManager, err := diskcertmanager.NewDiskCertManager(&diskcertmanager.DiskCertManagerConfig{
+	certManager, err := diskcertmanager.New(&diskcertmanager.Config{
 		CertFilePath:     config.ServingCertFile.CertFilePath,
 		KeyFilePath:      config.ServingCertFile.KeyFilePath,
 		FileSyncInterval: config.ServingCertFile.FileSyncInterval,

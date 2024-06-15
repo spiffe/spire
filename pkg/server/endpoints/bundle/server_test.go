@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/acmetest"
 	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/spiretest"
@@ -184,14 +185,13 @@ func TestDiskCertManagerAuth(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	serverCert, serverKey := createServerCertificate(t)
 
-	serverCertPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: serverCert.Raw})
-	err := os.WriteFile(dir+"/server.crt", serverCertPem, 0755)
+	serverCertPem := pemutil.EncodeCertificate(serverCert)
+	err := os.WriteFile(filepath.Join(dir, "server.crt"), serverCertPem, 0755)
 	require.NoError(t, err)
 
-	serverKeyBytes, err := x509.MarshalPKCS8PrivateKey(serverKey)
+	serverKeyPem, err := pemutil.EncodePKCS8PrivateKey(serverKey)
 	require.NoError(t, err)
-	serverKeyPem := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: serverKeyBytes})
-	err = os.WriteFile(dir+"/server.key", serverKeyPem, 0700)
+	err = os.WriteFile(filepath.Join(dir, "server.key"), serverKeyPem, 0700)
 	require.NoError(t, err)
 
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
@@ -210,10 +210,10 @@ func TestDiskCertManagerAuth(t *testing.T) {
 		},
 	}
 
-	diskCertManager, err := diskcertmanager.NewDiskCertManager(
-		&diskcertmanager.DiskCertManagerConfig{
-			CertFilePath:     dir + "/server.crt",
-			KeyFilePath:      dir + "/server.key",
+	diskCertManager, err := diskcertmanager.New(
+		&diskcertmanager.Config{
+			CertFilePath:     filepath.Join(dir, "server.crt"),
+			KeyFilePath:      filepath.Join(dir, "server.key"),
 			FileSyncInterval: time.Minute,
 		},
 		nil,

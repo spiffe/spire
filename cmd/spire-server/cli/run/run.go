@@ -469,7 +469,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			}
 
 			if c.Server.Federation.BundleEndpoint != nil {
-				err := parseBundleEndpointConfigProfile(c.Server.Federation.BundleEndpoint, &sc.Federation, sc.DataDir, sc.Log)
+				err := setBundleEndpointConfigProfile(c.Server.Federation.BundleEndpoint, sc.DataDir, sc.Log, &sc.Federation)
 				if err != nil {
 					return nil, err
 				}
@@ -700,7 +700,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	return sc, nil
 }
 
-func parseBundleEndpointConfigProfile(config *bundleEndpointConfig, federationConfig *server.FederationConfig, dataDir string, log logrus.FieldLogger) error {
+func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string, log logrus.FieldLogger, federationConfig *server.FederationConfig) error {
 	switch {
 	case config.ACME != nil && config.Profile != nil:
 		return errors.New("either bundle endpoint 'acme' or 'profile' can be set, but not both")
@@ -765,8 +765,8 @@ func configToDiskCertManager(serviceCertFile *bundleEndpointServingCertFile, log
 		serviceCertFile.FileSyncInterval = time.Hour
 	}
 
-	return diskcertmanager.NewDiskCertManager(
-		&diskcertmanager.DiskCertManagerConfig{
+	return diskcertmanager.New(
+		&diskcertmanager.Config{
 			CertFilePath:     serviceCertFile.CertFilePath,
 			KeyFilePath:      serviceCertFile.KeyFilePath,
 			FileSyncInterval: serviceCertFile.FileSyncInterval,

@@ -28,13 +28,13 @@ type DiskCertManager struct {
 	log              logrus.FieldLogger
 }
 
-type DiskCertManagerConfig struct {
+type Config struct {
 	CertFilePath     string
 	KeyFilePath      string
 	FileSyncInterval time.Duration
 }
 
-func NewDiskCertManager(config *DiskCertManagerConfig, clk clock.Clock, log logrus.FieldLogger) (*DiskCertManager, error) {
+func New(config *Config, clk clock.Clock, log logrus.FieldLogger) (*DiskCertManager, error) {
 	if config == nil {
 		return nil, errors.New("missing serving cert file configuration")
 	}
