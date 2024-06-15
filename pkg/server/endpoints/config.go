@@ -109,16 +109,17 @@ func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) 
 
 	var certificateReloadTask func(context.Context) error
 	var serverAuth bundle.ServerAuth
-	if c.BundleEndpoint.ACME != nil {
+	switch {
+	case c.BundleEndpoint.ACME != nil:
 		serverAuth = bundle.ACMEAuth(c.Log.WithField(telemetry.SubsystemName, "bundle_acme"), c.Catalog.GetKeyManager(), *c.BundleEndpoint.ACME)
-	} else if c.BundleEndpoint.DiskCertManager != nil {
+	case c.BundleEndpoint.DiskCertManager != nil:
 		serverAuth = c.BundleEndpoint.DiskCertManager
 		// Start watching for file changes
 		certificateReloadTask = func(ctx context.Context) error {
 			c.BundleEndpoint.DiskCertManager.WatchFileChanges(ctx)
 			return nil
 		}
-	} else {
+	default:
 		serverAuth = bundle.SPIFFEAuth(func() ([]*x509.Certificate, crypto.PrivateKey, error) {
 			state := c.SVIDObserver.State()
 			return state.SVID, state.Key, nil

@@ -186,12 +186,12 @@ func TestDiskCertManagerAuth(t *testing.T) {
 	serverCert, serverKey := createServerCertificate(t)
 
 	serverCertPem := pemutil.EncodeCertificate(serverCert)
-	err := os.WriteFile(filepath.Join(dir, "server.crt"), serverCertPem, 0755)
+	err := os.WriteFile(filepath.Join(dir, "server.crt"), serverCertPem, 0600)
 	require.NoError(t, err)
 
 	serverKeyPem, err := pemutil.EncodePKCS8PrivateKey(serverKey)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dir, "server.key"), serverKeyPem, 0700)
+	err = os.WriteFile(filepath.Join(dir, "server.key"), serverKeyPem, 0600)
 	require.NoError(t, err)
 
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
@@ -230,8 +230,9 @@ func TestDiskCertManagerAuth(t *testing.T) {
 
 	req, err := http.NewRequest("GET", fmt.Sprintf("https://%s", addr), nil)
 	require.NoError(t, err)
-	_, err = client.Do(req)
+	resp, err := client.Do(req)
 	require.NoError(t, err)
+	resp.Body.Close()
 }
 
 func TestACMEAuth(t *testing.T) {

@@ -728,17 +728,18 @@ func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string
 
 	switch {
 	case profileConfig.HTTPSWeb != nil:
-		if profileConfig.HTTPSWeb.ACME != nil {
+		switch {
+		case profileConfig.HTTPSWeb.ACME != nil:
 			federationConfig.BundleEndpoint.ACME = configToACMEConfig(profileConfig.HTTPSWeb.ACME, dataDir)
 			return nil
-		} else if profileConfig.HTTPSWeb.ServingCertFile != nil {
+		case profileConfig.HTTPSWeb.ServingCertFile != nil:
 			federationConfig.BundleEndpoint.DiskCertManager, err = configToDiskCertManager(profileConfig.HTTPSWeb.ServingCertFile, log)
 			if err != nil {
 				return err
 			}
 			return nil
-		} else {
-			return fmt.Errorf("malformed https_web profile configuration: 'acme' or 'serving_cert_file' is required")
+		default:
+			return errors.New("malformed https_web profile configuration: 'acme' or 'serving_cert_file' is required")
 		}
 
 	// For now ignore SPIFFE configuration
