@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -53,6 +54,8 @@ type Plugin struct {
 
 	m sync.Mutex
 	c *Config
+
+	log hclog.Logger
 }
 
 func New() *Plugin {
@@ -151,6 +154,7 @@ func (p *Plugin) serveNonce(ctx context.Context, l net.Listener, agentName strin
 		WriteTimeout: 10 * time.Second,
 	}
 	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", agentName, nonce)
+	p.log.Debug("setting up nonce handler", "path", path)
 	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, nonce)
 	})
@@ -165,6 +169,11 @@ func (p *Plugin) serveNonce(ctx context.Context, l net.Listener, agentName strin
 		return nil
 	}
 	return err
+}
+
+// SetLogger sets this plugin's logger
+func (p *Plugin) SetLogger(log hclog.Logger) {
+        p.log = log
 }
 
 func (p *Plugin) getConfig() *Config {

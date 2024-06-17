@@ -121,6 +121,5 @@ func generateNonce() (string, error) {
 	}
 	retval := make([]byte, base64.StdEncoding.EncodedLen(len(b)))
 	base64.StdEncoding.Encode(retval, b)
-
-	return string(retval), nil
+	return strings.Replace(string(retval), "/", "-", -1), nil
 }
