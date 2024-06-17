@@ -51,12 +51,13 @@ RUN mkdir -p /spireroot/opt/spire/bin \
     /spireroot/tmp/spire-agent/public \
     /spireroot/var/lib/spire/agent
 
-# For users that wish to run SPIRE containers as a non-root user,
-# a default unprivileged user is provided such that the default paths
-# that SPIRE will try to read from, write to, and create at runtime
-# can be given the correct file ownership/permissions at build time.
-# This is done through the spireuid and spiregid arguments that the
-# spire-server, spire-agent, and oidc-discovery-provider build stages use.
+# For users that wish to run SPIRE containers with a specific uid and gid, the
+# spireuid and spiregid arguments are provided. The default paths that SPIRE
+# will try to read from, write to, and create at runtime are given the
+# corresponding file ownership/permissions at build time.
+# A default non-root user is defined for SPIRE Server and the OIDC Discovery
+# Provider. The SPIRE Agent image runs as root by default to facilitate the
+# sharing of the agent socket in Kubernetes environments.
 
 # SPIRE Server
 FROM spire-base AS spire-server
@@ -69,8 +70,8 @@ COPY --link --from=builder --chown=${spireuid}:${spiregid} --chmod=755 /spire/bi
 
 # SPIRE Agent
 FROM spire-base AS spire-agent
-ARG spireuid=1000
-ARG spiregid=1000
+ARG spireuid=0
+ARG spiregid=0
 USER ${spireuid}:${spiregid}
 ENTRYPOINT ["/opt/spire/bin/spire-agent", "run"]
 COPY --link --from=prep-spire-agent --chown=${spireuid}:${spiregid} --chmod=755 /spireroot /
