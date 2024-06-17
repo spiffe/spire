@@ -173,7 +173,7 @@ func (p *Plugin) serveNonce(ctx context.Context, l net.Listener, agentName strin
 
 // SetLogger sets this plugin's logger
 func (p *Plugin) SetLogger(log hclog.Logger) {
-        p.log = log
+	p.log = log
 }
 
 func (p *Plugin) getConfig() *Config {
