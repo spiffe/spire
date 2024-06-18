@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # create shared folder for root agent socket
-mkdir -p shared/rootSocket
+mkdir -p -m 777 shared/rootSocket
 
 # create shared folder for intermediateA agent socket
-mkdir -p shared/intermediateASocket
+mkdir -p -m 777 shared/intermediateASocket
 
 # create shared folder for intermediateB agent socket
-mkdir -p shared/intermediateBSocket
+mkdir -p -m 777 shared/intermediateBSocket
 
 # root certificates
 "${ROOTDIR}/setup/x509pop/setup.sh" root/server root/agent

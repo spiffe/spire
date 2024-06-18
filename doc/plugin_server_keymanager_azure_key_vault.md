@@ -12,11 +12,9 @@ The plugin accepts the following configuration options:
 
 | Key                  | Type    | Required                                    | Description                                                                                                                                                      | Default |
 |----------------------|---------|---------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| key_metadata_file    | string  | no                                          | A file path location where key metadata used by the plugin will be persisted (deprecated). See "[Management of keys](#management-of-keys)" for more information. | ""      |
-| key_identifier_file  | string  | Required if key_identifier_value is not set | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information.              | ""      |
-| key_identifier_value | string  | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_metadata_file`)                                                                          | ""      |
+| key_identifier_file  | string  | Required if key_identifier_value is not set | A file path location where information about generated keys will be persisted. See "[Management of keys](#management-of-keys)" for more information.             | ""      |
+| key_identifier_value | string  | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`).                                                                       | ""      |
 | key_vault_uri        | string  | Yes                                         | The Key Vault URI where the keys managed by this plugin reside.                                                                                                  | ""      |
-| use_msi              | boolean | [Deprecated](#authenticating-to-azure)      | Whether or not to use MSI to authenticate to Azure Key Vault.                                                                                                    | false   |
 | subscription_id      | string  | [Optional](#authenticating-to-azure)        | The subscription id.                                                                                                                                             | ""      |
 | app_id               | string  | [Optional](#authenticating-to-azure)        | The application id.                                                                                                                                              | ""      |
 | app_secret           | string  | [Optional](#authenticating-to-azure)        | The application secret.                                                                                                                                          | ""      |
@@ -52,15 +50,25 @@ keys that it manages in order to keep track of them. All the tags are named with
 Users don't need to interact with the labels managed by the plugin. The
 following table is provided for informational purposes only:
 
-| Label           | Description                                                                                                                            |
-|-----------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| spire-server-td | A string representing the trust domain name of the server.                                                                             |
-| spire-server-id | Auto-generated ID that is unique to the server and is persisted in the _Key Metadata File_ (see the `key_metadata_file` configurable). |
+| Label           | Description                                                                                                                             |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| spire-server-td | A string representing the trust domain name of the server.                                                                              |
+| spire-server-id | An identifier that is unique to the server. This is handled by either the `key_identifier_file` or `key_identifier_value` configurable. |
 
-If the _Key Metadata File_ is not found during server startup, the file is
-recreated, with a new auto-generated server ID. Consequently, if the file is
-lost, the plugin will not be able to identify keys that it has previously
-managed and will recreate new keys on demand.
+The plugin needs a way to identify the specific server instance where it's
+running. For that, either the `key_identifier_file` or `key_identifier_value`
+setting must be used. Setting a _Key Identifier File_ instructs the plugin to
+manage the identifier of the server automatically, storing the server ID in the
+specified file. This method should be appropriate for most situations.
+If a _Key Identifier File_ is configured and the file is not found during server
+startup, the file is recreated with a new auto-generated server ID.
+Consequently, if the file is lost, the plugin will not be able to identify keys
+that it has previously managed and will recreate new keys on demand.
+
+If you need more control over the identifier that's used for the server, the
+`key_identifier_value` setting can be used to specify a
+static identifier for the server instance. This setting is appropriate in situations
+where a key identifier file can't be persisted.
 
 The plugin attempts to detect and delete stale keys. To facilitate stale
 keys detection, the plugin actively updates the `Updated` field of all keys managed by the server every 6 hours.

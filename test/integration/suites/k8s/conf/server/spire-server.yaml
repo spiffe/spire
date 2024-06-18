@@ -199,9 +199,6 @@ spec:
             - name: spire-config
               mountPath: /run/spire/config
               readOnly: true
-            - name: spire-server-socket
-              mountPath: /tmp/spire-server/private
-              readOnly: false
           livenessProbe:
             httpGet:
               path: /live
@@ -218,10 +215,6 @@ spec:
         - name: spire-config
           configMap:
             name: spire-server
-        - name: spire-server-socket
-          hostPath:
-            path: /run/spire/server-sockets
-            type: DirectoryOrCreate
 
 ---
 

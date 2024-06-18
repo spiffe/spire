@@ -4,15 +4,13 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -81,9 +79,8 @@ func setupJournalTest(t *testing.T) *journalTest {
 	return &journalTest{
 		ds: ds,
 		jc: &journalConfig{
-			cat:      cat,
-			log:      log,
-			filePath: filepath.Join(t.TempDir(), "journal.pem"),
+			cat: cat,
+			log: log,
 		},
 	}
 }
@@ -124,28 +121,9 @@ func TestJournalPersistence(t *testing.T) {
 	require.NoError(t, j.UpdateX509CAStatus(ctx, now, journal.Status_ACTIVE))
 
 	// Check that the CA journal was properly stored in the datastore.
-	journalDS := test.loadJournalFromDS(t)
+	journalDS := test.loadJournal(t)
 	require.NotNil(t, journalDS)
 	spiretest.RequireProtoEqual(t, j.getEntries(), journalDS.getEntries())
-
-	// TODO: the following checks assume that the CA journal is stored both in
-	// datastore and on disk. Revisit this in v1.10.
-	journalDisk := test.loadJournalFromDisk(t)
-	require.NotNil(t, journalDisk)
-	spiretest.RequireProtoEqual(t, j.getEntries(), journalDisk.getEntries())
-
-	// Test for the case when SPIRE starts with a CA journal on disk and does
-	// not yet have a CA journal stored in the datastore. Reset the datastore so
-	// we only have the CA journal on disk.
-	test.ds = fakedatastore.New(t)
-	test.jc.cat.(*fakeservercatalog.Catalog).SetDataStore(test.ds)
-
-	// Load the journal again. It should still get the CA journal stored on
-	// disk.
-	j = test.loadJournal(t)
-	journalDisk = test.loadJournalFromDisk(t)
-	require.NotNil(t, journalDisk)
-	spiretest.RequireProtoEqual(t, j.getEntries(), journalDisk.getEntries())
 
 	// Append a new X.509 CA, which will make the CA journal to be stored
 	// on disk and in the datastore.
@@ -158,12 +136,9 @@ func TestJournalPersistence(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, j.UpdateX509CAStatus(ctx, now, journal.Status_ACTIVE))
 
-	journalDS = test.loadJournalFromDS(t)
+	journalDS = test.loadJournal(t)
 	require.NotNil(t, journalDS)
 	spiretest.RequireProtoEqual(t, j.getEntries(), journalDS.getEntries())
-	journalDisk = test.loadJournalFromDisk(t)
-	require.NotNil(t, journalDisk)
-	spiretest.RequireProtoEqual(t, j.getEntries(), journalDisk.getEntries())
 
 	// Simulate a datastore error
 	dsError := errors.New("ds error")
@@ -175,11 +150,6 @@ func TestJournalPersistence(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
-
-	// CA journal on disk should have been saved successfully
-	journalDisk = test.loadJournalFromDisk(t)
-	require.NotNil(t, journalDisk)
-	spiretest.RequireProtoEqual(t, j.getEntries(), journalDisk.getEntries())
 }
 
 func TestAppendSetPreparedStatus(t *testing.T) {
@@ -357,61 +327,33 @@ func TestJWTKeyOverflow(t *testing.T) {
 	require.Equal(t, now, time.Unix(lastEntry.IssuedAt, 0).UTC())
 }
 
-func TestBadPEM(t *testing.T) {
-	test := setupJournalTest(t)
-
-	test.writeString(t, test.jc.filePath, "NOT PEM")
-	_, err := LoadJournal(ctx, test.jc)
-	require.EqualError(t, err, "failed to load journal from disk: invalid PEM block")
-}
-
-func TestUnexpectedPEMType(t *testing.T) {
-	test := setupJournalTest(t)
-
-	test.writeBytes(t, test.jc.filePath, pem.EncodeToMemory(&pem.Block{
-		Type:  "WHATEVER",
-		Bytes: []byte("FOO"),
-	}))
-	_, err := LoadJournal(ctx, test.jc)
-	require.EqualError(t, err, `failed to load journal from disk: invalid PEM block type "WHATEVER"`)
-}
-
 func TestBadProto(t *testing.T) {
 	test := setupJournalTest(t)
-
-	test.writeBytes(t, test.jc.filePath, pem.EncodeToMemory(&pem.Block{
-		Type:  journalPEMType,
-		Bytes: []byte("FOO"),
-	}))
-	_, err := LoadJournal(ctx, test.jc)
+	j := &Journal{
+		config:                test.jc,
+		activeX509AuthorityID: getOneX509AuthorityID(ctx, t, test.jc.cat.GetKeyManager()),
+	}
+	caJournalID, err := j.saveInDatastore(ctx, []byte("FOO"))
+	require.NoError(t, err)
+	require.NotZero(t, caJournalID)
+	j, err = LoadJournal(ctx, test.jc)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), `unable to unmarshal entries: `)
+	require.Nil(t, j)
+	require.Contains(t, err.Error(), `failed to load journal from datastore: unable to unmarshal entries from CA journal record:`)
+}
+
+func getOneX509AuthorityID(ctx context.Context, t *testing.T, km keymanager.KeyManager) string {
+	kmKeys, err := km.GetKeys(ctx)
+	require.NoError(t, err)
+	subjectKeyID, err := x509util.GetSubjectKeyID(kmKeys[0].Public())
+	require.NoError(t, err)
+	return x509util.SubjectKeyIDToString(subjectKeyID)
 }
 
 func (j *journalTest) loadJournal(t *testing.T) *Journal {
 	journal, err := LoadJournal(ctx, j.jc)
 	require.NoError(t, err)
 	return journal
-}
-
-func (j *journalTest) loadJournalFromDisk(t *testing.T) *Journal {
-	journal, err := loadJournalFromDisk(j.jc)
-	require.NoError(t, err)
-	return journal
-}
-
-func (j *journalTest) loadJournalFromDS(t *testing.T) *Journal {
-	journal, err := loadJournalFromDS(ctx, j.jc)
-	require.NoError(t, err)
-	return journal
-}
-
-func (j *journalTest) writeString(t *testing.T, path, data string) {
-	j.writeBytes(t, path, []byte(data))
-}
-
-func (j *journalTest) writeBytes(t *testing.T, path string, data []byte) {
-	require.NoError(t, os.WriteFile(path, data, 0600))
 }
 
 func (j *journalTest) now() time.Time {

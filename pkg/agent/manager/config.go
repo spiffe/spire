@@ -27,7 +27,6 @@ type Config struct {
 	SVIDKey                  keymanager.Key
 	Bundle                   *managerCache.Bundle
 	Reattestable             bool
-	DisableReattestToRenew   bool
 	Catalog                  catalog.Catalog
 	TrustDomain              spiffeid.TrustDomain
 	Log                      logrus.FieldLogger
@@ -77,20 +76,19 @@ func newManager(c *Config) *manager {
 	}
 
 	rotCfg := &svid.RotatorConfig{
-		SVIDKeyManager:         keymanager.ForSVID(c.Catalog.GetKeyManager()),
-		Log:                    c.Log,
-		Metrics:                c.Metrics,
-		SVID:                   c.SVID,
-		SVIDKey:                c.SVIDKey,
-		BundleStream:           cache.SubscribeToBundleChanges(),
-		ServerAddr:             c.ServerAddr,
-		TrustDomain:            c.TrustDomain,
-		Interval:               c.RotationInterval,
-		Clk:                    c.Clk,
-		NodeAttestor:           c.NodeAttestor,
-		Reattestable:           c.Reattestable,
-		DisableReattestToRenew: c.DisableReattestToRenew,
-		RotationStrategy:       c.RotationStrategy,
+		SVIDKeyManager:   keymanager.ForSVID(c.Catalog.GetKeyManager()),
+		Log:              c.Log,
+		Metrics:          c.Metrics,
+		SVID:             c.SVID,
+		SVIDKey:          c.SVIDKey,
+		BundleStream:     cache.SubscribeToBundleChanges(),
+		ServerAddr:       c.ServerAddr,
+		TrustDomain:      c.TrustDomain,
+		Interval:         c.RotationInterval,
+		Clk:              c.Clk,
+		NodeAttestor:     c.NodeAttestor,
+		Reattestable:     c.Reattestable,
+		RotationStrategy: c.RotationStrategy,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

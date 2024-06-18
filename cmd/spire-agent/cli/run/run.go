@@ -104,9 +104,6 @@ type agentConfig struct {
 	Experimental     experimentalConfig `hcl:"experimental"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
-
-	// Deprecated configurables
-	DisableReattestToRenew bool `hcl:"disable_reattest_to_renew"`
 }
 
 type sdsConfig struct {
@@ -470,16 +467,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 	}
 
-	if c.Agent.Experimental.X509SVIDCacheMaxSize < 0 {
-		return nil, errors.New("x509_svid_cache_max_size should not be negative")
-	}
 	ac.UseSyncAuthorizedEntries = c.Agent.Experimental.UseSyncAuthorizedEntries
-	ac.X509SVIDCacheMaxSize = c.Agent.Experimental.X509SVIDCacheMaxSize
-
-	if c.Agent.Experimental.DisableLRUCache && ac.X509SVIDCacheMaxSize != 0 {
-		return nil, errors.New("x509_svid_cache_max_size should not be set when disable_lru_cache is set")
-	}
-	ac.DisableLRUCache = c.Agent.Experimental.DisableLRUCache
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
@@ -509,6 +497,19 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if reopenableFile != nil {
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}
+
+	if c.Agent.Experimental.X509SVIDCacheMaxSize < 0 {
+		return nil, errors.New("x509_svid_cache_max_size should not be negative")
+	}
+	if c.Agent.Experimental.X509SVIDCacheMaxSize > 0 || c.Agent.Experimental.DisableLRUCache {
+		logger.Warn("The `x509_svid_cache_max_size` and `disable_lru_cache` configurations are deprecated. They will be removed in a future release.")
+	}
+	ac.X509SVIDCacheMaxSize = c.Agent.Experimental.X509SVIDCacheMaxSize
+
+	if c.Agent.Experimental.DisableLRUCache && ac.X509SVIDCacheMaxSize != 0 {
+		return nil, errors.New("x509_svid_cache_max_size should not be set when disable_lru_cache is set")
+	}
+	ac.DisableLRUCache = c.Agent.Experimental.DisableLRUCache
 
 	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
 	if err != nil {
@@ -600,11 +601,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	for _, f := range c.Agent.Experimental.Flags {
 		logger.Warnf("Developer feature flag %q has been enabled", f)
-	}
-
-	ac.DisableReattestToRenew = c.Agent.DisableReattestToRenew
-	if c.Agent.DisableReattestToRenew {
-		logger.Warn("Disable reattest to renew flag will be removed in the next major release")
 	}
 
 	return ac, nil

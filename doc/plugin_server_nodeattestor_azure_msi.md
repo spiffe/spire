@@ -27,7 +27,6 @@ Each tenant in the main configuration supports the following
 | Configuration     | Required                             | Description                                                                                               | Default                         |
 |-------------------|--------------------------------------|-----------------------------------------------------------------------------------------------------------|---------------------------------|
 | `resource_id`     | Optional                             | The resource ID (or audience) for the tenant's MSI token. Tokens for a different resource ID are rejected | <https://management.azure.com/> |
-| `use_msi`         | [Deprecated](#authenticating-to-azure) | Whether or not to use MSI to authenticate to Azure services for selector resolution.                      | false                           |
 | `subscription_id` | [Optional](#authenticating-to-azure) | The subscription the tenant resides in                                                                    |                                 |
 | `app_id`          | [Optional](#authenticating-to-azure) | The application id                                                                                        |                                 |
 | `app_secret`      | [Optional](#authenticating-to-azure) | The application secret                                                                                    |                                 |
@@ -81,7 +80,6 @@ required, however, it will be in a future release.
             tenants = {
                 "00000000-1111-2222-3333-444444444444" = {
                     resource_id = "http://example.org/app/"
-                    use_msi = true
                 }
             }
         }

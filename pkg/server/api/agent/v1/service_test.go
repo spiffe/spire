@@ -1668,6 +1668,9 @@ func TestRenewAgent(t *testing.T) {
 		CertSerialNumber:    "6789",
 	}
 
+	reattestableNode := cloneAttestedNode(defaultNode)
+	reattestableNode.CanReattest = true
+
 	// Create a test CSR with empty template
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testKey)
 	require.NoError(t, err)
@@ -1695,6 +1698,7 @@ func TestRenewAgent(t *testing.T) {
 		req            *agentv1.RenewAgentRequest
 		expectCode     codes.Code
 		expectMsg      string
+		expectDetail   proto.Message
 		rateLimiterErr error
 	}{
 		{
@@ -1951,6 +1955,31 @@ func TestRenewAgent(t *testing.T) {
 			expectCode: codes.Internal,
 			expectMsg:  "failed to fetch agent: some error",
 		},
+		{
+			name:       "can reattest instead",
+			createNode: reattestableNode,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.Csr:           csrHash,
+						telemetry.StatusCode:    "PermissionDenied",
+						telemetry.StatusMessage: "agent must reattest instead of renew",
+					},
+				},
+			},
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{
+					Csr: csr,
+				},
+			},
+			expectCode:   codes.PermissionDenied,
+			expectMsg:    "agent must reattest instead of renew",
+			expectDetail: &types.PermissionDeniedDetails{Reason: types.PermissionDeniedDetails_AGENT_MUST_REATTEST},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -1983,6 +2012,13 @@ func TestRenewAgent(t *testing.T) {
 			// Send param message
 			resp, err := test.client.RenewAgent(ctx, tt.req)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+			st := status.Convert(err)
+			if tt.expectDetail == nil {
+				require.Empty(t, st.Details())
+			} else {
+				require.Len(t, st.Details(), 1)
+				spiretest.RequireProtoEqual(t, tt.expectDetail, st.Details()[0].(proto.Message))
+			}
 
 			if tt.expectCode != codes.OK {
 				require.Nil(t, resp)

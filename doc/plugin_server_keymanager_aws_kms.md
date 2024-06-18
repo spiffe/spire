@@ -11,18 +11,30 @@ The plugin accepts the following configuration options:
 | access_key_id        | string | see [AWS KMS Access](#aws-kms-access)       | The Access Key Id used to authenticate to KMS                                                                               | Value of the AWS_ACCESS_KEY_ID environment variable     |
 | secret_access_key    | string | see [AWS KMS Access](#aws-kms-access)       | The Secret Access Key used to authenticate to KMS                                                                           | Value of the AWS_SECRET_ACCESS_KEY environment variable |
 | region               | string | yes                                         | The region where the keys will be stored                                                                                    |                                                         |
-| key_metadata_file    | string | no                                          | A file path location where information about generated keys will be persisted (deprecated, use key_identifier_file instead) |                                                         |
 | key_identifier_file  | string | Required if key_identifier_value is not set | A file path location where information about generated keys will be persisted                                               |                                                         |
-| key_identifier_value | string | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_metadata_file`)                                     |                                                         |
+| key_identifier_value | string | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`)                                   |                                                         |
 | key_policy_file      | string | no                                          | A file path location to a custom key policy in JSON format                                                                  | ""                                                      |
 
 ### Alias and Key Management
 
-The plugin assigns [aliases](https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html) to the Customer Master Keys that manages. The aliases are used to identify and name keys that are managed by the plugin.
+The plugin needs a way to identify the specific server instance where it's
+running. For that, either the `key_identifier_file` or `key_identifier_value`
+setting must be used. Setting a _Key Identifier File_ instructs the plugin to
+manage the identifier of the server automatically, storing the server ID in the
+specified file. This method should be appropriate for most situations.
+If a _Key Identifier File_ is configured and the file is not found during server
+startup, the file is recreated with a new auto-generated server ID.
+Consequently, if the file is lost, the plugin will not be able to identify keys
+that it has previously managed and will recreate new keys on demand.
 
-Aliases managed by the plugin have the following form: `alias/SPIRE_SERVER/{TRUST_DOMAIN}/{SERVER_ID}/{KEY_ID}`. The `{SERVER_ID}` is an auto-generated ID unique to the server and is persisted in the _Key Metadata File_ (see the `key_metadata_file` configurable). This ID allows multiple servers in the same trust domain (e.g. servers in HA deployments) to manage keys with identical `{KEY_ID}`'s without collision. The `{KEY_ID}` in the alias name is encoded to use a [character set accepted by KMS](https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html#API_CreateAlias_RequestSyntax).
+If you need more control over the identifier that's used for the server, the
+`key_identifier_value` setting can be used to specify a
+static identifier for the server instance. This setting is appropriate in situations
+where a key identifier file can't be persisted.
 
-If the _Key Metadata File_ is not found on server startup, the file is recreated, with a new auto-generated server ID. Consequently, if the file is lost, the plugin will not be able to identify keys that it has previously managed and will recreate new keys on demand.
+The plugin assigns [aliases](https://docs.aws.amazon.com/kms/latest/developerguide/kms-alias.html) to the Customer Master Keys that it manages. The aliases are used to identify and name keys that are managed by the plugin.
+
+Aliases managed by the plugin have the following form: `alias/SPIRE_SERVER/{TRUST_DOMAIN}/{SERVER_ID}/{KEY_ID}`. The `{SERVER_ID}` is the identifier handled by the `key_identifier_file` or `key_identifier_value` setting. This ID allows multiple servers in the same trust domain (e.g. servers in HA deployments) to manage keys with identical `{KEY_ID}`'s without collision. The `{KEY_ID}` in the alias name is encoded to use a [character set accepted by KMS](https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html#API_CreateAlias_RequestSyntax).
 
 The plugin attempts to detect and prune stale aliases. To facilitate stale alias detection, the plugin actively updates the `LastUpdatedDate` field on all aliases every 6 hours. The plugin periodically scans aliases. Any alias encountered with a `LastUpdatedDate` older than two weeks is removed, along with its associated key.
 

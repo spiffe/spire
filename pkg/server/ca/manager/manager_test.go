@@ -10,8 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -1062,7 +1060,6 @@ func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType key
 		TrustDomain:   testTrustDomain,
 		X509CAKeyType: x509CAKeyType,
 		JWTKeyType:    jwtKeyType,
-		Dir:           m.dir,
 		Metrics:       m.metrics,
 		Log:           m.log,
 		Clock:         m.clock,
@@ -1206,10 +1203,6 @@ func (m *managerTest) addTimeAndPrune(d time.Duration) {
 }
 
 func (m *managerTest) wipeJournal(t *testing.T) {
-	// TODO: journal saved on this will no longer be supported in v1.10. Remove
-	// this.
-	require.NoError(t, os.Remove(filepath.Join(m.m.c.Dir, "journal.pem")))
-
 	// Have a clean datastore.
 	m.ds = fakedatastore.New(t)
 	m.cat.SetDataStore(m.ds)

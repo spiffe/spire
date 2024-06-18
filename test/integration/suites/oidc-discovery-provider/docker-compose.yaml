@@ -15,6 +15,7 @@ services:
       - ./conf/agent:/opt/spire/conf/agent
       - /var/run/docker.sock:/var/run/docker.sock
     command: [ "-config", "/opt/spire/conf/agent/agent.conf" ]
+    user: 0:0 # Required to access the Docker daemon socket
   oidc-discovery-provider-server:
     image: oidc-discovery-provider:latest-local
     hostname: oidc-discovery-provider-server
@@ -24,6 +25,7 @@ services:
       - ./conf/agent:/opt/spire/conf/agent
       - ./conf/server:/opt/spire/conf/server
     command: [ "-config", "/opt/spire/conf/oidc-discovery-provider/provider-server-api.conf" ]
+    user: 0:0 # Required to access the Docker daemon socket
   oidc-discovery-provider-workload:
     pid: "host"
     image: oidc-discovery-provider:latest-local
@@ -37,3 +39,4 @@ services:
       - ./conf/agent:/opt/spire/conf/agent
       - ./conf/server:/opt/spire/conf/server
     command: [ "-config", "/opt/spire/conf/oidc-discovery-provider/provider-workload-api.conf" ]
+    user: 0:0 # Required to access the Docker daemon socket

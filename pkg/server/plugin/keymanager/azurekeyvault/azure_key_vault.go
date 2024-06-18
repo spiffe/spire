@@ -77,7 +77,6 @@ type pluginHooks struct {
 
 // Config provides configuration context for the plugin.
 type Config struct {
-	KeyMetadataFile    string `hcl:"key_metadata_file" json:"key_metadata_file"`
 	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file"`
 	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
 	KeyVaultURI        string `hcl:"key_vault_uri" json:"key_vault_uri"`
@@ -85,10 +84,6 @@ type Config struct {
 	SubscriptionID     string `hcl:"subscription_id" json:"subscription_id"`
 	AppID              string `hcl:"app_id" json:"app_id"`
 	AppSecret          string `hcl:"app_secret" json:"app_secret"`
-
-	// Deprecated: use_msi is deprecated and will be removed in a future release.
-	// Will be used implicitly if other mechanisms to authenticate fail.
-	UseMSI bool `hcl:"use_msi" json:"use_msi"`
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -142,14 +137,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	serverID := config.KeyIdentifierValue
-	if serverID == "" && config.KeyMetadataFile != "" {
-		p.log.Warn("'key_metadata_file' is deprecated in favor of 'key_identifier_file' and will be removed in a future version")
-		serverID, err = getOrCreateServerID(config.KeyMetadataFile)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if serverID == "" && config.KeyIdentifierFile != "" {
+	if serverID == "" {
 		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
 		if err != nil {
 			return nil, err
@@ -161,9 +149,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	switch {
 	case config.SubscriptionID != "", config.AppID != "", config.AppSecret != "", config.TenantID != "":
-		if config.UseMSI {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid configuration, cannot use both MSI and app authentication")
-		}
 		if config.TenantID == "" {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid configuration, missing tenant id")
 		}
@@ -186,11 +171,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to create Key Vault client with client credentials: %v", err)
 		}
-
-	case config.UseMSI:
-		p.log.Warn("use_msi is deprecated and will be removed in a future release")
-		fallthrough // use default credential which attempts to fetch credentials using MSI
-
 	default:
 		cred, err := p.hooks.fetchCredential()
 		if err != nil {
@@ -702,14 +682,13 @@ func parseAndValidateConfig(c string) (*Config, error) {
 			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 256 characters")
 		}
 	}
-	if config.KeyMetadataFile == "" && config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration requires server id or server id file path")
+
+	if config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration requires a key identifier file or a key identifier value")
 	}
-	if (config.KeyMetadataFile != "" || config.KeyIdentifierFile != "") && config.KeyIdentifierValue != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both server id and server id file path")
-	}
-	if config.KeyMetadataFile != "" && config.KeyIdentifierFile != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration must not contain both 'key_identifier_file' and deprecated 'key_metadata_file'")
+
+	if config.KeyIdentifierFile != "" && config.KeyIdentifierValue != "" {
+		return nil, status.Error(codes.InvalidArgument, "configuration can't have a key identifier file and a key identifier value at the same time")
 	}
 
 	return config, nil
