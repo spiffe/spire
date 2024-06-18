@@ -2,7 +2,6 @@ package awspca
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -20,27 +19,12 @@ type PCAClient interface {
 }
 
 func newPCAClient(ctx context.Context, cfg *Configuration) (PCAClient, error) {
-	var opts []func(*config.LoadOptions) error
+	var configOpts []func(*config.LoadOptions) error
 	if cfg.Region != "" {
-		opts = append(opts, config.WithRegion(cfg.Region))
+		configOpts = append(configOpts, config.WithRegion(cfg.Region))
 	}
 
-	if cfg.Endpoint != "" {
-		endpointResolver := aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...any) (aws.Endpoint, error) {
-			if service == acmpca.ServiceID && region == cfg.Region {
-				return aws.Endpoint{
-					PartitionID:   "aws",
-					URL:           cfg.Endpoint,
-					SigningRegion: region,
-				}, nil
-			}
-
-			return aws.Endpoint{}, fmt.Errorf("unknown endpoint %s requested for region %s", service, region)
-		})
-		opts = append(opts, config.WithEndpointResolverWithOptions(endpointResolver))
-	}
-
-	awsCfg, err := config.LoadDefaultConfig(ctx, opts...)
+	awsCfg, err := config.LoadDefaultConfig(ctx, configOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +36,12 @@ func newPCAClient(ctx context.Context, cfg *Configuration) (PCAClient, error) {
 		}
 	}
 
-	return acmpca.NewFromConfig(awsCfg), nil
+	var acmpcaOpts []func(*acmpca.Options)
+	if cfg.Endpoint != "" {
+		acmpcaOpts = append(acmpcaOpts, func(o *acmpca.Options) { o.BaseEndpoint = aws.String(cfg.Endpoint) })
+	}
+
+	return acmpca.NewFromConfig(awsCfg, acmpcaOpts...), nil
 }
 
 func newAWSAssumeRoleConfig(ctx context.Context, region string, awsConf aws.Config, assumeRoleArn string) (aws.Config, error) {

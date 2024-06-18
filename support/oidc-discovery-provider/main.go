@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/diskcertmanager"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/version"
@@ -171,7 +172,11 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 }
 
 func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, config *Config) (net.Listener, error) {
-	certManager, err := NewDiskCertManager(config.ServingCertFile, nil, log)
+	certManager, err := diskcertmanager.New(&diskcertmanager.Config{
+		CertFilePath:     config.ServingCertFile.CertFilePath,
+		KeyFilePath:      config.ServingCertFile.KeyFilePath,
+		FileSyncInterval: config.ServingCertFile.FileSyncInterval,
+	}, nil, log)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +184,7 @@ func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, con
 		certManager.WatchFileChanges(ctx)
 	}()
 
-	tlsConfig := certManager.TLSConfig()
+	tlsConfig := certManager.GetTLSConfig()
 
 	tcpListener, err := net.ListenTCP("tcp", config.ServingCertFile.Addr)
 	if err != nil {
