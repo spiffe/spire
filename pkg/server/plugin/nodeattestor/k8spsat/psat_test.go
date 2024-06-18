@@ -376,7 +376,7 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// missing clusters
 	err = doConfig(coreConfig, "")
-	s.RequireGRPCStatus(err, codes.InvalidArgument, "configuration must have at least one cluster")
+	s.Require().NoError(err)
 
 	// cluster missing service account allow list
 	err = doConfig(coreConfig, `clusters = {

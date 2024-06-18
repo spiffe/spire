@@ -215,6 +215,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 
 func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	hclConfig := new(AttestorConfig)
+
 	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
@@ -223,10 +224,6 @@ func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureReq
 	}
 	if req.CoreConfiguration.TrustDomain == "" {
 		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
-	}
-
-	if len(hclConfig.Clusters) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "configuration must have at least one cluster")
 	}
 
 	config := &attestorConfig{
@@ -268,6 +265,10 @@ func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureReq
 			allowedNodeLabelKeys: allowedNodeLabelKeys,
 			allowedPodLabelKeys:  allowedPodLabelKeys,
 		}
+	}
+
+	if len(hclConfig.Clusters) < 1 {
+		p.log.Warn("No clusters configured, PSAT attestation is effectively disabled")
 	}
 
 	p.setConfig(config)
