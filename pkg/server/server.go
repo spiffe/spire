@@ -405,6 +405,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
 		config.BundleEndpoint.RefreshHint = s.config.Federation.BundleEndpoint.RefreshHint
 		config.BundleEndpoint.ACME = s.config.Federation.BundleEndpoint.ACME
+		config.BundleEndpoint.DiskCertManager = s.config.Federation.BundleEndpoint.DiskCertManager
 	}
 	return endpoints.New(ctx, config)
 }

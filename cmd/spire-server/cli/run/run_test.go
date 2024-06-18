@@ -680,7 +680,7 @@ func TestNewServerConfig(t *testing.T) {
 			msg: "bundle endpoint has web profile",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
-					BundleEndpoint: bundleEndpointProfileHTTPSWebTest(t),
+					BundleEndpoint: bundleEndpointProfileHTTPSWebACMETest(t),
 				}
 			},
 			test: func(t *testing.T, c *server.Config) {
@@ -694,6 +694,23 @@ func TestNewServerConfig(t *testing.T) {
 					CacheDir:   "bundle-acme",
 				}
 				require.Equal(t, expectACME, c.Federation.BundleEndpoint.ACME)
+				require.Nil(t, c.Federation.BundleEndpoint.DiskCertManager)
+			},
+		},
+		{
+			msg: "bundle endpoint has web profile with certs on disk",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: bundleEndpointProfileHTTPSWebServingCertFileTest(t),
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "0.0.0.0", c.Federation.BundleEndpoint.Address.IP.String())
+				require.Equal(t, 8443, c.Federation.BundleEndpoint.Address.Port)
+				require.Equal(t, 10*time.Minute, c.Federation.BundleEndpoint.RefreshHint)
+
+				require.Nil(t, c.Federation.BundleEndpoint.ACME)
+				require.NotNil(t, c.Federation.BundleEndpoint.DiskCertManager)
 			},
 		},
 		{
@@ -1899,7 +1916,24 @@ func bundleEndpointProfileACMEAndProfileTest(t *testing.T) *bundleEndpointConfig
 	return config
 }
 
-func bundleEndpointProfileHTTPSWebTest(t *testing.T) *bundleEndpointConfig {
+func bundleEndpointProfileHTTPSWebServingCertFileTest(t *testing.T) *bundleEndpointConfig {
+	configString := `address = "0.0.0.0"
+        port = 8443
+        refresh_hint = "10m"
+        profile "https_web" {
+        	serving_cert_file {
+        		cert_file_path = "../../../../test/fixture/certs/svid.pem"
+        		key_file_path = "../../../../test/fixture/certs/svid_key.pem"
+        		file_sync_interval = "5m"
+        	}
+        }`
+	config := new(bundleEndpointConfig)
+	require.NoError(t, hcl.Decode(config, configString))
+
+	return config
+}
+
+func bundleEndpointProfileHTTPSWebACMETest(t *testing.T) *bundleEndpointConfig {
 	configString := `address = "0.0.0.0"
         port = 8443
         refresh_hint = "10m"
