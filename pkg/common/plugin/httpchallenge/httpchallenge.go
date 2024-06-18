@@ -72,7 +72,7 @@ func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) err
 	turl := url.URL{
 		Scheme: "http",
 		Host:   net.JoinHostPort(attestationData.HostName, strconv.Itoa(attestationData.Port)),
-		Path:   fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/%s", attestationData.AgentName, challenge.Nonce),
+		Path:   fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/challenge", attestationData.AgentName),
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -121,5 +121,5 @@ func generateNonce() (string, error) {
 	}
 	retval := make([]byte, base64.StdEncoding.EncodedLen(len(b)))
 	base64.StdEncoding.Encode(retval, b)
-	return strings.ReplaceAll(string(retval), "/", "-"), nil
+	return string(retval), nil
 }
