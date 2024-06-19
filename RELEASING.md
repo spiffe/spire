@@ -87,12 +87,12 @@ SPIRE consumes these SDKs using pseudo-versions from the `next` branch in each S
 
 These SDKs need to be released with each SPIRE release.
 
-SDKS releases take place using tagged commits from the `main` branch in each repository. When cutting a new release, the `main` branch needs to be prepared with any previously unreleased changes that are part of the new release.
+SDK releases take place using tagged commits from the `main` branch in each repository. When cutting a new release, the `main` branch needs to be prepared with any previously unreleased changes that are part of the new release.
 
 To create a release for an SDK, perform the following steps:
 
 1. Review the diff between `next` and `main`.
-1. Determine what commits in `next` that are missing from `main` that should be included in the release.
+1. Determine the commits in `next` that are missing from `main`, in other words, commits containing features that were under development that are now publicly available through the new SPIRE release (e.g. API or plugin interface additions).
 1. Cherry-pick those commits, if any, into `main`.
 1. Create a git tag (not annotated) with the name `vX.Y.Z`, corresponding to the SPIRE release version, for the `HEAD` commit of the main branch.
 1. Push the `vX.Y.Z` tag to Github.
