@@ -76,13 +76,12 @@ The following steps must be completed by the primary on-call maintainer to perfo
 * PRs to update spiffe.io and spire-examples repo to the latest major version must be merged.
   * Ensure that the PRs have been updated to use the version tag instead of the commit sha.
 
-
 ### SDK Releases
 
 SPIRE has two SDK repositories:
 
-- [API SDK](https://github.com/spiffe/spire-api-sdk)
-- [Plugin SDK](https://github.com/spiffe/spire-plugin-sdk)
+* [API SDK](https://github.com/spiffe/spire-api-sdk)
+* [Plugin SDK](https://github.com/spiffe/spire-plugin-sdk)
 
 SPIRE consumes these SDKs using pseudo-versions from the `next` branch in each SDK repository. This allows unreleased changes to be reviewed, merged, and consumed by SPIRE.
 
