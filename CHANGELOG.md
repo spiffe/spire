@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.10.0] - 2024-06-24
+
+### Added
+
+- Reconfiguration support to plugins using `plugin_data_file` configurable (#5166) 
+
+### Changed
+
+- SPIRE Server and OIDC provider images to use non root users (#4967, #5227) 
+- K8s workload attestor to no longer fail when a cluster is not configured (#5216)
+- Reattestable plugins to fail on renew (#5204)
+- Small documentation improvements (#5181, #5189)
+- SPIRE Agent to reattest when evicting (#4991)
+
+### Fixed
+
+- PSAT node attestor to cross check the audience fields (#5142)
+- Events-based cache to handle out of order events (#5071)
+
+### Deprecated
+
+- `x509_svid_cache_max_size` and `disable_lru_cache` in agent configuration (#5150)
+
+### Removed
+
+- The deprecated `disable_reattest_to_renew` configurable (#5217)
+- The deprecated `use_msi` flag from `azure_msi` plugin (#5209)
+- The deprecated `key_metadata_file` and `use_msi` configurables (#5207)
+- The deprecated `exclude_sn_from_ca_subject` configurable (#5203)
+- Agent no longer cleans up deprecated bundle/SVID files (#5205)
+- The journal file is no longer stored (#5202)
+
 ## [1.9.6] - 2024-05-14
 
 ### Added
