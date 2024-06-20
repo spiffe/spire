@@ -4,11 +4,11 @@
 
 ### Added
 
-- Reconfiguration support to plugins using `plugin_data_file` configurable (#5166) 
+- Reconfiguration support to plugins using `plugin_data_file` configurable (#5166)
 
 ### Changed
 
-- SPIRE Server and OIDC provider images to use non root users (#4967, #5227) 
+- SPIRE Server and OIDC provider images to use non root users (#4967, #5227)
 - K8s workload attestor to no longer fail when a cluster is not configured (#5216)
 - Reattestable plugins to fail on renew (#5204)
 - Small documentation improvements (#5181, #5189)
