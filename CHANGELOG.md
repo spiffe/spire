@@ -4,15 +4,15 @@
 
 ### Added
 
-- Reconfiguration support to plugins using `plugin_data_file` configurable (#5166)
+- Plugin reconfiguration support using the `plugin_data_file` configurable (#5166)
 
 ### Changed
 
 - SPIRE Server and OIDC provider images to use non root users (#4967, #5227)
-- K8s workload attestor to no longer fail when a cluster is not configured (#5216)
-- Reattestable plugins to fail on renew (#5204)
+- `k8s_psat` NodeAttestor attestor to no longer fail when a cluster is not configured (#5216)
+- Agents are required to renew SVIDs through re-attestation when using a supporting Node Attestor (#5204)
 - Small documentation improvements (#5181, #5189)
-- SPIRE Agent to reattest when evicting (#4991)
+- Evicted agents that support reattestation can now reattest without being restarted (#4991)
 
 ### Fixed
 
@@ -25,12 +25,12 @@
 
 ### Removed
 
-- The deprecated `disable_reattest_to_renew` configurable (#5217)
-- The deprecated `use_msi` flag from `azure_msi` plugin (#5209)
-- The deprecated `key_metadata_file` and `use_msi` configurables (#5207)
-- The deprecated `exclude_sn_from_ca_subject` configurable (#5203)
-- Agent no longer cleans up deprecated bundle/SVID files (#5205)
-- The journal file is no longer stored (#5202)
+- The deprecated `disable_reattest_to_renew` agent configurable (#5217)
+- The deprecated `key_metadata_file` configurable from the `aws_kms`, `azure_key_vault` and  `gcp_kms` server KeyManagers (#5207)
+- The deprecated `use_msi` configurable from the `azure_key_vault` server KeyManager and `azure_msi` NodeAttestor (#5207, #5209)
+- The deprecated `exclude_sn_from_ca_subject` server configurable (#5203)
+- Agent no longer cleans up deprecated bundle and SVID files (#5205)
+- The CA journal file is no longer stored on disk, and existing CA journal files are cleaned up  (#5202)
 
 ## [1.9.6] - 2024-05-14
 
