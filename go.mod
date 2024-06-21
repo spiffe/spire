@@ -46,7 +46,7 @@ require (
 	github.com/google/go-containerregistry v0.19.2
 	github.com/google/go-tpm v0.9.1
 	github.com/google/go-tpm-tools v0.4.4
-	github.com/googleapis/gax-go/v2 v2.12.4
+	github.com/googleapis/gax-go/v2 v2.12.5
 	github.com/gorilla/handlers v1.5.2
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-metrics v0.5.3
@@ -83,7 +83,7 @@ require (
 	golang.org/x/sys v0.21.0
 	golang.org/x/time v0.5.0
 	google.golang.org/api v0.184.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240604185151-ef581f913117
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240610135401-a8a62080eff3
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.2
 	k8s.io/api v0.30.2
@@ -338,7 +338,7 @@ require (
 	golang.org/x/term v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	google.golang.org/genproto v0.0.0-20240604185151-ef581f913117 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240604185151-ef581f913117 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240610135401-a8a62080eff3 // indirect
 	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
