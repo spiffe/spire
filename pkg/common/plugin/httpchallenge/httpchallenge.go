@@ -103,7 +103,5 @@ func generateNonce() (string, error) {
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	retval := make([]byte, base64.StdEncoding.EncodedLen(len(b)))
-	base64.StdEncoding.Encode(retval, b)
-	return string(retval), nil
+	return base64.UrlEncoding.EncodeToString(b), nil
 }

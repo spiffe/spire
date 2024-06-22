@@ -154,7 +154,7 @@ func (p *Plugin) serveNonce(ctx context.Context, l net.Listener, agentName strin
 		WriteTimeout: 10 * time.Second,
 	}
 	path := fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/challenge", agentName)
-	p.log.Debug("setting up nonce handler", "path", path)
+	p.log.Debug("Setting up nonce handler", "path", path)
 	h.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, nonce)
 	})

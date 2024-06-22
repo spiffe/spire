@@ -202,7 +202,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	}
 
 	if !tofu && mustUseTOFU {
-		return nil, status.Errorf(codes.InvalidArgument, "you can not turn off trust on first use (TOFU) when non root ports are allowed")
+		return nil, status.Errorf(codes.InvalidArgument, "you can not turn off trust on first use (TOFU) when non-root ports are allowed")
 	}
 
 	p.setConfiguration(&configuration{
