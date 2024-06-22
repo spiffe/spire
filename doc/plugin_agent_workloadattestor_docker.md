@@ -27,11 +27,11 @@ A sample configuration:
 Since selectors are created dynamically based on the container's docker labels, there isn't a list of known selectors.
 Instead, each of the container's labels are used in creating the list of selectors.
 
-| Selector          | Example                             | Description                                                            |
-|-------------------|-------------------------------------|------------------------------------------------------------------------|
-| `docker:label`    | `docker:label:com.example.name:foo` | The key:value pair of each of the container's labels.                  |
-| `docker:env`      | `docker:env:VAR=val`                | The raw string value of each of the container's environment variables. |
-| `docker:image_id` | `docker:image_id:77af4d6b9913`      | The image id of the container.                                         |
+| Selector          | Example                                            | Description                                                            |
+|-------------------|----------------------------------------------------|------------------------------------------------------------------------|
+| `docker:label`    | `docker:label:com.example.name:foo`                | The key:value pair of each of the container's labels.                  |
+| `docker:env`      | `docker:env:VAR=val`                               | The raw string value of each of the container's environment variables. |
+| `docker:image_id` | `docker:image_id:envoyproxy/envoy:contrib-v1.29.1` | The image name and version of the container.                           |
 
 ## Container ID CGroup Matchers
 
@@ -62,6 +62,29 @@ Note: The pattern provided is *not* a regular expression. It is a simplified mat
 language that enforces a forward slash-delimited schema.
 
 ## Example
+
+### Image ID
+
+Example of an image_id selector for an Envoy proxy container. First run `docker images` to see the images available:
+
+```shell
+$ docker images
+REPOSITORY                    TAG               IMAGE ID       CREATED        SIZE
+prom/prometheus               latest            1d3b7f56885b   2 weeks ago    262MB
+spiffe.io                     latest            02acdde06edc   2 weeks ago    1.17GB
+ghcr.io/spiffe/spire-agent    1.9.1             622ce7acc7e8   4 weeks ago    57.9MB
+ghcr.io/spiffe/spire-server   1.9.1             e3b24c3cd9e1   4 weeks ago    103MB
+envoyproxy/envoy              contrib-v1.29.1   644f45f6626c   7 weeks ago    181MB
+```
+
+Then u4se the `REPOSITORY:TAG` as the selector, not the `IMAGE ID` column.
+
+```shell
+$ spire-server entry create \
+    -parentID spiffe://example.org/host \
+    -spiffeID spiffe://example.org/host/foo \
+    -selector docker:image_id:envoyproxy/envoy:contrib-v1.29.1
+```
 
 ### Labels
 

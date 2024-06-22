@@ -13,6 +13,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -20,6 +22,8 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/diskcertmanager"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/acmetest"
 	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/spiretest"
@@ -175,6 +179,60 @@ func TestServer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDiskCertManagerAuth(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	serverCert, serverKey := createServerCertificate(t)
+
+	serverCertPem := pemutil.EncodeCertificate(serverCert)
+	err := os.WriteFile(filepath.Join(dir, "server.crt"), serverCertPem, 0600)
+	require.NoError(t, err)
+
+	serverKeyPem, err := pemutil.EncodePKCS8PrivateKey(serverKey)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(dir, "server.key"), serverKeyPem, 0600)
+	require.NoError(t, err)
+
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	bundle := spiffebundle.New(trustDomain)
+
+	rootCAs := x509.NewCertPool()
+	rootCAs.AddCert(serverCert)
+
+	client := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:    rootCAs,
+				ServerName: "domain.test",
+				MinVersion: tls.VersionTLS12,
+			},
+		},
+	}
+
+	diskCertManager, err := diskcertmanager.New(
+		&diskcertmanager.Config{
+			CertFilePath:     filepath.Join(dir, "server.crt"),
+			KeyFilePath:      filepath.Join(dir, "server.key"),
+			FileSyncInterval: time.Minute,
+		},
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+
+	addr, done := newTestServer(t,
+		testGetter(bundle),
+		diskCertManager,
+		time.Minute,
+	)
+	defer done()
+
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://%s", addr), nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
 }
 
 func TestACMEAuth(t *testing.T) {
@@ -368,10 +426,10 @@ func createServerCertificate(t *testing.T) (*x509.Certificate, crypto.Signer) {
 	now := time.Now()
 	return spiretest.SelfSignCertificate(t, &x509.Certificate{
 		SerialNumber: big.NewInt(0),
-		DNSNames:     []string{"localhost"},
+		DNSNames:     []string{"localhost", "domain.test"},
 		IPAddresses:  []net.IP{net.IPv4(127, 0, 0, 1)},
 		NotBefore:    now,
 		NotAfter:     now.Add(serverCertLifetime),
-		URIs:         []*url.URL{{Scheme: "domain.test", Host: "domain.test", Path: "/spire/server"}},
+		URIs:         []*url.URL{{Scheme: "https", Host: "domain.test", Path: "/spire/server"}},
 	})
 }

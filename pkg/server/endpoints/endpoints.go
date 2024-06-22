@@ -79,6 +79,7 @@ type Endpoints struct {
 	RateLimit                    RateLimitConfig
 	EntryFetcherCacheRebuildTask func(context.Context) error
 	EntryFetcherPruneEventsTask  func(context.Context) error
+	CertificateReloadTask        func(context.Context) error
 	AuditLogEnabled              bool
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
@@ -153,6 +154,8 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		ef = efFullCache
 	}
 
+	bundleEndpointServer, certificateReloadTask := c.maybeMakeBundleEndpointServer()
+
 	return &Endpoints{
 		TCPAddr:                      c.TCPAddr,
 		LocalAddr:                    c.LocalAddr,
@@ -161,12 +164,13 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		DataStore:                    ds,
 		BundleCache:                  bundle.NewCache(ds, c.Clock),
 		APIServers:                   c.makeAPIServers(ef),
-		BundleEndpointServer:         c.maybeMakeBundleEndpointServer(),
+		BundleEndpointServer:         bundleEndpointServer,
 		Log:                          c.Log,
 		Metrics:                      c.Metrics,
 		RateLimit:                    c.RateLimit,
 		EntryFetcherCacheRebuildTask: cacheRebuildTask,
 		EntryFetcherPruneEventsTask:  pruneEventsTask,
+		CertificateReloadTask:        certificateReloadTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
@@ -217,6 +221,10 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 
 	if e.EntryFetcherPruneEventsTask != nil {
 		tasks = append(tasks, e.EntryFetcherPruneEventsTask)
+	}
+
+	if e.CertificateReloadTask != nil {
+		tasks = append(tasks, e.CertificateReloadTask)
 	}
 
 	err := util.RunTasks(ctx, tasks...)
