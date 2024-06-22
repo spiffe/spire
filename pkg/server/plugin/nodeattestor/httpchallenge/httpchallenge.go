@@ -11,7 +11,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
@@ -36,7 +35,6 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 type configuration struct {
 	trustDomain       spiffeid.TrustDomain
-	pathTemplate      *agentpathtemplate.Template
 	requiredPort      *int
 	allowNonRootPorts bool
 	dnsPatterns       []*regexp.Regexp
@@ -48,7 +46,6 @@ type Config struct {
 	AllowedDNSPatterns []string `hcl:"allowed_dns_patterns"`
 	RequiredPort       *int     `hcl:"required_port"`
 	AllowNonRootPorts  *bool    `hcl:"allow_non_root_ports"`
-	AgentPathTemplate  string   `hcl:"agent_path_template"`
 	TOFU               *bool    `hcl:"tofu"`
 }
 
@@ -132,7 +129,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "challenge verification failed: %v", err)
 	}
 
-	spiffeid, err := httpchallenge.MakeAgentID(config.trustDomain, config.pathTemplate, attestationData.HostName)
+	spiffeid, err := httpchallenge.MakeAgentID(config.trustDomain, attestationData.HostName)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
@@ -173,14 +170,6 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
 	}
 
-	pathTemplate := httpchallenge.DefaultAgentPathTemplate
-	if len(hclConfig.AgentPathTemplate) > 0 {
-		pathTemplate, err = agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", hclConfig.AgentPathTemplate)
-		}
-	}
-
 	var dnsPatterns []*regexp.Regexp
 	for _, r := range hclConfig.AllowedDNSPatterns {
 		re := regexp.MustCompile(r)
@@ -218,7 +207,6 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 
 	p.setConfiguration(&configuration{
 		trustDomain:       trustDomain,
-		pathTemplate:      pathTemplate,
 		dnsPatterns:       dnsPatterns,
 		requiredPort:      hclConfig.RequiredPort,
 		allowNonRootPorts: allowNonRootPorts,

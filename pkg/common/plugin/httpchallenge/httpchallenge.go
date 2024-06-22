@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 )
 
@@ -24,15 +23,6 @@ const (
 	// PluginName for http based attestor
 	PluginName = "http_challenge"
 )
-
-// DefaultAgentPathTemplate is the default template
-var DefaultAgentPathTemplate = agentpathtemplate.MustParse("/{{ .PluginName }}/{{ .HostName }}")
-
-type agentPathTemplateData struct {
-	HostName    string
-	PluginName  string
-	TrustDomain string
-}
 
 type AttestationData struct {
 	HostName  string `json:"hostname"`
@@ -102,14 +92,8 @@ func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) err
 }
 
 // MakeAgentID creates an agent ID
-func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, hostName string) (spiffeid.ID, error) {
-	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
-		PluginName: PluginName,
-		HostName:   hostName,
-	})
-	if err != nil {
-		return spiffeid.ID{}, err
-	}
+func MakeAgentID(td spiffeid.TrustDomain, hostName string) (spiffeid.ID, error) {
+	agentPath := fmt.Sprintf("/http_challenge/%s", hostName)
 
 	return idutil.AgentID(td, agentPath)
 }

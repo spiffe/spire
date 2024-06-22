@@ -17,7 +17,6 @@ spiffe://<trust_domain>/spire/agent/http_challenge/<hostname>
 | `allowed_dns_patterns`  | A list of regular expressions to match to the hostname being attested. If none match, attestation will fail. If unset, all hostnames are allowed.         |                                     |
 | `required_port`         | Set to a port number to require clients to listen only on that port. If unset, all port numbers are allowed                                               |                                     |
 | `allow_non_root_ports`  | Set to true to allow ports >= 1024 to be used by the agents with the advertised_port                                                                      | true                                |
-| `agent_path_template`   | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                         | "{{ .PluginName }}/{{ .HostName }}" |
 | `tofu`                  | Trust on first use of the successful challenge. Can only be disabled if allow_non_root_ports=false or required_port < 1024                                | true                                |
 
 A sample configuration:
@@ -42,19 +41,6 @@ A sample configuration:
 | Selector | Example                                  | Description            |
 |----------|------------------------------------------|------------------------|
 | Hostname | `http_challenge:hostname:p1.example.com` | The Subject's Hostname |
-
-## Agent Path Template
-
-The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
-The template formatter is using Golang text/template conventions, it can reference values provided by the plugin.
-
-Some useful values are:
-
-| Value                 | Description                         |
-|-----------------------|-------------------------------------|
-| .PluginName           | The name of the plugin.             |
-| .HostName             | The hostname of the agent attested. |
-| .TrustDomain          | The configured trust domain.        |
 
 ## Security Considerations
 
