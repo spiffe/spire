@@ -51,13 +51,13 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 
 func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) error {
 	if strings.Contains(attestationData.HostName, "/") {
+		return fmt.Errorf("hostname can not contain a slash")
+	}
+	if strings.Contains(attestationData.HostName, ":") {
 		return fmt.Errorf("hostname can not contain a colon")
 	}
 	if strings.Contains(attestationData.AgentName, ".") {
 		return fmt.Errorf("agentname can not contain a dot")
-	}
-	if strings.Contains(challenge.Nonce, ".") {
-		return fmt.Errorf("nonce can not contain a dot")
 	}
 	turl := url.URL{
 		Scheme: "http",
