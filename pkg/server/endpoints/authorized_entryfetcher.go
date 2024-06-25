@@ -234,7 +234,8 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntryCach
 	entry, err := api.RegistrationEntryToProto(commonEntry)
 	if err != nil {
 		a.cache.RemoveEntry(entryID)
-		return fmt.Errorf("removing malformed entry %s from cache: %w", entryID, err)
+		a.log.WithField(telemetry.RegistrationID, entryID).Info("Removed malformed registration entry from cache")
+		return nil
 	}
 
 	a.cache.UpdateEntry(entry)
