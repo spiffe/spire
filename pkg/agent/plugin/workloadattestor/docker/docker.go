@@ -10,11 +10,12 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
-	hclog "github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/token"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -41,6 +42,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 // Docker is a subset of the docker client functionality, useful for mocking.
 type Docker interface {
 	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
+	ImageInspectWithRaw(ctx context.Context, imageID string) (types.ImageInspect, []byte, error)
 }
 
 type Plugin struct {
@@ -50,9 +52,10 @@ type Plugin struct {
 	log     hclog.Logger
 	retryer *retryer
 
-	mtx    sync.RWMutex
-	docker Docker
-	c      *containerHelper
+	mtx              sync.RWMutex
+	docker           Docker
+	c                *containerHelper
+	sigstoreVerifier sigstore.Verifier
 }
 
 func New() *Plugin {
@@ -68,6 +71,42 @@ type dockerPluginConfig struct {
 	DockerVersion string `hcl:"docker_version" json:"docker_version"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+
+	Experimental *experimentalConfig `hcl:"experimental,omitempty"`
+}
+
+type experimentalConfig struct {
+	// Sigstore contains sigstore specific configs.
+	Sigstore *sigstoreHCLConfig `hcl:"sigstore,omitempty"`
+}
+
+type sigstoreHCLConfig struct {
+	// AllowedIdentities is a list of identities (issuer and subjects) that must match for the signature to be valid.
+	AllowedIdentities map[string][]string `hcl:"allowed_identities"`
+
+	// SkippedImages is a list of images that should skip sigstore verification
+	SkippedImages []string `hcl:"skipped_images"`
+
+	// RekorURL is the URL for the Rekor transparency log server to use for verifying entries.
+	RekorURL *string `hcl:"rekor_url,omitempty"`
+
+	// IgnoreSCT specifies whether to bypass the requirement for a Signed Certificate Timestamp (SCT) during verification.
+	// An SCT is proof of inclusion in a Certificate Transparency log.
+	IgnoreSCT *bool `hcl:"ignore_sct, omitempty"`
+
+	// IgnoreTlog specifies whether to bypass the requirement for transparency log verification during signature validation.
+	IgnoreTlog *bool `hcl:"ignore_tlog, omitempty"`
+
+	// IgnoreAttestations specifies whether to bypass the image attestations verification.
+	IgnoreAttestations *bool `hcl:"ignore_attestations, omitempty"`
+
+	// RegistryCredentials is a map of credentials keyed by registry URL
+	RegistryCredentials map[string]*registryCredential `hcl:"registry_credentials,omitempty"`
+}
+
+type registryCredential struct {
+	Username string `hcl:"username,omitempty"`
+	Password string `hcl:"password,omitempty"`
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -99,8 +138,43 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		return nil, err
 	}
 
+	selectors := getSelectorValuesFromConfig(container.Config)
+
+	if p.sigstoreVerifier != nil {
+		imageName := container.Config.Image
+		imageJSON, _, err := p.docker.ImageInspectWithRaw(ctx, imageName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect image %q: %w", imageName, err)
+		}
+
+		if len(imageJSON.RepoDigests) == 0 {
+			return nil, fmt.Errorf("sigstore signature verification failed: no repo digest found for image %s", imageName)
+		}
+
+		var verified bool
+		// RepoDigests is a list of content-addressable digests of locally available
+		// image manifests that the image is referenced from. Multiple manifests can
+		// refer to the same image.
+		var allErrors []string
+		for _, digest := range imageJSON.RepoDigests {
+			sigstoreSelectors, err := p.sigstoreVerifier.Verify(ctx, digest)
+			if err != nil {
+				p.log.Warn("Error verifying sigstore image signature", "image_id", digest, "error", err)
+				allErrors = append(allErrors, fmt.Sprintf("image_id %s: %v", digest, err))
+				continue
+			}
+			selectors = append(selectors, sigstoreSelectors...)
+			verified = true
+			break
+		}
+
+		if !verified {
+			return nil, fmt.Errorf("sigstore signature verification failed for image %s: %v", imageName, fmt.Sprintf("errors: %s", strings.Join(allErrors, "; ")))
+		}
+	}
+
 	return &workloadattestorv1.AttestResponse{
-		SelectorValues: getSelectorValuesFromConfig(container.Config),
+		SelectorValues: selectors,
 	}, nil
 }
 
@@ -118,7 +192,7 @@ func getSelectorValuesFromConfig(cfg *container.Config) []string {
 	return selectorValues
 }
 
-func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	var err error
 	config := &dockerPluginConfig{}
 	if err = hcl.Decode(config, req.HclConfiguration); err != nil {
@@ -157,9 +231,70 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, err
 	}
 
+	var sigstoreVerifier sigstore.Verifier
+	if config.Experimental != nil {
+		if config.Experimental.Sigstore != nil {
+			cfg, err := newConfigFromHCL(config.Experimental.Sigstore, p.log)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "error creating sigstore config: %v", err)
+			}
+
+			verifier := sigstore.NewVerifier(cfg)
+			err = verifier.Initialize(ctx)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
+			}
+			sigstoreVerifier = verifier
+		}
+	}
+
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	p.docker = docker
 	p.c = containerHelper
+	p.sigstoreVerifier = sigstoreVerifier
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func newConfigFromHCL(hclConfig *sigstoreHCLConfig, log hclog.Logger) (*sigstore.Config, error) {
+	config := sigstore.NewConfig()
+	config.Logger = log
+
+	if hclConfig.AllowedIdentities != nil {
+		config.AllowedIdentities = hclConfig.AllowedIdentities
+	}
+
+	if hclConfig.SkippedImages != nil {
+		config.SkippedImages = hclConfig.SkippedImages
+	}
+
+	if hclConfig.RekorURL != nil {
+		config.RekorURL = *hclConfig.RekorURL
+	}
+
+	if hclConfig.IgnoreSCT != nil {
+		config.IgnoreSCT = *hclConfig.IgnoreSCT
+	}
+
+	if hclConfig.IgnoreTlog != nil {
+		config.IgnoreTlog = *hclConfig.IgnoreTlog
+	}
+
+	if hclConfig.IgnoreAttestations != nil {
+		config.IgnoreAttestations = *hclConfig.IgnoreAttestations
+	}
+
+	if hclConfig.RegistryCredentials != nil {
+		m := make(map[string]*sigstore.RegistryCredential)
+		for k, v := range hclConfig.RegistryCredentials {
+			m[k] = &sigstore.RegistryCredential{
+				Username: v.Username,
+				Password: v.Password,
+			}
+
+		}
+		config.RegistryCredentials = m
+	}
+
+	return config, nil
 }
