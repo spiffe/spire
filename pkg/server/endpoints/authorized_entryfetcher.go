@@ -157,9 +157,15 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntriesCa
 
 	seenMap := map[string]struct{}{}
 	for _, event := range resp.Events {
-		// If there is a gap in the event stream, log the missed events for later processing
+		// If there is a gap in the event stream, log the missed events for later processing.
+		// For example if the current event ID is 6 and the previous one was 3, events 4 and 5
+		// were skipped over and need to be queued in case they show up later.
+		// This can happen when a long running transaction allocates an event ID but a shorter transaction
+		// comes in after, allocates and commits the ID first. If a read comes in at this moment, the event id for
+		// the longer running transaction will be skipped over
 		if a.receivedFirstRegistrationEntryEvent && event.EventID != a.lastRegistrationEntryEventID+1 {
 			for i := a.lastRegistrationEntryEventID + 1; i < event.EventID; i++ {
+				a.log.WithField(telemetry.EventID, i).Info("Detected skipped registration entry event")
 				a.mu.Lock()
 				a.missedRegistrationEntryEvents[i] = a.clk.Now()
 				a.mu.Unlock()
@@ -220,9 +226,15 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateRegistrationEntryCach
 		return err
 	}
 
+	if commonEntry == nil {
+		a.cache.RemoveEntry(entryID)
+		return nil
+	}
+
 	entry, err := api.RegistrationEntryToProto(commonEntry)
 	if err != nil {
 		a.cache.RemoveEntry(entryID)
+		a.log.WithField(telemetry.RegistrationID, entryID).Warn("Removed malformed registration entry from cache")
 		return nil
 	}
 
@@ -246,9 +258,15 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateAttestedNodesCache(ct
 
 	seenMap := map[string]struct{}{}
 	for _, event := range resp.Events {
-		// If there is a gap in the event stream, log the missed events for later processing
+		// If there is a gap in the event stream, log the missed events for later processing.
+		// For example if the current event ID is 6 and the previous one was 3, events 4 and 5
+		// were skipped over and need to be queued in case they show up later.
+		// This can happen when a long running transaction allocates an event ID but a shorter transaction
+		// comes in after, allocates and commits the ID first. If a read comes in at this moment, the event id for
+		// the longer running transaction will be skipped over
 		if a.receivedFirstAttestedNodeEvent && event.EventID != a.lastRegistrationEntryEventID+1 {
 			for i := a.lastAttestedNodeEventID + 1; i < event.EventID; i++ {
+				a.log.WithField(telemetry.EventID, i).Info("Detected skipped attested node event")
 				a.mu.Lock()
 				a.missedAttestedNodeEvents[i] = a.clk.Now()
 				a.mu.Unlock()
