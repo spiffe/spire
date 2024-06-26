@@ -96,8 +96,8 @@ func TestInitialize(t *testing.T) {
 	mockGetRekorClientFn.On("Get", verifier.config.RekorURL, mock.Anything).Return(expectedRekorClient, nil)
 
 	// Act
-	err := verifier.Initialize(ctx)
-	require.NoError(t, err, "Initialize should not return an error")
+	err := verifier.Init(ctx)
+	require.NoError(t, err, "Init should not return an error")
 
 	// Assert
 	mockGetFulcioRootsFn.AssertExpectations(t)
@@ -135,7 +135,7 @@ func TestVerify(t *testing.T) {
 	}{
 		{
 			name: "generates selectors from verified signature, rekor bundle, and attestations",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
 				signature := new(MockSignature)
 				signature.On("Payload").Return(createMockPayload(), nil)
 				signature.On("Base64Signature").Return("base64signature", nil)
@@ -161,7 +161,7 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "generates selectors from verified signature and bundle, but ignore attestations",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, _ *MockCosignVerifyAttestationsFn) {
 				verifier.config.IgnoreAttestations = true
 
 				signature := new(MockSignature)
@@ -211,7 +211,7 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "tlog is not ignored, verification returns bundle not verified and causes error",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, _ *MockCosignVerifyAttestationsFn) {
 				verifier.config.IgnoreTlog = false // make explicit that is not ignored
 
 				signature := new(MockSignature)
@@ -227,7 +227,7 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "fails to verify signature",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
 				signatureVerifyMock.On("Verify", ctx, imageRef, mock.AnythingOfType("*cosign.CheckOpts")).Return(([]oci.Signature)(nil), false, errors.New("failed to verify signature"))
 			},
 			expectedSelectors:       nil,
@@ -236,7 +236,7 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "fails to verify attestations",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
 				signature := new(MockSignature)
 				signature.On("Payload").Return(createMockPayload(), nil)
 				signature.On("Base64Signature").Return("base64signature", nil)
@@ -289,6 +289,7 @@ func TestVerify(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

@@ -111,8 +111,6 @@ type Suite struct {
 	clientCert  *x509.Certificate
 
 	oc *osConfig
-
-	sigstoreVerifier sigstore.Verifier
 }
 
 func (s *Suite) SetupTest() {
@@ -286,12 +284,12 @@ func (s *Suite) TestAttestWithSigstoreSelectors() {
 	p := s.loadInsecurePluginWithSigstore()
 
 	// Add the expected selectors from the Sigstore verifier
-	expectedSelectors := append(testPodAndContainerSelectors, sigstoreSelectors...)
+	testPodAndContainerSelectors = append(testPodAndContainerSelectors, sigstoreSelectors...)
 
 	s.addPodListResponse(podListFilePath)
 	s.addGetContainerResponsePidInPod()
 
-	s.requireAttestSuccess(p, expectedSelectors)
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
 }
 
 func (s *Suite) TestConfigure() {
@@ -650,7 +648,7 @@ func (s *Suite) TestConfigureWithSigstore() {
 	}
 
 	for _, tc := range cases {
-		s.T().Run(tc.name, func(t *testing.T) {
+		s.T().Run(tc.name, func(_ *testing.T) {
 			var config HCLConfig
 			err := hcl.Decode(&config, tc.hcl)
 			if tc.wantErr {
@@ -661,8 +659,7 @@ func (s *Suite) TestConfigureWithSigstore() {
 
 			var cfg *sigstore.Config
 			if config.Experimental != nil && config.Experimental.Sigstore != nil {
-				cfg, err = newConfigFromHCL(config.Experimental.Sigstore, hclog.NewNullLogger())
-				s.Require().NoError(err)
+				cfg = newConfigFromHCL(config.Experimental.Sigstore, hclog.NewNullLogger())
 			} else {
 				cfg = &sigstore.Config{Logger: hclog.NewNullLogger()}
 			}

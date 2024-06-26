@@ -233,10 +233,9 @@ func TestDockerConfigDefault(t *testing.T) {
 
 func TestNewConfigFromHCL(t *testing.T) {
 	cases := []struct {
-		name    string
-		hcl     *sigstoreHCLConfig
-		wantErr bool
-		want    *sigstore.Config
+		name string
+		hcl  *sigstoreHCLConfig
+		want *sigstore.Config
 	}{
 		{
 			name: "complete sigstore configuration",
@@ -257,7 +256,6 @@ func TestNewConfigFromHCL(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
 			want: &sigstore.Config{
 				AllowedIdentities: map[string][]string{
 					"test-issuer-1": {"*@example.com", "subject@otherdomain.com"},
@@ -278,9 +276,8 @@ func TestNewConfigFromHCL(t *testing.T) {
 			},
 		},
 		{
-			name:    "empty sigstore configuration",
-			hcl:     &sigstoreHCLConfig{},
-			wantErr: false,
+			name: "empty sigstore configuration",
+			hcl:  &sigstoreHCLConfig{},
 			want: &sigstore.Config{
 				RekorURL:           "",
 				IgnoreSCT:          false,
@@ -296,12 +293,7 @@ func TestNewConfigFromHCL(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			log := hclog.NewNullLogger()
-			cfg, err := newConfigFromHCL(tc.hcl, log)
-			if tc.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
+			cfg := newConfigFromHCL(tc.hcl, log)
 			require.Equal(t, tc.want, cfg)
 		})
 	}
