@@ -26,7 +26,7 @@ type containerHelper struct {
 	ph process.Helper
 }
 
-func (h *containerHelper) Configure(config *HCLConfig, _ hclog.Logger) error {
+func (h *containerHelper) Configure(_ *HCLConfig, _ hclog.Logger) error {
 	return nil
 }
 

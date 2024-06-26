@@ -150,8 +150,8 @@ func NewVerifier(config *Config) *ImageVerifier {
 	return verifier
 }
 
-// Initialize prepares the verifier by retrieving the Fulcio certificates and Rekor and CT public keys.
-func (v *ImageVerifier) Initialize(ctx context.Context) error {
+// Init prepares the verifier by retrieving the Fulcio certificates and Rekor and CT public keys.
+func (v *ImageVerifier) Init(ctx context.Context) error {
 	var err error
 	v.fulcioRoots, err = v.hooks.trustStoreProviders.getFulcioRootsFn()
 	if err != nil {
