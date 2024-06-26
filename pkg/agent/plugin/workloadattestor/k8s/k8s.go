@@ -426,13 +426,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	var sigstoreVerifier sigstore.Verifier
 	if config.Experimental != nil {
 		if config.Experimental.Sigstore != nil {
-			cfg, err := newConfigFromHCL(config.Experimental.Sigstore, p.log)
-			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "error creating sigstore config: %v", err)
-			}
-
+			cfg := newConfigFromHCL(config.Experimental.Sigstore, p.log)
 			verifier := sigstore.NewVerifier(cfg)
-			err = verifier.Initialize(ctx)
+			err = verifier.Init(ctx)
 			if err != nil {
 				return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
 			}
@@ -792,7 +788,7 @@ func newCertPool(certs []*x509.Certificate) *x509.CertPool {
 	return certPool
 }
 
-func newConfigFromHCL(hclConfig *SigstoreHCLConfig, log hclog.Logger) (*sigstore.Config, error) {
+func newConfigFromHCL(hclConfig *SigstoreHCLConfig, log hclog.Logger) *sigstore.Config {
 	config := sigstore.NewConfig()
 	config.Logger = log
 
@@ -827,10 +823,9 @@ func newConfigFromHCL(hclConfig *SigstoreHCLConfig, log hclog.Logger) (*sigstore
 				Username: v.Username,
 				Password: v.Password,
 			}
-
 		}
 		config.RegistryCredentials = m
 	}
 
-	return config, nil
+	return config
 }
