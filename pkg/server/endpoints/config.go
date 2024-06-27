@@ -99,6 +99,13 @@ type Config struct {
 	AdminIDs []spiffeid.ID
 
 	BundleManager *bundle_client.Manager
+
+	// UseLegacyDownstreamX509CATTL, if true, the downstream X509CAs will use
+	// the legacy TTL calculation ( e.g. prefer downstream workload entry TTL,
+	// then fall back to the default workload X509-SVID TTL) v.s. the new TTL
+	// calculation (prefer the TTL passed by the downstream caller, then fall
+	// back to the default X509 CA TTL).
+	UseLegacyDownstreamX509CATTL bool
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) error) {
@@ -182,10 +189,11 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			Log: c.RootLog,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
-			TrustDomain:  c.TrustDomain,
-			EntryFetcher: entryFetcher,
-			ServerCA:     c.ServerCA,
-			DataStore:    ds,
+			TrustDomain:                  c.TrustDomain,
+			EntryFetcher:                 entryFetcher,
+			ServerCA:                     c.ServerCA,
+			DataStore:                    ds,
+			UseLegacyDownstreamX509CATTL: c.UseLegacyDownstreamX509CATTL,
 		}),
 		TrustDomainServer: trustdomainv1.New(trustdomainv1.Config{
 			TrustDomain:     c.TrustDomain,
