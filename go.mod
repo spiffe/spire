@@ -30,7 +30,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.56.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.31.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.29.0
-	github.com/aws/smithy-go v1.20.2
+	github.com/aws/smithy-go v1.20.3
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/docker/docker v27.0.2+incompatible
