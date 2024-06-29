@@ -70,12 +70,13 @@ func TestNewVerifier(t *testing.T) {
 	assert.Equal(t, config, verifier.config)
 	assert.Equal(t, len(config.RegistryCredentials), len(verifier.authOptions))
 	assert.ElementsMatch(t, expectedIdentites, verifier.allowedIdentities)
-	assert.NotNil(t, verifier.hooks.verifySignatureFn)
-	assert.NotNil(t, verifier.hooks.getRekorClientFn)
-	assert.NotNil(t, verifier.hooks.trustStoreProviders.getFulcioRootsFn)
-	assert.NotNil(t, verifier.hooks.trustStoreProviders.getFulcioIntermediatesFn)
-	assert.NotNil(t, verifier.hooks.trustStoreProviders.getRekorPublicKeysFn)
-	assert.NotNil(t, verifier.hooks.trustStoreProviders.getCTLogPublicKeysFn)
+	assert.NotNil(t, verifier.hooks.verifyImageSignatures)
+	assert.NotNil(t, verifier.hooks.verifyImageAttestations)
+	assert.NotNil(t, verifier.hooks.getRekorClient)
+	assert.NotNil(t, verifier.hooks.getFulcioRoots)
+	assert.NotNil(t, verifier.hooks.getFulcioIntermediates)
+	assert.NotNil(t, verifier.hooks.getRekorPublicKeys)
+	assert.NotNil(t, verifier.hooks.getCTLogPublicKeys)
 }
 
 func TestInitialize(t *testing.T) {
@@ -544,16 +545,22 @@ func setupVerifier() (*ImageVerifier, *MockCosignVerifySignatureFn, *MockCosignV
 
 	verifier := &ImageVerifier{
 		config: config,
-		hooks: hooks{
-			verifySignatureFn:    mockCosignVerifySignatureFn.Verify,
-			verifyAttestationsFn: mockCosignVerifyAttestationsFn.Verify,
-			getRekorClientFn:     mockGetRekorClientFn.Get,
-			trustStoreProviders: trustStoreProviders{
-				getFulcioRootsFn:         mockGetFulcioRootsFn.Get,
-				getFulcioIntermediatesFn: mockGetFulcioIntermediatesFn.Get,
-				getRekorPublicKeysFn:     mockGetRekorPubsFn.Get,
-				getCTLogPublicKeysFn:     mockGetCTLogPubsFn.Get,
-			},
+		hooks: struct {
+			verifyImageSignatures   verifySignaturesFn
+			verifyImageAttestations verifyAttestationsFn
+			getRekorClient          getRekorClientFn
+			getFulcioRoots          getFulcioRootsFn
+			getFulcioIntermediates  getFulcioIntermediatesFn
+			getRekorPublicKeys      getRekorPublicKeysFn
+			getCTLogPublicKeys      getCTLogPublicKeysFn
+		}{
+			verifyImageSignatures:   mockCosignVerifySignatureFn.Verify,
+			verifyImageAttestations: mockCosignVerifyAttestationsFn.Verify,
+			getRekorClient:          mockGetRekorClientFn.Get,
+			getFulcioRoots:          mockGetFulcioRootsFn.Get,
+			getFulcioIntermediates:  mockGetFulcioIntermediatesFn.Get,
+			getRekorPublicKeys:      mockGetRekorPubsFn.Get,
+			getCTLogPublicKeys:      mockGetCTLogPubsFn.Get,
 		},
 	}
 
