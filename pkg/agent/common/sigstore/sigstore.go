@@ -73,13 +73,13 @@ type ImageVerifier struct {
 	ctLogPublicKeys     *cosign.TrustedTransparencyLogPubKeys
 
 	hooks struct {
-		verifyImageSignatures   verifySignaturesFn
-		verifyImageAttestations verifyAttestationsFn
+		verifyImageSignatures   cosignVerifyFn
+		verifyImageAttestations cosignVerifyFn
 		getRekorClient          getRekorClientFn
-		getFulcioRoots          getFulcioRootsFn
-		getFulcioIntermediates  getFulcioIntermediatesFn
-		getRekorPublicKeys      getRekorPublicKeysFn
-		getCTLogPublicKeys      getCTLogPublicKeysFn
+		getFulcioRoots          getCertPoolFn
+		getFulcioIntermediates  getCertPoolFn
+		getRekorPublicKeys      getTLogPublicKeysFn
+		getCTLogPublicKeys      getTLogPublicKeysFn
 	}
 }
 
@@ -95,13 +95,13 @@ func NewVerifier(config *Config) *ImageVerifier {
 		config:      config,
 		authOptions: make(map[string]remote.Option),
 		hooks: struct {
-			verifyImageSignatures   verifySignaturesFn
-			verifyImageAttestations verifyAttestationsFn
+			verifyImageSignatures   cosignVerifyFn
+			verifyImageAttestations cosignVerifyFn
 			getRekorClient          getRekorClientFn
-			getFulcioRoots          getFulcioRootsFn
-			getFulcioIntermediates  getFulcioIntermediatesFn
-			getRekorPublicKeys      getRekorPublicKeysFn
-			getCTLogPublicKeys      getCTLogPublicKeysFn
+			getFulcioRoots          getCertPoolFn
+			getFulcioIntermediates  getCertPoolFn
+			getRekorPublicKeys      getTLogPublicKeysFn
+			getCTLogPublicKeys      getTLogPublicKeysFn
 		}{
 			verifyImageSignatures:   cosign.VerifyImageSignatures,
 			verifyImageAttestations: cosign.VerifyImageAttestations,
@@ -247,13 +247,10 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	return selectors, nil
 }
 
-type verifySignaturesFn func(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, bool, error)
-type verifyAttestationsFn func(ctx context.Context, signedImgRef name.Reference, co *cosign.CheckOpts) (checkedAttestations []oci.Signature, bundleVerified bool, err error)
+type cosignVerifyFn func(context.Context, name.Reference, *cosign.CheckOpts) ([]oci.Signature, bool, error)
 type getRekorClientFn func(string, ...client.Option) (*rekorclient.Rekor, error)
-type getFulcioRootsFn func() (*x509.CertPool, error)
-type getFulcioIntermediatesFn func() (*x509.CertPool, error)
-type getRekorPublicKeysFn func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
-type getCTLogPublicKeysFn func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
+type getCertPoolFn func() (*x509.CertPool, error)
+type getTLogPublicKeysFn func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
 
 type signatureDetails struct {
 	Subject              string
