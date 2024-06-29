@@ -546,13 +546,13 @@ func setupVerifier() (*ImageVerifier, *MockCosignVerifySignatureFn, *MockCosignV
 	verifier := &ImageVerifier{
 		config: config,
 		hooks: struct {
-			verifyImageSignatures   verifySignaturesFn
-			verifyImageAttestations verifyAttestationsFn
+			verifyImageSignatures   cosignVerifyFn
+			verifyImageAttestations cosignVerifyFn
 			getRekorClient          getRekorClientFn
-			getFulcioRoots          getFulcioRootsFn
-			getFulcioIntermediates  getFulcioIntermediatesFn
-			getRekorPublicKeys      getRekorPublicKeysFn
-			getCTLogPublicKeys      getCTLogPublicKeysFn
+			getFulcioRoots          getCertPoolFn
+			getFulcioIntermediates  getCertPoolFn
+			getRekorPublicKeys      getTLogPublicKeysFn
+			getCTLogPublicKeys      getTLogPublicKeysFn
 		}{
 			verifyImageSignatures:   mockCosignVerifySignatureFn.Verify,
 			verifyImageAttestations: mockCosignVerifyAttestationsFn.Verify,
