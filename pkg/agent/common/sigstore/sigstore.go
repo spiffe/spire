@@ -62,45 +62,25 @@ type RegistryCredential struct {
 type ImageVerifier struct {
 	config *Config
 
+	verificationCache sync.Map
+	allowedIdentities []cosign.Identity
+	authOptions       map[string]remote.Option
+
 	rekorClient         *rekorclient.Rekor
 	fulcioRoots         *x509.CertPool
 	fulcioIntermediates *x509.CertPool
 	rekorPublicKeys     *cosign.TrustedTransparencyLogPubKeys
 	ctLogPublicKeys     *cosign.TrustedTransparencyLogPubKeys
 
-	verificationCache sync.Map
-	allowedIdentities []cosign.Identity
-	authOptions       map[string]remote.Option
-
-	hooks hooks
-}
-
-type verifySignatureFn func(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, bool, error)
-type verifyAttestationFn func(ctx context.Context, signedImgRef name.Reference, co *cosign.CheckOpts) (checkedAttestations []oci.Signature, bundleVerified bool, err error)
-type getRekorClientFn func(string, ...client.Option) (*rekorclient.Rekor, error)
-
-type hooks struct {
-	verifySignatureFn    verifySignatureFn
-	verifyAttestationsFn verifyAttestationFn
-	getRekorClientFn     getRekorClientFn
-	trustStoreProviders  trustStoreProviders
-}
-
-type trustStoreProviders struct {
-	getFulcioRootsFn         func() (*x509.CertPool, error)
-	getFulcioIntermediatesFn func() (*x509.CertPool, error)
-	getRekorPublicKeysFn     func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
-	getCTLogPublicKeysFn     func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
-}
-
-type signatureDetails struct {
-	Subject              string
-	Issuer               string
-	Signature            string
-	LogID                string
-	LogIndex             string
-	IntegratedTime       string
-	SignedEntryTimestamp string
+	hooks struct {
+		verifyImageSignatures   verifySignaturesFn
+		verifyImageAttestations verifyAttestationsFn
+		getRekorClient          getRekorClientFn
+		getFulcioRoots          getFulcioRootsFn
+		getFulcioIntermediates  getFulcioIntermediatesFn
+		getRekorPublicKeys      getRekorPublicKeysFn
+		getCTLogPublicKeys      getCTLogPublicKeysFn
+	}
 }
 
 func NewConfig() *Config {
@@ -114,16 +94,22 @@ func NewVerifier(config *Config) *ImageVerifier {
 	verifier := &ImageVerifier{
 		config:      config,
 		authOptions: make(map[string]remote.Option),
-		hooks: hooks{
-			verifySignatureFn:    cosign.VerifyImageSignatures,
-			verifyAttestationsFn: cosign.VerifyImageAttestations,
-			getRekorClientFn:     client.GetRekorClient,
-			trustStoreProviders: trustStoreProviders{
-				getFulcioRootsFn:         fulcioroots.Get,
-				getFulcioIntermediatesFn: fulcioroots.GetIntermediates,
-				getRekorPublicKeysFn:     cosign.GetRekorPubs,
-				getCTLogPublicKeysFn:     cosign.GetCTLogPubs,
-			},
+		hooks: struct {
+			verifyImageSignatures   verifySignaturesFn
+			verifyImageAttestations verifyAttestationsFn
+			getRekorClient          getRekorClientFn
+			getFulcioRoots          getFulcioRootsFn
+			getFulcioIntermediates  getFulcioIntermediatesFn
+			getRekorPublicKeys      getRekorPublicKeysFn
+			getCTLogPublicKeys      getCTLogPublicKeysFn
+		}{
+			verifyImageSignatures:   cosign.VerifyImageSignatures,
+			verifyImageAttestations: cosign.VerifyImageAttestations,
+			getRekorClient:          client.GetRekorClient,
+			getFulcioRoots:          fulcioroots.Get,
+			getFulcioIntermediates:  fulcioroots.GetIntermediates,
+			getRekorPublicKeys:      cosign.GetRekorPubs,
+			getCTLogPublicKeys:      cosign.GetCTLogPubs,
 		},
 	}
 
@@ -153,29 +139,29 @@ func NewVerifier(config *Config) *ImageVerifier {
 // Init prepares the verifier by retrieving the Fulcio certificates and Rekor and CT public keys.
 func (v *ImageVerifier) Init(ctx context.Context) error {
 	var err error
-	v.fulcioRoots, err = v.hooks.trustStoreProviders.getFulcioRootsFn()
+	v.fulcioRoots, err = v.hooks.getFulcioRoots()
 	if err != nil {
 		return fmt.Errorf("failed to get fulcio root certificates: %w", err)
 	}
 
-	v.fulcioIntermediates, err = v.hooks.trustStoreProviders.getFulcioIntermediatesFn()
+	v.fulcioIntermediates, err = v.hooks.getFulcioIntermediates()
 	if err != nil {
 		return fmt.Errorf("failed to get fulcio intermediate certificates: %w", err)
 	}
 
 	if !v.config.IgnoreTlog {
-		v.rekorPublicKeys, err = v.hooks.trustStoreProviders.getRekorPublicKeysFn(ctx)
+		v.rekorPublicKeys, err = v.hooks.getRekorPublicKeys(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get rekor public keys: %w", err)
 		}
-		v.rekorClient, err = v.hooks.getRekorClientFn(v.config.RekorURL, client.WithLogger(v.config.Logger))
+		v.rekorClient, err = v.hooks.getRekorClient(v.config.RekorURL, client.WithLogger(v.config.Logger))
 		if err != nil {
 			return fmt.Errorf("failed to get rekor client: %w", err)
 		}
 	}
 
 	if !v.config.IgnoreSCT {
-		v.ctLogPublicKeys, err = v.hooks.trustStoreProviders.getCTLogPublicKeysFn(ctx)
+		v.ctLogPublicKeys, err = v.hooks.getCTLogPublicKeys(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get CT log public keys: %w", err)
 		}
@@ -184,7 +170,7 @@ func (v *ImageVerifier) Init(ctx context.Context) error {
 	return nil
 }
 
-// Verify validates an image's signature, attestations, and transparency logs using Cosign and Rekor.
+// Verify validates image's signatures, attestations, and transparency logs using Cosign and Rekor.
 // The imageID parameter is expected to be in the format "repository@sha256:digest".
 // It returns selectors based on the image signature and rekor bundle details.
 // Cosign ensures the image's signature issuer and subject match the configured allowed identities.
@@ -261,11 +247,29 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	return selectors, nil
 }
 
+type verifySignaturesFn func(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, bool, error)
+type verifyAttestationsFn func(ctx context.Context, signedImgRef name.Reference, co *cosign.CheckOpts) (checkedAttestations []oci.Signature, bundleVerified bool, err error)
+type getRekorClientFn func(string, ...client.Option) (*rekorclient.Rekor, error)
+type getFulcioRootsFn func() (*x509.CertPool, error)
+type getFulcioIntermediatesFn func() (*x509.CertPool, error)
+type getRekorPublicKeysFn func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
+type getCTLogPublicKeysFn func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
+
+type signatureDetails struct {
+	Subject              string
+	Issuer               string
+	Signature            string
+	LogID                string
+	LogIndex             string
+	IntegratedTime       string
+	SignedEntryTimestamp string
+}
+
 func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, error) {
 	v.config.Logger.Debug("Verifying image signatures", "image_id", imageRef.Name())
 
 	// Verify the image's signatures using cosign.VerifySignatures
-	signatures, bundleVerified, err := v.hooks.verifySignatureFn(ctx, imageRef, checkOptions)
+	signatures, bundleVerified, err := v.hooks.verifyImageSignatures(ctx, imageRef, checkOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify signatures: %w", err)
 	}
@@ -283,7 +287,7 @@ func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Re
 	v.config.Logger.Debug("Verifying image attestations", "image_id", imageRef.Name())
 
 	// Verify the image's attestations using cosign.VerifyImageAttestations
-	attestations, bundleVerified, err := v.hooks.verifyAttestationsFn(ctx, imageRef, checkOptions)
+	attestations, bundleVerified, err := v.hooks.verifyImageAttestations(ctx, imageRef, checkOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify image attestations: %w", err)
 	}
