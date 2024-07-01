@@ -1,6 +1,7 @@
 # Server plugin: BundlePublisher "aws_rolesanywhere_trustanchor"
 
-**Note: This plugin is only supported when an UpstreamAuthority plugin is used.**
+> [!WARNING]
+> This plugin is only supported when an UpstreamAuthority plugin is used.
 
 The `aws_rolesanywhere_trustanchor` plugin puts the current trust bundle of the server
 in a trust anchor, keeping it updated.

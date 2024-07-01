@@ -269,8 +269,8 @@ func TestPublishMultiple(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, resp)
 
-	// UpdateTrustAnchor was called, even though it failed, so its counter should be incremented.
-	require.Equal(t, 1, client.updateTrustAnchorCount)
+	// The UpdateTrustAnchor call failed, so its counter should not be incremented.
+	require.Equal(t, 0, client.updateTrustAnchorCount)
 
 	// Remove the updateTrustAnchorErr and try again.
 	client.updateTrustAnchorErr = nil
@@ -279,7 +279,7 @@ func TestPublishMultiple(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	require.Equal(t, 2, client.updateTrustAnchorCount)
+	require.Equal(t, 1, client.updateTrustAnchorCount)
 
 	// Call PublishBundle with the same bundle.
 	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
@@ -289,7 +289,7 @@ func TestPublishMultiple(t *testing.T) {
 	require.NotNil(t, resp)
 
 	// The same bundle was used, the counter should be the same as before.
-	require.Equal(t, 2, client.updateTrustAnchorCount)
+	require.Equal(t, 1, client.updateTrustAnchorCount)
 
 	// Have a new bundle and call PublishBundle.
 	bundle = getTestBundle(t)
@@ -302,7 +302,7 @@ func TestPublishMultiple(t *testing.T) {
 
 	// PublishBundle was called with a different bundle, updateTrustAnchorCount should
 	// be incremented to be 3.
-	require.Equal(t, 3, client.updateTrustAnchorCount)
+	require.Equal(t, 2, client.updateTrustAnchorCount)
 
 	// Try to publish a bundle that's too large, and expect that we receive an error.
 	bundle = getLargeTestBundle(t)
@@ -310,6 +310,7 @@ func TestPublishMultiple(t *testing.T) {
 	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
 		Bundle: bundle,
 	})
+	require.Nil(t, resp)
 	require.Error(t, err)
 }
 
@@ -324,8 +325,6 @@ type fakeClient struct {
 }
 
 func (c *fakeClient) UpdateTrustAnchor(_ context.Context, params *rolesanywhere.UpdateTrustAnchorInput, _ ...func(*rolesanywhere.Options)) (*rolesanywhere.UpdateTrustAnchorOutput, error) {
-	c.updateTrustAnchorCount++
-
 	if c.updateTrustAnchorErr != nil {
 		return nil, c.updateTrustAnchorErr
 	}
@@ -333,6 +332,7 @@ func (c *fakeClient) UpdateTrustAnchor(_ context.Context, params *rolesanywhere.
 	require.Equal(c.t, c.expectTrustAnchorID, params.TrustAnchorId, "trust anchor id mismatch")
 	trustAnchorArn := "trustAnchorArn"
 	trustAnchorName := "trustAnchorName"
+	c.updateTrustAnchorCount++
 	return &rolesanywhere.UpdateTrustAnchorOutput{
 		TrustAnchor: &rolesanywheretypes.TrustAnchorDetail{
 			TrustAnchorArn: &trustAnchorArn,
