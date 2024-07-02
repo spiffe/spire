@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -218,6 +219,18 @@ func TestMintX509CA(t *testing.T) {
 			expectCode:      codes.Internal,
 			expectMsgPrefix: "upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Internal desc = unable to parse CA cert chain: x509: malformed certificate",
 		},
+		{
+			name: "honors ttl",
+			ttl:  time.Second * 99,
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				return csr, pubKey
+			},
+			downstreamResp: &svidv1.NewDownstreamX509CAResponse{
+				CaCertChain: [][]byte{[]byte("malformed")},
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Internal desc = unable to parse CA cert chain: x509: malformed certificate",
+		},
 	}
 
 	cases = append(cases, mintX509CACasesOS(t)...)
@@ -240,6 +253,7 @@ func TestMintX509CA(t *testing.T) {
 			}
 
 			ua, mockClock := newWithDefault(t, serverAddr, workloadAPIAddr)
+			server.sAPIServer.clock = mockClock
 
 			// Send initial request and get stream
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -257,6 +271,12 @@ func TestMintX509CA(t *testing.T) {
 			}
 
 			require.Equal(t, ca.X509Bundle().X509Authorities(), x509Authorities)
+
+			wantTTL := c.ttl
+			if wantTTL == 0 {
+				wantTTL = x509svid.DefaultUpstreamCATTL
+			}
+			require.Equal(t, wantTTL, x509CA[0].NotAfter.Sub(mockClock.Now()))
 
 			isEqual, err := cryptoutil.PublicKeyEqual(x509CA[0].PublicKey, pubKey)
 			require.NoError(t, err)

@@ -71,6 +71,7 @@ func (s *CATestSuite) SetupTest() {
 		TrustDomain:   trustDomainExample,
 		Clock:         s.clock,
 		X509CASubject: pkix.Name{CommonName: "TESTCA"},
+		X509CATTL:     10 * time.Minute,
 		X509SVIDTTL:   time.Minute,
 	})
 	s.Require().NoError(err)
@@ -506,11 +507,11 @@ func (s *CATestSuite) TestSignDownstreamX509CA() {
 }
 
 func (s *CATestSuite) TestSignDownstreamX509CAUsesDefaultTTLIfTTLUnspecified() {
-	svid, err := s.ca.SignDownstreamX509CA(ctx, s.createDownstreamX509CAParams())
+	downstreamCA, err := s.ca.SignDownstreamX509CA(ctx, s.createDownstreamX509CAParams())
 	s.Require().NoError(err)
-	s.Require().Len(svid, 1)
-	s.Require().Equal(s.clock.Now().Add(-backdate), svid[0].NotBefore)
-	s.Require().Equal(s.clock.Now().Add(time.Minute), svid[0].NotAfter)
+	s.Require().Len(downstreamCA, 1)
+	s.Require().Equal(s.clock.Now().Add(-backdate), downstreamCA[0].NotBefore)
+	s.Require().Equal(s.clock.Now().Add(10*time.Minute), downstreamCA[0].NotAfter)
 }
 
 func (s *CATestSuite) TestHealthChecks() {

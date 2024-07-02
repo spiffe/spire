@@ -139,7 +139,7 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 	}
 	defer p.unsubscribeToPolling()
 
-	certChain, roots, err := p.serverClient.newDownstreamX509CA(stream.Context(), request.Csr)
+	certChain, roots, err := p.serverClient.newDownstreamX509CA(stream.Context(), request.Csr, request.PreferredTtl)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to request a new Downstream X509CA: %v", err)
 	}

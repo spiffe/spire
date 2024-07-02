@@ -30,19 +30,21 @@ func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 
 // Config is the service configuration
 type Config struct {
-	EntryFetcher api.AuthorizedEntryFetcher
-	ServerCA     ca.ServerCA
-	TrustDomain  spiffeid.TrustDomain
-	DataStore    datastore.DataStore
+	EntryFetcher                 api.AuthorizedEntryFetcher
+	ServerCA                     ca.ServerCA
+	TrustDomain                  spiffeid.TrustDomain
+	DataStore                    datastore.DataStore
+	UseLegacyDownstreamX509CATTL bool
 }
 
 // New creates a new SVID service
 func New(config Config) *Service {
 	return &Service{
-		ca: config.ServerCA,
-		ef: config.EntryFetcher,
-		td: config.TrustDomain,
-		ds: config.DataStore,
+		ca:                           config.ServerCA,
+		ef:                           config.EntryFetcher,
+		td:                           config.TrustDomain,
+		ds:                           config.DataStore,
+		useLegacyDownstreamX509CATTL: config.UseLegacyDownstreamX509CATTL,
 	}
 }
 
@@ -50,10 +52,11 @@ func New(config Config) *Service {
 type Service struct {
 	svidv1.UnsafeSVIDServer
 
-	ca ca.ServerCA
-	ef api.AuthorizedEntryFetcher
-	td spiffeid.TrustDomain
-	ds datastore.DataStore
+	ca                           ca.ServerCA
+	ef                           api.AuthorizedEntryFetcher
+	td                           spiffeid.TrustDomain
+	ds                           datastore.DataStore
+	useLegacyDownstreamX509CATTL bool
 }
 
 func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequest) (*svidv1.MintX509SVIDResponse, error) {
@@ -394,9 +397,20 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		return nil, err
 	}
 
+	// Use the TTL offered by the downstream server (if any), unless we are
+	// configured to use the legacy TTL.
+	ttl := req.PreferredTtl
+	if s.useLegacyDownstreamX509CATTL {
+		// Legacy downstream TTL prefers the downstream workload entry
+		// TTL (if any) and then the default workload TTL. We'll handle the
+		// latter inside of the credbuilder package, which already has
+		// knowledge of the default.
+		ttl = entry.X509SvidTtl
+	}
+
 	x509CASvid, err := s.ca.SignDownstreamX509CA(ctx, ca.DownstreamX509CAParams{
 		PublicKey: csr.PublicKey,
-		TTL:       time.Duration(entry.X509SvidTtl) * time.Second,
+		TTL:       time.Duration(ttl) * time.Second,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)

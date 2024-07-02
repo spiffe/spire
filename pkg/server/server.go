@@ -295,14 +295,15 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 
 func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, error) {
 	return credtemplate.NewBuilder(credtemplate.Config{
-		TrustDomain:         s.config.TrustDomain,
-		X509CASubject:       s.config.CASubject,
-		X509CATTL:           s.config.CATTL,
-		AgentSVIDTTL:        s.config.AgentTTL,
-		X509SVIDTTL:         s.config.X509SVIDTTL,
-		JWTSVIDTTL:          s.config.JWTSVIDTTL,
-		JWTIssuer:           s.config.JWTIssuer,
-		CredentialComposers: cat.GetCredentialComposers(),
+		TrustDomain:                  s.config.TrustDomain,
+		X509CASubject:                s.config.CASubject,
+		X509CATTL:                    s.config.CATTL,
+		AgentSVIDTTL:                 s.config.AgentTTL,
+		X509SVIDTTL:                  s.config.X509SVIDTTL,
+		JWTSVIDTTL:                   s.config.JWTSVIDTTL,
+		JWTIssuer:                    s.config.JWTIssuer,
+		CredentialComposers:          cat.GetCredentialComposers(),
+		UseLegacyDownstreamX509CATTL: s.config.UseLegacyDownstreamX509CATTL,
 	})
 }
 
@@ -380,26 +381,27 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 
 func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, jwtKeyPublisher manager.JwtKeyPublisher, authPolicyEngine *authpolicy.Engine, bundleManager *bundle_client.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
-		TCPAddr:              s.config.BindAddress,
-		LocalAddr:            s.config.BindLocalAddress,
-		SVIDObserver:         svidObserver,
-		TrustDomain:          s.config.TrustDomain,
-		Catalog:              catalog,
-		ServerCA:             serverCA,
-		Log:                  s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
-		RootLog:              s.config.Log,
-		Metrics:              metrics,
-		JWTKeyPublisher:      jwtKeyPublisher,
-		RateLimit:            s.config.RateLimit,
-		Uptime:               uptime.Uptime,
-		Clock:                clock.New(),
-		CacheReloadInterval:  s.config.CacheReloadInterval,
-		EventsBasedCache:     s.config.EventsBasedCache,
-		PruneEventsOlderThan: s.config.PruneEventsOlderThan,
-		AuditLogEnabled:      s.config.AuditLogEnabled,
-		AuthPolicyEngine:     authPolicyEngine,
-		BundleManager:        bundleManager,
-		AdminIDs:             s.config.AdminIDs,
+		TCPAddr:                      s.config.BindAddress,
+		LocalAddr:                    s.config.BindLocalAddress,
+		SVIDObserver:                 svidObserver,
+		TrustDomain:                  s.config.TrustDomain,
+		Catalog:                      catalog,
+		ServerCA:                     serverCA,
+		Log:                          s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
+		RootLog:                      s.config.Log,
+		Metrics:                      metrics,
+		JWTKeyPublisher:              jwtKeyPublisher,
+		RateLimit:                    s.config.RateLimit,
+		Uptime:                       uptime.Uptime,
+		Clock:                        clock.New(),
+		CacheReloadInterval:          s.config.CacheReloadInterval,
+		EventsBasedCache:             s.config.EventsBasedCache,
+		PruneEventsOlderThan:         s.config.PruneEventsOlderThan,
+		AuditLogEnabled:              s.config.AuditLogEnabled,
+		AuthPolicyEngine:             authPolicyEngine,
+		BundleManager:                bundleManager,
+		AdminIDs:                     s.config.AdminIDs,
+		UseLegacyDownstreamX509CATTL: s.config.UseLegacyDownstreamX509CATTL,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address
