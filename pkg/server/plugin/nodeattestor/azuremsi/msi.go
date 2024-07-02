@@ -81,10 +81,6 @@ type TenantConfig struct {
 	SubscriptionID string `hcl:"subscription_id" json:"subscription_id"`
 	AppID          string `hcl:"app_id" json:"app_id"`
 	AppSecret      string `hcl:"app_secret" json:"app_secret"`
-
-	// Deprecated: use_msi is deprecated and will be removed in a future release.
-	// Will be used implicitly if other mechanisms to authenticate fail.
-	UseMSI bool `hcl:"use_msi" json:"use_msi"`
 }
 
 type MSIAttestorConfig struct {
@@ -276,9 +272,6 @@ func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 		// Use tenant-specific credentials for resolving selectors
 		switch {
 		case tenant.SubscriptionID != "", tenant.AppID != "", tenant.AppSecret != "":
-			if tenant.UseMSI {
-				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: cannot use both MSI and app authentication", tenantID)
-			}
 			if tenant.SubscriptionID == "" {
 				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: missing subscription id", tenantID)
 			}
@@ -298,10 +291,6 @@ func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "unable to create client for tenant %q: %v", tenantID, err)
 			}
-
-		case tenant.UseMSI:
-			p.log.Warn("use_msi is deprecated and will be removed in a future release")
-			fallthrough // use default credential which attempts to fetch credentials using MSI
 
 		default:
 			instanceMetadata, err := p.hooks.fetchInstanceMetadata(http.DefaultClient)

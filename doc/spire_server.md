@@ -16,33 +16,34 @@ This document is a configuration reference for SPIRE Server. It includes informa
 
 ## Built-in plugins
 
-| Type               | Name                                                                       | Description                                                                                                                 |
-|--------------------|----------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| DataStore          | [sql](/doc/plugin_server_datastore_sql.md)                                 | An SQL database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore                                  |
-| KeyManager         | [aws_kms](/doc/plugin_server_keymanager_aws_kms.md)                        | A key manager which manages keys in AWS KMS                                                                                 |
-| KeyManager         | [disk](/doc/plugin_server_keymanager_disk.md)                              | A key manager which manages keys persisted on disk                                                                          |
-| KeyManager         | [memory](/doc/plugin_server_keymanager_memory.md)                          | A key manager which manages unpersisted keys in memory                                                                      |
-| CredentialComposer | [uniqueid](/doc/plugin_server_credentialcomposer_uniqueid.md)              | Adds the x509UniqueIdentifier attribute to workload X509-SVIDs.                                                             |
-| NodeAttestor       | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md)                      | A node attestor which attests agent identity using an AWS Instance Identity Document                                        |
-| NodeAttestor       | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md)                  | A node attestor which attests agent identity using an Azure MSI token                                                       |
-| NodeAttestor       | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md)                      | A node attestor which attests agent identity using a GCP Instance Identity Token                                            |
-| NodeAttestor       | [join_token](/doc/plugin_server_nodeattestor_jointoken.md)                 | A node attestor which validates agents attesting with server-generated join tokens                                          |
-| NodeAttestor       | [k8s_sat](/doc/plugin_server_nodeattestor_k8s_sat.md) (deprecated)         | A node attestor which attests agent identity using a Kubernetes Service Account token                                       |
-| NodeAttestor       | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md)                    | A node attestor which attests agent identity using a Kubernetes Projected Service Account token                             |
-| NodeAttestor       | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md)                        | A node attestor which attests agent identity using an existing ssh certificate                                              |
-| NodeAttestor       | [tpm_devid](/doc/plugin_server_nodeattestor_tpm_devid.md)                  | A node attestor which attests agent identity using a TPM that has been provisioned with a DevID certificate                 |
-| NodeAttestor       | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md)                      | A node attestor which attests agent identity using an existing X.509 certificate                                            |
-| UpstreamAuthority  | [disk](/doc/plugin_server_upstreamauthority_disk.md)                       | Uses a CA loaded from disk to sign SPIRE server intermediate certificates.                                                  |
-| UpstreamAuthority  | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md)                 | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates.           |
-| UpstreamAuthority  | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md)             | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates.                                    |
-| UpstreamAuthority  | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md)                 | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates. |
-| UpstreamAuthority  | [vault](/doc/plugin_server_upstreamauthority_vault.md)                     | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates.                               |
-| UpstreamAuthority  | [spire](/doc/plugin_server_upstreamauthority_spire.md)                     | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server.        |
-| UpstreamAuthority  | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md)       | Uses a referenced cert-manager Issuer to request intermediate signing certificates.                                         |
-| Notifier           | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md)                    | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage.                             |
-| Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                      | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.                                        |
-| BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)                     | Publishes the trust bundle to an Amazon S3 bucket.                                                                          |
-| BundlePublisher    | [gcp_cloudstorage](/doc/plugin_server_bundlepublisher_gcp_cloudstorage.md) | Publishes the trust bundle to a Google Cloud Storage bucket.                                                                |
+| Type               | Name                                                                                             | Description                                                                                                                 |
+|--------------------|--------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| DataStore          | [sql](/doc/plugin_server_datastore_sql.md)                                                       | An SQL database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore                                  |
+| KeyManager         | [aws_kms](/doc/plugin_server_keymanager_aws_kms.md)                                              | A key manager which manages keys in AWS KMS                                                                                 |
+| KeyManager         | [disk](/doc/plugin_server_keymanager_disk.md)                                                    | A key manager which manages keys persisted on disk                                                                          |
+| KeyManager         | [memory](/doc/plugin_server_keymanager_memory.md)                                                | A key manager which manages unpersisted keys in memory                                                                      |
+| CredentialComposer | [uniqueid](/doc/plugin_server_credentialcomposer_uniqueid.md)                                    | Adds the x509UniqueIdentifier attribute to workload X509-SVIDs.                                                             |
+| NodeAttestor       | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md)                                            | A node attestor which attests agent identity using an AWS Instance Identity Document                                        |
+| NodeAttestor       | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md)                                        | A node attestor which attests agent identity using an Azure MSI token                                                       |
+| NodeAttestor       | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md)                                            | A node attestor which attests agent identity using a GCP Instance Identity Token                                            |
+| NodeAttestor       | [join_token](/doc/plugin_server_nodeattestor_jointoken.md)                                       | A node attestor which validates agents attesting with server-generated join tokens                                          |
+| NodeAttestor       | [k8s_sat](/doc/plugin_server_nodeattestor_k8s_sat.md) (deprecated)                               | A node attestor which attests agent identity using a Kubernetes Service Account token                                       |
+| NodeAttestor       | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md)                                          | A node attestor which attests agent identity using a Kubernetes Projected Service Account token                             |
+| NodeAttestor       | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md)                                              | A node attestor which attests agent identity using an existing ssh certificate                                              |
+| NodeAttestor       | [tpm_devid](/doc/plugin_server_nodeattestor_tpm_devid.md)                                        | A node attestor which attests agent identity using a TPM that has been provisioned with a DevID certificate                 |
+| NodeAttestor       | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md)                                            | A node attestor which attests agent identity using an existing X.509 certificate                                            |
+| UpstreamAuthority  | [disk](/doc/plugin_server_upstreamauthority_disk.md)                                             | Uses a CA loaded from disk to sign SPIRE server intermediate certificates.                                                  |
+| UpstreamAuthority  | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md)                                       | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates.           |
+| UpstreamAuthority  | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md)                                   | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates.                                    |
+| UpstreamAuthority  | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md)                                       | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates. |
+| UpstreamAuthority  | [vault](/doc/plugin_server_upstreamauthority_vault.md)                                           | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates.                               |
+| UpstreamAuthority  | [spire](/doc/plugin_server_upstreamauthority_spire.md)                                           | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server.        |
+| UpstreamAuthority  | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md)                             | Uses a referenced cert-manager Issuer to request intermediate signing certificates.                                         |
+| Notifier           | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md)                                          | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage.                             |
+| Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                                            | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.                                        |
+| BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)                                           | Publishes the trust bundle to an Amazon S3 bucket.                                                                          |
+| BundlePublisher    | [gcp_cloudstorage](/doc/plugin_server_bundlepublisher_gcp_cloudstorage.md)                       | Publishes the trust bundle to a Google Cloud Storage bucket.                                                                |
+| BundlePublisher    | [aws_rolesanywhere_trustanchor](/doc/plugin_server_bundlepublisher_rolesanywhere_trustanchor.md) | Publishes the trust bundle to an AWS IAM Roles Anywhere trust anchor.                                                       |
 
 ## Server configuration file
 
@@ -81,7 +82,6 @@ This may be useful for templating configuration files, for example across differ
 | `ratelimit`                  | Rate limiting configurations, usually used when the server is behind a load balancer (see below)                                                                                                                                                    |                                                                |
 | `socket_path`                | Path to bind the SPIRE Server API socket to (Unix only)                                                                                                                                                                                             | /tmp/spire-server/private/api.sock                             |
 | `trust_domain`               | The trust domain that this server belongs to (should be no more than 255 characters)                                                                                                                                                                |                                                                |
-| `exclude_sn_from_ca_subject` | Do not include certificate serial number in the subject field                                                                                                                                                                                       | false                                                          |
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
@@ -258,7 +258,7 @@ When setting a `bundle_endpoint`, it is `required` to specify the bundle profile
 
 Allowed profiles:
 
-- `https_web` allow to configure the [Automated Certificate Management Environment](#Configuration options for `federation.bundle_endpoint.profile "https_web".acme`) section.
+- `https_web` allow to configure either the [Automated Certificate Management Environment](#Configuration options for `federation.bundle_endpoint.profile "https_web".acme`) or the [serving cert file](#Configure options for 'federation.bundle_endpoint.porfile "https_web".serving_cert_file') section.
 - `https_spiffe`
 
 ### Configuration options for `federation.bundle_endpoint.profile "https_web".acme`
@@ -269,6 +269,14 @@ Allowed profiles:
 | domain_name   | Domain for which the certificate manager tries to retrieve new certificates                                               |                                                |
 | email         | Contact email address. This is used by CAs, such as Let's Encrypt, to notify about problems with issued certificates      |                                                |
 | tos_accepted  | ACME Terms of Service acceptance. If not true, and the provider requires acceptance, then certificate retrieval will fail | false                                          |
+
+### Configuration options for `federation.bundle_endpoint.profile "https_web".serving_cert_file`
+
+| Configuration      | Description                                     | Default |
+|--------------------|-------------------------------------------------|---------|
+| cert_file_path     | Path to the certificate file, in PEM format     |         |
+| key_file_path      | Path to the key file, in PEM format             |         |
+| file_sync_interval | Interval on which to reload the files from disk | 1h      |
 
 ### Configuration options for `federation.bundle_endpoint.profile "https_spiffe"`
 

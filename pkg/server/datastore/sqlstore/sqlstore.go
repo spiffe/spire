@@ -294,7 +294,9 @@ func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedN
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, node.SpiffeId)
+		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
+			SpiffeID: node.SpiffeId,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -348,7 +350,9 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, n.SpiffeId)
+		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
+			SpiffeID: n.SpiffeId,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -362,7 +366,9 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 		if err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, spiffeID)
+		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
+			SpiffeID: spiffeID,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -388,15 +394,30 @@ func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.D
 	})
 }
 
-// GetLatestAttestedNodeEventID get the id of the last event
-func (ds *Plugin) GetLatestAttestedNodeEventID(ctx context.Context) (eventID uint, err error) {
+// CreateRegistrationEntryEventForTestingForTesting creates an attested node event. Used for unit testing.
+func (ds *Plugin) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) error {
+		return createAttestedNodeEvent(tx, event)
+	})
+}
+
+// DeleteAttestedNodeEventForTesting deletes an attested node event by event ID. Used for unit testing.
+func (ds *Plugin) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return deleteAttestedNodeEvent(tx, eventID)
+	})
+}
+
+// FetchAttestedNodeEvent fetches an existing attested node event by event ID
+func (ds *Plugin) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (event *datastore.AttestedNodeEvent, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		eventID, err = getLatestAttestedNodeEventID(tx)
+		event, err = fetchAttestedNodeEvent(ds.db, eventID)
 		return err
 	}); err != nil {
-		return 0, err
+		return nil, err
 	}
-	return eventID, nil
+
+	return event, nil
 }
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
@@ -405,7 +426,9 @@ func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selecto
 		if err = setNodeSelectors(tx, spiffeID, selectors); err != nil {
 			return err
 		}
-		return createAttestedNodeEvent(tx, spiffeID)
+		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
+			SpiffeID: spiffeID,
+		})
 	})
 }
 
@@ -468,7 +491,9 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, registrationEntry.EntryId)
+		return createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+			EntryID: registrationEntry.EntryId,
+		})
 	}); err != nil {
 		return nil, false, err
 	}
@@ -511,7 +536,9 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.Registr
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, entry.EntryId)
+		return createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+			EntryID: entry.EntryId,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -528,7 +555,9 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 			return err
 		}
 
-		return createRegistrationEntryEvent(tx, entryID)
+		return createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+			EntryID: entryID,
+		})
 	}); err != nil {
 		return nil, err
 	}
@@ -563,15 +592,30 @@ func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan 
 	})
 }
 
-// GetLatestRegistrationEntryEventID get the id of the last event
-func (ds *Plugin) GetLatestRegistrationEntryEventID(ctx context.Context) (eventID uint, err error) {
+// CreateRegistrationEntryEventForTesting creates a registration entry event. Used for unit testing.
+func (ds *Plugin) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return createRegistrationEntryEvent(tx, event)
+	})
+}
+
+// DeleteRegistrationEntryEventForTesting deletes the given registration entry event. Used for unit testing.
+func (ds *Plugin) DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return deleteRegistrationEntryEvent(tx, eventID)
+	})
+}
+
+// FetchRegistrationEntryEvent fetches an existing registration entry event by event ID
+func (ds *Plugin) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (event *datastore.RegistrationEntryEvent, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		eventID, err = getLatestRegistrationEntryEventID(tx)
+		event, err = fetchRegistrationEntryEvent(ds.db, eventID)
 		return err
 	}); err != nil {
-		return 0, err
+		return nil, err
 	}
-	return eventID, nil
+
+	return event, nil
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -1660,12 +1704,13 @@ func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, _ logrus.Fiel
 	}
 }
 
-func createAttestedNodeEvent(tx *gorm.DB, spiffeID string) error {
-	newAttestedNodeEvent := AttestedNodeEvent{
-		SpiffeID: spiffeID,
-	}
-
-	if err := tx.Create(&newAttestedNodeEvent).Error; err != nil {
+func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) error {
+	if err := tx.Create(&AttestedNodeEvent{
+		Model: Model{
+			ID: event.EventID,
+		},
+		SpiffeID: event.SpiffeID,
+	}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
@@ -1700,13 +1745,28 @@ func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration) error {
 	return nil
 }
 
-func getLatestAttestedNodeEventID(tx *gorm.DB) (uint, error) {
-	lastAttestedNodeEvent := AttestedNodeEvent{}
-	if err := tx.Last(&lastAttestedNodeEvent).Error; err != nil {
-		return 0, sqlError.Wrap(err)
+func fetchAttestedNodeEvent(db *sqlDB, eventID uint) (*datastore.AttestedNodeEvent, error) {
+	event := AttestedNodeEvent{}
+	if err := db.Find(&event, "id = ?", eventID).Error; err != nil {
+		return nil, sqlError.Wrap(err)
 	}
 
-	return lastAttestedNodeEvent.ID, nil
+	return &datastore.AttestedNodeEvent{
+		EventID:  event.ID,
+		SpiffeID: event.SpiffeID,
+	}, nil
+}
+
+func deleteAttestedNodeEvent(tx *gorm.DB, eventID uint) error {
+	if err := tx.Delete(&AttestedNodeEvent{
+		Model: Model{
+			ID: eventID,
+		},
+	}).Error; err != nil {
+		return sqlError.Wrap(err)
+	}
+
+	return nil
 }
 
 // filterNodesBySelectorSet filters nodes based on provided selectors
@@ -3982,7 +4042,9 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
 			return err
 		}
-		if err := createRegistrationEntryEvent(tx, entry.EntryID); err != nil {
+		if err := createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+			EntryID: entry.EntryID,
+		}); err != nil {
 			return err
 		}
 		logger.WithFields(logrus.Fields{
@@ -3995,12 +4057,37 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 	return nil
 }
 
-func createRegistrationEntryEvent(tx *gorm.DB, entryID string) error {
-	newRegisteredEntryEvent := RegisteredEntryEvent{
-		EntryID: entryID,
+func createRegistrationEntryEvent(tx *gorm.DB, event *datastore.RegistrationEntryEvent) error {
+	if err := tx.Create(&RegisteredEntryEvent{
+		Model: Model{
+			ID: event.EventID,
+		},
+		EntryID: event.EntryID,
+	}).Error; err != nil {
+		return sqlError.Wrap(err)
 	}
 
-	if err := tx.Create(&newRegisteredEntryEvent).Error; err != nil {
+	return nil
+}
+
+func fetchRegistrationEntryEvent(db *sqlDB, eventID uint) (*datastore.RegistrationEntryEvent, error) {
+	event := RegisteredEntryEvent{}
+	if err := db.Find(&event, "id = ?", eventID).Error; err != nil {
+		return nil, sqlError.Wrap(err)
+	}
+
+	return &datastore.RegistrationEntryEvent{
+		EventID: event.ID,
+		EntryID: event.EntryID,
+	}, nil
+}
+
+func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
+	if err := tx.Delete(&RegisteredEntryEvent{
+		Model: Model{
+			ID: eventID,
+		},
+	}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
 
@@ -4033,15 +4120,6 @@ func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error 
 	}
 
 	return nil
-}
-
-func getLatestRegistrationEntryEventID(tx *gorm.DB) (uint, error) {
-	lastRegisteredEntryEvent := RegisteredEntryEvent{}
-	if err := tx.Last(&lastRegisteredEntryEvent).Error; err != nil {
-		return 0, sqlError.Wrap(err)
-	}
-
-	return lastRegisteredEntryEvent.ID, nil
 }
 
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {

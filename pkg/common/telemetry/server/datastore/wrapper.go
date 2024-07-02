@@ -36,6 +36,12 @@ func (w metricsWrapper) CreateAttestedNode(ctx context.Context, node *common.Att
 	return w.ds.CreateAttestedNode(ctx, node)
 }
 
+func (w metricsWrapper) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) (err error) {
+	callCounter := StartCreateAttestedNodeEventForTestingCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.CreateAttestedNodeEventForTesting(ctx, event)
+}
+
 func (w metricsWrapper) CreateBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {
 	callCounter := StartCreateBundleCall(w.m)
 	defer callCounter.Done(&err)
@@ -60,6 +66,12 @@ func (w metricsWrapper) CreateOrReturnRegistrationEntry(ctx context.Context, ent
 	return w.ds.CreateOrReturnRegistrationEntry(ctx, entry)
 }
 
+func (w metricsWrapper) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) (err error) {
+	callCounter := StartCreateRegistrationEntryEventForTestingCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.CreateRegistrationEntryEventForTesting(ctx, event)
+}
+
 func (w metricsWrapper) CreateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship) (_ *datastore.FederationRelationship, err error) {
 	callCounter := StartCreateFederationRelationshipCall(w.m)
 	defer callCounter.Done(&err)
@@ -76,6 +88,12 @@ func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, spiffeID string)
 	callCounter := StartDeleteNodeCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.DeleteAttestedNode(ctx, spiffeID)
+}
+
+func (w metricsWrapper) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) (err error) {
+	callCounter := StartDeleteAttestedNodeEventForTestingCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.DeleteAttestedNodeEventForTesting(ctx, eventID)
 }
 
 func (w metricsWrapper) DeleteBundle(ctx context.Context, trustDomain string, mode datastore.DeleteMode) (err error) {
@@ -102,10 +120,22 @@ func (w metricsWrapper) DeleteRegistrationEntry(ctx context.Context, entryID str
 	return w.ds.DeleteRegistrationEntry(ctx, entryID)
 }
 
+func (w metricsWrapper) DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) (err error) {
+	callCounter := StartDeleteRegistrationEntryEventForTestingCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.DeleteRegistrationEntryEventForTesting(ctx, eventID)
+}
+
 func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
 	callCounter := StartFetchNodeCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.FetchAttestedNode(ctx, spiffeID)
+}
+
+func (w metricsWrapper) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (_ *datastore.AttestedNodeEvent, err error) {
+	callCounter := StartFetchAttestedNodeEventCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.FetchAttestedNodeEvent(ctx, eventID)
 }
 
 func (w metricsWrapper) FetchBundle(ctx context.Context, trustDomain string) (_ *common.Bundle, err error) {
@@ -126,22 +156,16 @@ func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID stri
 	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
+func (w metricsWrapper) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (_ *datastore.RegistrationEntryEvent, err error) {
+	callCounter := StartFetchRegistrationEntryEventCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.FetchRegistrationEntryEvent(ctx, eventID)
+}
+
 func (w metricsWrapper) FetchFederationRelationship(ctx context.Context, trustDomain spiffeid.TrustDomain) (_ *datastore.FederationRelationship, err error) {
 	callCounter := StartFetchFederationRelationshipCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.FetchFederationRelationship(ctx, trustDomain)
-}
-
-func (w metricsWrapper) GetLatestAttestedNodeEventID(ctx context.Context) (_ uint, err error) {
-	callCounter := StartGetLatestAttestedNodeEventIDCall(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.GetLatestAttestedNodeEventID(ctx)
-}
-
-func (w metricsWrapper) GetLatestRegistrationEntryEventID(ctx context.Context) (_ uint, err error) {
-	callCounter := StartGetLatestRegistrationEntryEventIDCall(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.GetLatestRegistrationEntryEventID(ctx)
 }
 
 func (w metricsWrapper) GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) (_ []*common.Selector, err error) {

@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/diskcertmanager"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -84,8 +85,6 @@ type serverConfig struct {
 	RateLimit          rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath         string             `hcl:"socket_path"`
 	TrustDomain        string             `hcl:"trust_domain"`
-	// Temporary flag to allow disabling the inclusion of serial number in X509 CAs Subject field
-	ExcludeSNFromCASubject bool `hcl:"exclude_sn_from_ca_subject"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -100,10 +99,11 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	AuthOpaPolicyEngine  *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
-	CacheReloadInterval  string                      `hcl:"cache_reload_interval"`
-	EventsBasedCache     bool                        `hcl:"events_based_cache"`
-	PruneEventsOlderThan string                      `hcl:"prune_events_older_than"`
+	AuthOpaPolicyEngine   *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
+	CacheReloadInterval   string                      `hcl:"cache_reload_interval"`
+	EventsBasedCache      bool                        `hcl:"events_based_cache"`
+	PruneEventsOlderThan  string                      `hcl:"prune_events_older_than"`
+	SQLTransactionTimeout string                      `hcl:"sql_transaction_timeout"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -143,10 +143,18 @@ type bundleEndpointConfigProfile struct {
 }
 
 type bundleEndpointProfileHTTPSWebConfig struct {
-	ACME *bundleEndpointACMEConfig `hcl:"acme"`
+	ACME            *bundleEndpointACMEConfig      `hcl:"acme"`
+	ServingCertFile *bundleEndpointServingCertFile `hcl:"serving_cert_file"`
 }
 
 type bundleEndpointProfileHTTPSSPIFFEConfig struct{}
+
+type bundleEndpointServingCertFile struct {
+	CertFilePath        string        `hcl:"cert_file_path"`
+	KeyFilePath         string        `hcl:"key_file_path"`
+	FileSyncInterval    time.Duration `hcl:"-"`
+	RawFileSyncInterval string        `hcl:"file_sync_interval"`
+}
 
 type bundleEndpointACMEConfig struct {
 	DirectoryURL       string                 `hcl:"directory_url"`
@@ -461,11 +469,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			}
 
 			if c.Server.Federation.BundleEndpoint != nil {
-				acmeConfig, err := parseBundleEndpointConfigProfile(c.Server.Federation.BundleEndpoint, sc.DataDir, sc.Log)
+				err := setBundleEndpointConfigProfile(c.Server.Federation.BundleEndpoint, sc.DataDir, sc.Log, &sc.Federation)
 				if err != nil {
 					return nil, err
 				}
-				sc.Federation.BundleEndpoint.ACME = acmeConfig
 			}
 		}
 
@@ -638,12 +645,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CASubject = credtemplate.DefaultX509CASubject()
 	}
 
-	sc.ExcludeSNFromCASubject = c.Server.ExcludeSNFromCASubject
-	// TODO: remove exclude_sn_from_ca_subject in SPIRE v1.10.0
-	if sc.ExcludeSNFromCASubject {
-		sc.Log.Warn("The deprecated exclude_sn_from_ca_subject configurable will be removed in a future release")
-	}
-
 	sc.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
 	if err != nil {
 		return nil, err
@@ -677,6 +678,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.PruneEventsOlderThan = interval
 	}
 
+	if c.Server.Experimental.SQLTransactionTimeout != "" {
+		interval, err := time.ParseDuration(c.Server.Experimental.SQLTransactionTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse SQL transaction timeout interval: %w", err)
+		}
+		sc.SQLTransactionTimeout = interval
+	}
+
 	if c.Server.Experimental.EventsBasedCache {
 		sc.Log.Info("Using events based cache")
 	}
@@ -691,46 +700,54 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	return sc, nil
 }
 
-func parseBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string, log logrus.FieldLogger) (*bundle.ACMEConfig, error) {
+func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string, log logrus.FieldLogger, federationConfig *server.FederationConfig) error {
 	switch {
 	case config.ACME != nil && config.Profile != nil:
-		return nil, errors.New("either bundle endpoint 'acme' or 'profile' can be set, but not both")
+		return errors.New("either bundle endpoint 'acme' or 'profile' can be set, but not both")
 
 	case config.ACME != nil:
 		log.Warn("ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.")
-		return configToACMEConfig(config.ACME, dataDir), nil
+		federationConfig.BundleEndpoint.ACME = configToACMEConfig(config.ACME, dataDir)
+		return nil
 
 	case config.Profile == nil:
 		log.Warn("Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.")
-		return nil, nil
+		return nil
 	}
 
 	// Profile is set, parse it
 	configString, err := parseBundleEndpointProfileASTNode(config.Profile)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	profileConfig := new(bundleEndpointConfigProfile)
 	if err := hcl.Decode(profileConfig, configString); err != nil {
-		return nil, fmt.Errorf("failed to decode configuration: %w", err)
+		return fmt.Errorf("failed to decode configuration: %w", err)
 	}
 
 	switch {
 	case profileConfig.HTTPSWeb != nil:
-		acme := profileConfig.HTTPSWeb.ACME
-		if acme == nil {
-			return nil, fmt.Errorf("malformed https_web profile configuration: ACME is required")
+		switch {
+		case profileConfig.HTTPSWeb.ACME != nil:
+			federationConfig.BundleEndpoint.ACME = configToACMEConfig(profileConfig.HTTPSWeb.ACME, dataDir)
+			return nil
+		case profileConfig.HTTPSWeb.ServingCertFile != nil:
+			federationConfig.BundleEndpoint.DiskCertManager, err = configToDiskCertManager(profileConfig.HTTPSWeb.ServingCertFile, log)
+			if err != nil {
+				return err
+			}
+			return nil
+		default:
+			return errors.New("malformed https_web profile configuration: 'acme' or 'serving_cert_file' is required")
 		}
-		acmeConfig := configToACMEConfig(acme, dataDir)
-		return acmeConfig, nil
 
 	// For now ignore SPIFFE configuration
 	case profileConfig.HTTPSSPIFFE != nil:
-		return nil, nil
+		return nil
 
 	default:
-		return nil, errors.New(`unknown bundle endpoint profile configured; current supported profiles are "https_spiffe" and 'https_web"`)
+		return errors.New(`unknown bundle endpoint profile configured; current supported profiles are "https_spiffe" and 'https_web"`)
 	}
 }
 
@@ -742,6 +759,28 @@ func configToACMEConfig(acme *bundleEndpointACMEConfig, dataDir string) *bundle.
 		Email:        acme.Email,
 		ToSAccepted:  acme.ToSAccepted,
 	}
+}
+
+func configToDiskCertManager(serviceCertFile *bundleEndpointServingCertFile, log logrus.FieldLogger) (*diskcertmanager.DiskCertManager, error) {
+	fileSyncInterval, err := time.ParseDuration(serviceCertFile.RawFileSyncInterval)
+	if err != nil {
+		return nil, err
+	}
+
+	serviceCertFile.FileSyncInterval = fileSyncInterval
+	if serviceCertFile.FileSyncInterval == time.Duration(0) {
+		serviceCertFile.FileSyncInterval = time.Hour
+	}
+
+	return diskcertmanager.New(
+		&diskcertmanager.Config{
+			CertFilePath:     serviceCertFile.CertFilePath,
+			KeyFilePath:      serviceCertFile.KeyFilePath,
+			FileSyncInterval: serviceCertFile.FileSyncInterval,
+		},
+		nil,
+		log,
+	)
 }
 
 func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {

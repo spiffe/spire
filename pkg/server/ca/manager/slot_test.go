@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -181,8 +180,7 @@ func TestJournalLoad(t *testing.T) {
 	jwtKeyBPKIX, err := x509.MarshalPKIXPublicKey(jwtKeyB.Public())
 	require.NoError(t, err)
 
-	tempDir := t.TempDir()
-	journalFile := filepath.Join(tempDir, "journal.pem")
+	activeX509AuthorityID := getOneX509AuthorityID(ctx, t, km)
 
 	// Dates
 	firstIssuedAtUnix := now.Add(-3 * time.Minute).Unix()
@@ -776,18 +774,17 @@ func TestJournalLoad(t *testing.T) {
 			loghook.Reset()
 			journal := new(Journal)
 			journal.config = &journalConfig{
-				cat:      cat,
-				filePath: journalFile,
-				log:      log,
+				cat: cat,
+				log: log,
 			}
 			journal.setEntries(tt.entries)
+			journal.activeX509AuthorityID = activeX509AuthorityID
 			err = journal.save(ctx)
 			require.NoError(t, err)
 
 			loader := &SlotLoader{
 				TrustDomain: td,
 				Log:         log,
-				Dir:         tempDir,
 				Catalog:     cat,
 			}
 

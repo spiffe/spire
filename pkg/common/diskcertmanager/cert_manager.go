@@ -1,4 +1,4 @@
-package main
+package diskcertmanager
 
 import (
 	"context"
@@ -28,7 +28,13 @@ type DiskCertManager struct {
 	log              logrus.FieldLogger
 }
 
-func NewDiskCertManager(config *ServingCertFileConfig, clk clock.Clock, log logrus.FieldLogger) (*DiskCertManager, error) {
+type Config struct {
+	CertFilePath     string
+	KeyFilePath      string
+	FileSyncInterval time.Duration
+}
+
+func New(config *Config, clk clock.Clock, log logrus.FieldLogger) (*DiskCertManager, error) {
 	if config == nil {
 		return nil, errors.New("missing serving cert file configuration")
 	}
@@ -53,7 +59,7 @@ func NewDiskCertManager(config *ServingCertFileConfig, clk clock.Clock, log logr
 }
 
 // TLSConfig returns a TLS configuration that uses the provided certificate stored on disk.
-func (m *DiskCertManager) TLSConfig() *tls.Config {
+func (m *DiskCertManager) GetTLSConfig() *tls.Config {
 	return &tls.Config{
 		GetCertificate: m.getCertificate,
 		NextProtos: []string{

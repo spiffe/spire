@@ -1571,11 +1571,6 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 			s.Assert().Equal(test.expectedEvents, resp.Events)
 		})
 	}
-
-	// Check we can get the last event id
-	lastEventID, err := s.ds.GetLatestAttestedNodeEventID(ctx)
-	s.Require().NoError(err)
-	s.Require().Equal(uint(len(expectedEvents)), lastEventID)
 }
 
 func (s *PluginSuite) TestPruneAttestedNodesEvents() {
@@ -2109,9 +2104,13 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	} {
 		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
-			lastEventID, err := s.ds.GetLatestRegistrationEntryEventID(ctx)
+			// Get latest event id
+			resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 			require.NoError(t, err)
+			require.Greater(t, len(resp.Events), 0)
+			lastEventID := resp.Events[len(resp.Events)-1].EventID
 
+			// Prune events
 			err = s.ds.PruneRegistrationEntries(ctx, tt.time)
 			require.NoError(t, err)
 			fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
@@ -2119,7 +2118,7 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
 			// Verify pruning triggers event creation
-			resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+			resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
 				GreaterThanEventID: lastEventID,
 			})
 			require.NoError(t, err)
@@ -4031,11 +4030,6 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 			s.Require().Equal(test.expectedEvents, resp.Events)
 		})
 	}
-
-	// Check we can get the last event id
-	lastEventID, err := s.ds.GetLatestRegistrationEntryEventID(ctx)
-	s.Require().NoError(err)
-	s.Require().Equal(expectedEventID, lastEventID)
 }
 
 func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {

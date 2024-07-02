@@ -59,7 +59,7 @@ The following steps must be completed by the primary on-call maintainer to perfo
   * If the build fails, or anything unusual is encountered, abort the release.
     * Ensure that the GitHub release, container images, and release artifacts are deleted/rolled back if necessary.
 * Visit the releases page on GitHub, copy the release notes, click edit and paste them back in. This works around a GitHub Markdown rendering bug that you will notice before completing this task.
-* Create Git tags (not annotated) with the name `vX.Y.Z` in the [spire-api-sdk](https://github.com/spiffe/spire-api-sdk) and [spire-plugin-sdk](https://github.com/spiffe/spire-plugin-sdk) repositories for the HEAD commit of the main branch.
+* Cut new SDK releases (see [SDK Releases](#sdk-releases)).
 * Open a PR targeted for the main branch with the following changes:
   * Cherry-pick of the changelog commit from the latest release so that the changelog on the main branch contains all the release notes.
   * Bump the SPIRE version to the next projected version. As for determining the next projected version, the project generally releases three patch releases per minor release cycle (e.g. `vX.Y.[0-3]`), not including dedicated security releases. The version needs to be updated in the following places:
@@ -75,3 +75,27 @@ The following steps must be completed by the primary on-call maintainer to perfo
 
 * PRs to update spiffe.io and spire-examples repo to the latest major version must be merged.
   * Ensure that the PRs have been updated to use the version tag instead of the commit sha.
+
+### SDK Releases
+
+SPIRE has two SDK repositories:
+
+* [API SDK](https://github.com/spiffe/spire-api-sdk)
+* [Plugin SDK](https://github.com/spiffe/spire-plugin-sdk)
+
+SPIRE consumes these SDKs using pseudo-versions from the `next` branch in each SDK repository. This allows unreleased changes to be reviewed, merged, and consumed by SPIRE.
+
+These SDKs need to be released with each SPIRE release.
+
+SDK releases take place using tagged commits from the `main` branch in each repository. When cutting a new release, the `main` branch needs to be prepared with any previously unreleased changes that are part of the new release.
+
+To create a release for an SDK, perform the following steps:
+
+1. Review the diff between `next` and `main`.
+1. Determine the commits in `next` that are missing from `main`, in other words, commits containing features that were under development that are now publicly available through the new SPIRE release (e.g. API or plugin interface additions).
+1. Cherry-pick those commits, if any, into `main`.
+1. Create a git tag (not annotated) with the name `vX.Y.Z`, corresponding to the SPIRE release version, for the `HEAD` commit of the main branch.
+1. Push the `vX.Y.Z` tag to Github.
+
+> [!WARNING]  
+> Extra care should be taken to ensure that the tagged commit is correct before pushing. Once it has been pushed, anyone running `go get <SDK module>@latest` will cause the repository to be pulled into the Go module cache at that cache. Changing it afterwards is not without consequence.
