@@ -7,6 +7,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
+	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/ejbca"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/gcpcas"
 	spireplugin "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
@@ -39,6 +40,7 @@ func (repo *upstreamAuthorityRepository) BuiltIns() []catalog.BuiltIn {
 		spireplugin.BuiltIn(),
 		disk.BuiltIn(),
 		certmanager.BuiltIn(),
+		ejbca.BuiltIn(),
 	}
 }
 

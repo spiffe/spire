@@ -1,0 +1,128 @@
+# Default values for ejbca.
+# This is a YAML-formatted file.
+
+nameOverride: ""
+fullnameOverride: ""
+
+ejbca:
+  replicaCount: 1
+
+  podAnnotations: {}
+
+  image:
+    repository: keyfactor/ejbca-ce
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+    imagePullSecrets: []
+
+  containerPorts:
+    - name: ejbca-http
+      containerPort: 8081
+      protocol: TCP
+    - name: ejbca-https
+      containerPort: 8082
+      protocol: TCP
+
+  proxyHttpBind: "0.0.0.0"
+  logAuditToDatabase: "true"
+  
+  service:
+    name: ejbca-service
+    type: NodePort
+    ports:
+      - name: ejbca-http
+        port: 8081
+        targetPort: ejbca-http
+        nodePort: 30080
+        protocol: TCP
+      - name: ejbca-https
+        port: 8082
+        targetPort: ejbca-https
+        nodePort: 30443
+        protocol: TCP
+
+  reverseProxy:
+    enabled: false
+    image:
+      repository: httpd
+      pullPolicy: IfNotPresent
+      tag: "2.4"
+
+    service:
+      name: ejbca-rp-service
+      type: ClusterIP
+      ports:
+        - name: ejbca-rp-https
+          port: 8443
+          targetPort: 8082
+          protocol: TCP
+
+          authCASecretName: managementca
+          tlsSecretName: ejbca-reverseproxy-tls
+          baseCertDir: '/usr/local/certs'
+          baseCaCertDir: '/usr/local/cacerts'
+
+  volumes: []
+    # - name: ejbca-eep-admininternal
+    #   configMapName: ejbca-eep-admininternal
+    #   mountPath: /opt/keyfactor/stage/admininternal
+
+  extraEnvironmentVars: []
+  # - name: EJBCA_EXTRA_ENV
+  #   value: "EJBCA_EXTRA_ENV"
+
+database:
+  replicaCount: 1
+
+  name: ejbca
+  username: ejbca
+  password: ejbca
+  rootPassword: ejbca
+
+  image:
+    repository: mariadb
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "latest"
+    imagePullSecrets: []
+
+  service:
+    name: ejbca-database-service
+    type: ClusterIP
+    port: 3306
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+resources: {}
+  # limits:
+  #   cpu: "16"
+  #   memory: "4096Mi"
+  # requests:
+  #   cpu: 1000m
+  #   memory: "2048Mi"
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
