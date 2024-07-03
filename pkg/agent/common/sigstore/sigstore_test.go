@@ -129,15 +129,15 @@ func TestVerify(t *testing.T) {
 
 	tests := []struct {
 		name                    string
-		configureTest           func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn)
+		configureTest           func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *mockCosignVerifySignatureFn, attestationsVerifyMock *mockCosignVerifyAttestationsFn)
 		expectedSelectors       []string
 		expectedError           bool
 		expectedFetchDescriptor bool
 	}{
 		{
 			name: "generates selectors from verified signature, rekor bundle, and attestations",
-			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
-				signature := new(MockSignature)
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyMock *mockCosignVerifySignatureFn, attestationsVerifyMock *mockCosignVerifyAttestationsFn) {
+				signature := new(mockSignature)
 				signature.On("Payload").Return(createMockPayload(), nil)
 				signature.On("Base64Signature").Return("base64signature", nil)
 				signature.On("Cert").Return(createMockCert(), nil)
@@ -162,10 +162,10 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "generates selectors from verified signature and bundle, but ignore attestations",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, _ *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *mockCosignVerifySignatureFn, _ *mockCosignVerifyAttestationsFn) {
 				verifier.config.IgnoreAttestations = true
 
-				signature := new(MockSignature)
+				signature := new(mockSignature)
 				signature.On("Payload").Return(createMockPayload(), nil)
 				signature.On("Base64Signature").Return("base64signature", nil)
 				signature.On("Cert").Return(createMockCert(), nil)
@@ -188,10 +188,10 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "tlog is set to ignore, not generate selectors from bundle",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *mockCosignVerifySignatureFn, attestationsVerifyMock *mockCosignVerifyAttestationsFn) {
 				verifier.config.IgnoreTlog = true
 
-				signature := new(MockSignature)
+				signature := new(mockSignature)
 				signature.On("Payload").Return(createMockPayload(), nil)
 				signature.On("Base64Signature").Return("base64signature", nil)
 				signature.On("Cert").Return(createMockCert(), nil)
@@ -212,10 +212,10 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "tlog is not ignored, verification returns bundle not verified and causes error",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, _ *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *mockCosignVerifySignatureFn, _ *mockCosignVerifyAttestationsFn) {
 				verifier.config.IgnoreTlog = false // make explicit that is not ignored
 
-				signature := new(MockSignature)
+				signature := new(mockSignature)
 				signature.On("Payload").Return(createMockPayload(), nil)
 				signature.On("Base64Signature").Return("base64signature", nil)
 				signature.On("Cert").Return(createMockCert(), nil)
@@ -228,7 +228,7 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "fails to verify signature",
-			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyMock *mockCosignVerifySignatureFn, attestationsVerifyMock *mockCosignVerifyAttestationsFn) {
 				signatureVerifyMock.On("Verify", ctx, imageRef, mock.AnythingOfType("*cosign.CheckOpts")).Return(([]oci.Signature)(nil), false, errors.New("failed to verify signature"))
 			},
 			expectedSelectors:       nil,
@@ -237,8 +237,8 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "fails to verify attestations",
-			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
-				signature := new(MockSignature)
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyMock *mockCosignVerifySignatureFn, attestationsVerifyMock *mockCosignVerifyAttestationsFn) {
+				signature := new(mockSignature)
 				signature.On("Payload").Return(createMockPayload(), nil)
 				signature.On("Base64Signature").Return("base64signature", nil)
 				signature.On("Cert").Return(createMockCert(), nil)
@@ -253,7 +253,7 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "cache hit",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *mockCosignVerifySignatureFn, attestationsVerifyMock *mockCosignVerifyAttestationsFn) {
 				verifier.verificationCache.Store(imageID, []string{
 					imageSignatureVerifiedSelector,
 					imageAttestationsVerifiedSelector,
@@ -280,7 +280,7 @@ func TestVerify(t *testing.T) {
 		},
 		{
 			name: "imageID is in the skipped images list",
-			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *MockCosignVerifySignatureFn, attestationsVerifyMock *MockCosignVerifyAttestationsFn) {
+			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyMock *mockCosignVerifySignatureFn, attestationsVerifyMock *mockCosignVerifyAttestationsFn) {
 				verifier.config.SkippedImages = []string{imageID}
 			},
 			expectedSelectors:       []string{},
@@ -392,156 +392,156 @@ func TestProcessAllowedIdentities(t *testing.T) {
 	}
 }
 
-type MockCosignVerifySignatureFn struct {
+type mockCosignVerifySignatureFn struct {
 	mock.Mock
 }
 
-func (m *MockCosignVerifySignatureFn) Verify(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+func (m *mockCosignVerifySignatureFn) Verify(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, bool, error) {
 	args := m.Called(ctx, imageRef, checkOptions)
 	return args.Get(0).([]oci.Signature), args.Bool(1), args.Error(2)
 }
 
-type MockCosignVerifyAttestationsFn struct {
+type mockCosignVerifyAttestationsFn struct {
 	mock.Mock
 }
 
-func (m *MockCosignVerifyAttestationsFn) Verify(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+func (m *mockCosignVerifyAttestationsFn) Verify(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, bool, error) {
 	args := m.Called(ctx, imageRef, checkOptions)
 	return args.Get(0).([]oci.Signature), args.Bool(1), args.Error(2)
 }
 
-type MockSignature struct {
+type mockSignature struct {
 	mock.Mock
 }
 
-func (m *MockSignature) Payload() ([]byte, error) {
+func (m *mockSignature) Payload() ([]byte, error) {
 	args := m.Called()
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (m *MockSignature) Base64Signature() (string, error) {
+func (m *mockSignature) Base64Signature() (string, error) {
 	args := m.Called()
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockSignature) Cert() (*x509.Certificate, error) {
+func (m *mockSignature) Cert() (*x509.Certificate, error) {
 	args := m.Called()
 	return args.Get(0).(*x509.Certificate), args.Error(1)
 }
 
-func (m *MockSignature) Bundle() (*bundle.RekorBundle, error) {
+func (m *mockSignature) Bundle() (*bundle.RekorBundle, error) {
 	args := m.Called()
 	return args.Get(0).(*bundle.RekorBundle), args.Error(1)
 }
 
-func (m *MockSignature) Digest() (v1.Hash, error) {
+func (m *mockSignature) Digest() (v1.Hash, error) {
 	args := m.Called()
 	return args.Get(0).(v1.Hash), args.Error(1)
 }
 
-func (m *MockSignature) DiffID() (v1.Hash, error) {
+func (m *mockSignature) DiffID() (v1.Hash, error) {
 	args := m.Called()
 	return args.Get(0).(v1.Hash), args.Error(1)
 }
 
-func (m *MockSignature) Compressed() (io.ReadCloser, error) {
+func (m *mockSignature) Compressed() (io.ReadCloser, error) {
 	args := m.Called()
 	return args.Get(0).(io.ReadCloser), args.Error(1)
 }
 
-func (m *MockSignature) Uncompressed() (io.ReadCloser, error) {
+func (m *mockSignature) Uncompressed() (io.ReadCloser, error) {
 	args := m.Called()
 	return args.Get(0).(io.ReadCloser), args.Error(1)
 }
 
-func (m *MockSignature) Size() (int64, error) {
+func (m *mockSignature) Size() (int64, error) {
 	args := m.Called()
 	return args.Get(0).(int64), args.Error(1)
 }
 
-func (m *MockSignature) MediaType() (types.MediaType, error) {
+func (m *mockSignature) MediaType() (types.MediaType, error) {
 	args := m.Called()
 	return args.Get(0).(types.MediaType), args.Error(1)
 }
 
-func (m *MockSignature) Annotations() (map[string]string, error) {
+func (m *mockSignature) Annotations() (map[string]string, error) {
 	args := m.Called()
 	return args.Get(0).(map[string]string), args.Error(1)
 }
 
-func (m *MockSignature) Signature() ([]byte, error) {
+func (m *mockSignature) Signature() ([]byte, error) {
 	args := m.Called()
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (m *MockSignature) Chain() ([]*x509.Certificate, error) {
+func (m *mockSignature) Chain() ([]*x509.Certificate, error) {
 	args := m.Called()
 	return args.Get(0).([]*x509.Certificate), args.Error(1)
 }
 
-func (m *MockSignature) RFC3161Timestamp() (*bundle.RFC3161Timestamp, error) {
+func (m *mockSignature) RFC3161Timestamp() (*bundle.RFC3161Timestamp, error) {
 	args := m.Called()
 	return args.Get(0).(*bundle.RFC3161Timestamp), args.Error(1)
 }
 
-type MockGetFulcioRootsFn struct {
+type mockGetFulcioRootsFn struct {
 	mock.Mock
 }
 
-func (m *MockGetFulcioRootsFn) Get() (*x509.CertPool, error) {
+func (m *mockGetFulcioRootsFn) Get() (*x509.CertPool, error) {
 	args := m.Called()
 	return args.Get(0).(*x509.CertPool), args.Error(1)
 }
 
-type MockGetFulcioIntermediatesFn struct {
+type mockGetFulcioIntermediatesFn struct {
 	mock.Mock
 }
 
-func (m *MockGetFulcioIntermediatesFn) Get() (*x509.CertPool, error) {
+func (m *mockGetFulcioIntermediatesFn) Get() (*x509.CertPool, error) {
 	args := m.Called()
 	return args.Get(0).(*x509.CertPool), args.Error(1)
 }
 
-type MockGetRekorPubsFn struct {
+type mockGetRekorPubsFn struct {
 	mock.Mock
 }
 
-func (m *MockGetRekorPubsFn) Get(ctx context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
+func (m *mockGetRekorPubsFn) Get(ctx context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(*cosign.TrustedTransparencyLogPubKeys), args.Error(1)
 }
 
-type MockGetCTLogPubsFn struct {
+type mockGetCTLogPubsFn struct {
 	mock.Mock
 }
 
-func (m *MockGetCTLogPubsFn) Get(ctx context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
+func (m *mockGetCTLogPubsFn) Get(ctx context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
 	args := m.Called(ctx)
 	return args.Get(0).(*cosign.TrustedTransparencyLogPubKeys), args.Error(1)
 }
 
-type MockGetRekorClientFn struct {
+type mockGetRekorClientFn struct {
 	mock.Mock
 }
 
-func (m *MockGetRekorClientFn) Get(url string, opts ...client.Option) (*rekorclient.Rekor, error) {
+func (m *mockGetRekorClientFn) Get(url string, opts ...client.Option) (*rekorclient.Rekor, error) {
 	args := m.Called(url, opts)
 	return args.Get(0).(*rekorclient.Rekor), args.Error(1)
 }
 
-func setupVerifier() (*ImageVerifier, *MockCosignVerifySignatureFn, *MockCosignVerifyAttestationsFn, *MockGetFulcioRootsFn, *MockGetFulcioIntermediatesFn, *MockGetRekorPubsFn, *MockGetCTLogPubsFn, *MockGetRekorClientFn) {
+func setupVerifier() (*ImageVerifier, *mockCosignVerifySignatureFn, *mockCosignVerifyAttestationsFn, *mockGetFulcioRootsFn, *mockGetFulcioIntermediatesFn, *mockGetRekorPubsFn, *mockGetCTLogPubsFn, *mockGetRekorClientFn) {
 	config := NewConfig()
 	logger := hclog.NewNullLogger()
 	config.Logger = logger
 	config.RekorURL = publicRekorURL
 
-	mockCosignVerifySignatureFn := new(MockCosignVerifySignatureFn)
-	mockCosignVerifyAttestationsFn := new(MockCosignVerifyAttestationsFn)
-	mockGetFulcioRootsFn := new(MockGetFulcioRootsFn)
-	mockGetFulcioIntermediatesFn := new(MockGetFulcioIntermediatesFn)
-	mockGetRekorPubsFn := new(MockGetRekorPubsFn)
-	mockGetCTLogPubsFn := new(MockGetCTLogPubsFn)
-	mockGetRekorClientFn := new(MockGetRekorClientFn)
+	mockCosignVerifySignatureFn := new(mockCosignVerifySignatureFn)
+	mockCosignVerifyAttestationsFn := new(mockCosignVerifyAttestationsFn)
+	mockGetFulcioRootsFn := new(mockGetFulcioRootsFn)
+	mockGetFulcioIntermediatesFn := new(mockGetFulcioIntermediatesFn)
+	mockGetRekorPubsFn := new(mockGetRekorPubsFn)
+	mockGetCTLogPubsFn := new(mockGetCTLogPubsFn)
+	mockGetRekorClientFn := new(mockGetRekorClientFn)
 
 	verifier := &ImageVerifier{
 		config: config,
