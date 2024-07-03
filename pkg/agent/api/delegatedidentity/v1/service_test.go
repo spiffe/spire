@@ -1143,7 +1143,7 @@ func (fa FakeAttestor) Attest(context.Context) ([]*common.Selector, error) {
 	return fa.selectors, fa.err
 }
 
-func (fa FakeWorkloadPIDAttestor) Attest(_ context.Context, pid int) ([]*common.Selector, error) {
+func (fa FakeWorkloadPIDAttestor) Attest(_ context.Context, _ int) ([]*common.Selector, error) {
 	return fa.selectors, fa.err
 }
 
