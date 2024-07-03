@@ -27,7 +27,7 @@ The EJBCA UpstreamAuthority Plugin accepts the following configuration options.
 | `end_entity_name`          | (optional) The name of the end entity, or configuration for how the EJBCA UpstreamAuthority should determine the end entity name. See [End Entity Name Customization](#ejbca-end-entity-name-customization-leaf-certificates) for more info. |                                    |
 | `account_binding_id`       | (optional) An account binding ID in EJBCA to associate with issued certificates.                                                                                                                                                             |                                    |
 
-> Configuration parameters that have an override from Environment Variables will always override the provided value from the SPIRE configuration with the values in the environment. 
+> Configuration parameters that have an override from Environment Variables will always override the provided value from the SPIRE configuration with the values in the environment.
 >
 > If all configuration parameters for the selected auth method are specified by environment variables, an empty block still must exist to select the auth method.
 
