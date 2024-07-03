@@ -392,7 +392,7 @@ There are two ways the trusted delegate workload can request SVIDs for other wor
    and return SVIDs for any workload registration entries that match the selectors the SPIRE Agent attested from that PID.
    This differs from the previous approach in that the SPIRE Agent itself (not the trusted delegate) handles the attestation of the other workload.
    As on most platforms PIDs are not stable identifiers, the trusted delegate workload **must** ensure that the PID it provides to the SPIRE Agent 
-   via the Delegated Identity API for attestation is not recycled between the time a Delegate Identity API request is made, and a response is received. 
+   via the Delegated Identity API for attestation is not recycled between the time a Delegate Identity API request is made, and a response is received (e.g. by using pidfds).
    SVIDs and attestation results obtained via the Delegated Identity API for a PID are valid until the process referred to by the PID terminates. 
 
 To enable the Delegated Identity API, configure the admin API endpoint address and the list of SPIFFE IDs for authorized delegates. For example:
