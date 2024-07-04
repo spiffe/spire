@@ -142,7 +142,7 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, ds, clk)
+	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, ds, clk, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 	require.NotNil(t, attestedNodes)
