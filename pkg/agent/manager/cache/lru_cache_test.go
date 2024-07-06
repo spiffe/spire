@@ -711,9 +711,9 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 	assert.Equal(t, 10, cache.CountSVIDs())
 
 	// foo SVID should be removed from cache as it does not have active subscriber
-	assert.False(t, cache.Notify(makeSelectors("A")))
+	assert.False(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("A"), subA.(*lruCacheSubscriber)))
 	// bar SVID should be cached as it has active subscriber
-	assert.True(t, cache.Notify(makeSelectors("B")))
+	assert.True(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("B"), subB.(*lruCacheSubscriber)))
 
 	subA = cache.NewSubscriber(makeSelectors("A"))
 	defer subA.Finish()
@@ -791,8 +791,12 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	assert.Equal(t, 5, cache.CountSVIDs())
 }
 
-func TestNotify(t *testing.T) {
+func TestNotifySubscriberWhenSVIDIsAvailable(t *testing.T) {
 	cache := newTestLRUCache(t)
+
+	subscriber := cache.NewSubscriber(makeSelectors("A"))
+	sub, ok := subscriber.(*lruCacheSubscriber)
+	require.True(t, ok)
 
 	foo := makeRegistrationEntry("FOO", "A")
 	cache.UpdateEntries(&UpdateEntries{
@@ -800,11 +804,11 @@ func TestNotify(t *testing.T) {
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, nil)
 
-	assert.False(t, cache.Notify(makeSelectors("A")))
+	assert.False(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("A"), sub))
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo),
 	})
-	assert.True(t, cache.Notify(makeSelectors("A")))
+	assert.True(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("A"), sub))
 }
 
 func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
