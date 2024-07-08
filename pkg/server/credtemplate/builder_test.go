@@ -386,10 +386,20 @@ func TestBuildDownstreamX509CATemplate(t *testing.T) {
 			},
 		},
 		{
-			desc: "override X509SVIDTTL",
+			desc: "default legacy TTL",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.UseLegacyDownstreamX509CATTL = true
+			},
+			overrideExpected: func(expected *x509.Certificate) {
+				expected.NotAfter = now.Add(credtemplate.DefaultX509SVIDTTL)
+			},
+		},
+		{
+			desc: "override X509SVIDTTL with legacy TTL",
 			overrideConfig: func(config *credtemplate.Config) {
 				// Downstream CAs have historically been signed using the default X509-SVID TTL
 				config.X509SVIDTTL = credtemplate.DefaultX509SVIDTTL * 2
+				config.UseLegacyDownstreamX509CATTL = true
 			},
 			overrideExpected: func(expected *x509.Certificate) {
 				expected.NotAfter = now.Add(credtemplate.DefaultX509SVIDTTL * 2)
@@ -476,8 +486,7 @@ func TestBuildDownstreamX509CATemplate(t *testing.T) {
 					SubjectKeyId:          publicKeyID,
 					AuthorityKeyId:        parentKeyID,
 					NotBefore:             notBefore,
-					// Downstream CAs have historically been signed using the default X509-SVID TTL
-					NotAfter: x509SVIDNotAfter,
+					NotAfter:              x509CANotAfter,
 				}
 				if tc.overrideExpected != nil {
 					tc.overrideExpected(expected)
