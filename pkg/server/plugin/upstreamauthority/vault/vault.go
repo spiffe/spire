@@ -21,6 +21,8 @@ import (
 
 const (
 	pluginName = "vault"
+
+	PluginConfigMalformed = "plugin configuration is malformed"
 )
 
 // BuiltIn constructs a catalog.BuiltIn using a new instance of this plugin.
@@ -56,6 +58,21 @@ type Configuration struct {
 	InsecureSkipVerify bool `hcl:"insecure_skip_verify" json:"insecure_skip_verify"`
 	// Name of the Vault namespace
 	Namespace string `hcl:"namespace" json:"namespace"`
+}
+
+func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
+	newConf := new(Configuration)
+	if err := hcl.Decode(newConf, text); err != nil {
+		notes = append( notes, PluginConfigMalformed )
+		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	}
+
+	var unusable bool = false
+	if unusable {
+		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	} else {
+		return config, notes, nil
+	}
 }
 
 // TokenAuthConfig represents parameters for token auth method
@@ -134,20 +151,23 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config := new(Configuration)
-
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	if err != nil {
+		return nil, err
 	}
+
+	// TODO: consider moving some elements of parseAuthMethod into config checking
+	// TODO: consider moving some elements of genClientParams into config checking
+	// TODO: consider moving some elements of NewClientConfig into config checking
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	am, err := parseAuthMethod(config)
+	am, err := parseAuthMethod(newConfig)
 	if err != nil {
 		return nil, err
 	}
-	cp, err := p.genClientParams(am, config)
+	cp, err := p.genClientParams(am, newConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -160,6 +180,15 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.cc = vcConfig
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {

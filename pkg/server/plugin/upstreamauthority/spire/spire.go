@@ -28,6 +28,14 @@ const (
 	pluginName       = "spire"
 	upstreamPollFreq = 5 * time.Second
 	internalPollFreq = time.Second
+
+	CoreConfigRequired = "server core configuration is required"
+	CoreConfigTrustdomainRequired = "server core configuration must contain trust_domain"
+	CoreConfigTrustdomainMalformed = "server core configuration trust_domain is malformed"
+
+	PluginConfigMalformed = "plugin configuration is malformed"
+	PluginConfigBadAddress = "plugin configuration server_address is malformed"
+	PluginConfigBadPort = "plugin configuration server_port is malformed"
 )
 
 var clk clock.Clock = clock.New()
@@ -37,6 +45,40 @@ type Configuration struct {
 	ServerPort        string             `hcl:"server_port" json:"server_port"`
 	WorkloadAPISocket string             `hcl:"workload_api_socket" json:"workload_api_socket"`
 	Experimental      experimentalConfig `hcl:"experimental"`
+}
+
+func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
+	newConf := new(Configuration)
+	if err := hcl.Decode(newConf, text); err != nil {
+		notes = append( notes, PluginConfigMalformed )
+		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	}
+
+	var unusable bool = false
+	if core == nil {
+		unusable = true
+		notes = append( notes, CoreConfigRequired )
+		notes = append( notes, CoreConfigTrustdomainRequired )
+	} else if core.TrustDomain == "" {
+		unusable = true
+		notes = append( notes, CoreConfigTrustdomainRequired )
+	} else {
+		if  _, err := spiffeid.TrustDomainFromString(core.TrustDomain); err != nil {
+			unusable = true
+			notes = append( notes, fmt.Sprintf("%s: %v", CoreConfigTrustdomainMalformed, err))
+		}
+	}
+
+	// TODO: add c.ServerAddr validation
+	// TODO: add c.ServerPort validation
+	// TODO: add c.WorkloadAPISocket validation
+	// TODO: add c.Experimental validation
+
+	if unusable {
+		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	} else {
+		return config, notes, nil
+	}
 }
 
 type experimentalConfig struct {
@@ -83,33 +125,17 @@ func New() *Plugin {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	// Parse HCL config payload into config struct
-	config := new(Configuration)
-
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
+	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	if err != nil {
+		return nil, err
 	}
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	// Create trust domain
-	td, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is malformed: %v", err)
-	}
-	p.trustDomain = td
-
-	// Set config
-	p.config = config
+	// Swap Running Config
+	p.trustDomain, _ = spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	p.config = newConfig
 
 	// Create spire-server client
 	serverAddr := fmt.Sprintf("%s:%s", p.config.ServerAddr, p.config.ServerPort)
@@ -118,7 +144,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, status.Errorf(codes.InvalidArgument, "unable to set Workload API address: %v", err)
 	}
 
-	serverID, err := idutil.ServerID(td)
+	serverID, err := idutil.ServerID(p.trustDomain)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to build server ID: %v", err)
 	}
@@ -126,6 +152,15 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.serverClient = newServerClient(serverID, serverAddr, workloadAPIAddr, p.log)
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
