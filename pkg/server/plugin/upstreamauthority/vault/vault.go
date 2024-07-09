@@ -61,8 +61,8 @@ type Configuration struct {
 }
 
 func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
-	newConf := new(Configuration)
-	if err := hcl.Decode(newConf, text); err != nil {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, text); err != nil {
 		notes = append( notes, PluginConfigMalformed )
 		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
 	}

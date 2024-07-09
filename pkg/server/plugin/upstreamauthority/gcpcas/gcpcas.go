@@ -32,6 +32,12 @@ const (
 	// The name of the plugin
 	pluginName    = "gcp_cas"
 	publicKeyType = "PUBLIC KEY"
+
+	PluginConfigMalformed = "plugin configuration is malformed"
+	PluginConfigMissingRCertProject = "plugin configuration root_cert_spec.Project is missing"
+	PluginConfigMissingRCertLocation = "plugin configuration root_cert_spec.Location is missing"
+	PluginConfigMissingRCertLabelKey = "plugin configuration root_cert_spec.LabelKey is missing"
+	PluginConfigMissingRCertLabelValue = "plugin configuration root_cert_spec.LabelValue is missing"
 )
 
 // BuiltIn constructs a catalog Plugin using a new instance of this plugin.
@@ -64,6 +70,48 @@ func (spec *CertificateAuthoritySpec) caPoolParentPath() string {
 
 type Configuration struct {
 	RootSpec CertificateAuthoritySpec `hcl:"root_cert_spec,block"`
+}
+
+func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
+	newConfig := new(Configuration)
+
+	if err := hcl.Decode(newConfig, text); err != nil {
+		notes = append( notes, fmt.Sprintf("%s: %v", PluginConfigMalformed, err) )
+		return nil, notes, status.Errorf(codes.InvalidArgument, notes[0])
+	}
+
+	var unusable bool = false
+
+	// Without a project and location, we can never locate CAs
+	if newConfig.RootSpec.Project == "" {
+		unusable = true
+		notes = append( notes, PluginConfigMissingRCertProject )
+	}
+	if newConfig.RootSpec.Location == "" {
+		unusable = true
+		notes = append( notes, PluginConfigMissingRCertLocation )
+	}
+
+	// Even LabelKey/Value pair is necessary
+	if newConfig.RootSpec.LabelKey == "" {
+		unusable = true
+		notes = append( notes, PluginConfigMissingRCertLabelKey )
+	}
+	if newConfig.RootSpec.LabelValue == "" {
+		unusable = true
+		notes = append( notes, PluginConfigMissingRCertLabelValue )
+	}
+
+	if newConfig.RootSpec.CaPool == "" {
+		notes = append( notes, "The ca_pool value is not configured. Falling back to searching the region for matching CAs. The ca_pool configurable will be required in a future release." )
+	}
+
+	if unusable {
+		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	} else {
+		return config, notes, nil
+	}
+	
 }
 
 type CAClient interface {
@@ -135,31 +183,27 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReq
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
-	config := new(Configuration)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	if err != nil {
+		return nil, err
 	}
-	// Without a project and location, we can never locate CAs
-	if config.RootSpec.Project == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.Project property")
-	}
-	if config.RootSpec.Location == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.Location property")
-	}
-	// Even LabelKey/Value pair is necessary
-	if config.RootSpec.LabelKey == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.LabelKey property")
-	}
-	if config.RootSpec.LabelValue == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration has empty root_cert_spec.LabelValue property")
-	}
-	if config.RootSpec.CaPool == "" {
-		p.log.Warn("The ca_pool value is not configured. Falling back to searching the region for matching CAs. The ca_pool configurable will be required in a future release.")
-	}
+
+	// TODO: determine if we should pull the config-swap locking up to here,
+	//       or if we should put a (p *pluign) setConfig(...) in every plugin.
+
 	// Swap out the current configuration with the new configuration
-	p.setConfig(config)
+	p.setConfig(newConfig)
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *Plugin) getConfig() (*Configuration, error) {
