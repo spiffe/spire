@@ -175,6 +175,10 @@ func (c *CA) Clock() clock.Clock {
 	return c.options.Clock
 }
 
+func (c *CA) X509CATTL() time.Duration {
+	return time.Hour
+}
+
 func (c *CA) X509SVIDTTL() time.Duration {
 	return c.options.X509SVIDTTL
 }
