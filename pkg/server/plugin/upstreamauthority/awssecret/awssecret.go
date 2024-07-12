@@ -3,6 +3,7 @@ package awssecret
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -24,6 +25,10 @@ import (
 
 const (
 	pluginName = "awssecret"
+
+        CoreConfigRequired = "server core configuration is required"
+        CoreConfigTrustdomainRequired = "server core configuration must contain trust_domain"
+        CoreConfigTrustdomainMalformed = "server core configuration trust_domain is malformed"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -46,6 +51,58 @@ type Configuration struct {
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	SecurityToken   string `hcl:"secret_token" json:"secret_token"`
 	AssumeRoleARN   string `hcl:"assume_role_arn" json:"assume_role_arn"`
+}
+
+func (p *Plugin) NewConfiguration(text string, core *configv1.CoreConfiguration) (newConfig *Configuration, notes []string, err error) {
+	newConfig = new(Configuration)
+	if err := hcl.Decode(newConfig, text); err != nil {
+		notes = append(notes, "plugin configuration is malformed")
+		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	}
+
+	var unusable bool = false
+        if core == nil {
+                unusable = true
+                notes = append(notes, "server core configuration is required")
+                notes = append(notes, "server core configuration must contain trust_domain")
+        } else if core.TrustDomain == "" {
+                unusable = true
+                notes = append(notes, "server core configuration must contain trust_domain")
+        } else {
+                if  _, err := spiffeid.TrustDomainFromString(core.TrustDomain); err != nil {
+                        unusable = true
+                        notes = append(notes, fmt.Sprintf("%s: %v", "server core configuration trust_domain is malformed", err))
+                }
+        }
+
+	env_session_token, env_session_token_exists := os.LookupEnv("AWS_SESSION_TOKEN")
+	if newConfig.SecurityToken == "" && !env_session_token_exists {
+		unusable = true
+		notes = append(notes, "either the config security token or the env variable AWS_SESSION_TOKEN must be set")
+	}
+	if newConfig.SecurityToken == "" && env_session_token == "" {
+		unusable = true
+		notes = append(notes, "the env variable AWS_SESSION_TOKEN must have a value")
+	}
+	if newConfig.SecurityToken != "" && env_session_token_exists {
+		notes = append(notes, "warning: security token set twice, in config security token and env variable AWS_SESSION_TOKEN, using config file setting")
+	}
+	newConfig.SecurityToken = p.hooks.getenv("AWS_SESSION_TOKEN")
+
+	if newConfig.CertFileARN == "" {
+		unusable = true
+		notes = append(notes, "configuration missing cert ARN")
+	}
+	if newConfig.KeyFileARN == "" {
+		unusable = true
+		notes = append(notes, "configuration missing key ARN")
+	}
+
+	if unusable {
+		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	} else {
+		return newConfig, notes, nil
+	}
 }
 
 type Plugin struct {
@@ -83,19 +140,21 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := p.validateConfig(req)
+	newConfig, _, err := p.NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
 	if err != nil {
 		return nil, err
 	}
 
+	// TODO: determine if the items before the lock contain configuration validation.
+
 	// set the AWS configuration and reset clients +
 	// Set local vars from config struct
-	sm, err := p.hooks.newClient(ctx, config, config.Region)
+	sm, err := p.hooks.newClient(ctx, newConfig, newConfig.Region)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to create AWS client: %v", err)
 	}
 
-	keyPEMstr, certsPEMstr, bundleCertsPEMstr, err := fetchFromSecretsManager(ctx, config, sm)
+	keyPEMstr, certsPEMstr, bundleCertsPEMstr, err := fetchFromSecretsManager(ctx, newConfig, sm)
 	if err != nil {
 		p.log.Error("Error loading files from AWS: %v", err)
 		return nil, err
@@ -121,6 +180,15 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.upstreamCA = upstreamCA
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := p.NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 // MintX509CAAndSubscribe mints an X509CA by signing presented CSR with root CA fetched from AWS Secrets Manager
@@ -254,36 +322,3 @@ func fetchFromSecretsManager(ctx context.Context, config *Configuration, sm secr
 	return keyPEMstr, certsPEMstr, bundlePEMstr, nil
 }
 
-func (p *Plugin) validateConfig(req *configv1.ConfigureRequest) (*Configuration, error) {
-	// Parse HCL config payload into config struct
-	config := new(Configuration)
-
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
-	// Set defaults from the environment
-	if config.SecurityToken == "" {
-		config.SecurityToken = p.hooks.getenv("AWS_SESSION_TOKEN")
-	}
-
-	switch {
-	case config.CertFileARN != "" && config.KeyFileARN != "":
-	case config.CertFileARN != "" && config.KeyFileARN == "":
-		return nil, status.Error(codes.InvalidArgument, "configuration missing key ARN")
-	case config.CertFileARN == "" && config.KeyFileARN != "":
-		return nil, status.Error(codes.InvalidArgument, "configuration missing cert ARN")
-	case config.CertFileARN == "" && config.KeyFileARN == "":
-		return nil, status.Error(codes.InvalidArgument, "configuration missing both cert ARN and key ARN")
-	}
-
-	return config, nil
-}

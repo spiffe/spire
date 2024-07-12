@@ -34,8 +34,6 @@ const (
 	defaultCASigningTemplateArn = "arn:aws:acm-pca:::template/SubordinateCACertificate_PathLen0/V1"
 	// Max certificate issuance wait duration
 	maxCertIssuanceWaitDur = 3 * time.Minute
-
-	PluginConfigMalformed = "plugin configuration is malformed"
 )
 
 type newACMPCAClientFunc func(context.Context, *Configuration) (PCAClient, error)
@@ -66,7 +64,7 @@ type Configuration struct {
 func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
 	newConfig := new(Configuration)
 	if err := hcl.Decode(newConfig, text); err != nil {
-		notes = append(notes, PluginConfigMalformed)
+		notes = append(notes, "server core configuration trust_domain is malformed")
 		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
 	}
 
