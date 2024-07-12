@@ -23,6 +23,14 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 )
 
+const (
+        CoreConfigRequired = "server core configuration is required"
+        CoreConfigTrustdomainRequired = "server core configuration must contain trust_domain"
+        CoreConfigTrustdomainMalformed = "server core configuration trust_domain is malformed"
+
+        PluginConfigMalformed = "plugin configuration is malformed"
+)
+
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
@@ -40,6 +48,37 @@ type Configuration struct {
 	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path"`
 	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path"`
+}
+
+func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, text); err != nil {
+		notes = append(notes, PluginConfigMalformed)
+		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	}
+
+        var unusable bool = false
+        if core == nil {
+                unusable = true
+                notes = append( notes, CoreConfigRequired )
+                notes = append( notes, CoreConfigTrustdomainRequired )
+        } else if core.TrustDomain == "" {
+                unusable = true
+                notes = append( notes, CoreConfigTrustdomainRequired )
+        } else {
+                if newConfig.trustDomain, err = spiffeid.TrustDomainFromString(core.TrustDomain); err != nil {
+                        unusable = true
+                        notes = append( notes, fmt.Sprintf("%s: %v", CoreConfigTrustdomainMalformed, err))
+                }
+        }
+
+	// TODO: add field validation
+
+	if unusable {
+		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	} else {
+		return newConfig, notes, nil
+	}
 }
 
 type Plugin struct {
@@ -73,27 +112,9 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	// Parse HCL config payload into config struct
-	config := &Configuration{}
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
+	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
 
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
-	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is malformed: %v", err)
-	}
-	config.trustDomain = trustDomain
-
-	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(config)
+	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(newConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -102,11 +123,20 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.config = config
+	p.config = newConfig
 	p.certs = certs
 	p.upstreamCA = upstreamCA
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+
+	return &configv1.ValidateResponse{
+		Valid: err != nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
@@ -162,6 +192,7 @@ func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
 	return upstreamCA, upstreamCerts, nil
 }
 
+// TODO: perhaps load this into the config
 func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.UpstreamCA, *caCerts, error) {
 	key, err := pemutil.LoadPrivateKey(config.KeyFilePath)
 	if err != nil {

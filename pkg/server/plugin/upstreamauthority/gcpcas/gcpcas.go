@@ -75,7 +75,7 @@ type Configuration struct {
 func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
 	newConfig := new(Configuration)
 
-	// consider adding the core configuration checks
+	// TODO: adding the core configuration checks
 
 	if err := hcl.Decode(newConfig, text); err != nil {
 		notes = append( notes, fmt.Sprintf("%s: %v", PluginConfigMalformed, err) )

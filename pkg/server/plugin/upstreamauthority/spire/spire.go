@@ -47,8 +47,8 @@ type Configuration struct {
 	Experimental      experimentalConfig `hcl:"experimental"`
 }
 
-func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
-	newConfig := new(Configuration)
+func NewConfiguration(text string, core *configv1.CoreConfiguration) (newConfig *Configuration, notes []string, err error) {
+	newConfig = new(Configuration)
 	if err := hcl.Decode(newConfig, text); err != nil {
 		notes = append( notes, PluginConfigMalformed )
 		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
@@ -69,15 +69,12 @@ func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Co
 		}
 	}
 
-	// TODO: add c.ServerAddr validation
-	// TODO: add c.ServerPort validation
-	// TODO: add c.WorkloadAPISocket validation
-	// TODO: add c.Experimental validation
+	// TODO: add field validation
 
 	if unusable {
 		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
 	} else {
-		return config, notes, nil
+		return newConfig, notes, nil
 	}
 }
 
