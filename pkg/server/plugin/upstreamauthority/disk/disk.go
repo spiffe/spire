@@ -113,6 +113,9 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	if err != nil {
+		return nil, err
+	}
 
 	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(newConfig)
 	if err != nil {
@@ -134,7 +137,7 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
 
 	return &configv1.ValidateResponse{
-		Valid: err != nil,
+		Valid: err == nil,
 		Notes: notes,
 	}, err
 }
