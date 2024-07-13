@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -304,6 +305,113 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
+}
+
+func TestUpdateRegistrationEntriesCacheMissedStartupEvents(t *testing.T) {
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+
+	agentID, err := spiffeid.FromString("spiffe://example.org/myagent")
+	require.NoError(t, err)
+
+	// Create First Registration Entry
+	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "one",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Delete the event and entry for now and then add it back later to simulate out of order events
+	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 1)
+	require.NoError(t, err)
+	_, err = ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
+	require.NoError(t, err)
+
+	// Create Second entry
+	entry2, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload2",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "two",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create entry fetcher
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	// Ensure there is 1 entry to start
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(entries))
+	require.Equal(t, entry2.EntryId, entries[0].Id)
+	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+
+	// Recreate First Registration Entry and delete the event associated with this create
+	entry1, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "one",
+			},
+		},
+	})
+	require.NoError(t, err)
+	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 4)
+	require.NoError(t, err)
+
+	// Update cache
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	// Still should be 1 entry
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(entries))
+	require.Equal(t, entry2.EntryId, entries[0].Id)
+	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+
+	// Add back in first event
+	err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
+		EventID: 1,
+		EntryID: entry1.EntryId,
+	})
+	require.NoError(t, err)
+
+	// Update cache
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	// Should be 2 entries now
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(entries))
+
+	entryIDs := make([]string, 0, 2)
+	spiffeIDs := make([]string, 0, 2)
+	for _, entry := range entries {
+		entryIDs = append(entryIDs, entry.Id)
+		spiffeIDs = append(spiffeIDs, idutil.RequireIDProtoString(entry.SpiffeId))
+	}
+	require.Contains(t, entryIDs, entry1.EntryId)
+	require.Contains(t, entryIDs, entry2.EntryId)
+	require.Contains(t, spiffeIDs, entry1.SpiffeId)
+	require.Contains(t, spiffeIDs, entry2.SpiffeId)
 }
 
 func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
