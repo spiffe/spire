@@ -45,7 +45,24 @@ func TestConfigure(t *testing.T) {
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
 			hclConf:  "tofu = false\nallow_non_root_ports = true",
 		},
-		//FIXME all the tofu checks
+		{
+			name:     "Configure fails if tofu and required port >= 1024",
+			expErr:   "rpc error: code = InvalidArgument desc = you can not turn off trust on first use (TOFU) when non-root ports are allowed",
+			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
+			hclConf:  "tofu = false\nrequired_port = 1024",
+		},
+		{
+			name:     "Configure fails if tofu and no other args",
+			expErr:   "rpc error: code = InvalidArgument desc = you can not turn off trust on first use (TOFU) when non-root ports are allowed",
+			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
+			hclConf:  "tofu = false",
+		},
+		{
+			name:     "Configure fails if tofu and allow root ports is true",
+			expErr:   "rpc error: code = InvalidArgument desc = you can not turn off trust on first use (TOFU) when non-root ports are allowed",
+			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
+			hclConf:  "tofu = false\nallow_non_root_ports = true",
+		},
 	}
 
 	for _, tt := range tests {
@@ -182,6 +199,17 @@ func TestAttestFailiures(t *testing.T) {
 			}),
 		},
 		{
+			name:        "Attest fails if non root ports are disallowed and port is >= 1024",
+			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): port 1024 is not allowed to be >= 1024",
+			hclConf:     "allow_non_root_ports = false",
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "default",
+				Port:      1024,
+			}),
+		},
+		{
 			name:        "Attest fails if hostname is not valid by dns pattern",
 			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): the requested hostname is not allowed to connect",
 			hclConf:     `allowed_dns_patterns = ["p[0-9][.]example[.]com"]`,
@@ -192,7 +220,6 @@ func TestAttestFailiures(t *testing.T) {
 				Port:      80,
 			}),
 		},
-		// FIXME all the user port vs port config checks
 	}
 	for _, tt := range tests {
 		tt := tt
