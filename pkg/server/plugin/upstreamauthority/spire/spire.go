@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/bundle"
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,14 +29,6 @@ const (
 	pluginName       = "spire"
 	upstreamPollFreq = 5 * time.Second
 	internalPollFreq = time.Second
-
-	CoreConfigRequired = "server core configuration is required"
-	CoreConfigTrustdomainRequired = "server core configuration must contain trust_domain"
-	CoreConfigTrustdomainMalformed = "server core configuration trust_domain is malformed"
-
-	PluginConfigMalformed = "plugin configuration is malformed"
-	PluginConfigBadAddress = "plugin configuration server_address is malformed"
-	PluginConfigBadPort = "plugin configuration server_port is malformed"
 )
 
 var clk clock.Clock = clock.New()
@@ -47,35 +40,15 @@ type Configuration struct {
 	Experimental      experimentalConfig `hcl:"experimental"`
 }
 
-func NewConfiguration(text string, core *configv1.CoreConfiguration) (newConfig *Configuration, notes []string, err error) {
-	newConfig = new(Configuration)
-	if err := hcl.Decode(newConfig, text); err != nil {
-		notes = append( notes, PluginConfigMalformed )
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
-	}
-
-	var unusable bool = false
-	if core == nil {
-		unusable = true
-		notes = append( notes, CoreConfigRequired )
-		notes = append( notes, CoreConfigTrustdomainRequired )
-	} else if core.TrustDomain == "" {
-		unusable = true
-		notes = append( notes, CoreConfigTrustdomainRequired )
-	} else {
-		if  _, err := spiffeid.TrustDomainFromString(core.TrustDomain); err != nil {
-			unusable = true
-			notes = append( notes, fmt.Sprintf("%s: %v", CoreConfigTrustdomainMalformed, err))
-		}
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) (*Configuration) {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
 	}
 
 	// TODO: add field validation
-
-	if unusable {
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
-	} else {
-		return newConfig, notes, nil
-	}
+	return newConfig
 }
 
 type experimentalConfig struct {
@@ -122,7 +95,7 @@ func New() *Plugin {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +125,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	_, notes, err := pluginconf.Build(req, buildConfig)
 
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
