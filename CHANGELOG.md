@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.10.0] - 2024-06-24
+
+### Added
+
+- Plugin reconfiguration support using the `plugin_data_file` configurable (#5166)
+
+### Changed
+
+- SPIRE Server and OIDC provider images to use non root users (#4967, #5227)
+- `k8s_psat` NodeAttestor attestor to no longer fail when a cluster is not configured (#5216)
+- Agents are required to renew SVIDs through re-attestation when using a supporting Node Attestor (#5204)
+- Small documentation improvements (#5181, #5189)
+- Evicted agents that support reattestation can now reattest without being restarted (#4991)
+
+### Fixed
+
+- PSAT node attestor to cross check the audience fields (#5142)
+- Events-based cache to handle out of order events (#5071)
+
+### Deprecated
+
+- `x509_svid_cache_max_size` and `disable_lru_cache` in agent configuration (#5150)
+
+### Removed
+
+- The deprecated `disable_reattest_to_renew` agent configurable (#5217)
+- The deprecated `key_metadata_file` configurable from the `aws_kms`, `azure_key_vault` and  `gcp_kms` server KeyManagers (#5207)
+- The deprecated `use_msi` configurable from the `azure_key_vault` server KeyManager and `azure_msi` NodeAttestor (#5207, #5209)
+- The deprecated `exclude_sn_from_ca_subject` server configurable (#5203)
+- Agent no longer cleans up deprecated bundle and SVID files (#5205)
+- The CA journal file is no longer stored on disk, and existing CA journal files are cleaned up  (#5202)
+
 ## [1.9.6] - 2024-05-14
 
 ### Added

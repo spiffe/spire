@@ -3,16 +3,12 @@ package endpoints
 import (
 	"context"
 	"errors"
-	"sort"
-	"strconv"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -114,84 +110,6 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCacheErrorBuildingCache(t *test
 	assert.Nil(t, ef)
 }
 
-func TestBuildRegistrationEntriesCache(t *testing.T) {
-	ctx := context.Background()
-	clk := clock.NewMock(t)
-	ds := fakedatastore.New(t)
-
-	agentID, err := spiffeid.FromString("spiffe://example.org/myagent")
-	require.NoError(t, err)
-
-	// Create registration entries
-	numEntries := 10
-	for i := 0; i < numEntries; i++ {
-		_, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
-			SpiffeId: "spiffe://example.org/workload" + strconv.Itoa(i),
-			ParentId: agentID.String(),
-			Selectors: []*common.Selector{
-				{
-					Type:  "workload",
-					Value: "one",
-				},
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	for _, tt := range []struct {
-		name     string
-		pageSize int32
-		err      string
-	}{
-		{
-			name:     "Page size of 0",
-			pageSize: 0,
-			err:      "cannot paginate with pagesize = 0",
-		},
-		{
-			name:     "Page size of half the entries",
-			pageSize: int32(numEntries / 2),
-		},
-		{
-			name:     "Page size of all the entries",
-			pageSize: int32(numEntries),
-		},
-		{
-			name:     "Page size of all the entries + 1",
-			pageSize: int32(numEntries + 1),
-		},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			cache := authorizedentries.NewCache(clk)
-			receivedFirstRegistrationEntryEvent, lastRegistrationEntryEventID, _, err := buildRegistrationEntriesCache(ctx, ds, clk, cache, tt.pageSize)
-			if tt.err != "" {
-				require.Equal(t, uint(0), lastRegistrationEntryEventID)
-				require.ErrorContains(t, err, tt.err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.True(t, receivedFirstRegistrationEntryEvent)
-
-			entries := cache.GetAuthorizedEntries(agentID)
-			require.Equal(t, numEntries, len(entries))
-
-			spiffeIDs := make([]string, 0, numEntries)
-			for _, entry := range entries {
-				spiffeID, err := idutil.IDFromProto(entry.SpiffeId)
-				require.NoError(t, err)
-				spiffeIDs = append(spiffeIDs, spiffeID.String())
-			}
-			sort.Strings(spiffeIDs)
-
-			for i, spiffeID := range spiffeIDs {
-				require.Equal(t, "spiffe://example.org/workload"+strconv.Itoa(i), spiffeID)
-			}
-		})
-	}
-}
-
 func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
@@ -224,78 +142,17 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, ds, clk)
 	require.NoError(t, err)
-	require.NotNil(t, ef)
+	require.NotNil(t, registrationEntries)
+	require.NotNil(t, attestedNodes)
 
-	assert.Contains(t, ef.missedRegistrationEntryEvents, uint(2))
-	assert.Equal(t, uint(3), ef.lastRegistrationEntryEventID)
+	assert.Contains(t, registrationEntries.missedEvents, uint(2))
+	assert.Equal(t, uint(3), registrationEntries.lastEventID)
 
-	assert.Contains(t, ef.missedAttestedNodeEvents, uint(2))
-	assert.Contains(t, ef.missedAttestedNodeEvents, uint(3))
-	assert.Equal(t, uint(4), ef.lastAttestedNodeEventID)
-}
-
-func TestUpdateAttestedNodesCache(t *testing.T) {
-	ctx := context.Background()
-	log, _ := test.NewNullLogger()
-	clk := clock.NewMock(t)
-	ds := fakedatastore.New(t)
-
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
-	require.NoError(t, err)
-	require.NotNil(t, ef)
-
-	agentID, err := spiffeid.FromString("spiffe://example.org/myagent")
-	require.NoError(t, err)
-
-	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
-		SpiffeId:     agentID.String(),
-		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
-	})
-	require.NoError(t, err)
-
-	for _, tt := range []struct {
-		name                            string
-		errs                            []error
-		expectedLastAttestedNodeEventID uint
-	}{
-		{
-			name:                            "Error Listing Attested Node Events",
-			errs:                            []error{errors.New("listing attested node events")},
-			expectedLastAttestedNodeEventID: uint(0),
-		},
-		{
-			name:                            "Error Fetching Attested Node",
-			errs:                            []error{nil, errors.New("fetching attested node")},
-			expectedLastAttestedNodeEventID: uint(0),
-		},
-		{
-			name:                            "Error Getting Node Selectors",
-			errs:                            []error{nil, nil, errors.New("getting node selectors")},
-			expectedLastAttestedNodeEventID: uint(0),
-		},
-		{
-			name:                            "No Errors",
-			expectedLastAttestedNodeEventID: uint(1),
-		},
-	} {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			for _, err = range tt.errs {
-				ds.AppendNextError(err)
-			}
-
-			err = ef.updateAttestedNodesCache(ctx)
-			if len(tt.errs) > 0 {
-				assert.EqualError(t, err, tt.errs[len(tt.errs)-1].Error())
-			} else {
-				assert.NoError(t, err)
-			}
-
-			assert.Equal(t, tt.expectedLastAttestedNodeEventID, ef.lastAttestedNodeEventID)
-		})
-	}
+	assert.Contains(t, attestedNodes.missedEvents, uint(2))
+	assert.Contains(t, attestedNodes.missedEvents, uint(3))
+	assert.Equal(t, uint(4), attestedNodes.lastEventID)
 }
 
 func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
@@ -397,7 +254,7 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure it gets added to cache
-	err = ef.updateRegistrationEntriesCache(ctx)
+	err = ef.updateCache(ctx)
 	require.NoError(t, err)
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
@@ -426,7 +283,7 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check second entry is added to cache
-	err = ef.updateRegistrationEntriesCache(ctx)
+	err = ef.updateCache(ctx)
 	require.NoError(t, err)
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
@@ -441,7 +298,7 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure it gets processed and the initial entry is deleted
-	err = ef.updateRegistrationEntriesCache(ctx)
+	err = ef.updateCache(ctx)
 	require.NoError(t, err)
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
@@ -537,9 +394,7 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should not be in cache yet
-	err = ef.updateRegistrationEntriesCache(ctx)
-	require.NoError(t, err)
-	err = ef.updateAttestedNodesCache(ctx)
+	err = ef.updateCache(ctx)
 	require.NoError(t, err)
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
@@ -559,44 +414,10 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure it gets processed and the initial entry is deleted
-	err = ef.updateRegistrationEntriesCache(ctx)
-	require.NoError(t, err)
-	err = ef.updateAttestedNodesCache(ctx)
+	err = ef.updateCache(ctx)
 	require.NoError(t, err)
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
-}
-
-func TestAttestedNodesCacheMissedEventNotFound(t *testing.T) {
-	ctx := context.Background()
-	log, hook := test.NewNullLogger()
-	log.SetLevel(logrus.DebugLevel)
-	clk := clock.NewMock(t)
-	ds := fakedatastore.New(t)
-
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
-	require.NoError(t, err)
-	require.NotNil(t, ef)
-
-	ef.missedAttestedNodeEvents[1] = clk.Now()
-	ef.replayMissedAttestedNodeEvents(ctx)
-	require.Equal(t, "Event not yet populated in database", hook.LastEntry().Message)
-}
-
-func TestRegistrationEntriesCacheMissedEventNotFound(t *testing.T) {
-	ctx := context.Background()
-	log, hook := test.NewNullLogger()
-	log.SetLevel(logrus.DebugLevel)
-	clk := clock.NewMock(t)
-	ds := fakedatastore.New(t)
-
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
-	require.NoError(t, err)
-	require.NotNil(t, ef)
-
-	ef.missedRegistrationEntryEvents[1] = clk.Now()
-	ef.replayMissedRegistrationEntryEvents(ctx)
-	require.Equal(t, "Event not yet populated in database", hook.LastEntry().Message)
 }

@@ -10,11 +10,12 @@ import (
 )
 
 var (
-	svidPath    = path.Join(ProjectRoot(), "test/fixture/certs/svid.pem")
-	svidKeyPath = path.Join(ProjectRoot(), "test/fixture/certs/svid_key.pem")
-	caPath      = path.Join(ProjectRoot(), "test/fixture/certs/ca.pem")
-	caKeyPath   = path.Join(ProjectRoot(), "test/fixture/certs/ca_key.pem")
-	bundlePath  = path.Join(ProjectRoot(), "test/fixture/certs/bundle.der")
+	svidPath        = path.Join(ProjectRoot(), "test/fixture/certs/svid.pem")
+	svidKeyPath     = path.Join(ProjectRoot(), "test/fixture/certs/svid_key.pem")
+	caPath          = path.Join(ProjectRoot(), "test/fixture/certs/ca.pem")
+	caKeyPath       = path.Join(ProjectRoot(), "test/fixture/certs/ca_key.pem")
+	bundlePath      = path.Join(ProjectRoot(), "test/fixture/certs/bundle.der")
+	largeBundlePath = path.Join(ProjectRoot(), "test/fixture/certs/large_bundle.der")
 )
 
 // LoadCAFixture reads, parses, and returns the pre-defined CA fixture and key
@@ -29,6 +30,10 @@ func LoadSVIDFixture() (svid *x509.Certificate, key *ecdsa.PrivateKey, err error
 
 func LoadBundleFixture() ([]*x509.Certificate, error) {
 	return LoadBundle(bundlePath)
+}
+
+func LoadLargeBundleFixture() ([]*x509.Certificate, error) {
+	return LoadBundle(largeBundlePath)
 }
 
 // LoadCertAndKey reads and parses both a certificate and a private key at once
