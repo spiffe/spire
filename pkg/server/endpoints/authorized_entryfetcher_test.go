@@ -442,7 +442,7 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create a registration entry parented to the alias
-	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+	entry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		SpiffeId: "spiffe://example.org/viaalias",
 		ParentId: alias.SpiffeId,
 		Selectors: []*common.Selector{
@@ -522,6 +522,8 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
+	require.Equal(t, entry.EntryId, entries[0].Id)
+	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
 }
 
 func TestUpdateAttestedNodesCacheMissedStartupEvents(t *testing.T) {
