@@ -3,7 +3,6 @@ package awssecret
 import (
 	"context"
 	"crypto/x509"
-	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc/codes"
@@ -53,56 +53,33 @@ type Configuration struct {
 	AssumeRoleARN   string `hcl:"assume_role_arn" json:"assume_role_arn"`
 }
 
-func (p *Plugin) NewConfiguration(text string, core *configv1.CoreConfiguration) (newConfig *Configuration, notes []string, err error) {
-	newConfig = new(Configuration)
-	if err := hcl.Decode(newConfig, text); err != nil {
-		notes = append(notes, "plugin configuration is malformed")
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
 	}
-
-	var unusable bool = false
-        if core == nil {
-                unusable = true
-                notes = append(notes, "server core configuration is required")
-                notes = append(notes, "server core configuration must contain trust_domain")
-        } else if core.TrustDomain == "" {
-                unusable = true
-                notes = append(notes, "server core configuration must contain trust_domain")
-        } else {
-                if  _, err := spiffeid.TrustDomainFromString(core.TrustDomain); err != nil {
-                        unusable = true
-                        notes = append(notes, fmt.Sprintf("%s: %v", "server core configuration trust_domain is malformed", err))
-                }
-        }
 
 	env_session_token, env_session_token_exists := os.LookupEnv("AWS_SESSION_TOKEN")
 	if newConfig.SecurityToken == "" && !env_session_token_exists {
-		unusable = true
-		notes = append(notes, "either the config security token or the env variable AWS_SESSION_TOKEN must be set")
+		status.ReportError("either the config 'secret_token' or the env variable AWS_SESSION_TOKEN must be set")
 	}
 	if newConfig.SecurityToken == "" && env_session_token == "" {
-		unusable = true
-		notes = append(notes, "the env variable AWS_SESSION_TOKEN must have a value")
+		status.ReportError("when the config 'secret_token' is unset, the env variable AWS_SESSION_TOKEN must have a value")
 	}
 	if newConfig.SecurityToken != "" && env_session_token_exists {
-		notes = append(notes, "warning: security token set twice, in config security token and env variable AWS_SESSION_TOKEN, using config file setting")
+		status.ReportInfo("security token set twice, once in the config 'secret_token' and once in env variable AWS_SESSION_TOKEN, using the config file setting")
 	}
 	newConfig.SecurityToken = p.hooks.getenv("AWS_SESSION_TOKEN")
 
 	if newConfig.CertFileARN == "" {
-		unusable = true
-		notes = append(notes, "configuration missing cert ARN")
+		status.ReportError("configuration missing 'cert_file_arn' value")
 	}
 	if newConfig.KeyFileARN == "" {
-		unusable = true
-		notes = append(notes, "configuration missing key ARN")
+		status.ReportError("configuration missing 'key_file_arn' value")
 	}
 
-	if unusable {
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
-	} else {
-		return newConfig, notes, nil
-	}
+	return newConfig
 }
 
 type Plugin struct {
@@ -140,7 +117,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	newConfig, _, err := p.NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +160,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 }
 
 func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	_, notes, err := p.NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
 
 	return &configv1.ValidateResponse{
 		Valid: err == nil,

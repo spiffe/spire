@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 )
@@ -28,7 +29,6 @@ const (
         CoreConfigTrustdomainRequired = "server core configuration must contain trust_domain"
         CoreConfigTrustdomainMalformed = "server core configuration trust_domain is malformed"
 
-        PluginConfigMalformed = "plugin configuration is malformed"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -50,35 +50,16 @@ type Configuration struct {
 	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path"`
 }
 
-func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, text); err != nil {
-		notes = append(notes, PluginConfigMalformed)
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
 	}
-
-        var unusable bool = false
-        if core == nil {
-                unusable = true
-                notes = append( notes, CoreConfigRequired )
-                notes = append( notes, CoreConfigTrustdomainRequired )
-        } else if core.TrustDomain == "" {
-                unusable = true
-                notes = append( notes, CoreConfigTrustdomainRequired )
-        } else {
-                if newConfig.trustDomain, err = spiffeid.TrustDomainFromString(core.TrustDomain); err != nil {
-                        unusable = true
-                        notes = append( notes, fmt.Sprintf("%s: %v", CoreConfigTrustdomainMalformed, err))
-                }
-        }
 
 	// TODO: add field validation
 
-	if unusable {
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
-	} else {
-		return newConfig, notes, nil
-	}
+	return newConfig
 }
 
 type Plugin struct {
@@ -112,7 +93,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +115,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	_, notes, err := pluginconf.Build(req, buildConfig)
 
 	return &configv1.ValidateResponse{
 		Valid: err == nil,

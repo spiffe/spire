@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
@@ -32,12 +33,6 @@ const (
 	// The name of the plugin
 	pluginName    = "gcp_cas"
 	publicKeyType = "PUBLIC KEY"
-
-	PluginConfigMalformed = "plugin configuration is malformed"
-	PluginConfigMissingRCertProject = "plugin configuration root_cert_spec.Project is missing"
-	PluginConfigMissingRCertLocation = "plugin configuration root_cert_spec.Location is missing"
-	PluginConfigMissingRCertLabelKey = "plugin configuration root_cert_spec.LabelKey is missing"
-	PluginConfigMissingRCertLabelValue = "plugin configuration root_cert_spec.LabelValue is missing"
 )
 
 // BuiltIn constructs a catalog Plugin using a new instance of this plugin.
@@ -72,48 +67,34 @@ type Configuration struct {
 	RootSpec CertificateAuthoritySpec `hcl:"root_cert_spec,block"`
 }
 
-func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-
-	// TODO: adding the core configuration checks
-
-	if err := hcl.Decode(newConfig, text); err != nil {
-		notes = append( notes, fmt.Sprintf("%s: %v", PluginConfigMalformed, err) )
-		return nil, notes, status.Errorf(codes.InvalidArgument, notes[0])
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
 	}
-
-	var unusable bool = false
 
 	// Without a project and location, we can never locate CAs
 	if newConfig.RootSpec.Project == "" {
-		unusable = true
-		notes = append( notes, PluginConfigMissingRCertProject )
+		status.ReportError("plugin configuration root_cert_spec.Project is missing")
 	}
 	if newConfig.RootSpec.Location == "" {
-		unusable = true
-		notes = append( notes, PluginConfigMissingRCertLocation )
+		status.ReportError("plugin configuration root_cert_spec.Location is missing")
 	}
 
 	// Even LabelKey/Value pair is necessary
 	if newConfig.RootSpec.LabelKey == "" {
-		unusable = true
-		notes = append( notes, PluginConfigMissingRCertLabelKey )
+		status.ReportError("plugin configuration root_cert_spec.LabelKey is missing")
 	}
 	if newConfig.RootSpec.LabelValue == "" {
-		unusable = true
-		notes = append( notes, PluginConfigMissingRCertLabelValue )
+		status.ReportError("plugin configuration root_cert_spec.LabelValue is missing")
 	}
 
 	if newConfig.RootSpec.CaPool == "" {
-		notes = append( notes, "The ca_pool value is not configured. Falling back to searching the region for matching CAs. The ca_pool configurable will be required in a future release." )
+		status.ReportInfo("The ca_pool value is not configured. Falling back to searching the region for matching CAs. The ca_pool configurable will be required in a future release.")
 	}
 
-	if unusable {
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
-	} else {
-		return config, notes, nil
-	}
-	
+	return newConfig
 }
 
 type CAClient interface {
@@ -130,7 +111,7 @@ type Plugin struct {
 	// call to Configure). So we need to prevent the configuration from
 	// being used concurrently and make sure it is updated atomically.
 	mu sync.Mutex
-	c  *Configuration
+	config  *Configuration
 
 	log hclog.Logger
 
@@ -185,22 +166,20 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReq
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
-	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: determine if we should pull the config-swap locking up to here,
-	//       or if we should put a (p *pluign) setConfig(...) in every plugin.
-
-	// Swap out the current configuration with the new configuration
-	p.setConfig(newConfig)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.config = newConfig
 
 	return &configv1.ConfigureResponse{}, nil
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	_, notes, err := pluginconf.Build(req, buildConfig)
 
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
@@ -212,17 +191,11 @@ func (p *Plugin) getConfig() (*Configuration, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if p.c == nil {
+	if p.config == nil {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 
-	return p.c, nil
-}
-
-func (p *Plugin) setConfig(c *Configuration) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.c = c
+	return p.config, nil
 }
 
 func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32) (*upstreamauthorityv1.MintX509CAResponse, error) {
