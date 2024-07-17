@@ -24,6 +24,10 @@ const (
 	PluginName = "http_challenge"
 )
 
+var (
+	DefaultRandReader io.Reader
+)
+
 type AttestationData struct {
 	HostName  string `json:"hostname"`
 	AgentName string `json:"agentname"`
@@ -50,6 +54,15 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 }
 
 func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) error {
+	if attestationData.HostName == "" {
+		return fmt.Errorf("hostname must be set")
+	}
+	if attestationData.AgentName == "" {
+		return fmt.Errorf("agentname must be set")
+	}
+	if attestationData.Port <= 0 {
+		return fmt.Errorf("port is invalid")
+	}
 	if strings.Contains(attestationData.HostName, "/") {
 		return fmt.Errorf("hostname can not contain a slash")
 	}
@@ -100,8 +113,14 @@ func MakeAgentID(td spiffeid.TrustDomain, hostName string) (spiffeid.ID, error) 
 
 func generateNonce() (string, error) {
 	b := make([]byte, nonceLen)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
+	if DefaultRandReader != nil {
+		if _, err := DefaultRandReader.Read(b); err != nil {
+			return "", err
+		}
+	} else {
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
 }

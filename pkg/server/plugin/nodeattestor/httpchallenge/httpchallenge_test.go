@@ -3,7 +3,13 @@ package httpchallenge_test
 import (
 	"context"
 	"encoding/json"
+	"net/http/httptest"
+	"net/http"
+	"net/url"
+	"net"
+	"strings"
 	"testing"
+	"fmt"
 
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
         "github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -13,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/httpchallenge"
         "github.com/spiffe/spire/test/fakes/fakeagentstore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/stretchr/testify/require"
 )
@@ -85,6 +92,26 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestAttestFailiures(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	    if r.URL.Path != "/.well-known/spiffe/nodeattestor/http_challenge/default/challenge" {
+	        t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
+	    }
+	    w.WriteHeader(http.StatusOK)
+	    w.Write([]byte(`MTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnc=`))
+	}))
+	defer server.Close()
+
+	u, _ := url.Parse(server.URL)
+	_, port, _ := net.SplitHostPort(u.Host)
+	oldDialContext := http.DefaultTransport.(*http.Transport).DialContext
+	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if addr == "foo:80" {
+			addr = fmt.Sprintf("127.0.0.1:%s", port)
+		}
+		return oldDialContext(ctx, network, addr)
+	}
+	http.DefaultTransport.(*http.Transport).DialContext = dialContext
+
 	challengeFnNil := func(ctx context.Context, challenge []byte) ([]byte, error) {
 		return nil, nil
 	}
@@ -220,10 +247,22 @@ func TestAttestFailiures(t *testing.T) {
 				Port:      80,
 			}),
 		},
+		{
+			name:        "Attest fails if nonce does not match",
+			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): challenge verification failed: expected nonce \"YmFkMTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3Q=\"",
+			hclConf:     "",
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "default",
+				Port:      80,
+			}),
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			common_httpchallenge.DefaultRandReader = strings.NewReader("bad123456789abcdefghijklmnopqrstuvwxyz")
 			plugin := loadPlugin(t, tt.hclConf)
 			result, err := plugin.Attest(context.Background(), tt.payload, tt.challengeFn)
 			require.Contains(t, err.Error(), tt.expErr)
@@ -233,7 +272,69 @@ func TestAttestFailiures(t *testing.T) {
 }
 
 func TestAttestSucceeds(t *testing.T) {
-// FIXME Succeed tests
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	    if r.URL.Path != "/.well-known/spiffe/nodeattestor/http_challenge/default/challenge" {
+	        t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
+	    }
+	    w.WriteHeader(http.StatusOK)
+	    w.Write([]byte(`MTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnc=`))
+	}))
+	defer server.Close()
+
+	u, _ := url.Parse(server.URL)
+	_, port, _ := net.SplitHostPort(u.Host)
+	oldDialContext := http.DefaultTransport.(*http.Transport).DialContext
+	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if addr == "foo:80" {
+			addr = fmt.Sprintf("127.0.0.1:%s", port)
+		}
+		return oldDialContext(ctx, network, addr)
+	}
+	http.DefaultTransport.(*http.Transport).DialContext = dialContext
+
+	challengeFnNil := func(ctx context.Context, challenge []byte) ([]byte, error) {
+		return nil, nil
+	}
+
+	tests := []struct {
+		name        string
+		hclConf     string
+		payload     []byte
+		challengeFn func(ctx context.Context, challenge []byte) ([]byte, error)
+		expectedAgentID   string
+		expectedSelectors []*common.Selector
+	}{
+		{
+			name:        "Attest succeedsfails for defaults",
+			hclConf:     "",
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "default",
+				Port:      80,
+			}),
+			expectedAgentID: "spiffe://example.org/spire/agent/http_challenge/foo",
+			expectedSelectors: []*common.Selector{
+				{
+					Type:  "http_challenge",
+					Value: "hostname:foo",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			common_httpchallenge.DefaultRandReader = strings.NewReader("123456789abcdefghijklmnopqrstuvwxyz")
+			plugin := loadPlugin(t, tt.hclConf)
+			result, err := plugin.Attest(context.Background(), tt.payload, tt.challengeFn)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			require.Equal(t, tt.expectedAgentID, result.AgentID)
+			requireSelectorsMatch(t, tt.expectedSelectors, result.Selectors)
+		})
+	}
 }
 
 func loadPlugin(t *testing.T, config string) nodeattestor.NodeAttestor {
@@ -259,4 +360,12 @@ func marshalPayload(t *testing.T, attReq *common_httpchallenge.AttestationData) 
 	attReqBytes, err := json.Marshal(attReq)
 	require.NoError(t, err)
 	return attReqBytes
+}
+
+func requireSelectorsMatch(t *testing.T, expected []*common.Selector, actual []*common.Selector) {
+        require.Equal(t, len(expected), len(actual))
+        for idx, expSel := range expected {
+                require.Equal(t, expSel.Type, actual[idx].Type)
+                require.Equal(t, expSel.Value, actual[idx].Value)
+        }
 }
