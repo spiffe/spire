@@ -514,16 +514,16 @@ func (c *LRUCache) SyncSVIDsWithSubscribers() {
 	c.syncSVIDsWithSubscribers()
 }
 
-// Notify subscribers of selector set only if all SVIDs for corresponding selector set are cached
+// Notify subscriber of selector set only if all SVIDs for corresponding selector set are cached
 // It returns whether all SVIDs are cached or not.
 // This method should be retried with backoff to avoid lock contention.
-func (c *LRUCache) Notify(selectors []*common.Selector) bool {
+func (c *LRUCache) notifySubscriberIfSVIDAvailable(selectors []*common.Selector, subscriber *lruCacheSubscriber) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	set, setFree := allocSelectorSet(selectors...)
 	defer setFree()
 	if !c.missingSVIDRecords(set) {
-		c.notifyBySelectorSet(set)
+		c.notify(subscriber)
 		return true
 	}
 	return false
@@ -537,11 +537,12 @@ func (c *LRUCache) subscribeToWorkloadUpdates(ctx context.Context, selectors Sel
 	subscriber := c.NewSubscriber(selectors)
 	bo := c.subscribeBackoffFn()
 
+	sub, ok := subscriber.(*lruCacheSubscriber)
+	if !ok {
+		return nil, fmt.Errorf("unexpected subscriber type %T", sub)
+	}
+
 	if len(selectors) == 0 {
-		sub, ok := subscriber.(*lruCacheSubscriber)
-		if !ok {
-			return nil, fmt.Errorf("unexpected subscriber type %T", sub)
-		}
 		if notifyCallbackFn != nil {
 			notifyCallbackFn()
 		}
@@ -552,7 +553,7 @@ func (c *LRUCache) subscribeToWorkloadUpdates(ctx context.Context, selectors Sel
 	// block until all svids are cached and subscriber is notified
 	for {
 		// notifyCallbackFn is used for testing
-		if c.Notify(selectors) {
+		if c.notifySubscriberIfSVIDAvailable(selectors, sub) {
 			if notifyCallbackFn != nil {
 				notifyCallbackFn()
 			}
