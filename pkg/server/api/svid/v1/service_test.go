@@ -1844,7 +1844,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 	_, csrErr := x509.ParseCertificateRequest([]byte{1, 2, 3})
 
 	now := test.ca.Clock().Now().UTC()
-	expiresAtFromCA := now.Add(test.ca.X509SVIDTTL()).Unix()
+	expiresAtFromCA := now.Add(test.ca.X509CATTL()).Unix()
 
 	for _, tt := range []downstreamCaTest{
 		{
