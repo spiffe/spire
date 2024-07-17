@@ -122,11 +122,13 @@ func TestAttestFailiures(t *testing.T) {
 		expErr      string
 		payload     []byte
 		challengeFn func(ctx context.Context, challenge []byte) ([]byte, error)
+		tofu        bool
 	}{
 		{
 			name:        "Attest fails if payload doesnt exist",
 			expErr:      "rpc error: code = InvalidArgument desc = payload cannot be empty",
 			hclConf:     "",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload:     nil,
 		},
@@ -134,6 +136,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if payload cannot be unmarshalled",
 			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): failed to unmarshal data: invalid character 'o' in literal null (expecting 'u')",
 			hclConf:     "",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload:     []byte("not a payload"),
 		},
@@ -141,6 +144,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if hostname is blank",
 			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): challenge verification failed: hostname must be set",
 			hclConf:     "",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "",
@@ -152,6 +156,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if agentname is blank",
 			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): agent name is not valid",
 			hclConf:     "",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -163,6 +168,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if port is 0",
 			expErr:      "port is invalid",
 			hclConf:     "",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -174,6 +180,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if port is negative",
 			expErr:      "port is invalid",
 			hclConf:     "",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -185,6 +192,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if hostname has a slash",
 			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): challenge verification failed: hostname can not contain a slash",
 			hclConf:     "",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "fo/o",
@@ -196,6 +204,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if hostname has a colon",
 			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): challenge verification failed: hostname can not contain a colon",
 			hclConf:     "",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo:1",
@@ -207,6 +216,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if agentname has a dot",
 			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): agent name is not valid",
 			hclConf:     "",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -218,6 +228,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if required port is different from given one",
 			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): port 81 is not allowed to be used by this server",
 			hclConf:     "required_port = 80",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -229,6 +240,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if non root ports are disallowed and port is >= 1024",
 			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): port 1024 is not allowed to be >= 1024",
 			hclConf:     "allow_non_root_ports = false",
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -240,6 +252,7 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if hostname is not valid by dns pattern",
 			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): the requested hostname is not allowed to connect",
 			hclConf:     `allowed_dns_patterns = ["p[0-9][.]example[.]com"]`,
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -251,6 +264,19 @@ func TestAttestFailiures(t *testing.T) {
 			name:        "Attest fails if nonce does not match",
 			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): challenge verification failed: expected nonce \"YmFkMTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3Q=\"",
 			hclConf:     "",
+			tofu:        true,
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "default",
+				Port:      80,
+			}),
+		},
+		{
+			name:        "Attest fails when reattesting with tofu",
+			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): attestation data has already been used to attest an agent",
+			hclConf:     "",
+			tofu:        false,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -262,8 +288,12 @@ func TestAttestFailiures(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			common_httpchallenge.DefaultRandReader = strings.NewReader("bad123456789abcdefghijklmnopqrstuvwxyz")
-			plugin := loadPlugin(t, tt.hclConf)
+			if tt.tofu {
+				common_httpchallenge.DefaultRandReader = strings.NewReader("bad123456789abcdefghijklmnopqrstuvwxyz")
+			} else {
+				common_httpchallenge.DefaultRandReader = strings.NewReader("123456789abcdefghijklmnopqrstuvwxyz")
+			}
+			plugin := loadPlugin(t, tt.hclConf, !tt.tofu)
 			result, err := plugin.Attest(context.Background(), tt.payload, tt.challengeFn)
 			require.Contains(t, err.Error(), tt.expErr)
 			require.Nil(t, result)
@@ -303,10 +333,30 @@ func TestAttestSucceeds(t *testing.T) {
 		challengeFn func(ctx context.Context, challenge []byte) ([]byte, error)
 		expectedAgentID   string
 		expectedSelectors []*common.Selector
+		tofu        bool
 	}{
 		{
-			name:        "Attest succeedsfails for defaults",
+			name:        "Attest succeeds for defaults",
 			hclConf:     "",
+			tofu: true,
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "default",
+				Port:      80,
+			}),
+			expectedAgentID: "spiffe://example.org/spire/agent/http_challenge/foo",
+			expectedSelectors: []*common.Selector{
+				{
+					Type:  "http_challenge",
+					Value: "hostname:foo",
+				},
+			},
+		},
+		{
+			name:        "Attest succeeds for reattest without tofu",
+			hclConf:     "tofu = false\nallow_non_root_ports = false",
+			tofu: false,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -326,7 +376,7 @@ func TestAttestSucceeds(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			common_httpchallenge.DefaultRandReader = strings.NewReader("123456789abcdefghijklmnopqrstuvwxyz")
-			plugin := loadPlugin(t, tt.hclConf)
+			plugin := loadPlugin(t, tt.hclConf, !tt.tofu)
 			result, err := plugin.Attest(context.Background(), tt.payload, tt.challengeFn)
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -337,13 +387,15 @@ func TestAttestSucceeds(t *testing.T) {
 	}
 }
 
-func loadPlugin(t *testing.T, config string) nodeattestor.NodeAttestor {
+func loadPlugin(t *testing.T, config string, test_tofu bool) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 	agentStore := fakeagentstore.New()
-	agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
-		AgentId: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
-	})
 	var configureErr error
+	if test_tofu {
+		agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
+			AgentId: "spiffe://example.org/spire/agent/http_challenge/foo",
+		})
+	}
 	opts := []plugintest.Option{
 		plugintest.Configure(config),
 		plugintest.CaptureConfigureError(&configureErr),
