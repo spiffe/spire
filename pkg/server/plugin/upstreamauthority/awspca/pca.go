@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -61,30 +62,20 @@ type Configuration struct {
 	SupplementalBundlePath  string `hcl:"supplemental_bundle_path" json:"supplemental_bundle_path"`
 }
 
-func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) (*Configuration) {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, text); err != nil {
-		notes = append(notes, "server core configuration trust_domain is malformed")
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
 	}
-
-	var unusable bool = false
-	// TODO: consider including core config checks
 	if newConfig.Region == "" {
-		unusable = true
-		notes = append(notes, "configuration is missing a region")
+		status.ReportError("plugin configuration is missing the region")
+	}
+	if newConfig.CertificateAuthorityARN == "" {
+		status.ReportError("plugin configuration is missing the certificate_authority_arn")
 	}
 
-	if config.CertificateAuthorityARN == "" {
-		unusable = true
-		notes = append(notes, "configuration is missing a certificate authority ARN")
-	}
-
-	if unusable {
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
-	} else {
-		return newConfig, notes, nil
-	}
+	return newConfig
 }
 
 // PCAPlugin is the main representation of this upstreamauthority plugin
@@ -131,7 +122,7 @@ func (p *PCAPlugin) SetLogger(log hclog.Logger) {
 
 // Configure sets up the plugin for use as an upstream authority
 func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -200,7 +191,7 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 }
 
 func (p *PCAPlugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	_, notes, err := pluginconf.Build(req, buildConfig)
 
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
