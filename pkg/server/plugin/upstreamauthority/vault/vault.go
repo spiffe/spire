@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 )
 
 const (
@@ -60,19 +61,20 @@ type Configuration struct {
 	Namespace string `hcl:"namespace" json:"namespace"`
 }
 
-func NewConfiguration(text string, core *configv1.CoreConfiguration) (config *Configuration, notes []string, err error) {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) (*Configuration) {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, text); err != nil {
-		notes = append( notes, PluginConfigMalformed )
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
 	}
 
-	var unusable bool = false
-	if unusable {
-		return nil, notes, status.Error(codes.InvalidArgument, notes[0])
-	} else {
-		return config, notes, nil
-	}
+	// TODO: add field validations
+
+	// TODO: consider moving some elements of parseAuthMethod into config checking
+	// TODO: consider moving some elements of genClientParams into config checking
+	// TODO: consider moving some elements of NewClientConfig into config checking
+
+	return newConfig
 }
 
 // TokenAuthConfig represents parameters for token auth method
@@ -151,14 +153,10 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	newConfig, _, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO: consider moving some elements of parseAuthMethod into config checking
-	// TODO: consider moving some elements of genClientParams into config checking
-	// TODO: consider moving some elements of NewClientConfig into config checking
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -183,7 +181,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
-	_, notes, err := NewConfiguration(req.HclConfiguration, req.CoreConfiguration)
+	_, notes, err := pluginconf.Build(req, buildConfig)
 
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
