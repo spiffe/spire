@@ -1,0 +1,24 @@
+#!/bin/bash
+
+set -e -o pipefail
+source init-kubectl
+
+EJBCA_NAMESPACE="ejbca"
+EJBCA_MTLS_SECRET_NAME="superadmin-tls"
+EJBCA_SUBCA_SECRET_NAME="subca"
+
+log-info "installing spire..."
+./bin/kubectl create namespace spire
+
+secrets=(
+    "$EJBCA_MTLS_SECRET_NAME"
+    "$EJBCA_SUBCA_SECRET_NAME"
+)
+for secret in "${secrets[@]}"; do
+    ./bin/kubectl --namespace "$EJBCA_NAMESPACE" get secret "$secret" -o yaml \
+        | sed 's/namespace: .*/namespace: spire/' \
+        | kubectl apply -f -
+done
+
+kubectl -n spire apply -k conf/server
+./bin/kubectl wait pods -n spire -l app=spire-server --for condition=Ready --timeout=60s
