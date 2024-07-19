@@ -67,7 +67,7 @@ func TestAidAttestationFailures(t *testing.T) {
 			serverStream: streamBuilder.FailAndBuild(errors.New("the error")),
 		},
 		{
-			name:         "AidAttestation fails if agent cannot unmarshall server challenge",
+			name:         "AidAttestation fails if agent cannot unmarshal server challenge",
 			config:       "",
 			expErr:       "rpc error: code = Internal desc = nodeattestor(http_challenge): unable to unmarshal challenge: invalid character 'o' in literal null (expecting 'u')",
 			serverStream: streamBuilder.IgnoreThenChallenge([]byte("not-a-challenge")).Build(),
@@ -90,16 +90,16 @@ func TestAidAttestationFailures(t *testing.T) {
 }
 
 func TestAidAttestationSucceeds(t *testing.T) {
-	port := 9998
-        l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	l, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
+	port := l.Addr().(*net.TCPAddr).Port
         defer l.Close()
 
 	tests := []struct {
 		name            string
 		config          string
 		attestationData common_httpchallenge.AttestationData
-		serverStream    func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge) nodeattestor.ServerStream
+		serverStream    func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream
 	}{
 		{
 			name:         "Check for random port",
@@ -108,14 +108,14 @@ func TestAidAttestationSucceeds(t *testing.T) {
 				HostName:  "spire-dev",
 				AgentName: "default",
 			},
-			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge) nodeattestor.ServerStream{
+			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream{
 				return streamBuilder.
 					Handle(func(challenge []byte) ([]byte, error) {
 					        attestationData := new(common_httpchallenge.AttestationData)
 					        if err := json.Unmarshal(challenge, attestationData); err != nil {
 							return nil, err
 						}
-						if attestationData.Port == 9998 {
+						if attestationData.Port == port {
 							return nil, errors.New("Random port failed.")
 						}
 						return nil, nil
@@ -124,19 +124,19 @@ func TestAidAttestationSucceeds(t *testing.T) {
 		},
 		{
 			name:         "Check for advertised port",
-			config: "advertised_port = 9998",
+			config: fmt.Sprintf("advertised_port = %d", port),
 			attestationData: common_httpchallenge.AttestationData{
 				HostName:  "spire-dev",
 				AgentName: "default",
 			},
-			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge) nodeattestor.ServerStream{
+			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream{
 				return streamBuilder.
 					Handle(func(challenge []byte) ([]byte, error) {
 					        attestationData := new(common_httpchallenge.AttestationData)
 					        if err := json.Unmarshal(challenge, attestationData); err != nil {
 							return nil, err
 						}
-						if attestationData.Port != 9998 {
+						if attestationData.Port != port {
 							return nil, errors.New("Advertised port failed.")
 						}
 						return nil, nil
@@ -151,7 +151,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 				AgentName: "default",
 				Port:      9999,
 			},
-			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge) nodeattestor.ServerStream{
+			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream{
 				return streamBuilder.ExpectThenChallenge(expectPayload, challenge).
 					Handle(func(challengeResponse []byte) ([]byte, error) {
 						err := common_httpchallenge.VerifyChallenge(attestationData, challengeobj)
@@ -167,7 +167,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 				AgentName: "test",
 				Port:      9999,
 			},
-			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge) nodeattestor.ServerStream{
+			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream{
 				return streamBuilder.ExpectThenChallenge(expectPayload, challenge).
 					Handle(func(challengeResponse []byte) ([]byte, error) {
 						err := common_httpchallenge.VerifyChallenge(attestationData, challengeobj)
@@ -192,7 +192,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 
 			p := loadAndConfigurePlugin(t, tt.config)
 
-			err = p.Attest(context.Background(), tt.serverStream(&tt.attestationData, challenge, expectPayload, challengeobj))
+			err = p.Attest(context.Background(), tt.serverStream(&tt.attestationData, challenge, expectPayload, challengeobj, port))
 			require.NoError(t, err)
 		})
 	}
