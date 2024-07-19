@@ -79,12 +79,39 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		managerErr    error
 		expectMetrics []fakemetrics.MetricItem
 		expectResp    *delegatedidentityv1.SubscribeToX509SVIDsResponse
+		req           *delegatedidentityv1.SubscribeToX509SVIDsRequest
 	}{
 		{
 			testName:   "attest error",
 			attestErr:  errors.New("ohno"),
 			expectCode: codes.Internal,
 			expectMsg:  "workload attestation failed",
+		},
+		{
+			testName:     "incorrectly populate both pid and selectors",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "must provide either selectors or non-zero PID, but not both",
+			req: &delegatedidentityv1.SubscribeToX509SVIDsRequest{
+				Selectors: []*types.Selector{{Type: "sa", Value: "foo"}},
+				Pid:       447,
+			},
+		},
+		{
+			testName:     "incorrectly populate neither pid or selectors",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "must provide either selectors or non-zero PID, but not both",
+			req: &delegatedidentityv1.SubscribeToX509SVIDsRequest{
+				Selectors: []*types.Selector{},
+				Pid:       0,
+			},
 		},
 		{
 			testName:     "access to \"privileged\" admin API denied",
@@ -273,250 +300,16 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			}
 			runTest(t, params,
 				func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
-					selectors := []*types.Selector{{Type: "sa", Value: "foo"}}
+
 					req := &delegatedidentityv1.SubscribeToX509SVIDsRequest{
-						Selectors: selectors,
+						Selectors: []*types.Selector{{Type: "sa", Value: "foo"}},
+					}
+					// if test params has a custom request, prefer that
+					if tt.req != nil {
+						req = tt.req
 					}
 
 					stream, err := client.SubscribeToX509SVIDs(ctx, req)
-
-					require.NoError(t, err)
-					resp, err := stream.Recv()
-
-					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
-					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
-					require.Equal(t, tt.expectMetrics, metrics.AllMetrics())
-				})
-		})
-	}
-}
-
-func TestSubscribeToX509SVIDsByPID(t *testing.T) {
-	ca := testca.New(t, trustDomain1)
-
-	x509SVID1 := ca.CreateX509SVID(id1)
-	x509SVID2 := ca.CreateX509SVID(id2)
-
-	bundle := ca.Bundle()
-	federatedBundle1 := testca.New(t, trustDomain2).Bundle()
-	federatedBundle2 := testca.New(t, trustDomain3).Bundle()
-
-	identities := []cache.Identity{
-		identityFromX509SVID(x509SVID1),
-		identityFromX509SVID(x509SVID2),
-	}
-	identities[1].Entry.Hint = "external"
-
-	for _, tt := range []struct {
-		testName      string
-		identities    []cache.Identity
-		updates       []*cache.WorkloadUpdate
-		authSpiffeID  []string
-		expectCode    codes.Code
-		expectMsg     string
-		attestErr     error
-		managerErr    error
-		expectMetrics []fakemetrics.MetricItem
-		expectResp    *delegatedidentityv1.SubscribeToX509SVIDsResponse
-	}{
-		{
-			testName:   "attest error",
-			attestErr:  errors.New("ohno"),
-			expectCode: codes.Internal,
-			expectMsg:  "workload attestation failed",
-		},
-		{
-			testName:     "access to \"privileged\" admin API denied",
-			authSpiffeID: []string{"spiffe://example.org/one/wrong"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			expectCode: codes.PermissionDenied,
-			expectMsg:  "caller not configured as an authorized delegate",
-		},
-		{
-			testName:     "subscribe to cache changes error",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			managerErr: errors.New("err"),
-			expectCode: codes.Unknown,
-			expectMsg:  "err",
-		},
-		{
-			testName:     "workload update with one identity",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			updates: []*cache.WorkloadUpdate{
-				{
-					Identities: []cache.Identity{
-						identities[0],
-					},
-					Bundle: bundle,
-				},
-			},
-			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
-				X509Svids: []*delegatedidentityv1.X509SVIDWithKey{
-					{
-						X509Svid: &types.X509SVID{
-							Id:        utilIDProtoFromString(t, x509SVID1.ID.String()),
-							CertChain: x509util.RawCertsFromCertificates(x509SVID1.Certificates),
-							ExpiresAt: x509SVID1.Certificates[0].NotAfter.Unix(),
-						},
-						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
-					},
-				},
-			},
-			expectMetrics: generateSubscribeToX509SVIDMetrics(),
-		},
-		{
-			testName:     "workload update with two identities",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			updates: []*cache.WorkloadUpdate{
-				{Identities: []cache.Identity{
-					identities[0],
-					identities[1],
-				},
-					Bundle: bundle,
-				},
-			},
-			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
-				X509Svids: []*delegatedidentityv1.X509SVIDWithKey{
-					{
-						X509Svid: &types.X509SVID{
-							Id:        utilIDProtoFromString(t, x509SVID1.ID.String()),
-							CertChain: x509util.RawCertsFromCertificates(x509SVID1.Certificates),
-							ExpiresAt: x509SVID1.Certificates[0].NotAfter.Unix(),
-						},
-						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
-					},
-					{
-						X509Svid: &types.X509SVID{
-							Id:        utilIDProtoFromString(t, x509SVID2.ID.String()),
-							CertChain: x509util.RawCertsFromCertificates(x509SVID2.Certificates),
-							ExpiresAt: x509SVID2.Certificates[0].NotAfter.Unix(),
-							Hint:      "external",
-						},
-						X509SvidKey: pkcs8FromSigner(t, x509SVID2.PrivateKey),
-					},
-				},
-			},
-			expectMetrics: generateSubscribeToX509SVIDMetrics(),
-		},
-		{
-			testName:     "no workload update",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			updates:    []*cache.WorkloadUpdate{{}},
-			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{},
-		},
-		{
-			testName:     "workload update without identity.SVID",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			updates: []*cache.WorkloadUpdate{
-				{Identities: []cache.Identity{
-					identityFromX509SVIDWithoutSVID(x509SVID1),
-				}},
-			},
-			expectCode:    codes.Internal,
-			expectMsg:     "could not serialize response",
-			expectMetrics: generateSubscribeToX509SVIDMetrics(),
-		},
-		{
-			testName:     "workload update with identity and federated bundles",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			updates: []*cache.WorkloadUpdate{
-				{
-					Identities: []cache.Identity{
-						identities[0],
-					},
-					Bundle: bundle,
-					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
-						federatedBundle1.TrustDomain(): federatedBundle1},
-				},
-			},
-			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
-				X509Svids: []*delegatedidentityv1.X509SVIDWithKey{
-					{
-						X509Svid: &types.X509SVID{
-							Id:        utilIDProtoFromString(t, x509SVID1.ID.String()),
-							CertChain: x509util.RawCertsFromCertificates(x509SVID1.Certificates),
-							ExpiresAt: x509SVID1.Certificates[0].NotAfter.Unix(),
-						},
-						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
-					},
-				},
-				FederatesWith: []string{federatedBundle1.TrustDomain().IDString()},
-			},
-			expectMetrics: generateSubscribeToX509SVIDMetrics(),
-		},
-		{
-			testName:     "workload update with identity and two federated bundles",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			updates: []*cache.WorkloadUpdate{
-				{
-					Identities: []cache.Identity{
-						identities[0],
-					},
-					Bundle: bundle,
-					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
-						federatedBundle1.TrustDomain(): federatedBundle1,
-						federatedBundle2.TrustDomain(): federatedBundle2},
-				},
-			},
-			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
-				X509Svids: []*delegatedidentityv1.X509SVIDWithKey{
-					{
-						X509Svid: &types.X509SVID{
-							Id:        utilIDProtoFromString(t, x509SVID1.ID.String()),
-							CertChain: x509util.RawCertsFromCertificates(x509SVID1.Certificates),
-							ExpiresAt: x509SVID1.Certificates[0].NotAfter.Unix(),
-						},
-						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
-					},
-				},
-				FederatesWith: []string{federatedBundle1.TrustDomain().IDString(),
-					federatedBundle2.TrustDomain().IDString()},
-			},
-			expectMetrics: generateSubscribeToX509SVIDMetrics(),
-		},
-	} {
-		tt := tt
-		t.Run(tt.testName, func(t *testing.T) {
-			metrics := fakemetrics.New()
-			params := testParams{
-				CA:           ca,
-				Identities:   tt.identities,
-				Updates:      tt.updates,
-				AuthSpiffeID: tt.authSpiffeID,
-				AttestErr:    tt.attestErr,
-				ManagerErr:   tt.managerErr,
-				Metrics:      metrics,
-			}
-			runTest(t, params,
-				func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
-					req := &delegatedidentityv1.SubscribeToX509SVIDsByPIDRequest{
-						Pid: 67,
-					}
-
-					stream, err := client.SubscribeToX509SVIDsByPID(ctx, req)
 
 					require.NoError(t, err)
 					resp, err := stream.Recv()
@@ -647,6 +440,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 		authSpiffeID []string
 		audience     []string
 		selectors    []*types.Selector
+		pid          int32
 		expectCode   codes.Code
 		expectMsg    string
 		attestErr    error
@@ -664,6 +458,30 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			audience:   []string{"AUDIENCE"},
 			expectCode: codes.Internal,
 			expectMsg:  "workload attestation failed",
+		},
+		{
+			testName:     "incorrectly populate both pid and selectors",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
+			pid: 447,
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "must provide either selectors or non-zero PID, but not both",
+		},
+		{
+			testName:     "incorrectly populate neither pid or selectors",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{},
+			pid: 0,
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "must provide either selectors or non-zero PID, but not both",
 		},
 		{
 			testName:     "Access to \"privileged\" admin API denied",
@@ -800,162 +618,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 					resp, err := client.FetchJWTSVIDs(ctx, &delegatedidentityv1.FetchJWTSVIDsRequest{
 						Audience:  tt.audience,
 						Selectors: tt.selectors,
-					})
-
-					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
-					if tt.expectCode != codes.OK {
-						assert.Nil(t, resp)
-						return
-					}
-					for _, svid := range resp.Svids {
-						_, err := jwtsvid.ParseInsecure(svid.Token, tt.audience)
-						require.NoError(t, err, "JWT-SVID token is malformed")
-					}
-					spiretest.AssertProtoEqual(t, tt.expectResp, resp)
-				})
-		})
-	}
-}
-
-func TestFetchJWTSVIDsByPID(t *testing.T) {
-	ca := testca.New(t, trustDomain1)
-
-	x509SVID1 := ca.CreateX509SVID(id1)
-	jwtSVID1Token := ca.CreateJWTSVID(id1, []string{"AUDIENCE"}).Marshal()
-	x509SVID2 := ca.CreateX509SVID(id2)
-	jwtSVID2Token := ca.CreateJWTSVID(id2, []string{"AUDIENCE"}).Marshal()
-
-	identities := []cache.Identity{
-		identityFromX509SVID(x509SVID1),
-		identityFromX509SVID(x509SVID2),
-	}
-
-	identities[0].Entry.Hint = "internal"
-
-	for _, tt := range []struct {
-		testName     string
-		identities   []cache.Identity
-		jwtSVIDsResp map[spiffeid.ID]*client.JWTSVID
-		authSpiffeID []string
-		audience     []string
-		pid          int32
-		expectCode   codes.Code
-		expectMsg    string
-		attestErr    error
-		managerErr   error
-		expectResp   *delegatedidentityv1.FetchJWTSVIDsResponse
-	}{
-		{
-			testName:   "missing required audience",
-			expectCode: codes.InvalidArgument,
-			expectMsg:  "audience must be specified",
-		},
-		{
-			testName:   "Attest error",
-			attestErr:  errors.New("ohno"),
-			audience:   []string{"AUDIENCE"},
-			expectCode: codes.Internal,
-			expectMsg:  "workload attestation failed",
-		},
-		{
-			testName:     "Access to \"privileged\" admin API denied",
-			authSpiffeID: []string{"spiffe://example.org/one/wrong"},
-			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			expectCode: codes.PermissionDenied,
-			expectMsg:  "caller not configured as an authorized delegate",
-		},
-		{
-			testName:     "fetch error",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			managerErr: errors.New("ohno"),
-			expectCode: codes.Unavailable,
-			expectMsg:  "could not fetch JWT-SVID: ohno",
-		},
-		{
-			testName:     "success with one identity",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
-				identities[0],
-			},
-			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
-				id1: {
-					Token:     jwtSVID1Token,
-					ExpiresAt: time.Unix(1680786600, 0),
-					IssuedAt:  time.Unix(1680783000, 0),
-				},
-			},
-			expectResp: &delegatedidentityv1.FetchJWTSVIDsResponse{
-				Svids: []*types.JWTSVID{
-					{
-						Token:     jwtSVID1Token,
-						Id:        api.ProtoFromID(id1),
-						Hint:      "internal",
-						ExpiresAt: 1680786600,
-						IssuedAt:  1680783000,
-					},
-				},
-			},
-		},
-		{
-			testName:     "success with two identities",
-			authSpiffeID: []string{"spiffe://example.org/one"},
-			audience:     []string{"AUDIENCE"},
-			identities:   identities,
-			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
-				id1: {
-					Token:     jwtSVID1Token,
-					ExpiresAt: time.Unix(1680786600, 0),
-					IssuedAt:  time.Unix(1680783000, 0),
-				},
-				id2: {
-					Token:     jwtSVID2Token,
-					ExpiresAt: time.Unix(1680786600, 0),
-					IssuedAt:  time.Unix(1680783000, 0),
-				},
-			},
-			expectResp: &delegatedidentityv1.FetchJWTSVIDsResponse{
-				Svids: []*types.JWTSVID{
-					{
-						Token:     jwtSVID1Token,
-						Id:        api.ProtoFromID(id1),
-						Hint:      "internal",
-						ExpiresAt: 1680786600,
-						IssuedAt:  1680783000,
-					},
-					{
-						Token:     jwtSVID2Token,
-						Id:        api.ProtoFromID(id2),
-						Hint:      "",
-						ExpiresAt: 1680786600,
-						IssuedAt:  1680783000,
-					},
-				},
-			},
-		},
-	} {
-		tt := tt
-		t.Run(tt.testName, func(t *testing.T) {
-			params := testParams{
-				CA:           ca,
-				Identities:   tt.identities,
-				AuthSpiffeID: tt.authSpiffeID,
-				AttestErr:    tt.attestErr,
-				ManagerErr:   tt.managerErr,
-				JwtSVIDS:     tt.jwtSVIDsResp,
-			}
-			runTest(t, params,
-				func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
-					resp, err := client.FetchJWTSVIDsByPID(ctx, &delegatedidentityv1.FetchJWTSVIDsByPIDRequest{
-						Audience: tt.audience,
-						Pid:      tt.pid,
+						Pid: tt.pid,
 					})
 
 					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
