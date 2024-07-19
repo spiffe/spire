@@ -37,7 +37,8 @@ func CertificatesToProto(rootCas []*common.Certificate) []*types.X509Certificate
 	var x509Authorities []*types.X509Certificate
 	for _, rootCA := range rootCas {
 		x509Authorities = append(x509Authorities, &types.X509Certificate{
-			Asn1: rootCA.DerBytes,
+			Asn1:    rootCA.DerBytes,
+			Tainted: rootCA.TaintedKey,
 		})
 	}
 

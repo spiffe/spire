@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -20,7 +21,7 @@ type UpstreamAuthority interface {
 	// closed when the caller is no longer interested in updates. If the
 	// upstream authority does not support streaming updates, the stream will
 	// return io.EOF when called.
-	MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Duration) (x509CA, upstreamX509Authorities []*x509.Certificate, stream UpstreamX509AuthorityStream, err error)
+	MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Duration) (x509CA []*x509.Certificate, upstreamX509Authorities []*x509certificate.X509Authority, stream UpstreamX509AuthorityStream, err error)
 
 	// PublishJWTKey publishes the given JWT key with the upstream authority.
 	// Support for this method is optional. Implementations that do not support
@@ -39,7 +40,7 @@ type UpstreamX509AuthorityStream interface {
 	// method is called, or the context originally passed into MintX509CA is
 	// canceled. If the function returns an error, no more updates will be
 	// available over the stream.
-	RecvUpstreamX509Authorities() ([]*x509.Certificate, error)
+	RecvUpstreamX509Authorities() ([]*x509certificate.X509Authority, error)
 
 	// Close() closes the stream. It MUST be called by callers of MintX509CA
 	// when they are done with the stream.

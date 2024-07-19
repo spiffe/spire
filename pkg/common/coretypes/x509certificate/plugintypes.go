@@ -114,7 +114,8 @@ func ToPluginFromAPIProto(pb *apitypes.X509Certificate) (*plugintypes.X509Certif
 		return nil, err
 	}
 	return &plugintypes.X509Certificate{
-		Asn1: asn1,
+		Asn1:    asn1,
+		Tainted: pb.Tainted,
 	}, nil
 }
 

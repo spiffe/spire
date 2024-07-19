@@ -6,7 +6,7 @@ import (
 )
 
 func FromCommonProto(pb *common.PublicKey) (JWTKey, error) {
-	return fromProtoFields(pb.Kid, pb.PkixBytes, pb.NotAfter)
+	return fromProtoFields(pb.Kid, pb.PkixBytes, pb.NotAfter, pb.TaintedKey)
 }
 
 func FromCommonProtos(pbs []*common.PublicKey) ([]JWTKey, error) {

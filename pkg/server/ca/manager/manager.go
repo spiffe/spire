@@ -13,6 +13,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -242,6 +243,10 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 		telemetry.LocalAuthorityID: slot.authorityID,
 	}).Info("X509 CA prepared")
 	return nil
+}
+
+func (m *Manager) IsUpstreamAuthority() bool {
+	return m.upstreamClient != nil
 }
 
 func (m *Manager) ActivateX509CA(ctx context.Context) {
@@ -725,7 +730,7 @@ type bundleUpdater struct {
 	updated       func()
 }
 
-func (u *bundleUpdater) AppendX509Roots(ctx context.Context, roots []*x509.Certificate) error {
+func (u *bundleUpdater) AppendX509Roots(ctx context.Context, roots []*x509certificate.X509Authority) error {
 	bundle := &common.Bundle{
 		TrustDomainId: u.trustDomainID,
 		RootCas:       make([]*common.Certificate, 0, len(roots)),
@@ -733,7 +738,8 @@ func (u *bundleUpdater) AppendX509Roots(ctx context.Context, roots []*x509.Certi
 
 	for _, root := range roots {
 		bundle.RootCas = append(bundle.RootCas, &common.Certificate{
-			DerBytes: root.Raw,
+			DerBytes:   root.Certificate.Raw,
+			TaintedKey: root.Tainted,
 		})
 	}
 	if _, err := u.appendBundle(ctx, bundle); err != nil {

@@ -40,6 +40,7 @@ type Slot interface {
 	ShouldPrepareNext(now time.Time) bool
 	ShouldActivateNext(now time.Time) bool
 	Status() journal.Status
+	SigningAuthorityID() []byte
 	AuthorityID() string
 	PublicKey() crypto.PublicKey
 	NotAfter() time.Time
@@ -539,6 +540,10 @@ func newX509CASlot(id string) *x509CASlot {
 	}
 }
 
+func (s *x509CASlot) SigningAuthorityID() []byte {
+	return s.x509CA.Certificate.AuthorityKeyId
+}
+
 func (s *x509CASlot) KmKeyID() string {
 	return x509CAKmKeyID(s.id)
 }
@@ -601,6 +606,10 @@ func (s *jwtKeySlot) Status() journal.Status {
 
 func (s *jwtKeySlot) AuthorityID() string {
 	return s.authorityID
+}
+
+func (s *jwtKeySlot) SigningAuthorityID() []byte {
+	return nil
 }
 
 func (s *jwtKeySlot) PublicKey() crypto.PublicKey {

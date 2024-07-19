@@ -104,8 +104,8 @@ func (ds *DatastoreCache) SetBundle(ctx context.Context, b *common.Bundle) (bund
 	return
 }
 
-func (ds *DatastoreCache) TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) (err error) {
-	if err = ds.DataStore.TaintX509CA(ctx, trustDomainID, publicKeyToTaint); err == nil {
+func (ds *DatastoreCache) TaintX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToTaint string) (err error) {
+	if err = ds.DataStore.TaintX509CA(ctx, trustDomainID, subjectKeyIDToTaint); err == nil {
 		ds.invalidateBundleEntry(trustDomainID)
 	}
 	return
