@@ -14,7 +14,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
-	github.com/GoogleCloudPlatform/cloudsql-proxy v1.35.4
+	github.com/GoogleCloudPlatform/cloudsql-proxy v1.36.0
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/aws/aws-sdk-go-v2 v1.30.3
@@ -99,7 +99,7 @@ require (
 	cloud.google.com/go v0.115.0 // indirect
 	cloud.google.com/go/auth v0.7.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.2 // indirect
-	cloud.google.com/go/compute/metadata v0.4.0 // indirect
+	cloud.google.com/go/compute/metadata v0.5.0 // indirect
 	cloud.google.com/go/longrunning v0.5.9 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/alibabacloudsdkgo/helper v0.2.0 // indirect
