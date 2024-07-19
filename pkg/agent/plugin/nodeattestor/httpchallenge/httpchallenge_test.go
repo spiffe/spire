@@ -91,7 +91,7 @@ func TestAidAttestationFailures(t *testing.T) {
 }
 
 func TestAidAttestationSucceeds(t *testing.T) {
-	l, err := net.Listen("tcp", ":0")
+	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	port := l.Addr().(*net.TCPAddr).Port
 	defer l.Close()
@@ -117,7 +117,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 							return nil, err
 						}
 						if attestationData.Port == port {
-							return nil, errors.New("random port failed.")
+							return nil, errors.New("random port failed")
 						}
 						return nil, nil
 					}).Build()
@@ -138,7 +138,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 							return nil, err
 						}
 						if attestationData.Port != port {
-							return nil, errors.New("advertised port failed.")
+							return nil, errors.New("advertised port failed")
 						}
 						return nil, nil
 					}).Build()
