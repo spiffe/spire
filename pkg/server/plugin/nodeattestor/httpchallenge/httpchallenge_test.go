@@ -3,23 +3,23 @@ package httpchallenge_test
 import (
 	"context"
 	"encoding/json"
-	"net/http/httptest"
-	"net/http"
-	"net/url"
+	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
-	"fmt"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-        "github.com/spiffe/go-spiffe/v2/spiffeid"
-        agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_httpchallenge "github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/httpchallenge"
-        "github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/stretchr/testify/require"
 )
@@ -91,13 +91,13 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
-func TestAttestFailiures(t *testing.T) {
+func TestAttestFailures(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	    if r.URL.Path != "/.well-known/spiffe/nodeattestor/http_challenge/default/challenge" {
-	        t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
-	    }
-	    w.WriteHeader(http.StatusOK)
-	    w.Write([]byte(`MTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnc=`))
+		if r.URL.Path != "/.well-known/spiffe/nodeattestor/http_challenge/default/challenge" {
+			t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`MTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnc=`))
 	}))
 	defer server.Close()
 
@@ -303,11 +303,11 @@ func TestAttestFailiures(t *testing.T) {
 
 func TestAttestSucceeds(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	    if r.URL.Path != "/.well-known/spiffe/nodeattestor/http_challenge/default/challenge" {
-	        t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
-	    }
-	    w.WriteHeader(http.StatusOK)
-	    w.Write([]byte(`MTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnc=`))
+		if r.URL.Path != "/.well-known/spiffe/nodeattestor/http_challenge/default/challenge" {
+			t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`MTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnc=`))
 	}))
 	defer server.Close()
 
@@ -327,18 +327,18 @@ func TestAttestSucceeds(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		hclConf     string
-		payload     []byte
-		challengeFn func(ctx context.Context, challenge []byte) ([]byte, error)
+		name              string
+		hclConf           string
+		payload           []byte
+		challengeFn       func(ctx context.Context, challenge []byte) ([]byte, error)
 		expectedAgentID   string
 		expectedSelectors []*common.Selector
-		tofu        bool
+		tofu              bool
 	}{
 		{
 			name:        "Attest succeeds for defaults",
 			hclConf:     "",
-			tofu: true,
+			tofu:        true,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -356,7 +356,7 @@ func TestAttestSucceeds(t *testing.T) {
 		{
 			name:        "Attest succeeds for reattest without tofu",
 			hclConf:     "tofu = false\nallow_non_root_ports = false",
-			tofu: false,
+			tofu:        false,
 			challengeFn: challengeFnNil,
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
@@ -387,11 +387,11 @@ func TestAttestSucceeds(t *testing.T) {
 	}
 }
 
-func loadPlugin(t *testing.T, config string, test_tofu bool) nodeattestor.NodeAttestor {
+func loadPlugin(t *testing.T, config string, testTOFU bool) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 	agentStore := fakeagentstore.New()
 	var configureErr error
-	if test_tofu {
+	if testTOFU {
 		agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
 			AgentId: "spiffe://example.org/spire/agent/http_challenge/foo",
 		})
@@ -415,9 +415,9 @@ func marshalPayload(t *testing.T, attReq *common_httpchallenge.AttestationData) 
 }
 
 func requireSelectorsMatch(t *testing.T, expected []*common.Selector, actual []*common.Selector) {
-        require.Equal(t, len(expected), len(actual))
-        for idx, expSel := range expected {
-                require.Equal(t, expSel.Type, actual[idx].Type)
-                require.Equal(t, expSel.Value, actual[idx].Value)
-        }
+	require.Equal(t, len(expected), len(actual))
+	for idx, expSel := range expected {
+		require.Equal(t, expSel.Type, actual[idx].Type)
+		require.Equal(t, expSel.Value, actual[idx].Value)
+	}
 }

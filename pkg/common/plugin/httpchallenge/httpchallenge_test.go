@@ -8,68 +8,68 @@ import (
 	"strings"
 	"testing"
 
-        "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateChallenge(t *testing.T) {
 	tests := []struct {
-		desc          string
-		hostName      string
-		agentName     string
-		nonce         string
-		testNonce     string
-		expectErr     string
+		desc      string
+		hostName  string
+		agentName string
+		nonce     string
+		testNonce string
+		expectErr string
 	}{
 		{
-			desc:         "bad hostName",
-			hostName:     "foo/bar",
-			agentName:    "ok",
-			nonce:        "1234",
-			testNonce:    "1234",
-			expectErr:    "hostname can not contain a slash",
+			desc:      "bad hostName",
+			hostName:  "foo/bar",
+			agentName: "ok",
+			nonce:     "1234",
+			testNonce: "1234",
+			expectErr: "hostname can not contain a slash",
 		},
 		{
-			desc:         "bad hostName",
-			hostName:     "foo:bar",
-			agentName:    "ok",
-			nonce:        "1234",
-			testNonce:    "1234",
-			expectErr:    "hostname can not contain a colon",
+			desc:      "bad hostName",
+			hostName:  "foo:bar",
+			agentName: "ok",
+			nonce:     "1234",
+			testNonce: "1234",
+			expectErr: "hostname can not contain a colon",
 		},
 		{
-			desc:         "bad agentName",
-			hostName:     "foo.bar",
-			agentName:    "not.ok",
-			nonce:        "1234",
-			testNonce:    "1234",
-			expectErr:    "agentname can not contain a dot",
+			desc:      "bad agentName",
+			hostName:  "foo.bar",
+			agentName: "not.ok",
+			nonce:     "1234",
+			testNonce: "1234",
+			expectErr: "agentname can not contain a dot",
 		},
 		{
-			desc:         "fail nonce",
-			hostName:     "foo.bar",
-			agentName:    "ok",
-			nonce:        "1234",
-			testNonce:    "1235",
-			expectErr:    "expected nonce \"1235\" but got \"1234\"",
+			desc:      "fail nonce",
+			hostName:  "foo.bar",
+			agentName: "ok",
+			nonce:     "1234",
+			testNonce: "1235",
+			expectErr: "expected nonce \"1235\" but got \"1234\"",
 		},
 		{
-			desc:         "success",
-			hostName:     "foo.bar",
-			agentName:    "ok",
-			nonce:        "1234",
-			testNonce:    "1234",
-			expectErr:    "",
+			desc:      "success",
+			hostName:  "foo.bar",
+			agentName: "ok",
+			nonce:     "1234",
+			testNonce: "1234",
+			expectErr: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			ad := &AttestationData {
-				HostName: tt.hostName,
+			ad := &AttestationData{
+				HostName:  tt.hostName,
 				AgentName: tt.agentName,
-				Port: 80,
+				Port:      80,
 			}
-			c := &Challenge {
+			c := &Challenge{
 				Nonce: tt.testNonce,
 			}
 
