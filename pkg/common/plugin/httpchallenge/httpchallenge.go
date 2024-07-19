@@ -98,10 +98,10 @@ func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) err
 		return err
 	}
 	nonce := strings.TrimSpace(string(body))
-	if nonce == challenge.Nonce {
-		return nil
+	if nonce != challenge.Nonce {
+		return fmt.Errorf("expected nonce %q but got %q", challenge.Nonce, body)
 	}
-	return fmt.Errorf("expected nonce %q but got %q", challenge.Nonce, body)
+	return nil
 }
 
 // MakeAgentID creates an agent ID
