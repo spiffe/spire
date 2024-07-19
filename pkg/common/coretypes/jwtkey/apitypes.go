@@ -15,6 +15,7 @@ func ToAPIProto(jwtKey JWTKey) (*apitypes.JWTKey, error) {
 		KeyId:     id,
 		PublicKey: publicKey,
 		ExpiresAt: expiresAt,
+		Tainted:   jwtKey.Tainted,
 	}, nil
 }
 
@@ -23,7 +24,7 @@ func ToAPIFromPluginProto(pb *plugintypes.JWTKey) (*apitypes.JWTKey, error) {
 		return nil, nil
 	}
 
-	jwtKey, err := fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt)
+	jwtKey, err := fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt, pb.Tainted)
 	if err != nil {
 		return nil, err
 	}

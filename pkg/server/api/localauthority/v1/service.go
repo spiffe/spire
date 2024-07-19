@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -33,6 +34,8 @@ type CAManager interface {
 	GetNextX509CASlot() manager.Slot
 	PrepareX509CA(ctx context.Context) error
 	RotateX509CA(ctx context.Context)
+
+	IsUpstreamAuthority() bool
 }
 
 // RegisterService registers the service on the gRPC server.
@@ -331,8 +334,13 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.TaintX509AuthorityRequest) (*localauthorityv1.TaintX509AuthorityResponse, error) {
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
+
 	if req.AuthorityId != "" {
 		log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
+	}
+
+	if s.ca.IsUpstreamAuthority() {
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "local authority can't be tainted if there is an upstream authorit", nil)
 	}
 
 	nextSlot := s.ca.GetNextX509CASlot()
@@ -355,7 +363,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 		return nil, api.MakeErr(log, codes.InvalidArgument, "only Old local authorities can be tainted", fmt.Errorf("unsupported local authority status: %v", nextSlot.Status()))
 	}
 
-	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), nextSlot.PublicKey()); err != nil {
+	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), nextSlot.AuthorityID()); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint X.509 authority", err)
 	}
 
@@ -369,6 +377,41 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	return &localauthorityv1.TaintX509AuthorityResponse{
 		TaintedAuthority: state,
 	}, nil
+}
+
+func (s *Service) TaintX509UpstreamAuthority(ctx context.Context, req *localauthorityv1.TaintX509UpstreamAuthorityRequest) (*localauthorityv1.TaintX509UpstreamAuthorityResponse, error) {
+	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.SubjectKeyId))
+	log := rpccontext.Logger(ctx)
+
+	if !s.ca.IsUpstreamAuthority() {
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "upstream authority is not configured", nil)
+	}
+
+	if req.SubjectKeyId == "" {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "subject key ID is required", nil)
+	}
+
+	// TODO: add a new field for SubjectKeyId
+	log = log.WithField(telemetry.SubjectKeyId, req.SubjectKeyId)
+
+	// Normalize SKID
+	subjectKeyIDToTaint := strings.ToLower(req.SubjectKeyId)
+
+	// TODO: may we validate that next slot contains an old authority and
+	// it is using the upstream authority to taint?
+	currentSlot := s.ca.GetCurrentX509CASlot()
+	currentSlotAuthorityKID := x509util.SubjectKeyIDToString(currentSlot.SigningAuthorityID())
+
+	if currentSlotAuthorityKID == subjectKeyIDToTaint {
+		return nil, api.MakeErr(log, codes.Internal, "unable to taint an active upstream authority", nil)
+	}
+
+	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), subjectKeyIDToTaint); err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to taint upstream authority", err)
+
+	}
+
+	return &localauthorityv1.TaintX509UpstreamAuthorityResponse{}, nil
 }
 
 func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1.RevokeX509AuthorityRequest) (*localauthorityv1.RevokeX509AuthorityResponse, error) {

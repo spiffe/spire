@@ -7,7 +7,7 @@ import (
 )
 
 func FromPluginProto(pb *plugintypes.JWTKey) (JWTKey, error) {
-	return fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt)
+	return fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt, pb.Tainted)
 }
 
 func FromPluginProtos(pbs []*plugintypes.JWTKey) ([]JWTKey, error) {
@@ -80,7 +80,7 @@ func ToPluginFromAPIProto(pb *apitypes.JWTKey) (*plugintypes.JWTKey, error) {
 		return nil, nil
 	}
 
-	jwtKey, err := fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt)
+	jwtKey, err := fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt, pb.Tainted)
 	if err != nil {
 		return nil, err
 	}

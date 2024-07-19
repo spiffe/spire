@@ -12,6 +12,7 @@ type JWTKey struct {
 	ID        string
 	PublicKey crypto.PublicKey
 	ExpiresAt time.Time
+	Tainted   bool
 }
 
 func toProtoFields(jwtKey JWTKey) (string, []byte, int64, error) {
@@ -35,7 +36,7 @@ func toProtoFields(jwtKey JWTKey) (string, []byte, int64, error) {
 	return jwtKey.ID, publicKey, expiresAt, nil
 }
 
-func fromProtoFields(keyID string, publicKeyPKIX []byte, expiresAtUnix int64) (JWTKey, error) {
+func fromProtoFields(keyID string, publicKeyPKIX []byte, expiresAtUnix int64, tainted bool) (JWTKey, error) {
 	if keyID == "" {
 		return JWTKey{}, errors.New("missing key ID for JWT key")
 	}
@@ -57,5 +58,6 @@ func fromProtoFields(keyID string, publicKeyPKIX []byte, expiresAtUnix int64) (J
 		ID:        keyID,
 		PublicKey: publicKey,
 		ExpiresAt: expiresAt,
+		Tainted:   tainted,
 	}, nil
 }

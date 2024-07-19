@@ -125,6 +125,7 @@ message RegistrationEntries {
 /** Certificate represents a ASN.1/DER encoded X509 certificate */
 message Certificate {
     bytes der_bytes = 1;
+    bool tainted_key = 2;
 }
 
 /** PublicKey represents a PKIX encoded public key */
@@ -159,14 +160,6 @@ message Bundle {
     /** sequence number is a monotonically increasing number that is
      * incremented every time the bundle is updated */
     uint64 sequence_number = 5;
-
-    /** list of X.509 tainted keys */
-    repeated X509TaintedKey x509_tainted_keys = 6;
-}
-
-message X509TaintedKey {
-        /** tainted public key*/
-	bytes public_key = 1;
 }
 
 message BundleMask {

@@ -264,10 +264,10 @@ func (w metricsWrapper) SetBundle(ctx context.Context, bundle *common.Bundle) (_
 	return w.ds.SetBundle(ctx, bundle)
 }
 
-func (w metricsWrapper) TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) (err error) {
+func (w metricsWrapper) TaintX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToTaint string) (err error) {
 	callCounter := StartTaintX509CAByKeyCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.TaintX509CA(ctx, trustDomainID, publicKeyToTaint)
+	return w.ds.TaintX509CA(ctx, trustDomainID, subjectKeyIDToTaint)
 }
 
 func (w metricsWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, publicKeyToRevoke crypto.PublicKey) (err error) {
