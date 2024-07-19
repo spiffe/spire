@@ -463,7 +463,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			testName:     "incorrectly populate both pid and selectors",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
-			pid: 447,
+			pid:          447,
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
 				identities[0],
@@ -475,7 +475,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			testName:     "incorrectly populate neither pid or selectors",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{},
-			pid: 0,
+			pid:          0,
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
 				identities[0],
@@ -618,7 +618,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 					resp, err := client.FetchJWTSVIDs(ctx, &delegatedidentityv1.FetchJWTSVIDsRequest{
 						Audience:  tt.audience,
 						Selectors: tt.selectors,
-						Pid: tt.pid,
+						Pid:       tt.pid,
 					})
 
 					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)

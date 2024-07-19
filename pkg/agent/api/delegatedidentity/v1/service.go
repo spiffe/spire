@@ -123,7 +123,7 @@ func (s *Service) constructValidSelectorsFromReq(ctx context.Context, log logrus
 	// pid 0.
 
 	fmt.Printf("PIDS: %d", reqPid)
-	if (len(reqSelectors) != 0 && reqPid != 0) || (len(reqSelectors) == 0 && reqPid == 0){
+	if (len(reqSelectors) != 0 && reqPid != 0) || (len(reqSelectors) == 0 && reqPid == 0) {
 		fmt.Printf("booop")
 		log.Error("Invalid argument; must provide either selectors or non-zero PID, but not both")
 		return nil, status.Error(codes.InvalidArgument, "must provide either selectors or non-zero PID, but not both")
@@ -140,7 +140,7 @@ func (s *Service) constructValidSelectorsFromReq(ctx context.Context, log logrus
 			return nil, status.Error(codes.InvalidArgument, "could not parse provided selectors")
 		}
 	} else {
-		// Delegate authorized, use PID the delegate gave us to try and attest OBO
+		// Delegate authorized, use PID the delegate gave us to try and attest on-behalf-of
 		selectors, err = s.delegateWorkloadAttestor.Attest(ctx, int(reqPid))
 		if err != nil {
 			return nil, err
@@ -149,6 +149,7 @@ func (s *Service) constructValidSelectorsFromReq(ctx context.Context, log logrus
 
 	return selectors, nil
 }
+
 // Attempt to attest and authorize the delegate, and then
 //
 // - Take a pre-atttested set of selectors from the delegate
