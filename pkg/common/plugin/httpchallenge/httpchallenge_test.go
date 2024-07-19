@@ -74,7 +74,8 @@ func TestValidateChallenge(t *testing.T) {
 			}
 
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				res.Write([]byte(tt.nonce))
+				_, err := res.Write([]byte(tt.nonce))
+				require.NoError(t, err)
 			}))
 			defer func() { testServer.Close() }()
 
