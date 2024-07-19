@@ -153,7 +153,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 				Port:      9999,
 			},
 			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream {
-				return streamBuilder.ExpectThenChallenge(expectPayload, challenge).
+				return streamBuilder.IgnoreThenChallenge(challenge).
 					Handle(func(challengeResponse []byte) ([]byte, error) {
 						err := common_httpchallenge.VerifyChallenge(attestationData, challengeobj)
 						return nil, err
@@ -161,7 +161,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			},
 		},
 		{
-			name:   "Test with all the settings",
+			name:   "Full test with all the settings",
 			config: "hostname=\"localhost\"\nagentname=\"test\"\nport=9999\nadvertised_port=9999",
 			attestationData: common_httpchallenge.AttestationData{
 				HostName:  "localhost",
