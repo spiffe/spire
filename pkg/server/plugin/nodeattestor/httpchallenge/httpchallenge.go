@@ -67,13 +67,13 @@ type Plugin struct {
 
 	log hclog.Logger
 
-	client *http.Client
+	client     *http.Client
 	forceNonce string
 }
 
 func New() *Plugin {
 	return &Plugin{
-		client:    http.DefaultClient,
+		client: http.DefaultClient,
 	}
 }
 
