@@ -11,7 +11,9 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/andres-erbsen/clock"
 	w_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
@@ -28,6 +30,8 @@ import (
 )
 
 type handler struct {
+	clock clock.Clock
+
 	svidv1.SVIDServer
 	bundlev1.BundleServer
 
@@ -193,9 +197,11 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	ca := x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(h.cert[0], h.key),
 		trustDomain,
-		x509svid.UpstreamCAOptions{})
+		x509svid.UpstreamCAOptions{
+			Clock: h.clock,
+		})
 
-	cert, err := ca.SignCSR(ctx, req.Csr, 0)
+	cert, err := ca.SignCSR(ctx, req.Csr, time.Second*time.Duration(req.PreferredTtl))
 	if err != nil {
 		return nil, fmt.Errorf("unable to sign CSR: %w", err)
 	}
