@@ -27,9 +27,10 @@ func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func BuiltInTesting(client *http.Client) catalog.BuiltIn {
+func BuiltInTesting(client *http.Client, forceNonce string) catalog.BuiltIn {
 	plugin := New()
 	plugin.client = client
+	plugin.forceNonce = forceNonce
 	return builtin(plugin)
 }
 
@@ -67,11 +68,12 @@ type Plugin struct {
 	log hclog.Logger
 
 	client *http.Client
+	forceNonce string
 }
 
 func New() *Plugin {
 	return &Plugin{
-		client: http.DefaultClient,
+		client:    http.DefaultClient,
 	}
 }
 
@@ -111,7 +113,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return err
 	}
 
-	challenge, err := httpchallenge.GenerateChallenge()
+	challenge, err := httpchallenge.GenerateChallenge(p.forceNonce)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}

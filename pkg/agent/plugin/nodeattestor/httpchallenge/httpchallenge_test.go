@@ -186,7 +186,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			expectPayload, err := json.Marshal(&tt.attestationData)
 			require.NoError(t, err)
 
-			challengeobj, err := common_httpchallenge.GenerateChallenge()
+			challengeobj, err := common_httpchallenge.GenerateChallenge("")
 			require.NoError(t, err)
 
 			challenge, err := json.Marshal(challengeobj)

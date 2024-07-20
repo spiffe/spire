@@ -24,10 +24,6 @@ const (
 	PluginName = "http_challenge"
 )
 
-var (
-	DefaultRandReader io.Reader
-)
-
 type AttestationData struct {
 	HostName  string `json:"hostname"`
 	AgentName string `json:"agentname"`
@@ -41,10 +37,14 @@ type Challenge struct {
 type Response struct {
 }
 
-func GenerateChallenge() (*Challenge, error) {
-	nonce, err := generateNonce()
-	if err != nil {
-		return nil, err
+func GenerateChallenge(forceNonce string) (*Challenge, error) {
+	nonce := forceNonce
+	if nonce == "" {
+		var err error
+		nonce, err = generateNonce()
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &Challenge{Nonce: nonce}, nil
 }
@@ -112,14 +112,8 @@ func MakeAgentID(td spiffeid.TrustDomain, hostName string) (spiffeid.ID, error) 
 
 func generateNonce() (string, error) {
 	b := make([]byte, nonceLen)
-	if DefaultRandReader != nil {
-		if _, err := DefaultRandReader.Read(b); err != nil {
-			return "", err
-		}
-	} else {
-		if _, err := rand.Read(b); err != nil {
-			return "", err
-		}
+	if _, err := rand.Read(b); err != nil {
+		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(b), nil
 }

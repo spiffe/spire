@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	neturl "net/url"
-	"strings"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -97,7 +96,7 @@ func TestAttestFailures(t *testing.T) {
 			t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`MTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnc=`))
+		_, _ = w.Write([]byte(`123456789abcdefghijklmnopqrstuvwxyz`))
 	}))
 	defer server.Close()
 
@@ -265,7 +264,7 @@ func TestAttestFailures(t *testing.T) {
 		},
 		{
 			name:        "Attest fails if nonce does not match",
-			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): challenge verification failed: expected nonce \"YmFkMTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3Q=\"",
+			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): challenge verification failed: expected nonce \"bad123456789abcdefghijklmnopqrstuvwxyz\" but got \"123456789abcdefghijklmnopqrstuvwxyz\"",
 			hclConf:     "",
 			tofu:        true,
 			challengeFn: challengeFnNil,
@@ -291,12 +290,13 @@ func TestAttestFailures(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			var testNonce string
 			if tt.tofu {
-				common_httpchallenge.DefaultRandReader = strings.NewReader("bad123456789abcdefghijklmnopqrstuvwxyz")
+				testNonce = "bad123456789abcdefghijklmnopqrstuvwxyz"
 			} else {
-				common_httpchallenge.DefaultRandReader = strings.NewReader("123456789abcdefghijklmnopqrstuvwxyz")
+				testNonce = "123456789abcdefghijklmnopqrstuvwxyz"
 			}
-			plugin := loadPlugin(t, tt.hclConf, !tt.tofu, client)
+			plugin := loadPlugin(t, tt.hclConf, !tt.tofu, client, testNonce)
 			result, err := plugin.Attest(context.Background(), tt.payload, tt.challengeFn)
 			require.Contains(t, err.Error(), tt.expErr)
 			require.Nil(t, result)
@@ -310,7 +310,7 @@ func TestAttestSucceeds(t *testing.T) {
 			t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`MTIzNDU2Nzg5YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnc=`))
+		_, _ = w.Write([]byte(`123456789abcdefghijklmnopqrstuvwxyz`))
 	}))
 	defer server.Close()
 
@@ -369,8 +369,8 @@ func TestAttestSucceeds(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			common_httpchallenge.DefaultRandReader = strings.NewReader("123456789abcdefghijklmnopqrstuvwxyz")
-			plugin := loadPlugin(t, tt.hclConf, !tt.tofu, client)
+			testNonce := "123456789abcdefghijklmnopqrstuvwxyz"
+			plugin := loadPlugin(t, tt.hclConf, !tt.tofu, client, testNonce)
 			result, err := plugin.Attest(context.Background(), tt.payload, tt.challengeFn)
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -381,7 +381,7 @@ func TestAttestSucceeds(t *testing.T) {
 	}
 }
 
-func loadPlugin(t *testing.T, config string, testTOFU bool, client *http.Client) nodeattestor.NodeAttestor {
+func loadPlugin(t *testing.T, config string, testTOFU bool, client *http.Client, testNonce string) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 	agentStore := fakeagentstore.New()
 	var configureErr error
@@ -398,7 +398,7 @@ func loadPlugin(t *testing.T, config string, testTOFU bool, client *http.Client)
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 	}
-	plugintest.Load(t, httpchallenge.BuiltInTesting(client), v1, opts...)
+	plugintest.Load(t, httpchallenge.BuiltInTesting(client, testNonce), v1, opts...)
 	return v1
 }
 
