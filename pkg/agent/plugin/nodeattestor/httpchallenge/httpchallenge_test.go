@@ -149,7 +149,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			name:   "Test with defaults except port",
 			config: "port=9999",
 			attestationData: common_httpchallenge.AttestationData{
-				HostName:  "spire-dev",
+				HostName:  "localhost",
 				AgentName: "default",
 				Port:      9999,
 			},
@@ -206,6 +206,6 @@ func loadAndConfigurePlugin(t *testing.T, config string) nodeattestor.NodeAttest
 
 func loadPlugin(t *testing.T, options ...plugintest.Option) nodeattestor.NodeAttestor {
 	na := new(nodeattestor.V1)
-	plugintest.Load(t, httpchallenge.BuiltInWithHostname("wark"), na, options...)
+	plugintest.Load(t, httpchallenge.BuiltInWithHostname("localhost"), na, options...)
 	return na
 }
