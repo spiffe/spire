@@ -3,6 +3,7 @@ package httpchallenge
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"regexp"
 	"sync"
 
@@ -58,10 +59,14 @@ type Plugin struct {
 	config *configuration
 
 	log hclog.Logger
+
+	client *http.Client
 }
 
 func New() *Plugin {
-	return &Plugin{}
+	return &Plugin{
+		client: http.DefaultClient,
+	}
 }
 
 func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
@@ -125,7 +130,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	p.log.Debug("Verifying challenge")
-	if err := httpchallenge.VerifyChallenge(attestationData, challenge); err != nil {
+	if err := httpchallenge.VerifyChallenge(p.client, attestationData, challenge); err != nil {
 		return status.Errorf(codes.PermissionDenied, "challenge verification failed: %v", err)
 	}
 
@@ -254,6 +259,9 @@ func validateAgentName(agentName string, agentNamePattern *regexp.Regexp) error 
 }
 
 func validateHostName(hostName string, dnsPatterns []*regexp.Regexp) error {
+	if hostName == "localhost" {
+		return status.Errorf(codes.PermissionDenied, "you can not use localhost as a hostname")
+	}
 	if len(dnsPatterns) == 0 {
 		return nil
 	}

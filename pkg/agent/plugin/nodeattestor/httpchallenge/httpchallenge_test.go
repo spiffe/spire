@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"testing"
 
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -155,7 +156,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream {
 				return streamBuilder.IgnoreThenChallenge(challenge).
 					Handle(func(challengeResponse []byte) ([]byte, error) {
-						err := common_httpchallenge.VerifyChallenge(attestationData, challengeobj)
+						err := common_httpchallenge.VerifyChallenge(http.DefaultClient, attestationData, challengeobj)
 						return nil, err
 					}).Build()
 			},
@@ -171,7 +172,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream {
 				return streamBuilder.ExpectThenChallenge(expectPayload, challenge).
 					Handle(func(challengeResponse []byte) ([]byte, error) {
-						err := common_httpchallenge.VerifyChallenge(attestationData, challengeobj)
+						err := common_httpchallenge.VerifyChallenge(http.DefaultClient, attestationData, challengeobj)
 						return nil, err
 					}).Build()
 			},
@@ -205,6 +206,6 @@ func loadAndConfigurePlugin(t *testing.T, config string) nodeattestor.NodeAttest
 
 func loadPlugin(t *testing.T, options ...plugintest.Option) nodeattestor.NodeAttestor {
 	na := new(nodeattestor.V1)
-	plugintest.Load(t, httpchallenge.BuiltIn(), na, options...)
+	plugintest.Load(t, httpchallenge.BuiltInWithHostname("wark"), na, options...)
 	return na
 }

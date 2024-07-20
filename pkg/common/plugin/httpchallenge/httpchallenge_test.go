@@ -87,7 +87,7 @@ func TestValidateChallenge(t *testing.T) {
 				return dialer.DialContext(ctx, network, addr)
 			}
 
-			err := VerifyChallenge(ad, c)
+			err := VerifyChallenge(http.DefaultClient, ad, c)
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)

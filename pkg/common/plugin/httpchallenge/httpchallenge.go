@@ -53,7 +53,7 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 	return &Response{}, nil
 }
 
-func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) error {
+func VerifyChallenge(client *http.Client, attestationData *AttestationData, challenge *Challenge) error {
 	if attestationData.HostName == "" {
 		return fmt.Errorf("hostname must be set")
 	}
@@ -86,7 +86,6 @@ func VerifyChallenge(attestationData *AttestationData, challenge *Challenge) err
 		return err
 	}
 
-	client := http.DefaultClient
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

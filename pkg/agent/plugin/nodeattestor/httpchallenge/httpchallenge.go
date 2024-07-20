@@ -28,6 +28,12 @@ func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
+func BuiltInWithHostname(hostname string) catalog.BuiltIn {
+	plugin := New()
+	plugin.hostname = hostname
+	return builtin(plugin)
+}
+
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
 		nodeattestorv1.NodeAttestorPluginServer(p),
@@ -56,6 +62,8 @@ type Plugin struct {
 	c *Config
 
 	log hclog.Logger
+
+	hostname string
 }
 
 func New() *Plugin {
@@ -137,7 +145,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	}
 
 	// Make sure the configuration produces valid data
-	if _, err := loadConfigData(config); err != nil {
+	if _, err := loadConfigData(p.hostname, config); err != nil {
 		return nil, err
 	}
 
@@ -193,15 +201,19 @@ func (p *Plugin) loadConfigData() (*configData, error) {
 	if config == nil {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
-	return loadConfigData(config)
+	return loadConfigData(p.hostname, config)
 }
 
-func loadConfigData(config *Config) (*configData, error) {
+func loadConfigData(hostname string, config *Config) (*configData, error) {
 	if config.HostName == "" {
-		var err error
-		config.HostName, err = os.Hostname()
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unable to fetch hostname: %v", err)
+		if hostname != "" {
+			config.HostName = hostname
+		} else {
+			var err error
+			config.HostName, err = os.Hostname()
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "unable to fetch hostname: %v", err)
+			}
 		}
 	}
 	var agentName = "default"
