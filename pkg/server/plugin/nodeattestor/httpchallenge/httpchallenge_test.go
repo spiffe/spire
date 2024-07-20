@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
+	neturl "net/url"
 	"strings"
 	"testing"
 
@@ -101,16 +101,7 @@ func TestAttestFailures(t *testing.T) {
 	}))
 	defer server.Close()
 
-	u, _ := url.Parse(server.URL)
-	_, port, _ := net.SplitHostPort(u.Host)
-	oldDialContext := http.DefaultTransport.(*http.Transport).DialContext
-	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		if addr == "foo:80" {
-			addr = fmt.Sprintf("127.0.0.1:%s", port)
-		}
-		return oldDialContext(ctx, network, addr)
-	}
-	http.DefaultTransport.(*http.Transport).DialContext = dialContext
+	client := newClientWithLocalIntercept(server.URL)
 
 	challengeFnNil := func(ctx context.Context, challenge []byte) ([]byte, error) {
 		return nil, nil
@@ -161,6 +152,18 @@ func TestAttestFailures(t *testing.T) {
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
 				AgentName: "",
+				Port:      80,
+			}),
+		},
+		{
+			name:        "Attest fails if hostname is localhost",
+			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): you can not use localhost as a hostname",
+			hclConf:     "",
+			tofu:        true,
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "localhost",
+				AgentName: "default",
 				Port:      80,
 			}),
 		},
@@ -293,7 +296,7 @@ func TestAttestFailures(t *testing.T) {
 			} else {
 				common_httpchallenge.DefaultRandReader = strings.NewReader("123456789abcdefghijklmnopqrstuvwxyz")
 			}
-			plugin := loadPlugin(t, tt.hclConf, !tt.tofu)
+			plugin := loadPlugin(t, tt.hclConf, !tt.tofu, client)
 			result, err := plugin.Attest(context.Background(), tt.payload, tt.challengeFn)
 			require.Contains(t, err.Error(), tt.expErr)
 			require.Nil(t, result)
@@ -311,16 +314,7 @@ func TestAttestSucceeds(t *testing.T) {
 	}))
 	defer server.Close()
 
-	u, _ := url.Parse(server.URL)
-	_, port, _ := net.SplitHostPort(u.Host)
-	oldDialContext := http.DefaultTransport.(*http.Transport).DialContext
-	dialContext := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		if addr == "foo:80" {
-			addr = fmt.Sprintf("127.0.0.1:%s", port)
-		}
-		return oldDialContext(ctx, network, addr)
-	}
-	http.DefaultTransport.(*http.Transport).DialContext = dialContext
+	client := newClientWithLocalIntercept(server.URL)
 
 	challengeFnNil := func(ctx context.Context, challenge []byte) ([]byte, error) {
 		return nil, nil
@@ -376,7 +370,7 @@ func TestAttestSucceeds(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			common_httpchallenge.DefaultRandReader = strings.NewReader("123456789abcdefghijklmnopqrstuvwxyz")
-			plugin := loadPlugin(t, tt.hclConf, !tt.tofu)
+			plugin := loadPlugin(t, tt.hclConf, !tt.tofu, client)
 			result, err := plugin.Attest(context.Background(), tt.payload, tt.challengeFn)
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -387,7 +381,7 @@ func TestAttestSucceeds(t *testing.T) {
 	}
 }
 
-func loadPlugin(t *testing.T, config string, testTOFU bool) nodeattestor.NodeAttestor {
+func loadPlugin(t *testing.T, config string, testTOFU bool, client *http.Client) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 	agentStore := fakeagentstore.New()
 	var configureErr error
@@ -404,7 +398,7 @@ func loadPlugin(t *testing.T, config string, testTOFU bool) nodeattestor.NodeAtt
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 	}
-	plugintest.Load(t, httpchallenge.BuiltIn(), v1, opts...)
+	plugintest.Load(t, httpchallenge.BuiltInTesting(client), v1, opts...)
 	return v1
 }
 
@@ -419,5 +413,21 @@ func requireSelectorsMatch(t *testing.T, expected []*common.Selector, actual []*
 	for idx, expSel := range expected {
 		require.Equal(t, expSel.Type, actual[idx].Type)
 		require.Equal(t, expSel.Value, actual[idx].Value)
+	}
+}
+
+func newClientWithLocalIntercept(url string) *http.Client {
+	u, _ := neturl.Parse(url)
+	_, port, _ := net.SplitHostPort(u.Host)
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				defaultDialContext := http.DefaultTransport.(*http.Transport).DialContext
+				if addr == "foo:80" {
+					addr = fmt.Sprintf("127.0.0.1:%s", port)
+				}
+				return defaultDialContext(ctx, network, addr)
+			},
+		},
 	}
 }

@@ -27,6 +27,12 @@ func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
+func BuiltInTesting(client *http.Client) catalog.BuiltIn {
+	plugin := New()
+	plugin.client = client
+	return builtin(plugin)
+}
+
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
 		nodeattestorv1.NodeAttestorPluginServer(p),
