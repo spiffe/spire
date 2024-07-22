@@ -298,26 +298,24 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				ManagerErr:   tt.managerErr,
 				Metrics:      metrics,
 			}
-			runTest(t, params,
-				func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
+			runTest(t, params, func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
+				req := &delegatedidentityv1.SubscribeToX509SVIDsRequest{
+					Selectors: []*types.Selector{{Type: "sa", Value: "foo"}},
+				}
+				// if test params has a custom request, prefer that
+				if tt.req != nil {
+					req = tt.req
+				}
 
-					req := &delegatedidentityv1.SubscribeToX509SVIDsRequest{
-						Selectors: []*types.Selector{{Type: "sa", Value: "foo"}},
-					}
-					// if test params has a custom request, prefer that
-					if tt.req != nil {
-						req = tt.req
-					}
+				stream, err := client.SubscribeToX509SVIDs(ctx, req)
 
-					stream, err := client.SubscribeToX509SVIDs(ctx, req)
+				require.NoError(t, err)
+				resp, err := stream.Recv()
 
-					require.NoError(t, err)
-					resp, err := stream.Recv()
-
-					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
-					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
-					require.Equal(t, tt.expectMetrics, metrics.AllMetrics())
-				})
+				spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+				spiretest.RequireProtoEqual(t, tt.expectResp, resp)
+				require.Equal(t, tt.expectMetrics, metrics.AllMetrics())
+			})
 		})
 	}
 }
