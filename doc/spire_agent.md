@@ -369,7 +369,7 @@ plugins {
 
 ## Delegated Identity API
 
-The Delegated Identity API allows an authorized (i.e. delegated) workload to obtain SVIDs and bundles on behalf of workloads that cannot be attested by SPIRE Agent directly. 
+The Delegated Identity API allows an authorized (i.e. delegated) workload to obtain SVIDs and bundles on behalf of workloads that cannot be attested by SPIRE Agent directly.
 
 The Delegated Identity API is served over the SPIRE Agent's admin API endpoint.
 
@@ -390,7 +390,7 @@ There are two ways the trusted delegate workload can request SVIDs for other wor
 1. By obtaining a PID for the other workload, and providing that PID to the SPIRE Agent over the Delegated Identity API.
    In this approach, the SPIRE Agent will do attestation for the provided PID, build the attested selectors, and return SVIDs for any workload registration entries that match the selectors the SPIRE Agent attested from that PID.
    This differs from the previous approach in that the SPIRE Agent itself (not the trusted delegate) handles the attestation of the other workload.
-   On most platforms PIDs are not stable identifiers, so the trusted delegate workload **must** ensure that the PID it provides to the SPIRE Agent 
+   On most platforms PIDs are not stable identifiers, so the trusted delegate workload **must** ensure that the PID it provides to the SPIRE Agent
    via the Delegated Identity API for attestation is not recycled between the time a trusted delegate makes an Delegate Identity API request, and obtains a Delegate Identity API response.
    How this is accomplished is platform-dependent and the responsibility of the trusted delegate (e.g. by using pidfds on Linux).
    Attestation results obtained via the Delegated Identity API for a PID are valid until the process referred to by the PID terminates, or is re-attested - whichever comes first.
