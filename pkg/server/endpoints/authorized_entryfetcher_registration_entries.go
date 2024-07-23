@@ -44,13 +44,14 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 	var lastEventID uint
 	missedEvents := make(map[uint]time.Time)
 	for _, event := range resp.Events {
-		if !firstEventTime.IsZero() && event.EventID != lastEventID+1 {
+		now := clk.Now()
+		if firstEventTime.IsZero() {
+			firstEventID = event.EventID
+			firstEventTime = now
+		} else {
 			for i := lastEventID + 1; i < event.EventID; i++ {
 				missedEvents[i] = clk.Now()
 			}
-		} else if firstEventTime.IsZero() {
-			firstEventID = event.EventID
-			firstEventTime = clk.Now()
 		}
 		lastEventID = event.EventID
 	}
