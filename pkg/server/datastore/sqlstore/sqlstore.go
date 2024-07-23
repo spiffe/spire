@@ -1720,12 +1720,11 @@ func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) er
 func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEventsRequest) (*datastore.ListAttestedNodesEventsResponse, error) {
 	var events []AttestedNodeEvent
 
-	if req.GreaterThanEventID != 0 && req.LessThanEventID != 0 {
-		return nil, errors.New("can't set both greater and less than event id")
-	}
-
 	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
-		query, id := buildListEventsQueryString(req.GreaterThanEventID, req.LessThanEventID)
+		query, id, err := buildListEventsQueryString(req.GreaterThanEventID, req.LessThanEventID)
+		if err != nil {
+			return nil, sqlError.Wrap(err)
+		}
 
 		if err := tx.Find(&events, query.String(), id).Order("id asc").Error; err != nil {
 			return nil, sqlError.Wrap(err)
@@ -4107,12 +4106,11 @@ func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
 func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
 	var events []RegisteredEntryEvent
 
-	if req.GreaterThanEventID != 0 && req.LessThanEventID != 0 {
-		return nil, errors.New("can't set both greater and less than event id")
-	}
-
 	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
-		query, id := buildListEventsQueryString(req.GreaterThanEventID, req.LessThanEventID)
+		query, id, err := buildListEventsQueryString(req.GreaterThanEventID, req.LessThanEventID)
+		if err != nil {
+			return nil, sqlError.Wrap(err)
+		}
 
 		if err := tx.Find(&events, query.String(), id).Order("id asc").Error; err != nil {
 			return nil, sqlError.Wrap(err)
@@ -4142,7 +4140,11 @@ func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error 
 	return nil
 }
 
-func buildListEventsQueryString(greaterThanEventID, lessThanEventID uint) (*strings.Builder, uint) {
+func buildListEventsQueryString(greaterThanEventID, lessThanEventID uint) (*strings.Builder, uint, error) {
+	if greaterThanEventID != 0 && lessThanEventID != 0 {
+		return nil, 0, errors.New("can't set both greater and less than event id")
+	}
+
 	var id uint
 	query := new(strings.Builder)
 	query.WriteString("id ")
@@ -4155,7 +4157,7 @@ func buildListEventsQueryString(greaterThanEventID, lessThanEventID uint) (*stri
 		id = lessThanEventID
 	}
 
-	return query, id
+	return query, id, nil
 }
 
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {
