@@ -44,13 +44,14 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, ds dat
 	var lastEventID uint
 	missedEvents := make(map[uint]time.Time)
 	for _, event := range resp.Events {
-		if !firstEventTime.IsZero() && event.EventID != lastEventID+1 {
-			for i := lastEventID + 1; i < event.EventID; i++ {
-				missedEvents[i] = clk.Now()
-			}
-		} else if firstEventTime.IsZero() {
+		now := clk.Now()
+		if firstEventTime.IsZero() {
 			firstEventID = event.EventID
-			firstEventTime = clk.Now()
+			firstEventTime = now
+		} else {
+			for i := lastEventID + 1; i < event.EventID; i++ {
+				missedEvents[i] = now
+			}
 		}
 		lastEventID = event.EventID
 	}
