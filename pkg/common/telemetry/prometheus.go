@@ -52,7 +52,7 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner.log.WithFields(logrus.Fields{
 		"host": runner.c.Host,
 		"port": runner.c.Port,
-  }).Debug("Starting prometheus exporter")
+	}).Info("Starting prometheus exporter")
 
 	runner.server = &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", runner.c.Host, runner.c.Port),
