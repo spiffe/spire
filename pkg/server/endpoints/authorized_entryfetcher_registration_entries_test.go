@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strconv"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -68,14 +70,14 @@ func TestBuildRegistrationEntriesCache(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			cache := authorizedentries.NewCache(clk)
-			registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, tt.pageSize)
+			registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, tt.pageSize, defaultSQLTransactionTimeout)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 				return
 			}
 
 			require.NoError(t, err)
-			require.True(t, registrationEntries.receivedFirstEvent)
+			require.False(t, registrationEntries.firstEventTime.IsZero())
 
 			entries := cache.GetAuthorizedEntries(agentID)
 			require.Equal(t, numEntries, len(entries))
@@ -103,11 +105,47 @@ func TestRegistrationEntriesCacheMissedEventNotFound(t *testing.T) {
 	ds := fakedatastore.New(t)
 	cache := authorizedentries.NewCache(clk)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, buildCachePageSize)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, buildCachePageSize, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 
 	registrationEntries.missedEvents[1] = clk.Now()
 	registrationEntries.replayMissedEvents(ctx)
 	require.Equal(t, "Event not yet populated in database", hook.LastEntry().Message)
+}
+
+func TestRegistrationEntriesSavesMissedStartupEvents(t *testing.T) {
+	ctx := context.Background()
+	log, hook := test.NewNullLogger()
+	log.SetLevel(logrus.DebugLevel)
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+	cache := authorizedentries.NewCache(clk)
+
+	err := ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
+		EventID: 3,
+		EntryID: "test",
+	})
+	require.NoError(t, err)
+
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, buildCachePageSize, defaultSQLTransactionTimeout)
+	require.NoError(t, err)
+	require.NotNil(t, registrationEntries)
+	require.Equal(t, uint(3), registrationEntries.firstEventID)
+
+	err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
+		EventID: 2,
+		EntryID: "test",
+	})
+	require.NoError(t, err)
+
+	err = registrationEntries.missedStartupEvents(ctx)
+	require.NoError(t, err)
+
+	// Make sure no dupliate calls are made
+	ds.AppendNextError(nil)
+	ds.AppendNextError(errors.New("Duplicate call"))
+	err = registrationEntries.missedStartupEvents(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(hook.AllEntries()))
 }
