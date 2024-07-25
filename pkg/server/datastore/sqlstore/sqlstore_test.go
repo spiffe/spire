@@ -1539,36 +1539,62 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 	tests := []struct {
 		name                 string
 		greaterThanEventID   uint
+		lessThanEventID      uint
 		expectedEvents       []datastore.AttestedNodeEvent
 		expectedFirstEventID uint
+		expectedLastEventID  uint
+		expectedErr          string
 	}{
 		{
 			name:                 "All Events",
 			greaterThanEventID:   0,
 			expectedFirstEventID: 1,
+			expectedLastEventID:  uint(len(expectedEvents)),
 			expectedEvents:       expectedEvents,
 		},
 		{
-			name:                 "Half of the Events",
+			name:                 "Greater than half of the Events",
 			greaterThanEventID:   uint(len(expectedEvents) / 2),
 			expectedFirstEventID: uint(len(expectedEvents)/2) + 1,
+			expectedLastEventID:  uint(len(expectedEvents)),
 			expectedEvents:       expectedEvents[len(expectedEvents)/2:],
 		},
 		{
-			name:                 "None of the  Events",
-			greaterThanEventID:   uint(len(expectedEvents)),
-			expectedFirstEventID: 0,
-			expectedEvents:       []datastore.AttestedNodeEvent{},
+			name:                 "Less than half of the Events",
+			lessThanEventID:      uint(len(expectedEvents) / 2),
+			expectedFirstEventID: 1,
+			expectedLastEventID:  uint(len(expectedEvents)/2) - 1,
+			expectedEvents:       expectedEvents[:len(expectedEvents)/2-1],
+		},
+		{
+			name:               "Greater than largest Event ID",
+			greaterThanEventID: uint(len(expectedEvents)),
+			expectedEvents:     []datastore.AttestedNodeEvent{},
+		},
+		{
+			name:               "Setting both greater and less than",
+			greaterThanEventID: 1,
+			lessThanEventID:    1,
+			expectedErr:        "rpc error: code = Unknown desc = datastore-sql: can't set both greater and less than event id",
 		},
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
 			resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{
 				GreaterThanEventID: test.greaterThanEventID,
+				LessThanEventID:    test.lessThanEventID,
 			})
-			s.Assert().NoError(err)
-			s.Assert().Equal(test.expectedFirstEventID, resp.FirstEventID)
-			s.Assert().Equal(test.expectedEvents, resp.Events)
+			if test.expectedErr != "" {
+				require.EqualError(t, err, test.expectedErr)
+				return
+			}
+			s.Require().NoError(err)
+
+			s.Require().Equal(test.expectedEvents, resp.Events)
+			if len(resp.Events) > 0 {
+				s.Require().Equal(test.expectedFirstEventID, resp.Events[0].EventID)
+				s.Require().Equal(test.expectedLastEventID, resp.Events[len(resp.Events)-1].EventID)
+			}
 		})
 	}
 }
@@ -3998,36 +4024,62 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 	tests := []struct {
 		name                 string
 		greaterThanEventID   uint
+		lessThanEventID      uint
 		expectedEvents       []datastore.RegistrationEntryEvent
 		expectedFirstEventID uint
+		expectedLastEventID  uint
+		expectedErr          string
 	}{
 		{
 			name:                 "All Events",
 			greaterThanEventID:   0,
 			expectedFirstEventID: 1,
+			expectedLastEventID:  uint(len(expectedEvents)),
 			expectedEvents:       expectedEvents,
 		},
 		{
-			name:                 "Half of the Events",
-			greaterThanEventID:   2,
-			expectedFirstEventID: 3,
-			expectedEvents:       expectedEvents[2:],
+			name:                 "Greater than half of the Events",
+			greaterThanEventID:   uint(len(expectedEvents) / 2),
+			expectedFirstEventID: uint(len(expectedEvents)/2) + 1,
+			expectedLastEventID:  uint(len(expectedEvents)),
+			expectedEvents:       expectedEvents[len(expectedEvents)/2:],
 		},
 		{
-			name:                 "None of the  Events",
-			greaterThanEventID:   4,
-			expectedFirstEventID: 0,
-			expectedEvents:       []datastore.RegistrationEntryEvent{},
+			name:                 "Less than half of the Events",
+			lessThanEventID:      uint(len(expectedEvents) / 2),
+			expectedFirstEventID: 1,
+			expectedLastEventID:  uint(len(expectedEvents)/2) - 1,
+			expectedEvents:       expectedEvents[:len(expectedEvents)/2-1],
+		},
+		{
+			name:               "Greater than largest Event ID",
+			greaterThanEventID: 4,
+			expectedEvents:     []datastore.RegistrationEntryEvent{},
+		},
+		{
+			name:               "Setting both greater and less than",
+			greaterThanEventID: 1,
+			lessThanEventID:    1,
+			expectedErr:        "rpc error: code = Unknown desc = datastore-sql: can't set both greater and less than event id",
 		},
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
 			resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
 				GreaterThanEventID: test.greaterThanEventID,
+				LessThanEventID:    test.lessThanEventID,
 			})
+			if test.expectedErr != "" {
+				require.EqualError(t, err, test.expectedErr)
+				return
+			}
 			s.Require().NoError(err)
-			s.Require().Equal(test.expectedFirstEventID, resp.FirstEventID)
+
 			s.Require().Equal(test.expectedEvents, resp.Events)
+			if len(resp.Events) > 0 {
+				s.Require().Equal(test.expectedFirstEventID, resp.Events[0].EventID)
+				s.Require().Equal(test.expectedLastEventID, resp.Events[len(resp.Events)-1].EventID)
+			}
 		})
 	}
 }

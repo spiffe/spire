@@ -1719,8 +1719,20 @@ func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) er
 
 func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEventsRequest) (*datastore.ListAttestedNodesEventsResponse, error) {
 	var events []AttestedNodeEvent
-	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Order("id asc").Error; err != nil {
-		return nil, sqlError.Wrap(err)
+
+	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
+		query, id, err := buildListEventsQueryString(req.GreaterThanEventID, req.LessThanEventID)
+		if err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+
+		if err := tx.Find(&events, query.String(), id).Order("id asc").Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+	} else {
+		if err := tx.Find(&events).Order("id asc").Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
 	}
 
 	resp := &datastore.ListAttestedNodesEventsResponse{
@@ -1729,9 +1741,6 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 	for i, event := range events {
 		resp.Events[i].EventID = event.ID
 		resp.Events[i].SpiffeID = event.SpiffeID
-	}
-	if len(events) > 0 {
-		resp.FirstEventID = events[0].ID
 	}
 
 	return resp, nil
@@ -4096,8 +4105,20 @@ func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
 
 func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
 	var events []RegisteredEntryEvent
-	if err := tx.Find(&events, "id > ?", req.GreaterThanEventID).Order("id asc").Error; err != nil {
-		return nil, sqlError.Wrap(err)
+
+	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
+		query, id, err := buildListEventsQueryString(req.GreaterThanEventID, req.LessThanEventID)
+		if err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+
+		if err := tx.Find(&events, query.String(), id).Order("id asc").Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
+	} else {
+		if err := tx.Find(&events).Order("id asc").Error; err != nil {
+			return nil, sqlError.Wrap(err)
+		}
 	}
 
 	resp := &datastore.ListRegistrationEntriesEventsResponse{
@@ -4106,9 +4127,6 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	for i, event := range events {
 		resp.Events[i].EventID = event.ID
 		resp.Events[i].EntryID = event.EntryID
-	}
-	if len(events) > 0 {
-		resp.FirstEventID = events[0].ID
 	}
 
 	return resp, nil
@@ -4120,6 +4138,26 @@ func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error 
 	}
 
 	return nil
+}
+
+func buildListEventsQueryString(greaterThanEventID, lessThanEventID uint) (*strings.Builder, uint, error) {
+	if greaterThanEventID != 0 && lessThanEventID != 0 {
+		return nil, 0, errors.New("can't set both greater and less than event id")
+	}
+
+	var id uint
+	query := new(strings.Builder)
+	query.WriteString("id ")
+	if greaterThanEventID != 0 {
+		query.WriteString("> ?")
+		id = greaterThanEventID
+	}
+	if lessThanEventID != 0 {
+		query.WriteString("< ?")
+		id = lessThanEventID
+	}
+
+	return query, id, nil
 }
 
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {

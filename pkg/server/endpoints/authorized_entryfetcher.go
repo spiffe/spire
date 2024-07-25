@@ -24,9 +24,8 @@ type AuthorizedEntryFetcherWithEventsBasedCache struct {
 	log   logrus.FieldLogger
 	ds    datastore.DataStore
 
-	cacheReloadInterval   time.Duration
-	pruneEventsOlderThan  time.Duration
-	sqlTransactionTimeout time.Duration
+	cacheReloadInterval  time.Duration
+	pruneEventsOlderThan time.Duration
 
 	registrationEntries eventsBasedCache
 	attestedNodes       eventsBasedCache
@@ -34,27 +33,26 @@ type AuthorizedEntryFetcherWithEventsBasedCache struct {
 
 type eventsBasedCache interface {
 	updateCache(ctx context.Context) error
-	pruneMissedEvents(sqlTransactionTimeout time.Duration)
+	pruneMissedEvents()
 }
 
 func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan, sqlTransactionTimeout time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
 	log.Info("Building event-based in-memory entry cache")
-	cache, registrationEntries, attestedNodes, err := buildCache(ctx, log, ds, clk)
+	cache, registrationEntries, attestedNodes, err := buildCache(ctx, log, ds, clk, sqlTransactionTimeout)
 	if err != nil {
 		return nil, err
 	}
 	log.Info("Completed building event-based in-memory entry cache")
 
 	return &AuthorizedEntryFetcherWithEventsBasedCache{
-		cache:                 cache,
-		clk:                   clk,
-		log:                   log,
-		ds:                    ds,
-		cacheReloadInterval:   cacheReloadInterval,
-		pruneEventsOlderThan:  pruneEventsOlderThan,
-		sqlTransactionTimeout: sqlTransactionTimeout,
-		registrationEntries:   registrationEntries,
-		attestedNodes:         attestedNodes,
+		cache:                cache,
+		clk:                  clk,
+		log:                  log,
+		ds:                   ds,
+		cacheReloadInterval:  cacheReloadInterval,
+		pruneEventsOlderThan: pruneEventsOlderThan,
+		registrationEntries:  registrationEntries,
+		attestedNodes:        attestedNodes,
 	}, nil
 }
 
@@ -100,8 +98,8 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneEvents(ctx context.Con
 	pruneRegistrationEntriesEventsErr := a.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
 	pruneAttestedNodesEventsErr := a.ds.PruneAttestedNodesEvents(ctx, olderThan)
 
-	a.registrationEntries.pruneMissedEvents(a.sqlTransactionTimeout)
-	a.attestedNodes.pruneMissedEvents(a.sqlTransactionTimeout)
+	a.registrationEntries.pruneMissedEvents()
+	a.attestedNodes.pruneMissedEvents()
 
 	return errors.Join(pruneRegistrationEntriesEventsErr, pruneAttestedNodesEventsErr)
 }
@@ -113,15 +111,15 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Con
 	return errors.Join(updateRegistrationEntriesCacheErr, updateAttestedNodesCacheErr)
 }
 
-func buildCache(ctx context.Context, log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
+func buildCache(ctx context.Context, log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock, sqlTransactionTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
 	cache := authorizedentries.NewCache(clk)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, buildCachePageSize)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, buildCachePageSize, sqlTransactionTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, log, ds, clk, cache)
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, ds, clk, cache, sqlTransactionTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}
