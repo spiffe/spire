@@ -121,7 +121,8 @@ binaries := spire-server spire-agent oidc-discovery-provider
 
 build_dir := $(DIR)/.build/$(os1)-$(arch1)
 
-go_version := $(shell cat .go-version)
+go_version := $(shell cat .go-version | awk -F'--' '{print $$1}')
+go_tag  := $(shell cat .go-version | awk -F'--' '{print $$2}')
 go_dir := $(build_dir)/go/$(go_version)
 
 ifeq ($(os1),windows)
@@ -336,6 +337,7 @@ $1: $3 container-builder
 	$(E)docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg goversion=$(go_version) \
+		--build-arg gotag=$(go_tag) \
 		--build-arg TAG=$(TAG) \
 		--target $2 \
 		-o type=oci,dest=$2-image.tar \
@@ -368,6 +370,7 @@ $1: $3
 	@echo Building docker image $2…
 	$(E)docker build \
 		--build-arg goversion=$(go_version) \
+		--build-arg gotag=$(go_tag) \
 		--target $2 \
 		-t $2 -t $2:latest-local \
 		-f $3 \
