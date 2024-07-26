@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -578,10 +579,10 @@ func (s *Suite) TestConfigure() {
 
 func (s *Suite) TestConfigureWithSigstore() {
 	cases := []struct {
-		name    string
-		hcl     string
-		wantErr bool
-		want    *sigstore.Config
+		name          string
+		hcl           string
+		expectedError error
+		want          *sigstore.Config
 	}{
 		{
 			name: "complete sigstore configuration",
@@ -603,13 +604,13 @@ func (s *Suite) TestConfigureWithSigstore() {
                             }
     					}
 			}`,
-			wantErr: false,
+			expectedError: nil,
 			want: &sigstore.Config{
 				AllowedIdentities: map[string][]string{
 					"test-issuer-1": {"*@example.com", "subject@otherdomain.com"},
 					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
 				},
-				SkippedImages:      []string{"registry/image@sha256:examplehash"},
+				SkippedImages:      map[string]struct{}{"registry/image@sha256:examplehash": {}},
 				RekorURL:           "https://test.dev",
 				IgnoreSCT:          true,
 				IgnoreTlog:         true,
@@ -628,22 +629,22 @@ func (s *Suite) TestConfigureWithSigstore() {
 			},
 		},
 		{
-			name:    "empty sigstore configuration",
-			hcl:     `experimental { sigstore {} }`,
-			wantErr: false,
+			name:          "empty sigstore configuration",
+			hcl:           `experimental { sigstore {} }`,
+			expectedError: nil,
 			want: &sigstore.Config{
 				RekorURL:          "",
 				IgnoreSCT:         false,
 				IgnoreTlog:        false,
 				AllowedIdentities: map[string][]string{},
-				SkippedImages:     []string{},
+				SkippedImages:     map[string]struct{}{},
 				Logger:            hclog.NewNullLogger(),
 			},
 		},
 		{
-			name:    "invalid HCL",
-			hcl:     `experimental { sigstore = "invalid" }`,
-			wantErr: true,
+			name:          "invalid HCL",
+			hcl:           `experimental { sigstore = "invalid" }`,
+			expectedError: errors.New("root.experimental.sigstore: not an object type for struct"),
 		},
 	}
 
@@ -651,15 +652,15 @@ func (s *Suite) TestConfigureWithSigstore() {
 		s.T().Run(tc.name, func(_ *testing.T) {
 			var config HCLConfig
 			err := hcl.Decode(&config, tc.hcl)
-			if tc.wantErr {
-				s.Require().Error(err)
+			if tc.expectedError != nil {
+				s.ErrorContains(err, tc.expectedError.Error())
 				return
 			}
 			s.Require().NoError(err)
 
 			var cfg *sigstore.Config
 			if config.Experimental != nil && config.Experimental.Sigstore != nil {
-				cfg = newConfigFromHCL(config.Experimental.Sigstore, hclog.NewNullLogger())
+				cfg = sigstore.NewConfigFromHCL(config.Experimental.Sigstore, hclog.NewNullLogger())
 			} else {
 				cfg = &sigstore.Config{Logger: hclog.NewNullLogger()}
 			}
@@ -724,7 +725,7 @@ func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttest
 
 	// if sigstore is configured, override with mock
 	if p.sigstoreVerifier != nil {
-		p.sigstoreVerifier = NewFakeSigstoreVerifier(map[string][]string{imageID: {"sigstore:selector"}})
+		p.sigstoreVerifier = newFakeSigstoreVerifier(map[string][]string{imageID: {"sigstore:selector"}})
 	}
 	return v1
 }
@@ -943,19 +944,19 @@ func (s *Suite) addPodListResponse(fixturePath string) {
 	s.podList = append(s.podList, podList)
 }
 
-type FakeSigstoreVerifier struct {
+type fakeSigstoreVerifier struct {
 	mu sync.Mutex
 
 	SigDetailsSets map[string][]string
 }
 
-func NewFakeSigstoreVerifier(selectors map[string][]string) *FakeSigstoreVerifier {
-	return &FakeSigstoreVerifier{
+func newFakeSigstoreVerifier(selectors map[string][]string) *fakeSigstoreVerifier {
+	return &fakeSigstoreVerifier{
 		SigDetailsSets: selectors,
 	}
 }
 
-func (v *FakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]string, error) {
+func (v *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]string, error) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 
