@@ -112,6 +112,12 @@ func TestInitialize(t *testing.T) {
 	assert.Equal(t, expectedRekorPubs, verifierSetup.verifier.rekorPublicKeys)
 	assert.Equal(t, expectedCTLogPubs, verifierSetup.verifier.ctLogPublicKeys)
 	assert.Equal(t, expectedRekorClient, verifierSetup.verifier.rekorClient)
+
+	assert.Equal(t, 1, verifierSetup.fakeGetFulcioRoots.CallCount)
+	assert.Equal(t, 1, verifierSetup.fakeGetFulcioIntermediates.CallCount)
+	assert.Equal(t, 1, verifierSetup.fakeGetRekorPubs.CallCount)
+	assert.Equal(t, 1, verifierSetup.fakeGetCTLogPubs.CallCount)
+	assert.Equal(t, 1, verifierSetup.fakeGetRekorClient.CallCount)
 }
 
 func TestVerify(t *testing.T) {
@@ -126,10 +132,12 @@ func TestVerify(t *testing.T) {
 	imageID := fmt.Sprintf("test-id@%s", digest)
 
 	tests := []struct {
-		name              string
-		configureTest     func(ctx context.Context, verifier *ImageVerifier, signatureVerifyFake *fakeCosignVerifySignatureFn, attestationsVerifyFake *fakeCosignVerifyAttestationsFn)
-		expectedSelectors []string
-		expectedError     bool
+		name                          string
+		configureTest                 func(ctx context.Context, verifier *ImageVerifier, signatureVerifyFake *fakeCosignVerifySignatureFn, attestationsVerifyFake *fakeCosignVerifyAttestationsFn)
+		expectedSelectors             []string
+		expectedError                 bool
+		expectedVerifyCallCount       int
+		expectedAttestationsCallCount int
 	}{
 		{
 			name: "generates selectors from verified signature, rekor bundle, and attestations",
@@ -171,7 +179,9 @@ func TestVerify(t *testing.T) {
 				"image-signature-integrated-time:1234567890",
 				fmt.Sprintf("image-signature-signed-entry-timestamp:%s", base64.StdEncoding.EncodeToString([]byte("test-signed-timestamp"))),
 			},
-			expectedError: false,
+			expectedError:                 false,
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 1,
 		},
 		{
 			name: "generates selectors from verified signature and bundle, but ignore attestations",
@@ -205,7 +215,9 @@ func TestVerify(t *testing.T) {
 				"image-signature-integrated-time:1234567890",
 				fmt.Sprintf("image-signature-signed-entry-timestamp:%s", base64.StdEncoding.EncodeToString([]byte("test-signed-timestamp"))),
 			},
-			expectedError: false,
+			expectedError:                 false,
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 0,
 		},
 		{
 			name: "tlog is set to ignore, not generate selectors from bundle",
@@ -245,7 +257,9 @@ func TestVerify(t *testing.T) {
 				"image-signature-issuer:test-issuer",
 				"image-signature-value:base64signature",
 			},
-			expectedError: false,
+			expectedError:                 false,
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 1,
 		},
 		{
 			name: "tlog is not ignored, verification returns bundle not verified and causes error",
@@ -269,8 +283,10 @@ func TestVerify(t *testing.T) {
 					Err:            nil,
 				})
 			},
-			expectedSelectors: nil,
-			expectedError:     true,
+			expectedSelectors:             nil,
+			expectedError:                 true,
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 0,
 		},
 		{
 			name: "fails to verify signature",
@@ -285,8 +301,10 @@ func TestVerify(t *testing.T) {
 					Err:            errors.New("failed to verify signature"),
 				})
 			},
-			expectedSelectors: nil,
-			expectedError:     true,
+			expectedSelectors:             nil,
+			expectedError:                 true,
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 0,
 		},
 		{
 			name: "fails to verify attestations",
@@ -317,8 +335,10 @@ func TestVerify(t *testing.T) {
 					Err:            errors.New("failed to verify attestations"),
 				})
 			},
-			expectedSelectors: nil,
-			expectedError:     true,
+			expectedSelectors:             nil,
+			expectedError:                 true,
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 1,
 		},
 		{
 			name: "cache hit",
@@ -344,15 +364,19 @@ func TestVerify(t *testing.T) {
 				"image-signature-integrated-time:1234567890",
 				fmt.Sprintf("image-signature-signed-entry-timestamp:%s", base64.StdEncoding.EncodeToString([]byte("test-signed-timestamp"))),
 			},
-			expectedError: false,
+			expectedError:                 false,
+			expectedVerifyCallCount:       0,
+			expectedAttestationsCallCount: 0,
 		},
 		{
 			name: "imageID is in the skipped images list",
 			configureTest: func(ctx context.Context, verifier *ImageVerifier, _ *fakeCosignVerifySignatureFn, _ *fakeCosignVerifyAttestationsFn) {
 				verifier.config.SkippedImages = map[string]struct{}{imageID: {}}
 			},
-			expectedSelectors: []string{},
-			expectedError:     false,
+			expectedSelectors:             []string{},
+			expectedError:                 false,
+			expectedVerifyCallCount:       0,
+			expectedAttestationsCallCount: 0,
 		},
 	}
 
@@ -369,12 +393,15 @@ func TestVerify(t *testing.T) {
 
 			selectors, err := verifierSetup.verifier.Verify(ctx, imageID)
 
+			assert.Equal(t, tt.expectedVerifyCallCount, verifierSetup.fakeCosignVerifySignature.CallCount)
+			assert.Equal(t, tt.expectedAttestationsCallCount, verifierSetup.fakeCosignVerifyAttestations.CallCount)
+
 			if tt.expectedError {
 				assert.Error(t, err)
 				return
 			}
 
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedSelectors, selectors)
 		})
 	}
@@ -492,9 +519,11 @@ type fakeGetFulcioRootsFn struct {
 		Roots *x509.CertPool
 		Err   error
 	}
+	CallCount int
 }
 
 func (f *fakeGetFulcioRootsFn) Get() (*x509.CertPool, error) {
+	f.CallCount++
 	return f.Response.Roots, f.Response.Err
 }
 
@@ -503,9 +532,11 @@ type fakeGetFulcioIntermediatesFn struct {
 		Intermediates *x509.CertPool
 		Err           error
 	}
+	CallCount int
 }
 
 func (f *fakeGetFulcioIntermediatesFn) Get() (*x509.CertPool, error) {
+	f.CallCount++
 	return f.Response.Intermediates, f.Response.Err
 }
 
@@ -514,9 +545,11 @@ type fakeGetRekorPubsFn struct {
 		PubKeys *cosign.TrustedTransparencyLogPubKeys
 		Err     error
 	}
+	CallCount int
 }
 
 func (f *fakeGetRekorPubsFn) Get(_ context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
+	f.CallCount++
 	return f.Response.PubKeys, f.Response.Err
 }
 
@@ -525,9 +558,11 @@ type fakeGetCTLogPubsFn struct {
 		PubKeys *cosign.TrustedTransparencyLogPubKeys
 		Err     error
 	}
+	CallCount int
 }
 
 func (f *fakeGetCTLogPubsFn) Get(_ context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
+	f.CallCount++
 	return f.Response.PubKeys, f.Response.Err
 }
 
@@ -536,9 +571,11 @@ type fakeGetRekorClientFn struct {
 		Client *rekorclient.Rekor
 		Err    error
 	}
+	CallCount int
 }
 
 func (f *fakeGetRekorClientFn) Get(_ string, _ ...client.Option) (*rekorclient.Rekor, error) {
+	f.CallCount++
 	return f.Response.Client, f.Response.Err
 }
 
