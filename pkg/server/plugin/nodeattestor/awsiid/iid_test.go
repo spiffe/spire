@@ -221,7 +221,28 @@ func TestAttest(t *testing.T) {
 				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
 			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: "nodeattestor(aws_iid): failed aws ec2 attestation: the EC2 instance network interface attachment device index must be zero (has 1)",
+			expectMsgPrefix: "nodeattestor(aws_iid): failed aws ec2 attestation: the EC2 instance network interface with device index 0 is inaccessible",
+		},
+		{
+			name: "block device anti-tampering check succeeds when network devices are not ordered by device index",
+			mutateDescribeInstancesOutput: func(output *ec2.DescribeInstancesOutput) {
+				output.Reservations[0].Instances[0].NetworkInterfaces[0].Attachment.DeviceIndex = &nonzeroDeviceIndex
+				output.Reservations[0].Instances[0].NetworkInterfaces = append(
+					output.Reservations[0].Instances[0].NetworkInterfaces,
+					ec2types.InstanceNetworkInterface{
+						Attachment: &ec2types.InstanceNetworkInterfaceAttachment{
+							DeviceIndex: &zeroDeviceIndex,
+						},
+					},
+				)
+			},
+			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
 		},
 		{
 			name: "block device anti-tampering check fails to locate root device",
