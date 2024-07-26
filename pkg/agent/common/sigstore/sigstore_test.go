@@ -104,7 +104,7 @@ func TestInitialize(t *testing.T) {
 
 	// Act
 	err := verifierSetup.verifier.Init(ctx)
-	require.NoError(t, err, "Init should not return an error")
+	require.NoError(t, err)
 
 	// Assert
 	assert.Equal(t, expectedRoots, verifierSetup.verifier.fulcioRoots)
@@ -466,7 +466,7 @@ type fakeCosignVerifySignatureFn struct {
 	CallCount int
 }
 
-func (f *fakeCosignVerifySignatureFn) Verify(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+func (f *fakeCosignVerifySignatureFn) Verify(_ context.Context, _ name.Reference, _ *cosign.CheckOpts) ([]oci.Signature, bool, error) {
 	resp := f.Responses[f.CallCount]
 	f.CallCount++
 	return resp.Signatures, resp.BundleVerified, resp.Err
@@ -481,7 +481,7 @@ type fakeCosignVerifyAttestationsFn struct {
 	CallCount int
 }
 
-func (f *fakeCosignVerifyAttestationsFn) Verify(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+func (f *fakeCosignVerifyAttestationsFn) Verify(_ context.Context, _ name.Reference, _ *cosign.CheckOpts) ([]oci.Signature, bool, error) {
 	resp := f.Responses[f.CallCount]
 	f.CallCount++
 	return resp.Signatures, resp.BundleVerified, resp.Err
@@ -516,7 +516,7 @@ type fakeGetRekorPubsFn struct {
 	}
 }
 
-func (f *fakeGetRekorPubsFn) Get(ctx context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
+func (f *fakeGetRekorPubsFn) Get(_ context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
 	return f.Response.PubKeys, f.Response.Err
 }
 
@@ -527,7 +527,7 @@ type fakeGetCTLogPubsFn struct {
 	}
 }
 
-func (f *fakeGetCTLogPubsFn) Get(ctx context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
+func (f *fakeGetCTLogPubsFn) Get(_ context.Context) (*cosign.TrustedTransparencyLogPubKeys, error) {
 	return f.Response.PubKeys, f.Response.Err
 }
 
@@ -538,7 +538,7 @@ type fakeGetRekorClientFn struct {
 	}
 }
 
-func (f *fakeGetRekorClientFn) Get(url string, opts ...client.Option) (*rekorclient.Rekor, error) {
+func (f *fakeGetRekorClientFn) Get(_ string, _ ...client.Option) (*rekorclient.Rekor, error) {
 	return f.Response.Client, f.Response.Err
 }
 
