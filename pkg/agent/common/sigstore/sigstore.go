@@ -22,6 +22,7 @@ import (
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/fulcioroots"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 const (
@@ -39,25 +40,6 @@ type Verifier interface {
 	Verify(ctx context.Context, imageID string) ([]string, error)
 }
 
-// Config holds configuration for the ImageVerifier.
-type Config struct {
-	RekorURL            string
-	RegistryCredentials map[string]*RegistryCredential
-
-	AllowedIdentities  map[string][]string
-	SkippedImages      []string
-	IgnoreSCT          bool
-	IgnoreTlog         bool
-	IgnoreAttestations bool
-
-	Logger hclog.Logger
-}
-
-type RegistryCredential struct {
-	Username string
-	Password string
-}
-
 // ImageVerifier implements the Verifier interface.
 type ImageVerifier struct {
 	config *Config
@@ -72,37 +54,29 @@ type ImageVerifier struct {
 	rekorPublicKeys     *cosign.TrustedTransparencyLogPubKeys
 	ctLogPublicKeys     *cosign.TrustedTransparencyLogPubKeys
 
-	hooks struct {
-		verifyImageSignatures   cosignVerifyFn
-		verifyImageAttestations cosignVerifyFn
-		getRekorClient          getRekorClientFn
-		getFulcioRoots          getCertPoolFn
-		getFulcioIntermediates  getCertPoolFn
-		getRekorPublicKeys      getTLogPublicKeysFn
-		getCTLogPublicKeys      getTLogPublicKeysFn
-	}
+	sigstoreFunctions sigstoreFunctions
 }
 
-func NewConfig() *Config {
-	return &Config{
-		AllowedIdentities: make(map[string][]string),
-		SkippedImages:     make([]string, 0),
-	}
+type sigstoreFunctions struct {
+	verifyImageSignatures   cosignVerifyFn
+	verifyImageAttestations cosignVerifyFn
+	getRekorClient          getRekorClientFn
+	getFulcioRoots          getCertPoolFn
+	getFulcioIntermediates  getCertPoolFn
+	getRekorPublicKeys      getTLogPublicKeysFn
+	getCTLogPublicKeys      getTLogPublicKeysFn
 }
+
+type cosignVerifyFn func(context.Context, name.Reference, *cosign.CheckOpts) ([]oci.Signature, bool, error)
+type getRekorClientFn func(string, ...client.Option) (*rekorclient.Rekor, error)
+type getCertPoolFn func() (*x509.CertPool, error)
+type getTLogPublicKeysFn func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
 
 func NewVerifier(config *Config) *ImageVerifier {
 	verifier := &ImageVerifier{
 		config:      config,
-		authOptions: make(map[string]remote.Option),
-		hooks: struct {
-			verifyImageSignatures   cosignVerifyFn
-			verifyImageAttestations cosignVerifyFn
-			getRekorClient          getRekorClientFn
-			getFulcioRoots          getCertPoolFn
-			getFulcioIntermediates  getCertPoolFn
-			getRekorPublicKeys      getTLogPublicKeysFn
-			getCTLogPublicKeys      getTLogPublicKeysFn
-		}{
+		authOptions: processRegistryCredentials(config.RegistryCredentials, config.Logger),
+		sigstoreFunctions: sigstoreFunctions{
 			verifyImageSignatures:   cosign.VerifyImageSignatures,
 			verifyImageAttestations: cosign.VerifyImageAttestations,
 			getRekorClient:          client.GetRekorClient,
@@ -123,45 +97,35 @@ func NewVerifier(config *Config) *ImageVerifier {
 
 	verifier.allowedIdentities = processAllowedIdentities(config.AllowedIdentities)
 
-	for registry, creds := range config.RegistryCredentials {
-		if creds != nil && creds.Username != "" && creds.Password != "" {
-			authOption := remote.WithAuth(&authn.Basic{
-				Username: creds.Username,
-				Password: creds.Password,
-			})
-			verifier.authOptions[registry] = authOption
-		}
-	}
-
 	return verifier
 }
 
 // Init prepares the verifier by retrieving the Fulcio certificates and Rekor and CT public keys.
 func (v *ImageVerifier) Init(ctx context.Context) error {
 	var err error
-	v.fulcioRoots, err = v.hooks.getFulcioRoots()
+	v.fulcioRoots, err = v.sigstoreFunctions.getFulcioRoots()
 	if err != nil {
 		return fmt.Errorf("failed to get fulcio root certificates: %w", err)
 	}
 
-	v.fulcioIntermediates, err = v.hooks.getFulcioIntermediates()
+	v.fulcioIntermediates, err = v.sigstoreFunctions.getFulcioIntermediates()
 	if err != nil {
 		return fmt.Errorf("failed to get fulcio intermediate certificates: %w", err)
 	}
 
 	if !v.config.IgnoreTlog {
-		v.rekorPublicKeys, err = v.hooks.getRekorPublicKeys(ctx)
+		v.rekorPublicKeys, err = v.sigstoreFunctions.getRekorPublicKeys(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get rekor public keys: %w", err)
 		}
-		v.rekorClient, err = v.hooks.getRekorClient(v.config.RekorURL, client.WithLogger(v.config.Logger))
+		v.rekorClient, err = v.sigstoreFunctions.getRekorClient(v.config.RekorURL, client.WithLogger(v.config.Logger))
 		if err != nil {
 			return fmt.Errorf("failed to get rekor client: %w", err)
 		}
 	}
 
 	if !v.config.IgnoreSCT {
-		v.ctLogPublicKeys, err = v.hooks.getCTLogPublicKeys(ctx)
+		v.ctLogPublicKeys, err = v.sigstoreFunctions.getCTLogPublicKeys(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get CT log public keys: %w", err)
 		}
@@ -178,10 +142,10 @@ func (v *ImageVerifier) Init(ctx context.Context) error {
 // Uses a cache to avoid redundant verifications.
 // An error is returned if the verification of the images signatures or attestations fails.
 func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, error) {
-	v.config.Logger.Debug("Verifying image with sigstore", "image_id", imageID)
+	v.config.Logger.Debug("Verifying image with sigstore", telemetry.ImageID, imageID)
 
 	// Check if the image is in the list of excluded images to determine if verification should be bypassed.
-	if v.isSkippedImage(imageID) {
+	if _, ok := v.config.SkippedImages[imageID]; ok {
 		// Return an empty list, indicating no verification was performed.
 		return []string{}, nil
 	}
@@ -189,7 +153,7 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	// Check the cache for previously verified selectors.
 	if cachedSelectors, ok := v.verificationCache.Load(imageID); ok {
 		if cachedSelectors != nil {
-			v.config.Logger.Debug("Sigstore verifier cache hit", "image_id", imageID)
+			v.config.Logger.Debug("Sigstore verifier cache hit", telemetry.ImageID, imageID)
 			return cachedSelectors.([]string), nil
 		}
 	}
@@ -217,13 +181,12 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 		RegistryClientOpts: []cosignremote.Option{cosignremote.WithRemoteOptions(authOption)},
 	}
 
-	var selectors []string
-
 	signatures, err := v.verifySignatures(ctx, imageRef, checkOptions)
 	if err != nil {
 		return nil, err
 	}
-	selectors = append(selectors, imageSignatureVerifiedSelector)
+
+	selectors := []string{imageSignatureVerifiedSelector}
 
 	if !v.config.IgnoreAttestations {
 		attestations, err := v.verifyAttestations(ctx, imageRef, checkOptions)
@@ -247,26 +210,11 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	return selectors, nil
 }
 
-type cosignVerifyFn func(context.Context, name.Reference, *cosign.CheckOpts) ([]oci.Signature, bool, error)
-type getRekorClientFn func(string, ...client.Option) (*rekorclient.Rekor, error)
-type getCertPoolFn func() (*x509.CertPool, error)
-type getTLogPublicKeysFn func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
-
-type signatureDetails struct {
-	Subject              string
-	Issuer               string
-	Signature            string
-	LogID                string
-	LogIndex             string
-	IntegratedTime       string
-	SignedEntryTimestamp string
-}
-
 func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, error) {
-	v.config.Logger.Debug("Verifying image signatures", "image_id", imageRef.Name())
+	v.config.Logger.Debug("Verifying image signatures", telemetry.ImageID, imageRef.Name())
 
 	// Verify the image's signatures using cosign.VerifySignatures
-	signatures, bundleVerified, err := v.hooks.verifyImageSignatures(ctx, imageRef, checkOptions)
+	signatures, bundleVerified, err := v.sigstoreFunctions.verifyImageSignatures(ctx, imageRef, checkOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify signatures: %w", err)
 	}
@@ -281,10 +229,10 @@ func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Refe
 }
 
 func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, error) {
-	v.config.Logger.Debug("Verifying image attestations", "image_id", imageRef.Name())
+	v.config.Logger.Debug("Verifying image attestations", telemetry.ImageID, imageRef.Name())
 
 	// Verify the image's attestations using cosign.VerifyImageAttestations
-	attestations, bundleVerified, err := v.hooks.verifyImageAttestations(ctx, imageRef, checkOptions)
+	attestations, bundleVerified, err := v.sigstoreFunctions.verifyImageAttestations(ctx, imageRef, checkOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify image attestations: %w", err)
 	}
@@ -293,15 +241,6 @@ func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Re
 	}
 
 	return attestations, nil
-}
-
-func (v *ImageVerifier) isSkippedImage(imageID string) bool {
-	for _, id := range v.config.SkippedImages {
-		if id == imageID {
-			return true
-		}
-	}
-	return false
 }
 
 func (v *ImageVerifier) extractDetailsFromSignatures(signatures []oci.Signature) ([]*signatureDetails, error) {
@@ -384,16 +323,17 @@ func extractSubject(cert *x509.Certificate) (string, error) {
 	}
 
 	subjectAltNames := cryptoutils.GetSubjectAlternateNames(cert)
-	if len(subjectAltNames) > 0 {
-		for _, san := range subjectAltNames {
-			if san != "" {
-				return san, nil
-			}
-		}
-		return "", errors.New("subject alternative names are present but all are empty")
+	if len(subjectAltNames) == 0 {
+		return "", errors.New("no subject found in certificate")
 	}
 
-	return "", errors.New("no subject found in certificate")
+	for _, san := range subjectAltNames {
+		if san != "" {
+			return san, nil
+		}
+	}
+
+	return "", errors.New("subject alternative names are present but all are empty")
 }
 
 func extractIssuer(cert *x509.Certificate) (string, error) {
@@ -412,6 +352,16 @@ func extractIssuer(cert *x509.Certificate) (string, error) {
 	}
 
 	return "", errors.New("no OIDC issuer found in certificate extensions")
+}
+
+type signatureDetails struct {
+	Subject              string
+	Issuer               string
+	Signature            string
+	LogID                string
+	LogIndex             string
+	IntegratedTime       string
+	SignedEntryTimestamp string
 }
 
 func formatDetailsAsSelectors(detailsList []*signatureDetails) []string {
@@ -446,6 +396,31 @@ func detailsToSelectors(details *signatureDetails) []string {
 		selectors = append(selectors, fmt.Sprintf("image-signature-signed-entry-timestamp:%s", details.SignedEntryTimestamp))
 	}
 	return selectors
+}
+
+func processRegistryCredentials(credentials map[string]*RegistryCredential, logger hclog.Logger) map[string]remote.Option {
+	authOptions := make(map[string]remote.Option)
+
+	for registry, creds := range credentials {
+		if creds == nil {
+			continue
+		}
+
+		usernameProvided := creds.Username != ""
+		passwordProvided := creds.Password != ""
+
+		if usernameProvided && passwordProvided {
+			authOption := remote.WithAuth(&authn.Basic{
+				Username: creds.Username,
+				Password: creds.Password,
+			})
+			authOptions[registry] = authOption
+		} else if usernameProvided || passwordProvided {
+			logger.Warn("Incomplete credentials for registry %q. Both username and password must be provided.", registry)
+		}
+	}
+
+	return authOptions
 }
 
 func processAllowedIdentities(allowedIdentities map[string][]string) []cosign.Identity {

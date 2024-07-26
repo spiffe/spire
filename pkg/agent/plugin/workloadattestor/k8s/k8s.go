@@ -137,37 +137,7 @@ type HCLConfig struct {
 
 type ExperimentalK8SConfig struct {
 	// Sigstore contains sigstore specific configs.
-	Sigstore *SigstoreHCLConfig `hcl:"sigstore,omitempty"`
-}
-
-// SigstoreHCLConfig holds the sigstore configuration parsed from HCL
-type SigstoreHCLConfig struct {
-	// AllowedIdentities is a list of identities (issuer and subjects) that must match for the signature to be valid.
-	AllowedIdentities map[string][]string `hcl:"allowed_identities"`
-
-	// SkippedImages is a list of images that should skip sigstore verification
-	SkippedImages []string `hcl:"skipped_images"`
-
-	// RekorURL is the URL for the Rekor transparency log server to use for verifying entries.
-	RekorURL *string `hcl:"rekor_url,omitempty"`
-
-	// IgnoreSCT specifies whether to bypass the requirement for a Signed Certificate Timestamp (SCT) during verification.
-	// An SCT is proof of inclusion in a Certificate Transparency log.
-	IgnoreSCT *bool `hcl:"ignore_sct, omitempty"`
-
-	// IgnoreTlog specifies whether to bypass the requirement for transparency log verification during signature validation.
-	IgnoreTlog *bool `hcl:"ignore_tlog, omitempty"`
-
-	// IgnoreAttestations specifies whether to bypass the image attestations verification.
-	IgnoreAttestations *bool `hcl:"ignore_attestations, omitempty"`
-
-	// RegistryCredentials is a map of credentials keyed by registry URL
-	RegistryCredentials map[string]*registryCredential `hcl:"registry_credentials,omitempty"`
-}
-
-type registryCredential struct {
-	Username string `hcl:"username,omitempty"`
-	Password string `hcl:"password,omitempty"`
+	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -426,7 +396,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	var sigstoreVerifier sigstore.Verifier
 	if config.Experimental != nil {
 		if config.Experimental.Sigstore != nil {
-			cfg := newConfigFromHCL(config.Experimental.Sigstore, p.log)
+			cfg := sigstore.NewConfigFromHCL(config.Experimental.Sigstore, p.log)
 			verifier := sigstore.NewVerifier(cfg)
 			err = verifier.Init(ctx)
 			if err != nil {
@@ -786,46 +756,4 @@ func newCertPool(certs []*x509.Certificate) *x509.CertPool {
 		certPool.AddCert(cert)
 	}
 	return certPool
-}
-
-func newConfigFromHCL(hclConfig *SigstoreHCLConfig, log hclog.Logger) *sigstore.Config {
-	config := sigstore.NewConfig()
-	config.Logger = log
-
-	if hclConfig.AllowedIdentities != nil {
-		config.AllowedIdentities = hclConfig.AllowedIdentities
-	}
-
-	if hclConfig.SkippedImages != nil {
-		config.SkippedImages = hclConfig.SkippedImages
-	}
-
-	if hclConfig.RekorURL != nil {
-		config.RekorURL = *hclConfig.RekorURL
-	}
-
-	if hclConfig.IgnoreSCT != nil {
-		config.IgnoreSCT = *hclConfig.IgnoreSCT
-	}
-
-	if hclConfig.IgnoreTlog != nil {
-		config.IgnoreTlog = *hclConfig.IgnoreTlog
-	}
-
-	if hclConfig.IgnoreAttestations != nil {
-		config.IgnoreAttestations = *hclConfig.IgnoreAttestations
-	}
-
-	if hclConfig.RegistryCredentials != nil {
-		m := make(map[string]*sigstore.RegistryCredential)
-		for k, v := range hclConfig.RegistryCredentials {
-			m[k] = &sigstore.RegistryCredential{
-				Username: v.Username,
-				Password: v.Password,
-			}
-		}
-		config.RegistryCredentials = m
-	}
-
-	return config
 }

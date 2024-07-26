@@ -234,12 +234,12 @@ func TestDockerConfigDefault(t *testing.T) {
 func TestNewConfigFromHCL(t *testing.T) {
 	cases := []struct {
 		name string
-		hcl  *sigstoreHCLConfig
+		hcl  *sigstore.HCLConfig
 		want *sigstore.Config
 	}{
 		{
 			name: "complete sigstore configuration",
-			hcl: &sigstoreHCLConfig{
+			hcl: &sigstore.HCLConfig{
 				AllowedIdentities: map[string][]string{
 					"test-issuer-1": {"*@example.com", "subject@otherdomain.com"},
 					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
@@ -249,7 +249,7 @@ func TestNewConfigFromHCL(t *testing.T) {
 				IgnoreSCT:          boolPtr(true),
 				IgnoreTlog:         boolPtr(true),
 				IgnoreAttestations: boolPtr(true),
-				RegistryCredentials: map[string]*registryCredential{
+				RegistryCredentials: map[string]*sigstore.RegistryCredential{
 					"registry": {
 						Username: "user",
 						Password: "pass",
@@ -261,7 +261,7 @@ func TestNewConfigFromHCL(t *testing.T) {
 					"test-issuer-1": {"*@example.com", "subject@otherdomain.com"},
 					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
 				},
-				SkippedImages:      []string{"registry/image@sha256:examplehash"},
+				SkippedImages:      map[string]struct{}{"registry/image@sha256:examplehash": {}},
 				RekorURL:           "https://test.dev",
 				IgnoreSCT:          true,
 				IgnoreTlog:         true,
@@ -277,14 +277,14 @@ func TestNewConfigFromHCL(t *testing.T) {
 		},
 		{
 			name: "empty sigstore configuration",
-			hcl:  &sigstoreHCLConfig{},
+			hcl:  &sigstore.HCLConfig{},
 			want: &sigstore.Config{
 				RekorURL:           "",
 				IgnoreSCT:          false,
 				IgnoreTlog:         false,
 				IgnoreAttestations: false,
 				AllowedIdentities:  map[string][]string{},
-				SkippedImages:      []string{},
+				SkippedImages:      map[string]struct{}{},
 				Logger:             hclog.NewNullLogger(),
 			},
 		},
@@ -293,7 +293,7 @@ func TestNewConfigFromHCL(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			log := hclog.NewNullLogger()
-			cfg := newConfigFromHCL(tc.hcl, log)
+			cfg := sigstore.NewConfigFromHCL(tc.hcl, log)
 			require.Equal(t, tc.want, cfg)
 		})
 	}
