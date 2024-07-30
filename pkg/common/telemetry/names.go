@@ -344,6 +344,9 @@ const (
 	// IDType tags some type of ID (eg. registration ID, SPIFFE ID...)
 	IDType = "id_type"
 
+	// ImageID tags the image identifier in the format "repository@sha256:digest"
+	ImageID = "image_id"
+
 	// IssuedAt tags an issuance timestamp
 	IssuedAt = "issued_at"
 
