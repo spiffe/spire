@@ -111,7 +111,7 @@ func TestRegistrationEntriesCacheMissedEventNotFound(t *testing.T) {
 
 	registrationEntries.missedEvents[1] = clk.Now()
 	registrationEntries.replayMissedEvents(ctx)
-	require.Equal(t, "Event not yet populated in database", hook.LastEntry().Message)
+	require.Zero(t, len(hook.Entries))
 }
 
 func TestRegistrationEntriesSavesMissedStartupEvents(t *testing.T) {

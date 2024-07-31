@@ -188,7 +188,6 @@ func (a *attestedNodes) replayMissedEvents(ctx context.Context) {
 		switch status.Code(err) {
 		case codes.OK:
 		case codes.NotFound:
-			log.Debug("Event not yet populated in database")
 			continue
 		default:
 			log.WithError(err).Error("Failed to fetch info about missed Attested Node event")
