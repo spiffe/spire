@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.10.1] - 2024-08-01
+
+### Added
+
+- New Grafana dashboard template (#5188)
+- `aws_rolesanywhere_trustanchor` BundlePublisher plugin (#5048)
+
+### Changed
+
+- `spire` UpstreamAuthority to optionally use the Preferred TTL on intermediate authorities (#5264)
+- Federation endpoint to support custom bundle and certificates for authorization (#5163)
+- Small documentation improvements (#5235, #5220)
+
+### Fixed
+
+- Event-based cache to handle events missed at the cache startup (#5289)
+- LRU cache to no longer send update notifications to all subscribers (#5281)
+
 ## [1.10.0] - 2024-06-24
 
 ### Added
