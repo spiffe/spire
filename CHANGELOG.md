@@ -9,7 +9,7 @@
 
 ### Changed
 
-- `spire` UpstreamAuthority to use the Preferred TTL on intermediate authorities (#5264)
+- `spire` UpstreamAuthority to optionally use the Preferred TTL on intermediate authorities (#5264)
 - Federation endpoint to support custom bundle and certificates for authorization (#5163)
 - Small documentation improvements (#5235, #5220)
 
