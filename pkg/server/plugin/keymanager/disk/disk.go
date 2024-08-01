@@ -12,6 +12,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	keymanagerbase "github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -37,6 +38,20 @@ type configuration struct {
 	KeysPath string `hcl:"keys_path"`
 }
 
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+	newConfig := new(configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.KeysPath == "" {
+		status.ReportError("keys_path is required")
+	}
+
+	return newConfig
+}
+
 type KeyManager struct {
 	*keymanagerbase.Base
 	configv1.UnimplementedConfigServer
@@ -55,23 +70,28 @@ func newKeyManager(generator Generator) *KeyManager {
 }
 
 func (m *KeyManager) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config := new(configuration)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.KeysPath == "" {
-		return nil, status.Error(codes.InvalidArgument, "keys_path is required")
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if err := m.configure(config); err != nil {
+	if err := m.configure(newConfig); err != nil {
 		return nil, err
 	}
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (m *KeyManager) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (m *KeyManager) configure(config *configuration) error {
