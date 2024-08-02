@@ -481,8 +481,8 @@ github.com/DataDog/datadog-go v3.2.0+incompatible h1:qSG2N4FghB1He/r2mFrWKCaL7dX
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/GoogleCloudPlatform/cloudsql-proxy v1.36.0 h1:kAtNAWwvTt5+iew6baV0kbOrtjYTXPtWNSyOFlcxkBU=
 github.com/GoogleCloudPlatform/cloudsql-proxy v1.36.0/go.mod h1:VRKXU8C7Y/aUKjRBTGfw0Ndv4YqNxlB8zAPJJDxbASE=
-github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20240719151356-bb46a791f8fe h1:a6JXo33Rr/lsrRxU/jNkWS1vZgfQHb4YWCfvgCamI0E=
-github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20240719151356-bb46a791f8fe/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
+github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20240802133758-a8822df66066 h1:6X08nRrRIuw5CQHYUSwG5tl0HxZIgEtvguFJ0nCA+Vc=
+github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20240802133758-a8822df66066/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=

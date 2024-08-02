@@ -372,6 +372,9 @@ const (
 	// LocalAuthorityID tags a local authority ID
 	LocalAuthorityID = "local_authority_id"
 
+	// SigningAuthorityID tags a signing authority ID
+	SigningAuthorityID = "signing_authority_id"
+
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 

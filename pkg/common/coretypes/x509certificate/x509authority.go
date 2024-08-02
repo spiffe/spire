@@ -7,6 +7,7 @@ import (
 )
 
 // TODO: may we call it Authority?
+// TODO: may we add subjectKeyID?
 type X509Authority struct {
 	Certificate *x509.Certificate
 	Tainted     bool

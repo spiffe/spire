@@ -2,7 +2,6 @@ package fakedatastore
 
 import (
 	"context"
-	"crypto"
 	"fmt"
 	"sort"
 	"sync/atomic"
@@ -198,18 +197,18 @@ func (s *DataStore) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*
 	return s.ds.FetchAttestedNodeEvent(ctx, eventID)
 }
 
-func (s *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
+func (s *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToTaint string) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.TaintX509CA(ctx, trustDomainID, publicKeyToTaint)
+	return s.ds.TaintX509CA(ctx, trustDomainID, subjectKeyIDToTaint)
 }
 
-func (s *DataStore) RevokeX509CA(ctx context.Context, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error {
+func (s *DataStore) RevokeX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToRevoke string) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.RevokeX509CA(ctx, trustDomainID, publicKeyToRevoke)
+	return s.ds.RevokeX509CA(ctx, trustDomainID, subjectKeyIDToRevoke)
 }
 
 func (s *DataStore) TaintJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
