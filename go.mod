@@ -23,7 +23,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.5
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.4.2
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.35.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.172.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.173.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.34.1
 	github.com/aws/aws-sdk-go-v2/service/kms v1.35.1
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.30.2
@@ -37,7 +37,7 @@ require (
 	github.com/docker/docker v27.1.1+incompatible
 	github.com/envoyproxy/go-control-plane v0.12.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
-	github.com/go-jose/go-jose/v4 v4.0.2
+	github.com/go-jose/go-jose/v4 v4.0.4
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/godbus/dbus/v5 v5.1.0
 	github.com/gofrs/uuid/v5 v5.2.0
