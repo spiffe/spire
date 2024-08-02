@@ -16,8 +16,8 @@ type JWTSVIDCache struct {
 	svids map[string]*client.JWTSVID
 }
 
-func (j *JWTSVIDCache) CountJWTSVIDs() int {
-	return len(j.svids)
+func (c *JWTSVIDCache) CountJWTSVIDs() int {
+	return len(c.svids)
 }
 
 func NewJWTSVIDCache() *JWTSVIDCache {
