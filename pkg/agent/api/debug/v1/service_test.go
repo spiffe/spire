@@ -99,45 +99,62 @@ func TestGetInfo(t *testing.T) {
 		expectResp   *debugv1.GetInfoResponse
 		expectedLogs []spiretest.LogEntry
 		// Time to add to clock.Mock
-		addToClk  time.Duration
-		initCache bool
-		lastSync  time.Time
-		svidCount int
-		svidState svid.State
+		addToClk               time.Duration
+		initCache              bool
+		lastSync               time.Time
+		svidCount              int
+		x509SvidCount          int
+		jwtSvidCount           int
+		svidstoreX509SvidCount int
+		svidState              svid.State
 	}{
 		{
-			name:      "svid without intermediate",
-			lastSync:  lastSync,
-			svidState: x509SVIDState,
-			svidCount: 123,
+			name:                   "svid without intermediate",
+			lastSync:               lastSync,
+			svidState:              x509SVIDState,
+			svidCount:              123,
+			x509SvidCount:          123,
+			jwtSvidCount:           123,
+			svidstoreX509SvidCount: 123,
 			expectResp: &debugv1.GetInfoResponse{
-				LastSyncSuccess: lastSync.UTC().Unix(),
-				SvidsCount:      123,
-				SvidChain:       x509SVIDChain,
+				LastSyncSuccess:               lastSync.UTC().Unix(),
+				SvidChain:                     x509SVIDChain,
+				SvidsCount:                    123,
+				CachedX509SvidsCount:          123,
+				CachedJwtSvidsCount:           123,
+				CachedSvidstoreX509SvidsCount: 123,
 			},
 		},
 		{
-			name:      "svid with intermediate",
-			lastSync:  lastSync,
-			svidState: stateWithIntermediate,
-			svidCount: 456,
+			name:                   "svid with intermediate",
+			lastSync:               lastSync,
+			svidState:              stateWithIntermediate,
+			svidCount:              456,
+			x509SvidCount:          456,
+			jwtSvidCount:           456,
+			svidstoreX509SvidCount: 456,
 			expectResp: &debugv1.GetInfoResponse{
-				LastSyncSuccess: lastSync.UTC().Unix(),
-				SvidsCount:      456,
-				SvidChain:       svidWithIntermediateChain,
+				LastSyncSuccess:               lastSync.UTC().Unix(),
+				SvidChain:                     svidWithIntermediateChain,
+				SvidsCount:                    456,
+				CachedX509SvidsCount:          456,
+				CachedJwtSvidsCount:           456,
+				CachedSvidstoreX509SvidsCount: 456,
 			},
 		},
 		{
 			name: "get response from cache",
 			expectResp: &debugv1.GetInfoResponse{
-				LastSyncSuccess: cachedLastSync.Unix(),
-				SvidsCount:      99999,
-				SvidChain:       x509SVIDChain,
+				LastSyncSuccess:      cachedLastSync.Unix(),
+				SvidsCount:           99999,
+				CachedX509SvidsCount: 99999,
+				SvidChain:            x509SVIDChain,
 			},
-			initCache: true,
-			lastSync:  lastSync,
-			svidState: stateWithIntermediate,
-			svidCount: 456,
+			initCache:     true,
+			lastSync:      lastSync,
+			svidState:     stateWithIntermediate,
+			svidCount:     253,
+			x509SvidCount: 253,
 		},
 		{
 			name:      "expires cache",
@@ -182,6 +199,7 @@ func TestGetInfo(t *testing.T) {
 			// Set a success state before running actual test case and expire time
 			if tt.initCache {
 				test.m.svidCount = 99999
+				test.m.x509SvidCount = 99999
 				test.m.svidState = x509SVIDState
 				test.m.lastSync = cachedLastSync
 
@@ -192,6 +210,9 @@ func TestGetInfo(t *testing.T) {
 			test.clk.Add(tt.addToClk)
 
 			test.m.svidCount = tt.svidCount
+			test.m.x509SvidCount = tt.x509SvidCount
+			test.m.jwtSvidCount = tt.jwtSvidCount
+			test.m.svidstoreX509SvidCount = tt.svidstoreX509SvidCount
 			test.m.svidState = tt.svidState
 			test.m.lastSync = tt.lastSync
 
@@ -264,10 +285,13 @@ func setupServiceTest(t *testing.T) *serviceTest {
 type fakeManager struct {
 	manager.Manager
 
-	bundle    *cache.Bundle
-	svidState svid.State
-	svidCount int
-	lastSync  time.Time
+	bundle                 *cache.Bundle
+	svidState              svid.State
+	svidCount              int
+	x509SvidCount          int
+	jwtSvidCount           int
+	svidstoreX509SvidCount int
+	lastSync               time.Time
 }
 
 func (m *fakeManager) GetCurrentCredentials() svid.State {
@@ -276,6 +300,18 @@ func (m *fakeManager) GetCurrentCredentials() svid.State {
 
 func (m *fakeManager) CountSVIDs() int {
 	return m.svidCount
+}
+
+func (m *fakeManager) CountX509SVIDs() int {
+	return m.x509SvidCount
+}
+
+func (m *fakeManager) CountJWTSVIDs() int {
+	return m.jwtSvidCount
+}
+
+func (m *fakeManager) CountSVIDStoreX509SVIDs() int {
+	return m.svidstoreX509SvidCount
 }
 
 func (m *fakeManager) GetLastSync() time.Time {

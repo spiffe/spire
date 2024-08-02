@@ -99,7 +99,7 @@ func TestCountSVIDs(t *testing.T) {
 	cache.UpdateEntries(updateEntries, nil)
 
 	// No SVIDs expected
-	require.Equal(t, 0, cache.CountSVIDs())
+	require.Equal(t, 0, cache.CountX509SVIDs())
 
 	updateSVIDs := &UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo),
@@ -107,7 +107,7 @@ func TestCountSVIDs(t *testing.T) {
 	cache.UpdateSVIDs(updateSVIDs)
 
 	// Only one SVID expected
-	require.Equal(t, 1, cache.CountSVIDs())
+	require.Equal(t, 1, cache.CountX509SVIDs())
 }
 
 func TestBundleChanges(t *testing.T) {

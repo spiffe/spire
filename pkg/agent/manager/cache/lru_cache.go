@@ -171,11 +171,18 @@ func (c *LRUCache) Entries() []*common.RegistrationEntry {
 	return out
 }
 
-func (c *LRUCache) CountSVIDs() int {
+func (c *LRUCache) CountX509SVIDs() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	return len(c.svids)
+}
+
+func (c *LRUCache) CountJWTSVIDs() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return len(c.JWTSVIDCache.svids)
 }
 
 func (c *LRUCache) CountRecords() int {
@@ -446,7 +453,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 
 func (c *LRUCache) UpdateSVIDs(update *UpdateSVIDs) {
 	c.mu.Lock()
-	defer func() { agentmetrics.SetSVIDMapSize(c.metrics, c.CountSVIDs()) }()
+	defer func() { agentmetrics.SetSVIDMapSize(c.metrics, c.CountX509SVIDs()) }()
 	defer c.mu.Unlock()
 
 	// Allocate a set of selectors that

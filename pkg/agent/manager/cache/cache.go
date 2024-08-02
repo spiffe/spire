@@ -166,7 +166,7 @@ func (c *Cache) Identities() []Identity {
 	return out
 }
 
-func (c *Cache) CountSVIDs() int {
+func (c *Cache) CountX509SVIDs() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -181,6 +181,10 @@ func (c *Cache) CountSVIDs() int {
 	}
 
 	return records
+}
+
+func (c *Cache) CountJWTSVIDs() int {
+	return c.JWTSVIDCache.CountJWTSVIDs()
 }
 
 func (c *Cache) MatchingIdentities(selectors []*common.Selector) []Identity {
