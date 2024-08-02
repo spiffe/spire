@@ -3,7 +3,6 @@ package sqlstore
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/x509"
 	"database/sql"
 	"errors"
@@ -25,7 +24,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -254,9 +252,9 @@ func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, subject
 }
 
 // RevokeX509CA removes a Root CA from the bundle
-func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKeyToRevoke crypto.PublicKey) error {
+func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, subjectKeyIDToRevoke string) error {
 	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return revokeX509CA(tx, trustDoaminID, publicKeyToRevoke)
+		return revokeX509CA(tx, trustDoaminID, subjectKeyIDToRevoke)
 	})
 }
 
@@ -1411,9 +1409,7 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, subjectKeyIDToTaint string) 
 	return nil
 }
 
-// TODO: review what we can do with upstream authorities + revoke
-// this code allows to revoke only bundles
-func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error {
+func revokeX509CA(tx *gorm.DB, trustDomainID string, subjectKeyIDToRevoke string) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
@@ -1427,17 +1423,15 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKeyToRevoke crypto.Pu
 			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
 		}
 
-		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKeyToRevoke)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
-		}
-
-		if ok {
+		caSubjectKeyID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+		if subjectKeyIDToRevoke == caSubjectKeyID {
 			if !ca.TaintedKey {
 				return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
 			}
+			keyFound = true
 			continue
 		}
+
 		rootCAs = append(rootCAs, ca)
 	}
 

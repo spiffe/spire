@@ -2,7 +2,6 @@ package datastore
 
 import (
 	"context"
-	"crypto"
 	"time"
 
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -39,8 +38,8 @@ func (w datastoreWrapper) PruneBundle(ctx context.Context, trustDomainID string,
 	return changed, err
 }
 
-func (w datastoreWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error {
-	err := w.DataStore.RevokeX509CA(ctx, trustDomainID, publicKeyToRevoke)
+func (w datastoreWrapper) RevokeX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToRevoke string) error {
+	err := w.DataStore.RevokeX509CA(ctx, trustDomainID, subjectKeyIDToRevoke)
 	if err == nil {
 		w.bundleUpdated()
 	}
