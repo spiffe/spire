@@ -2,6 +2,7 @@
 
 log-debug "Starting intermediateA-server.."
 docker-up intermediateA-server
+check-server-started "intermediateA-server"
 
 log-debug "bootstrapping intermediateA agent..."
 docker compose exec -T intermediateA-server \

@@ -2,6 +2,7 @@
 
 log-debug "Starting root-server..."
 docker-up root-server
+check-server-started "root-server"
 
 log-debug "bootstrapping root-agent..."
 docker compose exec -T root-server \

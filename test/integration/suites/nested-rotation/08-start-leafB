@@ -2,6 +2,7 @@
 
 log-debug "Starting leafB-server.."
 docker-up leafB-server
+check-server-started "leafB-server"
 
 log-debug "bootstrapping leafB agent..."
 docker compose exec -T leafB-server \
