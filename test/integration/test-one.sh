@@ -52,7 +52,7 @@ cleanup() {
 
     # double check that if docker compose was used that we clean everything up.
     # this helps us to not pollute the local docker state.
-    if [ -f "${RUNDIR}/docker compose.yaml" ]; then
+    if [ -f "${RUNDIR}/docker-compose.yaml" ]; then
         docker-cleanup
     fi
 
