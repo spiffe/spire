@@ -17,7 +17,7 @@ wait-mysql-container-initialized() {
     local init_check_interval=3
     for ((i = 1; i <= max_init_checks; i++)); do
         log-info "waiting for ${service} database initialization (${i} of ${max_init_checks} max)..."
-        if docker-compose logs "${service}" | grep "${init_msg}"; then
+        if docker compose logs "${service}" | grep "${init_msg}"; then
             return 1
         fi
         sleep "${init_check_interval}"
@@ -34,7 +34,7 @@ wait-mysql-container-ready() {
     local ready_check_interval=3
     for ((i = 1; i <= max_ready_checks; i++)); do
         log-info "waiting for ${service} to be ready (${i} of ${max_ready_checks} max)..."
-        if docker-compose exec -T "${service}" mysql -uspire -ptest -e "show databases;" >/dev/null; then
+        if docker compose exec -T "${service}" mysql -uspire -ptest -e "show databases;" >/dev/null; then
             return 1
             break
         fi
@@ -83,7 +83,7 @@ START GROUP_REPLICATION;
 SET @@GLOBAL.group_replication_bootstrap_group=0;
 SELECT * FROM performance_schema.replication_group_members;
 "
-    docker-compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
+    docker compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
 }
 
 # Setup a replica server with group replication. It is compatible with MySQL 5.7 and above.
@@ -95,7 +95,7 @@ configure-readonly-group-replication() {
 CHANGE MASTER TO MASTER_USER='${replication_user}' FOR CHANNEL '${replication_channel}';
 START GROUP_REPLICATION;
 "
-    docker-compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
+    docker compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
 }
 
 test-mysql-replication() {

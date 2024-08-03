@@ -5,7 +5,7 @@ source common
 docker-up spire-agent
 
 log-debug "creating registration entry for oidc-provider"
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
   /opt/spire/bin/spire-server entry create -socketPath /opt/spire/conf/server/api.sock \
   -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
   -spiffeID "spiffe://domain.test/oidc-provider" \

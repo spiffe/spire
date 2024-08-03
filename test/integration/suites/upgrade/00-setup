@@ -11,7 +11,7 @@ mkdir -p test/after-agent-upgrade
 make-service() {
     local _registry=$1
     local _version=$2
-cat <<EOF >> docker-compose.yaml
+cat <<EOF >> docker compose.yaml
   spire-server-${_version}:
     container_name: spire-server-${_version}
     image: ${_registry}spire-server:${_version}
@@ -53,10 +53,10 @@ EOF
 }
 
 #
-# Create the docker-compose.yaml with a spire-server and spire-agent for each
+# Create the docker compose.yaml with a spire-server and spire-agent for each
 # version we want to test against the latest
 #
-cat <<EOF > docker-compose.yaml
+cat <<EOF > docker compose.yaml
 version: '3'
 networks:
   our-network: {}

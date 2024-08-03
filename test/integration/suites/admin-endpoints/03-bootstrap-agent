@@ -1,9 +1,9 @@
 #!/bin/bash
 
 log-debug "bootstrapping agent a..."
-docker-compose exec -T spire-server-a \
+docker compose exec -T spire-server-a \
     /opt/spire/bin/spire-server bundle show > conf/domain-a/agent/bootstrap.crt
 
 log-debug "bootstrapping agent b..."
-docker-compose exec -T spire-server-b \
+docker compose exec -T spire-server-b \
     /opt/spire/bin/spire-server bundle show > conf/domain-b/agent/bootstrap.crt

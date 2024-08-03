@@ -6,16 +6,16 @@ setup-tests() {
 
     # Bootstrap the agent
     log-debug "bootstrapping downstream agent..."
-    docker-compose exec -T spire-server \
+    docker compose exec -T spire-server \
         /opt/spire/bin/spire-server bundle show > conf/downstream-agent/bootstrap.crt
 
     log-debug "bootstrapping upstream agent..."
-    docker-compose exec -T spire-server \
+    docker compose exec -T spire-server \
         /opt/spire/bin/spire-server bundle show > conf/upstream-agent/bootstrap.crt
 
     # Register the workload
     log-debug "creating registration entry for upstream workload..."
-    docker-compose exec -T spire-server \
+    docker compose exec -T spire-server \
         /opt/spire/bin/spire-server entry create \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/upstream-agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/upstream-workload" \
@@ -23,7 +23,7 @@ setup-tests() {
         -ttl 0
 
     log-debug "creating registration entry for downstream workload..."
-    docker-compose exec -T spire-server \
+    docker compose exec -T spire-server \
         /opt/spire/bin/spire-server entry create \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/downstream-agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/downstream-workload" \
@@ -37,8 +37,8 @@ test-envoy() {
     MAXCHECKSPERPORT=15
     CHECKINTERVAL=1
 
-    TRY() { docker-compose exec -T downstream-socat-mtls /bin/sh -c 'echo HELLO_MTLS | socat -u STDIN TCP:localhost:8001'; }
-    VERIFY() { docker-compose exec -T upstream-socat cat /tmp/howdy | grep -q HELLO_MTLS; }
+    TRY() { docker compose exec -T downstream-socat-mtls /bin/sh -c 'echo HELLO_MTLS | socat -u STDIN TCP:localhost:8001'; }
+    VERIFY() { docker compose exec -T upstream-socat cat /tmp/howdy | grep -q HELLO_MTLS; }
 
     MTLS_OK=
     for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
@@ -51,8 +51,8 @@ test-envoy() {
         sleep "${CHECKINTERVAL}"
     done
 
-    TRY() { docker-compose exec -T downstream-socat-tls /bin/sh -c 'echo HELLO_TLS | socat -u STDIN TCP:localhost:8002'; }
-    VERIFY() { docker-compose exec -T upstream-socat cat /tmp/howdy | grep -q HELLO_TLS; }
+    TRY() { docker compose exec -T downstream-socat-tls /bin/sh -c 'echo HELLO_TLS | socat -u STDIN TCP:localhost:8002'; }
+    VERIFY() { docker compose exec -T upstream-socat cat /tmp/howdy | grep -q HELLO_TLS; }
 
     TLS_OK=
     for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
@@ -104,12 +104,12 @@ for release in "${ENVOY_RELEASES_TO_TEST[@]}"; do
     test-envoy
 
     # stop and clear everything but the server container
-    docker-compose stop \
+    docker compose stop \
         upstream-proxy \
         downstream-proxy \
         upstream-socat \
         downstream-socat-mtls \
         downstream-socat-tls
 
-    docker-compose rm -f
+    docker compose rm -f
 done

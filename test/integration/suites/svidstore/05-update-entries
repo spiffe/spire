@@ -3,9 +3,9 @@
 source ./common
 
 log-debug "updating registration entries that has stored SVIDs..."
-ids=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server entry show -output json | jq -r '.entries[] | select(.store_svid == true) | .id')
+ids=$(docker compose exec -T spire-server /opt/spire/bin/spire-server entry show -output json | jq -r '.entries[] | select(.store_svid == true) | .id')
 for id in $ids; do
-    docker-compose exec -T spire-server \
+    docker compose exec -T spire-server \
         /opt/spire/bin/spire-server entry update \
         -entryID $id \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
@@ -14,10 +14,10 @@ for id in $ids; do
 done
 
 log-debug "updating registration entries that don't have stored SVIDs..."
-ids=$(docker-compose exec -T spire-server \
+ids=$(docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry show -output json | jq -r '.entries[] | select(.spiffe_id.path | contains("not-stored")) | .id')
 for id in $ids; do
-    docker-compose exec -T spire-server \
+    docker compose exec -T spire-server \
         /opt/spire/bin/spire-server entry update \
         -entryID "$id" \
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
