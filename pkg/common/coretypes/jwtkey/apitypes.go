@@ -6,7 +6,7 @@ import (
 )
 
 func ToAPIProto(jwtKey JWTKey) (*apitypes.JWTKey, error) {
-	id, publicKey, expiresAt, err := toProtoFields(jwtKey)
+	id, publicKey, expiresAt, tainted, err := toProtoFields(jwtKey)
 	if err != nil {
 		return nil, err
 	}
@@ -15,7 +15,7 @@ func ToAPIProto(jwtKey JWTKey) (*apitypes.JWTKey, error) {
 		KeyId:     id,
 		PublicKey: publicKey,
 		ExpiresAt: expiresAt,
-		Tainted:   jwtKey.Tainted,
+		Tainted:   tainted,
 	}, nil
 }
 

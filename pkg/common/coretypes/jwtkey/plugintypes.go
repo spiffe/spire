@@ -26,7 +26,7 @@ func FromPluginProtos(pbs []*plugintypes.JWTKey) ([]JWTKey, error) {
 }
 
 func ToPluginProto(jwtKey JWTKey) (*plugintypes.JWTKey, error) {
-	id, publicKey, expiresAt, err := toProtoFields(jwtKey)
+	id, publicKey, expiresAt, tainted, err := toProtoFields(jwtKey)
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +34,7 @@ func ToPluginProto(jwtKey JWTKey) (*plugintypes.JWTKey, error) {
 		KeyId:     id,
 		PublicKey: publicKey,
 		ExpiresAt: expiresAt,
+		Tainted:   tainted,
 	}, nil
 }
 
