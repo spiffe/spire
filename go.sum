@@ -607,8 +607,8 @@ github.com/aws/aws-sdk-go-v2/service/kms v1.35.1 h1:0gP2OJJT6HM2BYltZ9x+A87OE8LJ
 github.com/aws/aws-sdk-go-v2/service/kms v1.35.1/go.mod h1:hGONorZkQCfR5DW6l2xdy7zC8vfO0r9pJlwyg6gmGeo=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.30.2 h1:+tGF0JH2u4HwneqNFAKFHqENwfpBweKj67+LbwTKpqE=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.30.2/go.mod h1:6wxO8s5wMumyNRsOgOgcIvqvF8rIf8Cj7Khhn/bFI0c=
-github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.13.1 h1:2p65lTZ1OGnAGdDsMGFolNT8v0RAr2pF5eAo0jhgSlA=
-github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.13.1/go.mod h1:43wn4yPVFL3PHXixCOGzLb8LwWJovqlFQz3qGOAkcYY=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.14.0 h1:LoDKjG6X8Hj/Kiqmgpu/jW52GDTeToC6BehMbgHsZkg=
+github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.14.0/go.mod h1:7IIMPfX6TzfxRIJIp1NLYWFkApDOMnlb5XrynzpxMkA=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.58.2 h1:sZXIzO38GZOU+O0C+INqbH7C2yALwfMWpd64tONS/NE=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.58.2/go.mod h1:Lcxzg5rojyVPU/0eFwLtcyTaek/6Mtic5B1gJo7e/zE=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.32.1 h1:ZoYRD8IJqPkzjBnpokiMNO6L/DQprtpVpD6k0YSaF5U=

@@ -27,7 +27,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.34.1
 	github.com/aws/aws-sdk-go-v2/service/kms v1.35.1
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.30.2
-	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.13.1
+	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.14.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.58.2
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.32.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.1
