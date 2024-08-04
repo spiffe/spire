@@ -3,7 +3,7 @@
 TIMEOUT_REACHED=0
 RETRIES=3
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/workload-$m" \
@@ -14,7 +14,7 @@ docker-compose exec -T spire-server \
 API_WATCH_PID=$!
 
 # Run the background process and store its output in a temporary file
-(docker-compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api watch < /dev/null > api_watch_output.txt) &
+(docker compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api watch < /dev/null > api_watch_output.txt) &
 
 # Wait for the background process to complete
 wait $API_WATCH_PID

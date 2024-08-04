@@ -47,7 +47,7 @@ check-version-against-latest-release() {
 
 # Get current version from latest local image
 docker-up spire-server-latest-local
-_commit_version=$(docker-compose exec -T spire-server-latest-local \
+_commit_version=$(docker compose exec -T spire-server-latest-local \
             /opt/spire/bin/spire-server --version 2>&1 | cut -d'-' -f 1)
 docker-down
 

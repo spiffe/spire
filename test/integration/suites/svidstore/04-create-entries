@@ -3,19 +3,19 @@
 source ./common
 
 log-debug "creating registration entries that must have it's SVIDs stored ..."
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/stored-1" \
     -selector "disk:name:stored-1" \
     -storeSVID true
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/stored-2" \
     -selector "disk:name:stored-2" \
     -storeSVID true
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/stored-3" \
@@ -27,12 +27,12 @@ check-synced-entry "spire-agent" "spiffe://domain.test/stored-2"
 check-synced-entry "spire-agent" "spiffe://domain.test/stored-3"
 
 log-debug "creating registration entries that should not have the SVID stored..."
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/not-stored-1" \
     -selector "disk:name:not-stored-1"
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/not-stored-2" \

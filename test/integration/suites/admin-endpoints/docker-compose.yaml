@@ -1,4 +1,3 @@
-version: '3'
 services:
   spire-server-a:
     image: spire-server:latest-local
