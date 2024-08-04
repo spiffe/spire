@@ -3,14 +3,14 @@
 MAXCHECKSPERPORT=15
 CHECKINTERVAL=1
 
-TRY() { docker-compose exec -T downstream-workload /bin/sh -c 'echo HELLO | socat -u STDIN TCP:localhost:8000'; }
-VERIFY() { docker-compose exec -T upstream-workload cat /tmp/howdy | grep -q HELLO; }
+TRY() { docker compose exec -T downstream-workload /bin/sh -c 'echo HELLO | socat -u STDIN TCP:localhost:8000'; }
+VERIFY() { docker compose exec -T upstream-workload cat /tmp/howdy | grep -q HELLO; }
 
 for ((i=1;i<=MAXCHECKSPERPORT;i++)); do
     log-debug "Checking proxy ($i of $MAXCHECKSPERPORT max)..."
     if TRY && VERIFY; then
         log-info "Proxy OK"
-        docker-compose exec -T upstream-workload rm /tmp/howdy
+        docker compose exec -T upstream-workload rm /tmp/howdy
         exit 0
     fi
 
