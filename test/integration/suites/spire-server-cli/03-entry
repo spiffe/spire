@@ -1,18 +1,18 @@
 #!/bin/bash
 
 # Create bundles of federated trust domains to be used by other commands
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 cat /opt/spire/conf/fixture/ca.pem | 
     /opt/spire/bin/spire-server bundle set -id spiffe://federated1.test" || fail-now "failed to create federated bundle 1"
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 cat /opt/spire/conf/fixture/ca.pem | 
     /opt/spire/bin/spire-server bundle set -id spiffe://federated2.test" || fail-now "failed to create federated bundle 2"
 
 # Verify entry create
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry create \
         -selector s1:v1 \
         -parentID spiffe://domain.test/parent \
@@ -20,14 +20,14 @@ docker-compose exec -T spire-server \
         -federatesWith spiffe://federated1.test \
         -admin || fail-now "failed to create entry 1"
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry create \
         -selector notUpdated:notUpdated \
         -parentID spiffe://domain.test/parentNotUpdated \
         -spiffeID spiffe://domain.test/child2NotUpdated \
         -downstream || fail-now "failed to create entry 2"
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
         -selector otherS:otherV \
         -spiffeID spiffe://domain.test/otherChild \
@@ -36,11 +36,11 @@ docker-compose exec -T spire-server \
         -ttl 123 || fail-now "failed to create entry 3"
 
 # Verify entry count correctly indicates three entries
-docker-compose exec -T spire-server /opt/spire/bin/spire-server entry count | grep 3 || fail-now "failed to count 3 entries"
+docker compose exec -T spire-server /opt/spire/bin/spire-server entry count | grep 3 || fail-now "failed to count 3 entries"
 
 # Verify entry show and set variables entryID1, entryID2 and entryID3
 # Entry 1
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child1)"
 
@@ -70,7 +70,7 @@ entryID1="$(echo "$showResult" | grep "Entry ID")" || fail-now "failed to show e
 entryID1="${entryID1#*: }"
 
 # Entry 2
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2NotUpdated)"
 
@@ -101,7 +101,7 @@ entryID2="$(echo "$showResult" | grep "Entry ID")" || fail-now "failed to show e
 entryID2="${entryID2#*: }"
 
 # Entry 3
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/otherChild)"
 
@@ -132,7 +132,7 @@ entryID3="$(echo "$showResult" | grep "Entry ID")" || fail-now "failed to show e
 entryID3="${entryID3#*: }"
 
 # Verify entry update
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry update \
         -entryID ${entryID1} \
         -selector s1:v1 \
@@ -141,7 +141,7 @@ docker-compose exec -T spire-server \
         -federatesWith spiffe://federated1.test \
         -ttl 456 || fail-now "failed to update entry 1"
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry update \
         -entryID ${entryID2} \
         -selector s1:v1 -selector s2:v2 \
@@ -150,7 +150,7 @@ docker-compose exec -T spire-server \
         -federatesWith spiffe://federated1.test -federatesWith spiffe://federated2.test \
         -dns dnsname2 || fail-now "failed to update entry 2"
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry update \
         -entryID ${entryID3} \
         -selector otherS:otherV \
@@ -161,7 +161,7 @@ docker-compose exec -T spire-server \
 
 # Verify entry show after updates
 # Entry 1
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child1)"
 
@@ -191,7 +191,7 @@ echo $(echo "$showResult" | grep "Admin" || echo "Failed when expected") \
         | grep "Failed when expected" || fail-now "failed to show entry 1 after update, 'grep Admin' should fail"
 
 # Entry 2
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child2)"
 
@@ -224,7 +224,7 @@ echo $(echo "$showResult" | grep "Admin" || echo "Failed when expected") \
         | grep "Failed when expected" || fail-now "failed to show entry 2 after update, 'grep Admin' should fail"
 
 # Entry 3
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
         -spiffeID spiffe://domain.test/child3)"
 
@@ -254,7 +254,7 @@ echo "$showResult" | grep "Admin" | grep "true" || fail-now "failed to show entr
 
 # Verify entry show using filters
 # By parent
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
         /opt/spire/bin/spire-server entry show \
         -parentID spiffe://domain.test/parent)"
 
@@ -263,7 +263,7 @@ echo "$showResult" | grep "Entry ID" | grep ${entryID1} || fail-now "failed to s
 echo "$showResult" | grep "Entry ID" | grep ${entryID2} || fail-now "failed to show entries by parentID, expected Entry ID 2 not found"
 
 # By selectors (default matcher, SUPERSET)
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
         /opt/spire/bin/spire-server entry show \
         -selector s1:v1)"
 
@@ -271,7 +271,7 @@ echo "$showResult" | grep "Found 2 entries" || fail-now "failed to show entry 1 
 echo "$showResult" | grep ${entryID1} || fail-now "failed to show entry 1 by selector, unexpected Entry ID"
 echo "$showResult" | grep ${entryID2} || fail-now "failed to show entry 1 by selector, unexpected Entry ID"
 
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
         /opt/spire/bin/spire-server entry show \
         -selector s1:v1 -selector s2:v2)"
 
@@ -279,7 +279,7 @@ echo "$showResult" | grep "Found 1 entry" || fail-now "failed to show entry 2 by
 echo "$showResult" | grep ${entryID2} || fail-now "failed to show entry 2 by selector, unexpected Entry ID"
 
 # By selectors (change matcher)
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry show \
 	-selector s1:v1 \
 	-matchSelectorsOn exact)"
@@ -288,7 +288,7 @@ echo "$showResult" | grep "Found 1 entry" || fail-now "failed to show entry 1 by
 echo "$showResult" | grep ${entryID1} || fail-now "failed to show entry 1 by selector, unexpected Entry ID"
 
 # Verify entry delete
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
         /opt/spire/bin/spire-server entry show)"
 
 echo "$showResult" | grep "Found 3 entries" || fail-now "failed to show entries before delete"
@@ -296,11 +296,11 @@ echo "$showResult" | grep "Entry ID" | grep ${entryID1} || fail-now "failed to s
 echo "$showResult" | grep "Entry ID" | grep ${entryID2} || fail-now "failed to show entries before delete, expected Entry ID 2 not found"
 echo "$showResult" | grep "Entry ID" | grep ${entryID3} || fail-now "failed to show entries before delete, expected Entry ID 3 not found"
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry delete \
         -entryID ${entryID1} || fail-now "failed to delete entry 1"
 
-showResult="$(docker-compose exec -T spire-server \
+showResult="$(docker compose exec -T spire-server \
         /opt/spire/bin/spire-server entry show)"
 
 echo "$showResult" | grep "Found 2 entries" || fail-now "failed to show entries after delete"
@@ -308,4 +308,4 @@ echo "$showResult" | grep "Entry ID" | grep ${entryID2} || fail-now "failed to s
 echo "$showResult" | grep "Entry ID" | grep ${entryID3} || fail-now "failed to show entries after delete, expected Entry ID 3 not found"
 
 # Verify entry count correctly indicates two entries
-docker-compose exec -T spire-server /opt/spire/bin/spire-server entry count | grep 2 || fail-now "failed to count 2 entries"
+docker compose exec -T spire-server /opt/spire/bin/spire-server entry count | grep 2 || fail-now "failed to count 2 entries"

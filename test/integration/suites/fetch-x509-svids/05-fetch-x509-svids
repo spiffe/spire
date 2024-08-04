@@ -3,7 +3,7 @@
 ENTRYCOUNT=10
 CACHESIZE=8
 
-X509SVIDCOUNT=$(docker-compose exec -u 1001 -T spire-agent \
+X509SVIDCOUNT=$(docker compose exec -u 1001 -T spire-agent \
   /opt/spire/bin/spire-agent api fetch x509 \
   -socketPath /opt/spire/sockets/workload_api.sock | grep -i "spiffe://domain.test" | wc -l || fail-now "X.509-SVID check failed")
 
