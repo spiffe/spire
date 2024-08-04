@@ -5,10 +5,10 @@ AGENT_A_SPIFFE_ID="spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/a
 AGENT_B_SPIFFE_ID="spiffe://domain.test/spire/agent/join_token/$(grep -oP '(?<=join_token = ")[^"]*' conf/agent/agent_jointoken.conf)"
 
 log-debug "evicting agents..."
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server agent evict -spiffeID $AGENT_A_SPIFFE_ID || fail-now "failed to evict agent a."
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server agent evict -spiffeID $AGENT_B_SPIFFE_ID || fail-now "failed to evict agent b."
 
 check-evict-agents $AGENT_A_SPIFFE_ID $AGENT_B_SPIFFE_ID

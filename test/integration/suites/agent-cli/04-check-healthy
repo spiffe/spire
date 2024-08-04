@@ -7,7 +7,7 @@ HEALTHCHECK_FAIL=0
 
 for ((m=1;m<=$RETRIES;m++)); do
 
-    AGENTS=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server agent list)
+    AGENTS=$(docker compose exec -T spire-server /opt/spire/bin/spire-server agent list)
     if [ "$AGENTS" != "No attested agents found" ]; then
         AGENT_FOUND=1  
         break
@@ -15,8 +15,8 @@ for ((m=1;m<=$RETRIES;m++)); do
 
 done
 
-HEALTH=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck)
-HEALTH_FAIL=$(docker-compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck -socketPath invalid/path 2>&1 &)
+HEALTH=$(docker compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck)
+HEALTH_FAIL=$(docker compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck -socketPath invalid/path 2>&1 &)
 
 if [[ "$HEALTH" =~ "Agent is healthy." ]]; then
     HEALTHCHECK=1

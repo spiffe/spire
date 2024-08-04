@@ -1,9 +1,9 @@
 #!/bin/bash
 
 log-debug "test fetch x509 SVID..."
-docker-compose exec -T -u ContainerUser spire-agent  \
+docker compose exec -T -u ContainerUser spire-agent  \
     c:/spire/bin/spire-agent api fetch x509 || fail-now "failed to fetch x509"
 
 log-debug "test fetch JWT SVID..."
-docker-compose exec -T -u ContainerUser spire-agent \
+docker compose exec -T -u ContainerUser spire-agent \
     c:/spire/bin/spire-agent api fetch jwt -audience mydb || fail-now "failed to fetch JWT"

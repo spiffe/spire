@@ -10,7 +10,7 @@ wait-container-ready() {
     local ready=
     for ((i=1;i<=max_checks;i++)); do
         log-info "waiting for ${service} ($i of $max_checks max)..."
-        if docker-compose exec -T "${service}" pg_isready -h localhost -U postgres >/dev/null; then
+        if docker compose exec -T "${service}" pg_isready -h localhost -U postgres >/dev/null; then
 	    return 1
         fi
         sleep "${check_interval}"

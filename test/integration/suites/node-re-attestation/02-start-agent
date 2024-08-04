@@ -2,11 +2,11 @@
 source ./common
 
 log-debug "bootstrapping agent..."
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
 
 log-info "generating join token..."
-TOKEN=$(docker-compose exec -T spire-server \
+TOKEN=$(docker compose exec -T spire-server \
     /opt/spire/bin/spire-server token generate -spiffeID spiffe://domain.test/node -output json | jq -r ".value")
 
 # Inserts the join token into the agent configuration
@@ -14,10 +14,10 @@ log-debug "using join token ${TOKEN}..."
 sed -i.bak "s#TOKEN#${TOKEN}#g" conf/agent/agent_jointoken.conf
 
 log-debug "starting agent a..."
-docker-compose up -d "spire-agent-a" || fail-now "failed to bring up services."
+docker compose up -d "spire-agent-a" || fail-now "failed to bring up services."
 
 log-debug "starting agent b..."
-docker-compose up -d "spire-agent-b" || fail-now "failed to bring up services."
+docker compose up -d "spire-agent-b" || fail-now "failed to bring up services."
 
 AGENT_A_SPIFFE_ID_PATH="/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 AGENT_B_SPIFFE_ID_PATH="/spire/agent/join_token/$(grep -oP '(?<=join_token = ")[^"]*' conf/agent/agent_jointoken.conf)"

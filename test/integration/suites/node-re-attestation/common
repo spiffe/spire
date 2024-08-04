@@ -8,7 +8,7 @@ check-attested-agents () {
   for ((i=1;i<=MAXCHECKS;i++)); do
     log-debug "checking attested agents ($i of $MAXCHECKS max)......"
     MATCHING_COUNT=0
-    AGENTS=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server agent list -output json)
+    AGENTS=$(docker compose exec -T spire-server /opt/spire/bin/spire-server agent list -output json)
     AGENTS_COUNT=$(jq -r '.agents | length' <<< "$AGENTS")
 
     for spiffe_id_path in "$@"; do
@@ -34,7 +34,7 @@ check-evict-agents() {
     MATCHING_COUNT=0
     log-info "checking for evicted agent ($i of $MAXCHECKS max)..."
     for spiffe_id in "$@"; do
-      if docker-compose logs "spire-server" | grep "Agent is not attested" | grep "caller_id=\"$spiffe_id\""; then
+      if docker compose logs "spire-server" | grep "Agent is not attested" | grep "caller_id=\"$spiffe_id\""; then
         MATCHING_COUNT=$((MATCHING_COUNT+1))
       fi
     done

@@ -7,7 +7,7 @@ MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
     log-info "attempting to evict agent ($i of $MAXCHECKS max)..."
-    if docker-compose exec -T spire-server \
+    if docker compose exec -T spire-server \
         /opt/spire/bin/spire-server agent evict \
         -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"; then
 	    exit 0
@@ -21,8 +21,8 @@ MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
     log-info "checking for agent to get notification and try to reattest ($i of $MAXCHECKS max)..."
-    docker-compose logs spire-agent
-    if docker-compose logs spire-agent | grep "Agent needs to re-attest; will attempt to re-attest"; then
+    docker compose logs spire-agent
+    if docker compose logs spire-agent | grep "Agent needs to re-attest; will attempt to re-attest"; then
 	    exit 0
     fi
     sleep "${CHECKINTERVAL}"
@@ -33,8 +33,8 @@ MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
     log-info "checking for agent to get notification and try to reattest ($i of $MAXCHECKS max)..."
-    docker-compose logs spire-agent
-    if docker-compose logs spire-agent | grep "Successfully reattested node"; then
+    docker compose logs spire-agent
+    if docker compose logs spire-agent | grep "Successfully reattested node"; then
 	    exit 0
     fi
     sleep "${CHECKINTERVAL}"

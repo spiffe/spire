@@ -22,7 +22,7 @@ assert-service-status() {
   for ((i=1;i<=MAXCHECKS;i++)); do
     log-info "checking for $1 service $2 ($i of $MAXCHECKS max)..."
     scCommand=$([ "$2" == "STOPPED" ] && echo "query" || echo "interrogate")
-    if docker-compose exec -T -u ContainerAdministrator "$1" sc "$scCommand" "$1" | grep -wq "$2"; then
+    if docker compose exec -T -u ContainerAdministrator "$1" sc "$scCommand" "$1" | grep -wq "$2"; then
       log-info "$1 is in $2 state"
       return 0
     fi
@@ -49,18 +49,18 @@ assert-graceful-shutdown() {
 
 create-service() {
   log-info "creating $1 service..."
-  docker-compose exec -T -u ContainerAdministrator "$1" \
+  docker compose exec -T -u ContainerAdministrator "$1" \
       sc create "$1" binPath="$2" ||  grep "STOPPED" fail-now "failed to create $1 service"
 }
 
 stop-service() {
   log-info "stopping $1 service..."
-  docker-compose exec -T -u ContainerAdministrator "$1" \
+  docker compose exec -T -u ContainerAdministrator "$1" \
       sc stop "$1" || fail-now "failed to stop $1 service"
 }
 
 start-service(){
   log-info "starting $1 service..."
-  docker-compose exec -T -u ContainerAdministrator "$1" \
+  docker compose exec -T -u ContainerAdministrator "$1" \
       sc start "$@" | grep -wq  "START_PENDING\|RUNNING" || fail-now "failed to start $2 service"
 }
