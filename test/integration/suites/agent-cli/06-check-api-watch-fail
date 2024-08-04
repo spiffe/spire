@@ -4,7 +4,7 @@ SVID_RECEIVED=1
 TIMEOUT_REACHED=0
 
 # Run the background process and store its output in a temporary file
-(docker-compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api watch < /dev/null > api_watch_output.txt) &
+(docker compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api watch < /dev/null > api_watch_output.txt) &
 
 # Get the PID of the last background process
 API_WATCH_PID=$!

@@ -2,9 +2,10 @@
 
 log-debug "Starting intermediateB-server.."
 docker-up intermediateB-server
+check-server-started "intermediateB-server"
 
 log-debug "bootstrapping intermediateB downstream agent..."
-docker-compose exec -T intermediateB-server \
+docker compose exec -T intermediateB-server \
     /opt/spire/bin/spire-server bundle show > intermediateB/agent/bootstrap.crt
 
 log-debug "Starting intermediateB-agent..."

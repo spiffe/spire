@@ -2,9 +2,10 @@
 
 log-debug "Starting leafA-server.."
 docker-up leafA-server
+check-server-started "leafA-server"
 
 log-debug "bootstrapping leafA agent..."
-docker-compose exec -T leafA-server \
+docker compose exec -T leafA-server \
     /opt/spire/bin/spire-server bundle show > leafA/agent/bootstrap.crt
 
 log-debug "Starting leafA-agent..."

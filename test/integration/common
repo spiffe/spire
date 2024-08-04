@@ -37,7 +37,7 @@ docker-up() {
     else
         log-debug "bringing up $*..."
     fi
-    docker-compose up -d "$@" || fail-now "failed to bring up services."
+    docker compose up -d "$@" || fail-now "failed to bring up services."
 }
 
 docker-wait-for-healthy() {
@@ -70,17 +70,17 @@ docker-stop() {
     else
         log-debug "stopping $*..."
     fi
-    docker-compose stop "$@"
+    docker compose stop "$@"
 }
 
 docker-down() {
     log-debug "bringing down services..."
-    docker-compose down
+    docker compose down
 }
 
 docker-cleanup() {
     log-debug "cleaning up services..."
-    docker-compose down -v --remove-orphans
+    docker compose down -v --remove-orphans
 }
 
 fingerprint() {
@@ -90,6 +90,23 @@ fingerprint() {
 	openssl x509 -in "$1" -outform DER | openssl sha1 -r | awk '{print $1}'
 }
 
+check-server-started() {
+  # Check at most 20 times (with one second in between) that the server has
+  # successfully started.
+  MAXCHECKS=20
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+      log-info "checking for starting server APIs ($i of $MAXCHECKS max)..."
+      docker compose logs "$1"
+      if docker compose logs "$1" | grep "Starting Server APIs"; then
+          return 0
+      fi
+      sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "timed out waiting for server to start"
+}
+
 check-synced-entry() {
   # Check at most 30 times (with one second in between) that the agent has
   # successfully synced down the workload entry.
@@ -97,8 +114,8 @@ check-synced-entry() {
   CHECKINTERVAL=1
   for ((i=1;i<=MAXCHECKS;i++)); do
       log-info "checking for synced entry ($i of $MAXCHECKS max)..."
-      docker-compose logs "$1"
-      if docker-compose logs "$1" | grep "$2"; then
+      docker compose logs "$1"
+      if docker compose logs "$1" | grep "$2"; then
           return 0
       fi
       sleep "${CHECKINTERVAL}"
@@ -113,7 +130,7 @@ check-x509-svid-count() {
 
   for ((i=1;i<=MAXCHECKS;i++)); do
     log-info "check X.509-SVID count on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
-    COUNT=$(docker-compose exec -T "$1" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq '.svidsCount')
+    COUNT=$(docker compose exec -T "$1" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq '.svidsCount')
     log-info "X.509-SVID Count: ${COUNT}"
     if [ "$COUNT" -eq "$2" ]; then
       log-info "X.509-SVID count of $COUNT from cache matches the expected count of $2"

@@ -1,4 +1,3 @@
-version: '3'
 services:
   postgres-10-readwrite:
     image: postgres:10

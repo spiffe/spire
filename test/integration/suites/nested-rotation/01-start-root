@@ -2,9 +2,10 @@
 
 log-debug "Starting root-server..."
 docker-up root-server
+check-server-started "root-server"
 
 log-debug "bootstrapping root-agent..."
-docker-compose exec -T root-server \
+docker compose exec -T root-server \
     /opt/spire/bin/spire-server bundle show > root/agent/bootstrap.crt
 
 log-debug "Starting root-agent..."

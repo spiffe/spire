@@ -1,67 +1,67 @@
 #!/bin/bash
 
 # Verify 'bundle count' correctly indicates a single bundle (the server bundle)
-docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 1 || fail-now "failed to count 1 bundle"
+docker compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 1 || fail-now "failed to count 1 bundle"
 
 # Verify 'bundle show'
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
      /opt/spire/bin/spire-server bundle show | openssl x509 -text -noout | grep URI:spiffe://domain.test || fail-now "failed to show bundle (pem)"
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server bundle show -format spiffe || fail-now "failed to show bundle (spiffe)"
 
 # Verify federated bundle can be created (pem)
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 cat /opt/spire/conf/fixture/ca.pem | 
     /opt/spire/bin/spire-server bundle set -id spiffe://federated.td" || fail-now "failed to create bundle (pem)"
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 /opt/spire/bin/spire-server bundle list -id spiffe://federated.td |
     grep 'makw2ekuHKWC4hBhCkpr5qY4bI8YUcXfxg/1AiEA67kMyH7bQnr7OVLUrL+b9ylA'" || fail-now "federated bundle not found"
 
 # Verify federated bundle can be updated (pem)
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server bundle set -id spiffe://federated.td -path /opt/spire/conf/fixture/ca2.pem || fail-now "failed to set bundle with path (pem)"
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 /opt/spire/bin/spire-server bundle list -id spiffe://federated.td |
     grep 'q+2ZoNyl4udPj7IMYIGX8yuCNRmh7m3d9tvoDgIgbS26wSwDjngGqdiHHL8fTcg'" || fail-now "federated bundle was not updated"
 
 # Verify federated bundle can be created (spiffe)
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 cat /opt/spire/conf/fixture/ca.spiffe | 
     /opt/spire/bin/spire-server bundle set -id spiffe://federated2.td -format spiffe" || fail-now "failed to create bundle (spiffe)"
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 /opt/spire/bin/spire-server bundle list -id spiffe://federated2.td -format spiffe |
     grep 'fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4'" || fail-now "federated bundle not found"
 
 # Verify 'bundle count' correctly indicates two bundles
-docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 3 || fail-now "failed to count 3 bundles"
+docker compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 3 || fail-now "failed to count 3 bundles"
 
 # Verify federated bundle can be updated (pem)
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server bundle set -id spiffe://federated2.td -path /opt/spire/conf/fixture/ca2.spiffe -format spiffe || fail-now "failed to set bundle with path (spiffe)"
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 /opt/spire/bin/spire-server bundle list -id spiffe://federated2.td -format spiffe | 
     grep 'HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c'" || fail-now "federated bundle was not updated"
 
 # Verify 'bundle list' contains both federated bundles
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 /opt/spire/bin/spire-server bundle list | 
     grep -E 'federated.td|federated2.td' -c | grep 2" || fail-now "Unexpected amout of federated bundles"
 
 # Verify delete
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server bundle delete -id spiffe://federated.td || fail-now "failed to delete federated bundle"
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     ash -c "
 /opt/spire/bin/spire-server bundle list | 
     grep -E 'federated.td|federated2.td' -c | grep 1" || fail-now "Unexpected amout of federated bundles"
 
 # Verify 'bundle count' correctly indicates two bundles (server bundle and one federated bundle)
-docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 2 || fail-now "failed to count 2 bundles"
+docker compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 2 || fail-now "failed to count 2 bundles"
