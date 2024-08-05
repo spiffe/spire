@@ -123,12 +123,12 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 		return status.Errorf(codes.Internal, "unable to sign CSR: %v", err)
 	}
 
-	x509CAChain, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{cert}, upstreamCerts.certChain...))
+	x509CAChain, err := x509certificate.ToPluginFromCertificates(append([]*x509.Certificate{cert}, upstreamCerts.certChain...))
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}
 
-	upstreamX509Roots, err := x509certificate.ToPluginProtos(upstreamCerts.trustBundle)
+	upstreamX509Roots, err := x509certificate.ToPluginFromCertificates(upstreamCerts.trustBundle)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
 	}

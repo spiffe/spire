@@ -100,11 +100,17 @@ func (v1 *V1) parseMintX509CAFirstResponse(resp *upstreamauthorityv1.MintX509CAR
 	if len(x509CA) == 0 {
 		return nil, nil, v1.Error(codes.Internal, "plugin response missing X.509 CA chain")
 	}
+
+	intermediateAuthorities := make([]*x509.Certificate, 0, len(x509CA))
+	for _, eachCA := range x509CA {
+		intermediateAuthorities = append(intermediateAuthorities, eachCA.Certificate)
+	}
+
 	x509Authorities, err := v1.parseX509Authorities(resp.UpstreamX509Roots)
 	if err != nil {
 		return nil, nil, err
 	}
-	return x509CA, x509Authorities, nil
+	return intermediateAuthorities, x509Authorities, nil
 }
 
 func (v1 *V1) parseMintX509CABundleUpdate(resp *upstreamauthorityv1.MintX509CAResponse) ([]*x509certificate.X509Authority, error) {
@@ -115,7 +121,7 @@ func (v1 *V1) parseMintX509CABundleUpdate(resp *upstreamauthorityv1.MintX509CARe
 }
 
 func (v1 *V1) parseX509Authorities(rawX509Authorities []*types.X509Certificate) ([]*x509certificate.X509Authority, error) {
-	x509Authorities, err := x509certificate.ToX509AuthorityFromPluginProtos(rawX509Authorities)
+	x509Authorities, err := x509certificate.FromPluginProtos(rawX509Authorities)
 	if err != nil {
 		return nil, v1.Errorf(codes.Internal, "plugin response has malformed upstream X.509 roots: %v", err)
 	}

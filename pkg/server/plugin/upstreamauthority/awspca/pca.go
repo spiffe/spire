@@ -263,13 +263,13 @@ func (p *PCAPlugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509
 	upstreamRoot := certChain[len(certChain)-1]
 	bundle := x509util.DedupeCertificates([]*x509.Certificate{upstreamRoot}, config.supplementalBundle)
 
-	upstreamX509Roots, err := x509certificate.ToPluginProtos(bundle)
+	upstreamX509Roots, err := x509certificate.ToPluginFromCertificates(bundle)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
 	}
 
 	// All else comprises the chain (including the issued certificate)
-	x509CAChain, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{cert}, certChain[:len(certChain)-1]...))
+	x509CAChain, err := x509certificate.ToPluginFromCertificates(append([]*x509.Certificate{cert}, certChain[:len(certChain)-1]...))
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}
