@@ -5,7 +5,7 @@
 The `http_challenge` plugin handshakes via http to ensure the agent is running on a valid
 dns name.
 
-The SPIFFE ID produced by the plugin is based on the dns name attested
+The SPIFFE ID produced by the plugin is based on the dns name attested.
 The SPIFFE ID has the form:
 
 ```xml
