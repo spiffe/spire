@@ -78,7 +78,7 @@ func (s *IITAttestorSuite) TestErrorOnMissingPayload() {
 
 func (s *IITAttestorSuite) TestErrorOnMissingKid() {
 	payload := s.signToken(testKey, "", buildDefaultClaims())
-	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: go-jose/go-jose: unsupported key type/format")
+	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(gcp_iit): failed to validate the identity token signature: go-jose/go-jose: JWK with matching kid not found in JWK Set")
 }
 
 func (s *IITAttestorSuite) TestErrorOnInvalidClaims() {

@@ -14,6 +14,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -328,13 +329,17 @@ func (p *IIDAttestorPlugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *IIDAttestorPlugin) checkBlockDevice(instance ec2types.Instance) error {
-	ifaceZeroDeviceIndex := *instance.NetworkInterfaces[0].Attachment.DeviceIndex
-
-	if ifaceZeroDeviceIndex != 0 {
-		return fmt.Errorf("the EC2 instance network interface attachment device index must be zero (has %d)", ifaceZeroDeviceIndex)
+	ifaceZeroIndex := slices.IndexFunc(
+		instance.NetworkInterfaces,
+		func(net ec2types.InstanceNetworkInterface) bool {
+			return *net.Attachment.DeviceIndex == 0
+		},
+	)
+	if ifaceZeroIndex == -1 {
+		return errors.New("the EC2 instance network interface with device index 0 is inaccessible")
 	}
 
-	ifaceZeroAttachTime := instance.NetworkInterfaces[0].Attachment.AttachTime
+	ifaceZeroAttachTime := instance.NetworkInterfaces[ifaceZeroIndex].Attachment.AttachTime
 
 	// skip anti-tampering mechanism when RootDeviceType is instance-store
 	// specifically, if device type is persistent, and the device was attached past

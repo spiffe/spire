@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -27,8 +28,7 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCache(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 
-	agentID, err := spiffeid.FromString("spiffe://example.org/myagent")
-	assert.NoError(t, err)
+	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
 
 	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:     agentID.String(),
@@ -142,7 +142,7 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, ds, clk)
+	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, ds, clk, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 	require.NotNil(t, attestedNodes)
@@ -166,8 +166,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
-	agentID, err := spiffeid.FromString("spiffe://example.org/myagent")
-	require.NoError(t, err)
+	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
 
 	// Start Update Task
 	updateCacheTaskErr := make(chan error)
@@ -232,8 +231,7 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
-	agentID, err := spiffeid.FromString("spiffe://example.org/myagent")
-	require.NoError(t, err)
+	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
 
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
@@ -306,6 +304,112 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	require.Equal(t, 1, len(entries))
 }
 
+func TestUpdateRegistrationEntriesCacheMissedStartupEvents(t *testing.T) {
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+
+	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
+
+	// Create First Registration Entry
+	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "one",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Delete the event and entry for now and then add it back later to simulate out of order events
+	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 1)
+	require.NoError(t, err)
+	_, err = ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
+	require.NoError(t, err)
+
+	// Create Second entry
+	entry2, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload2",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "two",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create entry fetcher
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	// Ensure there is 1 entry to start
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(entries))
+	require.Equal(t, entry2.EntryId, entries[0].Id)
+	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+
+	// Recreate First Registration Entry and delete the event associated with this create
+	entry1, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "one",
+			},
+		},
+	})
+	require.NoError(t, err)
+	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 4)
+	require.NoError(t, err)
+
+	// Update cache
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	// Still should be 1 entry
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(entries))
+	require.Equal(t, entry2.EntryId, entries[0].Id)
+	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+
+	// Add back in first event
+	err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
+		EventID: 1,
+		EntryID: entry1.EntryId,
+	})
+	require.NoError(t, err)
+
+	// Update cache
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	// Should be 2 entries now
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(entries))
+
+	entryIDs := make([]string, 0, 2)
+	spiffeIDs := make([]string, 0, 2)
+	for _, entry := range entries {
+		entryIDs = append(entryIDs, entry.Id)
+		spiffeIDs = append(spiffeIDs, idutil.RequireIDProtoString(entry.SpiffeId))
+	}
+	require.Contains(t, entryIDs, entry1.EntryId)
+	require.Contains(t, entryIDs, entry2.EntryId)
+	require.Contains(t, spiffeIDs, entry1.SpiffeId)
+	require.Contains(t, spiffeIDs, entry2.SpiffeId)
+}
+
 func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
@@ -316,10 +420,8 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
-	agent1, err := spiffeid.FromString("spiffe://example.org/myagent1")
-	require.NoError(t, err)
-	agent2, err := spiffeid.FromString("spiffe://example.org/myagent2")
-	require.NoError(t, err)
+	agent1 := spiffeid.RequireFromString("spiffe://example.org/myagent1")
+	agent2 := spiffeid.RequireFromString("spiffe://example.org/myagent2")
 
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agent2)
@@ -340,7 +442,7 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create a registration entry parented to the alias
-	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+	entry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		SpiffeId: "spiffe://example.org/viaalias",
 		ParentId: alias.SpiffeId,
 		Selectors: []*common.Selector{
@@ -420,4 +522,133 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
+	require.Equal(t, entry.EntryId, entries[0].Id)
+	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+}
+
+func TestUpdateAttestedNodesCacheMissedStartupEvents(t *testing.T) {
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+
+	agent1 := spiffeid.RequireFromString("spiffe://example.org/myagent1")
+	agent2 := spiffeid.RequireFromString("spiffe://example.org/myagent2")
+
+	// Create node alias for agent
+	alias, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/alias",
+		ParentId: "spiffe://example.org/spire/server",
+		Selectors: []*common.Selector{
+			{
+				Type:  "test",
+				Value: "alias",
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create a registration entry parented to the alias
+	entry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/viaalias",
+		ParentId: alias.SpiffeId,
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "one",
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create first Attested Node and selectors
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agent1.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	err = ds.SetNodeSelectors(ctx, agent1.String(), []*common.Selector{
+		{
+			Type:  "test",
+			Value: "alias",
+		},
+		{
+			Type:  "test",
+			Value: "cluster1",
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create second Attested Node
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agent2.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	// Delete the event for creating the node or now and then add it back later to simulate out of order events
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 1)
+	require.NoError(t, err)
+	_, err = ds.DeleteAttestedNode(ctx, agent1.String())
+	require.NoError(t, err)
+
+	// Create entry fetcher
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	// Ensure there are no entries to start
+	entries, err := ef.FetchAuthorizedEntries(ctx, agent1)
+	require.NoError(t, err)
+	require.Zero(t, len(entries))
+
+	// Recreate attested node and selectors for agent 1
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agent1.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+	err = ds.SetNodeSelectors(ctx, agent1.String(), []*common.Selector{
+		{
+			Type:  "test",
+			Value: "alias",
+		},
+		{
+			Type:  "test",
+			Value: "cluster1",
+		},
+	})
+	assert.NoError(t, err)
+
+	// Delete new events
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 5)
+	require.NoError(t, err)
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 6)
+	require.NoError(t, err)
+
+	// Update cache, should still be no entries
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err = ef.FetchAuthorizedEntries(ctx, agent1)
+	require.NoError(t, err)
+	require.Zero(t, len(entries))
+
+	// Add back in deleted event
+	err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
+		EventID:  1,
+		SpiffeID: agent1.String(),
+	})
+	require.NoError(t, err)
+
+	// Update cache, should be 1 entry now pointed to the alias
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err = ef.FetchAuthorizedEntries(ctx, agent1)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(entries))
+	require.Equal(t, entry.EntryId, entries[0].Id)
+	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
 }

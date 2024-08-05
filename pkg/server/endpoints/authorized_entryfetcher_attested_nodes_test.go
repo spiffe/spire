@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -24,7 +25,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 	ds := fakedatastore.New(t)
 	cache := authorizedentries.NewCache(clk)
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, log, ds, clk, cache)
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, ds, clk, cache, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, attestedNodes)
 
@@ -88,11 +89,47 @@ func TestAttestedNodesCacheMissedEventNotFound(t *testing.T) {
 	ds := fakedatastore.New(t)
 	cache := authorizedentries.NewCache(clk)
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, log, ds, clk, cache)
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, ds, clk, cache, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, attestedNodes)
 
 	attestedNodes.missedEvents[1] = clk.Now()
 	attestedNodes.replayMissedEvents(ctx)
 	require.Equal(t, "Event not yet populated in database", hook.LastEntry().Message)
+}
+
+func TestAttestedNodesSavesMissedStartupEvents(t *testing.T) {
+	ctx := context.Background()
+	log, hook := test.NewNullLogger()
+	log.SetLevel(logrus.DebugLevel)
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+	cache := authorizedentries.NewCache(clk)
+
+	err := ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
+		EventID:  3,
+		SpiffeID: "test",
+	})
+	require.NoError(t, err)
+
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, ds, clk, cache, defaultSQLTransactionTimeout)
+	require.NoError(t, err)
+	require.NotNil(t, attestedNodes)
+	require.Equal(t, uint(3), attestedNodes.firstEventID)
+
+	err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
+		EventID:  2,
+		SpiffeID: "test",
+	})
+	require.NoError(t, err)
+
+	err = attestedNodes.missedStartupEvents(ctx)
+	require.NoError(t, err)
+
+	// Make sure no dupliate calls are made
+	ds.AppendNextError(nil)
+	ds.AppendNextError(errors.New("Duplicate call"))
+	err = attestedNodes.missedStartupEvents(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(hook.AllEntries()))
 }
