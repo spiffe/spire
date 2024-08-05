@@ -221,7 +221,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		return status.Errorf(codes.Internal, "failed to parse Root CA certificate: %v", err)
 	}
 
-	upstreamX509Roots, err := x509certificate.ToPluginProtos([]*x509.Certificate{upstreamRoot})
+	upstreamX509Roots, err := x509certificate.ToPluginFromCertificates([]*x509.Certificate{upstreamRoot})
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
 	}
@@ -249,7 +249,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		certChain = append(certChain, b)
 	}
 
-	x509CAChain, err := x509certificate.ToPluginProtos(certChain)
+	x509CAChain, err := x509certificate.ToPluginFromCertificates(certChain)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}

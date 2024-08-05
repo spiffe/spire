@@ -161,7 +161,7 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 
 	rootCAs := []*plugintypes.X509Certificate{}
 
-	x509CAChain, err := x509certificate.ToPluginProtos(certChain)
+	x509CAChain, err := x509certificate.ToPluginFromCertificates(certChain)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}

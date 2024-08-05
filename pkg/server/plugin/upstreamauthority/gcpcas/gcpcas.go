@@ -333,7 +333,7 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 	fullChain := []*x509.Certificate{cert}
 	fullChain = append(fullChain, certChain[:len(certChain)-1]...)
 
-	x509CAChain, err := x509certificate.ToPluginProtos(fullChain)
+	x509CAChain, err := x509certificate.ToPluginFromCertificates(fullChain)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}
@@ -358,7 +358,7 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 
 	// We may well have specified multiple paths to the same root.
 	rootBundle = x509util.DedupeCertificates(rootBundle)
-	upstreamX509Roots, err := x509certificate.ToPluginProtos(rootBundle)
+	upstreamX509Roots, err := x509certificate.ToPluginFromCertificates(rootBundle)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
 	}
