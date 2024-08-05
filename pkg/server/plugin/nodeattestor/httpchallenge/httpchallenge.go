@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -21,6 +22,10 @@ import (
 
 const (
 	pluginName = "http_challenge"
+)
+
+var (
+	agentNamePattern = regexp.MustCompile("^[a-zA-z]+[a-zA-Z0-9-]$")
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -46,7 +51,6 @@ type configuration struct {
 	requiredPort      *int
 	allowNonRootPorts bool
 	dnsPatterns       []*regexp.Regexp
-	agentNamePattern  *regexp.Regexp
 	tofu              bool
 }
 
@@ -105,7 +109,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.InvalidArgument, "port %d is not allowed to be >= 1024", attestationData.Port)
 	}
 
-	if err = validateAgentName(attestationData.AgentName, config.agentNamePattern); err != nil {
+	if err = validateAgentName(attestationData.AgentName); err != nil {
 		return err
 	}
 
@@ -138,7 +142,11 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	p.log.Debug("Verifying challenge")
-	if err := httpchallenge.VerifyChallenge(p.client, attestationData, challenge); err != nil {
+
+	timeoutctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := httpchallenge.VerifyChallenge(timeoutctx, p.client, attestationData, challenge); err != nil {
 		return status.Errorf(codes.PermissionDenied, "challenge verification failed: %v", err)
 	}
 
@@ -189,8 +197,6 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		dnsPatterns = append(dnsPatterns, re)
 	}
 
-	agentNamePattern := regexp.MustCompile("^[a-zA-z]+[a-zA-Z0-9-]$")
-
 	allowNonRootPorts := true
 	if hclConfig.AllowNonRootPorts != nil {
 		allowNonRootPorts = *hclConfig.AllowNonRootPorts
@@ -223,7 +229,6 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		dnsPatterns:       dnsPatterns,
 		requiredPort:      hclConfig.RequiredPort,
 		allowNonRootPorts: allowNonRootPorts,
-		agentNamePattern:  agentNamePattern,
 		tofu:              tofu,
 	})
 
@@ -258,7 +263,7 @@ func buildSelectorValues(hostName string) []string {
 	return selectorValues
 }
 
-func validateAgentName(agentName string, agentNamePattern *regexp.Regexp) error {
+func validateAgentName(agentName string) error {
 	l := agentNamePattern.FindAllStringSubmatch(agentName, -1)
 	if len(l) != 1 || len(l[0]) == 0 || len(l[0]) > 32 {
 		return status.Error(codes.InvalidArgument, "agent name is not valid")

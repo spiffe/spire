@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -53,7 +52,7 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 	return &Response{}, nil
 }
 
-func VerifyChallenge(client *http.Client, attestationData *AttestationData, challenge *Challenge) error {
+func VerifyChallenge(ctx context.Context, client *http.Client, attestationData *AttestationData, challenge *Challenge) error {
 	if attestationData.HostName == "" {
 		return fmt.Errorf("hostname must be set")
 	}
@@ -77,9 +76,6 @@ func VerifyChallenge(client *http.Client, attestationData *AttestationData, chal
 		Host:   net.JoinHostPort(attestationData.HostName, strconv.Itoa(attestationData.Port)),
 		Path:   fmt.Sprintf("/.well-known/spiffe/nodeattestor/http_challenge/%s/challenge", attestationData.AgentName),
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", turl.String(), nil)
 	if err != nil {

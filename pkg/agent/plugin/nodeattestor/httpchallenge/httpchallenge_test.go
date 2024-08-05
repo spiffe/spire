@@ -156,7 +156,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream {
 				return streamBuilder.IgnoreThenChallenge(challenge).
 					Handle(func(challengeResponse []byte) ([]byte, error) {
-						err := common_httpchallenge.VerifyChallenge(http.DefaultClient, attestationData, challengeobj)
+						err := common_httpchallenge.VerifyChallenge(context.Background(), http.DefaultClient, attestationData, challengeobj)
 						return nil, err
 					}).Build()
 			},
@@ -172,7 +172,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			serverStream: func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream {
 				return streamBuilder.ExpectThenChallenge(expectPayload, challenge).
 					Handle(func(challengeResponse []byte) ([]byte, error) {
-						err := common_httpchallenge.VerifyChallenge(http.DefaultClient, attestationData, challengeobj)
+						err := common_httpchallenge.VerifyChallenge(context.Background(), http.DefaultClient, attestationData, challengeobj)
 						return nil, err
 					}).Build()
 			},
