@@ -51,6 +51,7 @@ func PublicKeysToProto(keys []*common.PublicKey) []*types.JWTKey {
 			PublicKey: key.PkixBytes,
 			KeyId:     key.Kid,
 			ExpiresAt: key.NotAfter,
+			Tainted:   key.TaintedKey,
 		})
 	}
 	return jwtAuthorities
