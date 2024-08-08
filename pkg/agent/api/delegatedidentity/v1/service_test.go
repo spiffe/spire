@@ -79,12 +79,39 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		managerErr    error
 		expectMetrics []fakemetrics.MetricItem
 		expectResp    *delegatedidentityv1.SubscribeToX509SVIDsResponse
+		req           *delegatedidentityv1.SubscribeToX509SVIDsRequest
 	}{
 		{
 			testName:   "attest error",
 			attestErr:  errors.New("ohno"),
 			expectCode: codes.Internal,
 			expectMsg:  "workload attestation failed",
+		},
+		{
+			testName:     "incorrectly populate both pid and selectors",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "must provide either selectors or non-zero PID, but not both",
+			req: &delegatedidentityv1.SubscribeToX509SVIDsRequest{
+				Selectors: []*types.Selector{{Type: "sa", Value: "foo"}},
+				Pid:       447,
+			},
+		},
+		{
+			testName:     "incorrectly populate neither pid or selectors",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "must provide either selectors or non-zero PID, but not both",
+			req: &delegatedidentityv1.SubscribeToX509SVIDsRequest{
+				Selectors: []*types.Selector{},
+				Pid:       0,
+			},
 		},
 		{
 			testName:     "access to \"privileged\" admin API denied",
@@ -271,22 +298,24 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				ManagerErr:   tt.managerErr,
 				Metrics:      metrics,
 			}
-			runTest(t, params,
-				func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
-					selectors := []*types.Selector{{Type: "sa", Value: "foo"}}
-					req := &delegatedidentityv1.SubscribeToX509SVIDsRequest{
-						Selectors: selectors,
-					}
+			runTest(t, params, func(ctx context.Context, client delegatedidentityv1.DelegatedIdentityClient) {
+				req := &delegatedidentityv1.SubscribeToX509SVIDsRequest{
+					Selectors: []*types.Selector{{Type: "sa", Value: "foo"}},
+				}
+				// if test params has a custom request, prefer that
+				if tt.req != nil {
+					req = tt.req
+				}
 
-					stream, err := client.SubscribeToX509SVIDs(ctx, req)
+				stream, err := client.SubscribeToX509SVIDs(ctx, req)
 
-					require.NoError(t, err)
-					resp, err := stream.Recv()
+				require.NoError(t, err)
+				resp, err := stream.Recv()
 
-					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
-					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
-					require.Equal(t, tt.expectMetrics, metrics.AllMetrics())
-				})
+				spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+				spiretest.RequireProtoEqual(t, tt.expectResp, resp)
+				require.Equal(t, tt.expectMetrics, metrics.AllMetrics())
+			})
 		})
 	}
 }
@@ -409,6 +438,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 		authSpiffeID []string
 		audience     []string
 		selectors    []*types.Selector
+		pid          int32
 		expectCode   codes.Code
 		expectMsg    string
 		attestErr    error
@@ -426,6 +456,30 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			audience:   []string{"AUDIENCE"},
 			expectCode: codes.Internal,
 			expectMsg:  "workload attestation failed",
+		},
+		{
+			testName:     "incorrectly populate both pid and selectors",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
+			pid:          447,
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "must provide either selectors or non-zero PID, but not both",
+		},
+		{
+			testName:     "incorrectly populate neither pid or selectors",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{},
+			pid:          0,
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "must provide either selectors or non-zero PID, but not both",
 		},
 		{
 			testName:     "Access to \"privileged\" admin API denied",
@@ -562,6 +616,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 					resp, err := client.FetchJWTSVIDs(ctx, &delegatedidentityv1.FetchJWTSVIDsRequest{
 						Audience:  tt.audience,
 						Selectors: tt.selectors,
+						Pid:       tt.pid,
 					})
 
 					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
@@ -578,6 +633,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 		})
 	}
 }
+
 func TestSubscribeToJWTBundles(t *testing.T) {
 	ca := testca.New(t, trustDomain1)
 
@@ -707,7 +763,11 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		AuthorizedDelegates: params.AuthSpiffeID,
 	})
 
-	service.attestor = FakeAttestor{
+	service.peerAttestor = FakeAttestor{
+		err: params.AttestErr,
+	}
+
+	service.delegateWorkloadAttestor = FakeWorkloadPIDAttestor{
 		err: params.AttestErr,
 	}
 
@@ -735,7 +795,16 @@ type FakeAttestor struct {
 	err       error
 }
 
+type FakeWorkloadPIDAttestor struct {
+	selectors []*common.Selector
+	err       error
+}
+
 func (fa FakeAttestor) Attest(context.Context) ([]*common.Selector, error) {
+	return fa.selectors, fa.err
+}
+
+func (fa FakeWorkloadPIDAttestor) Attest(_ context.Context, _ int) ([]*common.Selector, error) {
 	return fa.selectors, fa.err
 }
 
