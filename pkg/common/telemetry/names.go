@@ -372,6 +372,9 @@ const (
 	// LocalAuthorityID tags a local authority ID
 	LocalAuthorityID = "local_authority_id"
 
+	// SigningAuthorityID tags a signing authority ID
+	SigningAuthorityID = "signing_authority_id"
+
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 
@@ -540,6 +543,9 @@ const (
 	// Subject tags some subject (likely a SPIFFE ID, and likely for a token); should be used
 	// with other tags to add clarity
 	Subject = "subject"
+
+	// Subject tags a certificate subject key ID
+	SubjectKeyId = "subject_key_id"
 
 	// SVIDMapSize is the gauge key for the size of the LRU cache SVID map
 	SVIDMapSize = "lru_cache_svid_map_size"

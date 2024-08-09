@@ -7,7 +7,7 @@ import (
 )
 
 func FromPluginProto(pb *plugintypes.JWTKey) (JWTKey, error) {
-	return fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt)
+	return fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt, pb.Tainted)
 }
 
 func FromPluginProtos(pbs []*plugintypes.JWTKey) ([]JWTKey, error) {
@@ -26,7 +26,7 @@ func FromPluginProtos(pbs []*plugintypes.JWTKey) ([]JWTKey, error) {
 }
 
 func ToPluginProto(jwtKey JWTKey) (*plugintypes.JWTKey, error) {
-	id, publicKey, expiresAt, err := toProtoFields(jwtKey)
+	id, publicKey, expiresAt, tainted, err := toProtoFields(jwtKey)
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +34,7 @@ func ToPluginProto(jwtKey JWTKey) (*plugintypes.JWTKey, error) {
 		KeyId:     id,
 		PublicKey: publicKey,
 		ExpiresAt: expiresAt,
+		Tainted:   tainted,
 	}, nil
 }
 
@@ -80,7 +81,7 @@ func ToPluginFromAPIProto(pb *apitypes.JWTKey) (*plugintypes.JWTKey, error) {
 		return nil, nil
 	}
 
-	jwtKey, err := fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt)
+	jwtKey, err := fromProtoFields(pb.KeyId, pb.PublicKey, pb.ExpiresAt, pb.Tainted)
 	if err != nil {
 		return nil, err
 	}

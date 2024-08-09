@@ -139,19 +139,21 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 	}
 	defer p.unsubscribeToPolling()
 
-	certChain, roots, err := p.serverClient.newDownstreamX509CA(stream.Context(), request.Csr, request.PreferredTtl)
+	// TODO: downstream RPC is not returning authority metadata, like tainted bit
+	// avoid using it for now in favor of a call to get bundle RPC
+	certChain, _, err := p.serverClient.newDownstreamX509CA(stream.Context(), request.Csr, request.PreferredTtl)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to request a new Downstream X509CA: %v", err)
 	}
 
-	var bundles []*plugintypes.X509Certificate
-	for _, cert := range roots {
-		pluginCert, err := x509certificate.ToPluginProto(cert)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to parse X.509 authorities: %v", err)
-		}
+	serverBundle, err := p.serverClient.getBundle(stream.Context())
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to fetch bundle from upstream server: %v", err)
+	}
 
-		bundles = append(bundles, pluginCert)
+	bundles, err := x509certificate.ToPluginFromAPIProtos(serverBundle.X509Authorities)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to parse X.509 authorities: %v", err)
 	}
 
 	// Set X509 Authorities
@@ -159,7 +161,7 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 
 	rootCAs := []*plugintypes.X509Certificate{}
 
-	x509CAChain, err := x509certificate.ToPluginProtos(certChain)
+	x509CAChain, err := x509certificate.ToPluginFromCertificates(certChain)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}

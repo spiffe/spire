@@ -40,6 +40,7 @@ type Slot interface {
 	ShouldPrepareNext(now time.Time) bool
 	ShouldActivateNext(now time.Time) bool
 	Status() journal.Status
+	SigningAuthorityID() string
 	AuthorityID() string
 	PublicKey() crypto.PublicKey
 	NotAfter() time.Time
@@ -321,19 +322,21 @@ func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *jour
 	slot, badReason, err := s.loadX509CASlotFromEntry(ctx, entry)
 	if err != nil {
 		s.Log.WithError(err).WithFields(logrus.Fields{
-			telemetry.Slot:             entry.SlotId,
-			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
-			telemetry.Status:           entry.Status,
-			telemetry.LocalAuthorityID: entry.AuthorityId,
+			telemetry.Slot:               entry.SlotId,
+			telemetry.IssuedAt:           time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:             entry.Status,
+			telemetry.LocalAuthorityID:   entry.AuthorityId,
+			telemetry.SigningAuthorityID: entry.SigningAuthorityId,
 		}).Error("X509CA slot failed to load")
 		return nil, err
 	}
 	if badReason != "" {
 		s.Log.WithError(errors.New(badReason)).WithFields(logrus.Fields{
-			telemetry.Slot:             entry.SlotId,
-			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
-			telemetry.Status:           entry.Status,
-			telemetry.LocalAuthorityID: entry.AuthorityId,
+			telemetry.Slot:               entry.SlotId,
+			telemetry.IssuedAt:           time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:             entry.Status,
+			telemetry.LocalAuthorityID:   entry.AuthorityId,
+			telemetry.SigningAuthorityID: entry.SigningAuthorityId,
 		}).Warn("X509CA slot unusable")
 		return nil, nil
 	}
@@ -379,10 +382,11 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 			Certificate:   cert,
 			UpstreamChain: upstreamChain,
 		},
-		status:      entry.Status,
-		authorityID: entry.AuthorityId,
-		publicKey:   signer.Public(),
-		notAfter:    cert.NotAfter,
+		status:             entry.Status,
+		authorityID:        entry.AuthorityId,
+		signingAuthorityID: entry.SigningAuthorityId,
+		publicKey:          signer.Public(),
+		notAfter:           cert.NotAfter,
 	}, "", nil
 }
 
@@ -524,19 +528,24 @@ func keyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 }
 
 type x509CASlot struct {
-	id          string
-	issuedAt    time.Time
-	x509CA      *ca.X509CA
-	status      journal.Status
-	authorityID string
-	publicKey   crypto.PublicKey
-	notAfter    time.Time
+	id                 string
+	issuedAt           time.Time
+	x509CA             *ca.X509CA
+	status             journal.Status
+	authorityID        string
+	publicKey          crypto.PublicKey
+	notAfter           time.Time
+	signingAuthorityID string
 }
 
 func newX509CASlot(id string) *x509CASlot {
 	return &x509CASlot{
 		id: id,
 	}
+}
+
+func (s *x509CASlot) SigningAuthorityID() string {
+	return s.signingAuthorityID
 }
 
 func (s *x509CASlot) KmKeyID() string {
@@ -601,6 +610,10 @@ func (s *jwtKeySlot) Status() journal.Status {
 
 func (s *jwtKeySlot) AuthorityID() string {
 	return s.authorityID
+}
+
+func (s *jwtKeySlot) SigningAuthorityID() string {
+	return ""
 }
 
 func (s *jwtKeySlot) PublicKey() crypto.PublicKey {

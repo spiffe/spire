@@ -2,6 +2,8 @@ module github.com/spiffe/spire
 
 go 1.22.6
 
+replace github.com/spiffe/spire-api-sdk => github.com/MarcosDY/spire-api-sdk v1.0.0-pre.0.20240802133758-a8822df66066
+
 require (
 	cloud.google.com/go/iam v1.1.12
 	cloud.google.com/go/kms v1.18.4
