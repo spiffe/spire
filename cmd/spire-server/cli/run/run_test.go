@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
@@ -64,6 +65,7 @@ func TestParseConfigGood(t *testing.T) {
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
+	assert.Equal(t, c.Server.Experimental.PQKEMMode, "require")
 	testParseConfigGoodOS(t, c)
 
 	// Parse/reprint cycle trims outer whitespace
@@ -453,6 +455,16 @@ func TestMergeInput(t *testing.T) {
 			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.True(t, c.Server.AuditLogEnabled)
+			},
+		},
+		{
+			msg: "pq_kem_mode should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.Experimental.PQKEMMode = "attempt"
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, c.Server.Experimental.PQKEMMode, "attempt")
 			},
 		},
 	}
@@ -1158,6 +1170,49 @@ func TestNewServerConfig(t *testing.T) {
 				require.Equal(t, []spiffeid.ID{
 					spiffeid.RequireFromString("spiffe://otherdomain.test/my/admin"),
 				}, c.AdminIDs)
+			},
+		},
+		{
+			msg:   "post-quantum KEM mode is set (default)",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, tlspolicy.PQKEMModeDefault, c.TLSPolicy.PQKEMMode)
+			},
+		},
+		{
+			msg: "post-quantum KEM mode is set (explicit default)",
+			input: func(c *Config) {
+				c.Server.Experimental.PQKEMMode = "default"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, tlspolicy.PQKEMModeDefault, c.TLSPolicy.PQKEMMode)
+			},
+		},
+		{
+			msg: "post-quantum KEM mode is set (attempt)",
+			input: func(c *Config) {
+				c.Server.Experimental.PQKEMMode = "attempt"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				if tlspolicy.SupportsPQKEM {
+					require.Equal(t, tlspolicy.PQKEMModeAttempt, c.TLSPolicy.PQKEMMode)
+				} else {
+					require.Equal(t, tlspolicy.PQKEMModeDefault, c.TLSPolicy.PQKEMMode)
+				}
+			},
+		},
+		{
+			msg: "post-quantum KEM mode is set (require)",
+			input: func(c *Config) {
+				c.Server.Experimental.PQKEMMode = "require"
+			},
+			expectError: !tlspolicy.SupportsPQKEM,
+			test: func(t *testing.T, c *server.Config) {
+				if tlspolicy.SupportsPQKEM {
+					require.Equal(t, tlspolicy.PQKEMModeRequire, c.TLSPolicy.PQKEMMode)
+				} else {
+					require.Nil(t, c)
+				}
 			},
 		},
 	}
