@@ -23,6 +23,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
@@ -101,6 +102,9 @@ func TestNew(t *testing.T) {
 		RateLimit:        rateLimit,
 		Clock:            clk,
 		AuthPolicyEngine: pe,
+		TLSPolicy: tlspolicy.Policy{
+			PQKEMMode: tlspolicy.PQKEMModeRequire,
+		},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, tcpAddr, endpoints.TCPAddr)
@@ -116,6 +120,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, endpoints.APIServers.SVIDServer)
 	assert.NotNil(t, endpoints.BundleEndpointServer)
 	assert.NotNil(t, endpoints.EntryFetcherPruneEventsTask)
+	assert.Equal(t, endpoints.TLSPolicy.PQKEMMode, tlspolicy.PQKEMModeRequire)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
 	assert.Equal(t, metrics, endpoints.Metrics)
@@ -225,6 +230,10 @@ func TestListenAndServe(t *testing.T) {
 		AdminIDs:                     []spiffeid.ID{foreignAdminSVID.ID},
 	}
 
+	if tlspolicy.SupportsPQKEM {
+		endpoints.TLSPolicy.PQKEMMode = tlspolicy.PQKEMModeRequire
+	}
+
 	// Prime the datastore with the:
 	// - bundle used to verify client certificates.
 	// - agent attested node information
@@ -257,19 +266,29 @@ func TestListenAndServe(t *testing.T) {
 	require.NoError(t, err)
 	defer localConn.Close()
 
-	noauthConn := dialTCP(tlsconfig.TLSClientConfig(ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
+	noauthConfig := tlsconfig.TLSClientConfig(ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+	require.NoError(t, tlspolicy.ApplyPolicy(noauthConfig, endpoints.TLSPolicy))
+	noauthConn := dialTCP(noauthConfig)
 	defer noauthConn.Close()
 
-	agentConn := dialTCP(tlsconfig.MTLSClientConfig(agentSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
+	agentConfig := tlsconfig.MTLSClientConfig(agentSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+	require.NoError(t, tlspolicy.ApplyPolicy(agentConfig, endpoints.TLSPolicy))
+	agentConn := dialTCP(agentConfig)
 	defer agentConn.Close()
 
-	adminConn := dialTCP(tlsconfig.MTLSClientConfig(adminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
+	adminConfig := tlsconfig.MTLSClientConfig(adminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+	require.NoError(t, tlspolicy.ApplyPolicy(adminConfig, endpoints.TLSPolicy))
+	adminConn := dialTCP(adminConfig)
 	defer adminConn.Close()
 
-	downstreamConn := dialTCP(tlsconfig.MTLSClientConfig(downstreamSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
+	downstreamConfig := tlsconfig.MTLSClientConfig(downstreamSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+	require.NoError(t, tlspolicy.ApplyPolicy(downstreamConfig, endpoints.TLSPolicy))
+	downstreamConn := dialTCP(downstreamConfig)
 	defer downstreamConn.Close()
 
-	federatedAdminConn := dialTCP(tlsconfig.MTLSClientConfig(foreignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))
+	federatedAdminConfig := tlsconfig.MTLSClientConfig(foreignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+	require.NoError(t, tlspolicy.ApplyPolicy(federatedAdminConfig, endpoints.TLSPolicy))
+	federatedAdminConn := dialTCP(federatedAdminConfig)
 	defer federatedAdminConn.Close()
 
 	t.Run("Bad Client SVID", func(t *testing.T) {
@@ -278,8 +297,12 @@ func TestListenAndServe(t *testing.T) {
 		badSVID := testca.New(t, testTD).CreateX509SVID(agentID)
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
+
+		tlsConfig := tlsconfig.MTLSClientConfig(badSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
+		require.NoError(t, tlspolicy.ApplyPolicy(tlsConfig, endpoints.TLSPolicy))
+
 		badConn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(), grpc.WithBlock(), grpc.FailOnNonTempDialError(true), //nolint: staticcheck // It is going to be resolved on #5152
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsconfig.MTLSClientConfig(badSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID)))),
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		)
 		if !assert.Error(t, err, "dialing should have failed") {
 			// close the conn if the dialing unexpectedly succeeded
@@ -331,6 +354,8 @@ func TestListenAndServe(t *testing.T) {
 		unfederatedConfig := tlsconfig.MTLSClientConfig(unfederatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 
 		for _, config := range []*tls.Config{unauthenticatedConfig, unauthorizedConfig, unfederatedConfig} {
+			require.NoError(t, tlspolicy.ApplyPolicy(config, endpoints.TLSPolicy))
+
 			conn, err := grpc.NewClient(endpoints.TCPAddr.String(),
 				grpc.WithTransportCredentials(credentials.NewTLS(config)),
 			)
