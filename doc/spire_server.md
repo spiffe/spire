@@ -96,6 +96,7 @@ This may be useful for templating configuration files, for example across differ
 | `prune_events_older_than`| How old an event can be before being deleted. Used with events based cache. Decreasing this will keep the events table smaller, but will increase risk of missing an event if connection to the database is down.      | 12h                                |
 | `auth_opa_policy_engine` | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions                                                                                                                     | default SPIRE authorization policy |
 | `named_pipe_name`        | Pipe name of the SPIRE Server API named pipe (Windows only)                                                                                                                                                            | \spire-server\private\api          |
+| `pq_kem_mode`            | Whether to use a post-quantum key exchange method for TLS handshake. Set to "default", "attempt" or "require".                                                                                                         | default                            |
 
 | ratelimit     | Description                                                                                                                                               | Default |
 |:--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
@@ -110,6 +111,16 @@ This may be useful for templating configuration files, for example across differ
 |:------------------------------|----------------------------------------------------------|----------------|
 | `rego_path`                   | File to retrieve OPA rego policy for authorization.      |                |
 | `policy_data_path`            | File to retrieve databindings for policy evaluation.     |                |
+
+The `pq_kem_mode` option supports the following options:
+
+| `pq_kem_mode` Value | Description                                                                                                                                                               |
+|:--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| default             | Inherit system default key exchange configuration. Whether a post-quantum-safe key exchange method is available may depend on environmental configuration (e.g. GODEBUG). |
+| attempt             | Opportunistically attempt to negotiate a post-quantum-safe key exchange method.                                                                                           |
+| require             | Require negotiation of a post-quantum-safe key exchange method.                                                                                                           |
+
+The `pq_kem_mode` option is currently experimental and may be changed or removed in a future release. Currently, use of this option requires Go 1.23 or later, as this is the first Go release supporting at least one post-quantum-safe key exchange method.
 
 ### Profiling Names
 

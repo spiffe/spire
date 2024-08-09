@@ -17,9 +17,20 @@ The plugin accepts the following configuration options:
 
 These are the current experimental configurations:
 
-| experimental                 | Description                                                                                               | Default |
-|------------------------------|-----------------------------------------------------------------------------------------------------------|---------|
-| workload_api_named_pipe_name | Pipe name of the Workload API named pipe (Windows only; e.g. pipe name of the SPIRE Agent API named pipe) |
+| experimental                 | Description                                                                                                    | Default |
+|------------------------------|----------------------------------------------------------------------------------------------------------------|---------|
+| workload_api_named_pipe_name | Pipe name of the Workload API named pipe (Windows only; e.g. pipe name of the SPIRE Agent API named pipe)      |         |
+| pq_kem_mode                  | Whether to use a post-quantum key exchange method for TLS handshake. Set to "default", "attempt" or "require". | default |
+
+The `pq_kem_mode` option supports the following options:
+
+| `pq_kem_mode` Value | Description                                                                                                                                                               |
+|:--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| default             | Inherit system default key exchange configuration. Whether a post-quantum-safe key exchange method is available may depend on environmental configuration (e.g. GODEBUG). |
+| attempt             | Opportunistically attempt to negotiate a post-quantum-safe key exchange method.                                                                                           |
+| require             | Require negotiation of a post-quantum-safe key exchange method.                                                                                                           |
+
+The `pq_kem_mode` option is currently experimental and may be changed or removed in a future release. Currently, use of this option requires Go 1.23 or later, as this is the first Go release supporting at least one post-quantum-safe key exchange method.
 
 Sample configuration (Unix):
 
