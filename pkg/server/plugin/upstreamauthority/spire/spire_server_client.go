@@ -15,6 +15,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
@@ -24,12 +25,13 @@ import (
 )
 
 // newServerClient creates a new spire-server client
-func newServerClient(serverID spiffeid.ID, serverAddr string, workloadAPIAddr net.Addr, log hclog.Logger) *serverClient {
+func newServerClient(serverID spiffeid.ID, serverAddr string, workloadAPIAddr net.Addr, log hclog.Logger, tlsPolicy tlspolicy.Policy) *serverClient {
 	return &serverClient{
 		serverID:        serverID,
 		serverAddr:      serverAddr,
 		workloadAPIAddr: workloadAPIAddr,
 		log:             &logAdapter{log: log},
+		tlsPolicy:       tlsPolicy,
 	}
 }
 
@@ -39,6 +41,7 @@ type serverClient struct {
 	serverAddr      string
 	workloadAPIAddr net.Addr
 	log             logger.Logger
+	tlsPolicy       tlspolicy.Policy
 
 	mtx    sync.RWMutex
 	source *workloadapi.X509Source
@@ -60,6 +63,12 @@ func (c *serverClient) start(ctx context.Context) error {
 	}
 
 	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeID(c.serverID))
+	err = tlspolicy.ApplyPolicy(tlsConfig, c.tlsPolicy)
+	if err != nil {
+		source.Close()
+		return status.Errorf(codes.Internal, "error applying TLS policy: %v", err)
+	}
+
 	conn, err := grpc.NewClient(c.serverAddr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {

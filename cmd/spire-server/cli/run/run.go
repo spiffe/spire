@@ -35,6 +35,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -108,6 +109,7 @@ type experimentalConfig struct {
 	EventsBasedCache      bool                        `hcl:"events_based_cache"`
 	PruneEventsOlderThan  string                      `hcl:"prune_events_older_than"`
 	SQLTransactionTimeout string                      `hcl:"sql_transaction_timeout"`
+	PQKEMMode             string                      `hcl:"pq_kem_mode"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -507,6 +509,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.ProfilingPort = c.Server.ProfilingPort
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
+
+	sc.TLSPolicy.PQKEMMode, err = tlspolicy.ParsePQKEMMode(log.NewHCLogAdapter(logger, "tlspolicy"), c.Server.Experimental.PQKEMMode)
+	if err != nil {
+		return nil, fmt.Errorf("invalid pq_kem_mode: %q: %w", c.Server.Experimental.PQKEMMode, err)
+	}
 
 	for _, adminID := range c.Server.AdminIDs {
 		id, err := spiffeid.FromString(adminID)
