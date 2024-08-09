@@ -27,6 +27,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -137,6 +138,36 @@ type Config struct {
 	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file"`
 }
 
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+	newConfig := new(Config)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+	}
+
+	if newConfig.KeyRing == "" {
+		status.ReportError("configuration is missing the key ring")
+	}
+
+	if newConfig.KeyIdentifierFile == "" && newConfig.KeyIdentifierValue == "" {
+		status.ReportError("configuration requires a key identifier file or a key identifier value")
+	}
+
+	if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
+		status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
+	}
+
+	if newConfig.KeyIdentifierValue != "" {
+		if !validateCharacters(newConfig.KeyIdentifierValue) {
+			status.ReportError("Key identifier must contain only letters, numbers, underscores (_), and dashes (-)")
+		}
+		if len(newConfig.KeyIdentifierValue) > 63 {
+			status.ReportError("Key identifier must not be longer than 63 characters")
+		}
+	}
+
+	return newConfig
+}
+
 // New returns an instantiated plugin.
 func New() *Plugin {
 	return newPlugin(newKMSClient)
@@ -166,14 +197,14 @@ func (p *Plugin) Close() error {
 
 // Configure sets up the plugin.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := parseAndValidateConfig(req.HclConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	serverID := config.KeyIdentifierValue
+	serverID := newConfig.KeyIdentifierValue
 	if serverID == "" {
-		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
+		serverID, err = getOrCreateServerID(newConfig.KeyIdentifierFile)
 		if err != nil {
 			return nil, err
 		}
@@ -181,8 +212,8 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.log.Debug("Loaded server id", "server_id", serverID)
 
 	var customPolicy *iam.Policy3
-	if config.KeyPolicyFile != "" {
-		if customPolicy, err = parsePolicyFile(config.KeyPolicyFile); err != nil {
+	if newConfig.KeyPolicyFile != "" {
+		if customPolicy, err = parsePolicyFile(newConfig.KeyPolicyFile); err != nil {
 			return nil, status.Errorf(codes.Internal, "could not parse policy file: %v", err)
 		}
 	}
@@ -200,8 +231,8 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	})
 
 	var opts []option.ClientOption
-	if config.ServiceAccountFile != "" {
-		opts = append(opts, option.WithCredentialsFile(config.ServiceAccountFile))
+	if newConfig.ServiceAccountFile != "" {
+		opts = append(opts, option.WithCredentialsFile(newConfig.ServiceAccountFile))
 	}
 
 	kc, err := p.hooks.newKMSClient(ctx, opts...)
@@ -210,13 +241,13 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	fetcher := &keyFetcher{
-		keyRing:   config.KeyRing,
+		keyRing:   newConfig.KeyRing,
 		kmsClient: kc,
 		log:       p.log,
 		serverID:  serverID,
 		tdHash:    tdHashString,
 	}
-	p.log.Debug("Fetching keys from Cloud KMS", "key_ring", config.KeyRing)
+	p.log.Debug("Fetching keys from Cloud KMS", "key_ring", newConfig.KeyRing)
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
 	if err != nil {
 		return nil, err
@@ -232,7 +263,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	p.configMtx.Lock()
 	defer p.configMtx.Unlock()
-	p.config = config
+	p.config = newConfig
 
 	// Start long-running tasks.
 	ctx, p.cancelTasks = context.WithCancel(context.Background())
@@ -241,6 +272,15 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	go p.disposeCryptoKeysTask(ctx)
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 // GenerateKey creates a key in KMS. If a key already exists in the local storage,
@@ -1096,39 +1136,6 @@ func min(x, y time.Duration) time.Duration {
 		return x
 	}
 	return y
-}
-
-// parseAndValidateConfig returns an error if any configuration provided does
-// not meet acceptable criteria
-func parseAndValidateConfig(c string) (*Config, error) {
-	config := new(Config)
-
-	if err := hcl.Decode(config, c); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.KeyRing == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the key ring")
-	}
-
-	if config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration requires a key identifier file or a key identifier value")
-	}
-
-	if config.KeyIdentifierFile != "" && config.KeyIdentifierValue != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration can't have a key identifier file and a key identifier value at the same time")
-	}
-
-	if config.KeyIdentifierValue != "" {
-		if !validateCharacters(config.KeyIdentifierValue) {
-			return nil, status.Error(codes.InvalidArgument, "Key identifier must contain only letters, numbers, underscores (_), and dashes (-)")
-		}
-		if len(config.KeyIdentifierValue) > 63 {
-			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 63 characters")
-		}
-	}
-
-	return config, nil
 }
 
 func validateCharacters(str string) bool {
