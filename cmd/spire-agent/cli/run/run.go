@@ -38,6 +38,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 const (
@@ -118,6 +119,7 @@ type experimentalConfig struct {
 	NamedPipeName            string `hcl:"named_pipe_name"`
 	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
 	UseSyncAuthorizedEntries bool   `hcl:"use_sync_authorized_entries"`
+	PQKEMMode                string `hcl:"pq_kem_mode"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -593,6 +595,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 			return nil, fmt.Errorf("availability_target must be at least %s", minimumAvailabilityTarget.String())
 		}
 		ac.AvailabilityTarget = t
+	}
+
+	ac.TLSPolicy.PQKEMMode, err = tlspolicy.ParsePQKEMMode(log.NewHCLogAdapter(logger, "tlspolicy"), c.Agent.Experimental.PQKEMMode)
+	if err != nil {
+		return nil, fmt.Errorf("pq_kem_mode config option %q is invalid: %w", c.Agent.Experimental.PQKEMMode, err)
 	}
 
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {

@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/zeebo/errs"
@@ -58,6 +59,7 @@ type Config struct {
 	Log               logrus.FieldLogger
 	ServerAddress     string
 	NodeAttestor      nodeattestor.NodeAttestor
+	TLSPolicy         tlspolicy.Policy
 }
 
 type attestor struct {
@@ -256,6 +258,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) 
 			Address:     a.c.ServerAddress,
 			TrustDomain: a.c.TrustDomain,
 			GetBundle:   bundle.X509Authorities,
+			TLSPolicy:   a.c.TLSPolicy,
 		})
 	}
 

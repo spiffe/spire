@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -38,6 +39,9 @@ type DialServerConfig struct {
 	// certificate to present to the server during the TLS handshake.
 	GetAgentCertificate func() *tls.Certificate
 
+	// TLSPolicy determines the post-quantum-safe policy to apply to all TLS connections.
+	TLSPolicy tlspolicy.Policy
+
 	// dialContext is an optional constructor for the grpc client connection.
 	dialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
 }
@@ -55,6 +59,11 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 		tlsConfig = tlsconfig.TLSClientConfig(bundleSource, authorizer)
 	} else {
 		tlsConfig = tlsconfig.MTLSClientConfig(newX509SVIDSource(config.GetAgentCertificate), bundleSource, authorizer)
+	}
+
+	err = tlspolicy.ApplyPolicy(tlsConfig, config.TLSPolicy)
+	if err != nil {
+		return nil, err
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
