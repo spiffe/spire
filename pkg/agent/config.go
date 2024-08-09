@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 type Config struct {
@@ -103,6 +104,9 @@ type Config struct {
 
 	// AvailabilityTarget controls how frequently rotate SVIDs
 	AvailabilityTarget time.Duration
+
+	// TLSPolicy determines the post-quantum-safe TLS policy to apply to all TLS connections.
+	TLSPolicy tlspolicy.Policy
 }
 
 func New(c *Config) *Agent {
