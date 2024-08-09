@@ -372,9 +372,6 @@ const (
 	// LocalAuthorityID tags a local authority ID
 	LocalAuthorityID = "local_authority_id"
 
-	// SigningAuthorityID tags a signing authority ID
-	SigningAuthorityID = "signing_authority_id"
-
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 
@@ -604,6 +601,9 @@ const (
 	// Updated tags some entity as updated; should be used
 	// with other tags to add clarity
 	Updated = "updated"
+
+	// UpstreamAuthorityID tags a signing authority ID
+	UpstreamAuthorityID = "upstream_authority_id"
 
 	// StoreSvid tags if entry is storable
 	StoreSvid = "store_svid"

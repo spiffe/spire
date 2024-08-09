@@ -331,13 +331,12 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.TaintX509AuthorityRequest) (*localauthorityv1.TaintX509AuthorityResponse, error) {
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
-
 	if req.AuthorityId != "" {
 		log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
 	}
 
 	if s.ca.IsUpstreamAuthority() {
-		return nil, api.MakeErr(log, codes.FailedPrecondition, "local authority can't be tainted if there is an upstream authorit", nil)
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "local authority can't be tainted if there is an upstream authority", nil)
 	}
 
 	nextSlot := s.ca.GetNextX509CASlot()
@@ -377,15 +376,15 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 }
 
 func (s *Service) TaintX509UpstreamAuthority(ctx context.Context, req *localauthorityv1.TaintX509UpstreamAuthorityRequest) (*localauthorityv1.TaintX509UpstreamAuthorityResponse, error) {
-	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.SubjectKeyId))
+	rpccontext.AddRPCAuditFields(ctx, buildAuditUpstreamLogFields(req.SubjectKeyId))
 	log := rpccontext.Logger(ctx)
-
-	if !s.ca.IsUpstreamAuthority() {
-		return nil, api.MakeErr(log, codes.FailedPrecondition, "upstream authority is not configured", nil)
-	}
 
 	if req.SubjectKeyId != "" {
 		log = log.WithField(telemetry.SubjectKeyId, req.SubjectKeyId)
+	}
+
+	if !s.ca.IsUpstreamAuthority() {
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "upstream authority is not configured", nil)
 	}
 
 	// TODO: may we request in lower case?
@@ -399,6 +398,9 @@ func (s *Service) TaintX509UpstreamAuthority(ctx context.Context, req *localauth
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint upstream authority", err)
 
 	}
+
+	rpccontext.AuditRPC(ctx)
+	log.Info("X.509 upstream authority tainted successfully")
 
 	return &localauthorityv1.TaintX509UpstreamAuthorityResponse{}, nil
 }
@@ -437,15 +439,15 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 }
 
 func (s *Service) RevokeX509UpstreamAuthority(ctx context.Context, req *localauthorityv1.RevokeX509UpstreamAuthorityRequest) (*localauthorityv1.RevokeX509UpstreamAuthorityResponse, error) {
-	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.SubjectKeyId))
+	rpccontext.AddRPCAuditFields(ctx, buildAuditUpstreamLogFields(req.SubjectKeyId))
 	log := rpccontext.Logger(ctx)
-
-	if !s.ca.IsUpstreamAuthority() {
-		return nil, api.MakeErr(log, codes.FailedPrecondition, "upstream authority is not configured", nil)
-	}
 
 	if req.SubjectKeyId != "" {
 		log = log.WithField(telemetry.SubjectKeyId, req.SubjectKeyId)
+	}
+
+	if !s.ca.IsUpstreamAuthority() {
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "upstream authority is not configured", nil)
 	}
 
 	// TODO: may we request in lower case?
@@ -488,15 +490,17 @@ func (s *Service) validateUpstreamAuthoritySubjectKey(subjectKeyIDRequest string
 	}
 
 	currentSlot := s.ca.GetCurrentX509CASlot()
-	if subjectKeyIDRequest == currentSlot.SigningAuthorityID() {
+	if subjectKeyIDRequest == currentSlot.UpstreamAuthorityID() {
 		return errors.New("unable to use upstream authority singing current authority")
 	}
 
 	nextSlot := s.ca.GetNextX509CASlot()
-	if subjectKeyIDRequest == nextSlot.SigningAuthorityID() {
-		if nextSlot.Status() == journal.Status_PREPARED {
-			return errors.New("unable to use upstream authority singing prepared key")
-		}
+	if subjectKeyIDRequest != nextSlot.UpstreamAuthorityID() {
+		return errors.New("upstream authority is not signing Old local authority")
+	}
+
+	if nextSlot.Status() == journal.Status_PREPARED {
+		return errors.New("only upstream authorities signing an old authority can be used")
 	}
 
 	return nil
@@ -540,6 +544,14 @@ func buildAuditLogFields(authorityID string) logrus.Fields {
 	fields := logrus.Fields{}
 	if authorityID != "" {
 		fields[telemetry.LocalAuthorityID] = authorityID
+	}
+	return fields
+}
+
+func buildAuditUpstreamLogFields(authorityID string) logrus.Fields {
+	fields := logrus.Fields{}
+	if authorityID != "" {
+		fields[telemetry.SubjectKeyId] = authorityID
 	}
 	return fields
 }

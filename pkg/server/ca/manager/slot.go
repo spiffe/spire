@@ -40,7 +40,7 @@ type Slot interface {
 	ShouldPrepareNext(now time.Time) bool
 	ShouldActivateNext(now time.Time) bool
 	Status() journal.Status
-	SigningAuthorityID() string
+	UpstreamAuthorityID() string
 	AuthorityID() string
 	PublicKey() crypto.PublicKey
 	NotAfter() time.Time
@@ -326,7 +326,7 @@ func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *jour
 			telemetry.IssuedAt:           time.Unix(entry.IssuedAt, 0),
 			telemetry.Status:             entry.Status,
 			telemetry.LocalAuthorityID:   entry.AuthorityId,
-			telemetry.SigningAuthorityID: entry.SigningAuthorityId,
+			telemetry.UpstreamAuthorityID: entry.UpstreamAuthorityId,
 		}).Error("X509CA slot failed to load")
 		return nil, err
 	}
@@ -336,7 +336,7 @@ func (s *SlotLoader) tryLoadX509CASlotFromEntry(ctx context.Context, entry *jour
 			telemetry.IssuedAt:           time.Unix(entry.IssuedAt, 0),
 			telemetry.Status:             entry.Status,
 			telemetry.LocalAuthorityID:   entry.AuthorityId,
-			telemetry.SigningAuthorityID: entry.SigningAuthorityId,
+			telemetry.UpstreamAuthorityID: entry.UpstreamAuthorityId,
 		}).Warn("X509CA slot unusable")
 		return nil, nil
 	}
@@ -384,7 +384,7 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 		},
 		status:             entry.Status,
 		authorityID:        entry.AuthorityId,
-		signingAuthorityID: entry.SigningAuthorityId,
+		upstreamAuthorityID: entry.UpstreamAuthorityId,
 		publicKey:          signer.Public(),
 		notAfter:           cert.NotAfter,
 	}, "", nil
@@ -535,7 +535,7 @@ type x509CASlot struct {
 	authorityID        string
 	publicKey          crypto.PublicKey
 	notAfter           time.Time
-	signingAuthorityID string
+	upstreamAuthorityID string
 }
 
 func newX509CASlot(id string) *x509CASlot {
@@ -544,8 +544,8 @@ func newX509CASlot(id string) *x509CASlot {
 	}
 }
 
-func (s *x509CASlot) SigningAuthorityID() string {
-	return s.signingAuthorityID
+func (s *x509CASlot) UpstreamAuthorityID() string {
+	return s.upstreamAuthorityID
 }
 
 func (s *x509CASlot) KmKeyID() string {
@@ -612,7 +612,7 @@ func (s *jwtKeySlot) AuthorityID() string {
 	return s.authorityID
 }
 
-func (s *jwtKeySlot) SigningAuthorityID() string {
+func (s *jwtKeySlot) UpstreamAuthorityID() string {
 	return ""
 }
 

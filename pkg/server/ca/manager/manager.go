@@ -228,7 +228,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	// Set key from new CA, to be able to get it after
 	// slot moved to old state
 	slot.authorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId)
-	slot.signingAuthorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.AuthorityKeyId)
+	slot.upstreamAuthorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.AuthorityKeyId)
 	slot.publicKey = slot.x509CA.Certificate.PublicKey
 	slot.notAfter = slot.x509CA.Certificate.NotAfter
 
@@ -237,13 +237,12 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	}
 
 	m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:             slot.id,
-		telemetry.IssuedAt:         slot.issuedAt,
-		telemetry.Expiration:       slot.x509CA.Certificate.NotAfter,
-		telemetry.SelfSigned:       m.upstreamClient == nil,
-		telemetry.LocalAuthorityID: slot.authorityID,
-		// TODO: add to telemetry
-		telemetry.SigningAuthorityID: slot.signingAuthorityID,
+		telemetry.Slot:                slot.id,
+		telemetry.IssuedAt:            slot.issuedAt,
+		telemetry.Expiration:          slot.x509CA.Certificate.NotAfter,
+		telemetry.SelfSigned:          m.upstreamClient == nil,
+		telemetry.LocalAuthorityID:    slot.authorityID,
+		telemetry.UpstreamAuthorityID: slot.upstreamAuthorityID,
 	}).Info("X509 CA prepared")
 	return nil
 }
@@ -501,11 +500,11 @@ func (m *Manager) activateJWTKey(ctx context.Context) {
 
 func (m *Manager) activateX509CA(ctx context.Context) {
 	log := m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:               m.currentX509CA.id,
-		telemetry.IssuedAt:           m.currentX509CA.issuedAt,
-		telemetry.Expiration:         m.currentX509CA.x509CA.Certificate.NotAfter,
-		telemetry.LocalAuthorityID:   m.currentX509CA.authorityID,
-		telemetry.SigningAuthorityID: m.currentX509CA.signingAuthorityID,
+		telemetry.Slot:                m.currentX509CA.id,
+		telemetry.IssuedAt:            m.currentX509CA.issuedAt,
+		telemetry.Expiration:          m.currentX509CA.x509CA.Certificate.NotAfter,
+		telemetry.LocalAuthorityID:    m.currentX509CA.authorityID,
+		telemetry.UpstreamAuthorityID: m.currentX509CA.upstreamAuthorityID,
 	})
 	log.Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)

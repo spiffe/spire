@@ -68,7 +68,7 @@ func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time
 		UpstreamChain:      chainDER(x509CA.UpstreamChain),
 		Status:             journal.Status_PREPARED,
 		AuthorityId:        x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId),
-		SigningAuthorityId: x509util.SubjectKeyIDToString(x509CA.Certificate.AuthorityKeyId),
+		UpstreamAuthorityId: x509util.SubjectKeyIDToString(x509CA.Certificate.AuthorityKeyId),
 	})
 
 	exceeded := len(j.entries.X509CAs) - journalCap
