@@ -324,8 +324,7 @@ func TestMintX509CA(t *testing.T) {
 			bundleUpdateResp, err := stream.RecvUpstreamX509Authorities()
 			require.NoError(t, err)
 
-			expectBundles := append(expectedX509Authorities, expectedServerUpdateAuthority...)
-			require.Equal(t, expectBundles, bundleUpdateResp)
+			require.Equal(t, append(expectedX509Authorities, expectedServerUpdateAuthority...), bundleUpdateResp)
 
 			// Cancel ctx to stop getting updates
 			cancel()
