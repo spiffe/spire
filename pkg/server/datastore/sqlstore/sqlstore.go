@@ -1436,7 +1436,7 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, subjectKeyIDToRevoke string
 	}
 
 	if !keyFound {
-		return status.Error(codes.InvalidArgument, "no root CA found with provided key")
+		return status.Error(codes.NotFound, "no root CA found with provided subject key ID")
 	}
 
 	bundle.RootCas = rootCAs

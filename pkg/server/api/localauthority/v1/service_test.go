@@ -2002,13 +2002,13 @@ func TestRevokeX509Authority(t *testing.T) {
 			nextSlot:    createSlot(journal.Status_OLD, noStoredAuthorityID, noStoredKey.Public(), notAfterNext),
 			keyToRevoke: noStoredAuthorityID,
 			expectCode:  codes.Internal,
-			expectMsg:   "failed to revoke X.509 authority: no root CA found with provided key",
+			expectMsg:   "failed to revoke X.509 authority: no root CA found with provided subject key ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to revoke X.509 authority",
 					Data: logrus.Fields{
-						logrus.ErrorKey:            "rpc error: code = InvalidArgument desc = no root CA found with provided key",
+						logrus.ErrorKey:            "rpc error: code = NotFound desc = no root CA found with provided subject key ID",
 						telemetry.LocalAuthorityID: noStoredAuthorityID,
 					},
 				},
@@ -2018,7 +2018,7 @@ func TestRevokeX509Authority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
 						telemetry.StatusCode:       "Internal",
-						telemetry.StatusMessage:    "failed to revoke X.509 authority: no root CA found with provided key",
+						telemetry.StatusMessage:    "failed to revoke X.509 authority: no root CA found with provided subject key ID",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: noStoredAuthorityID,
 					},
