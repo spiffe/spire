@@ -380,7 +380,7 @@ func (s *Service) TaintX509UpstreamAuthority(ctx context.Context, req *localauth
 	log := rpccontext.Logger(ctx)
 
 	if req.SubjectKeyId != "" {
-		log = log.WithField(telemetry.SubjectKeyId, req.SubjectKeyId)
+		log = log.WithField(telemetry.SubjectKeyID, req.SubjectKeyId)
 	}
 
 	if !s.ca.IsUpstreamAuthority() {
@@ -396,7 +396,6 @@ func (s *Service) TaintX509UpstreamAuthority(ctx context.Context, req *localauth
 
 	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), subjectKeyIDRequest); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint upstream authority", err)
-
 	}
 
 	rpccontext.AuditRPC(ctx)
@@ -443,7 +442,7 @@ func (s *Service) RevokeX509UpstreamAuthority(ctx context.Context, req *localaut
 	log := rpccontext.Logger(ctx)
 
 	if req.SubjectKeyId != "" {
-		log = log.WithField(telemetry.SubjectKeyId, req.SubjectKeyId)
+		log = log.WithField(telemetry.SubjectKeyID, req.SubjectKeyId)
 	}
 
 	if !s.ca.IsUpstreamAuthority() {
@@ -551,7 +550,7 @@ func buildAuditLogFields(authorityID string) logrus.Fields {
 func buildAuditUpstreamLogFields(authorityID string) logrus.Fields {
 	fields := logrus.Fields{}
 	if authorityID != "" {
-		fields[telemetry.SubjectKeyId] = authorityID
+		fields[telemetry.SubjectKeyID] = authorityID
 	}
 	return fields
 }

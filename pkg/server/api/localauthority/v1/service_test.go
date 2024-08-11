@@ -1627,14 +1627,14 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:       "success",
 						telemetry.Type:         "audit",
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 				{
 					Level:   logrus.InfoLevel,
 					Message: "X.509 upstream authority tainted successfully",
 					Data: logrus.Fields{
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 			},
@@ -1652,7 +1652,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Upstream authority is not configured",
 					Data: logrus.Fields{
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 				{
@@ -1663,7 +1663,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "FailedPrecondition",
 						telemetry.StatusMessage: "upstream authority is not configured",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
 					},
 				},
 			},
@@ -1707,7 +1707,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 					Message: "Invalid argument: provided subject key id is not valid",
 					Data: logrus.Fields{
 						logrus.ErrorKey:        "unable to use upstream authority singing current authority",
-						telemetry.SubjectKeyId: activeUpstreamAuthorityID,
+						telemetry.SubjectKeyID: activeUpstreamAuthorityID,
 					},
 				},
 				{
@@ -1718,13 +1718,13 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "InvalidArgument",
 						telemetry.StatusMessage: "provided subject key id is not valid: unable to use upstream authority singing current authority",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  activeUpstreamAuthorityID,
+						telemetry.SubjectKeyID:  activeUpstreamAuthorityID,
 					},
 				},
 			},
 		},
 		{
-			name:                "unknwon subjectKeyID",
+			name:                "unknown subjectKeyID",
 			currentSlot:         createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
 			nextSlot:            createSlotWithUpstream(journal.Status_OLD, nextIntermediateCA, notAfterNext),
 			subjectKeyIDToTaint: "invalidID",
@@ -1736,7 +1736,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 					Message: "Invalid argument: provided subject key id is not valid",
 					Data: logrus.Fields{
 						logrus.ErrorKey:        "upstream authority is not signing Old local authority",
-						telemetry.SubjectKeyId: "invalidID",
+						telemetry.SubjectKeyID: "invalidID",
 					},
 				},
 				{
@@ -1747,7 +1747,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "InvalidArgument",
 						telemetry.StatusMessage: "provided subject key id is not valid: upstream authority is not signing Old local authority",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  "invalidID",
+						telemetry.SubjectKeyID:  "invalidID",
 					},
 				},
 			},
@@ -1765,7 +1765,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 					Message: "Invalid argument: provided subject key id is not valid",
 					Data: logrus.Fields{
 						logrus.ErrorKey:        "only upstream authorities signing an old authority can be used",
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 				{
@@ -1776,7 +1776,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "InvalidArgument",
 						telemetry.StatusMessage: "provided subject key id is not valid: only upstream authorities signing an old authority can be used",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
 					},
 				},
 			},
@@ -1799,7 +1799,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 					Message: "Failed to taint upstream authority",
 					Data: logrus.Fields{
 						logrus.ErrorKey:        "rpc error: code = NotFound desc = no ca found with provided subject key ID",
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 				{
@@ -1810,7 +1810,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "Internal",
 						telemetry.StatusMessage: "failed to taint upstream authority: no ca found with provided subject key ID",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
 					},
 				},
 			},
@@ -2166,14 +2166,14 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:       "success",
 						telemetry.Type:         "audit",
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 				{
 					Level:   logrus.InfoLevel,
 					Message: "X.509 upstream authority revoked successfully",
 					Data: logrus.Fields{
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 			},
@@ -2191,7 +2191,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Upstream authority is not configured",
 					Data: logrus.Fields{
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 				{
@@ -2202,7 +2202,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "FailedPrecondition",
 						telemetry.StatusMessage: "upstream authority is not configured",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
 					},
 				},
 			},
@@ -2246,7 +2246,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 					Message: "Invalid argument: invalid subject key ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey:        "unable to use upstream authority singing current authority",
-						telemetry.SubjectKeyId: activeUpstreamAuthorityID,
+						telemetry.SubjectKeyID: activeUpstreamAuthorityID,
 					},
 				},
 				{
@@ -2257,13 +2257,13 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "InvalidArgument",
 						telemetry.StatusMessage: "invalid subject key ID: unable to use upstream authority singing current authority",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  activeUpstreamAuthorityID,
+						telemetry.SubjectKeyID:  activeUpstreamAuthorityID,
 					},
 				},
 			},
 		},
 		{
-			name:                 "unknwon subjectKeyID",
+			name:                 "unknown subjectKeyID",
 			currentSlot:          createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
 			nextSlot:             createSlotWithUpstream(journal.Status_OLD, nextIntermediateCA, notAfterNext),
 			subjectKeyIDToRevoke: "invalidID",
@@ -2275,7 +2275,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 					Message: "Invalid argument: invalid subject key ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey:        "upstream authority is not signing Old local authority",
-						telemetry.SubjectKeyId: "invalidID",
+						telemetry.SubjectKeyID: "invalidID",
 					},
 				},
 				{
@@ -2286,7 +2286,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "InvalidArgument",
 						telemetry.StatusMessage: "invalid subject key ID: upstream authority is not signing Old local authority",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  "invalidID",
+						telemetry.SubjectKeyID:  "invalidID",
 					},
 				},
 			},
@@ -2304,7 +2304,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 					Message: "Invalid argument: invalid subject key ID",
 					Data: logrus.Fields{
 						logrus.ErrorKey:        "only upstream authorities signing an old authority can be used",
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 				{
@@ -2315,7 +2315,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "InvalidArgument",
 						telemetry.StatusMessage: "invalid subject key ID: only upstream authorities signing an old authority can be used",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
 					},
 				},
 			},
@@ -2334,7 +2334,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 					Message: "Failed to revoke X.509 upstream authority",
 					Data: logrus.Fields{
 						logrus.ErrorKey:        "rpc error: code = InvalidArgument desc = it is not possible to revoke an untainted root CA",
-						telemetry.SubjectKeyId: deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
 				},
 				{
@@ -2345,7 +2345,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 						telemetry.StatusCode:    "Internal",
 						telemetry.StatusMessage: "failed to revoke X.509 upstream authority: it is not possible to revoke an untainted root CA",
 						telemetry.Type:          "audit",
-						telemetry.SubjectKeyId:  deactivatedUpstreamAuthorityID,
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
 					},
 				},
 			},

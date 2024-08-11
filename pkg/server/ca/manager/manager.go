@@ -757,7 +757,7 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 				if err := u.ds.TaintX509CA(ctx, u.trustDomainID, skID); err != nil {
 					return fmt.Errorf("failed to taint x.509 authority %q: %w", skID, err)
 				}
-				u.log.WithField(telemetry.SubjectKeyId, skID).Info("X.509 authority tainted")
+				u.log.WithField(telemetry.SubjectKeyID, skID).Info("X.509 authority tainted")
 				// Prevent to add tainted keys, since status is updated before
 				continue
 			}
@@ -778,7 +778,7 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 				if err := u.ds.RevokeX509CA(ctx, u.trustDomainID, skID); err != nil {
 					return fmt.Errorf("failed to revoke a tainted key %q: %w", skID, err)
 				}
-				u.log.WithField(telemetry.SubjectKeyId, skID).Info("X.509 authority revoked")
+				u.log.WithField(telemetry.SubjectKeyID, skID).Info("X.509 authority revoked")
 			}
 		}
 	}

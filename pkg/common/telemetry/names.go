@@ -542,7 +542,7 @@ const (
 	Subject = "subject"
 
 	// Subject tags a certificate subject key ID
-	SubjectKeyId = "subject_key_id"
+	SubjectKeyID = "subject_key_id"
 
 	// SVIDMapSize is the gauge key for the size of the LRU cache SVID map
 	SVIDMapSize = "lru_cache_svid_map_size"
