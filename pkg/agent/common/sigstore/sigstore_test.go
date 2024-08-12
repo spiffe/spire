@@ -485,12 +485,14 @@ func TestProcessAllowedIdentities(t *testing.T) {
 }
 
 type fakeCosignVerifySignatureFn struct {
-	Responses []struct {
-		Signatures     []oci.Signature
-		BundleVerified bool
-		Err            error
-	}
+	Responses []fakeResponse
 	CallCount int
+}
+
+type fakeResponse struct {
+	Signatures     []oci.Signature
+	BundleVerified bool
+	Err            error
 }
 
 func (f *fakeCosignVerifySignatureFn) Verify(_ context.Context, _ name.Reference, _ *cosign.CheckOpts) ([]oci.Signature, bool, error) {

@@ -132,10 +132,10 @@ type HCLConfig struct {
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
 
 	// Experimental enables experimental features.
-	Experimental *ExperimentalK8SConfig `hcl:"experimental,omitempty"`
+	Experimental experimentalK8SConfig `hcl:"experimental,omitempty"`
 }
 
-type ExperimentalK8SConfig struct {
+type experimentalK8SConfig struct {
 	// Sigstore contains sigstore specific configs.
 	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
 }
@@ -192,7 +192,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	config, containerHelper, err := p.getConfig()
+	config, containerHelper, sigstoreVerifier, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +262,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 					selectorValues = append(selectorValues, getSelectorValuesFromWorkloadContainerStatus(containerStatus)...)
 				}
 
-				if p.sigstoreVerifier != nil {
+				if sigstoreVerifier != nil {
 					log.Debug("Attempting to verify sigstore image signature", "image", containerStatus.Image)
 					sigstoreSelectors, err := p.sigstoreVerifier.Verify(ctx, containerStatus.ImageID)
 					if err != nil {
@@ -394,16 +394,14 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	var sigstoreVerifier sigstore.Verifier
-	if config.Experimental != nil {
-		if config.Experimental.Sigstore != nil {
-			cfg := sigstore.NewConfigFromHCL(config.Experimental.Sigstore, p.log)
-			verifier := sigstore.NewVerifier(cfg)
-			err = verifier.Init(ctx)
-			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
-			}
-			sigstoreVerifier = verifier
+	if config.Experimental.Sigstore != nil {
+		cfg := sigstore.NewConfigFromHCL(config.Experimental.Sigstore, p.log)
+		verifier := sigstore.NewVerifier(cfg)
+		err = verifier.Init(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
 		}
+		sigstoreVerifier = verifier
 	}
 
 	// Set the config
@@ -419,17 +417,17 @@ func (p *Plugin) setConfig(config *k8sConfig, containerHelper ContainerHelper, s
 	p.sigstoreVerifier = sigstoreVerifier
 }
 
-func (p *Plugin) getConfig() (*k8sConfig, ContainerHelper, error) {
+func (p *Plugin) getConfig() (*k8sConfig, ContainerHelper, sigstore.Verifier, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	if p.config == nil {
-		return nil, nil, status.Error(codes.FailedPrecondition, "not configured")
+		return nil, nil, nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	if err := p.reloadKubeletClient(p.config); err != nil {
 		p.log.Warn("Unable to load kubelet client", "err", err)
 	}
-	return p.config, p.containerHelper, nil
+	return p.config, p.containerHelper, p.sigstoreVerifier, nil
 }
 
 func (p *Plugin) setContainerHelper(c ContainerHelper) {

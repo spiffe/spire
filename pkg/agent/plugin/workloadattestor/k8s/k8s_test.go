@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -19,8 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -547,7 +544,7 @@ func (s *Suite) TestConfigure() {
 			require.NotNil(t, testCase.config, "test case missing expected config")
 			assert.NoError(t, err)
 
-			c, _, err := p.getConfig()
+			c, _, _, err := p.getConfig()
 			require.NoError(t, err)
 
 			switch {
@@ -581,12 +578,13 @@ func (s *Suite) TestConfigureWithSigstore() {
 	cases := []struct {
 		name          string
 		hcl           string
-		expectedError error
+		expectedError string
 		want          *sigstore.Config
 	}{
 		{
 			name: "complete sigstore configuration",
 			hcl: `
+				    skip_kubelet_verification = true
 					experimental {
     					sigstore {
         					allowed_identities = {
@@ -604,68 +602,45 @@ func (s *Suite) TestConfigureWithSigstore() {
                             }
     					}
 			}`,
-			expectedError: nil,
-			want: &sigstore.Config{
-				AllowedIdentities: map[string][]string{
-					"test-issuer-1": {"*@example.com", "subject@otherdomain.com"},
-					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
-				},
-				SkippedImages:      map[string]struct{}{"registry/image@sha256:examplehash": {}},
-				RekorURL:           "https://test.dev",
-				IgnoreSCT:          true,
-				IgnoreTlog:         true,
-				IgnoreAttestations: true,
-				RegistryCredentials: map[string]*sigstore.RegistryCredential{
-					"registry-1": {
-						Username: "user1",
-						Password: "pass1",
-					},
-					"registry-2": {
-						Username: "user2",
-						Password: "pass2",
-					},
-				},
-				Logger: hclog.NewNullLogger(),
-			},
+			expectedError: "",
 		},
 		{
-			name:          "empty sigstore configuration",
-			hcl:           `experimental { sigstore {} }`,
-			expectedError: nil,
-			want: &sigstore.Config{
-				RekorURL:          "",
-				IgnoreSCT:         false,
-				IgnoreTlog:        false,
-				AllowedIdentities: map[string][]string{},
-				SkippedImages:     map[string]struct{}{},
-				Logger:            hclog.NewNullLogger(),
-			},
+			name: "empty sigstore configuration",
+			hcl: `
+				    skip_kubelet_verification = true
+					experimental { sigstore {} }
+			`,
+			expectedError: "",
 		},
 		{
-			name:          "invalid HCL",
-			hcl:           `experimental { sigstore = "invalid" }`,
-			expectedError: errors.New("root.experimental.sigstore: not an object type for struct"),
+			name: "invalid HCL",
+			hcl: `
+				    skip_kubelet_verification = true
+					experimental { sigstore = "invalid" }
+			`,
+			expectedError: "unable to decode configuration",
 		},
 	}
 
 	for _, tc := range cases {
-		s.T().Run(tc.name, func(_ *testing.T) {
-			var config HCLConfig
-			err := hcl.Decode(&config, tc.hcl)
-			if tc.expectedError != nil {
-				s.ErrorContains(err, tc.expectedError.Error())
+		tc := tc
+		s.T().Run(tc.name, func(t *testing.T) {
+			p := s.newPlugin()
+
+			var err error
+			plugintest.Load(s.T(), builtin(p), nil,
+				plugintest.Configure(tc.hcl),
+				plugintest.CaptureConfigureError(&err))
+
+			if tc.expectedError != "" {
+				s.RequireGRPCStatusContains(err, codes.InvalidArgument, tc.expectedError)
 				return
 			}
-			s.Require().NoError(err)
+			require.NoError(t, err)
 
-			var cfg *sigstore.Config
-			if config.Experimental != nil && config.Experimental.Sigstore != nil {
-				cfg = sigstore.NewConfigFromHCL(config.Experimental.Sigstore, hclog.NewNullLogger())
-			} else {
-				cfg = &sigstore.Config{Logger: hclog.NewNullLogger()}
-			}
-
-			s.Equal(tc.want, cfg)
+			_, _, sigstoreVerifier, err := p.getConfig()
+			require.NoError(t, err)
+			assert.NotNil(t, sigstoreVerifier)
 		})
 	}
 }
@@ -723,7 +698,7 @@ func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttest
 		p.setContainerHelper(cHelper)
 	}
 
-	// if sigstore is configured, override with mock
+	// if sigstore is configured, override with fake
 	if p.sigstoreVerifier != nil {
 		p.sigstoreVerifier = newFakeSigstoreVerifier(map[string][]string{imageID: {"sigstore:selector"}})
 	}

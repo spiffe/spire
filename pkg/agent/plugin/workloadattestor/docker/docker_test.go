@@ -18,7 +18,6 @@ import (
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -300,8 +299,11 @@ func TestNewConfigFromHCL(t *testing.T) {
 }
 
 func TestSigstoreVerifier(t *testing.T) {
-	mockVerifier := new(MockSigstoreVerifier)
-	mockVerifier.On("Verify", mock.Anything, testImageID).Return([]string{"sigstore:selector"}, nil)
+	fakeVerifier := &fakeSigstoreVerifier{
+		expectedImageID: testImageID,
+		selectors:       []string{"sigstore:selector"},
+		err:             nil,
+	}
 
 	fakeDocker := fakeContainer{
 		Labels: map[string]string{"label": "value"},
@@ -309,7 +311,7 @@ func TestSigstoreVerifier(t *testing.T) {
 		Env:    []string{"VAR=val"},
 	}
 
-	p := newTestPlugin(t, withDocker(fakeDocker), withDefaultDataOpt(t), withSigstoreVerifier(mockVerifier))
+	p := newTestPlugin(t, withDocker(fakeDocker), withDefaultDataOpt(t), withSigstoreVerifier(fakeVerifier))
 
 	// Run attestation
 	selectors, err := doAttest(t, p)
@@ -414,13 +416,17 @@ func (f fakeContainer) ImageInspectWithRaw(_ context.Context, imageName string) 
 	return types.ImageInspect{ID: imageName, RepoDigests: []string{testImageID}}, nil, nil
 }
 
-type MockSigstoreVerifier struct {
-	mock.Mock
+type fakeSigstoreVerifier struct {
+	expectedImageID string
+	selectors       []string
+	err             error
 }
 
-func (m *MockSigstoreVerifier) Verify(ctx context.Context, imageID string) ([]string, error) {
-	args := m.Called(ctx, imageID)
-	return args.Get(0).([]string), args.Error(1)
+func (f *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]string, error) {
+	if imageID != f.expectedImageID {
+		return nil, fmt.Errorf("unexpected image ID: %s", imageID)
+	}
+	return f.selectors, f.err
 }
 
 func strPtr(s string) *string {

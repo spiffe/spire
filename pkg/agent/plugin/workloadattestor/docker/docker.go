@@ -73,7 +73,7 @@ type dockerPluginConfig struct {
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 
-	Experimental *experimentalConfig `hcl:"experimental,omitempty"`
+	Experimental experimentalConfig `hcl:"experimental,omitempty" json:"experimental,omitempty"`
 }
 
 type experimentalConfig struct {
@@ -204,16 +204,14 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	var sigstoreVerifier sigstore.Verifier
-	if config.Experimental != nil {
-		if config.Experimental.Sigstore != nil {
-			cfg := sigstore.NewConfigFromHCL(config.Experimental.Sigstore, p.log)
-			verifier := sigstore.NewVerifier(cfg)
-			err = verifier.Init(ctx)
-			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
-			}
-			sigstoreVerifier = verifier
+	if config.Experimental.Sigstore != nil {
+		cfg := sigstore.NewConfigFromHCL(config.Experimental.Sigstore, p.log)
+		verifier := sigstore.NewVerifier(cfg)
+		err = verifier.Init(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
 		}
+		sigstoreVerifier = verifier
 	}
 
 	p.mtx.Lock()
