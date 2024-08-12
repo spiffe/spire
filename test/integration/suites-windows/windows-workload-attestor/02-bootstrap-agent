@@ -1,6 +1,6 @@
 #!/bin/bash
 
 log-debug "bootstrapping agent..."
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     c:/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
 

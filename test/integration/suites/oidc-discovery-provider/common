@@ -4,7 +4,7 @@ check-equal-keys() {
   PROVIDER_SOCKET_PATH=$1
 
   JWK=$(curl --unix-socket $PROVIDER_SOCKET_PATH http://localhost/keys | jq ".keys[0]" || fail-now "Failed to fetch JWK from provider")
-  BUNDLE=$(docker-compose exec -T spire-server /opt/spire/bin/spire-server bundle show -socketPath /opt/spire/conf/server/api.sock -output json | jq ".jwt_authorities[0]" || fail-now "Failed to fetch JWT bundle from SPIRE server")
+  BUNDLE=$(docker compose exec -T spire-server /opt/spire/bin/spire-server bundle show -socketPath /opt/spire/conf/server/api.sock -output json | jq ".jwt_authorities[0]" || fail-now "Failed to fetch JWT bundle from SPIRE server")
 
   PROVIDER_KEY_ID=$(echo ${JWK} | jq -r ".kid")
   BUNDLE_KEY_ID=$(echo ${BUNDLE} | jq -r ".key_id")

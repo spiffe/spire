@@ -2,7 +2,7 @@
 
 log-debug "banning agent..."
 
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server agent ban \
     -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 
@@ -12,8 +12,8 @@ MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
     log-info "checking for agent is shutting down ($i of $MAXCHECKS max)..."
-    docker-compose logs spire-agent
-    if docker-compose logs spire-agent | grep "Agent is banned: removing SVID and shutting down"; then
+    docker compose logs spire-agent
+    if docker compose logs spire-agent | grep "Agent is banned: removing SVID and shutting down"; then
 	exit 0
     fi
     sleep "${CHECKINTERVAL}"
