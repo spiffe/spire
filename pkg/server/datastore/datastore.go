@@ -172,6 +172,7 @@ type ListAttestedNodesResponse struct {
 
 type ListAttestedNodesEventsRequest struct {
 	GreaterThanEventID uint
+	LessThanEventID    uint
 }
 
 type AttestedNodeEvent struct {
@@ -180,8 +181,7 @@ type AttestedNodeEvent struct {
 }
 
 type ListAttestedNodesEventsResponse struct {
-	Events       []AttestedNodeEvent
-	FirstEventID uint
+	Events []AttestedNodeEvent
 }
 
 type ListBundlesRequest struct {
@@ -226,6 +226,7 @@ type ListRegistrationEntriesResponse struct {
 
 type ListRegistrationEntriesEventsRequest struct {
 	GreaterThanEventID uint
+	LessThanEventID    uint
 }
 
 type RegistrationEntryEvent struct {
@@ -234,8 +235,7 @@ type RegistrationEntryEvent struct {
 }
 
 type ListRegistrationEntriesEventsResponse struct {
-	Events       []RegistrationEntryEvent
-	FirstEventID uint
+	Events []RegistrationEntryEvent
 }
 
 type ListFederationRelationshipsRequest struct {

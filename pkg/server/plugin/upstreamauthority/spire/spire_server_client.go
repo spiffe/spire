@@ -100,12 +100,13 @@ func (c *serverClient) release() {
 }
 
 // newDownstreamX509CA requests new downstream CAs to server
-func (c *serverClient) newDownstreamX509CA(ctx context.Context, csr []byte) ([]*x509.Certificate, []*x509.Certificate, error) {
+func (c *serverClient) newDownstreamX509CA(ctx context.Context, csr []byte, preferredTTL int32) ([]*x509.Certificate, []*x509.Certificate, error) {
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
 	resp, err := c.svidClient.NewDownstreamX509CA(ctx, &svidv1.NewDownstreamX509CARequest{
-		Csr: csr,
+		Csr:          csr,
+		PreferredTtl: preferredTTL,
 	})
 	if err != nil {
 		return nil, nil, err
