@@ -77,8 +77,14 @@ type Manager interface {
 	// is no JWT cached, the manager will get one signed upstream.
 	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
 
-	// CountSVIDs returns the amount of X509 SVIDs on memory
-	CountSVIDs() int
+	// CountX509SVIDs returns the amount of X509 SVIDs on memory
+	CountX509SVIDs() int
+
+	// CountJWTSVIDs returns the amount of JWT SVIDs on memory
+	CountJWTSVIDs() int
+
+	// CountSVIDStoreX509SVIDs returns the amount of x509 SVIDs on SVIDStore in-memory cache
+	CountSVIDStoreX509SVIDs() int
 
 	// GetLastSync returns the last successful rotation timestamp
 	GetLastSync() time.Time
@@ -107,8 +113,11 @@ type Cache interface {
 	// MatchingRegistrationEntries with given selectors
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 
-	// CountSVIDs in cache stored
-	CountSVIDs() int
+	// CountX509SVIDs in cache stored
+	CountX509SVIDs() int
+
+	// CountJWTSVIDs in cache stored
+	CountJWTSVIDs() int
 
 	// FetchWorkloadUpdate for given selectors
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
@@ -251,8 +260,16 @@ func (m *manager) MatchingRegistrationEntries(selectors []*common.Selector) []*c
 	return m.cache.MatchingRegistrationEntries(selectors)
 }
 
-func (m *manager) CountSVIDs() int {
-	return m.cache.CountSVIDs()
+func (m *manager) CountX509SVIDs() int {
+	return m.cache.CountX509SVIDs()
+}
+
+func (m *manager) CountJWTSVIDs() int {
+	return m.cache.CountJWTSVIDs()
+}
+
+func (m *manager) CountSVIDStoreX509SVIDs() int {
+	return m.svidStoreCache.CountX509SVIDs()
 }
 
 // FetchWorkloadUpdates gets the latest workload update for the selectors
@@ -317,7 +334,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 
 			// Clamp the sync interval to the default value when the agent doesn't have any SVIDs cached
 			// AND the previous sync request succeeded
-			if m.cache.CountSVIDs() == 0 {
+			if m.cache.CountX509SVIDs() == 0 {
 				syncInterval = min(syncInterval, defaultSyncInterval)
 			}
 		}

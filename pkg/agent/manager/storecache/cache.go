@@ -250,6 +250,12 @@ func (c *Cache) GetStaleEntries() []*cache.StaleEntry {
 	return staleEntries
 }
 
+func (c *Cache) CountX509SVIDs() int {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+	return len(c.records)
+}
+
 // ReadyToStore returns all records that are ready to be stored
 func (c *Cache) ReadyToStore() []*Record {
 	c.mtx.Lock()
