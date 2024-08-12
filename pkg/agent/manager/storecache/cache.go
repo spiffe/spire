@@ -251,6 +251,8 @@ func (c *Cache) GetStaleEntries() []*cache.StaleEntry {
 }
 
 func (c *Cache) CountX509SVIDs() int {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
 	return len(c.records)
 }
 

@@ -83,6 +83,7 @@ type Manager interface {
 	// CountJWTSVIDs returns the amount of JWT SVIDs on memory
 	CountJWTSVIDs() int
 
+	// CountSVIDStoreX509SVIDs returns the amount of x509 SVIDs on SVIDStore in-memory cache
 	CountSVIDStoreX509SVIDs() int
 
 	// GetLastSync returns the last successful rotation timestamp
