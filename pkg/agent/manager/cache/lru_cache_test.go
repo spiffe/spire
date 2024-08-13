@@ -699,8 +699,8 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 
 	// Move clk by 2 seconds
 	clk.Add(2 * time.Second)
-	// update total of 12 entries
-	updateEntries := createUpdateEntries(10, makeBundles(bundleV1))
+	// update total of size+2 entries
+	updateEntries := createUpdateEntries(SVIDCacheMaxSize, makeBundles(bundleV1))
 	updateEntries.RegistrationEntries[foo.EntryId] = foo
 	updateEntries.RegistrationEntries[bar.EntryId] = bar
 
@@ -717,10 +717,10 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 			sub.Finish()
 		}
 	}
-	assert.Equal(t, 12, cache.CountX509SVIDs())
+	assert.Equal(t, SVIDCacheMaxSize+2, cache.CountX509SVIDs())
 
 	cache.UpdateEntries(updateEntries, nil)
-	assert.Equal(t, 10, cache.CountX509SVIDs())
+	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
 
 	// foo SVID should be removed from cache as it does not have active subscriber
 	assert.False(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("A"), subA.(*lruCacheSubscriber)))
@@ -736,7 +736,7 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 	require.Len(t, cache.GetStaleEntries(), 1)
 	assert.Equal(t, foo, cache.GetStaleEntries()[0].Entry)
 
-	assert.Equal(t, 10, cache.CountX509SVIDs())
+	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
 }
 
 func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
@@ -744,16 +744,16 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 	cache := newTestLRUCacheWithConfig(clk)
 
 	// create entries more than maxSvidCacheSize
-	updateEntries := createUpdateEntries(12, makeBundles(bundleV1))
+	updateEntries := createUpdateEntries(SVIDCacheMaxSize+2, makeBundles(bundleV1))
 	cache.UpdateEntries(updateEntries, nil)
 
-	require.Len(t, cache.GetStaleEntries(), 10)
+	require.Len(t, cache.GetStaleEntries(), SVIDCacheMaxSize)
 
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDsFromStaleEntries(cache.GetStaleEntries()),
 	})
 	require.Len(t, cache.GetStaleEntries(), 0)
-	assert.Equal(t, 10, cache.CountX509SVIDs())
+	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
 
 	// Validate that active subscriber will still get SVID even if SVID count is at maxSvidCacheSize
 	foo := makeRegistrationEntry("FOO", "A")
@@ -764,12 +764,12 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 
 	cache.UpdateEntries(updateEntries, nil)
 	require.Len(t, cache.GetStaleEntries(), 1)
-	assert.Equal(t, 10, cache.CountX509SVIDs())
+	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
 
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo),
 	})
-	assert.Equal(t, 11, cache.CountX509SVIDs())
+	assert.Equal(t, SVIDCacheMaxSize+1, cache.CountX509SVIDs())
 	require.Len(t, cache.GetStaleEntries(), 0)
 }
 
@@ -777,12 +777,12 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	clk := clock.NewMock(t)
 	cache := newTestLRUCacheWithConfig(clk)
 
-	updateEntries := createUpdateEntries(5, makeBundles(bundleV1))
+	updateEntries := createUpdateEntries(SVIDCacheMaxSize, makeBundles(bundleV1))
 	cache.UpdateEntries(updateEntries, nil)
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDsFromStaleEntries(cache.GetStaleEntries()),
 	})
-	assert.Equal(t, 5, cache.CountX509SVIDs())
+	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
 
 	// Update foo but its SVID is not yet cached
 	foo := makeRegistrationEntry("FOO", "A")
@@ -800,7 +800,7 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	require.Len(t, cache.GetStaleEntries(), 1)
 	assert.Equal(t, []*StaleEntry{{Entry: cache.records[foo.EntryId].entry}}, cache.GetStaleEntries())
 
-	assert.Equal(t, 5, cache.CountX509SVIDs())
+	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
 }
 
 func TestNotifySubscriberWhenSVIDIsAvailable(t *testing.T) {
@@ -830,10 +830,10 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 	// Creating test entries, but this will not affect current test...
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
-	cache.UpdateEntries(&UpdateEntries{
-		Bundles:             makeBundles(bundleV1),
-		RegistrationEntries: makeRegistrationEntries(foo, bar),
-	}, nil)
+	updateEntries := createUpdateEntries(SVIDCacheMaxSize, makeBundles(bundleV1))
+	updateEntries.RegistrationEntries[foo.EntryId] = foo
+	updateEntries.RegistrationEntries[bar.EntryId] = bar
+	cache.UpdateEntries(updateEntries, nil)
 
 	subWaitCh := make(chan struct{}, 1)
 	subErrCh := make(chan error, 1)
@@ -871,7 +871,7 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 	<-subWaitCh
 	cache.SyncSVIDsWithSubscribers()
 
-	assert.Len(t, cache.GetStaleEntries(), 1)
+	assert.Len(t, cache.GetStaleEntries(), SVIDCacheMaxSize)
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo, bar),
 	})
