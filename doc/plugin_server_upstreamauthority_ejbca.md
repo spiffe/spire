@@ -1,6 +1,6 @@
 # Server plugin: UpstreamAuthority "ejbca"
 
-The `ejbca` UpstreamAuthority plugin uses a connected [EJBCA](https://www.ejbca.org/) to issue intermediate signing certificates for the SPIRE server. The plugin can authenticate to EJBCA using mTLS (client certificate) or using the OAuth 2.0 "client credentials" token flow (sometimes called two-legged OAuth 2.0).
+The `ejbca` UpstreamAuthority plugin uses a connected [EJBCA](https://www.ejbca.org/) to issue intermediate signing certificates for the SPIRE server. The plugin authenticates to EJBCA using mTLS (client certificate).
 
 > The EJBCA UpstreamAuthority plugin uses only the `/ejbca-rest-api/v1/certificate/pkcs10enroll` REST API endpoint, and is compatible with both [EJBCA Community](https://www.ejbca.org/) and [EJBCA Enterprise](https://www.keyfactor.com/products/ejbca-enterprise/).
 
@@ -9,7 +9,7 @@ The `ejbca` UpstreamAuthority plugin uses a connected [EJBCA](https://www.ejbca.
 * EJBCA [Community](https://www.ejbca.org/) or EJBCA [Enterprise](https://www.keyfactor.com/products/ejbca-enterprise/)
   * The "REST Certificate Management" protocol must be enabled under System Configuration > Protocol Configuration.
 
-> EJBCA Enterprise is required for the OAuth 2.0 "client credentials" token flow. EJBCA Community only supports mTLS (client certificate) authentication.
+> It's important that the EJBCA Certificate Profile and End Entity Profile are properly configured before using this plugin. The plugin does not attempt to configure these profiles. Please refer to the [EJBCA Sub CA End Entity Profile & Certificate Profile Configuration](#ejbca-sub-ca-end-entity-profile--certificate-profile-configuration) section for more information.
 
 ## Configuration
 
@@ -20,8 +20,8 @@ The EJBCA UpstreamAuthority Plugin accepts the following configuration options.
 | `hostname`                 | The hostname of the connected EJBCA server.                                                                                                                                                                                                  |                                    |
 | `ca_cert_path`             | (optional) The path to the CA certificate file used to validate the EJBCA server's certificate. Certificates must be in PEM format.                                                                                                          | `EJBCA_CA_CERT_PATH`               |
 | `cert_auth`                | An object containing the fields described in [Client Certificate Authentication](#client-certificate-authentication). Required if Client Cert Auth is used.                                                                                  |                                    |
-| `oauth`                    | An object containing the fields described in [OAuth 2.0 Authentication](#oauth-20-authentication). Required if OAuth 2.0 is used.                                                                                                            |                                    |
-| `ca_name`                  | The name of a CA in the connected EJBCA instance that will issue the intermediate signing certificates.                                                                                                                                      |                                    |
+| `client_cert_path`         | The path to the client certificate (public key only) used to authenticate to EJBCA. Must be in PEM format.                                                                                                                                   | `EJBCA_CLIENT_CERT_PATH`           |
+| `client_key_path`          | The path to the client key matching `client_cert` used to authenticate to EJBCA. Must be in PEM format.                                                                                                                                      | `EJBCA_CLIENT_CERT_KEY_PATH`       |
 | `end_entity_profile_name`  | The name of an end entity profile in the connected EJBCA instance that is configured to issue SPIFFE certificates.                                                                                                                           |                                    |
 | `certificate_profile_name` | The name of a certificate profile in the connected EJBCA instance that is configured to issue intermediate CA certificates.                                                                                                                  |                                    |
 | `end_entity_name`          | (optional) The name of the end entity, or configuration for how the EJBCA UpstreamAuthority should determine the end entity name. See [End Entity Name Customization](#ejbca-end-entity-name-customization-leaf-certificates) for more info. |                                    |
@@ -31,61 +31,19 @@ The EJBCA UpstreamAuthority Plugin accepts the following configuration options.
 >
 > If all configuration parameters for the selected auth method are specified by environment variables, an empty block still must exist to select the auth method.
 
-### Client Certificate Authentication
-
-| Configuration      | Description                                                                                                | Default from Environment Variables |
-|--------------------|------------------------------------------------------------------------------------------------------------|------------------------------------|
-| `client_cert_path` | The path to the client certificate (public key only) used to authenticate to EJBCA. Must be in PEM format. | `EJBCA_CLIENT_CERT_PATH`           |
-| `client_key_path`  | The path to the client key matching `client_cert` used to authenticate to EJBCA. Must be in PEM format.    | `EJBCA_CLIENT_CERT_KEY_PATH`       |
-
-```hcl
-UpstreamAuthority "ejbca" {
-    plugin_data {
-        hostname = "ejbca.example.com"
-        cert_auth {
-            client_cert_path = "/path/to/client_cert.pem"
-            client_key_path = "/path/to/client_key.pem"
-        }
-        ca_name = "Fake-Sub-CA"
-        end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-        certificate_profile_name = "fakeSubCACP"
-        ca_cert = <<EOF
------BEGIN CERTIFICATE-----
-MIIDE ... mn+GJf
------END CERTIFICATE-----
-EOF
-        ca_name = "Sub-CA"
-        end_entity_profile_name = "spireIntermediateCA"
-        certificate_profile_name = "SUBCA"
-        end_entity_name = ""
-        account_binding_id = "abc123"
-    }
-}
-```
-
-### OAuth 2.0 Authentication
-
-| Configuration   | Description                                                                           | Default from Environment Variables |
-|-----------------|---------------------------------------------------------------------------------------|------------------------------------|
-| `token_url`     | The OAuth 2.0 token URL used to obtain an access token.                               | `EJBCA_OAUTH_TOKEN_URL`            |
-| `client_id`     | The OAuth 2.0 client ID used to obtain an access token.                               | `EJBCA_OAUTH_CLIENT_ID`            |
-| `client_secret` | The OAuth 2.0 client secret used to obtain an access token.                           | `EJBCA_OAUTH_CLIENT_SECRET`        |
-| `scopes`        | (optional) A comma-separated list of OAuth 2.0 scopes used to obtain an access token. | `EJBCA_OAUTH_SCOPES`               |
-| `audience`      | (optional) The OAuth 2.0 audience used to obtain an access token.                     | `EJBCA_OAUTH_AUDIENCE`             |
-
 ```hcl
 UpstreamAuthority "ejbca" {
     plugin_data {
         hostname = "ejbca.example.com"
         ca_cert_path = "/path/to/ca_cert.pem"
-        oauth {
-            token_url = "https://dev.idp.com/oauth/token"
-            client_id = "<client_id>"
-            client_secret = "<client_secret>"
-        }
+        client_cert_path = "/path/to/client_cert.pem"
+        client_key_path = "/path/to/client_key.pem"
         ca_name = "Fake-Sub-CA"
         end_entity_profile_name = "fakeSpireIntermediateCAEEP"
         certificate_profile_name = "fakeSubCACP"
+        ca_name = "Sub-CA"
+        end_entity_profile_name = "spireIntermediateCA"
+        certificate_profile_name = "SUBCA"
         end_entity_name = ""
         account_binding_id = "abc123"
     }

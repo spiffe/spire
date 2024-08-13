@@ -73,29 +73,15 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 // Config defines the configuration for the plugin.
 type Config struct {
-	Hostname               string          `hcl:"hostname" json:"hostname"`
-	CaCertPath             string          `hcl:"ca_cert_path" json:"ca_cert_path"`
-	CertAuth               *CertAuthConfig `hcl:"cert_auth" json:"cert_auth,omitempty"`
-	OAuth                  *OAuthConfig    `hcl:"oauth" json:"oauth,omitempty"`
-	CAName                 string          `hcl:"ca_name" json:"ca_name"`
-	EndEntityProfileName   string          `hcl:"end_entity_profile_name" json:"end_entity_profile_name"`
-	CertificateProfileName string          `hcl:"certificate_profile_name" json:"certificate_profile_name"`
-	DefaultEndEntityName   string          `hcl:"end_entity_name" json:"end_entity_name"`
-	AccountBindingID       string          `hcl:"account_binding_id" json:"account_binding_id"`
-}
-
-type CertAuthConfig struct {
-	ClientCertPath string `hcl:"client_cert_path" json:"client_cert_path"`
-	ClientKeyPath  string `hcl:"client_key_path" json:"client_key_path"`
-}
-
-type OAuthConfig struct {
-	TokenURL     string `hcl:"token_url" json:"token_url"`
-	ClientID     string `hcl:"client_id" json:"client_id"`
-	ClientSecret string `hcl:"client_secret" json:"client_secret"`
-	// Comma separated list of scopes
-	Scopes   string `hcl:"scopes" json:"scopes"`
-	Audience string `hcl:"audience" json:"audience"`
+	Hostname               string `hcl:"hostname" json:"hostname"`
+	CaCertPath             string `hcl:"ca_cert_path" json:"ca_cert_path"`
+	ClientCertPath         string `hcl:"client_cert_path" json:"client_cert_path"`
+	ClientKeyPath          string `hcl:"client_key_path" json:"client_key_path"`
+	CAName                 string `hcl:"ca_name" json:"ca_name"`
+	EndEntityProfileName   string `hcl:"end_entity_profile_name" json:"end_entity_profile_name"`
+	CertificateProfileName string `hcl:"certificate_profile_name" json:"certificate_profile_name"`
+	DefaultEndEntityName   string `hcl:"end_entity_name" json:"end_entity_name"`
+	AccountBindingID       string `hcl:"account_binding_id" json:"account_binding_id"`
 }
 
 // New returns an instantiated EJBCA UpstreamAuthority plugin
@@ -155,23 +141,23 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		return err
 	}
 
-	logger.Trace("Parsing CSR from request")
+	logger.Debug("Parsing CSR from request")
 	parsedCsr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "unable to parse CSR: %s", err.Error())
+		return status.Errorf(codes.InvalidArgument, "unable to parse CSR: %v", err)
 	}
 	csrPem := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: req.Csr})
 
-	logger.Trace("Determining end entity name")
+	logger.Debug("Determining end entity name")
 	endEntityName, err := p.getEndEntityName(config, parsedCsr)
 	if err != nil {
-		return status.Errorf(codes.Internal, "unable to determine end entity name: %s", err.Error())
+		return status.Errorf(codes.Internal, "unable to determine end entity name: %v", err)
 	}
 
-	logger.Trace("Preparing EJBCA enrollment request")
+	logger.Debug("Preparing EJBCA enrollment request")
 	password, err := generateRandomString(16)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to generate random password: %s", err.Error())
+		return status.Errorf(codes.Internal, "failed to generate random password: %v", err)
 	}
 	enrollConfig := ejbcaclient.EnrollCertificateRestRequest{}
 	enrollConfig.SetUsername(endEntityName)
@@ -202,7 +188,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	var caBytes []byte
 	switch {
 	case enrollResponse.GetResponseFormat() == "PEM":
-		logger.Trace("EJBCA returned certificate in PEM format - serializing")
+		logger.Debug("EJBCA returned certificate in PEM format - serializing")
 
 		block, _ := pem.Decode([]byte(enrollResponse.GetCertificate()))
 		if block == nil {
@@ -218,7 +204,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 			caBytes = append(caBytes, block.Bytes...)
 		}
 	case enrollResponse.GetResponseFormat() == "DER":
-		logger.Trace("EJBCA returned certificate in DER format - serializing")
+		logger.Debug("EJBCA returned certificate in DER format - serializing")
 
 		bytes := []byte(enrollResponse.GetCertificate())
 		bytes, err := base64.StdEncoding.DecodeString(string(bytes))
@@ -254,7 +240,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	}
 
 	rootCa := caChain[len(caChain)-1]
-	logger.Trace("Retrieved root CA from CA chain", "rootCa", rootCa.Subject.String(), "intermediates", len(caChain)-1)
+	logger.Debug("Retrieved root CA from CA chain", "rootCa", rootCa.Subject.String(), "intermediates", len(caChain)-1)
 
 	// x509CertificateChain contains the leaf CA certificate, then any intermediates up to but not including the root CA.
 	x509CertificateAuthorityChain, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{cert}, caChain[:len(caChain)-1]...))

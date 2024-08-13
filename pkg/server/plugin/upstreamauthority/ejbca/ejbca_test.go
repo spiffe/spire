@@ -81,98 +81,102 @@ func TestConfigure(t *testing.T) {
 		expectedMessagePrefix string
 	}{
 		{
-			name: "No Auth Method",
-			config: `
-            hostname = "ejbca.example.org"
-            ca_name = "Fake-Sub-CA"
-            end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-            certificate_profile_name = "fakeSubCACP"
-            default_end_entity_name = "cn"
-            account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
-            `,
-			getEnv:           os.Getenv,
-			readFile:         os.ReadFile,
-			expectedgRPCCode: codes.InvalidArgument,
-		},
-		{
 			name: "No Hostname",
 			config: `
             ca_name = "Fake-Sub-CA"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-            }
+            client_cert_path = "/path/to/cert.crt"
+            client_key_path = "/path/to/key.pem"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
             default_end_entity_name = "cn"
             account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
             `,
-			getEnv:           os.Getenv,
-			readFile:         os.ReadFile,
+			getEnv: os.Getenv,
+			readFile: func(key string) ([]byte, error) {
+				if key == "/path/to/cert.crt" {
+					return certPem, nil
+				}
+				if key == "/path/to/key.pem" {
+					return keyPem, nil
+				}
+				return nil, errors.New("file not found")
+			},
 			expectedgRPCCode: codes.InvalidArgument,
 		},
 		{
 			name: "No CA Name",
 			config: `
             hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-            }
+            client_cert_path = "/path/to/cert.crt"
+            client_key_path = "/path/to/key.pem"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
             default_end_entity_name = "cn"
             account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
             `,
-			getEnv:           os.Getenv,
-			readFile:         os.ReadFile,
+			getEnv: os.Getenv,
+			readFile: func(key string) ([]byte, error) {
+				if key == "/path/to/cert.crt" {
+					return certPem, nil
+				}
+				if key == "/path/to/key.pem" {
+					return keyPem, nil
+				}
+				return nil, errors.New("file not found")
+			},
 			expectedgRPCCode: codes.InvalidArgument,
 		},
 		{
 			name: "No End Entity Profile Name",
 			config: `
             hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-            }
+            client_cert_path = "/path/to/cert.crt"
+            client_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             certificate_profile_name = "fakeSubCACP"
             default_end_entity_name = "cn"
             account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
             `,
-			getEnv:           os.Getenv,
-			readFile:         os.ReadFile,
+			getEnv: os.Getenv,
+			readFile: func(key string) ([]byte, error) {
+				if key == "/path/to/cert.crt" {
+					return certPem, nil
+				}
+				if key == "/path/to/key.pem" {
+					return keyPem, nil
+				}
+				return nil, errors.New("file not found")
+			},
 			expectedgRPCCode: codes.InvalidArgument,
 		},
 		{
 			name: "No Certificate Profile Name",
 			config: `
             hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-            }
+            client_cert_path = "/path/to/cert.crt"
+            client_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             default_end_entity_name = "cn"
             account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
             `,
-			getEnv:           os.Getenv,
-			readFile:         os.ReadFile,
+			getEnv: os.Getenv,
+			readFile: func(key string) ([]byte, error) {
+				if key == "/path/to/cert.crt" {
+					return certPem, nil
+				}
+				if key == "/path/to/key.pem" {
+					return keyPem, nil
+				}
+				return nil, errors.New("file not found")
+			},
 			expectedgRPCCode: codes.InvalidArgument,
 		},
 		{
 			name: "No Client Cert",
 			config: `
             hostname = "ejbca.example.org"
-            cert_auth {
-				client_key_path = "/path/to/key.pem"
-            }
+			client_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -192,9 +196,7 @@ func TestConfigure(t *testing.T) {
 			name: "No Client Key",
 			config: `
             hostname = "ejbca.example.org"
-            cert_auth {
-				client_cert_path = "/path/to/cert.crt"
-            }
+			client_cert_path = "/path/to/cert.crt"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -211,201 +213,11 @@ func TestConfigure(t *testing.T) {
 			expectedgRPCCode: codes.InvalidArgument,
 		},
 		{
-			name: "No Token URL",
-			config: `
-            hostname = "ejbca.example.org"
-            oauth {
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-                scopes = "read:certificates,write:certificates"
-                audience = "https://ejbca.example.com"
-            }
-            ca_name = "Fake-Sub-CA"
-            end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-            certificate_profile_name = "fakeSubCACP"
-            default_end_entity_name = "cn"
-            account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
-            `,
-			getEnv:           os.Getenv,
-			readFile:         os.ReadFile,
-			expectedgRPCCode: codes.InvalidArgument,
-		},
-		{
-			name: "No Client ID",
-			config: `
-            hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-                scopes = "read:certificates,write:certificates"
-                audience = "https://ejbca.example.com"
-            }
-            ca_name = "Fake-Sub-CA"
-            end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-            certificate_profile_name = "fakeSubCACP"
-            default_end_entity_name = "cn"
-            account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
-            `,
-			getEnv:           os.Getenv,
-			readFile:         os.ReadFile,
-			expectedgRPCCode: codes.InvalidArgument,
-		},
-		{
-			name: "No Client Secret",
-			config: `
-            hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                scopes = "read:certificates,write:certificates"
-                audience = "https://ejbca.example.com"
-            }
-            ca_name = "Fake-Sub-CA"
-            end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-            certificate_profile_name = "fakeSubCACP"
-            default_end_entity_name = "cn"
-            account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
-            `,
-			getEnv:           os.Getenv,
-			readFile:         os.ReadFile,
-			expectedgRPCCode: codes.InvalidArgument,
-		},
-		{
-			name: "Token URL from env",
-			config: `
-            hostname = "ejbca.example.org"
-            oauth {
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-                scopes = "read:certificates,write:certificates"
-                audience = "https://ejbca.example.com"
-            }
-            ca_name = "Fake-Sub-CA"
-            end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-            certificate_profile_name = "fakeSubCACP"
-            default_end_entity_name = "cn"
-            account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
-            `,
-			getEnv: func(key string) string {
-				if key == "EJBCA_OAUTH_TOKEN_URL" {
-					return "https://dev.idp.com/oauth/token"
-				}
-				return ""
-			},
-			readFile:         os.ReadFile,
-			expectedgRPCCode: codes.OK,
-		},
-		{
-			name: "Client ID from env",
-			config: `
-            hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-                scopes = "read:certificates,write:certificates"
-                audience = "https://ejbca.example.com"
-            }
-            ca_name = "Fake-Sub-CA"
-            end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-            certificate_profile_name = "fakeSubCACP"
-            default_end_entity_name = "cn"
-            account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
-            `,
-			getEnv: func(key string) string {
-				if key == "EJBCA_OAUTH_CLIENT_ID" {
-					return "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-				}
-				return ""
-			},
-			readFile:         os.ReadFile,
-			expectedgRPCCode: codes.OK,
-		},
-		{
-			name: "Client Secret from env",
-			config: `
-            hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                scopes = "read:certificates,write:certificates"
-                audience = "https://ejbca.example.com"
-            }
-            ca_name = "Fake-Sub-CA"
-            end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-            certificate_profile_name = "fakeSubCACP"
-            default_end_entity_name = "cn"
-            account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
-            `,
-			getEnv: func(key string) string {
-				if key == "EJBCA_OAUTH_CLIENT_SECRET" {
-					return "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-				}
-				return ""
-			},
-			readFile:         os.ReadFile,
-			expectedgRPCCode: codes.OK,
-		},
-		{
-			name: "Scopes from env",
-			config: `
-            hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-                audience = "https://ejbca.example.com"
-            }
-            ca_name = "Fake-Sub-CA"
-            end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-            certificate_profile_name = "fakeSubCACP"
-            default_end_entity_name = "cn"
-            account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
-            `,
-			getEnv: func(key string) string {
-				if key == "EJBCA_OAUTH_SCOPES" {
-					return "read:certificates,write:certificates"
-				}
-				return ""
-			},
-			readFile:         os.ReadFile,
-			expectedgRPCCode: codes.OK,
-		},
-		{
-			name: "Audience from env",
-			config: `
-            hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-                scopes = "read:certificates,write:certificates"
-            }
-            ca_name = "Fake-Sub-CA"
-            end_entity_profile_name = "fakeSpireIntermediateCAEEP"
-            certificate_profile_name = "fakeSubCACP"
-            default_end_entity_name = "cn"
-            account_binding_id = "spiffe://example.org/spire/agent/join_token/abcd"
-            `,
-			getEnv: func(key string) string {
-				if key == "EJBCA_OAUTH_AUDIENCE" {
-					return "https://ejbca.example.com"
-				}
-				return ""
-			},
-			readFile:         os.ReadFile,
-			expectedgRPCCode: codes.OK,
-		},
-		{
 			name: "CA Cert path from env",
 			config: `
             hostname = "ejbca.example.org"
-            oauth {
-                token_url = "https://dev.idp.com/oauth/token"
-                client_id = "fi3ElQUVoBBHyRNt4mpUxG9WY65AOCcJ"
-                client_secret = "1EXHdD7Ikmmv0OkBoJZZtzOG5iAzvwdqBVuvquf-QEvL6fLrEG_heJHphtEXVj9H"
-                scopes = "read:certificates,write:certificates"
-                audience = "https://ejbca.example.com"
-            }
+            client_cert_path = "/path/to/cert.crt"
+            client_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -422,6 +234,12 @@ func TestConfigure(t *testing.T) {
 				if key == "/path/to/ca.crt" {
 					return caPem, nil
 				}
+				if key == "/path/to/cert.crt" {
+					return certPem, nil
+				}
+				if key == "/path/to/key.pem" {
+					return keyPem, nil
+				}
 				return nil, errors.New("file not found")
 			},
 			expectedgRPCCode: codes.OK,
@@ -430,9 +248,7 @@ func TestConfigure(t *testing.T) {
 			name: "Client Cert path from env",
 			config: `
             hostname = "ejbca.example.org"
-            cert_auth {
-				client_key_path = "/path/to/key.pem"
-            }
+			client_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -460,9 +276,7 @@ func TestConfigure(t *testing.T) {
 			name: "Client Key path from env",
 			config: `
             hostname = "ejbca.example.org"
-			cert_auth {
-				client_cert_path = "/path/to/cert.crt"
-			}
+			client_cert_path = "/path/to/cert.crt"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -490,7 +304,6 @@ func TestConfigure(t *testing.T) {
 			name: "CA, Client Cert, and Client Key path from env",
 			config: `
             hostname = "ejbca.example.org"
-            cert_auth {}
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -528,10 +341,8 @@ func TestConfigure(t *testing.T) {
 			config: `
             hostname = "ejbca.example.org"
 			ca_cert_path = "/path/to/ca.crt"
-            cert_auth {
-				client_cert_path = "/path/to/cert.crt"
-				client_key_path = "/path/to/key.pem"
-            }
+            client_cert_path = "/path/to/cert.crt"
+            client_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -713,10 +524,8 @@ func TestMintX509CAAndSubscribe(t *testing.T) {
 
 				// We populate the client cert path & client key path to random values since newFakeAuthenticator doesn't have
 				// any built-in authentication.
-				CertAuth: &CertAuthConfig{
-					ClientCertPath: "/path/to/cert.crt",
-					ClientKeyPath:  "/path/to/key.pem",
-				},
+				ClientCertPath: "/path/to/cert.crt",
+				ClientKeyPath:  "/path/to/key.pem",
 
 				CAName:                 tt.caName,
 				EndEntityProfileName:   tt.endEntityProfileName,
@@ -888,11 +697,9 @@ func TestGetEndEntityName(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &Config{
-				Hostname: "ejbca.example.com",
-				CertAuth: &CertAuthConfig{
-					ClientCertPath: "/path/to/cert.crt",
-					ClientKeyPath:  "/path/to/key.pem",
-				},
+				Hostname:               "ejbca.example.com",
+				ClientCertPath:         "/path/to/cert.crt",
+				ClientKeyPath:          "/path/to/key.pem",
 				CAName:                 "Fake-Sub-CA",
 				EndEntityProfileName:   "fakeSpireIntermediateCAEEP",
 				CertificateProfileName: "fakeSubCACP",
