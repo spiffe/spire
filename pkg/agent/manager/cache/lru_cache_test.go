@@ -656,7 +656,7 @@ func TestLRUCacheSubscriberNotNotifiedOnOverlappingSVIDChanges(t *testing.T) {
 
 func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(10, clk)
+	cache := newTestLRUCacheWithConfig(clk)
 
 	clk.Add(1 * time.Second)
 	foo := makeRegistrationEntry("FOO", "A")
@@ -741,7 +741,7 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 
 func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(10, clk)
+	cache := newTestLRUCacheWithConfig(clk)
 
 	// create entries more than maxSvidCacheSize
 	updateEntries := createUpdateEntries(12, makeBundles(bundleV1))
@@ -775,7 +775,7 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 
 func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(5, clk)
+	cache := newTestLRUCacheWithConfig(clk)
 
 	updateEntries := createUpdateEntries(5, makeBundles(bundleV1))
 	cache.UpdateEntries(updateEntries, nil)
@@ -825,7 +825,7 @@ func TestNotifySubscriberWhenSVIDIsAvailable(t *testing.T) {
 
 func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(1, clk)
+	cache := newTestLRUCacheWithConfig(clk)
 
 	// Creating test entries, but this will not affect current test...
 	foo := makeRegistrationEntry("FOO", "A")
@@ -887,7 +887,7 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 
 func TestSubscribeToLRUCacheChanges(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(1, clk)
+	cache := newTestLRUCacheWithConfig(clk)
 
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
@@ -1023,13 +1023,9 @@ func TestMetrics(t *testing.T) {
 }
 
 func TestNewLRUCache(t *testing.T) {
-	// negative value
-	cache := newTestLRUCacheWithConfig(-5, clock.NewMock(t))
-	require.Equal(t, DefaultSVIDCacheMaxSize, cache.svidCacheMaxSize)
-
-	// zero value
-	cache = newTestLRUCacheWithConfig(0, clock.NewMock(t))
-	require.Equal(t, DefaultSVIDCacheMaxSize, cache.svidCacheMaxSize)
+	// expected cache size
+	cache := newTestLRUCacheWithConfig(clock.NewMock(t))
+	require.Equal(t, SVIDCacheMaxSize, cache.svidCacheMaxSize)
 }
 
 func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
@@ -1080,13 +1076,12 @@ func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
 func newTestLRUCache(t testing.TB) *LRUCache {
 	log, _ := test.NewNullLogger()
 	return NewLRUCache(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1,
-		telemetry.Blackhole{}, 0, clock.NewMock(t))
+		telemetry.Blackhole{}, clock.NewMock(t))
 }
 
-func newTestLRUCacheWithConfig(svidCacheMaxSize int, clk clock.Clock) *LRUCache {
+func newTestLRUCacheWithConfig(clk clock.Clock) *LRUCache {
 	log, _ := test.NewNullLogger()
-	return NewLRUCache(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{},
-		svidCacheMaxSize, clk)
+	return NewLRUCache(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{}, clk)
 }
 
 // numEntries should not be more than 12 digits

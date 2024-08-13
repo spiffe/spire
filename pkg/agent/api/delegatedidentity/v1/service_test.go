@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -993,9 +994,9 @@ func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
 	return myCache.BundleCache.SubscribeToBundleChanges()
 }
 
-func newTestCache() *cache.Cache {
+func newTestCache() *cache.LRUCache {
 	log, _ := test.NewNullLogger()
-	return cache.New(log, trustDomain1, bundle1, telemetry.Blackhole{})
+	return cache.NewLRUCache(log, trustDomain1, bundle1, telemetry.Blackhole{}, clock.New())
 }
 
 func generateSubscribeToX509SVIDMetrics() []fakemetrics.MetricItem {
