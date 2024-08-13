@@ -122,9 +122,7 @@ func (s *Service) constructValidSelectorsFromReq(ctx context.Context, log logrus
 	// However, we will still treat that as an error, as we do not expect to ever be asked to attest
 	// pid 0.
 
-	fmt.Printf("PIDS: %d", reqPid)
 	if (len(reqSelectors) != 0 && reqPid != 0) || (len(reqSelectors) == 0 && reqPid == 0) {
-		fmt.Printf("booop")
 		log.Error("Invalid argument; must provide either selectors or non-zero PID, but not both")
 		return nil, status.Error(codes.InvalidArgument, "must provide either selectors or non-zero PID, but not both")
 	}
