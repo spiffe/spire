@@ -1,7 +1,7 @@
 #!/bin/bash
 
-CACHESIZE=8
-ENTRYCOUNT=10
+ENTRYCOUNT=1002
+CACHESIZE=1000
 
 X509SVIDCOUNT=$(docker compose exec -u 1002 -T spire-agent \
   /opt/spire/bin/spire-agent api fetch x509 \
