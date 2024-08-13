@@ -243,7 +243,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	require.Equal(t, api.bundle, m.GetBundle())
 
 	// Expect three SVIDs on cache
-	require.Equal(t, 3, m.CountSVIDs())
+	require.Equal(t, 3, m.CountX509SVIDs())
 
 	// Expect last sync
 	require.Equal(t, clk.Now(), m.GetLastSync())
@@ -335,7 +335,7 @@ func TestRotationWithRSAKey(t *testing.T) {
 	require.Equal(t, api.bundle, m.GetBundle())
 
 	// Expect three SVIDs on cache
-	require.Equal(t, 3, m.CountSVIDs())
+	require.Equal(t, 3, m.CountX509SVIDs())
 
 	// Expect last sync
 	require.Equal(t, clk.Now(), m.GetLastSync())
@@ -1229,7 +1229,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	assert.NoError(t, subErr, "subscriber error")
 
 	// ensure 2 SVIDs corresponding to selectors are cached.
-	assert.Equal(t, 2, m.cache.CountSVIDs())
+	assert.Equal(t, 2, m.cache.CountX509SVIDs())
 
 	// cancel the ctx to stop go routines
 	cancel()
