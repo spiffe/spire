@@ -37,10 +37,8 @@ data:
         plugin_data = {
           hostname = "ejbca-rp-service.ejbca.svc.cluster.local:8443"
           ca_cert_path = "/run/spire/ejbca/ca/ca.crt"
-          cert_auth {
-              client_cert_path = "/run/spire/ejbca/mtls/tls.crt"
-              client_key_path = "/run/spire/ejbca/mtls/tls.key"
-          }
+          client_cert_path = "/run/spire/ejbca/mtls/tls.crt"
+          client_key_path = "/run/spire/ejbca/mtls/tls.key"
           ca_name = "Sub-CA"
           end_entity_profile_name = "spireIntermediateCA"
           certificate_profile_name = "SUBCA"

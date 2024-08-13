@@ -21,8 +21,8 @@ while read -r line; do
         in_cert=1
     elif [[ "$line" == "$cert_end" ]]; then
         cert+="$line"$'\n'
-        chain[c]=$(echo "$cert")
-        ((c++))
+        chain[i]=$(echo "$cert")
+        i=$((i + 1))
         in_cert=0
     elif [[ $in_cert -eq 1 ]]; then
         cert+="$line"$'\n'
@@ -47,7 +47,7 @@ log-debug "the issuing ca in EJBCA has a chain length of ${#chain[@]} certificat
 # <the Root CA>
 
 # So, the contents of `certs` should be the entire certificate chain, starting 
-# with the x509 svid at index 0, up to the root CA at index c.
+# with the x509 svid at index 0, up to the root CA at index i.
 
 i=0
 while read -r line; do
@@ -57,7 +57,7 @@ while read -r line; do
     elif [[ "$line" == "$cert_end" ]]; then
         cert+="$line"$'\n'
         certs[i]=$(echo "$cert")
-        ((i++))
+        i=$((i + 1))
         in_cert=0
     elif [[ $in_cert -eq 1 ]]; then
         cert+="$line"$'\n'
@@ -79,7 +79,7 @@ while [[ $i -lt ${#chain[@]} ]]; do
     if [[ "$expected_hash" != "$actual_hash" ]]; then
         fail-now "ca chain verification failed: expected modulus to have hash $expected_hash, got $actual_hash (cert $((i+1))/${#chain[@]})"
     fi
-    ((i++))
+    i=$((i + 1))
 done
 
 log-debug "verifying that the x509 svid was signed by the spire intermediate ca, and that the spire intermediate ca has a valid chain up to the root ca in EJBCA"
@@ -99,6 +99,8 @@ then
     fail-now "x509 svid verification failed: failed to verify the x509 svid up to the root ca in EJBCA"
 fi
 
+log-debug "verifying that the x509 svid has the expected uri san"
+
 # Make sure that the x509 SVID has the correct URI
 expectedURI="URI:spiffe://example.org/ns/foo/sa/bar"
 actualURI=$(openssl x509 -noout -text -in <(echo "${certs[0]}") | grep URI | sed 's/^ *//g')
@@ -106,11 +108,11 @@ if [[ "$expectedURI" != "$actualURI" ]]; then
     fail-now "x509 svid verification failed: expected URI to be $expectedURI, got $actualURI"
 fi
 
+log-debug "verifying that the intermediate ca issued by EJBCA has the expected uri san"
+
 # Make sure that the intermediate CA has the correct URI
 expectedURI="URI:spiffe://example.org"
 actualURI=$(openssl x509 -noout -text -in <(echo "${certs[1]}") | grep URI | sed 's/^ *//g')
 if [[ "$expectedURI" != "$actualURI" ]]; then
     fail-now "x509 svid verification failed: expected URI to be $expectedURI, got $actualURI"
 fi
-
-
