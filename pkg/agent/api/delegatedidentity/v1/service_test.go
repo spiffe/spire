@@ -222,6 +222,40 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
 		{
+			testName:     "workload update by PID with identity and federated bundles",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			req: &delegatedidentityv1.SubscribeToX509SVIDsRequest{
+				Pid:       447,
+			},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						identities[0],
+					},
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle1.TrustDomain(): federatedBundle1},
+				},
+			},
+			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
+				X509Svids: []*delegatedidentityv1.X509SVIDWithKey{
+					{
+						X509Svid: &types.X509SVID{
+							Id:        utilIDProtoFromString(t, x509SVID1.ID.String()),
+							CertChain: x509util.RawCertsFromCertificates(x509SVID1.Certificates),
+							ExpiresAt: x509SVID1.Certificates[0].NotAfter.Unix(),
+						},
+						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
+					},
+				},
+				FederatesWith: []string{federatedBundle1.TrustDomain().IDString()},
+			},
+			expectMetrics: generateSubscribeToX509SVIDMetrics(),
+		},
+		{
 			testName:     "workload update with identity and federated bundles",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			identities: []cache.Identity{
@@ -564,6 +598,33 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			},
 		},
 		{
+			testName:     "success with one identity by PID",
+			pid: 447,
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
+				id1: {
+					Token:     jwtSVID1Token,
+					ExpiresAt: time.Unix(1680786600, 0),
+					IssuedAt:  time.Unix(1680783000, 0),
+				},
+			},
+			expectResp: &delegatedidentityv1.FetchJWTSVIDsResponse{
+				Svids: []*types.JWTSVID{
+					{
+						Token:     jwtSVID1Token,
+						Id:        api.ProtoFromID(id1),
+						Hint:      "internal",
+						ExpiresAt: 1680786600,
+						IssuedAt:  1680783000,
+					},
+				},
+			},
+		},
+		{
 			testName:     "success with two identities",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
@@ -795,13 +856,13 @@ type FakeAttestor struct {
 	err       error
 }
 
+func (fa FakeAttestor) Attest(context.Context) ([]*common.Selector, error) {
+	return fa.selectors, fa.err
+}
+
 type FakeWorkloadPIDAttestor struct {
 	selectors []*common.Selector
 	err       error
-}
-
-func (fa FakeAttestor) Attest(context.Context) ([]*common.Selector, error) {
-	return fa.selectors, fa.err
 }
 
 func (fa FakeWorkloadPIDAttestor) Attest(_ context.Context, _ int) ([]*common.Selector, error) {
