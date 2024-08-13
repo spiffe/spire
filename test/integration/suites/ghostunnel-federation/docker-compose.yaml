@@ -1,4 +1,3 @@
-version: '3'
 services:
   upstream-spire-server:
     image: spire-server:latest-local
