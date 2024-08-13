@@ -129,8 +129,7 @@ type LRUCache struct {
 	subscribeBackoffFn func() backoff.BackOff
 }
 
-func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics,
-	clk clock.Clock) *LRUCache {
+func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics, clk clock.Clock) *LRUCache {
 
 	return &LRUCache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
