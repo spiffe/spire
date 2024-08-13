@@ -18,11 +18,29 @@ import (
 )
 
 const (
-	// DefaultSVIDCacheMaxSize is set when svidCacheMaxSize is not provided
-	DefaultSVIDCacheMaxSize = 1000
+	// SVIDCacheMaxSize is the size for the cache
+	SVIDCacheMaxSize = 1000
 	// SVIDSyncInterval is the interval at which SVIDs are synced with subscribers
 	SVIDSyncInterval = 500 * time.Millisecond
 )
+
+// Update holds information for an entries update to the cache.
+type UpdateEntries struct {
+	// Bundles is a set of ALL trust bundles available to the agent, keyed by trust domain
+	Bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
+
+	// RegistrationEntries is a set of ALL registration entries available to the
+	// agent, keyed by registration entry id.
+	RegistrationEntries map[string]*common.RegistrationEntry
+}
+
+// StaleEntry holds stale entries with SVIDs expiration time
+type StaleEntry struct {
+	// Entry stale registration entry
+	Entry *common.RegistrationEntry
+	// SVIDs expiration time
+	SVIDExpiresAt time.Time
+}
 
 // Cache caches each registration entry, bundles, and JWT SVIDs for the agent.
 // The signed X509-SVIDs for those entries are stored in LRU-like cache.
@@ -112,10 +130,7 @@ type LRUCache struct {
 }
 
 func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics,
-	svidCacheMaxSize int, clk clock.Clock) *LRUCache {
-	if svidCacheMaxSize <= 0 {
-		svidCacheMaxSize = DefaultSVIDCacheMaxSize
-	}
+	clk clock.Clock) *LRUCache {
 
 	return &LRUCache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
@@ -131,7 +146,7 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 			trustDomain: bundle,
 		},
 		svids:            make(map[string]*X509SVID),
-		svidCacheMaxSize: svidCacheMaxSize,
+		svidCacheMaxSize: SVIDCacheMaxSize,
 		clk:              clk,
 		subscribeBackoffFn: func() backoff.BackOff {
 			return backoff.NewBackoff(clk, SVIDSyncInterval)

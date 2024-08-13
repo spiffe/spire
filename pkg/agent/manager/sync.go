@@ -36,12 +36,8 @@ type SVIDCache interface {
 }
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
-	// perform syncSVIDs only if using LRU cache
-	if m.c.SVIDCacheMaxSize > 0 {
-		m.cache.SyncSVIDsWithSubscribers()
-		return m.updateSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.cache)
-	}
-	return nil
+	m.cache.SyncSVIDsWithSubscribers()
+	return m.updateSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.cache)
 }
 
 // synchronize fetches the authorized entries from the server, updates the

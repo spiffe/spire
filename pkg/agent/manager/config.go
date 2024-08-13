@@ -65,15 +65,8 @@ func newManager(c *Config) *manager {
 		c.Clk = clock.New()
 	}
 
-	var cache Cache
-	if c.DisableLRUCache {
-		cache = managerCache.New(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
-			c.Metrics)
-	} else {
-		// use LRU cache implementation
-		cache = managerCache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
-			c.Metrics, c.SVIDCacheMaxSize, c.Clk)
-	}
+	cache := managerCache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
+		c.Metrics, c.Clk)
 
 	rotCfg := &svid.RotatorConfig{
 		SVIDKeyManager:   keymanager.ForSVID(c.Catalog.GetKeyManager()),

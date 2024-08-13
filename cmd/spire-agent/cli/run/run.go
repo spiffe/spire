@@ -120,10 +120,6 @@ type experimentalConfig struct {
 	UseSyncAuthorizedEntries bool   `hcl:"use_sync_authorized_entries"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
-
-	UnusedKeyPositions   map[string][]token.Pos `hcl:",unusedKeyPositions"`
-	X509SVIDCacheMaxSize int                    `hcl:"x509_svid_cache_max_size"`
-	DisableLRUCache      bool                   `hcl:"disable_lru_cache"`
 }
 
 type Command struct {
@@ -497,19 +493,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if reopenableFile != nil {
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}
-
-	if c.Agent.Experimental.X509SVIDCacheMaxSize < 0 {
-		return nil, errors.New("x509_svid_cache_max_size should not be negative")
-	}
-	if c.Agent.Experimental.X509SVIDCacheMaxSize > 0 || c.Agent.Experimental.DisableLRUCache {
-		logger.Warn("The `x509_svid_cache_max_size` and `disable_lru_cache` configurations are deprecated. They will be removed in a future release.")
-	}
-	ac.X509SVIDCacheMaxSize = c.Agent.Experimental.X509SVIDCacheMaxSize
-
-	if c.Agent.Experimental.DisableLRUCache && ac.X509SVIDCacheMaxSize != 0 {
-		return nil, errors.New("x509_svid_cache_max_size should not be set when disable_lru_cache is set")
-	}
-	ac.DisableLRUCache = c.Agent.Experimental.DisableLRUCache
 
 	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
 	if err != nil {

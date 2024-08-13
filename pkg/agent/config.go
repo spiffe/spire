@@ -66,12 +66,6 @@ type Config struct {
 	// is used to sync entries from the server.
 	UseSyncAuthorizedEntries bool
 
-	// X509SVIDCacheMaxSize is a soft limit of max number of SVIDs that would be stored in cache
-	X509SVIDCacheMaxSize int
-
-	// DisableLRUCache disables the SPIRE Agent LRU cache used for storing SVIDs and fallback to original cache
-	DisableLRUCache bool
-
 	// Trust domain and associated CA bundle
 	TrustDomain spiffeid.TrustDomain
 	TrustBundle []*x509.Certificate
