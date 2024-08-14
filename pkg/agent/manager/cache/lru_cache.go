@@ -130,7 +130,6 @@ type LRUCache struct {
 }
 
 func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics, clk clock.Clock) *LRUCache {
-
 	return &LRUCache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
 		JWTSVIDCache: NewJWTSVIDCache(),
