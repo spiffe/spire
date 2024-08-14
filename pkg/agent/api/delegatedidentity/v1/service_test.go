@@ -225,7 +225,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			testName:     "workload update by PID with identity and federated bundles",
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			req: &delegatedidentityv1.SubscribeToX509SVIDsRequest{
-				Pid:       447,
+				Pid: 447,
 			},
 			identities: []cache.Identity{
 				identities[0],
@@ -599,7 +599,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 		},
 		{
 			testName:     "success with one identity by PID",
-			pid: 447,
+			pid:          447,
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			audience:     []string{"AUDIENCE"},
 			identities: []cache.Identity{
