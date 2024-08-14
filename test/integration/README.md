@@ -3,6 +3,8 @@
 This directory contains the Integration Test framework for SPIRE. Integration
 tests are run nightly, for each PR, and doing a release.
 
+The suites are under `suites/`.
+
 ## Executing Test Suites
 
 When the framework executes a test suite, it performs the following:
