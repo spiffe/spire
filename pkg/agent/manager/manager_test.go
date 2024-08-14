@@ -1688,7 +1688,7 @@ func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SV
 		entry, ok := entries[param.EntryId]
 		if !ok {
 			resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
-				Status: api.CreateStatus(codes.NotFound, "entry %q not found", param.EntryId),
+				Status: api.CreateStatusf(codes.NotFound, "entry %q not found", param.EntryId),
 			})
 			continue
 		}
