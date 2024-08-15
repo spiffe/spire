@@ -1,8 +1,5 @@
 #!/bin/bash
 
-log-debug "restarting agent..."
-log-debug "bringing agent down..."
-docker-down spire-agent
 log-debug "starting agent again..."
 docker-up spire-agent
 
