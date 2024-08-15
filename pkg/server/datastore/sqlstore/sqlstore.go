@@ -4418,7 +4418,7 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		return sqlError.New("invalid request: missing registered entry")
 	}
 
-	if entry.Selectors == nil || len(entry.Selectors) == 0 {
+	if len(entry.Selectors) == 0 {
 		return sqlError.New("invalid registration entry: missing selector list")
 	}
 
@@ -4479,8 +4479,7 @@ func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *c
 		return sqlError.New("invalid request: missing registered entry")
 	}
 
-	if (mask == nil || mask.Selectors) &&
-		(entry.Selectors == nil || len(entry.Selectors) == 0) {
+	if (mask == nil || mask.Selectors) && len(entry.Selectors) == 0 {
 		return sqlError.New("invalid registration entry: missing selector list")
 	}
 
