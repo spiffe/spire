@@ -8,10 +8,13 @@ CHECKINTERVAL=1
 spiffe_id="spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 for ((i=1;i<=MAXCHECKS;i++)); do
     log-info "attempting to evict agent ${spiffe_id} ($i of $MAXCHECKS max)..."
-    if docker compose exec -T spire-server \
+
+    docker compose exec -T spire-server \
         /opt/spire/bin/spire-server agent evict \
-        -spiffeID ${spiffe_id}; then
-	    exit 0
+        -spiffeID ${spiffe_id}
+    docker compose logs spire-server
+    if docker compose logs spire-server | grep "Agent deleted"; then
+	exit 0
     fi
     sleep "${CHECKINTERVAL}"
 done
