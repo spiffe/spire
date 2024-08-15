@@ -1,6 +1,6 @@
 #!/bin/bash
 
-log-debug "evicting agent to re-enable attestation..."
+log-debug "evicting (deleting) agent to re-enable attestation..."
 
 # Check at most 30 times (with one second in between) that we can evict the agent
 MAXCHECKS=30
