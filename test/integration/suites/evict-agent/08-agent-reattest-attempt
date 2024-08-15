@@ -2,7 +2,7 @@
 
 log-debug "agent re-attesting..."
 
-# Check at most 30 times (with one second in between) that the agent is able to reattest
+# Check at most 30 times (with one second in between) that the agent knows it can re-attest
 MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
