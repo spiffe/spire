@@ -461,7 +461,7 @@ func (s *Service) RevokeX509UpstreamAuthority(ctx context.Context, req *localaut
 	}
 
 	rpccontext.AuditRPC(ctx)
-	log.Info("X.509 upstream authority revoked successfully")
+	log.Info("X.509 upstream authority successfully revoked")
 
 	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{}, nil
 }
@@ -495,7 +495,7 @@ func (s *Service) validateUpstreamAuthoritySubjectKey(subjectKeyIDRequest string
 
 	nextSlot := s.ca.GetNextX509CASlot()
 	if subjectKeyIDRequest != nextSlot.UpstreamAuthorityID() {
-		return errors.New("upstream authority is not signing Old local authority")
+		return errors.New("upstream authority didn't sign the old local authority")
 	}
 
 	if nextSlot.Status() == journal.Status_PREPARED {

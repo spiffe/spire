@@ -303,12 +303,12 @@ func TestUpstreamSigned(t *testing.T) {
 	err := fakeUA.TaintAuthority(0)
 	require.NoError(t, err)
 
-	// Get root again an verify firt item is tainted
+	// Get the roots again and verify that the first X.509 authority is tainted
 	x509Roots := fakeUA.X509Roots()
 	require.True(t, x509Roots[0].Tainted)
 
 	commonCertificates := x509certificate.RequireToCommonProtos(x509Roots)
-	// Retry until tainted is propagated to database
+	// Retry until the Tainted attribute is propagated to the database
 	require.Eventually(t, func() bool {
 		bundle := test.fetchBundle(ctx)
 		return spiretest.AssertProtoListEqual(t, commonCertificates, bundle.RootCas)

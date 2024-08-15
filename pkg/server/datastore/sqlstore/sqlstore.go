@@ -1398,8 +1398,10 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, subjectKeyIDToTaint string) 
 	}
 
 	if !found {
-		return status.Errorf(codes.NotFound, "no ca found with provided subject key ID")
+		return status.Error(codes.NotFound, "no ca found with provided subject key ID")
 	}
+
+	bundle.SequenceNumber++
 
 	_, err = updateBundle(tx, bundle, nil)
 	if err != nil {
@@ -1440,6 +1442,7 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, subjectKeyIDToRevoke string
 	}
 
 	bundle.RootCas = rootCAs
+	bundle.SequenceNumber++
 
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
 		return status.Errorf(codes.Internal, "failed to update bundle: %v", err)
@@ -1478,6 +1481,7 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*common
 		return nil, status.Error(codes.NotFound, "no JWT Key found with provided key ID")
 	}
 
+	bundle.SequenceNumber++
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
 		return nil, err
 	}
@@ -1517,6 +1521,7 @@ func revokeJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*commo
 		return nil, status.Error(codes.NotFound, "no JWT Key found with provided key ID")
 	}
 
+	bundle.SequenceNumber++
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
 		return nil, err
 	}

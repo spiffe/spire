@@ -15,7 +15,7 @@ type JWTKey struct {
 	Tainted   bool
 }
 
-func toProtoFields(jwtKey JWTKey) (string, []byte, int64, bool, error) {
+func toProtoFields(jwtKey JWTKey) (id string, publicKey []byte, expiresAt int64, tainted bool, err error) {
 	if jwtKey.ID == "" {
 		return "", nil, 0, false, errors.New("missing key ID for JWT key")
 	}
@@ -23,12 +23,11 @@ func toProtoFields(jwtKey JWTKey) (string, []byte, int64, bool, error) {
 	if jwtKey.PublicKey == nil {
 		return "", nil, 0, false, fmt.Errorf("missing public key for JWT key %q", jwtKey.ID)
 	}
-	publicKey, err := x509.MarshalPKIXPublicKey(jwtKey.PublicKey)
+	publicKey, err = x509.MarshalPKIXPublicKey(jwtKey.PublicKey)
 	if err != nil {
 		return "", nil, 0, false, fmt.Errorf("failed to marshal public key for JWT key %q: %w", jwtKey.ID, err)
 	}
 
-	var expiresAt int64
 	if !jwtKey.ExpiresAt.IsZero() {
 		expiresAt = jwtKey.ExpiresAt.Unix()
 	}

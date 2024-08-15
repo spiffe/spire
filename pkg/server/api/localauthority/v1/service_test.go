@@ -1298,8 +1298,6 @@ func TestTaintX509Authority(t *testing.T) {
 
 	nextCA, nextKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	// nextPublicKeyRaw, err := x509.MarshalPKIXPublicKey(nextKey.Public())
-	// require.NoError(t, err)
 	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public())
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
@@ -1572,7 +1570,7 @@ func TestTaintX509Authority(t *testing.T) {
 
 func TestTaintX509UpstreamAuthority(t *testing.T) {
 	getUpstreamCertAndSubjectID := func(ca *testca.CA) (*x509.Certificate, string) {
-		// Selfsigned CA will return itself
+		// Self signed CA will return itself
 		cert := ca.X509Authorities()[0]
 		return cert, x509util.SubjectKeyIDToString(cert.SubjectKeyId)
 	}
@@ -1729,13 +1727,13 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 			nextSlot:            createSlotWithUpstream(journal.Status_OLD, nextIntermediateCA, notAfterNext),
 			subjectKeyIDToTaint: "invalidID",
 			expectCode:          codes.InvalidArgument,
-			expectMsg:           "provided subject key id is not valid: upstream authority is not signing Old local authority",
+			expectMsg:           "provided subject key id is not valid: upstream authority didn't sign the old local authority",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: provided subject key id is not valid",
 					Data: logrus.Fields{
-						logrus.ErrorKey:        "upstream authority is not signing Old local authority",
+						logrus.ErrorKey:        "upstream authority didn't sign the old local authority",
 						telemetry.SubjectKeyID: "invalidID",
 					},
 				},
@@ -1745,7 +1743,7 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "provided subject key id is not valid: upstream authority is not signing Old local authority",
+						telemetry.StatusMessage: "provided subject key id is not valid: upstream authority didn't sign the old local authority",
 						telemetry.Type:          "audit",
 						telemetry.SubjectKeyID:  "invalidID",
 					},
@@ -2120,7 +2118,7 @@ func TestRevokeX509Authority(t *testing.T) {
 
 func TestRevokeX509UpstreamAuthority(t *testing.T) {
 	getUpstreamCertAndSubjectID := func(ca *testca.CA) (*x509.Certificate, string) {
-		// Selfsigned CA will return itself
+		// Self signed CA will return itself
 		cert := ca.X509Authorities()[0]
 		return cert, x509util.SubjectKeyIDToString(cert.SubjectKeyId)
 	}
@@ -2171,7 +2169,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 				},
 				{
 					Level:   logrus.InfoLevel,
-					Message: "X.509 upstream authority revoked successfully",
+					Message: "X.509 upstream authority successfully revoked",
 					Data: logrus.Fields{
 						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
 					},
@@ -2268,13 +2266,13 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 			nextSlot:             createSlotWithUpstream(journal.Status_OLD, nextIntermediateCA, notAfterNext),
 			subjectKeyIDToRevoke: "invalidID",
 			expectCode:           codes.InvalidArgument,
-			expectMsg:            "invalid subject key ID: upstream authority is not signing Old local authority",
+			expectMsg:            "invalid subject key ID: upstream authority didn't sign the old local authority",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid subject key ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey:        "upstream authority is not signing Old local authority",
+						logrus.ErrorKey:        "upstream authority didn't sign the old local authority",
 						telemetry.SubjectKeyID: "invalidID",
 					},
 				},
@@ -2284,7 +2282,7 @@ func TestRevokeX509UpstreamAuthority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:        "error",
 						telemetry.StatusCode:    "InvalidArgument",
-						telemetry.StatusMessage: "invalid subject key ID: upstream authority is not signing Old local authority",
+						telemetry.StatusMessage: "invalid subject key ID: upstream authority didn't sign the old local authority",
 						telemetry.Type:          "audit",
 						telemetry.SubjectKeyID:  "invalidID",
 					},

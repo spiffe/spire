@@ -42,7 +42,7 @@ type Slot interface {
 	Status() journal.Status
 	UpstreamAuthorityID() string
 	AuthorityID() string
-	// TODO: Should we remove public key?
+	// TODO: This will be removed as part of #5390
 	PublicKey() crypto.PublicKey
 	NotAfter() time.Time
 }

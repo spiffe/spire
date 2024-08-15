@@ -140,7 +140,7 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, csr []byte, tt
 	}
 	defer x509RootsStream.Close()
 
-	// Extract all roots certificates
+	// Extract all root certificates
 	var x509RootCerts []*x509.Certificate
 	for _, eachRoot := range x509Roots {
 		x509RootCerts = append(x509RootCerts, eachRoot.Certificate)
