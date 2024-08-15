@@ -83,8 +83,7 @@ cp -R "${TESTDIR}"/* "${RUNDIR}/"
 run-step() {
     local script="$1"
     if [ ! -x "$script" ]; then
-        log-warn "Failing: \"$script\"; not executable"
-        return 1
+        fail-now "Failing: \"$script\" is not executable"
     fi
     log-debug "executing $(basename "$script")..."
 
