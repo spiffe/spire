@@ -5,7 +5,7 @@
 MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "checking for agent is shutting down ($i of $MAXCHECKS max)..."
+    log-info "checking for agent is shutting down due to being banned ($i of $MAXCHECKS max)..."
     docker compose logs spire-agent
     if docker compose logs spire-agent | grep "Agent is banned: removing SVID and shutting down"; then
 	exit 0
