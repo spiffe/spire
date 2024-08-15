@@ -32,7 +32,6 @@ scripts are **NOT** executed.
 1. Add step scripts (i.e. files matching the `??-*` pattern) that perform the
    requisite steps. These scripts will be executed in lexographic order.
 1. Add a `teardown` script that cleans up after the test suite
-1. Add the suite to the `Test Suites` listing at the end of this document
 
 ### Step Scripts
 
