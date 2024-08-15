@@ -28,8 +28,7 @@ scripts are **NOT** executed.
 ## Adding a Test Suite
 
 1. Create a new folder under `suites/`.
-1. Add a `README.md` to the test suite and link to it in this document under
-   [Test Suites](#test-suites). The README should contain high level details
+1. Add a `README.md` to the test suite. The README should contain high level details
    about what is being tested by the test suite.
 1. Add step scripts (i.e. files matching the `??-*` pattern) that perform the
    requisite steps. These scripts will be executed in lexographic order.
