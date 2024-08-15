@@ -5,12 +5,13 @@ log-debug "banning agent..."
 # Attempt at most 30 times (with one second in between) to ban the agent
 MAXCHECKS=30
 CHECKINTERVAL=1
+spiffe_id="spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "attempting to ban agent ($i of $MAXCHECKS max)..."
+    log-info "attempting to ban agent ${spiffe_id} ($i of $MAXCHECKS max)..."
 
     docker compose exec -T spire-server \
         /opt/spire/bin/spire-server agent ban \
-        -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
+        -spiffeID "${spiffe_id}"
     docker compose logs spire-server
     if docker compose logs spire-server | grep "Agent banned"; then
 	exit 0

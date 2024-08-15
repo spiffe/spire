@@ -3,7 +3,7 @@
 log-debug "starting agent again..."
 docker-up spire-agent
 
-# Check at most 30 times (with one second in between) that the agent is not able to get new 
+# Check at most 30 times (with one second in between) that the agent is not able to get new
 # workload entries.
 MAXCHECKS=30
 CHECKINTERVAL=1

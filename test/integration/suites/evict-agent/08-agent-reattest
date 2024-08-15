@@ -1,22 +1,8 @@
 #!/bin/bash
 
-log-debug "deleting agent..."
+log-debug "agent re-attesting..."
 
-# Check at most 30 times (with one second in between) that we can evict the agent, it may take a while for it to start up
-MAXCHECKS=30
-CHECKINTERVAL=1
-for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "attempting to evict agent ($i of $MAXCHECKS max)..."
-    if docker compose exec -T spire-server \
-        /opt/spire/bin/spire-server agent evict \
-        -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"; then
-	    exit 0
-    fi
-    sleep "${CHECKINTERVAL}"
-done
-
-
-# Check at most 30 times (with one second in between) that the agent has to re-attest
+# Check at most 30 times (with one second in between) that the agent is able to re-attest
 MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
@@ -40,5 +26,4 @@ for ((i=1;i<=MAXCHECKS;i++)); do
     sleep "${CHECKINTERVAL}"
 done
 
-fail-now "timed out waiting for agent to shut down"
-
+fail-now "timed out waiting for agent to re-attest"
