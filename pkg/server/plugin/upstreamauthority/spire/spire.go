@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -41,6 +42,7 @@ type Configuration struct {
 
 type experimentalConfig struct {
 	WorkloadAPINamedPipeName string `hcl:"workload_api_named_pipe_name" json:"workload_api_named_pipe_name"`
+	PQKEMMode                string `hcl:"pq_kem_mode" json:"pq_kem_mode"`
 }
 
 func BuiltIn() catalog.BuiltIn {
@@ -123,7 +125,13 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, status.Errorf(codes.Internal, "unable to build server ID: %v", err)
 	}
 
-	p.serverClient = newServerClient(serverID, serverAddr, workloadAPIAddr, p.log)
+	var tlsPolicy tlspolicy.Policy
+	tlsPolicy.PQKEMMode, err = tlspolicy.ParsePQKEMMode(p.log, p.config.Experimental.PQKEMMode)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid pq_kem_mode value: %v", err)
+	}
+
+	p.serverClient = newServerClient(serverID, serverAddr, workloadAPIAddr, p.log, tlsPolicy)
 
 	return &configv1.ConfigureResponse{}, nil
 }
