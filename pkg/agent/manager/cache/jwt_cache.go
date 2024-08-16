@@ -35,6 +35,17 @@ func (c *JWTSVIDCache) GetJWTSVID(spiffeID spiffeid.ID, audience []string) (*cli
 	return svid, ok
 }
 
+func (c *JWTSVIDCache) RemoveTaintedJWTSVIDs(taintedJWTAuthorities map[string]struct{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for key, jwtSVID := range c.svids {
+		if _, tainted := taintedJWTAuthorities[jwtSVID.Kid]; tainted {
+			delete(c.svids, key)
+		}
+	}
+}
+
 func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid *client.JWTSVID) {
 	key := jwtSVIDKey(spiffeID, audience)
 

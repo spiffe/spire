@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -19,6 +20,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
@@ -52,6 +54,7 @@ type JWTSVID struct {
 	Token     string
 	IssuedAt  time.Time
 	ExpiresAt time.Time
+	Kid       string
 }
 
 type SyncStats struct {
@@ -158,6 +161,8 @@ func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
 	}
 
 	bundles := make(map[string]*common.Bundle)
+	taintedJWTAuthorities := make(map[string]struct{})
+
 	for _, b := range protoBundles {
 		bundle, err := bundleutil.CommonBundleFromProto(b)
 		if err != nil {
@@ -165,11 +170,18 @@ func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
 			continue
 		}
 		bundles[bundle.TrustDomainId] = bundle
+
+		for _, jwtSigningKey := range bundle.JwtSigningKeys {
+			if jwtSigningKey.TaintedKey {
+				taintedJWTAuthorities[jwtSigningKey.Kid] = struct{}{}
+			}
+		}
 	}
 
 	return &Update{
-		Entries: regEntries,
-		Bundles: bundles,
+		Entries:               regEntries,
+		Bundles:               bundles,
+		TaintedJWTAuthorities: taintedJWTAuthorities,
 	}, nil
 }
 
@@ -323,19 +335,30 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 	svid := resp.Svid
 	switch {
 	case svid == nil:
-		return nil, errors.New("JWTSVID response missing SVID")
+		return nil, errors.New("JWT-SVID response missing SVID")
 	case svid.IssuedAt == 0:
-		return nil, errors.New("JWTSVID missing issued at")
+		return nil, errors.New("JWT-SVID missing issued at")
 	case svid.ExpiresAt == 0:
-		return nil, errors.New("JWTSVID missing expires at")
+		return nil, errors.New("JWT-SVID missing expires at")
 	case svid.IssuedAt > svid.ExpiresAt:
-		return nil, errors.New("JWTSVID issued after it has expired")
+		return nil, errors.New("JWT-SVID issued after it has expired")
+	}
+
+	token, err := jwt.ParseSigned(svid.Token, jwtsvid.AllowedSignatureAlgorithms)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse JWT-SVID: %w", err)
+	}
+
+	keyID := token.Headers[0].KeyID
+	if keyID == "" {
+		return nil, errors.New("missing key id in token header of minted JWT-SVID")
 	}
 
 	return &JWTSVID{
 		Token:     svid.Token,
 		IssuedAt:  time.Unix(svid.IssuedAt, 0).UTC(),
 		ExpiresAt: time.Unix(svid.ExpiresAt, 0).UTC(),
+		Kid:       keyID,
 	}, nil
 }
 

@@ -128,6 +128,9 @@ type Cache interface {
 	// SetJWTSVID adds JWT-SVID to cache
 	SetJWTSVID(id spiffeid.ID, audience []string, svid *client.JWTSVID)
 
+	// RemoveTaintedJWTSVIDs removes JWT-SVIDs with tainted authorities from the cache
+	RemoveTaintedJWTSVIDs(taintedJWTAuthorities map[string]struct{})
+
 	// Entries get all registration entries
 	Entries() []*common.RegistrationEntry
 
@@ -171,6 +174,8 @@ type manager struct {
 	// cache.
 	syncedEntries map[string]*common.RegistrationEntry
 	syncedBundles map[string]*common.Bundle
+
+	taintedJWTAuthorities map[string]struct{}
 }
 
 func (m *manager) Initialize(ctx context.Context) error {

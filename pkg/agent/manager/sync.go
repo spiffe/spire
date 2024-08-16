@@ -60,6 +60,8 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		return err
 	}
 
+	m.cache.RemoveTaintedJWTSVIDs(m.taintedJWTAuthorities)
+
 	// Set last success sync
 	m.setLastSync()
 	return nil
@@ -248,6 +250,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 		}
 	} else {
 		update, err = m.client.FetchUpdates(ctx)
+		m.taintedJWTAuthorities = update.TaintedJWTAuthorities
 		if err != nil {
 			return nil, nil, err
 		}
