@@ -13,6 +13,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -227,6 +228,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	// Set key from new CA, to be able to get it after
 	// slot moved to old state
 	slot.authorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId)
+	slot.upstreamAuthorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.AuthorityKeyId)
 	slot.publicKey = slot.x509CA.Certificate.PublicKey
 	slot.notAfter = slot.x509CA.Certificate.NotAfter
 
@@ -235,13 +237,18 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	}
 
 	m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:             slot.id,
-		telemetry.IssuedAt:         slot.issuedAt,
-		telemetry.Expiration:       slot.x509CA.Certificate.NotAfter,
-		telemetry.SelfSigned:       m.upstreamClient == nil,
-		telemetry.LocalAuthorityID: slot.authorityID,
+		telemetry.Slot:                slot.id,
+		telemetry.IssuedAt:            slot.issuedAt,
+		telemetry.Expiration:          slot.x509CA.Certificate.NotAfter,
+		telemetry.SelfSigned:          m.upstreamClient == nil,
+		telemetry.LocalAuthorityID:    slot.authorityID,
+		telemetry.UpstreamAuthorityID: slot.upstreamAuthorityID,
 	}).Info("X509 CA prepared")
 	return nil
+}
+
+func (m *Manager) IsUpstreamAuthority() bool {
+	return m.upstreamClient != nil
 }
 
 func (m *Manager) ActivateX509CA(ctx context.Context) {
@@ -493,10 +500,11 @@ func (m *Manager) activateJWTKey(ctx context.Context) {
 
 func (m *Manager) activateX509CA(ctx context.Context) {
 	log := m.c.Log.WithFields(logrus.Fields{
-		telemetry.Slot:             m.currentX509CA.id,
-		telemetry.IssuedAt:         m.currentX509CA.issuedAt,
-		telemetry.Expiration:       m.currentX509CA.x509CA.Certificate.NotAfter,
-		telemetry.LocalAuthorityID: m.currentX509CA.authorityID,
+		telemetry.Slot:                m.currentX509CA.id,
+		telemetry.IssuedAt:            m.currentX509CA.issuedAt,
+		telemetry.Expiration:          m.currentX509CA.x509CA.Certificate.NotAfter,
+		telemetry.LocalAuthorityID:    m.currentX509CA.authorityID,
+		telemetry.UpstreamAuthorityID: m.currentX509CA.upstreamAuthorityID,
 	})
 	log.Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
@@ -725,17 +733,56 @@ type bundleUpdater struct {
 	updated       func()
 }
 
-func (u *bundleUpdater) AppendX509Roots(ctx context.Context, roots []*x509.Certificate) error {
+func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certificate.X509Authority) error {
 	bundle := &common.Bundle{
 		TrustDomainId: u.trustDomainID,
 		RootCas:       make([]*common.Certificate, 0, len(roots)),
 	}
 
+	x509Authorities, err := u.fetchX509Authorities(ctx)
+	if err != nil {
+		return err
+	}
+
+	newAuthorities := make(map[string]struct{}, len(roots))
 	for _, root := range roots {
+		skID := x509util.SubjectKeyIDToString(root.Certificate.SubjectKeyId)
+		// Collect all skIDs
+		newAuthorities[skID] = struct{}{}
+
+		// Verify if new root ca is tainted
+		if root.Tainted {
+			// Taint x.509 authority, if required
+			if found, ok := x509Authorities[skID]; ok && !found.Tainted {
+				if err := u.ds.TaintX509CA(ctx, u.trustDomainID, skID); err != nil {
+					return fmt.Errorf("failed to taint x.509 authority %q: %w", skID, err)
+				}
+				u.log.WithField(telemetry.SubjectKeyID, skID).Info("X.509 authority tainted")
+				// Prevent to add tainted keys, since status is updated before
+				continue
+			}
+		}
+
 		bundle.RootCas = append(bundle.RootCas, &common.Certificate{
-			DerBytes: root.Raw,
+			DerBytes:   root.Certificate.Raw,
+			TaintedKey: root.Tainted,
 		})
 	}
+
+	for skID, authority := range x509Authorities {
+		// Only tainted keys can ke revoked
+		if authority.Tainted {
+			// In case a stored tainted authority is not found,
+			// from latest bundle update, then revoke it
+			if _, found := newAuthorities[skID]; !found {
+				if err := u.ds.RevokeX509CA(ctx, u.trustDomainID, skID); err != nil {
+					return fmt.Errorf("failed to revoke a tainted key %q: %w", skID, err)
+				}
+				u.log.WithField(telemetry.SubjectKeyID, skID).Info("X.509 authority revoked")
+			}
+		}
+	}
+
 	if _, err := u.appendBundle(ctx, bundle); err != nil {
 		return err
 	}
@@ -755,6 +802,32 @@ func (u *bundleUpdater) AppendJWTKeys(ctx context.Context, keys []*common.Public
 
 func (u *bundleUpdater) LogError(err error, msg string) {
 	u.log.WithError(err).Error(msg)
+}
+
+func (u *bundleUpdater) fetchX509Authorities(ctx context.Context) (map[string]*x509certificate.X509Authority, error) {
+	bundle, err := u.ds.FetchBundle(ctx, u.trustDomainID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch bundle: %w", err)
+	}
+	// Bundle not found
+	if bundle == nil {
+		return nil, nil
+	}
+
+	authorities := map[string]*x509certificate.X509Authority{}
+	for _, eachRoot := range bundle.RootCas {
+		cert, err := x509.ParseCertificate(eachRoot.DerBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse root certificate: %w", err)
+		}
+
+		authorities[x509util.SubjectKeyIDToString(cert.SubjectKeyId)] = &x509certificate.X509Authority{
+			Certificate: cert,
+			Tainted:     eachRoot.TaintedKey,
+		}
+	}
+
+	return authorities, nil
 }
 
 func (u *bundleUpdater) appendBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {

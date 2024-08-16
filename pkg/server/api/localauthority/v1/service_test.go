@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/grpctest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/testkey"
 	testutil "github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -473,7 +474,6 @@ func TestTaintJWTAuthority(t *testing.T) {
 		nextSlot    *fakeSlot
 		keyToTaint  string
 
-		expectKeyToTaint string
 		expectLogs       []spiretest.LogEntry
 		expectCode       codes.Code
 		expectMsg        string
@@ -709,11 +709,10 @@ func TestRevokeJWTAuthority(t *testing.T) {
 		keyToRevoke   string
 		noTaintedKeys bool
 
-		expectKeyToTaint crypto.PublicKey
-		expectLogs       []spiretest.LogEntry
-		expectCode       codes.Code
-		expectMsg        string
-		expectResp       *localauthorityv1.RevokeJWTAuthorityResponse
+		expectLogs []spiretest.LogEntry
+		expectCode codes.Code
+		expectMsg  string
+		expectResp *localauthorityv1.RevokeJWTAuthorityResponse
 	}{
 		{
 			name:        "revoke authority from parameter",
@@ -1299,8 +1298,6 @@ func TestTaintX509Authority(t *testing.T) {
 
 	nextCA, nextKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	nextPublicKeyRaw, err := x509.MarshalPKIXPublicKey(nextKey.Public())
-	require.NoError(t, err)
 	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public())
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
@@ -1308,18 +1305,30 @@ func TestTaintX509Authority(t *testing.T) {
 	oldCA, _, err := testutil.SelfSign(template)
 	require.NoError(t, err)
 
-	for _, tt := range []struct {
-		name        string
-		currentSlot *fakeSlot
-		nextSlot    *fakeSlot
-		keyToTaint  string
+	defaultRootCAs := []*common.Certificate{
+		{
+			DerBytes: currentCA.Raw,
+		},
+		{
+			DerBytes: nextCA.Raw,
+		},
+		{
+			DerBytes: oldCA.Raw,
+		},
+	}
 
-		expectKeyToTaint crypto.PublicKey
-		expectLogs       []spiretest.LogEntry
-		expectCode       codes.Code
-		expectMsg        string
-		expectResp       *localauthorityv1.TaintX509AuthorityResponse
-		taintedKey       []byte
+	for _, tt := range []struct {
+		name                string
+		currentSlot         *fakeSlot
+		nextSlot            *fakeSlot
+		keyToTaint          string
+		customRootCAs       []*common.Certificate
+		isUpstreamAuthority bool
+
+		expectLogs []spiretest.LogEntry
+		expectCode codes.Code
+		expectMsg  string
+		expectResp *localauthorityv1.TaintX509AuthorityResponse
 	}{
 		{
 			name:        "taint old authority",
@@ -1463,9 +1472,20 @@ func TestTaintX509Authority(t *testing.T) {
 			currentSlot: createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), notAfterCurrent),
 			nextSlot:    createSlot(journal.Status_OLD, nextAuthorityID, nextKey.Public(), notAfterNext),
 			keyToTaint:  nextAuthorityID,
-			taintedKey:  nextPublicKeyRaw,
-			expectCode:  codes.Internal,
-			expectMsg:   "failed to taint X.509 authority: root CA is already tainted",
+			customRootCAs: []*common.Certificate{
+				{
+					DerBytes: currentCA.Raw,
+				},
+				{
+					DerBytes:   nextCA.Raw,
+					TaintedKey: true,
+				},
+				{
+					DerBytes: oldCA.Raw,
+				},
+			},
+			expectCode: codes.Internal,
+			expectMsg:  "failed to taint X.509 authority: root CA is already tainted",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -1488,37 +1508,333 @@ func TestTaintX509Authority(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:                "fail on upstream authority",
+			currentSlot:         createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), notAfterCurrent),
+			nextSlot:            createSlot(journal.Status_OLD, nextAuthorityID, nextKey.Public(), notAfterNext),
+			keyToTaint:          nextAuthorityID,
+			isUpstreamAuthority: true,
+			expectCode:          codes.FailedPrecondition,
+			expectMsg:           "local authority can't be tainted if there is an upstream authority",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Local authority can't be tainted if there is an upstream authority",
+					Data: logrus.Fields{
+						telemetry.LocalAuthorityID: nextAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.StatusCode:       "FailedPrecondition",
+						telemetry.StatusMessage:    "local authority can't be tainted if there is an upstream authority",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: nextAuthorityID,
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
 
-			var taintedKeys []*common.X509TaintedKey
-			if tt.taintedKey != nil {
-				taintedKeys = append(taintedKeys, &common.X509TaintedKey{PublicKey: tt.taintedKey})
-			}
-
 			test.ca.currentX509CASlot = tt.currentSlot
 			test.ca.nextX509CASlot = tt.nextSlot
+			test.ca.isUpstreamAuthority = tt.isUpstreamAuthority
+
+			rootCAs := defaultRootCAs
+			if tt.customRootCAs != nil {
+				rootCAs = tt.customRootCAs
+			}
+
 			_, err := test.ds.CreateBundle(ctx, &common.Bundle{
 				TrustDomainId: serverTrustDomain.IDString(),
-				RootCas: []*common.Certificate{
-					{
-						DerBytes: currentCA.Raw,
-					},
-					{
-						DerBytes: nextCA.Raw,
-					},
-					{
-						DerBytes: oldCA.Raw,
-					},
-				},
-				X509TaintedKeys: taintedKeys,
+				RootCas:       rootCAs,
 			})
 			require.NoError(t, err)
 
 			resp, err := test.client.TaintX509Authority(ctx, &localauthorityv1.TaintX509AuthorityRequest{
 				AuthorityId: tt.keyToTaint,
+			})
+
+			spiretest.AssertGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
+			spiretest.AssertProtoEqual(t, tt.expectResp, resp)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+		})
+	}
+}
+
+func TestTaintX509UpstreamAuthority(t *testing.T) {
+	getUpstreamCertAndSubjectID := func(ca *testca.CA) (*x509.Certificate, string) {
+		// Self signed CA will return itself
+		cert := ca.X509Authorities()[0]
+		return cert, x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+	}
+
+	// Create active upstream authority
+	activeUpstreamAuthority := testca.New(t, serverTrustDomain)
+	activeUpstreamAuthorityCert, activeUpstreamAuthorityID := getUpstreamCertAndSubjectID(activeUpstreamAuthority)
+
+	// Create newUpstreamAuthority childs
+	currentIntermediateCA := activeUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
+	nextIntermediateCA := activeUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
+
+	// Create old upstream authority
+	deactivatedUpstreamAuthority := testca.New(t, serverTrustDomain)
+	deactivatedUpstreamAuthorityCert, deactivatedUpstreamAuthorityID := getUpstreamCertAndSubjectID(deactivatedUpstreamAuthority)
+
+	// Create intermediate using old upstream authority
+	oldIntermediateCA := deactivatedUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
+
+	defaultRootCAs := []*common.Certificate{
+		{
+			DerBytes: activeUpstreamAuthorityCert.Raw,
+		},
+		{
+			DerBytes: deactivatedUpstreamAuthorityCert.Raw,
+		},
+	}
+
+	for _, tt := range []struct {
+		name                string
+		currentSlot         *fakeSlot
+		nextSlot            *fakeSlot
+		subjectKeyIDToTaint string
+		customRootCAs       []*common.Certificate
+		isLocalAuthority    bool
+
+		expectLogs []spiretest.LogEntry
+		expectCode codes.Code
+		expectMsg  string
+		expectResp *localauthorityv1.TaintX509UpstreamAuthorityResponse
+	}{
+		{
+			name:                "taint old upstream authority",
+			currentSlot:         createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:            createSlotWithUpstream(journal.Status_OLD, oldIntermediateCA, notAfterNext),
+			subjectKeyIDToTaint: deactivatedUpstreamAuthorityID,
+			expectResp:          &localauthorityv1.TaintX509UpstreamAuthorityResponse{},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:       "success",
+						telemetry.Type:         "audit",
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "X.509 upstream authority tainted successfully",
+					Data: logrus.Fields{
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+		{
+			name:                "unable to taint with upstream disabled",
+			currentSlot:         createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:            createSlotWithUpstream(journal.Status_OLD, oldIntermediateCA, notAfterNext),
+			subjectKeyIDToTaint: deactivatedUpstreamAuthorityID,
+			expectCode:          codes.FailedPrecondition,
+			expectMsg:           "upstream authority is not configured",
+			isLocalAuthority:    true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Upstream authority is not configured",
+					Data: logrus.Fields{
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "FailedPrecondition",
+						telemetry.StatusMessage: "upstream authority is not configured",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+		{
+			name:        "no subjectID provided",
+			currentSlot: createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:    createSlotWithUpstream(journal.Status_OLD, oldIntermediateCA, notAfterNext),
+			expectCode:  codes.InvalidArgument,
+			expectMsg:   "provided subject key id is not valid: no subject key ID provided",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: provided subject key id is not valid",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "no subject key ID provided",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "provided subject key id is not valid: no subject key ID provided",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+			name:                "unable to use active upstream authority",
+			currentSlot:         createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:            createSlotWithUpstream(journal.Status_OLD, nextIntermediateCA, notAfterNext),
+			subjectKeyIDToTaint: activeUpstreamAuthorityID,
+			expectCode:          codes.InvalidArgument,
+			expectMsg:           "provided subject key id is not valid: unable to use upstream authority singing current authority",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: provided subject key id is not valid",
+					Data: logrus.Fields{
+						logrus.ErrorKey:        "unable to use upstream authority singing current authority",
+						telemetry.SubjectKeyID: activeUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "provided subject key id is not valid: unable to use upstream authority singing current authority",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  activeUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+		{
+			name:                "unknown subjectKeyID",
+			currentSlot:         createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:            createSlotWithUpstream(journal.Status_OLD, nextIntermediateCA, notAfterNext),
+			subjectKeyIDToTaint: "invalidID",
+			expectCode:          codes.InvalidArgument,
+			expectMsg:           "provided subject key id is not valid: upstream authority didn't sign the old local authority",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: provided subject key id is not valid",
+					Data: logrus.Fields{
+						logrus.ErrorKey:        "upstream authority didn't sign the old local authority",
+						telemetry.SubjectKeyID: "invalidID",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "provided subject key id is not valid: upstream authority didn't sign the old local authority",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  "invalidID",
+					},
+				},
+			},
+		},
+		{
+			name:                "prepared authority signed by upstream authority",
+			currentSlot:         createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:            createSlotWithUpstream(journal.Status_PREPARED, oldIntermediateCA, notAfterNext),
+			subjectKeyIDToTaint: deactivatedUpstreamAuthorityID,
+			expectCode:          codes.InvalidArgument,
+			expectMsg:           "provided subject key id is not valid: only upstream authorities signing an old authority can be used",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: provided subject key id is not valid",
+					Data: logrus.Fields{
+						logrus.ErrorKey:        "only upstream authorities signing an old authority can be used",
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "provided subject key id is not valid: only upstream authorities signing an old authority can be used",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+		{
+			name:                "ds failed to taint",
+			currentSlot:         createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:            createSlotWithUpstream(journal.Status_OLD, oldIntermediateCA, notAfterNext),
+			subjectKeyIDToTaint: deactivatedUpstreamAuthorityID,
+			expectCode:          codes.Internal,
+			expectMsg:           "failed to taint upstream authority: no ca found with provided subject key ID",
+			customRootCAs: []*common.Certificate{
+				{
+					DerBytes: activeUpstreamAuthorityCert.Raw,
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to taint upstream authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey:        "rpc error: code = NotFound desc = no ca found with provided subject key ID",
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to taint upstream authority: no ca found with provided subject key ID",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
+			test.ca.currentX509CASlot = tt.currentSlot
+			test.ca.nextX509CASlot = tt.nextSlot
+			test.ca.isUpstreamAuthority = !tt.isLocalAuthority
+
+			rootCAs := defaultRootCAs
+			if tt.customRootCAs != nil {
+				rootCAs = tt.customRootCAs
+			}
+
+			_, err := test.ds.CreateBundle(ctx, &common.Bundle{
+				TrustDomainId: serverTrustDomain.IDString(),
+				RootCas:       rootCAs,
+			})
+			require.NoError(t, err)
+
+			resp, err := test.client.TaintX509UpstreamAuthority(ctx, &localauthorityv1.TaintX509UpstreamAuthorityRequest{
+				SubjectKeyId: tt.subjectKeyIDToTaint,
 			})
 
 			spiretest.AssertGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
@@ -1542,41 +1858,37 @@ func TestRevokeX509Authority(t *testing.T) {
 
 	nextCA, nextKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	nextPublicKeyRaw, err := x509.MarshalPKIXPublicKey(nextKey.Public())
-	require.NoError(t, err)
 	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public())
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
 
-	oldCA, oldKey, err := testutil.SelfSign(template)
+	_, noStoredKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	oldPublicKeyRaw, err := x509.MarshalPKIXPublicKey(oldKey.Public())
+	noStoredKeySKI, err := x509util.GetSubjectKeyID(noStoredKey.Public())
 	require.NoError(t, err)
-	oldKeySKI, err := x509util.GetSubjectKeyID(oldKey.Public())
-	require.NoError(t, err)
-	oldAuthorityID := x509util.SubjectKeyIDToString(oldKeySKI)
+	noStoredAuthorityID := x509util.SubjectKeyIDToString(noStoredKeySKI)
 
 	for _, tt := range []struct {
-		name          string
-		currentSlot   *fakeSlot
-		nextSlot      *fakeSlot
-		keyToRevoke   string
-		noTaintedKeys bool
+		name                string
+		currentSlot         *fakeSlot
+		nextSlot            *fakeSlot
+		keyToRevoke         string
+		noTaintedKeys       bool
+		isUpstreamAuthority bool
 
-		expectKeyToTaint crypto.PublicKey
-		expectLogs       []spiretest.LogEntry
-		expectCode       codes.Code
-		expectMsg        string
-		expectResp       *localauthorityv1.RevokeX509AuthorityResponse
+		expectLogs []spiretest.LogEntry
+		expectCode codes.Code
+		expectMsg  string
+		expectResp *localauthorityv1.RevokeX509AuthorityResponse
 	}{
 		{
 			name:        "revoke authority from parameter",
 			currentSlot: createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), notAfterCurrent),
 			nextSlot:    createSlot(journal.Status_OLD, nextAuthorityID, nextKey.Public(), notAfterNext),
-			keyToRevoke: oldAuthorityID,
+			keyToRevoke: nextAuthorityID,
 			expectResp: &localauthorityv1.RevokeX509AuthorityResponse{
 				RevokedAuthority: &localauthorityv1.AuthorityState{
-					AuthorityId: oldAuthorityID,
+					AuthorityId: nextAuthorityID,
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -1586,14 +1898,14 @@ func TestRevokeX509Authority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:           "success",
 						telemetry.Type:             "audit",
-						telemetry.LocalAuthorityID: oldAuthorityID,
+						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
 				},
 				{
 					Level:   logrus.InfoLevel,
 					Message: "X.509 authority revoked successfully",
 					Data: logrus.Fields{
-						telemetry.LocalAuthorityID: oldAuthorityID,
+						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
 				},
 			},
@@ -1630,13 +1942,13 @@ func TestRevokeX509Authority(t *testing.T) {
 			nextSlot:    createSlot(journal.Status_PREPARED, nextAuthorityID, nextKey.Public(), notAfterNext),
 			keyToRevoke: nextAuthorityID,
 			expectCode:  codes.InvalidArgument,
-			expectMsg:   "invalid authority ID: unable to use a prepared key",
+			expectMsg:   "invalid authority ID: only Old local authority can be revoked",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
 					Message: "Invalid argument: invalid authority ID",
 					Data: logrus.Fields{
-						logrus.ErrorKey:            "unable to use a prepared key",
+						logrus.ErrorKey:            "only Old local authority can be revoked",
 						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
 				},
@@ -1646,7 +1958,7 @@ func TestRevokeX509Authority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
 						telemetry.StatusCode:       "InvalidArgument",
-						telemetry.StatusMessage:    "invalid authority ID: unable to use a prepared key",
+						telemetry.StatusMessage:    "invalid authority ID: only Old local authority can be revoked",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
@@ -1685,17 +1997,17 @@ func TestRevokeX509Authority(t *testing.T) {
 		{
 			name:        "ds fails to revoke",
 			currentSlot: createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), notAfterCurrent),
-			nextSlot:    createSlot(journal.Status_OLD, nextAuthorityID, nextKey.Public(), notAfterNext),
-			keyToRevoke: authorityIDKeyA,
-			expectCode:  codes.InvalidArgument,
-			expectMsg:   "invalid authority ID: no ca found with provided authority ID",
+			nextSlot:    createSlot(journal.Status_OLD, noStoredAuthorityID, noStoredKey.Public(), notAfterNext),
+			keyToRevoke: noStoredAuthorityID,
+			expectCode:  codes.Internal,
+			expectMsg:   "failed to revoke X.509 authority: no root CA found with provided subject key ID",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: invalid authority ID",
+					Message: "Failed to revoke X.509 authority",
 					Data: logrus.Fields{
-						logrus.ErrorKey:            "no ca found with provided authority ID",
-						telemetry.LocalAuthorityID: authorityIDKeyA,
+						logrus.ErrorKey:            "rpc error: code = NotFound desc = no root CA found with provided subject key ID",
+						telemetry.LocalAuthorityID: noStoredAuthorityID,
 					},
 				},
 				{
@@ -1703,10 +2015,10 @@ func TestRevokeX509Authority(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
-						telemetry.StatusCode:       "InvalidArgument",
-						telemetry.StatusMessage:    "invalid authority ID: no ca found with provided authority ID",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to revoke X.509 authority: no root CA found with provided subject key ID",
 						telemetry.Type:             "audit",
-						telemetry.LocalAuthorityID: authorityIDKeyA,
+						telemetry.LocalAuthorityID: noStoredAuthorityID,
 					},
 				},
 			},
@@ -1741,6 +2053,35 @@ func TestRevokeX509Authority(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:                "unable to revoke upstream authority",
+			currentSlot:         createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), notAfterCurrent),
+			nextSlot:            createSlot(journal.Status_OLD, nextAuthorityID, nextKey.Public(), notAfterNext),
+			keyToRevoke:         nextAuthorityID,
+			isUpstreamAuthority: true,
+			expectCode:          codes.FailedPrecondition,
+			expectMsg:           "local authority can't be revoked if there is an upstream authority",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Local authority can't be revoked if there is an upstream authority",
+					Data: logrus.Fields{
+						telemetry.LocalAuthorityID: nextAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.StatusCode:       "FailedPrecondition",
+						telemetry.StatusMessage:    "local authority can't be revoked if there is an upstream authority",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: nextAuthorityID,
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
@@ -1748,14 +2089,7 @@ func TestRevokeX509Authority(t *testing.T) {
 
 			test.ca.currentX509CASlot = tt.currentSlot
 			test.ca.nextX509CASlot = tt.nextSlot
-
-			var taintedKeys []*common.X509TaintedKey
-			if !tt.noTaintedKeys {
-				taintedKeys = []*common.X509TaintedKey{
-					{PublicKey: nextPublicKeyRaw},
-					{PublicKey: oldPublicKeyRaw},
-				}
-			}
+			test.ca.isUpstreamAuthority = tt.isUpstreamAuthority
 
 			_, err := test.ds.CreateBundle(ctx, &common.Bundle{
 				TrustDomainId: serverTrustDomain.IDString(),
@@ -1764,18 +2098,281 @@ func TestRevokeX509Authority(t *testing.T) {
 						DerBytes: currentCA.Raw,
 					},
 					{
-						DerBytes: nextCA.Raw,
-					},
-					{
-						DerBytes: oldCA.Raw,
+						DerBytes:   nextCA.Raw,
+						TaintedKey: !tt.noTaintedKeys,
 					},
 				},
-				X509TaintedKeys: taintedKeys,
 			})
 			require.NoError(t, err)
 
 			resp, err := test.client.RevokeX509Authority(ctx, &localauthorityv1.RevokeX509AuthorityRequest{
 				AuthorityId: tt.keyToRevoke,
+			})
+
+			spiretest.AssertGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
+			spiretest.AssertProtoEqual(t, tt.expectResp, resp)
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+		})
+	}
+}
+
+func TestRevokeX509UpstreamAuthority(t *testing.T) {
+	getUpstreamCertAndSubjectID := func(ca *testca.CA) (*x509.Certificate, string) {
+		// Self signed CA will return itself
+		cert := ca.X509Authorities()[0]
+		return cert, x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+	}
+
+	// Create active upstream authority
+	activeUpstreamAuthority := testca.New(t, serverTrustDomain)
+	activeUpstreamAuthorityCert, activeUpstreamAuthorityID := getUpstreamCertAndSubjectID(activeUpstreamAuthority)
+
+	// Create newUpstreamAuthority childs
+	currentIntermediateCA := activeUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
+	nextIntermediateCA := activeUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
+
+	// Create old upstream authority
+	deactivatedUpstreamAuthority := testca.New(t, serverTrustDomain)
+	deactivatedUpstreamAuthorityCert, deactivatedUpstreamAuthorityID := getUpstreamCertAndSubjectID(deactivatedUpstreamAuthority)
+
+	// Create intermediate using old upstream authority
+	oldIntermediateCA := deactivatedUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
+
+	for _, tt := range []struct {
+		name                 string
+		currentSlot          *fakeSlot
+		nextSlot             *fakeSlot
+		subjectKeyIDToRevoke string
+		noTaintedKeys        bool
+		isLocalAuthority     bool
+
+		expectLogs []spiretest.LogEntry
+		expectCode codes.Code
+		expectMsg  string
+		expectResp *localauthorityv1.RevokeX509UpstreamAuthorityResponse
+	}{
+		{
+			name:                 "revoke authority",
+			currentSlot:          createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:             createSlotWithUpstream(journal.Status_OLD, oldIntermediateCA, notAfterNext),
+			subjectKeyIDToRevoke: deactivatedUpstreamAuthorityID,
+			expectResp:           &localauthorityv1.RevokeX509UpstreamAuthorityResponse{},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:       "success",
+						telemetry.Type:         "audit",
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "X.509 upstream authority successfully revoked",
+					Data: logrus.Fields{
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+		{
+			name:                 "unable to revoke with upstream disabled",
+			currentSlot:          createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:             createSlotWithUpstream(journal.Status_OLD, oldIntermediateCA, notAfterNext),
+			subjectKeyIDToRevoke: deactivatedUpstreamAuthorityID,
+			expectCode:           codes.FailedPrecondition,
+			expectMsg:            "upstream authority is not configured",
+			isLocalAuthority:     true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Upstream authority is not configured",
+					Data: logrus.Fields{
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "FailedPrecondition",
+						telemetry.StatusMessage: "upstream authority is not configured",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+		{
+			name:        "no subjectID provided",
+			currentSlot: createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:    createSlotWithUpstream(journal.Status_OLD, oldIntermediateCA, notAfterNext),
+			expectCode:  codes.InvalidArgument,
+			expectMsg:   "invalid subject key ID: no subject key ID provided",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid subject key ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "no subject key ID provided",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid subject key ID: no subject key ID provided",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+			name:                 "unable to use active upstream authority",
+			currentSlot:          createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:             createSlotWithUpstream(journal.Status_OLD, nextIntermediateCA, notAfterNext),
+			subjectKeyIDToRevoke: activeUpstreamAuthorityID,
+			expectCode:           codes.InvalidArgument,
+			expectMsg:            "invalid subject key ID: unable to use upstream authority singing current authority",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid subject key ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey:        "unable to use upstream authority singing current authority",
+						telemetry.SubjectKeyID: activeUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid subject key ID: unable to use upstream authority singing current authority",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  activeUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+		{
+			name:                 "unknown subjectKeyID",
+			currentSlot:          createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:             createSlotWithUpstream(journal.Status_OLD, nextIntermediateCA, notAfterNext),
+			subjectKeyIDToRevoke: "invalidID",
+			expectCode:           codes.InvalidArgument,
+			expectMsg:            "invalid subject key ID: upstream authority didn't sign the old local authority",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid subject key ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey:        "upstream authority didn't sign the old local authority",
+						telemetry.SubjectKeyID: "invalidID",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid subject key ID: upstream authority didn't sign the old local authority",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  "invalidID",
+					},
+				},
+			},
+		},
+		{
+			name:                 "prepared authority signed by upstream authority",
+			currentSlot:          createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:             createSlotWithUpstream(journal.Status_PREPARED, oldIntermediateCA, notAfterNext),
+			subjectKeyIDToRevoke: deactivatedUpstreamAuthorityID,
+			expectCode:           codes.InvalidArgument,
+			expectMsg:            "invalid subject key ID: only upstream authorities signing an old authority can be used",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid subject key ID",
+					Data: logrus.Fields{
+						logrus.ErrorKey:        "only upstream authorities signing an old authority can be used",
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid subject key ID: only upstream authorities signing an old authority can be used",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+		{
+			name:                 "ds failed revoke untainted keys",
+			currentSlot:          createSlotWithUpstream(journal.Status_ACTIVE, currentIntermediateCA, notAfterCurrent),
+			nextSlot:             createSlotWithUpstream(journal.Status_OLD, oldIntermediateCA, notAfterNext),
+			subjectKeyIDToRevoke: deactivatedUpstreamAuthorityID,
+			expectCode:           codes.Internal,
+			expectMsg:            "failed to revoke X.509 upstream authority: it is not possible to revoke an untainted root CA",
+			noTaintedKeys:        true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to revoke X.509 upstream authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey:        "rpc error: code = InvalidArgument desc = it is not possible to revoke an untainted root CA",
+						telemetry.SubjectKeyID: deactivatedUpstreamAuthorityID,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "Internal",
+						telemetry.StatusMessage: "failed to revoke X.509 upstream authority: it is not possible to revoke an untainted root CA",
+						telemetry.Type:          "audit",
+						telemetry.SubjectKeyID:  deactivatedUpstreamAuthorityID,
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t)
+			defer test.Cleanup()
+
+			test.ca.currentX509CASlot = tt.currentSlot
+			test.ca.nextX509CASlot = tt.nextSlot
+			test.ca.isUpstreamAuthority = !tt.isLocalAuthority
+
+			_, err := test.ds.CreateBundle(ctx, &common.Bundle{
+				TrustDomainId: serverTrustDomain.IDString(),
+				RootCas: []*common.Certificate{
+					{
+						DerBytes: activeUpstreamAuthorityCert.Raw,
+					},
+					{
+						DerBytes:   deactivatedUpstreamAuthorityCert.Raw,
+						TaintedKey: !tt.noTaintedKeys,
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			resp, err := test.client.RevokeX509UpstreamAuthority(ctx, &localauthorityv1.RevokeX509UpstreamAuthorityRequest{
+				SubjectKeyId: tt.subjectKeyIDToRevoke,
 			})
 
 			spiretest.AssertGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
@@ -1846,7 +2443,12 @@ type fakeCAManager struct {
 
 	prepareJWTKeyErr error
 
-	prepareX509CAErr error
+	prepareX509CAErr    error
+	isUpstreamAuthority bool
+}
+
+func (m *fakeCAManager) IsUpstreamAuthority() bool {
+	return m.isUpstreamAuthority
 }
 
 func (m *fakeCAManager) GetCurrentJWTKeySlot() manager.Slot {
@@ -1884,10 +2486,15 @@ func (m *fakeCAManager) RotateX509CA(context.Context) {
 type fakeSlot struct {
 	manager.Slot
 
-	authorityID string
-	notAfter    time.Time
-	publicKey   crypto.PublicKey
-	status      journal.Status
+	authorityID         string
+	upstreamAuthorityID string
+	notAfter            time.Time
+	publicKey           crypto.PublicKey
+	status              journal.Status
+}
+
+func (s *fakeSlot) UpstreamAuthorityID() string {
+	return s.upstreamAuthorityID
 }
 
 func (s *fakeSlot) AuthorityID() string {
@@ -1912,5 +2519,14 @@ func createSlot(status journal.Status, authorityID string, publicKey crypto.Publ
 		notAfter:    notAfter,
 		publicKey:   publicKey,
 		status:      status,
+	}
+}
+
+func createSlotWithUpstream(status journal.Status, ca *testca.CA, notAfter time.Time) *fakeSlot {
+	return &fakeSlot{
+		authorityID:         ca.GetSubjectKeyID(),
+		notAfter:            notAfter,
+		status:              status,
+		upstreamAuthorityID: ca.GetUpstreamAuthorityID(),
 	}
 }
