@@ -541,6 +541,9 @@ const (
 	// with other tags to add clarity
 	Subject = "subject"
 
+	// SubjectKeyID tags a certificate subject key ID
+	SubjectKeyID = "subject_key_id"
+
 	// SVIDMapSize is the gauge key for the size of the LRU cache SVID map
 	SVIDMapSize = "lru_cache_svid_map_size"
 
@@ -598,6 +601,9 @@ const (
 	// Updated tags some entity as updated; should be used
 	// with other tags to add clarity
 	Updated = "updated"
+
+	// UpstreamAuthorityID tags a signing authority ID
+	UpstreamAuthorityID = "upstream_authority_id"
 
 	// StoreSvid tags if entry is storable
 	StoreSvid = "store_svid"
