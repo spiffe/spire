@@ -495,7 +495,7 @@ func (p *Plugin) refreshAliases(ctx context.Context) error {
 	}
 
 	if errs != nil {
-		return fmt.Errorf(strings.Join(errs, ": "))
+		return errors.New(strings.Join(errs, ": "))
 	}
 	return nil
 }
@@ -594,7 +594,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) error {
 	}
 
 	if errs != nil {
-		return fmt.Errorf(strings.Join(errs, ": "))
+		return errors.New(strings.Join(errs, ": "))
 	}
 
 	return nil
@@ -700,7 +700,7 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 		}
 	}
 	if errs != nil {
-		return fmt.Errorf(strings.Join(errs, ": "))
+		return errors.New(strings.Join(errs, ": "))
 	}
 
 	return nil

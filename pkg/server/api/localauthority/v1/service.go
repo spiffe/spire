@@ -2,16 +2,14 @@ package localauthority
 
 import (
 	"context"
-	"crypto"
-	"crypto/x509"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
@@ -33,6 +31,8 @@ type CAManager interface {
 	GetNextX509CASlot() manager.Slot
 	PrepareX509CA(ctx context.Context) error
 	RotateX509CA(ctx context.Context)
+
+	IsUpstreamAuthority() bool
 }
 
 // RegisterService registers the service on the gRPC server.
@@ -335,6 +335,10 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 		log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
 	}
 
+	if s.ca.IsUpstreamAuthority() {
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "local authority can't be tainted if there is an upstream authority", nil)
+	}
+
 	nextSlot := s.ca.GetNextX509CASlot()
 
 	switch {
@@ -355,7 +359,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 		return nil, api.MakeErr(log, codes.InvalidArgument, "only Old local authorities can be tainted", fmt.Errorf("unsupported local authority status: %v", nextSlot.Status()))
 	}
 
-	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), nextSlot.PublicKey()); err != nil {
+	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), nextSlot.AuthorityID()); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint X.509 authority", err)
 	}
 
@@ -371,25 +375,58 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	}, nil
 }
 
+func (s *Service) TaintX509UpstreamAuthority(ctx context.Context, req *localauthorityv1.TaintX509UpstreamAuthorityRequest) (*localauthorityv1.TaintX509UpstreamAuthorityResponse, error) {
+	rpccontext.AddRPCAuditFields(ctx, buildAuditUpstreamLogFields(req.SubjectKeyId))
+	log := rpccontext.Logger(ctx)
+
+	if req.SubjectKeyId != "" {
+		log = log.WithField(telemetry.SubjectKeyID, req.SubjectKeyId)
+	}
+
+	if !s.ca.IsUpstreamAuthority() {
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "upstream authority is not configured", nil)
+	}
+
+	// TODO: may we request in lower case?
+	// Normalize SKID
+	subjectKeyIDRequest := strings.ToLower(req.SubjectKeyId)
+	if err := s.validateUpstreamAuthoritySubjectKey(subjectKeyIDRequest); err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "provided subject key id is not valid", err)
+	}
+
+	if err := s.ds.TaintX509CA(ctx, s.td.IDString(), subjectKeyIDRequest); err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to taint upstream authority", err)
+	}
+
+	rpccontext.AuditRPC(ctx)
+	log.Info("X.509 upstream authority tainted successfully")
+
+	return &localauthorityv1.TaintX509UpstreamAuthorityResponse{}, nil
+}
+
 func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1.RevokeX509AuthorityRequest) (*localauthorityv1.RevokeX509AuthorityResponse, error) {
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
 
-	authorityID, publicKey, err := s.getX509PublicKey(ctx, req.AuthorityId)
-	if err != nil {
-		if req.AuthorityId != "" {
-			log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
-		}
+	if req.AuthorityId != "" {
+		log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
+	}
+
+	if s.ca.IsUpstreamAuthority() {
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "local authority can't be revoked if there is an upstream authority", nil)
+	}
+
+	if err := s.validateLocalAuthorityID(req.AuthorityId); err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid authority ID", err)
 	}
 
-	log = log.WithField(telemetry.LocalAuthorityID, authorityID)
-	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), publicKey); err != nil {
+	log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
+	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), req.AuthorityId); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to revoke X.509 authority", err)
 	}
 
 	state := &localauthorityv1.AuthorityState{
-		AuthorityId: authorityID,
+		AuthorityId: req.AuthorityId,
 	}
 
 	rpccontext.AuditRPC(ctx)
@@ -400,44 +437,72 @@ func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1
 	}, nil
 }
 
-// getX509PublicKey validates provided authority ID, and return OLD associated public key
-func (s *Service) getX509PublicKey(ctx context.Context, authorityID string) (string, crypto.PublicKey, error) {
-	if authorityID == "" {
-		return "", nil, errors.New("no authority ID provided")
+func (s *Service) RevokeX509UpstreamAuthority(ctx context.Context, req *localauthorityv1.RevokeX509UpstreamAuthorityRequest) (*localauthorityv1.RevokeX509UpstreamAuthorityResponse, error) {
+	rpccontext.AddRPCAuditFields(ctx, buildAuditUpstreamLogFields(req.SubjectKeyId))
+	log := rpccontext.Logger(ctx)
+
+	if req.SubjectKeyId != "" {
+		log = log.WithField(telemetry.SubjectKeyID, req.SubjectKeyId)
 	}
 
-	nextSlot := s.ca.GetNextX509CASlot()
-	if authorityID == nextSlot.AuthorityID() {
-		if nextSlot.Status() == journal.Status_PREPARED {
-			return "", nil, errors.New("unable to use a prepared key")
-		}
+	if !s.ca.IsUpstreamAuthority() {
+		return nil, api.MakeErr(log, codes.FailedPrecondition, "upstream authority is not configured", nil)
+	}
 
-		return nextSlot.AuthorityID(), nextSlot.PublicKey(), nil
+	// TODO: may we request in lower case?
+	// Normalize SKID
+	subjectKeyIDRequest := strings.ToLower(req.SubjectKeyId)
+	if err := s.validateUpstreamAuthoritySubjectKey(subjectKeyIDRequest); err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid subject key ID", err)
+	}
+
+	if err := s.ds.RevokeX509CA(ctx, s.td.IDString(), subjectKeyIDRequest); err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to revoke X.509 upstream authority", err)
+	}
+
+	rpccontext.AuditRPC(ctx)
+	log.Info("X.509 upstream authority successfully revoked")
+
+	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{}, nil
+}
+
+// validateLocalAuthorityID validates provided authority ID, and return OLD associated public key
+func (s *Service) validateLocalAuthorityID(authorityID string) error {
+	nextSlot := s.ca.GetNextX509CASlot()
+	switch {
+	case authorityID == "":
+		return errors.New("no authority ID provided")
+	case authorityID == s.ca.GetCurrentX509CASlot().AuthorityID():
+		return errors.New("unable to use current authority")
+	case authorityID != nextSlot.AuthorityID():
+		return errors.New("only Old local authority can be revoked")
+	case nextSlot.Status() != journal.Status_OLD:
+		return errors.New("only Old local authority can be revoked")
+	}
+
+	return nil
+}
+
+func (s *Service) validateUpstreamAuthoritySubjectKey(subjectKeyIDRequest string) error {
+	if subjectKeyIDRequest == "" {
+		return errors.New("no subject key ID provided")
 	}
 
 	currentSlot := s.ca.GetCurrentX509CASlot()
-	if currentSlot.AuthorityID() == authorityID {
-		return "", nil, errors.New("unable to use current authority")
+	if subjectKeyIDRequest == currentSlot.UpstreamAuthorityID() {
+		return errors.New("unable to use upstream authority singing current authority")
 	}
 
-	bundle, err := s.ds.FetchBundle(ctx, s.td.IDString())
-	if err != nil {
-		return "", nil, err
+	nextSlot := s.ca.GetNextX509CASlot()
+	if subjectKeyIDRequest != nextSlot.UpstreamAuthorityID() {
+		return errors.New("upstream authority didn't sign the old local authority")
 	}
 
-	for _, ca := range bundle.RootCas {
-		cert, err := x509.ParseCertificate(ca.DerBytes)
-		if err != nil {
-			return "", nil, err
-		}
-
-		subjectKeyID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
-		if authorityID == subjectKeyID {
-			return subjectKeyID, cert.PublicKey, nil
-		}
+	if nextSlot.Status() == journal.Status_PREPARED {
+		return errors.New("only upstream authorities signing an old authority can be used")
 	}
 
-	return "", nil, errors.New("no ca found with provided authority ID")
+	return nil
 }
 
 // validateAuthorityID validates provided authority ID
@@ -478,6 +543,14 @@ func buildAuditLogFields(authorityID string) logrus.Fields {
 	fields := logrus.Fields{}
 	if authorityID != "" {
 		fields[telemetry.LocalAuthorityID] = authorityID
+	}
+	return fields
+}
+
+func buildAuditUpstreamLogFields(authorityID string) logrus.Fields {
+	fields := logrus.Fields{}
+	if authorityID != "" {
+		fields[telemetry.SubjectKeyID] = authorityID
 	}
 	return fields
 }
