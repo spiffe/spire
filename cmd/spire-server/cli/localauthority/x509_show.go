@@ -49,7 +49,7 @@ func (c *x509ShowCommand) Run(ctx context.Context, _ *commoncli.Env, serverClien
 	client := serverClient.NewLocalAuthorityClient()
 	resp, err := client.GetX509AuthorityState(ctx, &localauthorityv1.GetX509AuthorityStateRequest{})
 	if err != nil {
-		return fmt.Errorf("could not get X.509 authorities: %v", err)
+		return fmt.Errorf("could not get X.509 authorities: %w", err)
 	}
 
 	return c.printer.PrintProto(resp)
