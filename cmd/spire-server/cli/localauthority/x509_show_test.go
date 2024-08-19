@@ -19,6 +19,11 @@ func TestX509ShowHelp(t *testing.T) {
 	require.Equal(t, x509ShowUsage, test.stderr.String())
 }
 
+func TestX509ShowSynopsys(t *testing.T) {
+	test := setupTest(t, localauthority.NewX509ShowCommandWithEnv)
+	require.Equal(t, "Shows the local X.509 authorities", test.client.Synopsis())
+}
+
 func TestX509Show(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
