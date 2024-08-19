@@ -31,7 +31,7 @@ type registrationEntries struct {
 	sqlTransactionTimeout   time.Duration
 }
 
-// buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache.
+// buildRegistrationEntriesCache fetches all registration entries and adds them to the cache.
 // It runs once at startup.
 func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
 	resp, err := ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
@@ -51,7 +51,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 			firstEventTime = now
 		} else {
 			// After getting the first event, search for any gaps in the event stream, from the first event to the last event.
-			// During each cache refresh cycle, it will check if any of these missed events gets populated.
+			// During each cache refresh cycle, we will check if any of these missed events get populated.
 			for i := lastEventID + 1; i < event.EventID; i++ {
 				missedEvents[i] = clk.Now()
 			}
@@ -161,7 +161,7 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 // missedStartupEvents will check for any events come in with an ID less than the first event ID we receive.
 // For example if the first event ID we receive is 3, this function will check for any IDs less than that.
 // If event ID 2 comes in later on, due to a long running transaction, this function will update the cache
-// with the information from this event. This function will run the first sqlTransactionTimeout hours after startup.
+// with the information from this event. This function will run until time equal to sqlTransactionTimeout has elapsed after startup.
 func (a *registrationEntries) missedStartupEvents(ctx context.Context) error {
 	if a.firstEventTime.IsZero() || a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {
 		return nil
