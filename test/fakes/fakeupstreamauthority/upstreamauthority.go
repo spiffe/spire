@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"math/big"
 	"sync"
 	"testing"
@@ -47,9 +48,9 @@ type UpstreamAuthority struct {
 	x509CAMtx        sync.RWMutex
 	x509CA           *x509svid.UpstreamCA
 	x509CASN         int64
-	x509Root         *x509.Certificate
+	x509Root         *x509certificate.X509Authority
 	x509Intermediate *x509.Certificate
-	x509Roots        []*x509.Certificate
+	x509Roots        []*x509certificate.X509Authority
 
 	jwtKeysMtx sync.RWMutex
 	jwtKeys    []*common.PublicKey
@@ -82,7 +83,7 @@ func (ua *UpstreamAuthority) MintX509CAAndSubscribe(request *upstreamauthorityv1
 	}
 
 	if err := ua.sendMintX509CAResponse(stream, &upstreamauthorityv1.MintX509CAResponse{
-		X509CaChain:       x509certificate.RequireToPluginProtos(x509CAChain),
+		X509CaChain:       x509certificate.RequireToPluginFromCertificates(x509CAChain),
 		UpstreamX509Roots: x509certificate.RequireToPluginProtos(ua.X509Roots()),
 	}); err != nil {
 		return err
@@ -140,7 +141,7 @@ func (ua *UpstreamAuthority) RotateX509CA() {
 		caKey = x509IntKey
 	} else {
 		ua.createRootCertificate()
-		caCert = ua.x509Root
+		caCert = ua.x509Root.Certificate
 		caKey = x509RootKey
 	}
 
@@ -152,13 +153,30 @@ func (ua *UpstreamAuthority) RotateX509CA() {
 	ua.TriggerX509RootsChanged()
 }
 
-func (ua *UpstreamAuthority) X509Root() *x509.Certificate {
+func (ua *UpstreamAuthority) TaintAuthority(index int) error {
+	ua.x509CAMtx.Lock()
+	defer ua.x509CAMtx.Unlock()
+
+	rootsLen := len(ua.x509Roots)
+	if rootsLen == 0 {
+		return errors.New("no root to taint")
+	}
+	if index >= rootsLen {
+		return errors.New("out of range")
+	}
+
+	ua.x509Roots[index].Tainted = true
+	ua.TriggerX509RootsChanged()
+	return nil
+}
+
+func (ua *UpstreamAuthority) X509Root() *x509certificate.X509Authority {
 	ua.x509CAMtx.RLock()
 	defer ua.x509CAMtx.RUnlock()
 	return ua.x509Root
 }
 
-func (ua *UpstreamAuthority) X509Roots() []*x509.Certificate {
+func (ua *UpstreamAuthority) X509Roots() []*x509certificate.X509Authority {
 	ua.x509CAMtx.RLock()
 	defer ua.x509CAMtx.RUnlock()
 	return ua.x509Roots
@@ -264,7 +282,10 @@ func (ua *UpstreamAuthority) sendPublishJWTKeyStream(stream upstreamauthorityv1.
 
 func (ua *UpstreamAuthority) createRootCertificate() {
 	template := createCATemplate("FAKEUPSTREAMAUTHORITY-ROOT", ua.nextX509CASN(), ua.config.KeyUsage)
-	ua.x509Root = createCertificate(ua.t, template, template, &x509RootKey.PublicKey, x509RootKey)
+	root := createCertificate(ua.t, template, template, &x509RootKey.PublicKey, x509RootKey)
+	ua.x509Root = &x509certificate.X509Authority{
+		Certificate: root,
+	}
 	ua.x509Roots = append(ua.x509Roots, ua.x509Root)
 }
 
@@ -273,7 +294,7 @@ func (ua *UpstreamAuthority) createIntermediateCertificate() {
 		ua.createRootCertificate()
 	}
 	template := createCATemplate("FAKEUPSTREAMAUTHORITY-INT", ua.nextX509CASN(), ua.config.KeyUsage)
-	ua.x509Intermediate = createCertificate(ua.t, template, ua.x509Root, &x509IntKey.PublicKey, x509RootKey)
+	ua.x509Intermediate = createCertificate(ua.t, template, ua.x509Root.Certificate, &x509IntKey.PublicKey, x509RootKey)
 }
 
 func (ua *UpstreamAuthority) nextX509CASN() int64 {
