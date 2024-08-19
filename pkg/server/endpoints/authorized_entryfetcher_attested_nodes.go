@@ -145,7 +145,7 @@ func (a *attestedNodes) updateCache(ctx context.Context) error {
 	return nil
 }
 
-// missedStartupEvents will check for any events come in with an ID less than the first event ID we receive.
+// missedStartupEvents will check for any events that arrive with an ID less than the first event ID we receive.
 // For example if the first event ID we receive is 3, this function will check for any IDs less than that.
 // If event ID 2 comes in later on, due to a long running transaction, this function will update the cache
 // with the information from this event. This function will run until time equal to sqlTransactionTimeout has elapsed after startup.
