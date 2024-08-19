@@ -103,7 +103,7 @@ func TestX509Show(t *testing.T) {
 			name:             "server error",
 			serverErr:        status.Error(codes.Internal, "internal server error"),
 			expectReturnCode: 1,
-			expectStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
+			expectStderr:     "Error: could not get X.509 authorities: rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
 		for _, format := range availableFormats {

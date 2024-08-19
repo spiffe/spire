@@ -76,8 +76,10 @@ type fakeLocalAuthorityServer struct {
 	activeX509,
 	preparedX509,
 	oldX509,
-	tainted,
-	revoked *localauthorityv1.AuthorityState
+	taintedX509,
+	revokedX509,
+	taintedJWT,
+	revokedJWT *localauthorityv1.AuthorityState
 
 	err error
 }
@@ -104,13 +106,13 @@ func (s *fakeLocalAuthorityServer) ActivateJWTAuthority(context.Context, *locala
 
 func (s *fakeLocalAuthorityServer) TaintJWTAuthority(context.Context, *localauthorityv1.TaintJWTAuthorityRequest) (*localauthorityv1.TaintJWTAuthorityResponse, error) {
 	return &localauthorityv1.TaintJWTAuthorityResponse{
-		TaintedAuthority: s.tainted,
+		TaintedAuthority: s.taintedJWT,
 	}, s.err
 }
 
 func (s *fakeLocalAuthorityServer) RevokeJWTAuthority(context.Context, *localauthorityv1.RevokeJWTAuthorityRequest) (*localauthorityv1.RevokeJWTAuthorityResponse, error) {
 	return &localauthorityv1.RevokeJWTAuthorityResponse{
-		RevokedAuthority: s.revoked,
+		RevokedAuthority: s.revokedJWT,
 	}, s.err
 }
 
@@ -136,7 +138,7 @@ func (s *fakeLocalAuthorityServer) ActivateX509Authority(context.Context, *local
 
 func (s *fakeLocalAuthorityServer) TaintX509Authority(context.Context, *localauthorityv1.TaintX509AuthorityRequest) (*localauthorityv1.TaintX509AuthorityResponse, error) {
 	return &localauthorityv1.TaintX509AuthorityResponse{
-		TaintedAuthority: s.tainted,
+		TaintedAuthority: s.taintedX509,
 	}, s.err
 }
 
@@ -146,7 +148,7 @@ func (s *fakeLocalAuthorityServer) TaintX509UpstreamAuthority(context.Context, *
 
 func (s *fakeLocalAuthorityServer) RevokeX509Authority(context.Context, *localauthorityv1.RevokeX509AuthorityRequest) (*localauthorityv1.RevokeX509AuthorityResponse, error) {
 	return &localauthorityv1.RevokeX509AuthorityResponse{
-		RevokedAuthority: s.revoked,
+		RevokedAuthority: s.revokedX509,
 	}, s.err
 }
 
