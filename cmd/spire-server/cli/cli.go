@@ -3,6 +3,8 @@ package cli
 import (
 	"context"
 	stdlog "log"
+	"os"
+	"strings"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
@@ -11,11 +13,13 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/federation"
 	"github.com/spiffe/spire/cmd/spire-server/cli/healthcheck"
 	"github.com/spiffe/spire/cmd/spire-server/cli/jwt"
+	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority"
 	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
 	"github.com/spiffe/spire/cmd/spire-server/cli/token"
 	"github.com/spiffe/spire/cmd/spire-server/cli/validate"
 	"github.com/spiffe/spire/cmd/spire-server/cli/x509"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/version"
 )
@@ -124,6 +128,32 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		"validate": func() (cli.Command, error) {
 			return validate.NewValidateCommand(), nil
 		},
+	}
+
+	// TODO: Remove this when the forced_rotation feature flag is no longer
+	// needed.
+
+	// Feature flags support through the fflag package in SPIRE Server is
+	// designed to work only with the run command and the config file.
+	// Since feature flags are intended to be used by developers of a specific
+	// feature only, exposing them through command line arguments is not
+	// convenient. Instead, we use the SPIRE_SERVER_FFLAGS environment variable
+	// to read the configured SPIRE Server feature flags from the environment
+	// when other commands may be enabled through feature flags.
+	fflagsEnv := os.Getenv("SPIRE_SERVER_FFLAGS")
+	fflags := strings.Split(fflagsEnv, " ")
+	flagForcedRotationFound := false
+	for _, ff := range fflags {
+		if ff == string(fflag.FlagForcedRotation) {
+			flagForcedRotationFound = true
+			break
+		}
+	}
+
+	if flagForcedRotationFound {
+		c.Commands["localauthority x509 show"] = func() (cli.Command, error) {
+			return localauthority.NewX509ShowCommand(), nil
+		}
 	}
 
 	exitStatus, err := c.Run()
