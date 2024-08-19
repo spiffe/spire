@@ -57,7 +57,6 @@ EOF
 # version we want to test against the latest
 #
 cat <<EOF > docker-compose.yaml
-version: '3'
 networks:
   our-network: {}
 services:
