@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc/codes"
@@ -17,7 +18,7 @@ import (
 // BundleUpdater is the interface used by the UpstreamClient to append bundle
 // updates.
 type BundleUpdater interface {
-	AppendX509Roots(ctx context.Context, roots []*x509.Certificate) error
+	SyncX509Roots(ctx context.Context, roots []*x509certificate.X509Authority) error
 	AppendJWTKeys(ctx context.Context, keys []*common.PublicKey) ([]*common.PublicKey, error)
 	LogError(err error, msg string)
 }
@@ -139,16 +140,22 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, csr []byte, tt
 	}
 	defer x509RootsStream.Close()
 
+	// Extract all root certificates
+	var x509RootCerts []*x509.Certificate
+	for _, eachRoot := range x509Roots {
+		x509RootCerts = append(x509RootCerts, eachRoot.Certificate)
+	}
+
 	// Before we append the roots and return the response, we must first
 	// validate that the minted intermediate can sign a valid, conformant
 	// X509-SVID chain of trust using the provided callback.
-	if err := validateX509CA(x509CA, x509Roots); err != nil {
+	if err := validateX509CA(x509CA, x509RootCerts); err != nil {
 		err = status.Errorf(codes.InvalidArgument, "X509 CA minted by upstream authority is invalid: %v", err)
 		firstResultCh <- mintX509CAResult{err: err}
 		return
 	}
 
-	if err := u.c.BundleUpdater.AppendX509Roots(ctx, x509Roots); err != nil {
+	if err := u.c.BundleUpdater.SyncX509Roots(ctx, x509Roots); err != nil {
 		firstResultCh <- mintX509CAResult{err: err}
 		return
 	}
@@ -171,7 +178,7 @@ func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, csr []byte, tt
 			return
 		}
 
-		if err := u.c.BundleUpdater.AppendX509Roots(ctx, x509Roots); err != nil {
+		if err := u.c.BundleUpdater.SyncX509Roots(ctx, x509Roots); err != nil {
 			u.c.BundleUpdater.LogError(err, "Failed to store X.509 roots received by the upstream authority plugin.")
 			continue
 		}

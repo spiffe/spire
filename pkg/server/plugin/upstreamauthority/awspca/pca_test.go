@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/acmpca"
 	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -292,16 +293,20 @@ func TestMintX509CA(t *testing.T) {
 		getCertificateErr       error
 		expectMsgPrefix         string
 		expectX509CA            []*x509.Certificate
-		expectX509Authorities   []*x509.Certificate
+		expectX509Authorities   []*x509certificate.X509Authority
 		expectTTL               time.Duration
 	}{
 		{
-			test:                    "Successful mint",
-			config:                  successConfig,
-			csr:                     makeCSR("spiffe://example.com/foo"),
-			preferredTTL:            300 * time.Second,
-			expectX509CA:            []*x509.Certificate{expectCert, intermediateCert},
-			expectX509Authorities:   []*x509.Certificate{bundleCert},
+			test:         "Successful mint",
+			config:       successConfig,
+			csr:          makeCSR("spiffe://example.com/foo"),
+			preferredTTL: 300 * time.Second,
+			expectX509CA: []*x509.Certificate{expectCert, intermediateCert},
+			expectX509Authorities: []*x509certificate.X509Authority{
+				{
+					Certificate: bundleCert,
+				},
+			},
 			getCertificateCert:      encodedCert.String(),
 			getCertificateCertChain: encodedCertChain.String(),
 		},
@@ -315,10 +320,17 @@ func TestMintX509CA(t *testing.T) {
 				AssumeRoleARN:           validAssumeRoleARN,
 				SupplementalBundlePath:  supplementalBundlePath,
 			},
-			csr:                     makeCSR("spiffe://example.com/foo"),
-			preferredTTL:            300 * time.Second,
-			expectX509CA:            []*x509.Certificate{expectCert, intermediateCert},
-			expectX509Authorities:   []*x509.Certificate{bundleCert, supplementalCert[0]},
+			csr:          makeCSR("spiffe://example.com/foo"),
+			preferredTTL: 300 * time.Second,
+			expectX509CA: []*x509.Certificate{expectCert, intermediateCert},
+			expectX509Authorities: []*x509certificate.X509Authority{
+				{
+					Certificate: bundleCert,
+				},
+				{
+					Certificate: supplementalCert[0],
+				},
+			},
 			getCertificateCert:      encodedCert.String(),
 			getCertificateCertChain: encodedCertChain.String(),
 		},

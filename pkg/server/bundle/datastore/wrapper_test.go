@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -52,12 +53,13 @@ func TestWithBundlePublisher(t *testing.T) {
 		{
 			name: "RevokeX509CA",
 			assertCallingCallback: func(ctx context.Context, t *testing.T, ds datastore.DataStore, wt *wrapperTest) {
-				require.NoError(t, ds.TaintX509CA(ctx, bundle2.TrustDomainId, rootCA.PublicKey))
+				subjectKeyID := x509util.SubjectKeyIDToString(rootCA.SubjectKeyId)
+				require.NoError(t, ds.TaintX509CA(ctx, bundle2.TrustDomainId, subjectKeyID))
 
 				// TaintX509CA should not call the callback function
 				require.False(t, wt.callbackCalled)
 
-				require.NoError(t, ds.RevokeX509CA(ctx, bundle2.TrustDomainId, rootCA.PublicKey))
+				require.NoError(t, ds.RevokeX509CA(ctx, bundle2.TrustDomainId, subjectKeyID))
 				require.True(t, wt.callbackCalled)
 			},
 		},
