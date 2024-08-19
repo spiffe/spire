@@ -57,8 +57,8 @@ type Config struct {
 	// Bundle endpoint configuration
 	BundleEndpoint bundle.EndpointConfig
 
-	// CA Manager
-	CAManager *manager.Manager
+	// Authority manager
+	AuthorityManager manager.AuthorityManager
 
 	// Makes policy decisions
 	AuthPolicyEngine *authpolicy.Engine
@@ -155,7 +155,7 @@ func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) 
 
 func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServers {
 	ds := c.Catalog.GetDataStore()
-	upstreamPublisher := UpstreamPublisher(c.CAManager)
+	upstreamPublisher := UpstreamPublisher(c.AuthorityManager)
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
@@ -203,7 +203,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 		}),
 		LocalAUthorityServer: localauthorityv1.New(localauthorityv1.Config{
 			TrustDomain: c.TrustDomain,
-			CAManager:   c.CAManager,
+			CAManager:   c.AuthorityManager,
 			DataStore:   ds,
 		}),
 	}

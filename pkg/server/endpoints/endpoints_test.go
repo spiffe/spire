@@ -27,6 +27,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
+	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
@@ -95,6 +96,7 @@ func TestNew(t *testing.T) {
 		Catalog:          cat,
 		ServerCA:         serverCA,
 		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
+		AuthorityManager: &fakeAuthorityManager{},
 		Log:              log,
 		RootLog:          log,
 		Metrics:          metrics,
@@ -1148,6 +1150,10 @@ func (o *svidObserver) State() svid.State {
 		SVID: o.svid.Certificates,
 		Key:  o.svid.PrivateKey,
 	}
+}
+
+type fakeAuthorityManager struct {
+	manager.AuthorityManager
 }
 
 type agentServer struct {
