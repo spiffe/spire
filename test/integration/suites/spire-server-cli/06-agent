@@ -1,105 +1,13 @@
 #!/bin/bash
 
 # Verify agent count correctly indicates three agents
-docker compose exec -T spire-server /opt/spire/bin/spire-server agent count | grep 3 || fail-now "failed to count 3 agents"
-
-# Verify 3 agents were created
-listResult="$(docker compose exec -T spire-server \
-    /opt/spire/bin/spire-server agent list)"
-
-echo "$listResult" | grep "Found 3 attested agents" || fail-now "failed to list the 3 agents initially"
-echo "$listResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected agents attestation type"
-
-# Get agent SPIFFE IDs from entries, knowing they were attested using join-token
-# Agent 1
-agentID1="$(docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server entry show \
-    -spiffeID spiffe://domain.test/node1)"
-agentID1="$(echo "$agentID1" | grep "Parent ID")" || fail-now "failed to extract agentID1"
-agentID1="${agentID1#*: }"
-
-# Agent 2
-agentID2="$(docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server entry show \
-    -spiffeID spiffe://domain.test/node2)"
-agentID2="$(echo "$agentID2" | grep "Parent ID")" || fail-now "failed to extract agentID2"
-agentID2="${agentID2#*: }"
-
-# Agent 3
-agentID3="$(docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server entry show \
-    -spiffeID spiffe://domain.test/node3)"
-agentID3="$(echo "$agentID3" | grep "Parent ID")" || fail-now "failed to extract agentID3"
-agentID3="${agentID3#*: }"
-
-# Verify agentIDs match
-echo "$listResult" | grep "$agentID1" || fail-now "agentID1=$agentID1 not found in agentIDs list"
-echo "$listResult" | grep "$agentID2" || fail-now "agentID2=$agentID2 not found in agentIDs list"
-echo "$listResult" | grep "$agentID3" || fail-now "agentID3=$agentID3 not found in agentIDs list"
-
-# Verify agent show
-# Agent 1
-showResult="$(docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent show -spiffeID $agentID1)"
-
-echo "$showResult" | grep "Found an attested agent given its SPIFFE ID" || fail-now "failed to show agent 1"
-echo "$showResult" | grep "SPIFFE ID" | grep "$agentID1" || fail-now "unexpected SPIFFE ID for agent 1"
-echo "$showResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected attestation type for agent 1"
-
-# Agent 2
-showResult="$(docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent show -spiffeID $agentID2)"
-
-echo "$showResult" | grep "Found an attested agent given its SPIFFE ID" || fail-now "failed to show agent 2"
-echo "$showResult" | grep "SPIFFE ID" | grep "$agentID2" || fail-now "unexpected SPIFFE ID for agent 2"
-echo "$showResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected attestation type for agent 2"
-
-# Agent 3
-showResult="$(docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent show -spiffeID $agentID3)"
-
-echo "$showResult" | grep "Found an attested agent given its SPIFFE ID" || fail-now "failed to show agent 3"
-echo "$showResult" | grep "SPIFFE ID" | grep "$agentID3" || fail-now "unexpected SPIFFE ID for agent 3"
-echo "$showResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected attestation type for agent 3"
-
-# Verify agent ban
-docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent ban -spiffeID "$agentID1" | grep "Agent banned successfully" || fail-now "failed to ban agent 1"
-
-# Verify agent list after ban
-docker compose exec -T spire-server \
-    /opt/spire/bin/spire-server agent list | grep "Found 3 attested agents" || fail-now "failed to list the agents after ban"
-
-# Verify agent show after ban Agent 1
-docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent show -spiffeID $agentID1 | grep "Banned            : true" || fail-now "agent 1 was not banned"
-
-# Verify agent evict
-docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent evict -spiffeID "$agentID1" | grep "Agent evicted successfully" || fail-now "failed to evict agent 1"
-
-# Verify agent list after evict
-docker compose exec -T spire-server \
-    /opt/spire/bin/spire-server agent list | grep "Found 2 attested agents" || fail-now "failed to list the agents after evict"
-
-# Verify agent show after evict
-# Agent 1
-echo "$(docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent show -spiffeID $agentID1 || echo "OK: agent 1 not found")" \
-    | grep "OK: agent 1 not found" || fail-now "agent 1 was found after evict"
-
-# Agent 2
-showResult="$(docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent show -spiffeID $agentID2)"
-
-echo "$showResult" | grep "Found an attested agent given its SPIFFE ID" || fail-now "failed to show agent 2 after evict"
-echo "$showResult" | grep "SPIFFE ID" | grep "$agentID2" || fail-now "unexpected SPIFFE ID for agent 2 after evict"
-echo "$showResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected attestation type for agent 2 after evict"
-
-# Agent 3
-showResult="$(docker compose exec -T spire-server \
-	/opt/spire/bin/spire-server agent show -spiffeID $agentID3)"
-
-echo "$showResult" | grep "Found an attested agent given its SPIFFE ID" || fail-now "failed to show agent 3 after evict"
-echo "$showResult" | grep "SPIFFE ID" | grep "$agentID3" || fail-now "unexpected SPIFFE ID for agent 3 after evict"
-echo "$showResult" | grep "Attestation type" | grep "join_token" || fail-now "unexpected attestation type for agent 3 after evict"
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "checking that the server counts 3 agents ($i of $MAXCHECKS max)..."
+    if docker compose exec -T spire-server /opt/spire/bin/spire-server agent count | grep 3; then
+	exit 0
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+fail-now "failed to count 3 agents"

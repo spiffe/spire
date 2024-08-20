@@ -149,6 +149,18 @@ func (ca *CA) JWTBundle() *jwtbundle.Bundle {
 	return jwtbundle.FromJWTAuthorities(ca.td, ca.JWTAuthorities())
 }
 
+func (ca *CA) GetSubjectKeyID() string {
+	return x509util.SubjectKeyIDToString(ca.cert.SubjectKeyId)
+}
+
+func (ca *CA) GetUpstreamAuthorityID() string {
+	authorityKeyID := ca.cert.AuthorityKeyId
+	if len(authorityKeyID) == 0 {
+		return ""
+	}
+	return x509util.SubjectKeyIDToString(authorityKeyID)
+}
+
 func (ca *CA) chain(includeRoot bool) []*x509.Certificate {
 	chain := []*x509.Certificate{}
 	next := ca
@@ -183,7 +195,10 @@ func CreateCACertificate(tb testing.TB, parent *x509.Certificate, parentKey cryp
 	if parent == nil {
 		parent = tmpl
 		parentKey = key
+	} else {
+		tmpl.AuthorityKeyId = parent.SubjectKeyId
 	}
+
 	return CreateCertificate(tb, tmpl, parent, key.Public(), parentKey), key
 }
 

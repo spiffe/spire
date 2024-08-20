@@ -13,6 +13,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -140,6 +141,31 @@ func TestMintX509CA(t *testing.T) {
 	serverCertUpdate, _ := ca.CreateX509Certificate(
 		testca.WithID(spiffeid.RequireFromPath(trustDomain, "/another")),
 	)
+	serverCertUpdateTainted, _ := ca.CreateX509Certificate(
+		testca.WithID(spiffeid.RequireFromPath(trustDomain, "/another")),
+	)
+	expectedServerUpdateAuthority := []*x509certificate.X509Authority{
+		{
+			Certificate: serverCertUpdate[0],
+		},
+		{
+			Certificate: serverCertUpdateTainted[0],
+			Tainted:     true,
+		},
+	}
+
+	certToAuthority := func(certs []*x509.Certificate) []*x509certificate.X509Authority {
+		var authorities []*x509certificate.X509Authority
+		for _, eachCert := range certs {
+			authorities = append(authorities, &x509certificate.X509Authority{
+				Certificate: eachCert,
+			})
+		}
+		return authorities
+	}
+	// TODO: since now we can taint authorities may we add this feature
+	// to go-spiffe?
+	expectedX509Authorities := certToAuthority(ca.Bundle().X509Authorities())
 
 	csr, pubKey, err := util.NewCSRTemplate(trustDomain.IDString())
 	require.NoError(t, err)
@@ -270,7 +296,7 @@ func TestMintX509CA(t *testing.T) {
 				return
 			}
 
-			require.Equal(t, ca.X509Bundle().X509Authorities(), x509Authorities)
+			require.Equal(t, expectedX509Authorities, x509Authorities)
 
 			wantTTL := c.ttl
 			if wantTTL == 0 {
@@ -289,6 +315,7 @@ func TestMintX509CA(t *testing.T) {
 			// the upstream poll frequency twice to ensure the plugin picks up
 			// the change to the bundle.
 			server.sAPIServer.appendRootCA(&types.X509Certificate{Asn1: serverCertUpdate[0].Raw})
+			server.sAPIServer.appendRootCA(&types.X509Certificate{Asn1: serverCertUpdateTainted[0].Raw, Tainted: true})
 			mockClock.Add(upstreamPollFreq)
 			mockClock.Add(upstreamPollFreq)
 			mockClock.Add(internalPollFreq)
@@ -297,8 +324,7 @@ func TestMintX509CA(t *testing.T) {
 			bundleUpdateResp, err := stream.RecvUpstreamX509Authorities()
 			require.NoError(t, err)
 
-			expectBundles := append(ca.X509Authorities(), serverCertUpdate...)
-			require.Equal(t, expectBundles, bundleUpdateResp)
+			require.Equal(t, append(expectedX509Authorities, expectedServerUpdateAuthority...), bundleUpdateResp)
 
 			// Cancel ctx to stop getting updates
 			cancel()

@@ -10,6 +10,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -242,7 +243,9 @@ func TestMintX509CA(t *testing.T) {
 	clk := clock.NewMock(t)
 	certsAndKeys, fakeStorageClientCreator := generateTestData(t, clk)
 
-	x509Authority := []*x509.Certificate{certsAndKeys.rootCert}
+	x509Authority := []*x509certificate.X509Authority{
+		{Certificate: certsAndKeys.rootCert},
+	}
 
 	makeCSR := func(spiffeID string) []byte {
 		csr, err := util.NewCSRTemplateWithKey(spiffeID, key)
@@ -279,7 +282,7 @@ func TestMintX509CA(t *testing.T) {
 		expectCode              codes.Code
 		expectMsgPrefix         string
 		expectX509CASpiffeID    string
-		expectedX509Authorities []*x509.Certificate
+		expectedX509Authorities []*x509certificate.X509Authority
 		expectTTL               time.Duration
 		numExpectedCAs          int
 	}{

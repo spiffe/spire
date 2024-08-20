@@ -6,7 +6,14 @@ import (
 	"fmt"
 )
 
-func fromProtoFields(asn1 []byte) (*x509.Certificate, error) {
+// TODO: may we call it Authority?
+// TODO: may we add subjectKeyID?
+type X509Authority struct {
+	Certificate *x509.Certificate
+	Tainted     bool
+}
+
+func fromProtoFields(asn1 []byte, tainted bool) (*X509Authority, error) {
 	if len(asn1) == 0 {
 		return nil, errors.New("missing X.509 certificate data")
 	}
@@ -14,24 +21,30 @@ func fromProtoFields(asn1 []byte) (*x509.Certificate, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse X.509 certificate data: %w", err)
 	}
-	return x509Certificate, nil
+	return &X509Authority{
+		Certificate: x509Certificate,
+		Tainted:     tainted,
+	}, nil
 }
 
-func rawFromProtoFields(asn1 []byte) ([]byte, error) {
-	cert, err := fromProtoFields(asn1)
-	if err != nil {
-		return nil, err
+func toProtoFields(x509Authority *X509Authority) ([]byte, bool, error) {
+	if x509Authority == nil {
+		return nil, false, errors.New("missing x509 authority")
 	}
-	return cert.Raw, nil
-}
-
-func toProtoFields(x509Certificate *x509.Certificate) ([]byte, error) {
-	return rawToProtoFields(x509Certificate.Raw)
-}
-
-func rawToProtoFields(asn1 []byte) ([]byte, error) {
-	if len(asn1) == 0 {
-		return nil, errors.New("missing X.509 certificate data")
+	if err := validateX509Certificate(x509Authority.Certificate); err != nil {
+		return nil, false, err
 	}
-	return asn1, nil
+
+	return x509Authority.Certificate.Raw, x509Authority.Tainted, nil
+}
+
+func validateX509Certificate(cert *x509.Certificate) error {
+	switch {
+	case cert == nil:
+		return errors.New("missing X.509 certificate")
+	case len(cert.Raw) == 0:
+		return errors.New("missing X.509 certificate data")
+	default:
+		return nil
+	}
 }

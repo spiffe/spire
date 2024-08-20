@@ -176,12 +176,15 @@ func (p *Plugin) Attest(_ context.Context, req *workloadattestorv1.AttestRequest
 		selectorValues = append(selectorValues, makeSelectorValue("path", processPath))
 
 		if config.WorkloadSizeLimit >= 0 {
-			exePath := p.getNamespacedPath(proc)
-			sha256Digest, err := util.GetSHA256Digest(exePath, config.WorkloadSizeLimit)
+			exePath, err := p.getNamespacedPath(proc)
 			if err != nil {
 				return nil, status.Error(codes.Internal, err.Error())
 			}
 
+			sha256Digest, err := util.GetSHA256Digest(exePath, config.WorkloadSizeLimit)
+			if err != nil {
+				return nil, status.Error(codes.Internal, err.Error())
+			}
 			selectorValues = append(selectorValues, makeSelectorValue("sha256", sha256Digest))
 		}
 	}
@@ -273,8 +276,11 @@ func (p *Plugin) getPath(proc processInfo) (string, error) {
 	return path, nil
 }
 
-func (p *Plugin) getNamespacedPath(proc processInfo) string {
-	return proc.NamespacedExe()
+func (p *Plugin) getNamespacedPath(proc processInfo) (string, error) {
+	if runtime.GOOS == "linux" {
+		return proc.NamespacedExe(), nil
+	}
+	return proc.Exe()
 }
 
 func makeSelectorValue(kind, value string) string {
