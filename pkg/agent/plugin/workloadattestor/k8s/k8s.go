@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/hcl"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -41,7 +42,6 @@ const (
 	defaultTokenPath         = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
 	defaultNodeNameEnv       = "MY_NODE_NAME"
 	defaultReloadInterval    = time.Minute
-	maximumAmountCache       = 10
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -132,27 +132,12 @@ type HCLConfig struct {
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
 
 	// Experimental enables experimental features.
-	Experimental *ExperimentalK8SConfig `hcl:"experimental,omitempty"`
+	Experimental experimentalK8SConfig `hcl:"experimental,omitempty"`
 }
 
-type ExperimentalK8SConfig struct {
+type experimentalK8SConfig struct {
 	// Sigstore contains sigstore specific configs.
-	Sigstore *SigstoreHCLConfig `hcl:"sigstore,omitempty"`
-}
-
-// SigstoreHCLConfig holds the sigstore configuration parsed from HCL
-type SigstoreHCLConfig struct {
-	// EnforceSCT is the parameter to be set as false in case of a private deployment not using the public CT
-	EnforceSCT *bool `hcl:"enforce_sct, omitempty"`
-
-	// RekorURL is the URL for the rekor server to use to verify signatures and public keys
-	RekorURL *string `hcl:"rekor_url,omitempty"`
-
-	// SkippedImages is a list of images that should skip sigstore verification
-	SkippedImages []string `hcl:"skip_signature_verification_image_list"`
-
-	// AllowedSubjects is a list of subjects that should be allowed after verification
-	AllowedSubjects map[string][]string `hcl:"allowed_subjects_list"`
+	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -177,7 +162,6 @@ type k8sConfig struct {
 
 type ContainerHelper interface {
 	Configure(config *HCLConfig, log hclog.Logger) error
-	GetOSSelectors(ctx context.Context, log hclog.Logger, containerStatus *corev1.ContainerStatus) ([]string, error)
 	GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error)
 }
 
@@ -190,9 +174,10 @@ type Plugin struct {
 	rootDir string
 	getenv  func(string) string
 
-	mu              sync.RWMutex
-	config          *k8sConfig
-	containerHelper ContainerHelper
+	mu               sync.RWMutex
+	config           *k8sConfig
+	containerHelper  ContainerHelper
+	sigstoreVerifier sigstore.Verifier
 }
 
 func New() *Plugin {
@@ -207,7 +192,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	config, containerHelper, err := p.getConfig()
+	config, containerHelper, sigstoreVerifier, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -275,14 +260,15 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(pod)...)
 				if !config.DisableContainerSelectors {
 					selectorValues = append(selectorValues, getSelectorValuesFromWorkloadContainerStatus(containerStatus)...)
+				}
 
-					osSelector, err := containerHelper.GetOSSelectors(ctx, log, containerStatus)
-					switch {
-					case err != nil:
-						return nil, err
-					case len(osSelector) > 0:
-						selectorValues = append(selectorValues, osSelector...)
+				if sigstoreVerifier != nil {
+					log.Debug("Attempting to verify sigstore image signature", "image", containerStatus.Image)
+					sigstoreSelectors, err := p.sigstoreVerifier.Verify(ctx, containerStatus.ImageID)
+					if err != nil {
+						return nil, status.Errorf(codes.Internal, "error verifying sigstore image signature for imageID %s: %v", containerStatus.ImageID, err)
 					}
+					selectorValues = append(selectorValues, sigstoreSelectors...)
 				}
 
 			case podKnown && config.DisableContainerSelectors:
@@ -322,7 +308,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	}
 }
 
-func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
 	// Parse HCL config payload into config struct
 	config := new(HCLConfig)
 	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
@@ -407,29 +393,41 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (r
 		return nil, err
 	}
 
+	var sigstoreVerifier sigstore.Verifier
+	if config.Experimental.Sigstore != nil {
+		cfg := sigstore.NewConfigFromHCL(config.Experimental.Sigstore, p.log)
+		verifier := sigstore.NewVerifier(cfg)
+		err = verifier.Init(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
+		}
+		sigstoreVerifier = verifier
+	}
+
 	// Set the config
-	p.setConfig(c, containerHelper)
+	p.setConfig(c, containerHelper, sigstoreVerifier)
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) setConfig(config *k8sConfig, containerHelper ContainerHelper) {
+func (p *Plugin) setConfig(config *k8sConfig, containerHelper ContainerHelper, sigstoreVerifier sigstore.Verifier) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = config
 	p.containerHelper = containerHelper
+	p.sigstoreVerifier = sigstoreVerifier
 }
 
-func (p *Plugin) getConfig() (*k8sConfig, ContainerHelper, error) {
+func (p *Plugin) getConfig() (*k8sConfig, ContainerHelper, sigstore.Verifier, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	if p.config == nil {
-		return nil, nil, status.Error(codes.FailedPrecondition, "not configured")
+		return nil, nil, nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	if err := p.reloadKubeletClient(p.config); err != nil {
 		p.log.Warn("Unable to load kubelet client", "err", err)
 	}
-	return p.config, p.containerHelper, nil
+	return p.config, p.containerHelper, p.sigstoreVerifier, nil
 }
 
 func (p *Plugin) setContainerHelper(c ContainerHelper) {
