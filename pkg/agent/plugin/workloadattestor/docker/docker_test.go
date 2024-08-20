@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -10,16 +11,20 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
 const (
 	testContainerID = "6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	testImageID     = "test-image-id"
 )
 
 var disabledRetryer = &retryer{disabled: true}
@@ -150,14 +155,35 @@ func TestDockerErrorContextCancel(t *testing.T) {
 
 func TestDockerConfig(t *testing.T) {
 	for _, tt := range []struct {
-		name       string
-		expectCode codes.Code
-		expectMsg  string
-		config     string
+		name               string
+		expectCode         codes.Code
+		expectMsg          string
+		config             string
+		sigstoreConfigured bool
 	}{
 		{
 			name:   "success configuration",
 			config: `docker_version = "/123/"`,
+		},
+		{
+			name: "sigstore configuration",
+			config: `
+					experimental {
+    					sigstore {
+        					allowed_identities = {
+            					"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
+            					"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
+        					}
+        					skipped_images = ["registry/image@sha256:examplehash"]
+        					rekor_url = "https://test.dev"
+        					ignore_sct = true
+        					ignore_tlog = true
+                            ignore_attestations = true
+        					registry_username = "user"
+        					registry_password = "pass"
+    					}
+			}`,
+			sigstoreConfigured: true,
 		},
 		{
 			name: "bad hcl",
@@ -185,6 +211,12 @@ invalid2 = "/no/"`,
 				plugintest.CaptureConfigureError(&err))
 
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
+
+			if tt.sigstoreConfigured {
+				assert.NotNil(t, p.sigstoreVerifier)
+			} else {
+				assert.Nil(t, p.sigstoreVerifier)
+			}
 		})
 	}
 }
@@ -196,6 +228,101 @@ func TestDockerConfigDefault(t *testing.T) {
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
 	require.Equal(t, "1.46", p.docker.(*dockerclient.Client).ClientVersion())
 	verifyConfigDefault(t, p.c)
+}
+
+func TestNewConfigFromHCL(t *testing.T) {
+	cases := []struct {
+		name string
+		hcl  *sigstore.HCLConfig
+		want *sigstore.Config
+	}{
+		{
+			name: "complete sigstore configuration",
+			hcl: &sigstore.HCLConfig{
+				AllowedIdentities: map[string][]string{
+					"test-issuer-1": {"*@example.com", "subject@otherdomain.com"},
+					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
+				},
+				SkippedImages:      []string{"registry/image@sha256:examplehash"},
+				RekorURL:           strPtr("https://test.dev"),
+				IgnoreSCT:          boolPtr(true),
+				IgnoreTlog:         boolPtr(true),
+				IgnoreAttestations: boolPtr(true),
+				RegistryCredentials: map[string]*sigstore.RegistryCredential{
+					"registry": {
+						Username: "user",
+						Password: "pass",
+					},
+				},
+			},
+			want: &sigstore.Config{
+				AllowedIdentities: map[string][]string{
+					"test-issuer-1": {"*@example.com", "subject@otherdomain.com"},
+					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
+				},
+				SkippedImages:      map[string]struct{}{"registry/image@sha256:examplehash": {}},
+				RekorURL:           "https://test.dev",
+				IgnoreSCT:          true,
+				IgnoreTlog:         true,
+				IgnoreAttestations: true,
+				RegistryCredentials: map[string]*sigstore.RegistryCredential{
+					"registry": {
+						Username: "user",
+						Password: "pass",
+					},
+				},
+				Logger: hclog.NewNullLogger(),
+			},
+		},
+		{
+			name: "empty sigstore configuration",
+			hcl:  &sigstore.HCLConfig{},
+			want: &sigstore.Config{
+				RekorURL:           "",
+				IgnoreSCT:          false,
+				IgnoreTlog:         false,
+				IgnoreAttestations: false,
+				AllowedIdentities:  map[string][]string{},
+				SkippedImages:      map[string]struct{}{},
+				Logger:             hclog.NewNullLogger(),
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			log := hclog.NewNullLogger()
+			cfg := sigstore.NewConfigFromHCL(tc.hcl, log)
+			require.Equal(t, tc.want, cfg)
+		})
+	}
+}
+
+func TestSigstoreVerifier(t *testing.T) {
+	fakeVerifier := &fakeSigstoreVerifier{
+		expectedImageID: testImageID,
+		selectors:       []string{"sigstore:selector"},
+		err:             nil,
+	}
+
+	fakeDocker := fakeContainer{
+		Labels: map[string]string{"label": "value"},
+		Image:  testImageID,
+		Env:    []string{"VAR=val"},
+	}
+
+	p := newTestPlugin(t, withDocker(fakeDocker), withDefaultDataOpt(t), withSigstoreVerifier(fakeVerifier))
+
+	// Run attestation
+	selectors, err := doAttest(t, p)
+	require.NoError(t, err)
+	expectedSelectors := []string{
+		"env:VAR=val",
+		"label:label:value",
+		fmt.Sprintf("image_id:%s", testImageID),
+		"sigstore:selector",
+	}
+	require.ElementsMatch(t, expectedSelectors, selectors)
 }
 
 func doAttest(t *testing.T, p *Plugin) ([]string, error) {
@@ -246,6 +373,12 @@ func withDisabledRetryer() testPluginOpt {
 	}
 }
 
+func withSigstoreVerifier(v sigstore.Verifier) testPluginOpt {
+	return func(p *Plugin) {
+		p.sigstoreVerifier = v
+	}
+}
+
 func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 	p := New()
 	err := doConfigure(t, p, defaultPluginConfig)
@@ -263,6 +396,10 @@ func (dockerError) ContainerInspect(context.Context, string) (types.ContainerJSO
 	return types.ContainerJSON{}, errors.New("docker error")
 }
 
+func (dockerError) ImageInspectWithRaw(context.Context, string) (types.ImageInspect, []byte, error) {
+	return types.ImageInspect{}, nil, errors.New("docker error")
+}
+
 type fakeContainer container.Config
 
 func (f fakeContainer) ContainerInspect(_ context.Context, containerID string) (types.ContainerJSON, error) {
@@ -273,4 +410,29 @@ func (f fakeContainer) ContainerInspect(_ context.Context, containerID string) (
 	return types.ContainerJSON{
 		Config: &config,
 	}, nil
+}
+
+func (f fakeContainer) ImageInspectWithRaw(_ context.Context, imageName string) (types.ImageInspect, []byte, error) {
+	return types.ImageInspect{ID: imageName, RepoDigests: []string{testImageID}}, nil, nil
+}
+
+type fakeSigstoreVerifier struct {
+	expectedImageID string
+	selectors       []string
+	err             error
+}
+
+func (f *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]string, error) {
+	if imageID != f.expectedImageID {
+		return nil, fmt.Errorf("unexpected image ID: %s", imageID)
+	}
+	return f.selectors, f.err
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
