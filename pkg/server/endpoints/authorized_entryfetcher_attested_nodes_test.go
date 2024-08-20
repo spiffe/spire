@@ -95,7 +95,7 @@ func TestAttestedNodesCacheMissedEventNotFound(t *testing.T) {
 
 	attestedNodes.missedEvents[1] = clk.Now()
 	attestedNodes.replayMissedEvents(ctx)
-	require.Equal(t, "Event not yet populated in database", hook.LastEntry().Message)
+	require.Zero(t, hook.Entries)
 }
 
 func TestAttestedNodesSavesMissedStartupEvents(t *testing.T) {
