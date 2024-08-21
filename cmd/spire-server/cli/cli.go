@@ -131,15 +131,26 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 	}
 
 	// TODO: Remove this when the forced_rotation feature flag is no longer
-	// needed.
+	// needed. Refer to https://github.com/spiffe/spire/issues/5398.
+	addCommandsEnabledByFFlags(c.Commands)
 
-	// Feature flags support through the fflag package in SPIRE Server is
-	// designed to work only with the run command and the config file.
-	// Since feature flags are intended to be used by developers of a specific
-	// feature only, exposing them through command line arguments is not
-	// convenient. Instead, we use the SPIRE_SERVER_FFLAGS environment variable
-	// to read the configured SPIRE Server feature flags from the environment
-	// when other commands may be enabled through feature flags.
+	exitStatus, err := c.Run()
+	if err != nil {
+		stdlog.Println(err)
+	}
+	return exitStatus
+}
+
+// addCommandsEnabledByFFlags adds commands that are currently available only
+// through a feature flag.
+// Feature flags support through the fflag package in SPIRE Server is
+// designed to work only with the run command and the config file.
+// Since feature flags are intended to be used by developers of a specific
+// feature only, exposing them through command line arguments is not
+// convenient. Instead, we use the SPIRE_SERVER_FFLAGS environment variable
+// to read the configured SPIRE Server feature flags from the environment
+// when other commands may be enabled through feature flags.
+func addCommandsEnabledByFFlags(commands map[string]cli.CommandFactory) {
 	fflagsEnv := os.Getenv("SPIRE_SERVER_FFLAGS")
 	fflags := strings.Split(fflagsEnv, " ")
 	flagForcedRotationFound := false
@@ -151,14 +162,8 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 	}
 
 	if flagForcedRotationFound {
-		c.Commands["localauthority x509 show"] = func() (cli.Command, error) {
+		commands["localauthority x509 show"] = func() (cli.Command, error) {
 			return localauthority.NewX509ShowCommand(), nil
 		}
 	}
-
-	exitStatus, err := c.Run()
-	if err != nil {
-		stdlog.Println(err)
-	}
-	return exitStatus
 }
