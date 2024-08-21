@@ -6,6 +6,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -43,6 +45,11 @@ const (
 	sevenDays                  = 7 * 24 * time.Hour
 	activationThresholdCap     = sevenDays
 	activationThresholdDivisor = 6
+)
+
+const (
+	forceRotationBackoffInterval       = 5 * time.Second
+	forceRotationBackoffMaxElapsedTime = 1 * time.Minute
 )
 
 type ManagedCA interface {
@@ -461,10 +468,15 @@ func (m *Manager) PruneCAJournals(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *Manager) NotifyOnBundleUpdate(ctx context.Context) {
+// ProcessBundleUpdates Notify any bundle update, or process tainted authorities
+func (m *Manager) ProcessBundleUpdates(ctx context.Context) {
 	for {
 		select {
 		case <-m.bundleUpdatedCh:
+			if err := m.processTaintedAuthorities(ctx); err != nil {
+				m.c.Log.WithError(err).Warn("failed to process tainted keys")
+			}
+
 			if err := m.notifyBundleUpdated(ctx); err != nil {
 				m.c.Log.WithError(err).Warn("Failed to notify on bundle update")
 			}
@@ -550,6 +562,89 @@ func (m *Manager) dropBundleUpdated() {
 	default:
 	}
 }
+
+func (m *Manager) processTaintedAuthorities(ctx context.Context) error {
+	// processing tainted keys is only needed when an upstream authority is configured
+	if m.upstreamClient == nil {
+		return nil
+	}
+
+	// TODO: review if use Optional bundle
+	bundle, err := m.fetchRequiredBundle(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Collect all tainted keys
+	// TODO: may we store a list of already processed tainted keys?
+	var taintedAuthorities []*x509.Certificate
+	for _, rootCA := range bundle.RootCas {
+		if rootCA.TaintedKey {
+			cert, err := x509.ParseCertificate(rootCA.DerBytes)
+			if err != nil {
+				return fmt.Errorf("failed to parse RootCA: %w", err)
+			}
+
+			skID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+			m.c.Log.WithField(telemetry.UpstreamAuthorityID, skID).Debug("Tainted upstream authority found")
+			taintedAuthorities = append(taintedAuthorities, cert)
+		}
+	}
+
+	if len(taintedAuthorities) == 0 {
+		// No tainted keys found
+		return nil
+	}
+
+	m.c.Log.Debug("Processing tainted keys on upstream authority")
+
+	currentSlotCA := m.currentX509CA.x509CA
+	if ok := isX509AuthorityTainted(currentSlotCA, taintedAuthorities); !ok {
+		return nil
+	}
+
+	m.c.Log.Debug("Current root CA is signed by a tainted authority, preparing rotation...")
+
+	// There is an edge case, where an upstream authority using intermediates
+	// are still using a tainted authority, retry util the new prepared authority is untainted
+	forceRotationBackoff := backoff.NewBackoff(
+		m.c.Clock,
+		forceRotationBackoffInterval,
+		backoff.WithMaxElapsedTime(forceRotationBackoffMaxElapsedTime),
+	)
+
+	for {
+		err = m.prepareUntaintedX509CA(ctx, taintedAuthorities)
+		if err == nil {
+			// Prepared authority is no longer tainted finish for, to rotate...
+			break
+		}
+
+		// Prepare a new X.509 authority when next is old or it is signed by a tainted key
+		nextDuration := forceRotationBackoff.NextBackOff()
+		if nextDuration == backoff.Stop {
+			return err
+		}
+
+		m.c.Log.WithFields(logrus.Fields{
+			telemetry.Error:         err,
+			telemetry.RetryInterval: nextDuration,
+		}).Warn("Failed to prepare a new X.509 authority")
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-m.c.Clock.After(nextDuration):
+			continue
+		}
+	}
+
+	// Activate the prepared X.509 authority
+	m.RotateX509CA(ctx)
+
+	return nil
+}
+
 func (m *Manager) notifyBundleUpdated(ctx context.Context) error {
 	var bundle *common.Bundle
 	return m.notify(ctx, "bundle updated", false,
@@ -710,6 +805,27 @@ func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 
 	m.bundleUpdated()
 	return res, nil
+}
+
+// prepareUntaintedX509CA prepare nextX509CA until it is no longer tainted
+func (m *Manager) prepareUntaintedX509CA(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
+	// Prepare a new X.509 authority when next is old or it is signed by a tainted key
+	if ok := shouldPrepareX509CA(m.nextX509CA, taintedAuthorities); !ok {
+		return nil
+	}
+
+	m.c.Log.Debug("Preparing a new X.509 Authority, because it is tainted...")
+	err := m.PrepareX509CA(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to prepare x509 authority: %w", err)
+	}
+
+	// Verify if prepared authority is still tainted
+	if ok := shouldPrepareX509CA(m.nextX509CA, taintedAuthorities); ok {
+		return errors.New("prepared authority is still tainted")
+	}
+
+	return nil
 }
 
 // MaxSVIDTTL returns the maximum SVID lifetime that can be guaranteed to not
@@ -894,4 +1010,37 @@ func publicKeyFromJWTKey(jwtKey *ca.JWTKey) (*common.PublicKey, error) {
 		Kid:       jwtKey.Kid,
 		NotAfter:  jwtKey.NotAfter.Unix(),
 	}, nil
+}
+
+// isCurrentCATainted verify if current authority is tainted
+func isX509AuthorityTainted(x509CA *ca.X509CA, taintedAuthorities []*x509.Certificate) bool {
+	rootPool := x509.NewCertPool()
+	for _, taintedKey := range taintedAuthorities {
+		rootPool.AddCert(taintedKey)
+	}
+
+	intermediatePool := x509.NewCertPool()
+	for _, intermediateCA := range x509CA.UpstreamChain {
+		intermediatePool.AddCert(intermediateCA)
+	}
+
+	// Verify certificate chain, using tainted authority as root
+	_, err := x509CA.Certificate.Verify(x509.VerifyOptions{
+		Intermediates: intermediatePool,
+		Roots:         rootPool,
+	})
+
+	return err == nil
+}
+
+func shouldPrepareX509CA(slot *x509CASlot, taintedAuthorities []*x509.Certificate) bool {
+	switch {
+	case slot.IsEmpty():
+		return true
+	case slot.Status() == journal.Status_PREPARED:
+		isTainted := isX509AuthorityTainted(slot.x509CA, taintedAuthorities)
+		return isTainted
+	default:
+		return false
+	}
 }

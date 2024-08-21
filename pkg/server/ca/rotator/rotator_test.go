@@ -413,7 +413,7 @@ func (f *fakeCAManager) NotifyBundleLoaded(context.Context) error {
 	return nil
 }
 
-func (f *fakeCAManager) NotifyOnBundleUpdate(context.Context) {
+func (f *fakeCAManager) ProcessBundleUpdates(context.Context) {
 }
 
 func (f *fakeCAManager) GetCurrentX509CASlot() manager.Slot {

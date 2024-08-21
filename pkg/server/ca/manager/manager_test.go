@@ -470,7 +470,7 @@ func TestX509CARotation(t *testing.T) {
 	// kick off a goroutine to service bundle update notifications. This is
 	// typically handled by Run() but using it would complicate the test.
 	test.m.dropBundleUpdated()
-	go test.m.NotifyOnBundleUpdate(ctx)
+	go test.m.ProcessBundleUpdates(ctx)
 
 	// after initialization, we should have a current X509CA but no next.
 	first := test.currentX509CA()
@@ -560,7 +560,7 @@ func TestJWTKeyRotation(t *testing.T) {
 	// kick off a goroutine to service bundle update notifications. This is
 	// typically handled by Run() but using it would complicate the test.
 	test.m.dropBundleUpdated() // drop bundle update message produce by initialization
-	go test.m.NotifyOnBundleUpdate(ctx)
+	go test.m.ProcessBundleUpdates(ctx)
 
 	// after initialization, we should have a current JWTKey but no next.
 	first := test.currentJWTKey()
@@ -646,7 +646,7 @@ func TestPruneBundle(t *testing.T) {
 	// kick off a goroutine to service bundle update notifications. This is
 	// typically handled by Run() but using it would complicate the test.
 	test.m.dropBundleUpdated() // drop bundle update message produce by initialization
-	go test.m.NotifyOnBundleUpdate(ctx)
+	go test.m.ProcessBundleUpdates(ctx)
 
 	// advance just past the expiration time of the first and prune. nothing
 	// should change.
