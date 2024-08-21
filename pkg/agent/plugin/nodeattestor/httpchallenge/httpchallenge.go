@@ -144,7 +144,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	}
 
 	// Make sure the configuration produces valid data
-	configData, err := loadConfigData(p.hooks.bindHost, config)
+	configData, err := p.loadConfigData(config)
 	if err != nil {
 		return nil, err
 	}
@@ -199,18 +199,26 @@ func (p *Plugin) setConfig(c *configData) {
 	p.c = c
 }
 
-func loadConfigData(hostname string, config *Config) (*configData, error) {
-	if config.HostName == "" {
-		if hostname != "" {
-			config.HostName = hostname
-		} else {
-			var err error
-			config.HostName, err = os.Hostname()
-			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "unable to fetch hostname: %v", err)
-			}
+func (p *Plugin) loadConfigData(config *Config) (*configData, error) {
+	// Determine the host name to pass to the server. Values are preferred in
+	// this order:
+	// 1. HostName HCL configuration value
+	// 2. Test hook bind host (e.g. p.hooks.bindHost)
+	// 3. OS hostname value
+	//
+	// The test hook bind host value is only set during tests.
+	hostName := config.HostName
+	if hostName == "" {
+		hostName = p.hooks.bindHost
+	}
+	if hostName == "" {
+		var err error
+		hostName, err = os.Hostname()
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unable to fetch hostname: %v", err)
 		}
 	}
+
 	var agentName = "default"
 	if config.AgentName != "" {
 		agentName = config.AgentName
@@ -223,7 +231,7 @@ func loadConfigData(hostname string, config *Config) (*configData, error) {
 	return &configData{
 		port:           config.Port,
 		advertisedPort: config.AdvertisedPort,
-		hostName:       config.HostName,
+		hostName:       hostName,
 		agentName:      agentName,
 	}, nil
 }
