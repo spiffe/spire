@@ -7,24 +7,25 @@ import (
 	"github.com/gogo/status"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
-	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority"
+	localauthority_common "github.com/spiffe/spire/cmd/spire-server/cli/localauthority/common"
+	localauthority "github.com/spiffe/spire/cmd/spire-server/cli/localauthority/jwt"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
-func TestX509ShowHelp(t *testing.T) {
-	test := setupTest(t, localauthority.NewX509ShowCommandWithEnv)
+func TestJWTShowHelp(t *testing.T) {
+	test := localauthority_common.SetupTest(t, localauthority.NewJWTShowCommandWithEnv)
 
-	test.client.Help()
-	require.Equal(t, x509ShowUsage, test.stderr.String())
+	test.Client.Help()
+	require.Equal(t, jwtShowUsage, test.Stderr.String())
 }
 
-func TestX509ShowSynopsys(t *testing.T) {
-	test := setupTest(t, localauthority.NewX509ShowCommandWithEnv)
-	require.Equal(t, "Shows the local X.509 authorities", test.client.Synopsis())
+func TestJWTShowSynopsys(t *testing.T) {
+	test := localauthority_common.SetupTest(t, localauthority.NewJWTShowCommandWithEnv)
+	require.Equal(t, "Shows the local JWT authorities", test.Client.Synopsis())
 }
 
-func TestX509Show(t *testing.T) {
+func TestJWTShow(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
 		args               []string
@@ -53,7 +54,7 @@ func TestX509Show(t *testing.T) {
 				AuthorityId: "old-id",
 				ExpiresAt:   1003,
 			},
-			expectStdoutPretty: "Active X.509 authority:\n  Authority ID: active-id\n  Expires at: 1970-01-01 00:16:41 +0000 UTC\n\nPrepared X.509 authority:\n  Authority ID: prepared-id\n  Expires at: 1970-01-01 00:16:42 +0000 UTC\n\nOld X.509 authority:\n  Authority ID: old-id\n  Expires at: 1970-01-01 00:16:43 +0000 UTC\n",
+			expectStdoutPretty: "Active JWT authority:\n  Authority ID: active-id\n  Expires at: 1970-01-01 00:16:41 +0000 UTC\n\nPrepared JWT authority:\n  Authority ID: prepared-id\n  Expires at: 1970-01-01 00:16:42 +0000 UTC\n\nOld JWT authority:\n  Authority ID: old-id\n  Expires at: 1970-01-01 00:16:43 +0000 UTC\n",
 			expectStdoutJSON:   `{"active":{"authority_id":"active-id","expires_at":"1001"},"prepared":{"authority_id":"prepared-id","expires_at":"1002"},"old":{"authority_id":"old-id","expires_at":"1003"}}`,
 		},
 		{
@@ -67,7 +68,7 @@ func TestX509Show(t *testing.T) {
 				AuthorityId: "old-id",
 				ExpiresAt:   1003,
 			},
-			expectStdoutPretty: "Active X.509 authority:\n  No active X.509 authority found\n\nPrepared X.509 authority:\n  Authority ID: prepared-id\n  Expires at: 1970-01-01 00:16:42 +0000 UTC\n\nOld X.509 authority:\n  Authority ID: old-id\n  Expires at: 1970-01-01 00:16:43 +0000 UTC\n",
+			expectStdoutPretty: "Active JWT authority:\n  No active JWT authority found\n\nPrepared JWT authority:\n  Authority ID: prepared-id\n  Expires at: 1970-01-01 00:16:42 +0000 UTC\n\nOld JWT authority:\n  Authority ID: old-id\n  Expires at: 1970-01-01 00:16:43 +0000 UTC\n",
 			expectStdoutJSON:   `{"prepared":{"authority_id":"prepared-id","expires_at":"1002"},"old":{"authority_id":"old-id","expires_at":"1003"}}`,
 		},
 		{
@@ -81,7 +82,7 @@ func TestX509Show(t *testing.T) {
 				AuthorityId: "old-id",
 				ExpiresAt:   1003,
 			},
-			expectStdoutPretty: "Active X.509 authority:\n  Authority ID: active-id\n  Expires at: 1970-01-01 00:16:41 +0000 UTC\n\nPrepared X.509 authority:\n  No prepared X.509 authority found\n\nOld X.509 authority:\n  Authority ID: old-id\n  Expires at: 1970-01-01 00:16:43 +0000 UTC\n",
+			expectStdoutPretty: "Active JWT authority:\n  Authority ID: active-id\n  Expires at: 1970-01-01 00:16:41 +0000 UTC\n\nPrepared JWT authority:\n  No prepared JWT authority found\n\nOld JWT authority:\n  Authority ID: old-id\n  Expires at: 1970-01-01 00:16:43 +0000 UTC\n",
 			expectStdoutJSON:   `{"active":{"authority_id":"active-id","expires_at":"1001"},"old":{"authority_id":"old-id","expires_at":"1003"}}`,
 		},
 		{
@@ -95,7 +96,7 @@ func TestX509Show(t *testing.T) {
 				AuthorityId: "prepared-id",
 				ExpiresAt:   1002,
 			},
-			expectStdoutPretty: "Active X.509 authority:\n  Authority ID: active-id\n  Expires at: 1970-01-01 00:16:41 +0000 UTC\n\nPrepared X.509 authority:\n  Authority ID: prepared-id\n  Expires at: 1970-01-01 00:16:42 +0000 UTC\n\nOld X.509 authority:\n  No old X.509 authority found\n",
+			expectStdoutPretty: "Active JWT authority:\n  Authority ID: active-id\n  Expires at: 1970-01-01 00:16:41 +0000 UTC\n\nPrepared JWT authority:\n  Authority ID: prepared-id\n  Expires at: 1970-01-01 00:16:42 +0000 UTC\n\nOld JWT authority:\n  No old JWT authority found\n",
 			expectStdoutJSON:   `{"active":{"authority_id":"active-id","expires_at":"1001"},"prepared":{"authority_id":"prepared-id","expires_at":"1002"}}`,
 		},
 		{
@@ -108,23 +109,23 @@ func TestX509Show(t *testing.T) {
 			name:             "server error",
 			serverErr:        status.Error(codes.Internal, "internal server error"),
 			expectReturnCode: 1,
-			expectStderr:     "Error: could not get X.509 authorities: rpc error: code = Internal desc = internal server error\n",
+			expectStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
-		for _, format := range availableFormats {
+		for _, format := range localauthority_common.AvailableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
-				test := setupTest(t, localauthority.NewX509ShowCommandWithEnv)
-				test.server.activeX509 = tt.active
-				test.server.preparedX509 = tt.prepared
-				test.server.oldX509 = tt.old
-				test.server.err = tt.serverErr
+				test := localauthority_common.SetupTest(t, localauthority.NewJWTShowCommandWithEnv)
+				test.Server.ActiveJWT = tt.active
+				test.Server.PreparedJWT = tt.prepared
+				test.Server.OldJWT = tt.old
+				test.Server.Err = tt.serverErr
 				args := tt.args
 				args = append(args, "-output", format)
 
-				returnCode := test.client.Run(append(test.args, args...))
+				returnCode := test.Client.Run(append(test.Args, args...))
 
-				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
-				require.Equal(t, tt.expectStderr, test.stderr.String())
+				localauthority_common.RequireOutputBasedOnFormat(t, format, test.Stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
+				require.Equal(t, tt.expectStderr, test.Stderr.String())
 				require.Equal(t, tt.expectReturnCode, returnCode)
 			})
 		}

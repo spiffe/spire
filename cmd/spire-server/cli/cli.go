@@ -13,7 +13,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/federation"
 	"github.com/spiffe/spire/cmd/spire-server/cli/healthcheck"
 	"github.com/spiffe/spire/cmd/spire-server/cli/jwt"
-	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority"
+	localauthority "github.com/spiffe/spire/cmd/spire-server/cli/localauthority/x509"
 	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
 	"github.com/spiffe/spire/cmd/spire-server/cli/token"
