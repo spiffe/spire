@@ -1,4 +1,4 @@
-package localauthority
+package jwt
 
 import (
 	"context"

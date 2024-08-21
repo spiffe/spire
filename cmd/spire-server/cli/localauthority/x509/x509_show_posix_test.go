@@ -1,6 +1,6 @@
 //go:build !windows
 
-package localauthority_test
+package x509_test
 
 var (
 	x509ShowUsage = `Usage of localauthority x509 show:

@@ -1,4 +1,4 @@
-package localauthority_test
+package jwt_test
 
 import (
 	"fmt"
@@ -6,22 +6,22 @@ import (
 
 	"github.com/gogo/status"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
+	authority_common "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
-	localauthority_common "github.com/spiffe/spire/cmd/spire-server/cli/localauthority/common"
-	localauthority "github.com/spiffe/spire/cmd/spire-server/cli/localauthority/jwt"
+	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority/jwt"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
 func TestJWTShowHelp(t *testing.T) {
-	test := localauthority_common.SetupTest(t, localauthority.NewJWTShowCommandWithEnv)
+	test := authority_common.SetupTest(t, jwt.NewJWTShowCommandWithEnv)
 
 	test.Client.Help()
 	require.Equal(t, jwtShowUsage, test.Stderr.String())
 }
 
 func TestJWTShowSynopsys(t *testing.T) {
-	test := localauthority_common.SetupTest(t, localauthority.NewJWTShowCommandWithEnv)
+	test := authority_common.SetupTest(t, jwt.NewJWTShowCommandWithEnv)
 	require.Equal(t, "Shows the local JWT authorities", test.Client.Synopsis())
 }
 
@@ -112,9 +112,9 @@ func TestJWTShow(t *testing.T) {
 			expectStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
-		for _, format := range localauthority_common.AvailableFormats {
+		for _, format := range authority_common.AvailableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
-				test := localauthority_common.SetupTest(t, localauthority.NewJWTShowCommandWithEnv)
+				test := authority_common.SetupTest(t, jwt.NewJWTShowCommandWithEnv)
 				test.Server.ActiveJWT = tt.active
 				test.Server.PreparedJWT = tt.prepared
 				test.Server.OldJWT = tt.old
@@ -124,7 +124,7 @@ func TestJWTShow(t *testing.T) {
 
 				returnCode := test.Client.Run(append(test.Args, args...))
 
-				localauthority_common.RequireOutputBasedOnFormat(t, format, test.Stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
+				authority_common.RequireOutputBasedOnFormat(t, format, test.Stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
 				require.Equal(t, tt.expectStderr, test.Stderr.String())
 				require.Equal(t, tt.expectReturnCode, returnCode)
 			})

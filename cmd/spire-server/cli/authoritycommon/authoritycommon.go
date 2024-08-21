@@ -1,4 +1,4 @@
-package localauthority_test
+package authoritycommon_test
 
 import (
 	"bytes"

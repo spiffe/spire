@@ -1,6 +1,6 @@
 //go:build !windows
 
-package localauthority_test
+package jwt_test
 
 var (
 	jwtShowUsage = `Usage of localauthority jwt show:
