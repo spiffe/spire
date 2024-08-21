@@ -171,9 +171,9 @@ func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
 		}
 		bundles[bundle.TrustDomainId] = bundle
 
-		for _, jwtSigningKey := range bundle.JwtSigningKeys {
-			if jwtSigningKey.TaintedKey {
-				taintedJWTAuthorities[jwtSigningKey.Kid] = struct{}{}
+		for _, jwtAuthority := range b.JwtAuthorities {
+			if jwtAuthority.Tainted {
+				taintedJWTAuthorities[jwtAuthority.KeyId] = struct{}{}
 			}
 		}
 	}

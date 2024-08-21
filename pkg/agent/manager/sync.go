@@ -250,10 +250,10 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 		}
 	} else {
 		update, err = m.client.FetchUpdates(ctx)
-		m.taintedJWTAuthorities = update.TaintedJWTAuthorities
 		if err != nil {
 			return nil, nil, err
 		}
+		m.taintedJWTAuthorities = update.TaintedJWTAuthorities
 	}
 
 	bundles, err := parseBundles(update.Bundles)

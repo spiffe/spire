@@ -133,7 +133,7 @@ type StaleEntry struct {
 func New(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics) *Cache {
 	return &Cache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
-		JWTSVIDCache: NewJWTSVIDCache(),
+		JWTSVIDCache: NewJWTSVIDCache(log),
 
 		log:          log,
 		metrics:      metrics,

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,8 @@ func TestJWTSVIDCacheBasic(t *testing.T) {
 	now := time.Now()
 	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
 
-	cache := NewJWTSVIDCache()
+	log, _ := test.NewNullLogger()
+	cache := NewJWTSVIDCache(log)
 
 	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 
@@ -34,7 +36,8 @@ func TestJWTSVIDCacheKeyHashing(t *testing.T) {
 	now := time.Now()
 	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
 
-	cache := NewJWTSVIDCache()
+	log, _ := test.NewNullLogger()
+	cache := NewJWTSVIDCache(log)
 	cache.SetJWTSVID(spiffeID, []string{"ab", "cd"}, expected)
 
 	// JWT is cached
