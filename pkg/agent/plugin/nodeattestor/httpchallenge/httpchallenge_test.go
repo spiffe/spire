@@ -210,7 +210,7 @@ func loadPlugin(t *testing.T, options ...plugintest.Option) nodeattestor.NodeAtt
 }
 
 func newPlugin() *Plugin {
-	p := Newt()
-	p.hooks.bindAddress = "localhost"
+	p := New()
+	p.hooks.bindHost = "localhost"
 	return p
 }

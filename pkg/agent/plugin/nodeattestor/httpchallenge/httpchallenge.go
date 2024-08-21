@@ -52,7 +52,7 @@ type Plugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
-	m sync.Mutex
+	m sync.RWMutex
 	c *configData
 
 	log hclog.Logger
@@ -185,8 +185,8 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) getConfig() (*configData, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.m.RLock()
+	defer p.m.RUnlock()
 	if p.c == nil {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
