@@ -28,12 +28,6 @@ func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func BuiltInWithHostname(hostname string) catalog.BuiltIn {
-	plugin := New()
-	plugin.hostname = hostname
-	return builtin(plugin)
-}
-
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
 		nodeattestorv1.NodeAttestorPluginServer(p),
@@ -58,12 +52,17 @@ type Plugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
-	m sync.Mutex
-	c *Config
+	m sync.RWMutex
+	c *configData
 
 	log hclog.Logger
 
-	hostname string
+	hooks struct {
+		// Controls which interface to bind to ("" in production, "localhost"
+		// in tests) and acts as the default HostName value when not provided
+		// via configuration.
+		bindHost string
+	}
 }
 
 func New() *Plugin {
@@ -71,7 +70,7 @@ func New() *Plugin {
 }
 
 func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) (err error) {
-	data, err := p.loadConfigData()
+	data, err := p.getConfig()
 	if err != nil {
 		return err
 	}
@@ -80,7 +79,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 
 	port := data.port
 
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", p.hooks.bindHost, port))
 	if err != nil {
 		return status.Errorf(codes.Internal, "could not listen on port %d: %v", port, err)
 	}
@@ -145,11 +144,12 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	}
 
 	// Make sure the configuration produces valid data
-	if _, err := loadConfigData(p.hostname, config); err != nil {
+	configData, err := p.loadConfigData(config)
+	if err != nil {
 		return nil, err
 	}
 
-	p.setConfig(config)
+	p.setConfig(configData)
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -184,38 +184,35 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) getConfig() *Config {
-	p.m.Lock()
-	defer p.m.Unlock()
-	return p.c
+func (p *Plugin) getConfig() (*configData, error) {
+	p.m.RLock()
+	defer p.m.RUnlock()
+	if p.c == nil {
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
+	return p.c, nil
 }
 
-func (p *Plugin) setConfig(c *Config) {
+func (p *Plugin) setConfig(c *configData) {
 	p.m.Lock()
 	defer p.m.Unlock()
 	p.c = c
 }
 
-func (p *Plugin) loadConfigData() (*configData, error) {
-	config := p.getConfig()
-	if config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
-	}
-	return loadConfigData(p.hostname, config)
-}
-
-func loadConfigData(hostname string, config *Config) (*configData, error) {
-	if config.HostName == "" {
-		if hostname != "" {
-			config.HostName = hostname
-		} else {
-			var err error
-			config.HostName, err = os.Hostname()
-			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "unable to fetch hostname: %v", err)
-			}
+func (p *Plugin) loadConfigData(config *Config) (*configData, error) {
+	// Determine the host name to pass to the server. Values are preferred in
+	// this order:
+	// 1. HCL HostName configuration value
+	// 2. OS hostname value
+	hostName := config.HostName
+	if hostName == "" {
+		var err error
+		hostName, err = os.Hostname()
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unable to fetch hostname: %v", err)
 		}
 	}
+
 	var agentName = "default"
 	if config.AgentName != "" {
 		agentName = config.AgentName
@@ -228,7 +225,7 @@ func loadConfigData(hostname string, config *Config) (*configData, error) {
 	return &configData{
 		port:           config.Port,
 		advertisedPort: config.AdvertisedPort,
-		hostName:       config.HostName,
+		hostName:       hostName,
 		agentName:      agentName,
 	}, nil
 }
