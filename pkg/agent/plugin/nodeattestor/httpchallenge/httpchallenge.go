@@ -202,15 +202,9 @@ func (p *Plugin) setConfig(c *configData) {
 func (p *Plugin) loadConfigData(config *Config) (*configData, error) {
 	// Determine the host name to pass to the server. Values are preferred in
 	// this order:
-	// 1. HostName HCL configuration value
-	// 2. Test hook bind host (e.g. p.hooks.bindHost)
-	// 3. OS hostname value
-	//
-	// The test hook bind host value is only set during tests.
+	// 1. HCL HostName configuration value
+	// 2. OS hostname value
 	hostName := config.HostName
-	if hostName == "" {
-		hostName = p.hooks.bindHost
-	}
 	if hostName == "" {
 		var err error
 		hostName, err = os.Hostname()
