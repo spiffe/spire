@@ -15,7 +15,10 @@ The "Get Authorized Entries" test suite ensures that the SPIRE server and agent 
 2. **Create Registration (`02-create_registration.sh`)**
     - Creates necessary registration entries for testing.
 
-3**Teardown (`teardown`)**
+3. **Assert Entities Creation (`03-assert-entities-created.sh`)**
+   - Creates necessary registration entries for testing.
+
+4. **Teardown (`teardown`)**
     - Stops the SPIRE server and agent.
     - Cleans up any remaining artifacts.
 
@@ -32,4 +35,4 @@ The "Get Authorized Entries" test suite ensures that the SPIRE server and agent 
    To execute the test suite, run the following command:
 
    ```bash
-   sudo ./test/integration/suites/get-authorized-entries/test.sh
+   ./test/integration/test-one.sh ./test/integration/suites/get-authorized-entries\
