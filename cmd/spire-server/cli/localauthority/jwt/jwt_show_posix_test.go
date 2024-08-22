@@ -1,9 +1,9 @@
 //go:build !windows
 
-package localauthority_test
+package jwt_test
 
 var (
-	x509ShowUsage = `Usage of localauthority x509 show:
+	jwtShowUsage = `Usage of localauthority jwt show:
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string

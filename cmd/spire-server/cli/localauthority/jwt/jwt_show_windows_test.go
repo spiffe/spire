@@ -1,9 +1,9 @@
 //go:build windows
 
-package localauthority_test
+package jwt_test
 
 var (
-	x509ShowUsage = `Usage of localauthority x509 show:
+	jwtShowUsage = `Usage of localauthority jwt show:
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
