@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/federation"
 	"github.com/spiffe/spire/cmd/spire-server/cli/healthcheck"
 	"github.com/spiffe/spire/cmd/spire-server/cli/jwt"
+	localauthority_jwt "github.com/spiffe/spire/cmd/spire-server/cli/localauthority/jwt"
 	localauthority_x509 "github.com/spiffe/spire/cmd/spire-server/cli/localauthority/x509"
 	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
@@ -164,6 +165,9 @@ func addCommandsEnabledByFFlags(commands map[string]cli.CommandFactory) {
 	if flagForcedRotationFound {
 		commands["localauthority x509 show"] = func() (cli.Command, error) {
 			return localauthority_x509.NewX509ShowCommand(), nil
+		}
+		commands["localauthority jwt show"] = func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTShowCommand(), nil
 		}
 	}
 }
