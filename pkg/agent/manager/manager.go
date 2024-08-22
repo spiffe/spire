@@ -128,8 +128,9 @@ type Cache interface {
 	// SetJWTSVID adds JWT-SVID to cache
 	SetJWTSVID(id spiffeid.ID, audience []string, svid *client.JWTSVID)
 
-	// RemoveTaintedJWTSVIDs removes JWT-SVIDs with tainted authorities from the cache
-	RemoveTaintedJWTSVIDs(taintedJWTAuthorities map[string]struct{})
+	// RemoveTaintedJWTSVIDs removes JWT-SVIDs with tainted authorities from the
+	// cache. Returns the count of removed JWT-SVIDs.
+	RemoveTaintedJWTSVIDs(taintedJWTAuthorities map[string]struct{}) int
 
 	// Entries get all registration entries
 	Entries() []*common.RegistrationEntry

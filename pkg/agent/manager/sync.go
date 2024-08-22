@@ -60,7 +60,9 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		return err
 	}
 
-	m.cache.RemoveTaintedJWTSVIDs(m.taintedJWTAuthorities)
+	if count := m.cache.RemoveTaintedJWTSVIDs(m.taintedJWTAuthorities); count > 0 {
+		m.c.Log.WithField(telemetry.Count, count).Info("Removed cached JWT-SVID with tainted authority")
+	}
 
 	// Set last success sync
 	m.setLastSync()

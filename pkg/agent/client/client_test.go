@@ -882,6 +882,7 @@ func TestFetchJWTSVID(t *testing.T) {
 
 	issuedAt := time.Now().Unix()
 	expiresAt := time.Now().Add(time.Minute).Unix()
+	tok := "eyJhbGciOiJFUzI1NiIsImtpZCI6InlueVV3TEg5bklOaWcyWEdRdTBkdklWbndieG5JeHlPIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3MjQzNjYwOTIsImlhdCI6MTcyNDI3OTc0Nywic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.feVAZPLmWT4ohzNKBoil90WBn64noqnCYuXXJjhItdtsOmJqMBm-blfJl4pBvbRBCWym2YaXK9gl9RoAfFG0zQ"
 	for _, tt := range []struct {
 		name       string
 		setupTest  func(err error)
@@ -893,16 +894,17 @@ func TestFetchJWTSVID(t *testing.T) {
 			name: "success",
 			setupTest: func(err error) {
 				tc.svidServer.jwtSVID = &types.JWTSVID{
-					Token:     "token",
+					Token:     tok,
 					ExpiresAt: expiresAt,
 					IssuedAt:  issuedAt,
 				}
 				tc.svidServer.newJWTSVID = err
 			},
 			expectSVID: &JWTSVID{
-				Token:     "token",
+				Token:     tok,
 				ExpiresAt: time.Unix(expiresAt, 0).UTC(),
 				IssuedAt:  time.Unix(issuedAt, 0).UTC(),
+				Kid:       "ynyUwLH9nINig2XGQu0dvIVnwbxnIxyO",
 			},
 		},
 		{
@@ -925,7 +927,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			name: "missing issuedAt",
 			setupTest: func(err error) {
 				tc.svidServer.jwtSVID = &types.JWTSVID{
-					Token:     "token",
+					Token:     tok,
 					ExpiresAt: expiresAt,
 				}
 				tc.svidServer.newJWTSVID = err
@@ -936,7 +938,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			name: "missing expiredAt",
 			setupTest: func(err error) {
 				tc.svidServer.jwtSVID = &types.JWTSVID{
-					Token:    "token",
+					Token:    tok,
 					IssuedAt: issuedAt,
 				}
 				tc.svidServer.newJWTSVID = err
@@ -947,7 +949,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			name: "issued after expired",
 			setupTest: func(err error) {
 				tc.svidServer.jwtSVID = &types.JWTSVID{
-					Token:     "token",
+					Token:     tok,
 					ExpiresAt: issuedAt,
 					IssuedAt:  expiresAt,
 				}
@@ -959,7 +961,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			name: "grpc call to NewJWTSVID fails",
 			setupTest: func(err error) {
 				tc.svidServer.jwtSVID = &types.JWTSVID{
-					Token:     "token",
+					Token:     tok,
 					ExpiresAt: expiresAt,
 					IssuedAt:  issuedAt,
 				}

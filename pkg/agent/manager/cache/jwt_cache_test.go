@@ -12,7 +12,7 @@ import (
 
 func TestJWTSVIDCacheBasic(t *testing.T) {
 	now := time.Now()
-	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second), Kid: "the-kid"}
 
 	log, _ := test.NewNullLogger()
 	cache := NewJWTSVIDCache(log)
@@ -29,6 +29,12 @@ func TestJWTSVIDCacheBasic(t *testing.T) {
 	actual, ok = cache.GetJWTSVID(spiffeID, []string{"bar"})
 	assert.True(t, ok)
 	assert.Equal(t, expected, actual)
+
+	// Remove tainted authority, should not be cached anymore
+	cache.RemoveTaintedJWTSVIDs(map[string]struct{}{"the-kid": {}})
+	actual, ok = cache.GetJWTSVID(spiffeID, []string{"bar"})
+	assert.False(t, ok)
+	assert.Nil(t, actual)
 }
 
 func TestJWTSVIDCacheKeyHashing(t *testing.T) {

@@ -335,23 +335,18 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 	svid := resp.Svid
 	switch {
 	case svid == nil:
-		return nil, errors.New("JWT-SVID response missing SVID")
+		return nil, errors.New("JWTSVID response missing SVID")
 	case svid.IssuedAt == 0:
-		return nil, errors.New("JWT-SVID missing issued at")
+		return nil, errors.New("JWTSVID missing issued at")
 	case svid.ExpiresAt == 0:
-		return nil, errors.New("JWT-SVID missing expires at")
+		return nil, errors.New("JWTSVID missing expires at")
 	case svid.IssuedAt > svid.ExpiresAt:
-		return nil, errors.New("JWT-SVID issued after it has expired")
+		return nil, errors.New("JWTSVID issued after it has expired")
 	}
 
-	token, err := jwt.ParseSigned(svid.Token, jwtsvid.AllowedSignatureAlgorithms)
+	keyID, err := getKeyIDFromSVIDToken(svid.Token)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse JWT-SVID: %w", err)
-	}
-
-	keyID := token.Headers[0].KeyID
-	if keyID == "" {
-		return nil, errors.New("missing key id in token header of minted JWT-SVID")
+		return nil, err
 	}
 
 	return &JWTSVID{
@@ -748,4 +743,22 @@ func (c *client) withErrorFields(err error) logrus.FieldLogger {
 	}
 
 	return logger
+}
+
+func getKeyIDFromSVIDToken(svidToken string) (string, error) {
+	token, err := jwt.ParseSigned(svidToken, jwtsvid.AllowedSignatureAlgorithms)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse JWT-SVID: %w", err)
+	}
+
+	if len(token.Headers) != 1 {
+		return "", fmt.Errorf("malformed JWT-SVID: expected a single token header; got %d", len(token.Headers))
+	}
+
+	keyID := token.Headers[0].KeyID
+	if keyID == "" {
+		return "", errors.New("missing key ID in token header of minted JWT-SVID")
+	}
+
+	return keyID, nil
 }

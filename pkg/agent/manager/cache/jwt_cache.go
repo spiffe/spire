@@ -10,12 +10,10 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 type JWTSVIDCache struct {
 	mu    sync.Mutex
-	log   logrus.FieldLogger
 	svids map[string]*client.JWTSVID
 }
 
@@ -25,7 +23,6 @@ func (c *JWTSVIDCache) CountJWTSVIDs() int {
 
 func NewJWTSVIDCache(log logrus.FieldLogger) *JWTSVIDCache {
 	return &JWTSVIDCache{
-		log:   log,
 		svids: make(map[string]*client.JWTSVID),
 	}
 }
@@ -39,7 +36,7 @@ func (c *JWTSVIDCache) GetJWTSVID(spiffeID spiffeid.ID, audience []string) (*cli
 	return svid, ok
 }
 
-func (c *JWTSVIDCache) RemoveTaintedJWTSVIDs(taintedJWTAuthorities map[string]struct{}) {
+func (c *JWTSVIDCache) RemoveTaintedJWTSVIDs(taintedJWTAuthorities map[string]struct{}) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -50,9 +47,8 @@ func (c *JWTSVIDCache) RemoveTaintedJWTSVIDs(taintedJWTAuthorities map[string]st
 			delete(c.svids, key)
 		}
 	}
-	if count > 0 {
-		c.log.WithField(telemetry.Count, count).Info("Removed cached JWT-SVID with tainted authority")
-	}
+
+	return count
 }
 
 func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid *client.JWTSVID) {
