@@ -1,0 +1,82 @@
+{
+  "entries": [
+    {
+      "spiffe_id": "spiffe://example.org/workload1",
+      "parent_id": "spiffe://example.org/parent1",
+      "selectors": [
+        {
+          "type": "unix",
+          "value": "user:root"
+        }
+      ],
+      "x509_svid_ttl": 3600,
+      "jwt_svid_ttl": 7200,
+      "federates_with": [
+        "spiffe://example.org/another-trust-domain"
+      ],
+      "entry_id": "entry-1",
+      "admin": false,
+      "downstream": false,
+      "entryExpiry": 1710000000,
+      "dns_names": [
+        "service1.example.org"
+      ],
+      "revision_number": 1,
+      "store_svid": true,
+      "hint": "primary entry",
+      "created_at": 1710000000
+    },
+    {
+      "spiffe_id": "spiffe://example.org/workload2",
+      "parent_id": "spiffe://example.org/parent2",
+      "selectors": [
+        {
+          "type": "unix",
+          "value": "user:admin"
+        }
+      ],
+      "x509_svid_ttl": 1800,
+      "jwt_svid_ttl": 3600,
+      "federates_with": [
+        "spiffe://example.org/another-trust-domain"
+      ],
+      "entry_id": "entry-2",
+      "admin": true,
+      "downstream": true,
+      "entryExpiry": 1710003600,
+      "dns_names": [
+        "service2.example.org"
+      ],
+      "revision_number": 2,
+      "store_svid": false,
+      "hint": "admin entry",
+      "created_at": 1710003600
+    },
+    {
+      "spiffe_id": "spiffe://example.org/workload3",
+      "parent_id": "spiffe://example.org/parent3",
+      "selectors": [
+        {
+          "type": "unix",
+          "value": "user:service"
+        }
+      ],
+      "x509_svid_ttl": 7200,
+      "jwt_svid_ttl": 14400,
+      "federates_with": [
+        "spiffe://example.org/another-trust-domain"
+      ],
+      "entry_id": "entry-3",
+      "admin": false,
+      "downstream": false,
+      "entryExpiry": 1710007200,
+      "dns_names": [
+        "service3.example.org"
+      ],
+      "revision_number": 3,
+      "store_svid": true,
+      "hint": "secondary entry",
+      "created_at": 1710007200
+    }
+  ]
+}

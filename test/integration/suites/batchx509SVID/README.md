@@ -6,12 +6,21 @@ This test ensures the continued operation of the `Batchx509SVID` RPC in Open Sou
 
 ## Test Steps
 
-1. **Setup**
+1. **Setup (`01-setup.sh`)**
+   - Generates required certificates and keys.
+   - Starts the SPIRE server and agent.
 
-    - Starts SPIRE server and agent.
-    - Configures necessary registration entries.
+2. **Create Registration (`02-create_entries.sh`)**
+   - Creates necessary registration entries for testing.
+
+2. **Check entries creation (`03-test-batchx509svid.sh`)**
+   - Creates necessary registration entries for testing.
+
+3. **Teardown (`teardown.sh`)**
+- Stops the SPIRE server and agent.
+- Cleans up any remaining artifacts.
 
    Run the setup script:
 
    ```bash
-   sudo ./test/integration/suites/batchx509svid/01-setup.sh
+   ./test/integration/test-one.sh ./test/integration/suites/batchx509SVID

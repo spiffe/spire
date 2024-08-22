@@ -2,8 +2,6 @@
 
 set -e
 
-echo "RUNDIR: ${RUNDIR}"
-
 "${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
 
 "${ROOTDIR}/setup/debugserver/build.sh" "${RUNDIR}/conf/server/debugclient"

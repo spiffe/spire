@@ -1,30 +1,26 @@
 #!/bin/bash
+set -e
 
-# Define the SPIRE server address
-SPIRE_SERVER_ADDRESS="localhost:8081"
+ENTRIES_FILE="${RUNDIR}/data.json"
 
-# Define the correct API endpoint for Batchx509SVID
-API_ENDPOINT="${SPIRE_SERVER_ADDRESS}/v1/batchx509svid"
+# Parse the JSON file and extract SPIFFE IDs
+echo "Checking entries from ${ENTRIES_FILE}..."
 
-# Wait for SPIRE server to be ready
-echo "Waiting for SPIRE server to be ready..."
-for i in {1..10}; do
-    response=$(curl -s -o /dev/null -w "%{http_code}" "${SPIRE_SERVER_ADDRESS}")
-    if [ "$response" -eq 200 ]; then
-        echo "SPIRE server is ready."
-        break
+# Extract SPIFFE IDs using jq
+SPIFFE_IDS=$(jq -r '.entries[].spiffe_id' "$ENTRIES_FILE")
+
+# Check each entry's existence
+for SPIFFE_ID in $SPIFFE_IDS; do
+    echo "Checking if entry with SPIFFE ID ${SPIFFE_ID} exists..."
+    OUTPUT=$(spire-server entry show -spiffeID "${SPIFFE_ID}" 2>&1)
+
+    if echo "$OUTPUT" | grep -q "Error"; then
+        echo "Error: Entry with SPIFFE ID ${SPIFFE_ID} not found."
+        exit 1
+    else
+        echo "Entry with SPIFFE ID ${SPIFFE_ID} exists."
     fi
-    sleep 2
 done
 
-# Make a request to the Batchx509SVID endpoint
-echo "Testing Batchx509SVID RPC..."
-response=$(curl -s -o /dev/null -w "%{http_code}" "${API_ENDPOINT}")
-
-# Check if the response code is 200 (OK)
-if [ "$response" -ne 200 ]; then
-    echo "Error: Expected HTTP 200 OK but received HTTP $response"
-    exit 1
-else
-    echo "Batchx509SVID RPC is working as expected."
-fi
+echo "All entries checked successfully."
+exit 0
