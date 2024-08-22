@@ -31,7 +31,8 @@ type registrationEntries struct {
 	sqlTransactionTimeout   time.Duration
 }
 
-// buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
+// buildRegistrationEntriesCache fetches all registration entries and adds them to the cache.
+// It runs once at startup.
 func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
 	resp, err := ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	if err != nil {
@@ -49,6 +50,8 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 			firstEventID = event.EventID
 			firstEventTime = now
 		} else {
+			// After getting the first event, search for any gaps in the event stream, from the first event to the last event.
+			// During each cache refresh cycle, we will check if any of these missed events get populated.
 			for i := lastEventID + 1; i < event.EventID; i++ {
 				missedEvents[i] = clk.Now()
 			}
@@ -102,11 +105,10 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 // updateCache Fetches all the events since the last time this function was running and updates
 // the cache with all the changes.
 func (a *registrationEntries) updateCache(ctx context.Context) error {
+	// Process events skipped over previously
 	if err := a.missedStartupEvents(ctx); err != nil {
 		a.log.WithError(err).Error("Unable to process missed startup events")
 	}
-
-	// Process events skipped over previously
 	a.replayMissedEvents(ctx)
 
 	req := &datastore.ListRegistrationEntriesEventsRequest{
@@ -124,8 +126,8 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 		// were skipped over and need to be queued in case they show up later.
 		// This can happen when a long running transaction allocates an event ID but a shorter transaction
 		// comes in after, allocates and commits the ID first. If a read comes in at this moment, the event id for
-		// the longer running transaction will be skipped over
-		if !a.firstEventTime.IsZero() && event.EventID != a.lastEventID+1 {
+		// the longer running transaction will be skipped over.
+		if !a.firstEventTime.IsZero() {
 			for i := a.lastEventID + 1; i < event.EventID; i++ {
 				a.log.WithField(telemetry.EventID, i).Info("Detected skipped registration entry event")
 				a.mu.Lock()
@@ -156,6 +158,10 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 	return nil
 }
 
+// missedStartupEvents will check for any events come in with an ID less than the first event ID we receive.
+// For example if the first event ID we receive is 3, this function will check for any IDs less than that.
+// If event ID 2 comes in later on, due to a long running transaction, this function will update the cache
+// with the information from this event. This function will run until time equal to sqlTransactionTimeout has elapsed after startup.
 func (a *registrationEntries) missedStartupEvents(ctx context.Context) error {
 	if a.firstEventTime.IsZero() || a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {
 		return nil
@@ -195,7 +201,6 @@ func (a *registrationEntries) replayMissedEvents(ctx context.Context) {
 		switch status.Code(err) {
 		case codes.OK:
 		case codes.NotFound:
-			log.Debug("Event not yet populated in database")
 			continue
 		default:
 			log.WithError(err).Error("Failed to fetch info about missed event")
