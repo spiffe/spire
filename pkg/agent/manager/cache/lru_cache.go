@@ -119,7 +119,7 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 
 	return &LRUCache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
-		JWTSVIDCache: NewJWTSVIDCache(log),
+		JWTSVIDCache: NewJWTSVIDCache(),
 
 		log:          log,
 		metrics:      metrics,

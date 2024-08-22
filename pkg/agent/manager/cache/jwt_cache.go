@@ -7,7 +7,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 )
@@ -21,7 +20,7 @@ func (c *JWTSVIDCache) CountJWTSVIDs() int {
 	return len(c.svids)
 }
 
-func NewJWTSVIDCache(log logrus.FieldLogger) *JWTSVIDCache {
+func NewJWTSVIDCache() *JWTSVIDCache {
 	return &JWTSVIDCache{
 		svids: make(map[string]*client.JWTSVID),
 	}
