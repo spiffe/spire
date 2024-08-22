@@ -3,7 +3,6 @@
 package k8s
 
 import (
-	"context"
 	"io"
 	"log"
 	"os"
@@ -14,12 +13,9 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
-	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s/sigstore"
 	"github.com/spiffe/spire/pkg/common/containerinfo"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -43,24 +39,11 @@ func createHelper(c *Plugin) ContainerHelper {
 
 type containerHelper struct {
 	rootDir                     string
-	sigstoreClient              sigstore.Sigstore
 	useNewContainerLocator      bool
 	verboseContainerLocatorLogs bool
 }
 
 func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
-	// set experimental flags
-	if config.Experimental != nil && config.Experimental.Sigstore != nil {
-		if h.sigstoreClient == nil {
-			newcache := sigstore.NewCache(maximumAmountCache)
-			h.sigstoreClient = sigstore.New(newcache, nil)
-		}
-
-		if err := configureSigstoreClient(h.sigstoreClient, config.Experimental.Sigstore, log); err != nil {
-			return err
-		}
-	}
-
 	h.verboseContainerLocatorLogs = config.VerboseContainerLocatorLogs
 	h.useNewContainerLocator = config.UseNewContainerLocator != nil && *config.UseNewContainerLocator
 	if h.useNewContainerLocator {
@@ -70,21 +53,6 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 	}
 
 	return nil
-}
-
-func (h *containerHelper) GetOSSelectors(ctx context.Context, log hclog.Logger, containerStatus *corev1.ContainerStatus) ([]string, error) {
-	var selectors []string
-	if h.sigstoreClient != nil {
-		log.Debug("Attempting to get signature info for container", telemetry.ContainerName, containerStatus.Name)
-		sigstoreSelectors, err := h.sigstoreClient.AttestContainerSignatures(ctx, containerStatus)
-		if err != nil {
-			log.Error("Error retrieving signature payload", "error", err)
-			return nil, status.Errorf(codes.Internal, "error retrieving signature payload: %v", err)
-		}
-		selectors = append(selectors, sigstoreSelectors...)
-	}
-
-	return selectors, nil
 }
 
 func (h *containerHelper) GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error) {
@@ -231,37 +199,6 @@ func canonicalizePodUID(uid string) types.UID {
 		}
 		return r
 	}, uid))
-}
-
-func configureSigstoreClient(client sigstore.Sigstore, c *SigstoreHCLConfig, log hclog.Logger) error {
-	// Rekor URL is required
-	if c.RekorURL == nil {
-		return status.Errorf(codes.InvalidArgument, "missing Rekor URL")
-	}
-	if err := client.SetRekorURL(*c.RekorURL); err != nil {
-		return status.Errorf(codes.InvalidArgument, "failed to set Rekor URL: %v", err)
-	}
-
-	// Configure sigstore settings
-	enforceSCT := true
-	if c.EnforceSCT != nil {
-		enforceSCT = *c.EnforceSCT
-	}
-
-	client.SetEnforceSCT(enforceSCT)
-
-	client.ClearSkipList()
-	if c.SkippedImages != nil {
-		client.AddSkippedImages(c.SkippedImages)
-	}
-	client.SetLogger(log)
-	client.ClearAllowedSubjects()
-	for issuer, subjects := range c.AllowedSubjects {
-		for _, subject := range subjects {
-			client.AddAllowedSubject(issuer, subject)
-		}
-	}
-	return nil
 }
 
 type dirFS string

@@ -63,39 +63,34 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `use_new_container_locator`      | If true, enables the new container locator algorithm that has support for cgroups v2. Defaults to false.                                                                                                                                |
 | `verbose_container_locator_logs` | If true, enables verbose logging of mountinfo and cgroup information used to locate containers. Defaults to false.                                                                                                                                          |
 
-| Experimental options | Description                                                                                                                  |
-|----------------------|----------------------------------------------------------------------------------------------------------------------------- |
-| `sigstore`           | Sigstore options. Options described below. See [Sigstore workload attestor for SPIRE](#sigstore-workload-attestor-for-spire) |
+## Sigstore experimental feature
 
-| Sigstore options                         | Description                                                                                                                                                                                                                                                                                                                                                         |
-|------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `skip_signature_verification_image_list` | The list of images, described as digest hashes, that should be skipped in signature verification. Defaults to empty list.                                                                                                                                                                                                                                           |
-| `allowed_subjects_list`                  | A map of allowed subject strings, keyed by the OIDC Provider URI, that are trusted and are allowed to sign container images artifacts. Defaults to empty. If empty, no workload will pass signature validation, unless listed on `skip_signature_verification_image_list`. (eg. `"https://accounts.google.com" = ["subject1@example.com","subject2@example.com"]`). |
-| `rekor_url`                              | The rekor URL to use with cosign. Required. See notes below.                                                                                                                                                                                                                                                                                                        |
-| `enforce_sct`                            | A boolean to be set to false in case of a private deployment, not using public CT                                                                                                                                                                                                                                                                                   |
+This feature extends the `k8s` workload attestor with the ability to validate container image signatures and attestations using the [Sigstore](https://www.sigstore.dev/) ecosystem.
 
-> **Note** Cosign discourages the use of image tags for referencing docker images, and this plugin does not support attestation of sigstore selectors for workloads running on containers using tag-referenced images, which will then fail attestation for both sigstore and k8s selectors. In cases where this is necessary, add the digest string for the image in the `skip_signature_verification_image_list` setting (eg. `"sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"`). Note that sigstore signature attestation will still not be performed, but this will allow k8s selectors to be returned, along with the `"k8s:sigstore-validation:passed"` selector.
+### Experimental options
 
-<!-- different notes -->
+| Option     | Description                                                                               |
+|------------|-------------------------------------------------------------------------------------------|
+| `sigstore` | Sigstore options. Options described below. See [Sigstore options](#sigstore-options)      |
 
-> **Note** Since the SPIRE Agent can also go through workload attestation, it will also need to be included in the skip list if either its image is not signed or has a digest reference string.
+### Sigstore options
 
-<!-- different notes -->
+| Option                 | Description                                                                                                                                                                                                                                                       |
+|------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allowed_identities`   | Maps OIDC Provider URIs to lists of allowed subjects. Supports regular expressions patterbs. Defaults to empty. If unspecified, signatures from any issuer are accepted. (eg. `"https://accounts.google.com" = ["subject1@example.com","subject2@example.com"]`). |
+| `skipped_images`       | Lists image IDs to exclude from Sigstore signature verification. For these images, no Sigstore selectors will be generated. Defaults to an empty list.                                                                                                            |
+| `rekor_url`            | Specifies the Rekor URL for transparency log verification. Default is the public Rekor instance [https://rekor.sigstore.dev](https://rekor.sigstore.dev).                                                                                                         |
+| `ignore_tlog`          | If set to true, bypasses the transparency log verification and the selectors based on the Rekor bundle are not generated.                                                                                                                                         |
+| `ignore_attestations`  | If set to true, bypasses the image attestations verification and the selector `image-attestations:verified` is not generated.                                                                                                                                     |
+| `ignore_sct`           | If set to true, bypasses the Signed Certificate Timestamp (SCT) verification.                                                                                                                                                                                     |
+| `registry_credentials` | Maps each registry URL to its corresponding authentication credentials. Example: `{"docker.io": {"username": "user", "password": "pass"}}`.                                                                                                                       |
 
-> **Note** The sigstore project contains a transparency log called Rekor that provides an immutable, tamper-resistant ledger to record signed metadata to an immutable record. While it is possible to run your own instance, a public instance of rekor is available at `https://rekor.sigstore.dev/`.
+#### Custom CA Roots
 
-## Sigstore workload attestor for SPIRE
-
-### Platform support
-
-This capability is only supported on Unix systems.
-
-The k8s workload attestor plugin also has capabilities to validate container images signatures through [sigstore](https://www.sigstore.dev/)
-
-Cosign supports container signing, verification, and storage in an OCI registry. Cosign aims to make signatures invisible infrastructure. For this, we’ve chosen the Sigstore ecosystem and artifacts. Digging deeper, we are using: Rekor (signature transparency log), Fulcio (signing certificate issuer and certificate transparency log) and Cosign (container image signing tool) to guarantee the authenticity of the running workload.
-
-> **Note** you can provide your own CA roots signed through TUF via the cosign initialize command.
-This effectively securely pins the CA roots. We allow you to also specify trusted roots via the `SIGSTORE_ROOT_FILE` flag
+Custom CA roots signed through TUF can be provided using the `cosign initialize` command. This method securely pins the
+CA roots, ensuring that only trusted certificates are used during validation. Additionally, trusted roots for
+certificate validation can be specified via the `SIGSTORE_ROOT_FILE` environment variable. For more details on Cosign
+configurations, refer to the [documentation](https://github.com/sigstore/cosign/blob/main/README.md).
 
 ### K8s selectors
 
@@ -116,15 +111,22 @@ This effectively securely pins the CA roots. We allow you to also specify truste
 | k8s:pod-init-image       | An Image OR ImageID of any init container in the workload's pod, [as reported by K8S](https://pkg.go.dev/k8s.io/api/core/v1#ContainerStatus). Selector value may be an image tag, such as: `docker.io/envoyproxy/envoy-alpine:v1.16.0`, or a resolved SHA256 image digest, such as `docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb`                         |
 | k8s:pod-init-image-count | The number of init container images in workload's pod                                                                                                                                                                                                                                                                                                                                                                  |
 
-Sigstore enabled selectors (available when configured to use sigstore)
+Sigstore enabled selectors (available when configured to use `sigstore`)
 
-| Selector                                           | Value                                                                                                                                                                                                                                                      |
-|----------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| k8s:${containerID}:image-signature-content         | A containerID is an unique alphanumeric number for each container. The value of the signature itself in a hash (eg. `k8s:000000:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=`) |
-| k8s:${containerID}:image-signature-subject         | OIDC principal that signed it​ (eg. `k8s:000000:image-signature-subject:spirex@example.com`)                                                                                                                                                               |
-| k8s:${containerID}:image-signature-logid           | A unique LogID for the Rekor transparency log​ (eg. `k8s:000000:image-signature-logid:samplelogID`)                                                                                                                                                        |
-| k8s:${containerID}:image-signature-integrated-time | The time (in Unix timestamp format) when the image signature was integrated into the signature transparency log​ (eg. `k8s:000000:image-signature-integrated-time:12345`)                                                                                  |
-| k8s:sigstore-validation                            | The confirmation if the signature is valid, has value of "passed" (eg. `k8s:sigstore-validation:passed`)                                                                                                                                                   |
+| Selector                                   | Value                                                                                                                                                                                                                                     |
+|--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| k8s:image-signature:verified               | When the image signature was verified and is valid.                                                                                                                                                                                       |
+| k8s:image-attestations:verified            | When the image attestations were verified and are valid.                                                                                                                                                                                  |
+| k8s:image-signature-value                  | The base64 encoded value of the signature (eg. `k8s:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=`)                                                            |
+| k8s:image-signature-subject                | The OIDC principal that signed the image (e.g., `k8s:image-signature-subject:spirex@example.com`)                                                                                                                                         |
+| k8s:image-signature-issuer                 | The OIDC issuer of the signature (e.g., `k8s:image-signature-issuer:https://accounts.google.com`)                                                                                                                                         |
+| k8s:image-signature-log-id                 | A unique LogID for the Rekor transparency log entry (eg. `k8s:image-signature-log-id:c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b95918123`)                                                                                   |
+| k8s:image-signature-log-index              | The log index for the Rekor transparency log entry (eg. `k8s:image-signature-log-index:105695637`)                                                                                                                                        |
+| k8s:image-signature-integrated-time        | The time (in Unix timestamp format) when the image signature was integrated into the signature transparency log (eg. `k8s:image-signature-integrated-time:1719237832`)                                                                    |
+| k8s:image-signature-signed-entry-timestamp | The base64 encoded signed entry (signature over the logID, logIndex, body and integratedTime) (eg. `k8s:image-signature-integrated-time:MEQCIDP77vB0/MEbR1QKZ7Ol8PgFwGEEvnQJiv5cO7ATDYRwAiB9eBLYZjclxRNaaNJVBdQfP9Y8vGVJjwdbisme2cKabc`)  |
+
+If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-log-id`, `-log-index`, `-integrated-time`, and `-signed-entry-timestamp`) are not generated.
+
 > **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of
 > the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod,
 > respectively.
