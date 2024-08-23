@@ -26,26 +26,6 @@ func (p *Plugin) parseConfig(req *configv1.ConfigureRequest) (*Config, error) {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
 	}
 
-	if config.ClientCertPath == "" {
-		config.ClientCertPath = p.hooks.getEnv("EJBCA_CLIENT_CERT_PATH")
-	}
-	if config.ClientKeyPath == "" {
-		config.ClientKeyPath = p.hooks.getEnv("EJBCA_CLIENT_CERT_KEY_PATH")
-	}
-
-	if config.ClientCertPath == "" {
-		logger.Error("Client certificate is required for mTLS authentication")
-		return nil, status.Error(codes.InvalidArgument, "client_cert or EJBCA_CLIENT_CERT_PATH is required for mTLS authentication")
-	}
-	if config.ClientKeyPath == "" {
-		logger.Error("Client key is required for mTLS authentication")
-		return nil, status.Error(codes.InvalidArgument, "client_key or EJBCA_CLIENT_KEY_PATH is required for mTLS authentication")
-	}
-
-	if config.CaCertPath == "" {
-		config.CaCertPath = p.hooks.getEnv("EJBCA_CA_CERT_PATH")
-	}
-
 	if config.Hostname == "" {
 		return nil, status.Error(codes.InvalidArgument, "hostname is required")
 	}
@@ -57,6 +37,30 @@ func (p *Plugin) parseConfig(req *configv1.ConfigureRequest) (*Config, error) {
 	}
 	if config.CertificateProfileName == "" {
 		return nil, status.Error(codes.InvalidArgument, "certificate_profile_name is required")
+	}
+
+	// If ClientCertPath or ClientCertKeyPath were not found in the main server conf file,
+	// load them from the environment.
+	if config.ClientCertPath == "" {
+		config.ClientCertPath = p.hooks.getEnv("EJBCA_CLIENT_CERT_PATH")
+	}
+	if config.ClientCertKeyPath == "" {
+		config.ClientCertKeyPath = p.hooks.getEnv("EJBCA_CLIENT_CERT_KEY_PATH")
+	}
+
+	// If ClientCertPath or ClientCertKeyPath were not present in either the conf file or
+	// the environment, return an error.
+	if config.ClientCertPath == "" {
+		logger.Error("Client certificate is required for mTLS authentication")
+		return nil, status.Error(codes.InvalidArgument, "client_cert or EJBCA_CLIENT_CERT_PATH is required for mTLS authentication")
+	}
+	if config.ClientCertKeyPath == "" {
+		logger.Error("Client key is required for mTLS authentication")
+		return nil, status.Error(codes.InvalidArgument, "client_key or EJBCA_CLIENT_KEY_PATH is required for mTLS authentication")
+	}
+
+	if config.CaCertPath == "" {
+		config.CaCertPath = p.hooks.getEnv("EJBCA_CA_CERT_PATH")
 	}
 
 	return config, nil
@@ -90,8 +94,8 @@ func (p *Plugin) getAuthenticator(config *Config) (ejbcaclient.Authenticator, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to read client certificate from file: %w", err)
 	}
-	logger.Debug("Reading client key from file", "path", config.ClientKeyPath)
-	clientKeyBytes, err := p.hooks.readFile(config.ClientKeyPath)
+	logger.Debug("Reading client key from file", "path", config.ClientCertKeyPath)
+	clientKeyBytes, err := p.hooks.readFile(config.ClientCertKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read client key from file: %w", err)
 	}

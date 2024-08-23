@@ -76,7 +76,7 @@ type Config struct {
 	Hostname               string `hcl:"hostname" json:"hostname"`
 	CaCertPath             string `hcl:"ca_cert_path" json:"ca_cert_path"`
 	ClientCertPath         string `hcl:"client_cert_path" json:"client_cert_path"`
-	ClientKeyPath          string `hcl:"client_key_path" json:"client_key_path"`
+	ClientCertKeyPath      string `hcl:"client_cert_key_path" json:"client_cert_key_path"`
 	CAName                 string `hcl:"ca_name" json:"ca_name"`
 	EndEntityProfileName   string `hcl:"end_entity_profile_name" json:"end_entity_profile_name"`
 	CertificateProfileName string `hcl:"certificate_profile_name" json:"certificate_profile_name"`
@@ -159,7 +159,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to generate random password: %v", err)
 	}
-	enrollConfig := ejbcaclient.EnrollCertificateRestRequest{}
+	enrollConfig := ejbcaclient.NewEnrollCertificateRestRequest()
 	enrollConfig.SetUsername(endEntityName)
 	enrollConfig.SetPassword(password)
 
@@ -175,7 +175,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 
 	logger.Info("Enrolling certificate with EJBCA")
 	enrollResponse, httpResponse, err := p.client.EnrollPkcs10Certificate(stream.Context()).
-		EnrollCertificateRestRequest(enrollConfig).
+		EnrollCertificateRestRequest(*enrollConfig).
 		Execute()
 	if err != nil {
 		return p.parseEjbcaError("failed to enroll CSR", err)
@@ -206,23 +206,21 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	case enrollResponse.GetResponseFormat() == "DER":
 		logger.Debug("EJBCA returned certificate in DER format - serializing")
 
-		bytes := []byte(enrollResponse.GetCertificate())
-		bytes, err := base64.StdEncoding.DecodeString(string(bytes))
+		bytes, err := base64.StdEncoding.DecodeString(enrollResponse.GetCertificate())
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to base64 decode DER certificate: %v", err)
 		}
 		certBytes = append(certBytes, bytes...)
 
 		for _, ca := range enrollResponse.CertificateChain {
-			bytes := []byte(ca)
-			bytes, err := base64.StdEncoding.DecodeString(string(bytes))
+			bytes, err := base64.StdEncoding.DecodeString(ca)
 			if err != nil {
 				return status.Errorf(codes.Internal, "failed to base64 decode DER CA certificate: %v", err)
 			}
 			caBytes = append(caBytes, bytes...)
 		}
 	default:
-		return status.Error(codes.Internal, "ejbca returned unsupported certificate format: "+enrollResponse.GetResponseFormat())
+		return status.Errorf(codes.Internal, "ejbca returned unsupported certificate format: %q", enrollResponse.GetResponseFormat())
 	}
 
 	cert, err := x509.ParseCertificate(certBytes)
@@ -259,10 +257,6 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	})
 }
 
-// PublishJWTKeyAndSubscribe implements the UpstreamAuthority PublishJWTKeyAndSubscribe RPC. Publishes a JWT signing key
-// upstream and responds with the upstream JWT keys. If supported by the implementation, subsequent responses on the
-// stream contain upstream JWT key updates, otherwise the stream is closed after the initial response.
-//
 // The EJBCA UpstreamAuthority plugin does not support publishing JWT keys.
 func (p *Plugin) PublishJWTKeyAndSubscribe(_ *upstreamauthorityv1.PublishJWTKeyRequest, _ upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
 	return status.Error(codes.Unimplemented, "publishing JWT keys is not supported by the EJBCA UpstreamAuthority plugin")

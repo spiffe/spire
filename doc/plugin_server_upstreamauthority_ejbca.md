@@ -20,7 +20,7 @@ The EJBCA UpstreamAuthority Plugin accepts the following configuration options.
 | `hostname`                 | The hostname of the connected EJBCA server.                                                                                                                                                                                                  |                                    |
 | `ca_cert_path`             | (optional) The path to the CA certificate file used to validate the EJBCA server's certificate. Certificates must be in PEM format.                                                                                                          | `EJBCA_CA_CERT_PATH`               |
 | `client_cert_path`         | The path to the client certificate (public key only) used to authenticate to EJBCA. Must be in PEM format.                                                                                                                                   | `EJBCA_CLIENT_CERT_PATH`           |
-| `client_key_path`          | The path to the client key matching `client_cert` used to authenticate to EJBCA. Must be in PEM format.                                                                                                                                      | `EJBCA_CLIENT_CERT_KEY_PATH`       |
+| `client_cert_key_path`          | The path to the client key matching `client_cert` used to authenticate to EJBCA. Must be in PEM format.                                                                                                                                      | `EJBCA_CLIENT_CERT_KEY_PATH`       |
 | `ca_name`                  | The name of a CA in the connected EJBCA instance that will issue the intermediate signing certificates.                                                                                                                                      |                                    |
 | `end_entity_profile_name`  | The name of an end entity profile in the connected EJBCA instance that is configured to issue SPIFFE certificates.                                                                                                                           |                                    |
 | `certificate_profile_name` | The name of a certificate profile in the connected EJBCA instance that is configured to issue intermediate CA certificates.                                                                                                                  |                                    |
@@ -37,15 +37,12 @@ UpstreamAuthority "ejbca" {
         hostname = "ejbca.example.com"
         ca_cert_path = "/path/to/ca_cert.pem"
         client_cert_path = "/path/to/client_cert.pem"
-        client_key_path = "/path/to/client_key.pem"
+        client_cert_key_path = "/path/to/client_key.pem"
         ca_name = "Fake-Sub-CA"
         end_entity_profile_name = "fakeSpireIntermediateCAEEP"
         certificate_profile_name = "fakeSubCACP"
-        ca_name = "Sub-CA"
-        end_entity_profile_name = "spireIntermediateCA"
-        certificate_profile_name = "SUBCA"
-        end_entity_name = ""
-        account_binding_id = "abc123"
+        end_entity_name = "cn"
+        account_binding_id = "foo123"
     }
 }
 ```
@@ -82,4 +79,4 @@ If the endEntityName field is not explicitly set, the EJBCA UpstreamAuthority pl
 * **If the Common Name is not available, it will use the first DNS Name:** It looks at the first DNS Name from the CSR's Subject Alternative Names (SANs).
 * **If the DNS Name is not available, it will use the first URI:** It looks at the first URI from the CSR's Subject Alternative Names (SANs).
 * **If the URI is not available, it will use the first IP Address:** It looks at the first IP Address from the CSR's Subject Alternative Names (SANs).
-* **If none of the above are available, it will return an error.
+* **If none of the above are available, it will return an error.**

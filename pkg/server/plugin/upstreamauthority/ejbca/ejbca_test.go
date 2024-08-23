@@ -85,7 +85,7 @@ func TestConfigure(t *testing.T) {
 			config: `
             ca_name = "Fake-Sub-CA"
             client_cert_path = "/path/to/cert.crt"
-            client_key_path = "/path/to/key.pem"
+            client_cert_key_path = "/path/to/key.pem"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
             default_end_entity_name = "cn"
@@ -108,7 +108,7 @@ func TestConfigure(t *testing.T) {
 			config: `
             hostname = "ejbca.example.org"
             client_cert_path = "/path/to/cert.crt"
-            client_key_path = "/path/to/key.pem"
+            client_cert_key_path = "/path/to/key.pem"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
             default_end_entity_name = "cn"
@@ -131,7 +131,7 @@ func TestConfigure(t *testing.T) {
 			config: `
             hostname = "ejbca.example.org"
             client_cert_path = "/path/to/cert.crt"
-            client_key_path = "/path/to/key.pem"
+            client_cert_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             certificate_profile_name = "fakeSubCACP"
             default_end_entity_name = "cn"
@@ -154,7 +154,7 @@ func TestConfigure(t *testing.T) {
 			config: `
             hostname = "ejbca.example.org"
             client_cert_path = "/path/to/cert.crt"
-            client_key_path = "/path/to/key.pem"
+            client_cert_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             default_end_entity_name = "cn"
@@ -176,7 +176,7 @@ func TestConfigure(t *testing.T) {
 			name: "No Client Cert",
 			config: `
             hostname = "ejbca.example.org"
-			client_key_path = "/path/to/key.pem"
+			client_cert_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -217,7 +217,7 @@ func TestConfigure(t *testing.T) {
 			config: `
             hostname = "ejbca.example.org"
             client_cert_path = "/path/to/cert.crt"
-            client_key_path = "/path/to/key.pem"
+            client_cert_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -248,7 +248,7 @@ func TestConfigure(t *testing.T) {
 			name: "Client Cert path from env",
 			config: `
             hostname = "ejbca.example.org"
-			client_key_path = "/path/to/key.pem"
+			client_cert_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -342,7 +342,7 @@ func TestConfigure(t *testing.T) {
             hostname = "ejbca.example.org"
 			ca_cert_path = "/path/to/ca.crt"
             client_cert_path = "/path/to/cert.crt"
-            client_key_path = "/path/to/key.pem"
+            client_cert_key_path = "/path/to/key.pem"
             ca_name = "Fake-Sub-CA"
             end_entity_profile_name = "fakeSpireIntermediateCAEEP"
             certificate_profile_name = "fakeSubCACP"
@@ -461,7 +461,7 @@ func TestMintX509CAAndSubscribe(t *testing.T) {
 			accountBindingID:       "",
 
 			expectedgRPCCode:      codes.Internal,
-			expectedMessagePrefix: "upstreamauthority(ejbca): ejbca returned unsupported certificate format: PKCS7",
+			expectedMessagePrefix: "upstreamauthority(ejbca): ejbca returned unsupported certificate format: \"PKCS7\"",
 			ejbcaStatusCode:       http.StatusOK,
 			expectedEndEntityName: trustDomain.ID().String(),
 			expectedCaAndChain:    []*x509.Certificate{svidIssuingCA, intermediateCA},
@@ -524,8 +524,8 @@ func TestMintX509CAAndSubscribe(t *testing.T) {
 
 				// We populate the client cert path & client key path to random values since newFakeAuthenticator doesn't have
 				// any built-in authentication.
-				ClientCertPath: "/path/to/cert.crt",
-				ClientKeyPath:  "/path/to/key.pem",
+				ClientCertPath:    "/path/to/cert.crt",
+				ClientCertKeyPath: "/path/to/key.pem",
 
 				CAName:                 tt.caName,
 				EndEntityProfileName:   tt.endEntityProfileName,
@@ -699,7 +699,7 @@ func TestGetEndEntityName(t *testing.T) {
 			config := &Config{
 				Hostname:               "ejbca.example.com",
 				ClientCertPath:         "/path/to/cert.crt",
-				ClientKeyPath:          "/path/to/key.pem",
+				ClientCertKeyPath:      "/path/to/key.pem",
 				CAName:                 "Fake-Sub-CA",
 				EndEntityProfileName:   "fakeSpireIntermediateCAEEP",
 				CertificateProfileName: "fakeSubCACP",
