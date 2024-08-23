@@ -13,7 +13,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/diskutil"
@@ -156,7 +155,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	svidRotator, err := s.newSVIDRotator(ctx, serverCA, metrics, s.config.TrustDomain, cat.DataStore)
+	svidRotator, err := s.newSVIDRotator(ctx, serverCA, metrics)
 	if err != nil {
 		return err
 	}
@@ -367,14 +366,12 @@ func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.M
 	return registrationManager
 }
 
-func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics, td spiffeid.TrustDomain, ds datastore.DataStore) (*svid.Rotator, error) {
+func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (*svid.Rotator, error) {
 	svidRotator := svid.NewRotator(&svid.RotatorConfig{
-		ServerCA:    serverCA,
-		Log:         s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
-		Metrics:     metrics,
-		KeyType:     s.config.CAKeyType,
-		TrustDomain: td,
-		DataStore:   ds,
+		ServerCA: serverCA,
+		Log:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.SVIDRotator),
+		Metrics:  metrics,
+		KeyType:  s.config.CAKeyType,
 	})
 	if err := svidRotator.Initialize(ctx); err != nil {
 		return nil, err

@@ -73,6 +73,7 @@ type AuthorityManager interface {
 	RotateX509CA(ctx context.Context)
 	IsUpstreamAuthority() bool
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
+	NotifyTaintedX509Authorities(ctx context.Context) error
 }
 
 type Config struct {
@@ -187,6 +188,16 @@ func (m *Manager) Close() {
 	if m.upstreamClient != nil {
 		_ = m.upstreamClient.Close()
 	}
+}
+
+func (m *Manager) NotifyTaintedX509Authorities(ctx context.Context) error {
+	taintedAuthorities, err := m.fetchTaintedAuthorities(ctx)
+	if err != nil {
+		return err
+	}
+
+	m.c.CA.NotifyTaintedX509Authorities(taintedAuthorities)
+	return nil
 }
 
 func (m *Manager) GetCurrentX509CASlot() Slot {
@@ -564,16 +575,10 @@ func (m *Manager) dropBundleUpdated() {
 	}
 }
 
-func (m *Manager) processTaintedAuthorities(ctx context.Context) error {
-	// processing tainted keys is only needed when an upstream authority is configured
-	if m.upstreamClient == nil {
-		return nil
-	}
-
-	// TODO: review if use Optional bundle
+func (m *Manager) fetchTaintedAuthorities(ctx context.Context) ([]*x509.Certificate, error) {
 	bundle, err := m.fetchRequiredBundle(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Collect all tainted keys
@@ -583,13 +588,27 @@ func (m *Manager) processTaintedAuthorities(ctx context.Context) error {
 		if rootCA.TaintedKey {
 			cert, err := x509.ParseCertificate(rootCA.DerBytes)
 			if err != nil {
-				return fmt.Errorf("failed to parse RootCA: %w", err)
+				return nil, fmt.Errorf("failed to parse RootCA: %w", err)
 			}
 
 			skID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
 			m.c.Log.WithField(telemetry.UpstreamAuthorityID, skID).Debug("Tainted upstream authority found")
 			taintedAuthorities = append(taintedAuthorities, cert)
 		}
+	}
+
+	return taintedAuthorities, nil
+}
+
+func (m *Manager) processTaintedAuthorities(ctx context.Context) error {
+	// Nothing to rotate if no upstream authority is used
+	if m.upstreamClient == nil {
+		return nil
+	}
+
+	taintedAuthorities, err := m.fetchTaintedAuthorities(ctx)
+	if err != nil {
+		return err
 	}
 
 	if len(taintedAuthorities) == 0 {
@@ -642,6 +661,10 @@ func (m *Manager) processTaintedAuthorities(ctx context.Context) error {
 
 	// Activate the prepared X.509 authority
 	m.RotateX509CA(ctx)
+
+	// Intermediate is safe. Notify rotator to force rotation
+	// of tainted X.509 SVID.
+	m.c.CA.NotifyTaintedX509Authorities(taintedAuthorities)
 
 	return nil
 }
@@ -825,10 +848,6 @@ func (m *Manager) prepareUntaintedX509CA(ctx context.Context, taintedAuthorities
 	if ok := shouldPrepareX509CA(m.nextX509CA, taintedAuthorities); ok {
 		return errors.New("prepared authority is still tainted")
 	}
-
-	// Intermediate is safe. Notify rotator to force rotation
-	// of tainted X.509 SVID.
-	m.c.CA.NotifyTaintedX509Authorities(taintedAuthorities)
 
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
-	"fmt"
 	"time"
 
 	"github.com/imkira/go-observer"
@@ -21,7 +20,8 @@ var (
 type Rotator struct {
 	c *RotatorConfig
 
-	state observer.Property
+	state         observer.Property
+	isSVIDTainted bool
 }
 
 // State is the current SVID and key
@@ -62,12 +62,11 @@ func (r *Rotator) Run(ctx context.Context) error {
 			r.c.Log.Debug("Stopping SVID rotator")
 			return nil
 		case taintedAuthorities := <-r.c.ServerCA.TaintedAuthorities():
-			if err := r.processTaintedAuthorities(ctx, taintedAuthorities); err != nil {
-				// May we retry?
-				r.c.Log.WithError(err).Error("Failed to process bundle update")
-				continue
+			isTainted := r.isX509AuthorityTainted(taintedAuthorities)
+			if isTainted {
+				r.c.Log.Info("Server SVID signed using a tainted authority, forcing rotation...")
+				r.isSVIDTainted = true
 			}
-
 		case <-t.C:
 			if r.shouldRotate() {
 				if err := r.rotateSVID(ctx); err != nil {
@@ -87,26 +86,13 @@ func (r *Rotator) shouldRotate() bool {
 		return true
 	}
 
-	return r.c.Clock.Now().After(certHalfLife(s.SVID[0]))
+	return r.c.Clock.Now().After(certHalfLife(s.SVID[0])) ||
+		r.isSVIDTainted
 }
 
-func (r *Rotator) processTaintedAuthorities(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
+func (r *Rotator) isX509AuthorityTainted(taintedAuthorities []*x509.Certificate) bool {
 	svid := r.State().SVID
 
-	if !isX509AuthorityTainted(svid, taintedAuthorities) {
-		return nil
-	}
-
-	r.c.Log.Info("Server SVID signed using a tainted authority, forcing rotation...")
-
-	if err := r.rotateSVID(ctx); err != nil {
-		return fmt.Errorf("could not rotate server SVID: %w", err)
-	}
-
-	return nil
-}
-
-func isX509AuthorityTainted(svid []*x509.Certificate, taintedAuthorities []*x509.Certificate) bool {
 	rootPool := x509.NewCertPool()
 	for _, taintedKey := range taintedAuthorities {
 		rootPool.AddCert(taintedKey)
@@ -154,6 +140,9 @@ func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 		SVID: svid,
 		Key:  signer,
 	})
+	// Any new SVID must not be tainted, rotator is only notified about
+	// tainted authorities only when intermediate is alreday rotated
+	r.isSVIDTainted = false
 
 	return nil
 }
