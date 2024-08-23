@@ -55,6 +55,7 @@ const (
 type ManagedCA interface {
 	SetX509CA(*ca.X509CA)
 	SetJWTKey(*ca.JWTKey)
+	NotifyTaintedX509Authorities([]*x509.Certificate)
 }
 
 type JwtKeyPublisher interface {
@@ -824,6 +825,10 @@ func (m *Manager) prepareUntaintedX509CA(ctx context.Context, taintedAuthorities
 	if ok := shouldPrepareX509CA(m.nextX509CA, taintedAuthorities); ok {
 		return errors.New("prepared authority is still tainted")
 	}
+
+	// Intermediate is safe. Notify rotator to force rotation
+	// of tainted X.509 SVID.
+	m.c.CA.NotifyTaintedX509Authorities(taintedAuthorities)
 
 	return nil
 }
