@@ -351,7 +351,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 		AuthorityId: nextSlot.AuthorityID(),
 	}
 
-	if err := s.ca.NotifyTaintedX509Authorities(ctx); err != nil {
+	if err := s.ca.NotifyTaintedX509Authority(ctx, nextSlot.AuthorityID()); err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to notificate tainted authority", err)
 	}
 

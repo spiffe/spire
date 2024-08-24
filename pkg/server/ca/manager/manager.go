@@ -14,7 +14,6 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/agent/common/backoff"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -47,11 +46,6 @@ const (
 	activationThresholdDivisor = 6
 )
 
-const (
-	forceRotationBackoffInterval       = 5 * time.Second
-	forceRotationBackoffMaxElapsedTime = 1 * time.Minute
-)
-
 type ManagedCA interface {
 	SetX509CA(*ca.X509CA)
 	SetJWTKey(*ca.JWTKey)
@@ -73,7 +67,7 @@ type AuthorityManager interface {
 	RotateX509CA(ctx context.Context)
 	IsUpstreamAuthority() bool
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
-	NotifyTaintedX509Authorities(ctx context.Context) error
+	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
 }
 
 type Config struct {
@@ -91,11 +85,12 @@ type Config struct {
 }
 
 type Manager struct {
-	c                  Config
-	caTTL              time.Duration
-	bundleUpdatedCh    chan struct{}
-	upstreamClient     *ca.UpstreamClient
-	upstreamPluginName string
+	c                            Config
+	caTTL                        time.Duration
+	bundleUpdatedCh              chan struct{}
+	taintedUpstreamAuthoritiesCh chan []*x509.Certificate
+	upstreamClient               *ca.UpstreamClient
+	upstreamPluginName           string
 
 	currentX509CA *x509CASlot
 	nextX509CA    *x509CASlot
@@ -117,19 +112,21 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	}
 
 	m := &Manager{
-		c:               c,
-		caTTL:           c.CredBuilder.Config().X509CATTL,
-		bundleUpdatedCh: make(chan struct{}, 1),
+		c:                            c,
+		caTTL:                        c.CredBuilder.Config().X509CATTL,
+		bundleUpdatedCh:              make(chan struct{}, 1),
+		taintedUpstreamAuthoritiesCh: make(chan []*x509.Certificate, 1),
 	}
 
 	if upstreamAuthority, ok := c.Catalog.GetUpstreamAuthority(); ok {
 		m.upstreamClient = ca.NewUpstreamClient(ca.UpstreamClientConfig{
 			UpstreamAuthority: upstreamAuthority,
 			BundleUpdater: &bundleUpdater{
-				log:           c.Log,
-				trustDomainID: c.TrustDomain.IDString(),
-				ds:            c.Catalog.GetDataStore(),
-				updated:       m.bundleUpdated,
+				log:                        c.Log,
+				trustDomainID:              c.TrustDomain.IDString(),
+				ds:                         c.Catalog.GetDataStore(),
+				updated:                    m.bundleUpdated,
+				upstreamAuthoritiesTainted: m.notifyUpstreamAuthoritiesTainted,
 			},
 		})
 		m.upstreamPluginName = upstreamAuthority.Name()
@@ -190,13 +187,13 @@ func (m *Manager) Close() {
 	}
 }
 
-func (m *Manager) NotifyTaintedX509Authorities(ctx context.Context) error {
-	taintedAuthorities, err := m.fetchTaintedAuthorities(ctx)
+func (m *Manager) NotifyTaintedX509Authority(ctx context.Context, authoirtyID string) error {
+	taintedAuthority, err := m.fetchRootCAByAuthorityID(ctx, authoirtyID)
 	if err != nil {
 		return err
 	}
 
-	m.c.CA.NotifyTaintedX509Authorities(taintedAuthorities)
+	m.c.CA.NotifyTaintedX509Authorities([]*x509.Certificate{taintedAuthority})
 	return nil
 }
 
@@ -485,13 +482,15 @@ func (m *Manager) ProcessBundleUpdates(ctx context.Context) {
 	for {
 		select {
 		case <-m.bundleUpdatedCh:
-			if err := m.processTaintedAuthorities(ctx); err != nil {
-				m.c.Log.WithError(err).Warn("failed to process tainted keys")
-			}
-
 			if err := m.notifyBundleUpdated(ctx); err != nil {
 				m.c.Log.WithError(err).Warn("Failed to notify on bundle update")
 			}
+		case taintedAuthorities := <-m.taintedUpstreamAuthoritiesCh:
+			// TODO: may we add a backoff to all processing tainted authorities code?
+			if err := m.processTaintedAuthorities(ctx, taintedAuthorities); err != nil {
+				m.c.Log.WithError(err).Warn("failed to process tainted keys")
+			}
+
 		case <-ctx.Done():
 			return
 		}
@@ -575,15 +574,19 @@ func (m *Manager) dropBundleUpdated() {
 	}
 }
 
-func (m *Manager) fetchTaintedAuthorities(ctx context.Context) ([]*x509.Certificate, error) {
+func (m *Manager) notifyUpstreamAuthoritiesTainted(taintedAuthorities []*x509.Certificate) {
+	select {
+	case m.taintedUpstreamAuthoritiesCh <- taintedAuthorities:
+	default:
+	}
+}
+
+func (m *Manager) fetchRootCAByAuthorityID(ctx context.Context, authorityID string) (*x509.Certificate, error) {
 	bundle, err := m.fetchRequiredBundle(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Collect all tainted keys
-	// TODO: may we store a list of already processed tainted keys?
-	var taintedAuthorities []*x509.Certificate
 	for _, rootCA := range bundle.RootCas {
 		if rootCA.TaintedKey {
 			cert, err := x509.ParseCertificate(rootCA.DerBytes)
@@ -592,23 +595,19 @@ func (m *Manager) fetchTaintedAuthorities(ctx context.Context) ([]*x509.Certific
 			}
 
 			skID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
-			m.c.Log.WithField(telemetry.UpstreamAuthorityID, skID).Debug("Tainted upstream authority found")
-			taintedAuthorities = append(taintedAuthorities, cert)
+			if authorityID == skID {
+				return cert, nil
+			}
 		}
 	}
 
-	return taintedAuthorities, nil
+	return nil, fmt.Errorf("root CA not found wiht authority ID: %q", authorityID)
 }
 
-func (m *Manager) processTaintedAuthorities(ctx context.Context) error {
+func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
 	// Nothing to rotate if no upstream authority is used
 	if m.upstreamClient == nil {
-		return nil
-	}
-
-	taintedAuthorities, err := m.fetchTaintedAuthorities(ctx)
-	if err != nil {
-		return err
+		return errors.New("processing upstream authorities must be be reached when no using upstream authority. Please create an issue.")
 	}
 
 	if len(taintedAuthorities) == 0 {
@@ -619,48 +618,28 @@ func (m *Manager) processTaintedAuthorities(ctx context.Context) error {
 	m.c.Log.Debug("Processing tainted keys on upstream authority")
 
 	currentSlotCA := m.currentX509CA.x509CA
-	if ok := isX509AuthorityTainted(currentSlotCA, taintedAuthorities); !ok {
-		return nil
-	}
+	if ok := isX509AuthorityTainted(currentSlotCA, taintedAuthorities); ok {
+		m.c.Log.Debug("Current root CA is signed by a tainted authority, preparing rotation...")
 
-	m.c.Log.Debug("Current root CA is signed by a tainted authority, preparing rotation...")
-
-	// There is an edge case, where an upstream authority using intermediates
-	// are still using a tainted authority, retry util the new prepared authority is untainted
-	forceRotationBackoff := backoff.NewBackoff(
-		m.c.Clock,
-		forceRotationBackoffInterval,
-		backoff.WithMaxElapsedTime(forceRotationBackoffMaxElapsedTime),
-	)
-
-	for {
-		err = m.prepareUntaintedX509CA(ctx, taintedAuthorities)
-		if err == nil {
+		err := m.prepareUntaintedX509CA(ctx, taintedAuthorities)
+		if err != nil {
 			// Prepared authority is no longer tainted finish for, to rotate...
-			break
-		}
-
-		// Prepare a new X.509 authority when next is old or it is signed by a tainted key
-		nextDuration := forceRotationBackoff.NextBackOff()
-		if nextDuration == backoff.Stop {
 			return err
 		}
 
-		m.c.Log.WithFields(logrus.Fields{
-			telemetry.Error:         err,
-			telemetry.RetryInterval: nextDuration,
-		}).Warn("Failed to prepare a new X.509 authority")
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-m.c.Clock.After(nextDuration):
-			continue
-		}
+		// Activate the prepared X.509 authority
+		m.RotateX509CA(ctx)
 	}
 
-	// Activate the prepared X.509 authority
-	m.RotateX509CA(ctx)
+	// Now that we rotated intermediate propagate tainted keys,
+	// So agent and downstream servers can start forcing rotations
+	ds := m.c.Catalog.GetDataStore()
+	for _, each := range taintedAuthorities {
+		skID := x509util.SubjectKeyIDToString(each.SubjectKeyId)
+		if err := ds.TaintX509CA(ctx, m.c.TrustDomain.IDString(), skID); err != nil {
+			return err
+		}
+	}
 
 	// Intermediate is safe. Notify rotator to force rotation
 	// of tainted X.509 SVID.
@@ -844,10 +823,10 @@ func (m *Manager) prepareUntaintedX509CA(ctx context.Context, taintedAuthorities
 		return fmt.Errorf("failed to prepare x509 authority: %w", err)
 	}
 
-	// Verify if prepared authority is still tainted
-	if ok := shouldPrepareX509CA(m.nextX509CA, taintedAuthorities); ok {
-		return errors.New("prepared authority is still tainted")
-	}
+	// // Verify if prepared authority is still tainted
+	// if ok := shouldPrepareX509CA(m.nextX509CA, taintedAuthorities); ok {
+	// return errors.New("prepared authority is still tainted")
+	// }
 
 	return nil
 }
@@ -880,10 +859,11 @@ func MinCATTLForSVIDTTL(svidTTL time.Duration) time.Duration {
 }
 
 type bundleUpdater struct {
-	log           logrus.FieldLogger
-	trustDomainID string
-	ds            datastore.DataStore
-	updated       func()
+	log                        logrus.FieldLogger
+	trustDomainID              string
+	ds                         datastore.DataStore
+	updated                    func()
+	upstreamAuthoritiesTainted func([]*x509.Certificate)
 }
 
 func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certificate.X509Authority) error {
@@ -898,6 +878,7 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 	}
 
 	newAuthorities := make(map[string]struct{}, len(roots))
+	var taintedAuthorities []*x509.Certificate
 	for _, root := range roots {
 		skID := x509util.SubjectKeyIDToString(root.Certificate.SubjectKeyId)
 		// Collect all skIDs
@@ -907,9 +888,8 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 		if root.Tainted {
 			// Taint x.509 authority, if required
 			if found, ok := x509Authorities[skID]; ok && !found.Tainted {
-				if err := u.ds.TaintX509CA(ctx, u.trustDomainID, skID); err != nil {
-					return fmt.Errorf("failed to taint x.509 authority %q: %w", skID, err)
-				}
+				// Add to the list of new tainted authorities
+				taintedAuthorities = append(taintedAuthorities, found.Certificate)
 				u.log.WithField(telemetry.SubjectKeyID, skID).Info("X.509 authority tainted")
 				// Prevent to add tainted keys, since status is updated before
 				continue
@@ -920,6 +900,14 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 			DerBytes:   root.Certificate.Raw,
 			TaintedKey: root.Tainted,
 		})
+	}
+
+	// Notificate about tainted authorities to force rotation of intermediates,
+	// and update database,
+	// it is done in a separated thread to prevent agent and downstream servers,
+	// to start rotations before current server forced intermediate rotations
+	if len(taintedAuthorities) > 0 {
+		u.upstreamAuthoritiesTainted(taintedAuthorities)
 	}
 
 	for skID, authority := range x509Authorities {
