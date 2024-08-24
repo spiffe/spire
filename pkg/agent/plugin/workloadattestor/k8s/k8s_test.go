@@ -14,9 +14,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -53,7 +55,7 @@ AyIlgLJ/QQypapKXYPr4kLuFWFShRANCAARFfHk9kz/bGtZfcIhJpzvnSnKbSvuK
 FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 -----END PRIVATE KEY-----
 `))
-
+	imageID          = "docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898"
 	testPodSelectors = []*common.Selector{
 		{Type: "k8s", Value: "node-name:k8s-node-1"},
 		{Type: "k8s", Value: "ns:default"},
@@ -77,6 +79,10 @@ FwOGLt+I3+9beT0vo+pn9Rq0squewFYe3aJbwpkyfP2xOovQCdm4PC8y
 		{Type: "k8s", Value: "container-name:blog"},
 	}
 	testPodAndContainerSelectors = append(testPodSelectors, testContainerSelectors...)
+
+	sigstoreSelectors = []*common.Selector{
+		{Type: "k8s", Value: "sigstore:selector"},
+	}
 )
 
 type attestResult struct {
@@ -271,6 +277,19 @@ func (s *Suite) TestAttestWhenContainerReadyButContainerSelectorsDisabled() {
 	s.requireAttestSuccess(p, testPodSelectors)
 }
 
+func (s *Suite) TestAttestWithSigstoreSelectors() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithSigstore()
+
+	// Add the expected selectors from the Sigstore verifier
+	testPodAndContainerSelectors = append(testPodAndContainerSelectors, sigstoreSelectors...)
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
 func (s *Suite) TestConfigure() {
 	s.generateCerts("")
 
@@ -291,6 +310,7 @@ func (s *Suite) TestConfigure() {
 		MaxPollAttempts   int
 		PollRetryInterval time.Duration
 		ReloadInterval    time.Duration
+		SigstoreConfig    *sigstore.Config
 	}
 
 	testCases := []struct {
@@ -524,7 +544,7 @@ func (s *Suite) TestConfigure() {
 			require.NotNil(t, testCase.config, "test case missing expected config")
 			assert.NoError(t, err)
 
-			c, _, err := p.getConfig()
+			c, _, _, err := p.getConfig()
 			require.NoError(t, err)
 
 			switch {
@@ -550,6 +570,77 @@ func (s *Suite) TestConfigure() {
 			assert.Equal(t, testCase.config.MaxPollAttempts, c.MaxPollAttempts)
 			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
 			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
+		})
+	}
+}
+
+func (s *Suite) TestConfigureWithSigstore() {
+	cases := []struct {
+		name          string
+		hcl           string
+		expectedError string
+		want          *sigstore.Config
+	}{
+		{
+			name: "complete sigstore configuration",
+			hcl: `
+				    skip_kubelet_verification = true
+					experimental {
+    					sigstore {
+        					allowed_identities = {
+            					"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
+            					"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
+        					}
+        					skipped_images = ["registry/image@sha256:examplehash"]
+        					rekor_url = "https://test.dev"
+        					ignore_sct = true
+        					ignore_tlog = true
+                            ignore_attestations = true
+                            registry_credentials = {
+                                "registry-1" = { username = "user1", password = "pass1" }
+                                "registry-2" = { username = "user2", password = "pass2" }
+                            }
+    					}
+			}`,
+			expectedError: "",
+		},
+		{
+			name: "empty sigstore configuration",
+			hcl: `
+				    skip_kubelet_verification = true
+					experimental { sigstore {} }
+			`,
+			expectedError: "",
+		},
+		{
+			name: "invalid HCL",
+			hcl: `
+				    skip_kubelet_verification = true
+					experimental { sigstore = "invalid" }
+			`,
+			expectedError: "unable to decode configuration",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		s.T().Run(tc.name, func(t *testing.T) {
+			p := s.newPlugin()
+
+			var err error
+			plugintest.Load(s.T(), builtin(p), nil,
+				plugintest.Configure(tc.hcl),
+				plugintest.CaptureConfigureError(&err))
+
+			if tc.expectedError != "" {
+				s.RequireGRPCStatusContains(err, codes.InvalidArgument, tc.expectedError)
+				return
+			}
+			require.NoError(t, err)
+
+			_, _, sigstoreVerifier, err := p.getConfig()
+			require.NoError(t, err)
+			assert.NotNil(t, sigstoreVerifier)
 		})
 	}
 }
@@ -606,6 +697,11 @@ func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttest
 	if cHelper := s.oc.getContainerHelper(p); cHelper != nil {
 		p.setContainerHelper(cHelper)
 	}
+
+	// if sigstore is configured, override with fake
+	if p.sigstoreVerifier != nil {
+		p.sigstoreVerifier = newFakeSigstoreVerifier(map[string][]string{imageID: {"sigstore:selector"}})
+	}
 	return v1
 }
 
@@ -626,6 +722,19 @@ func (s *Suite) loadInsecurePluginWithExtra(extraConfig string) workloadattestor
 		use_new_container_locator = true
 		%s
 `, s.kubeletPort(), extraConfig))
+}
+
+func (s *Suite) loadInsecurePluginWithSigstore() workloadattestor.WorkloadAttestor {
+	return s.loadPlugin(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		use_new_container_locator = true
+		experimental {
+			sigstore {
+			}
+		}
+	`, s.kubeletPort()))
 }
 
 func (s *Suite) startInsecureKubelet() {
@@ -808,4 +917,27 @@ func (s *Suite) addPodListResponse(fixturePath string) {
 	s.Require().NoError(err)
 
 	s.podList = append(s.podList, podList)
+}
+
+type fakeSigstoreVerifier struct {
+	mu sync.Mutex
+
+	SigDetailsSets map[string][]string
+}
+
+func newFakeSigstoreVerifier(selectors map[string][]string) *fakeSigstoreVerifier {
+	return &fakeSigstoreVerifier{
+		SigDetailsSets: selectors,
+	}
+}
+
+func (v *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]string, error) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	if selectors, found := v.SigDetailsSets[imageID]; found {
+		return selectors, nil
+	}
+
+	return nil, fmt.Errorf("failed to verify signature for image %s", imageID)
 }
