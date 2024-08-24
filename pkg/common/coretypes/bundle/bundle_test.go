@@ -32,12 +32,15 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 	pkixBytes, _          = x509.MarshalPKIXPublicKey(publicKey)
 	apiJWTAuthoritiesGood = []*apitypes.JWTKey{
 		{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
+		{KeyId: "IDTainted", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix(), Tainted: true},
 	}
 	apiJWTAuthoritiesBad = []*apitypes.JWTKey{
+		{PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
 		{PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
 	}
 	apiX509AuthoritiesGood = []*apitypes.X509Certificate{
 		{Asn1: root.Raw},
+		{Asn1: root.Raw, Tainted: true},
 	}
 	apiX509AuthoritiesBad = []*apitypes.X509Certificate{
 		{Asn1: []byte("malformed")},
@@ -71,9 +74,12 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		SequenceNumber:  2,
 	}
 	commonInvalidTD = &common.Bundle{
-		TrustDomainId:  "not a trustdomain id",
-		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
-		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
+		TrustDomainId: "not a trustdomain id",
+		RootCas:       []*common.Certificate{{DerBytes: root.Raw}},
+		JwtSigningKeys: []*common.PublicKey{
+			{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()},
+			{Kid: "IDTainted", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix(), TaintedKey: true},
+		},
 		RefreshHint:    1,
 		SequenceNumber: 2,
 	}
@@ -93,12 +99,14 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 	}
 	pluginJWTAuthoritiesGood = []*plugintypes.JWTKey{
 		{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
+		{KeyId: "IDTainted", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix(), Tainted: true},
 	}
 	pluginJWTAuthoritiesBad = []*plugintypes.JWTKey{
 		{PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()},
 	}
 	pluginX509AuthoritiesGood = []*plugintypes.X509Certificate{
 		{Asn1: root.Raw},
+		{Asn1: root.Raw, Tainted: true},
 	}
 	pluginX509AuthoritiesBad = []*plugintypes.X509Certificate{
 		{Asn1: []byte("malformed")},
@@ -132,9 +140,15 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		SequenceNumber:  2,
 	}
 	commonGood = &common.Bundle{
-		TrustDomainId:  "spiffe://example.org",
-		RootCas:        []*common.Certificate{{DerBytes: root.Raw}},
-		JwtSigningKeys: []*common.PublicKey{{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}},
+		TrustDomainId: "spiffe://example.org",
+		RootCas: []*common.Certificate{
+			{DerBytes: root.Raw},
+			{DerBytes: root.Raw, TaintedKey: true},
+		},
+		JwtSigningKeys: []*common.PublicKey{
+			{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()},
+			{Kid: "IDTainted", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix(), TaintedKey: true},
+		},
 		RefreshHint:    1,
 		SequenceNumber: 2,
 	}

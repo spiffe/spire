@@ -31,12 +31,21 @@ func TestBundleToProto(t *testing.T) {
 				TrustDomainId:  td.IDString(),
 				RefreshHint:    10,
 				SequenceNumber: 42,
-				RootCas:        []*common.Certificate{{DerBytes: []byte("cert-bytes")}},
+				RootCas: []*common.Certificate{
+					{DerBytes: []byte("cert-bytes")},
+					{DerBytes: []byte("tainted-cert"), TaintedKey: true},
+				},
 				JwtSigningKeys: []*common.PublicKey{
 					{
 						Kid:       "key-id-1",
 						NotAfter:  1590514224,
 						PkixBytes: []byte("pkix key"),
+					},
+					{
+						Kid:        "key-id-2",
+						NotAfter:   1590514224,
+						PkixBytes:  []byte("pkix key"),
+						TaintedKey: true,
 					},
 				},
 			},
@@ -48,6 +57,10 @@ func TestBundleToProto(t *testing.T) {
 					{
 						Asn1: []byte("cert-bytes"),
 					},
+					{
+						Asn1:    []byte("tainted-cert"),
+						Tainted: true,
+					},
 				},
 				JwtAuthorities: []*types.JWTKey{
 					{
@@ -55,6 +68,12 @@ func TestBundleToProto(t *testing.T) {
 						PublicKey: []byte("pkix key"),
 						KeyId:     "key-id-1",
 						ExpiresAt: 1590514224,
+					},
+					{
+						PublicKey: []byte("pkix key"),
+						KeyId:     "key-id-2",
+						ExpiresAt: 1590514224,
+						Tainted:   true,
 					},
 				},
 			},

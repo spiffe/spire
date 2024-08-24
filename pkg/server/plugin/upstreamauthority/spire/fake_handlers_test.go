@@ -166,7 +166,7 @@ func (h *handler) appendKey(key *types.JWTKey) *types.Bundle {
 	return cloneBundle(h.bundle)
 }
 
-func (h *handler) appendRootCA(rootCA *types.X509Certificate) *types.Bundle {
+func (h *handler) appendRootCA(rootCA *types.X509Certificate) *types.Bundle { //nolint: unparam // Keeping return for future use
 	h.mtx.Lock()
 	defer h.mtx.Unlock()
 	h.bundle.X509Authorities = append(h.bundle.X509Authorities, rootCA)

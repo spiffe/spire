@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/test/clock"
 )
 
@@ -105,6 +106,11 @@ func Sign(req, parent *x509.Certificate, signerPrivateKey any) (*x509.Certificat
 			return nil, nil, err
 		}
 		publicKey = key.Public()
+		skID, err := x509util.GetSubjectKeyID(publicKey)
+		if err != nil {
+			return nil, nil, err
+		}
+		req.SubjectKeyId = skID
 	}
 
 	if signerPrivateKey == nil {
