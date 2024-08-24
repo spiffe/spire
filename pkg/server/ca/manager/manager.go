@@ -122,11 +122,12 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		m.upstreamClient = ca.NewUpstreamClient(ca.UpstreamClientConfig{
 			UpstreamAuthority: upstreamAuthority,
 			BundleUpdater: &bundleUpdater{
-				log:                        c.Log,
-				trustDomainID:              c.TrustDomain.IDString(),
-				ds:                         c.Catalog.GetDataStore(),
-				updated:                    m.bundleUpdated,
-				upstreamAuthoritiesTainted: m.notifyUpstreamAuthoritiesTainted,
+				log:                         c.Log,
+				trustDomainID:               c.TrustDomain.IDString(),
+				ds:                          c.Catalog.GetDataStore(),
+				updated:                     m.bundleUpdated,
+				upstreamAuthoritiesTainted:  m.notifyUpstreamAuthoritiesTainted,
+				processedTaintedAuthorities: map[string]struct{}{},
 			},
 		})
 		m.upstreamPluginName = upstreamAuthority.Name()
@@ -859,11 +860,12 @@ func MinCATTLForSVIDTTL(svidTTL time.Duration) time.Duration {
 }
 
 type bundleUpdater struct {
-	log                        logrus.FieldLogger
-	trustDomainID              string
-	ds                         datastore.DataStore
-	updated                    func()
-	upstreamAuthoritiesTainted func([]*x509.Certificate)
+	log                         logrus.FieldLogger
+	trustDomainID               string
+	ds                          datastore.DataStore
+	updated                     func()
+	upstreamAuthoritiesTainted  func([]*x509.Certificate)
+	processedTaintedAuthorities map[string]struct{}
 }
 
 func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certificate.X509Authority) error {
@@ -888,9 +890,13 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 		if root.Tainted {
 			// Taint x.509 authority, if required
 			if found, ok := x509Authorities[skID]; ok && !found.Tainted {
-				// Add to the list of new tainted authorities
-				taintedAuthorities = append(taintedAuthorities, found.Certificate)
-				u.log.WithField(telemetry.SubjectKeyID, skID).Info("X.509 authority tainted")
+				_, alreadyProcessed := u.processedTaintedAuthorities[skID]
+				if !alreadyProcessed {
+					u.processedTaintedAuthorities[skID] = struct{}{}
+					// Add to the list of new tainted authorities
+					taintedAuthorities = append(taintedAuthorities, found.Certificate)
+					u.log.WithField(telemetry.SubjectKeyID, skID).Info("X.509 authority tainted")
+				}
 				// Prevent to add tainted keys, since status is updated before
 				continue
 			}
@@ -907,6 +913,7 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 	// it is done in a separated thread to prevent agent and downstream servers,
 	// to start rotations before current server forced intermediate rotations
 	if len(taintedAuthorities) > 0 {
+		fmt.Println("INSIDE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		u.upstreamAuthoritiesTainted(taintedAuthorities)
 	}
 
