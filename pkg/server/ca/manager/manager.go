@@ -73,7 +73,7 @@ type AuthorityManager interface {
 	RotateX509CA(ctx context.Context)
 	IsUpstreamAuthority() bool
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
-	NotifyTaintedX509Authorities(ctx context.Context) error
+	NotifyTaintedLocalX509Authority(ctx context.Context, authorityID string) error
 }
 
 type Config struct {
@@ -190,13 +190,13 @@ func (m *Manager) Close() {
 	}
 }
 
-func (m *Manager) NotifyTaintedX509Authorities(ctx context.Context) error {
-	taintedAuthorities, err := m.fetchTaintedAuthorities(ctx)
+func (m *Manager) NotifyTaintedLocalX509Authority(ctx context.Context, authorityID string) error {
+	localAuthority, err := m.fetchTaintedRootCAByAuthorityID(ctx, authorityID)
 	if err != nil {
 		return err
 	}
 
-	m.c.CA.NotifyTaintedX509Authorities(taintedAuthorities)
+	m.c.CA.NotifyTaintedX509Authorities([]*x509.Certificate{localAuthority})
 	return nil
 }
 
@@ -575,6 +575,29 @@ func (m *Manager) dropBundleUpdated() {
 	}
 }
 
+func (m *Manager) fetchTaintedRootCAByAuthorityID(ctx context.Context, authorityID string) (*x509.Certificate, error) {
+	bundle, err := m.fetchRequiredBundle(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, rootCA := range bundle.RootCas {
+		if rootCA.TaintedKey {
+			cert, err := x509.ParseCertificate(rootCA.DerBytes)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse RootCA: %w", err)
+			}
+
+			skID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+			if skID == authorityID {
+				return cert, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("no tainted root CA found with authority ID: %q", authorityID)
+}
+
 func (m *Manager) fetchTaintedAuthorities(ctx context.Context) ([]*x509.Certificate, error) {
 	bundle, err := m.fetchRequiredBundle(ctx)
 	if err != nil {
@@ -620,47 +643,45 @@ func (m *Manager) processTaintedAuthorities(ctx context.Context) error {
 
 	currentSlotCA := m.currentX509CA.x509CA
 	if ok := isX509AuthorityTainted(currentSlotCA, taintedAuthorities); !ok {
-		return nil
+		m.c.Log.Debug("Current root CA is signed by a tainted authority, preparing rotation...")
+
+		// There is an edge case, where an upstream authority using intermediates
+		// are still using a tainted authority, retry util the new prepared authority is untainted
+		forceRotationBackoff := backoff.NewBackoff(
+			m.c.Clock,
+			forceRotationBackoffInterval,
+			backoff.WithMaxElapsedTime(forceRotationBackoffMaxElapsedTime),
+		)
+
+		for {
+			err = m.prepareUntaintedX509CA(ctx, taintedAuthorities)
+			if err == nil {
+				// Prepared authority is no longer tainted finish for, to rotate...
+				break
+			}
+
+			// Prepare a new X.509 authority when next is old or it is signed by a tainted key
+			nextDuration := forceRotationBackoff.NextBackOff()
+			if nextDuration == backoff.Stop {
+				return err
+			}
+
+			m.c.Log.WithFields(logrus.Fields{
+				telemetry.Error:         err,
+				telemetry.RetryInterval: nextDuration,
+			}).Warn("Failed to prepare a new X.509 authority")
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-m.c.Clock.After(nextDuration):
+				continue
+			}
+		}
+
+		// Activate the prepared X.509 authority
+		m.RotateX509CA(ctx)
 	}
-
-	m.c.Log.Debug("Current root CA is signed by a tainted authority, preparing rotation...")
-
-	// There is an edge case, where an upstream authority using intermediates
-	// are still using a tainted authority, retry util the new prepared authority is untainted
-	forceRotationBackoff := backoff.NewBackoff(
-		m.c.Clock,
-		forceRotationBackoffInterval,
-		backoff.WithMaxElapsedTime(forceRotationBackoffMaxElapsedTime),
-	)
-
-	for {
-		err = m.prepareUntaintedX509CA(ctx, taintedAuthorities)
-		if err == nil {
-			// Prepared authority is no longer tainted finish for, to rotate...
-			break
-		}
-
-		// Prepare a new X.509 authority when next is old or it is signed by a tainted key
-		nextDuration := forceRotationBackoff.NextBackOff()
-		if nextDuration == backoff.Stop {
-			return err
-		}
-
-		m.c.Log.WithFields(logrus.Fields{
-			telemetry.Error:         err,
-			telemetry.RetryInterval: nextDuration,
-		}).Warn("Failed to prepare a new X.509 authority")
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-m.c.Clock.After(nextDuration):
-			continue
-		}
-	}
-
-	// Activate the prepared X.509 authority
-	m.RotateX509CA(ctx)
 
 	// Intermediate is safe. Notify rotator to force rotation
 	// of tainted X.509 SVID.
