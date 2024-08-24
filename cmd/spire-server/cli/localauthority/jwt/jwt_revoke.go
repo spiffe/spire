@@ -77,12 +77,12 @@ func prettyPrintJWTRevoke(env *commoncli.Env, results ...any) error {
 	}
 
 	env.Println("Revoked JWT authority:")
-	if r.RevokedAuthority != nil {
-		env.Printf("  Authority ID: %s\n", r.RevokedAuthority.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.RevokedAuthority.ExpiresAt, 0).UTC())
-	} else {
+	if r.RevokedAuthority == nil {
 		return errors.New("internal error: expected to have revoked JWT authority information")
 	}
+
+	env.Printf("  Authority ID: %s\n", r.RevokedAuthority.AuthorityId)
+	env.Printf("  Expires at: %s\n", time.Unix(r.RevokedAuthority.ExpiresAt, 0).UTC())
 
 	return nil
 }
