@@ -1,7 +1,0 @@
-#!/bin/bash
-
-log-debug "deleting agent to enable reattestation..."
-
-docker compose exec -T spire-server \
-    /opt/spire/bin/spire-server agent evict \
-    -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"

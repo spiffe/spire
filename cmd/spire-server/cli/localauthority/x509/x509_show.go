@@ -1,4 +1,4 @@
-package localauthority
+package x509
 
 import (
 	"context"

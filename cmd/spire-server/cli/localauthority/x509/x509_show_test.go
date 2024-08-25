@@ -1,4 +1,4 @@
-package localauthority_test
+package x509_test
 
 import (
 	"fmt"
@@ -6,22 +6,23 @@ import (
 
 	"github.com/gogo/status"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
+	authority_common "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
-	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority"
+	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority/x509"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
 func TestX509ShowHelp(t *testing.T) {
-	test := setupTest(t, localauthority.NewX509ShowCommandWithEnv)
+	test := authority_common.SetupTest(t, x509.NewX509ShowCommandWithEnv)
 
-	test.client.Help()
-	require.Equal(t, x509ShowUsage, test.stderr.String())
+	test.Client.Help()
+	require.Equal(t, x509ShowUsage, test.Stderr.String())
 }
 
 func TestX509ShowSynopsys(t *testing.T) {
-	test := setupTest(t, localauthority.NewX509ShowCommandWithEnv)
-	require.Equal(t, "Shows the local X.509 authorities", test.client.Synopsis())
+	test := authority_common.SetupTest(t, x509.NewX509ShowCommandWithEnv)
+	require.Equal(t, "Shows the local X.509 authorities", test.Client.Synopsis())
 }
 
 func TestX509Show(t *testing.T) {
@@ -111,20 +112,20 @@ func TestX509Show(t *testing.T) {
 			expectStderr:     "Error: could not get X.509 authorities: rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
-		for _, format := range availableFormats {
+		for _, format := range authority_common.AvailableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
-				test := setupTest(t, localauthority.NewX509ShowCommandWithEnv)
-				test.server.activeX509 = tt.active
-				test.server.preparedX509 = tt.prepared
-				test.server.oldX509 = tt.old
-				test.server.err = tt.serverErr
+				test := authority_common.SetupTest(t, x509.NewX509ShowCommandWithEnv)
+				test.Server.ActiveX509 = tt.active
+				test.Server.PreparedX509 = tt.prepared
+				test.Server.OldX509 = tt.old
+				test.Server.Err = tt.serverErr
 				args := tt.args
 				args = append(args, "-output", format)
 
-				returnCode := test.client.Run(append(test.args, args...))
+				returnCode := test.Client.Run(append(test.Args, args...))
 
-				requireOutputBasedOnFormat(t, format, test.stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
-				require.Equal(t, tt.expectStderr, test.stderr.String())
+				authority_common.RequireOutputBasedOnFormat(t, format, test.Stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
+				require.Equal(t, tt.expectStderr, test.Stderr.String())
 				require.Equal(t, tt.expectReturnCode, returnCode)
 			})
 		}
