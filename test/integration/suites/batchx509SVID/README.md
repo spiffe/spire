@@ -14,7 +14,7 @@ This test ensures the continued operation of the `Batchx509SVID` RPC in Open Sou
    - Creates necessary registration entries for testing.
 
 2. **Check entries creation (`03-test-batchx509svid.sh`)**
-   - Creates necessary registration entries for testing.
+   - Verifies necessary registration entries for testing.
 
 3. **Teardown (`teardown.sh`)**
 - Stops the SPIRE server and agent.
