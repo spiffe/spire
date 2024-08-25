@@ -107,6 +107,7 @@ func (r *Rotator) isX509AuthorityTainted(taintedAuthorities []*x509.Certificate)
 	_, err := svid[0].Verify(x509.VerifyOptions{
 		Intermediates: intermediatePool,
 		Roots:         rootPool,
+		CurrentTime:   r.c.Clock.Now(),
 	})
 
 	return err == nil

@@ -19,6 +19,23 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+type CAManager interface {
+	// JWT
+	GetCurrentJWTKeySlot() manager.Slot
+	GetNextJWTKeySlot() manager.Slot
+	PrepareJWTKey(ctx context.Context) error
+	RotateJWTKey(ctx context.Context)
+
+	// X509
+	GetCurrentX509CASlot() manager.Slot
+	GetNextX509CASlot() manager.Slot
+	PrepareX509CA(ctx context.Context) error
+	RotateX509CA(ctx context.Context)
+
+	IsUpstreamAuthority() bool
+	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
+}
+
 // RegisterService registers the service on the gRPC server.
 func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 	localauthorityv1.RegisterLocalAuthorityServer(s, service)
@@ -28,7 +45,7 @@ func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 type Config struct {
 	TrustDomain spiffeid.TrustDomain
 	DataStore   datastore.DataStore
-	CAManager   manager.AuthorityManager
+	CAManager   CAManager
 }
 
 // New creates a new LocalAuthority service
@@ -46,7 +63,7 @@ type Service struct {
 
 	td spiffeid.TrustDomain
 	ds datastore.DataStore
-	ca manager.AuthorityManager
+	ca CAManager
 }
 
 func (s *Service) GetJWTAuthorityState(ctx context.Context, _ *localauthorityv1.GetJWTAuthorityStateRequest) (*localauthorityv1.GetJWTAuthorityStateResponse, error) {
