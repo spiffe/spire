@@ -77,12 +77,12 @@ func prettyPrintJWTActivate(env *commoncli.Env, results ...any) error {
 	}
 
 	env.Println("Activated JWT authority:")
-	if r.ActivatedAuthority != nil {
-		env.Printf("  Authority ID: %s\n", r.ActivatedAuthority.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.ActivatedAuthority.ExpiresAt, 0).UTC())
-	} else {
+	if r.ActivatedAuthority == nil {
 		return errors.New("internal error: expected to have activated JWT authority information")
 	}
+
+	env.Printf("  Authority ID: %s\n", r.ActivatedAuthority.AuthorityId)
+	env.Printf("  Expires at: %s\n", time.Unix(r.ActivatedAuthority.ExpiresAt, 0).UTC())
 
 	return nil
 }

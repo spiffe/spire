@@ -61,12 +61,12 @@ func prettyPrintJWTPrepare(env *commoncli.Env, results ...any) error {
 	}
 
 	env.Println("Prepared JWT authority:")
-	if r.PreparedAuthority != nil {
-		env.Printf("  Authority ID: %s\n", r.PreparedAuthority.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.PreparedAuthority.ExpiresAt, 0).UTC())
-	} else {
+	if r.PreparedAuthority == nil {
 		return errors.New("internal error: expected to have prepared JWT authority information")
 	}
+
+	env.Printf("  Authority ID: %s\n", r.PreparedAuthority.AuthorityId)
+	env.Printf("  Expires at: %s\n", time.Unix(r.PreparedAuthority.ExpiresAt, 0).UTC())
 
 	return nil
 }

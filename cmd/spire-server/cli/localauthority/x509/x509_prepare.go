@@ -61,12 +61,12 @@ func prettyPrintX509Prepare(env *commoncli.Env, results ...any) error {
 	}
 
 	env.Println("Prepared X.509 authority:")
-	if r.PreparedAuthority != nil {
-		env.Printf("  Authority ID: %s\n", r.PreparedAuthority.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.PreparedAuthority.ExpiresAt, 0).UTC())
-	} else {
+	if r.PreparedAuthority == nil {
 		return errors.New("internal error: expected to have prepared X.509 authority information")
 	}
+
+	env.Printf("  Authority ID: %s\n", r.PreparedAuthority.AuthorityId)
+	env.Printf("  Expires at: %s\n", time.Unix(r.PreparedAuthority.ExpiresAt, 0).UTC())
 
 	return nil
 }
