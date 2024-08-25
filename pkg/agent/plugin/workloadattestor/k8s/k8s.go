@@ -27,6 +27,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/valyala/fastjson"
+	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
@@ -178,13 +179,31 @@ type Plugin struct {
 	config           *k8sConfig
 	containerHelper  ContainerHelper
 	sigstoreVerifier sigstore.Verifier
+
+	cachedPodList map[string]*fastjson.Value
+	singleflight  singleflight.Group
+
+	shutdownCtx       context.Context
+	shutdownCtxCancel context.CancelFunc
+	shutdownWG        sync.WaitGroup
 }
 
 func New() *Plugin {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &Plugin{
-		clock:  clock.New(),
-		getenv: os.Getenv,
+		clock:             clock.New(),
+		getenv:            os.Getenv,
+		shutdownCtx:       ctx,
+		shutdownCtxCancel: cancel,
 	}
+}
+
+func (p *Plugin) Close() error {
+	p.shutdownCtxCancel()
+	p.shutdownWG.Wait()
+
+	return nil
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -219,22 +238,15 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	for attempt := 1; ; attempt++ {
 		log = log.With(telemetry.Attempt, attempt)
 
-		podListBytes, err := config.Client.GetPodList()
+		podList, err := p.getPodList(ctx, config.Client)
 		if err != nil {
 			return nil, err
 		}
 
-		var parser fastjson.Parser
-		podList, err := parser.ParseBytes(podListBytes)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to parse kubelet response: %v", err)
-		}
-
 		var attestResponse *workloadattestorv1.AttestResponse
-		for _, podValue := range podList.GetArray("items") {
+		for podKey, podValue := range podList {
 			if podKnown {
-				uidBytes := podValue.Get("metadata", "uid").GetStringBytes()
-				if string(uidBytes) != string(podUID) {
+				if podKey != string(podUID) {
 					// The pod holding the container is known. Skip unrelated pods.
 					continue
 				}
@@ -430,6 +442,34 @@ func (p *Plugin) getConfig() (*k8sConfig, ContainerHelper, sigstore.Verifier, er
 	return p.config, p.containerHelper, p.sigstoreVerifier, nil
 }
 
+func (p *Plugin) setPodListCache(podList map[string]*fastjson.Value, expires time.Duration) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.cachedPodList = podList
+
+	p.shutdownWG.Add(1)
+	go func() {
+		defer p.shutdownWG.Done()
+
+		select {
+		case <-p.clock.After(expires):
+		case <-p.shutdownCtx.Done():
+		}
+
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.cachedPodList = nil
+	}()
+}
+
+func (p *Plugin) getPodListCache() map[string]*fastjson.Value {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.cachedPodList
+}
+
 func (p *Plugin) setContainerHelper(c ContainerHelper) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -605,16 +645,67 @@ func (p *Plugin) getNodeName(name string, env string) string {
 	}
 }
 
+func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient) (map[string]*fastjson.Value, error) {
+	result := p.getPodListCache()
+	if result != nil {
+		return result, nil
+	}
+
+	podList, err, _ := p.singleflight.Do("podList", func() (interface{}, error) {
+		result := p.getPodListCache()
+		if result != nil {
+			return result, nil
+		}
+
+		podListBytes, err := client.GetPodList(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		var parser fastjson.Parser
+		podList, err := parser.ParseBytes(podListBytes)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to parse kubelet response: %v", err)
+		}
+
+		items := podList.GetArray("items")
+		result = make(map[string]*fastjson.Value, len(items))
+
+		for _, podValue := range items {
+			uid := string(podValue.Get("metadata", "uid").GetStringBytes())
+
+			if uid == "" {
+				p.log.Warn("Pod has no UID", "pod", podValue)
+				continue
+			}
+
+			result[uid] = podValue
+		}
+
+		p.setPodListCache(result, p.config.PollRetryInterval/2)
+
+		return result, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return podList.(map[string]*fastjson.Value), nil
+}
+
 type kubeletClient struct {
 	Transport *http.Transport
 	URL       url.URL
 	Token     string
 }
 
-func (c *kubeletClient) GetPodList() ([]byte, error) {
+func (c *kubeletClient) GetPodList(ctx context.Context) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	url := c.URL
 	url.Path = "/pods"
-	req, err := http.NewRequest("GET", url.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url.String(), nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to create request: %v", err)
 	}
