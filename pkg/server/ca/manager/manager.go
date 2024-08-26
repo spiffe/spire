@@ -602,7 +602,7 @@ func (m *Manager) fetchRootCAByAuthorityID(ctx context.Context, authorityID stri
 		}
 	}
 
-	return nil, fmt.Errorf("root CA not found wiht authority ID: %q", authorityID)
+	return nil, fmt.Errorf("no tainted root CA found wiht authority ID: %q", authorityID)
 }
 
 func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
@@ -913,7 +913,6 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 	// it is done in a separated thread to prevent agent and downstream servers,
 	// to start rotations before current server forced intermediate rotations
 	if len(taintedAuthorities) > 0 {
-		fmt.Println("INSIDE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		u.upstreamAuthoritiesTainted(taintedAuthorities)
 	}
 
