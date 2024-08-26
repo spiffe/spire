@@ -54,6 +54,19 @@ type JwtKeyPublisher interface {
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
 }
 
+type AuthorityManager interface {
+	GetCurrentJWTKeySlot() Slot
+	GetNextJWTKeySlot() Slot
+	PrepareJWTKey(ctx context.Context) error
+	RotateJWTKey(ctx context.Context)
+	GetCurrentX509CASlot() Slot
+	GetNextX509CASlot() Slot
+	PrepareX509CA(ctx context.Context) error
+	RotateX509CA(ctx context.Context)
+	IsUpstreamAuthority() bool
+	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
+}
+
 type Config struct {
 	CredBuilder   *credtemplate.Builder
 	CredValidator *credvalidator.Validator

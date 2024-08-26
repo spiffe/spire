@@ -1,6 +1,4 @@
-//go:build !darwin
-
-package httpchallenge_test
+package httpchallenge
 
 import (
 	"context"
@@ -13,7 +11,6 @@ import (
 
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/httpchallenge"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	common_httpchallenge "github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
 	"github.com/spiffe/spire/test/plugintest"
@@ -40,7 +37,7 @@ func TestConfigureCommon(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			plugin := httpchallenge.New()
+			plugin := newPlugin()
 
 			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{HclConfiguration: tt.hclConf})
 			if tt.expErr != "" {
@@ -206,6 +203,12 @@ func loadAndConfigurePlugin(t *testing.T, config string) nodeattestor.NodeAttest
 
 func loadPlugin(t *testing.T, options ...plugintest.Option) nodeattestor.NodeAttestor {
 	na := new(nodeattestor.V1)
-	plugintest.Load(t, httpchallenge.BuiltInWithHostname("localhost"), na, options...)
+	plugintest.Load(t, builtin(newPlugin()), na, options...)
 	return na
+}
+
+func newPlugin() *Plugin {
+	p := New()
+	p.hooks.bindHost = "localhost"
+	return p
 }
