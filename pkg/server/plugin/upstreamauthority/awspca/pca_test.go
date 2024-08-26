@@ -420,7 +420,7 @@ func TestMintX509CA(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.expectX509CA, x509CA, "unexpected X509CA")
-			assert.Equal(t, tt.expectX509Authorities, x509Authorities, "unexected authorities")
+			assert.Equal(t, tt.expectX509Authorities, x509Authorities, "unexpected authorities")
 
 			// Plugin does not support streaming back changes so assert the
 			// stream returns EOF.
