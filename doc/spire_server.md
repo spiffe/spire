@@ -43,7 +43,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                                            | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.                                        |
 | BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)                                           | Publishes the trust bundle to an Amazon S3 bucket.                                                                          |
 | BundlePublisher    | [gcp_cloudstorage](/doc/plugin_server_bundlepublisher_gcp_cloudstorage.md)                       | Publishes the trust bundle to a Google Cloud Storage bucket.                                                                |
-| BundlePublisher    | [aws_rolesanywhere_trustanchor](/doc/plugin_server_bundlepublisher_rolesanywhere_trustanchor.md) | Publishes the trust bundle to an AWS IAM Roles Anywhere trust anchor.                                                       |
+| BundlePublisher    | [aws_rolesanywhere_trustanchor](/doc/plugin_server_bundlepublisher_aws_rolesanywhere_trustanchor.md) | Publishes the trust bundle to an AWS IAM Roles Anywhere trust anchor.                                                       |
 
 ## Server configuration file
 
