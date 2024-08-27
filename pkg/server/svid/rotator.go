@@ -20,8 +20,9 @@ var (
 type Rotator struct {
 	c *RotatorConfig
 
-	state         observer.Property
-	isSVIDTainted bool
+	state           observer.Property
+	isSVIDTainted   bool
+	taintedReceived chan bool
 }
 
 // State is the current SVID and key
@@ -47,6 +48,10 @@ func (r *Rotator) Interval() time.Duration {
 	return r.c.Interval
 }
 
+func (r *Rotator) triggerTaintedReceived(tainted bool) {
+	r.taintedReceived <- tainted
+}
+
 // Run starts a ticker which monitors the server SVID
 // for expiration and rotates the SVID as necessary.
 func (r *Rotator) Run(ctx context.Context) error {
@@ -64,6 +69,7 @@ func (r *Rotator) Run(ctx context.Context) error {
 		case taintedAuthorities := <-r.c.ServerCA.TaintedAuthorities():
 			isTainted := r.isX509AuthorityTainted(taintedAuthorities)
 			if isTainted {
+				r.triggerTaintedReceived(true)
 				r.c.Log.Info("Server SVID signed using a tainted authority, forcing rotation...")
 				r.isSVIDTainted = true
 			}

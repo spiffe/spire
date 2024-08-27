@@ -602,7 +602,7 @@ func (m *Manager) fetchRootCAByAuthorityID(ctx context.Context, authorityID stri
 		}
 	}
 
-	return nil, fmt.Errorf("no tainted root CA found wiht authority ID: %q", authorityID)
+	return nil, fmt.Errorf("no tainted root CA found with authority ID: %q", authorityID)
 }
 
 func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorities []*x509.Certificate) error {

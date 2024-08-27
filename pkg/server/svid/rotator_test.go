@@ -120,7 +120,7 @@ func (s *RotatorTestSuite) TestForceRotation() {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
 	err := s.r.Initialize(ctx)
@@ -160,11 +160,16 @@ func (s *RotatorTestSuite) TestForceRotation() {
 
 	s.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
 
+	s.r.taintedReceived = make(chan bool, 1)
 	// Notify that old authority is tainted
 	s.serverCA.NotifyTaintedX509Authorities(originalCA)
-	require.Eventually(t, func() bool {
-		return assert.True(t, s.r.isSVIDTainted)
-	}, 10*time.Second, 10*time.Millisecond, "SVID is never marked as tainted")
+
+	select {
+	case received := <-s.r.taintedReceived:
+		assert.True(t, received)
+	case <-ctx.Done():
+		s.Fail("no notification received")
+	}
 
 	// Advance interval, so new SVID is signed
 	s.clock.Add(DefaultRotatorInterval)

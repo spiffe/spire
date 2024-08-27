@@ -270,8 +270,16 @@ func TestNotifyTaintedX509Authority(t *testing.T) {
 	t.Run("notify tainted authority", func(t *testing.T) {
 		err = test.m.NotifyTaintedX509Authority(ctx, ca.GetSubjectKeyID())
 		require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
 
-		require.Equal(t, []*x509.Certificate{cert}, test.ca.taintedAuthorities)
+		expectedTaintedAuthorities := []*x509.Certificate{cert}
+		select {
+		case taintedAuthorities := <-test.ca.taintedAuthoritiesCh:
+			require.Equal(t, expectedTaintedAuthorities, taintedAuthorities)
+		case <-ctx.Done():
+			assert.Fail(t, "no notification received")
+		}
 	})
 
 	// Untaint authority
@@ -282,7 +290,7 @@ func TestNotifyTaintedX509Authority(t *testing.T) {
 	t.Run("no tainted authority", func(t *testing.T) {
 		err := test.m.NotifyTaintedX509Authority(ctx, ca.GetSubjectKeyID())
 
-		expectedErr := fmt.Sprintf("no tainted root CA found wiht authority ID: %q", ca.GetSubjectKeyID())
+		expectedErr := fmt.Sprintf("no tainted root CA found with authority ID: %q", ca.GetSubjectKeyID())
 		require.EqualError(t, err, expectedErr)
 	})
 
@@ -290,7 +298,8 @@ func TestNotifyTaintedX509Authority(t *testing.T) {
 		DerBytes:   []byte("foh"),
 		TaintedKey: true,
 	})
-	test.ds.UpdateBundle(ctx, bundle, nil)
+	_, err = test.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
 
 	t.Run("malformed root CA", func(t *testing.T) {
 		err := test.m.NotifyTaintedX509Authority(ctx, ca.GetSubjectKeyID())
@@ -371,7 +380,9 @@ func TestUpstreamSigned(t *testing.T) {
 }
 
 func TestUpstreamProcesssTaintedAuthority(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
 	test := setupTest(t)
 
 	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
@@ -399,7 +410,14 @@ func TestUpstreamProcesssTaintedAuthority(t *testing.T) {
 		return spiretest.AssertProtoListEqual(t, commonCertificates, bundle.RootCas)
 	}, time.Minute, 500*time.Millisecond)
 
-	require.Equal(t, []*x509.Certificate{x509Roots[0].Certificate}, test.ca.taintedAuthorities)
+	expectedTaintedAuthorities := []*x509.Certificate{x509Roots[0].Certificate}
+	select {
+	case received := <-test.ca.taintedAuthoritiesCh:
+		require.Equal(t, expectedTaintedAuthorities, received)
+	case <-ctx.Done():
+		assert.Fail(t, "deadline reached")
+	}
+
 }
 
 func TestGetCurrentX509CASlotUpstreamSigned(t *testing.T) {
@@ -1130,7 +1148,9 @@ type managerTest struct {
 
 func setupTest(t *testing.T) *managerTest {
 	clock := clock.NewMock(t)
-	ca := new(fakeCA)
+	ca := &fakeCA{
+		taintedAuthoritiesCh: make(chan []*x509.Certificate, 1),
+	}
 
 	log, logHook := test.NewNullLogger()
 	metrics := fakemetrics.New()
@@ -1428,7 +1448,7 @@ type fakeCA struct {
 	x509CA *ca.X509CA
 	jwtKey *ca.JWTKey
 
-	taintedAuthorities []*x509.Certificate
+	taintedAuthoritiesCh chan []*x509.Certificate
 }
 
 func (s *fakeCA) X509CA() *ca.X509CA {
@@ -1456,5 +1476,5 @@ func (s *fakeCA) SetJWTKey(jwtKey *ca.JWTKey) {
 }
 
 func (s *fakeCA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {
-	s.taintedAuthorities = taintedAuthorities
+	s.taintedAuthoritiesCh <- taintedAuthorities
 }
