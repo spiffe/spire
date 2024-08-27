@@ -663,6 +663,24 @@ const (
 	// Cache functionality related to a cache
 	Cache = "cache"
 
+	// AgentsByIDCache functionality related to the agent btree cache indexed by ID
+	AgentsByIDCache = "agents_by_id_cache"
+
+	// AgentsByExpiresAtCache functionality related to the agent btree cache indexed by ExpiresAt
+	AgentsByExpiresAtCache = "agents_by_expiresat_cache"
+
+	// NodeAliasesByEntryIDCache functionality related to the node-aliases btree cache indexed by EntryID
+	NodeAliasesByEntryIDCache = "nodealiases_by_entryid_cache"
+
+	// NodeAliasesBySelectorCache functionality related to the node-aliases btree cache indexed by Selector
+	NodeAliasesBySelectorCache = "nodealiases_by_selector_cache"
+
+	// EntriesByEntryIDCache functionality related to the entries btree cache indexed by EntryID
+	EntriesByEntryIDCache = "entries_by_entryid_cache"
+
+	// EntriesByParentIDCache functionality related to the entries btree cache indexed by ParentID
+	EntriesByParentIDCache = "entries_by_parentid_cache"
+
 	// Cache type tag
 	CacheType = "cache_type"
 
@@ -861,8 +879,11 @@ const (
 	// ListAgents functionality related to listing agents
 	ListAgents = "list_agents"
 
-	// CountEntries functionality related to counting all registration entries
-	CountEntries = "count_entries"
+	// SkippedEntryEventIDs functionality related to counting missed entry event IDs
+	SkippedEntryEventIDs = "skipped_entry_event_ids"
+
+	// SkippedNodeEventIDs functionality related to counting missed node event IDs
+	SkippedNodeEventIDs = "skipped_node_event_ids"
 
 	// ListAllEntriesWithPages functionality related to listing all registration entries with pagination
 	ListAllEntriesWithPages = "list_all_entries_with_pages"
