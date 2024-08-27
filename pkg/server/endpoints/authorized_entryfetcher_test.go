@@ -10,10 +10,12 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,8 +25,9 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCache(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 
@@ -94,6 +97,21 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCache(t *testing.T) {
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(entries))
+
+	// Assert metrics
+	expectedMetrics := []fakemetrics.MetricItem{
+		agentsByIDMetric(1),
+		agentsByIDExpiresAtMetric(1),
+		nodeAliasesByEntryIDMetric(1),
+		nodeAliasesBySelectorMetric(1),
+		entriesByEntryIDMetric(2),
+		entriesByParentIDMetric(2),
+		// Here we have 2 skipped events, one for nodes, one for entries
+		nodeSkippedEventMetric(0),
+		entriesSkippedEventMetric(0),
+	}
+
+	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit metrics for node aliases, entries, and agents")
 }
 
 func TestNewAuthorizedEntryFetcherWithEventsBasedCacheErrorBuildingCache(t *testing.T) {
@@ -101,13 +119,18 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCacheErrorBuildingCache(t *test
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
 
 	buildErr := errors.New("build error")
 	ds.SetNextError(buildErr)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
+
+	// Assert metrics
+	expectedMetrics := []fakemetrics.MetricItem{}
+	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit no metrics")
 }
 
 func TestBuildCacheSavesMissedEvents(t *testing.T) {
@@ -115,6 +138,7 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
 
 	// Create Registration Entry Events with a gap
 	err := ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
@@ -142,7 +166,7 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, ds, clk, defaultSQLTransactionTimeout)
+	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 	require.NotNil(t, attestedNodes)
@@ -153,6 +177,10 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	assert.Contains(t, attestedNodes.missedEvents, uint(2))
 	assert.Contains(t, attestedNodes.missedEvents, uint(3))
 	assert.Equal(t, uint(4), attestedNodes.lastEventID)
+
+	// Assert metrics since the updateCache() method doesn't get called right at built time.
+	expectedMetrics := []fakemetrics.MetricItem{}
+	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit no metrics")
 }
 
 func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
@@ -161,8 +189,9 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	log.SetLevel(logrus.DebugLevel)
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -226,8 +255,9 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -309,6 +339,7 @@ func TestUpdateRegistrationEntriesCacheMissedStartupEvents(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
 
 	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
 
@@ -345,7 +376,7 @@ func TestUpdateRegistrationEntriesCacheMissedStartupEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create entry fetcher
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -415,8 +446,9 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -531,6 +563,7 @@ func TestUpdateAttestedNodesCacheMissedStartupEvents(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
 
 	agent1 := spiffeid.RequireFromString("spiffe://example.org/myagent1")
 	agent2 := spiffeid.RequireFromString("spiffe://example.org/myagent2")
@@ -594,7 +627,7 @@ func TestUpdateAttestedNodesCacheMissedStartupEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create entry fetcher
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -651,4 +684,76 @@ func TestUpdateAttestedNodesCacheMissedStartupEvents(t *testing.T) {
 	require.Equal(t, 1, len(entries))
 	require.Equal(t, entry.EntryId, entries[0].Id)
 	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+}
+
+// AgentsByIDCacheCount
+func agentsByIDMetric(val float32) fakemetrics.MetricItem {
+	return fakemetrics.MetricItem{
+		Type:   fakemetrics.SetGaugeType,
+		Key:    []string{telemetry.Node, telemetry.AgentsByIDCache, telemetry.Count},
+		Val:    val,
+		Labels: nil}
+}
+
+func agentsByIDExpiresAtMetric(val float32) fakemetrics.MetricItem {
+	return fakemetrics.MetricItem{
+		Type:   fakemetrics.SetGaugeType,
+		Key:    []string{telemetry.Node, telemetry.AgentsByExpiresAtCache, telemetry.Count},
+		Val:    val,
+		Labels: nil,
+	}
+}
+
+func nodeAliasesByEntryIDMetric(val float32) fakemetrics.MetricItem {
+	return fakemetrics.MetricItem{
+		Type:   fakemetrics.SetGaugeType,
+		Key:    []string{telemetry.Entry, telemetry.NodeAliasesByEntryIDCache, telemetry.Count},
+		Val:    val,
+		Labels: nil,
+	}
+}
+
+func nodeSkippedEventMetric(val float32) fakemetrics.MetricItem {
+	return fakemetrics.MetricItem{
+		Type:   fakemetrics.SetGaugeType,
+		Key:    []string{telemetry.Node, telemetry.SkippedNodeEventIDs, telemetry.Count},
+		Val:    val,
+		Labels: nil,
+	}
+}
+
+func nodeAliasesBySelectorMetric(val float32) fakemetrics.MetricItem {
+	return fakemetrics.MetricItem{
+		Type:   fakemetrics.SetGaugeType,
+		Key:    []string{telemetry.Entry, telemetry.NodeAliasesBySelectorCache, telemetry.Count},
+		Val:    val,
+		Labels: nil,
+	}
+}
+
+func entriesByEntryIDMetric(val float32) fakemetrics.MetricItem {
+	return fakemetrics.MetricItem{
+		Type:   fakemetrics.SetGaugeType,
+		Key:    []string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count},
+		Val:    val,
+		Labels: nil,
+	}
+}
+
+func entriesByParentIDMetric(val float32) fakemetrics.MetricItem {
+	return fakemetrics.MetricItem{
+		Type:   fakemetrics.SetGaugeType,
+		Key:    []string{telemetry.Entry, telemetry.EntriesByParentIDCache, telemetry.Count},
+		Val:    val,
+		Labels: nil,
+	}
+}
+
+func entriesSkippedEventMetric(val float32) fakemetrics.MetricItem {
+	return fakemetrics.MetricItem{
+		Type:   fakemetrics.SetGaugeType,
+		Key:    []string{telemetry.Entry, telemetry.SkippedEntryEventIDs, telemetry.Count},
+		Val:    val,
+		Labels: nil,
+	}
 }
