@@ -22,6 +22,9 @@ message X509CAEntry {
 
     // When the CA expires (unix epoch in seconds)
     int64 not_after = 7;
+
+    // The X.509 Authority Subject Key Identifier (SKID)
+    string upstream_authority_id = 8;
 }
 
 message JWTKeyEntry {

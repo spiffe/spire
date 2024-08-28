@@ -19,10 +19,12 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
+	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
@@ -94,7 +96,7 @@ func TestNew(t *testing.T) {
 		Catalog:          cat,
 		ServerCA:         serverCA,
 		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
-		JWTKeyPublisher:  &fakeJWTKeyPublisher{},
+		AuthorityManager: &fakeAuthorityManager{},
 		Log:              log,
 		RootLog:          log,
 		Metrics:          metrics,
@@ -115,6 +117,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, endpoints.APIServers.LoggerServer)
 	assert.NotNil(t, endpoints.APIServers.SVIDServer)
 	assert.NotNil(t, endpoints.BundleEndpointServer)
+	assert.NotNil(t, endpoints.APIServers.LocalAUthorityServer)
 	assert.NotNil(t, endpoints.EntryFetcherPruneEventsTask)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
@@ -151,7 +154,6 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 		Catalog:          cat,
 		ServerCA:         serverCA,
 		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
-		JWTKeyPublisher:  &fakeJWTKeyPublisher{},
 		Log:              log,
 		Metrics:          metrics,
 		RateLimit:        rateLimit,
@@ -164,6 +166,8 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 }
 
 func TestListenAndServe(t *testing.T) {
+	require.NoError(t, fflag.Load(fflag.RawConfig{"forced_rotation"}))
+
 	ctx := context.Background()
 	ca := testca.New(t, testTD)
 	federatedCA := testca.New(t, foreignFederatedTD)
@@ -206,14 +210,15 @@ func TestListenAndServe(t *testing.T) {
 		DataStore:    ds,
 		BundleCache:  bundle.NewCache(ds, clk),
 		APIServers: APIServers{
-			AgentServer:       agentServer{},
-			BundleServer:      bundleServer{},
-			DebugServer:       debugServer{},
-			EntryServer:       entryServer{},
-			HealthServer:      healthServer{},
-			LoggerServer:      loggerServer{},
-			SVIDServer:        svidServer{},
-			TrustDomainServer: trustDomainServer{},
+			AgentServer:          agentServer{},
+			BundleServer:         bundleServer{},
+			DebugServer:          debugServer{},
+			EntryServer:          entryServer{},
+			HealthServer:         healthServer{},
+			LoggerServer:         loggerServer{},
+			SVIDServer:           svidServer{},
+			TrustDomainServer:    trustDomainServer{},
+			LocalAUthorityServer: localAuthorityServer{},
 		},
 		BundleEndpointServer:         bundleEndpointServer,
 		Log:                          log,
@@ -319,6 +324,10 @@ func TestListenAndServe(t *testing.T) {
 	})
 	t.Run("TrustDomain", func(t *testing.T) {
 		testTrustDomainAPI(ctx, t, conns)
+	})
+
+	t.Run("LocalAuthority", func(t *testing.T) {
+		testLocalAuthorityAPI(ctx, t, conns)
 	})
 
 	t.Run("Access denied to remote caller", func(t *testing.T) {
@@ -885,6 +894,110 @@ func testTrustDomainAPI(ctx context.Context, t *testing.T, conns testConns) {
 	})
 }
 
+func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
+	t.Run("Local", func(t *testing.T) {
+		testAuthorization(ctx, t, localauthorityv1.NewLocalAuthorityClient(conns.local), map[string]bool{
+			"GetJWTAuthorityState":        true,
+			"PrepareJWTAuthority":         true,
+			"ActivateJWTAuthority":        true,
+			"TaintJWTAuthority":           true,
+			"RevokeJWTAuthority":          true,
+			"GetX509AuthorityState":       true,
+			"PrepareX509Authority":        true,
+			"ActivateX509Authority":       true,
+			"TaintX509Authority":          true,
+			"TaintX509UpstreamAuthority":  true,
+			"RevokeX509Authority":         true,
+			"RevokeX509UpstreamAuthority": true,
+		})
+	})
+
+	t.Run("NoAuth", func(t *testing.T) {
+		testAuthorization(ctx, t, localauthorityv1.NewLocalAuthorityClient(conns.noAuth), map[string]bool{
+			"GetJWTAuthorityState":        false,
+			"PrepareJWTAuthority":         false,
+			"ActivateJWTAuthority":        false,
+			"TaintJWTAuthority":           false,
+			"RevokeJWTAuthority":          false,
+			"GetX509AuthorityState":       false,
+			"PrepareX509Authority":        false,
+			"ActivateX509Authority":       false,
+			"TaintX509Authority":          false,
+			"TaintX509UpstreamAuthority":  false,
+			"RevokeX509Authority":         false,
+			"RevokeX509UpstreamAuthority": false,
+		})
+	})
+
+	t.Run("Agent", func(t *testing.T) {
+		testAuthorization(ctx, t, localauthorityv1.NewLocalAuthorityClient(conns.agent), map[string]bool{
+			"GetJWTAuthorityState":        false,
+			"PrepareJWTAuthority":         false,
+			"ActivateJWTAuthority":        false,
+			"TaintJWTAuthority":           false,
+			"RevokeJWTAuthority":          false,
+			"GetX509AuthorityState":       false,
+			"PrepareX509Authority":        false,
+			"ActivateX509Authority":       false,
+			"TaintX509Authority":          false,
+			"TaintX509UpstreamAuthority":  false,
+			"RevokeX509Authority":         false,
+			"RevokeX509UpstreamAuthority": false,
+		})
+	})
+
+	t.Run("Admin", func(t *testing.T) {
+		testAuthorization(ctx, t, localauthorityv1.NewLocalAuthorityClient(conns.admin), map[string]bool{
+			"GetJWTAuthorityState":        true,
+			"PrepareJWTAuthority":         true,
+			"ActivateJWTAuthority":        true,
+			"TaintJWTAuthority":           true,
+			"RevokeJWTAuthority":          true,
+			"GetX509AuthorityState":       true,
+			"PrepareX509Authority":        true,
+			"ActivateX509Authority":       true,
+			"TaintX509Authority":          true,
+			"TaintX509UpstreamAuthority":  true,
+			"RevokeX509Authority":         true,
+			"RevokeX509UpstreamAuthority": true,
+		})
+	})
+
+	t.Run("Federated Admin", func(t *testing.T) {
+		testAuthorization(ctx, t, localauthorityv1.NewLocalAuthorityClient(conns.federatedAdmin), map[string]bool{
+			"GetJWTAuthorityState":        true,
+			"PrepareJWTAuthority":         true,
+			"ActivateJWTAuthority":        true,
+			"TaintJWTAuthority":           true,
+			"RevokeJWTAuthority":          true,
+			"GetX509AuthorityState":       true,
+			"PrepareX509Authority":        true,
+			"ActivateX509Authority":       true,
+			"TaintX509Authority":          true,
+			"TaintX509UpstreamAuthority":  true,
+			"RevokeX509Authority":         true,
+			"RevokeX509UpstreamAuthority": true,
+		})
+	})
+
+	t.Run("Downstream", func(t *testing.T) {
+		testAuthorization(ctx, t, localauthorityv1.NewLocalAuthorityClient(conns.downstream), map[string]bool{
+			"GetJWTAuthorityState":        false,
+			"PrepareJWTAuthority":         false,
+			"ActivateJWTAuthority":        false,
+			"TaintJWTAuthority":           false,
+			"RevokeJWTAuthority":          false,
+			"GetX509AuthorityState":       false,
+			"PrepareX509Authority":        false,
+			"ActivateX509Authority":       false,
+			"TaintX509Authority":          false,
+			"TaintX509UpstreamAuthority":  false,
+			"RevokeX509Authority":         false,
+			"RevokeX509UpstreamAuthority": false,
+		})
+	})
+}
+
 // testAuthorization issues an RPC for each method on the client interface and
 // asserts whether the RPC was authorized or not. If a method is not
 // represented in the expectedAuthResults, or a method in expectedAuthResults
@@ -1039,8 +1152,8 @@ func (o *svidObserver) State() svid.State {
 	}
 }
 
-type fakeJWTKeyPublisher struct {
-	manager.JwtKeyPublisher
+type fakeAuthorityManager struct {
+	manager.AuthorityManager
 }
 
 type agentServer struct {
@@ -1251,4 +1364,56 @@ func (trustDomainServer) BatchDeleteFederationRelationship(_ context.Context, _ 
 
 func (trustDomainServer) RefreshBundle(_ context.Context, _ *trustdomainv1.RefreshBundleRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, nil
+}
+
+type localAuthorityServer struct {
+	localauthorityv1.UnsafeLocalAuthorityServer
+}
+
+func (localAuthorityServer) GetJWTAuthorityState(context.Context, *localauthorityv1.GetJWTAuthorityStateRequest) (*localauthorityv1.GetJWTAuthorityStateResponse, error) {
+	return &localauthorityv1.GetJWTAuthorityStateResponse{}, nil
+}
+
+func (localAuthorityServer) PrepareJWTAuthority(context.Context, *localauthorityv1.PrepareJWTAuthorityRequest) (*localauthorityv1.PrepareJWTAuthorityResponse, error) {
+	return &localauthorityv1.PrepareJWTAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) ActivateJWTAuthority(context.Context, *localauthorityv1.ActivateJWTAuthorityRequest) (*localauthorityv1.ActivateJWTAuthorityResponse, error) {
+	return &localauthorityv1.ActivateJWTAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) TaintJWTAuthority(context.Context, *localauthorityv1.TaintJWTAuthorityRequest) (*localauthorityv1.TaintJWTAuthorityResponse, error) {
+	return &localauthorityv1.TaintJWTAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) RevokeJWTAuthority(context.Context, *localauthorityv1.RevokeJWTAuthorityRequest) (*localauthorityv1.RevokeJWTAuthorityResponse, error) {
+	return &localauthorityv1.RevokeJWTAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) GetX509AuthorityState(context.Context, *localauthorityv1.GetX509AuthorityStateRequest) (*localauthorityv1.GetX509AuthorityStateResponse, error) {
+	return &localauthorityv1.GetX509AuthorityStateResponse{}, nil
+}
+
+func (localAuthorityServer) PrepareX509Authority(context.Context, *localauthorityv1.PrepareX509AuthorityRequest) (*localauthorityv1.PrepareX509AuthorityResponse, error) {
+	return &localauthorityv1.PrepareX509AuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) ActivateX509Authority(context.Context, *localauthorityv1.ActivateX509AuthorityRequest) (*localauthorityv1.ActivateX509AuthorityResponse, error) {
+	return &localauthorityv1.ActivateX509AuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) TaintX509Authority(context.Context, *localauthorityv1.TaintX509AuthorityRequest) (*localauthorityv1.TaintX509AuthorityResponse, error) {
+	return &localauthorityv1.TaintX509AuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) TaintX509UpstreamAuthority(context.Context, *localauthorityv1.TaintX509UpstreamAuthorityRequest) (*localauthorityv1.TaintX509UpstreamAuthorityResponse, error) {
+	return &localauthorityv1.TaintX509UpstreamAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) RevokeX509Authority(context.Context, *localauthorityv1.RevokeX509AuthorityRequest) (*localauthorityv1.RevokeX509AuthorityResponse, error) {
+	return &localauthorityv1.RevokeX509AuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) RevokeX509UpstreamAuthority(context.Context, *localauthorityv1.RevokeX509UpstreamAuthorityRequest) (*localauthorityv1.RevokeX509UpstreamAuthorityResponse, error) {
+	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{}, nil
 }
