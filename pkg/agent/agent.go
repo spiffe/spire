@@ -142,7 +142,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 	}
 
-	svidStoreCache := a.newSVIDStoreCache()
+	svidStoreCache := a.newSVIDStoreCache(metrics)
 
 	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
 	if err != nil {
@@ -324,10 +324,11 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 	}
 }
 
-func (a *Agent) newSVIDStoreCache() *storecache.Cache {
+func (a *Agent) newSVIDStoreCache(metrics telemetry.Metrics) *storecache.Cache {
 	config := &storecache.Config{
 		Log:         a.c.Log.WithField(telemetry.SubsystemName, "svid_store_cache"),
 		TrustDomain: a.c.TrustDomain,
+		Metrics:     metrics,
 	}
 
 	return storecache.New(config)

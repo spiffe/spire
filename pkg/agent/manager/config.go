@@ -94,6 +94,9 @@ func newManager(c *Config) *manager {
 		client:         client,
 		clk:            c.Clk,
 		svidStoreCache: c.SVIDStoreCache,
+
+		processedTaintedX509Authorities: make(map[string]struct{}),
+		processedTaintedJWTAuthorities:  make(map[string]struct{}),
 	}
 
 	return m

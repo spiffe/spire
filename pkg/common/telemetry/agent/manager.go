@@ -46,6 +46,16 @@ func AddCacheManagerOutdatedSVIDsSample(m telemetry.Metrics, cacheType string, c
 	m.AddSample(key, count)
 }
 
+// AddCacheManagerTaintedSVIDsSample count of tainted SVIDs according to
+// agent cache manager
+func AddCacheManagerTaintedSVIDsSample(m telemetry.Metrics, cacheType string, count float32) {
+	key := []string{telemetry.CacheManager, cacheType, telemetry.TaintedSVIDs}
+	if cacheType != "" {
+		key = append(key, cacheType)
+	}
+	m.AddSample(key, count)
+}
+
 // End Add Samples
 
 func SetSyncStats(m telemetry.Metrics, stats client.SyncStats) {

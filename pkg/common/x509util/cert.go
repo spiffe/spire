@@ -72,3 +72,28 @@ func RawCertsFromCertificates(certs []*x509.Certificate) [][]byte {
 	}
 	return rawCerts
 }
+
+// IsSignedByRoot checks if the provided certificate chain is signed by one of the specified root CAs.
+func IsSignedByRoot(chain []*x509.Certificate, rootCAs []*x509.Certificate) bool {
+	if len(chain) == 0 {
+		return false
+	}
+	rootPool := x509.NewCertPool()
+	for _, x509Authority := range rootCAs {
+		rootPool.AddCert(x509Authority)
+	}
+
+	intermediatePool := x509.NewCertPool()
+	for _, intermediateCA := range chain[1:] {
+		intermediatePool.AddCert(intermediateCA)
+	}
+
+	// Verify certificate chain, using tainted authorities as root
+	_, err := chain[0].Verify(x509.VerifyOptions{
+		Intermediates: intermediatePool,
+		Roots:         rootPool,
+	})
+
+	// TODO: may we verify if error is different to Signed by unknown authority?
+	return err == nil
+}

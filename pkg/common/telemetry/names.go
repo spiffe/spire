@@ -547,6 +547,9 @@ const (
 	// SubjectKeyID tags a certificate subject key ID
 	SubjectKeyID = "subject_key_id"
 
+	// SubjectKeyIDs tags a list of subject key ID
+	SubjectKeyIDs = "subject_key_ids"
+
 	// SVIDMapSize is the gauge key for the size of the LRU cache SVID map
 	SVIDMapSize = "lru_cache_svid_map_size"
 
@@ -777,6 +780,9 @@ const (
 	// RegistrationManager functionality related to a registration manager
 	RegistrationManager = "registration_manager"
 
+	// TaintedSVIDs tags tainted SVID count/list
+	TaintedSVIDs = "tainted_svids"
+
 	// Telemetry tags a telemetry module
 	Telemetry = "telemetry"
 
@@ -914,6 +920,9 @@ const (
 
 	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
 	PushJWTKeyUpstream = "push_jwtkey_upstream"
+
+	// ProcessTaintedSVIDs functionality related to processing tainted SVIDs.
+	ProcessTaintedSVIDs = "process_tainted_svids"
 
 	// SDSAPI functionality related to SDS; should be used with other tags
 	// to add clarity

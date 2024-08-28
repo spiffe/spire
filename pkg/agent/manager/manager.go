@@ -171,6 +171,14 @@ type manager struct {
 	// cache.
 	syncedEntries map[string]*common.RegistrationEntry
 	syncedBundles map[string]*common.Bundle
+
+	// processedTaintedX509Authorities holds all the already processed tainted X.509 Authorities
+	// to prevent processing them again.
+	processedTaintedX509Authorities map[string]struct{}
+
+	// processedTaintedJWTAuthorities holds all the already processed tainted JWT Authorities
+	// to prevent processing them again.
+	processedTaintedJWTAuthorities map[string]struct{}
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
