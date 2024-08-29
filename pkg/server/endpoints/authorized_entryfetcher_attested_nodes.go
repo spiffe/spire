@@ -8,7 +8,9 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	server_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -17,11 +19,12 @@ import (
 )
 
 type attestedNodes struct {
-	cache *authorizedentries.Cache
-	clk   clock.Clock
-	ds    datastore.DataStore
-	log   logrus.FieldLogger
-	mu    sync.RWMutex
+	cache   *authorizedentries.Cache
+	clk     clock.Clock
+	ds      datastore.DataStore
+	log     logrus.FieldLogger
+	metrics telemetry.Metrics
+	mu      sync.RWMutex
 
 	firstEventID            uint
 	firstEventTime          time.Time
@@ -33,7 +36,7 @@ type attestedNodes struct {
 
 // buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
 // It runs once at startup.
-func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, sqlTransactionTimeout time.Duration) (*attestedNodes, error) {
+func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, sqlTransactionTimeout time.Duration) (*attestedNodes, error) {
 	resp, err := ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
 	if err != nil {
 		return nil, err
@@ -82,6 +85,7 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, ds dat
 		firstEventID:            firstEventID,
 		firstEventTime:          firstEventTime,
 		log:                     log,
+		metrics:                 metrics,
 		lastEventID:             lastEventID,
 		missedEvents:            missedEvents,
 		seenMissedStartupEvents: make(map[uint]struct{}),
@@ -142,6 +146,10 @@ func (a *attestedNodes) updateCache(ctx context.Context) error {
 		a.lastEventID = event.EventID
 	}
 
+	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
+	server_telemetry.SetAgentsByExpiresAtCacheCountGauge(a.metrics, a.cache.Stats().AgentsByExpiresAt)
+	server_telemetry.SetAgentsByIDCacheCountGauge(a.metrics, a.cache.Stats().AgentsByID)
+
 	return nil
 }
 
@@ -201,6 +209,7 @@ func (a *attestedNodes) replayMissedEvents(ctx context.Context) {
 
 		delete(a.missedEvents, eventID)
 	}
+	server_telemetry.SetSkippedNodeEventIDsCacheCountGauge(a.metrics, len(a.missedEvents))
 }
 
 // updatedCacheEntry update/deletes/creates an individual attested node in the cache.
