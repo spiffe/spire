@@ -369,7 +369,7 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	}
 
 	if err := s.ca.NotifyTaintedX509Authority(ctx, nextSlot.AuthorityID()); err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to notificate tainted authority", err)
+		return nil, api.MakeErr(log, codes.Internal, "failed to notify tainted authority", err)
 	}
 
 	rpccontext.AuditRPC(ctx)

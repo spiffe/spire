@@ -608,7 +608,7 @@ func (m *Manager) fetchRootCAByAuthorityID(ctx context.Context, authorityID stri
 func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
 	// Nothing to rotate if no upstream authority is used
 	if m.upstreamClient == nil {
-		return errors.New("processing upstream authorities must be be reached when no using upstream authority. Please create an issue.")
+		return errors.New("processing of tainted upstream authorities must not be reached when not using upstream authority. Please create an issue.")
 	}
 
 	if len(taintedAuthorities) == 0 {
@@ -620,7 +620,7 @@ func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorit
 
 	currentSlotCA := m.currentX509CA.x509CA
 	if ok := isX509AuthorityTainted(currentSlotCA, taintedAuthorities); ok {
-		m.c.Log.Debug("Current root CA is signed by a tainted authority, preparing rotation...")
+		m.c.Log.Debug("Current root CA is signed by a tainted upstream authority, preparing rotation")
 
 		err := m.prepareUntaintedX509CA(ctx, taintedAuthorities)
 		if err != nil {
@@ -814,22 +814,30 @@ func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 // prepareUntaintedX509CA prepare nextX509CA until it is no longer tainted
 func (m *Manager) prepareUntaintedX509CA(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
 	// Prepare a new X.509 authority when next is old or it is signed by a tainted key
-	if ok := shouldPrepareX509CA(m.nextX509CA, taintedAuthorities); !ok {
+	if ok := m.shouldPrepareX509CA(taintedAuthorities); !ok {
 		return nil
 	}
 
-	m.c.Log.Debug("Preparing a new X.509 Authority, because it is tainted...")
 	err := m.PrepareX509CA(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to prepare x509 authority: %w", err)
 	}
 
-	// // Verify if prepared authority is still tainted
-	// if ok := shouldPrepareX509CA(m.nextX509CA, taintedAuthorities); ok {
-	// return errors.New("prepared authority is still tainted")
-	// }
-
 	return nil
+}
+
+func (m *Manager) shouldPrepareX509CA(taintedAuthorities []*x509.Certificate) bool {
+	slot := m.nextX509CA
+	switch {
+	case slot.IsEmpty():
+		return true
+	case slot.Status() == journal.Status_PREPARED:
+		isTainted := isX509AuthorityTainted(slot.x509CA, taintedAuthorities)
+		m.c.Log.Debug("Next authority is tainted, prepare new X.509 authority")
+		return isTainted
+	default:
+		return false
+	}
 }
 
 // MaxSVIDTTL returns the maximum SVID lifetime that can be guaranteed to not
@@ -1049,16 +1057,4 @@ func isX509AuthorityTainted(x509CA *ca.X509CA, taintedAuthorities []*x509.Certif
 	})
 
 	return err == nil
-}
-
-func shouldPrepareX509CA(slot *x509CASlot, taintedAuthorities []*x509.Certificate) bool {
-	switch {
-	case slot.IsEmpty():
-		return true
-	case slot.Status() == journal.Status_PREPARED:
-		isTainted := isX509AuthorityTainted(slot.x509CA, taintedAuthorities)
-		return isTainted
-	default:
-		return false
-	}
 }

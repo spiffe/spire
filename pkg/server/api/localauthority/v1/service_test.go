@@ -1540,17 +1540,17 @@ func TestTaintX509Authority(t *testing.T) {
 			},
 		},
 		{
-			name:             "fail to notificate taintined authority",
+			name:             "fail to notify tainted authority",
 			currentSlot:      createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), notAfterCurrent),
 			nextSlot:         createSlot(journal.Status_OLD, nextAuthorityID, nextKey.Public(), notAfterNext),
 			keyToTaint:       nextAuthorityID,
 			notifyTaintedErr: errors.New("oh no"),
 			expectCode:       codes.Internal,
-			expectMsg:        "failed to notificate tainted authority: oh no",
+			expectMsg:        "failed to notify tainted authority: oh no",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to notificate tainted authority",
+					Message: "Failed to notify tainted authority",
 					Data: logrus.Fields{
 						telemetry.LocalAuthorityID: nextAuthorityID,
 						logrus.ErrorKey:            "oh no",
@@ -1562,7 +1562,7 @@ func TestTaintX509Authority(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:           "error",
 						telemetry.StatusCode:       "Internal",
-						telemetry.StatusMessage:    "failed to notificate tainted authority: oh no",
+						telemetry.StatusMessage:    "failed to notify tainted authority: oh no",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: nextAuthorityID,
 					},
