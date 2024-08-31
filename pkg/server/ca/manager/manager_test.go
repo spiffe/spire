@@ -417,7 +417,6 @@ func TestUpstreamProcesssTaintedAuthority(t *testing.T) {
 	case <-ctx.Done():
 		assert.Fail(t, "deadline reached")
 	}
-
 }
 
 func TestGetCurrentX509CASlotUpstreamSigned(t *testing.T) {
