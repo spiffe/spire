@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.10.2] - 2024-09-03
+
+### Added
+
+- `http_challenge` NodeAttestor plugin (#4909)
+- Experimental support for validating container image signatures through Sigstore selectors in the docker Workload Attestor (#5272)
+- Metrics to track event-based cache (#5411)
+
+### Changed
+
+- Delegated Identity API to allow subscription by process ID (#5272)
+- Agent Debug endpoint to count SVIDs by type (#5352)
+- Agent health check to report an unhealthy status until Agent SVID is secured (#5298)
+- Small documentation improvements (#5393)
+
+### Fixed
+
+- `aws_iid` NodeAttestor to properly handle network interfaces (#5300)
+- Server configuration to correctly propagate `sql_transaction_timeout` (#5345)
+
 ## [1.10.1] - 2024-08-01
 
 ### Added
