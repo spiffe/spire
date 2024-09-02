@@ -2,21 +2,21 @@
 
 log-debug "banning agent..."
 
-docker compose exec -T spire-server \
-    /opt/spire/bin/spire-server agent ban \
-    -spiffeID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
-
-# Check at most 30 times (with one second in between) that the agent has
-# successfully banned
+# Attempt at most 30 times (with one second in between) to ban the agent
 MAXCHECKS=30
 CHECKINTERVAL=1
+spiffe_id="spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)"
 for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "checking for agent is shutting down ($i of $MAXCHECKS max)..."
-    docker compose logs spire-agent
-    if docker compose logs spire-agent | grep "Agent is banned: removing SVID and shutting down"; then
+    log-info "attempting to ban agent ${spiffe_id} ($i of $MAXCHECKS max)..."
+
+    docker compose exec -T spire-server \
+        /opt/spire/bin/spire-server agent ban \
+        -spiffeID "${spiffe_id}"
+    docker compose logs spire-server
+    if docker compose logs spire-server | grep "Agent banned"; then
 	exit 0
     fi
     sleep "${CHECKINTERVAL}"
 done
 
-fail-now "timed out waiting for agent to shutdown"
+fail-now "timed out waiting for successful ban"

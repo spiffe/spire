@@ -267,7 +267,7 @@ func (c *Cache) removeEntry(entryID string) {
 	}
 }
 
-func (c *Cache) stats() cacheStats {
+func (c *Cache) Stats() cacheStats {
 	return cacheStats{
 		AgentsByID:        c.agentsByID.Len(),
 		AgentsByExpiresAt: c.agentsByExpiresAt.Len(),

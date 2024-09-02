@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,7 +71,9 @@ func TestBuildRegistrationEntriesCache(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			cache := authorizedentries.NewCache(clk)
-			registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, tt.pageSize, defaultSQLTransactionTimeout)
+			metrics := fakemetrics.New()
+
+			registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, tt.pageSize, defaultSQLTransactionTimeout)
 			if tt.err != "" {
 				require.ErrorContains(t, err, tt.err)
 				return
@@ -104,8 +107,9 @@ func TestRegistrationEntriesCacheMissedEventNotFound(t *testing.T) {
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 	cache := authorizedentries.NewCache(clk)
+	metrics := fakemetrics.New()
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, buildCachePageSize, defaultSQLTransactionTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, buildCachePageSize, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 
@@ -121,6 +125,7 @@ func TestRegistrationEntriesSavesMissedStartupEvents(t *testing.T) {
 	clk := clock.NewMock(t)
 	ds := fakedatastore.New(t)
 	cache := authorizedentries.NewCache(clk)
+	metrics := fakemetrics.New()
 
 	err := ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
 		EventID: 3,
@@ -128,7 +133,7 @@ func TestRegistrationEntriesSavesMissedStartupEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, ds, clk, cache, buildCachePageSize, defaultSQLTransactionTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, buildCachePageSize, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 	require.Equal(t, uint(3), registrationEntries.firstEventID)

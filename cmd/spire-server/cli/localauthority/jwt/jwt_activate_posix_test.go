@@ -1,9 +1,11 @@
 //go:build !windows
 
-package localauthority_test
+package jwt_test
 
 var (
-	x509ShowUsage = `Usage of localauthority x509 show:
+	jwtActivateUsage = `Usage of localauthority jwt activate:
+  -authorityID string
+    	The authority ID of the JWT authority to activate
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
