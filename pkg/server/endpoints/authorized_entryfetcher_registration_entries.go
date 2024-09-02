@@ -9,6 +9,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	server_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -17,11 +18,12 @@ import (
 )
 
 type registrationEntries struct {
-	cache *authorizedentries.Cache
-	clk   clock.Clock
-	ds    datastore.DataStore
-	log   logrus.FieldLogger
-	mu    sync.RWMutex
+	cache   *authorizedentries.Cache
+	clk     clock.Clock
+	ds      datastore.DataStore
+	log     logrus.FieldLogger
+	metrics telemetry.Metrics
+	mu      sync.RWMutex
 
 	firstEventID            uint
 	firstEventTime          time.Time
@@ -31,9 +33,8 @@ type registrationEntries struct {
 	sqlTransactionTimeout   time.Duration
 }
 
-// buildRegistrationEntriesCache fetches all registration entries and adds them to the cache.
-// It runs once at startup.
-func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
+// buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
+func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
 	resp, err := ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	if err != nil {
 		return nil, err
@@ -95,6 +96,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 		firstEventID:            firstEventID,
 		firstEventTime:          firstEventTime,
 		log:                     log,
+		metrics:                 metrics,
 		lastEventID:             lastEventID,
 		missedEvents:            missedEvents,
 		seenMissedStartupEvents: make(map[uint]struct{}),
@@ -155,6 +157,14 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 		a.lastEventID = event.EventID
 	}
 
+	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
+	server_telemetry.SetNodeAliasesByEntryIDCacheCountGauge(a.metrics, a.cache.Stats().AliasesByEntryID)
+	server_telemetry.SetNodeAliasesBySelectorCacheCountGauge(a.metrics, a.cache.Stats().AliasesBySelector)
+
+	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
+	server_telemetry.SetEntriesByEntryIDCacheCountGauge(a.metrics, a.cache.Stats().EntriesByEntryID)
+	server_telemetry.SetEntriesByParentIDCacheCountGauge(a.metrics, a.cache.Stats().EntriesByParentID)
+
 	return nil
 }
 
@@ -214,6 +224,7 @@ func (a *registrationEntries) replayMissedEvents(ctx context.Context) {
 
 		delete(a.missedEvents, eventID)
 	}
+	server_telemetry.SetSkippedEntryEventIDsCacheCountGauge(a.metrics, len(a.missedEvents))
 }
 
 // updateCacheEntry update/deletes/creates an individual registration entry in the cache.
