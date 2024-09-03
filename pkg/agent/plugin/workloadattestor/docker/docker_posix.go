@@ -40,24 +40,21 @@ type OSConfig struct {
 }
 
 func createHelper(c *dockerPluginConfig, log hclog.Logger) (*containerHelper, error) {
-	var containerIDFinder cgroup.ContainerIDFinder
+	useNewContainerLocator := c.UseNewContainerLocator == nil || *c.UseNewContainerLocator
 
-	switch {
-	case c.UseNewContainerLocator != nil && *c.UseNewContainerLocator:
-		if len(c.ContainerIDCGroupMatchers) > 0 {
-			return nil, status.Error(codes.InvalidArgument, "the new container locator and custom cgroup matchers cannot both be used")
+	var containerIDFinder cgroup.ContainerIDFinder
+	if len(c.ContainerIDCGroupMatchers) > 0 {
+		if useNewContainerLocator {
+			return nil, status.Error(codes.InvalidArgument, "the new container locator and custom cgroup matchers cannot both be used; please open an issue if the new container locator fails to locate workload containers in your environment; to continue using custom matchers set use_new_container_locator=false")
 		}
-		log.Info("Using the new container locator")
-	case len(c.ContainerIDCGroupMatchers) > 0:
-		log.Warn("Using the legacy container locator with custom cgroup matchers. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
+		log.Warn("Using the legacy container locator with custom cgroup matchers. This feature will be removed in a future release.")
 		var err error
 		containerIDFinder, err = cgroup.NewContainerIDFinder(c.ContainerIDCGroupMatchers)
 		if err != nil {
 			return nil, err
 		}
-	default:
-		log.Warn("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
-		containerIDFinder = &defaultContainerIDFinder{}
+	} else {
+		log.Info("Using the new container locator")
 	}
 
 	rootDir := c.rootDir

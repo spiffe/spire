@@ -45,11 +45,11 @@ type containerHelper struct {
 
 func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 	h.verboseContainerLocatorLogs = config.VerboseContainerLocatorLogs
-	h.useNewContainerLocator = config.UseNewContainerLocator != nil && *config.UseNewContainerLocator
+	h.useNewContainerLocator = config.UseNewContainerLocator == nil || *config.UseNewContainerLocator
 	if h.useNewContainerLocator {
 		log.Info("Using the new container locator")
 	} else {
-		log.Warn("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
+		log.Warn("Using the legacy container locator. This option will removed in a future release.")
 	}
 
 	return nil
