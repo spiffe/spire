@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- Regression in agent health check, requiring the agent to have an SVID to be healthy (#5459)
+- Regression in agent health check, requiring the agent to have an SVID on disk to be healthy (#5459)
 
 ## [1.10.2] - 2024-09-03
 
