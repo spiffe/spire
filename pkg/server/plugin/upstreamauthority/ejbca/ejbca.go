@@ -241,12 +241,12 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	logger.Debug("Retrieved root CA from CA chain", "rootCa", rootCa.Subject.String(), "intermediates", len(caChain)-1)
 
 	// x509CertificateChain contains the leaf CA certificate, then any intermediates up to but not including the root CA.
-	x509CertificateAuthorityChain, err := x509certificate.ToPluginProtos(append([]*x509.Certificate{cert}, caChain[:len(caChain)-1]...))
+	x509CertificateAuthorityChain, err := x509certificate.ToPluginFromCertificates(append([]*x509.Certificate{cert}, caChain[:len(caChain)-1]...))
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to serialize certificate chain: %v", err)
 	}
 
-	rootCACertificate, err := x509certificate.ToPluginProtos([]*x509.Certificate{rootCa})
+	rootCACertificate, err := x509certificate.ToPluginFromCertificates([]*x509.Certificate{rootCa})
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to serialize upstream X.509 roots: %v", err)
 	}
