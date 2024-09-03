@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.10.3] - 2024-09-03
+
+### Fixed
+
+- Regression in agent health check, requiring the agent to have an SVID to be healthy (#5459)
+
 ## [1.10.2] - 2024-09-03
 
 ### Added
