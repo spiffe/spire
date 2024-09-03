@@ -4,21 +4,21 @@ set -e
 
 echo "Bringing down services..."
 
-# Stop the SPIRE server
-if pgrep spire-server > /dev/null; then
-    echo "Stopping SPIRE server..."
-    sudo kill -9 $(pgrep spire-server) || true
-fi
-
-# Stop the SPIRE agent
-if pgrep spire-agent > /dev/null; then
-    echo "Stopping SPIRE agent..."
-    sudo kill -9 $(pgrep spire-agent) || true
-fi
-
-# Remove temporary directories if needed
-echo "Cleaning up..."
-rm -rf /opt/spire/data
-rm -rf /opt/spire/conf
+## Stop the SPIRE server
+#if pgrep spire-server > /dev/null; then
+#    echo "Stopping SPIRE server..."
+#    sudo kill -9 $(pgrep spire-server) || true
+#fi
+#
+## Stop the SPIRE agent
+#if pgrep spire-agent > /dev/null; then
+#    echo "Stopping SPIRE agent..."
+#    sudo kill -9 $(pgrep spire-agent) || true
+#fi
+#
+## Remove temporary directories if needed
+#echo "Cleaning up..."
+#rm -rf /tmp/spire/data
+#rm -rf /tmp/spire/conf
 
 echo "Teardown complete."

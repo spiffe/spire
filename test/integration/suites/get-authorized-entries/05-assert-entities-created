@@ -1,0 +1,94 @@
+#!/bin/bash
+
+# Ensure the script exits on errors
+set -e
+
+# Variables
+SPIRE_SERVER="http://localhost:8081"
+EXPECTED_SVID="spiffe://domain.test/workload"
+RETRY_COUNT=10
+RETRY_DELAY=2  # Seconds to wait between retries
+SIZE=10
+
+# Function to list entries
+list_entries() {
+    local response
+
+    response=$(curl -s -X GET "$SPIRE_SERVER/v1/entries")
+
+    echo "$response"
+}
+
+# Function to call GetAuthorizedEntries
+call_get_authorized_entries() {
+    local response
+
+    response=$(curl -s -X POST "$SPIRE_SERVER/v1/entries/authorized" -H "Content-Type: application/json" -d '{}')
+
+    echo "$response"
+}
+
+# Function to verify the GetAuthorizedEntries response
+verify_get_authorized_entries() {
+  local response=$1
+
+  for ((m=1;m<=$SIZE;m++)); do
+
+      if echo "$response" | grep -q "$EXPECTED_SVID-$m"; then
+          echo "GetAuthorizedEntries response includes expected SVID $EXPECTED_SVID."
+          return 0
+      else
+          echo "GetAuthorizedEntries response does not include expected SVID $EXPECTED_SVID."
+          echo "Response details:"
+          echo "$response"
+          return 1
+      fi
+  done
+}
+
+# Function to verify registration entry
+verify_registration_entry() {
+    local response
+
+    response=$(list_entries)
+
+    if echo "$response" | grep -q "$EXPECTED_SVID"; then
+        echo "Registration entry with SVID $EXPECTED_SVID exists."
+        return 0
+    else
+        echo "Registration entry with SVID $EXPECTED_SVID does not exist."
+        echo "Entries details:"
+        echo "$response"
+        return 1
+    fi
+}
+
+# Prepare the test data
+echo "Setting up test data..."
+# (Include any commands to set up test data here)
+
+# Verify the registration entry
+echo "Verifying registration entry..."
+if ! verify_registration_entry; then
+    echo "Registration entry verification failed."
+    exit 1
+fi
+
+# Wait for the entries to become available
+echo "Waiting for entries to become available..."
+attempt=0
+while [ $attempt -lt $RETRY_COUNT ]; do
+    response=$(call_get_authorized_entries)
+
+    if verify_get_authorized_entries "$response"; then
+        echo "Test passed!"
+        exit 0
+    fi
+
+    attempt=$((attempt + 1))
+    echo "Entries not available yet. Waiting for $RETRY_DELAY seconds... (Attempt $attempt)"
+    sleep $RETRY_DELAY
+done
+
+echo "Failed to verify entries after $RETRY_COUNT attempts."
+exit 1
