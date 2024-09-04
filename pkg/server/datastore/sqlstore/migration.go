@@ -467,7 +467,8 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// break things if it isn't.
 	//
 	// When adding a supported migration to version XX, add a case and the
-	// corresponding function. The case will look like this:
+	// corresponding function. The case in the following switch statement will
+	// look like this:
 	//
 	// case XX:
 	//   err = migrateToVXX(tx)
