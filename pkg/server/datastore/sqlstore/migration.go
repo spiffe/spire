@@ -253,7 +253,7 @@ const (
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
 	// from the code after a minor release, this number should be updated.
-	lastMinorReleaseSchemaVersion = 21
+	lastMinorReleaseSchemaVersion = 23
 )
 
 // the current code version
@@ -465,13 +465,22 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// Place all migrations handled by the current minor release here. This
 	// list can be opportunistically pruned after every minor release but won't
 	// break things if it isn't.
+	//
+	// When adding a supported migration to version XX, add a case and the
+	// corresponding function. The case will look like this:
+	//
+	// case XX:
+	//   err = migrateToVXX(tx)
+	//
+	// And the migrateToVXX function will be:
+	// func migrateToVXX(tx *gorm.DB) error {
+	//   if err := tx.AutoMigrate(&RegisteredEntryEvent{}, &AttestedNodeEvent{}).Error; err != nil {
+	//     return sqlError.Wrap(err)
+	//   }
+	//   return nil
+	// }
+	//
 	switch currVersion {
-	case 21:
-		// TODO: remove this migration in 1.9.0
-		err = migrateToV22(tx)
-	case 22:
-		// TODO: remove this migration in 1.9.0
-		err = migrateToV23(tx)
 	default:
 		err = sqlError.New("no migration support for unknown schema version %d", currVersion)
 	}
@@ -480,20 +489,6 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	}
 
 	return nextVersion, nil
-}
-
-func migrateToV22(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&RegisteredEntryEvent{}, &AttestedNodeEvent{}).Error; err != nil {
-		return sqlError.Wrap(err)
-	}
-	return nil
-}
-
-func migrateToV23(tx *gorm.DB) error {
-	if err := tx.AutoMigrate(&CAJournal{}).Error; err != nil {
-		return sqlError.Wrap(err)
-	}
-	return nil
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
