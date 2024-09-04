@@ -108,6 +108,9 @@ type Manager struct {
 
 	// Used to log a warning only once when the UpstreamAuthority does not support JWT-SVIDs.
 	jwtUnimplementedWarnOnce sync.Once
+
+	// Used for testing backoff, must not be set in regular code
+	triggerBackOffCh chan error
 }
 
 func NewManager(ctx context.Context, c Config) (*Manager, error) {
@@ -627,6 +630,9 @@ func (m *Manager) notifyTaintedAuthorities(ctx context.Context, taintedAuthoriti
 			return err
 		}
 		m.c.Log.WithError(err).Warn("failed to process tainted keys")
+		if m.triggerBackOffCh != nil {
+			m.triggerBackOffCh <- err
+		}
 
 		select {
 		case <-ctx.Done():
