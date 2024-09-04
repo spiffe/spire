@@ -14,6 +14,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -44,6 +45,9 @@ const (
 	sevenDays                  = 7 * 24 * time.Hour
 	activationThresholdCap     = sevenDays
 	activationThresholdDivisor = 6
+
+	taintBackoffInterval       = 5 * time.Second
+	taintBackoffMaxElapsedTime = 1 * time.Minute
 )
 
 type ManagedCA interface {
@@ -487,11 +491,10 @@ func (m *Manager) ProcessBundleUpdates(ctx context.Context) {
 				m.c.Log.WithError(err).Warn("Failed to notify on bundle update")
 			}
 		case taintedAuthorities := <-m.taintedUpstreamAuthoritiesCh:
-			// TODO: may we add a backoff to all processing tainted authorities code?
-			if err := m.processTaintedAuthorities(ctx, taintedAuthorities); err != nil {
-				m.c.Log.WithError(err).Warn("failed to process tainted keys")
+			if err := m.notifyTaintedAuthorities(ctx, taintedAuthorities); err != nil {
+				m.c.Log.WithError(err).Error("Failed to force intermediate bundle rotation")
+				return
 			}
-
 		case <-ctx.Done():
 			return
 		}
@@ -603,6 +606,37 @@ func (m *Manager) fetchRootCAByAuthorityID(ctx context.Context, authorityID stri
 	}
 
 	return nil, fmt.Errorf("no tainted root CA found with authority ID: %q", authorityID)
+}
+
+func (m *Manager) notifyTaintedAuthorities(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
+	taintBackoff := backoff.NewBackoff(
+		m.c.Clock,
+		taintBackoffInterval,
+		backoff.WithMaxElapsedTime(taintBackoffMaxElapsedTime),
+	)
+
+	for {
+		// TODO: may we add a backoff to all processing tainted authorities code?
+		err := m.processTaintedAuthorities(ctx, taintedAuthorities)
+		if err == nil {
+			break
+		}
+
+		nextDuration := taintBackoff.NextBackOff()
+		if nextDuration == backoff.Stop {
+			return err
+		}
+		m.c.Log.WithError(err).Warn("failed to process tainted keys")
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-m.c.Clock.After(nextDuration):
+			continue
+		}
+	}
+
+	return nil
 }
 
 func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
