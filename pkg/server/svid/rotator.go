@@ -70,7 +70,7 @@ func (r *Rotator) Run(ctx context.Context) error {
 			isTainted := r.isX509AuthorityTainted(taintedAuthorities)
 			if isTainted {
 				r.triggerTaintedReceived(true)
-				r.c.Log.Info("Server SVID signed using a tainted authority, forcing rotation...")
+				r.c.Log.Info("Server SVID signed using a tainted authority, forcing rotation of the Server SVID")
 				r.isSVIDTainted = true
 			}
 		case <-t.C:
@@ -147,8 +147,8 @@ func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 		SVID: svid,
 		Key:  signer,
 	})
-	// Any new SVID must not be tainted, rotator is only notified about
-	// tainted authorities only when intermediate is alreday rotated
+	// New new SVID must not be tainted. Rotator is notified about tainted
+	// authorities only when the intermediate is already rotated.
 	r.isSVIDTainted = false
 
 	return nil

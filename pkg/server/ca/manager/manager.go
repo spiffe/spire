@@ -620,7 +620,7 @@ func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorit
 
 	currentSlotCA := m.currentX509CA.x509CA
 	if ok := isX509AuthorityTainted(currentSlotCA, taintedAuthorities); ok {
-		m.c.Log.Debug("Current root CA is signed by a tainted upstream authority, preparing rotation")
+		m.c.Log.Info("Current root CA is signed by a tainted upstream authority, preparing rotation")
 
 		err := m.prepareUntaintedX509CA(ctx, taintedAuthorities)
 		if err != nil {
@@ -638,7 +638,7 @@ func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorit
 	for _, each := range taintedAuthorities {
 		skID := x509util.SubjectKeyIDToString(each.SubjectKeyId)
 		if err := ds.TaintX509CA(ctx, m.c.TrustDomain.IDString(), skID); err != nil {
-			return err
+			return fmt.Errorf("could not taint X509 CA in datastore: %w", err)
 		}
 	}
 
@@ -833,7 +833,7 @@ func (m *Manager) shouldPrepareX509CA(taintedAuthorities []*x509.Certificate) bo
 		return true
 	case slot.Status() == journal.Status_PREPARED:
 		isTainted := isX509AuthorityTainted(slot.x509CA, taintedAuthorities)
-		m.c.Log.Debug("Next authority is tainted, prepare new X.509 authority")
+		m.c.Log.Info("Next authority is tainted, prepare new X.509 authority")
 		return isTainted
 	default:
 		return false
@@ -916,10 +916,10 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 		})
 	}
 
-	// Notificate about tainted authorities to force rotation of intermediates,
-	// and update database,
-	// it is done in a separated thread to prevent agent and downstream servers,
-	// to start rotations before current server forced intermediate rotations
+	// Notificate about tainted authorities to force the rotation of
+	// intermediates and update the database. This is done in a separate thread
+	// to prevent agents and downstream servers to start the rotation before the
+	// current server starts the rotation of the intermediate.
 	if len(taintedAuthorities) > 0 {
 		u.upstreamAuthoritiesTainted(taintedAuthorities)
 	}
