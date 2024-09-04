@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 
 	"github.com/gogo/status"
 	"github.com/hashicorp/go-hclog"
@@ -140,26 +139,3 @@ func getContainerIDFromCGroups(finder cgroup.ContainerIDFinder, cgroups []cgroup
 		return containerID, nil
 	}
 }
-
-type defaultContainerIDFinder struct{}
-
-// FindContainerID returns the container ID in the given cgroup path. The cgroup
-// path must have the whole word "docker" at some point in the path followed
-// at some point by a 64 hex-character container ID. If the cgroup path does
-// not match the above description, the method returns false.
-func (f *defaultContainerIDFinder) FindContainerID(cgroupPath string) (string, bool) {
-	m := dockerCGroupRE.FindStringSubmatch(cgroupPath)
-	if m != nil {
-		return m[1], true
-	}
-	return "", false
-}
-
-// dockerCGroupRE matches cgroup paths that have the following properties.
-// 1) `\bdocker\b` the whole word docker
-// 2) `.+` followed by one or more characters (which will start on a word boundary due to #1)
-// 3) `\b([[:xdigit:]][64])\b` followed by a 64 hex-character container id on word boundary
-//
-// The "docker" prefix and 64-hex character container id can be anywhere in the path. The only
-// requirement is that the docker prefix comes before the id.
-var dockerCGroupRE = regexp.MustCompile(`\bdocker\b.+\b([[:xdigit:]]{64})\b`)
