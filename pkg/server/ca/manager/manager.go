@@ -619,8 +619,7 @@ func (m *Manager) notifyTaintedAuthorities(ctx context.Context, taintedAuthoriti
 	)
 
 	for {
-		// TODO: may we add a backoff to all processing tainted authorities code?
-		err := m.processTaintedAuthorities(ctx, taintedAuthorities)
+		err := m.processTaintedUpstreamAuthorities(ctx, taintedAuthorities)
 		if err == nil {
 			break
 		}
@@ -629,7 +628,7 @@ func (m *Manager) notifyTaintedAuthorities(ctx context.Context, taintedAuthoriti
 		if nextDuration == backoff.Stop {
 			return err
 		}
-		m.c.Log.WithError(err).Warn("failed to process tainted keys")
+		m.c.Log.WithError(err).Warn("Failed to process tainted keys on upstream authority")
 		if m.triggerBackOffCh != nil {
 			m.triggerBackOffCh <- err
 		}
@@ -645,10 +644,10 @@ func (m *Manager) notifyTaintedAuthorities(ctx context.Context, taintedAuthoriti
 	return nil
 }
 
-func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
+func (m *Manager) processTaintedUpstreamAuthorities(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
 	// Nothing to rotate if no upstream authority is used
 	if m.upstreamClient == nil {
-		return errors.New("processing of tainted upstream authorities must not be reached when not using upstream authority. Please create an issue.")
+		return errors.New("processing of tainted upstream authorities must not be reached when not using an upstream authority; please report this bug")
 	}
 
 	if len(taintedAuthorities) == 0 {
@@ -661,19 +660,19 @@ func (m *Manager) processTaintedAuthorities(ctx context.Context, taintedAuthorit
 	currentSlotCA := m.currentX509CA.x509CA
 	if ok := isX509AuthorityTainted(currentSlotCA, taintedAuthorities); ok {
 		m.c.Log.Info("Current root CA is signed by a tainted upstream authority, preparing rotation")
-
-		err := m.prepareUntaintedX509CA(ctx, taintedAuthorities)
-		if err != nil {
-			// Prepared authority is no longer tainted finish for, to rotate...
-			return err
+		if ok := m.shouldPrepareX509CA(taintedAuthorities); ok {
+			if err := m.PrepareX509CA(ctx); err != nil {
+				return fmt.Errorf("failed to prepare x509 authority: %w", err)
+			}
 		}
 
 		// Activate the prepared X.509 authority
 		m.RotateX509CA(ctx)
 	}
 
-	// Now that we rotated intermediate propagate tainted keys,
-	// So agent and downstream servers can start forcing rotations
+	// Now that we have rotated the intermediate, we can notify about the
+	// tainted authorities, so agents and downstream servers can start forcing
+	// the rotation of their SVIDs.
 	ds := m.c.Catalog.GetDataStore()
 	for _, each := range taintedAuthorities {
 		skID := x509util.SubjectKeyIDToString(each.SubjectKeyId)
@@ -851,21 +850,6 @@ func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 	return res, nil
 }
 
-// prepareUntaintedX509CA prepare nextX509CA until it is no longer tainted
-func (m *Manager) prepareUntaintedX509CA(ctx context.Context, taintedAuthorities []*x509.Certificate) error {
-	// Prepare a new X.509 authority when next is old or it is signed by a tainted key
-	if ok := m.shouldPrepareX509CA(taintedAuthorities); !ok {
-		return nil
-	}
-
-	err := m.PrepareX509CA(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to prepare x509 authority: %w", err)
-	}
-
-	return nil
-}
-
 func (m *Manager) shouldPrepareX509CA(taintedAuthorities []*x509.Certificate) bool {
 	slot := m.nextX509CA
 	switch {
@@ -956,7 +940,7 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 		})
 	}
 
-	// Notificate about tainted authorities to force the rotation of
+	// Notify about tainted authorities to force the rotation of
 	// intermediates and update the database. This is done in a separate thread
 	// to prevent agents and downstream servers to start the rotation before the
 	// current server starts the rotation of the intermediate.
