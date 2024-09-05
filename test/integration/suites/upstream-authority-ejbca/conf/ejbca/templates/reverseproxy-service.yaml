@@ -1,0 +1,23 @@
+{{- if .Values.ejbca.reverseProxy.enabled -}}
+{{- $svcType := .Values.ejbca.reverseProxy.service.type }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.ejbca.reverseProxy.service.name }}
+  labels:
+    {{- include "ejbca.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.ejbca.reverseProxy.service.type }}
+  ports:
+  {{- range .Values.ejbca.reverseProxy.service.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .port}}
+      protocol: {{ .protocol }}
+      {{- if contains "NodePort" $svcType }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
+  {{- end }}
+  selector:
+    {{- include "ejbca.selectorLabels" . | nindent 4 }}
+{{- end }}
