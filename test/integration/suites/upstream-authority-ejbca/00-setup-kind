@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Create a temporary path that will be added to the PATH to avoid picking up
+# binaries from the environment that aren't a version match.
+mkdir -p ./bin
+
+KIND_PATH=./bin/kind
+KUBECTL_PATH=./bin/kubectl
+HELM_PATH=./bin/helm
+
+# Download kind at the expected version at the given path.
+download-kind "${KIND_PATH}"
+
+# Download kubectl at the expected version.
+download-kubectl "${KUBECTL_PATH}"
+
+# Download helm at the expected version.
+download-helm "${HELM_PATH}"
+
+# Start the kind cluster.
+start-kind-cluster "${KIND_PATH}" ejbca-test
+
+# Load the given images in the cluster.
+container_images=("spire-server:latest-local")
+load-images "${KIND_PATH}" ejbca-test "${container_images[@]}"
+
+# Set the kubectl context.
+set-kubectl-context "${KUBECTL_PATH}" kind-ejbca-test

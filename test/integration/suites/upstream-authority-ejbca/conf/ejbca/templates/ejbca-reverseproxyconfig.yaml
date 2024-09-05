@@ -1,0 +1,113 @@
+{{- if .Values.ejbca.reverseProxy.enabled -}}
+apiVersion: v1
+data:
+  httpd.conf: |+
+    # Load required modules
+    LoadModule mpm_event_module modules/mod_mpm_event.so
+    LoadModule headers_module modules/mod_headers.so
+    LoadModule authz_core_module modules/mod_authz_core.so
+    LoadModule access_compat_module modules/mod_access_compat.so
+    LoadModule log_config_module modules/mod_log_config.so
+    LoadModule proxy_module modules/mod_proxy.so
+    LoadModule proxy_http_module modules/mod_proxy_http.so
+    LoadModule unixd_module modules/mod_unixd.so
+    LoadModule filter_module modules/mod_filter.so
+    LoadModule substitute_module modules/mod_substitute.so
+    LoadModule rewrite_module modules/mod_rewrite.so
+    LoadModule socache_shmcb_module modules/mod_socache_shmcb.so
+    LoadModule ssl_module modules/mod_ssl.so
+
+    # Set default connection behavior
+    MaxKeepAliveRequests 1000
+    KeepAlive On
+    KeepAliveTimeout 180
+
+    # Set basic security for Unix platform
+    <IfModule unixd_module>
+        User daemon
+        Group daemon
+    </IfModule>
+
+    # Set log configuration
+    ErrorLog /proc/self/fd/2
+    LogLevel info
+    <IfModule log_config_module>
+        LogFormat "%h %A:%p %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+        LogFormat "%h %A:%p %l %u %t \"%r\" %>s %b" common
+        CustomLog /proc/self/fd/1 common
+    </IfModule>
+
+    ServerRoot "/usr/local/apache2"
+    Listen 8080
+    {{- range .Values.ejbca.reverseProxy.service.ports }}
+    Listen {{ .port }}
+    {{- end }}
+
+    <Directory />
+        AllowOverride none
+        Require all denied
+    </Directory>
+
+    {{- range .Values.ejbca.reverseProxy.service.ports }}
+    <VirtualHost *:{{ .port }}>
+        # Disallow any HTTP method that is not HEAD, GET or POST
+        RewriteEngine On
+        RewriteCond %{REQUEST_METHOD} !^(HEAD|GET|POST)$ [NC]
+        RewriteRule .* - [F,L]
+
+        # Allow encoded slashes for OCSP GET
+        AllowEncodedSlashes On
+
+        {{- if .tlsSecretName }}
+        SSLEngine On
+        SSLProtocol all -SSLv2 -SSLv3 -TLSv1 +TLSv1.2 -TLSv1.3
+        SSLCertificateFile "{{ .baseCertDir }}/tls.crt"
+        SSLCertificateKeyFile "{{ .baseCertDir }}/tls.key"
+        RequestHeader set X-Forwarded-Proto "https"
+        {{- end }}
+
+        {{ if .authCASecretName }}
+        SSLCACertificateFile "{{ .baseCaCertDir }}/ca.crt"
+
+        <Location /ejbca/adminweb>
+            SSLVerifyClient optional
+            SSLOptions +ExportCertData +StdEnvVars
+            RequestHeader set SSL_CLIENT_CERT "%{SSL_CLIENT_CERT}s"
+        </Location>
+
+        <Location /ejbca/ejbca-rest-api>
+            SSLVerifyClient optional
+            SSLOptions +ExportCertData +StdEnvVars
+            RequestHeader set SSL_CLIENT_CERT "%{SSL_CLIENT_CERT}s"
+        </Location>
+
+        <Location /ejbca/ra>
+            SSLVerifyClient optional
+            SSLOptions +ExportCertData +StdEnvVars
+            RequestHeader set SSL_CLIENT_CERT "%{SSL_CLIENT_CERT}s"
+        </Location>
+        {{- end }}
+
+        ProxyPass /ejbca/       http://localhost:{{ .targetPort }}/ejbca/ keepalive=On ping=500ms retry=1 timeout=300
+
+        # Add ProxyPass for EST and .well-known URLs
+        ProxyPass /.well-known/        http://localhost:{{ .targetPort }}/.well-known/ keepalive=On ping=500ms retry=1 timeout=300
+    </VirtualHost>
+    {{- end }}
+
+    # <VirtualHost *:8080>
+    #     # Disallow any HTTP method that is not HEAD, GET or POST
+    #     RewriteEngine On
+    #     RewriteCond %{REQUEST_METHOD} !^(HEAD|GET|POST)$ [NC]
+    #     RewriteRule .* - [F,L]
+
+    #     # Allow encoded slashes for OCSP GET
+    #     AllowEncodedSlashes On
+
+    #     # Proxy http requests from K8s ingress to EJBCA via port 8082
+    #     ProxyPass /ejbca/       http://localhost:8009/ejbca/ keepalive=On ping=500ms retry=1 timeout=300
+    # </VirtualHost>
+kind: ConfigMap
+metadata:
+  name: httpd-configmap
+{{- end -}}
