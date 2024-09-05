@@ -1,0 +1,21 @@
+{{- $svcType := .Values.ejbca.service.type }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.ejbca.service.name }}
+  labels:
+    {{- include "ejbca.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.ejbca.service.type }}
+  ports:
+  {{- range .Values.ejbca.service.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort}}
+      protocol: {{ .protocol }}
+      {{- if contains "NodePort" $svcType }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
+  {{- end }}
+  selector:
+    {{- include "ejbca.selectorLabels" . | nindent 4 }}
