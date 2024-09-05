@@ -64,7 +64,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/mitchellh/cli v1.1.5
-	github.com/open-policy-agent/opa v0.67.1
+	github.com/open-policy-agent/opa v0.68.0
 	github.com/prometheus/client_golang v1.20.2
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/sigstore/cosign/v2 v2.4.0
@@ -241,7 +241,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/opencontainers/runc v1.1.13 // indirect
-	github.com/opencontainers/runtime-spec v1.0.3-0.20220909204839-494a5a6aca78 // indirect
+	github.com/opencontainers/runtime-spec v1.1.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
