@@ -263,9 +263,11 @@ func TestMintX509CA(t *testing.T) {
 	for _, c := range cases {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
+			mockClock := clock.NewMock(t)
+
 			// Setup servers
 			server := testHandler{}
-			server.startTestServers(t, ca, serverCert, serverKey, svidCert, svidKey)
+			server.startTestServers(t, mockClock, ca, serverCert, serverKey, svidCert, svidKey)
 			server.sAPIServer.setError(c.sAPIError)
 			server.sAPIServer.setDownstreamResponse(c.downstreamResp)
 
@@ -278,7 +280,7 @@ func TestMintX509CA(t *testing.T) {
 				workloadAPIAddr = c.customWorkloadAPIAddr
 			}
 
-			ua, mockClock := newWithDefault(t, serverAddr, workloadAPIAddr)
+			ua := newWithDefault(t, mockClock, serverAddr, workloadAPIAddr)
 			server.sAPIServer.clock = mockClock
 
 			// Send initial request and get stream
@@ -357,9 +359,10 @@ func TestPublishJWTKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup servers
+	mockClock := clock.NewMock(t)
 	server := testHandler{}
-	server.startTestServers(t, ca, serverCert, serverKey, svidCert, svidKey)
-	ua, mockClock := newWithDefault(t, server.sAPIServer.addr, server.wAPIServer.workloadAPIAddr)
+	server.startTestServers(t, mockClock, ca, serverCert, serverKey, svidCert, svidKey)
+	ua := newWithDefault(t, mockClock, server.sAPIServer.addr, server.wAPIServer.workloadAPIAddr)
 
 	// Get first response
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -411,7 +414,7 @@ func TestPublishJWTKey(t *testing.T) {
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "upstreamauthority(spire): failed to push JWT authority: rpc error: code = Unknown desc = some erro")
 }
 
-func newWithDefault(t *testing.T, serverAddr string, workloadAPIAddr net.Addr) (*upstreamauthority.V1, *clock.Mock) {
+func newWithDefault(t *testing.T, mockClock *clock.Mock, serverAddr string, workloadAPIAddr net.Addr) *upstreamauthority.V1 {
 	host, port, _ := net.SplitHostPort(serverAddr)
 	config := Configuration{
 		ServerAddr: host,
@@ -419,19 +422,18 @@ func newWithDefault(t *testing.T, serverAddr string, workloadAPIAddr net.Addr) (
 	}
 	setWorkloadAPIAddr(&config, workloadAPIAddr)
 
+	p := New()
+	p.clk = mockClock
+
 	ua := new(upstreamauthority.V1)
-	plugintest.Load(t, BuiltIn(), ua,
+	plugintest.Load(t, builtin(p), ua,
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: trustDomain,
 		}),
 		plugintest.ConfigureJSON(config),
 	)
 
-	mockClock := clock.NewMock(t)
-
-	clk = mockClock
-
-	return ua, mockClock
+	return ua
 }
 
 func certChainURIs(chain []*x509.Certificate) []string {
