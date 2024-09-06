@@ -12,10 +12,6 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const (
-	defaultPluginConfig = ""
-)
-
 func TestFailToGetContainerID(t *testing.T) {
 	h := &fakeProcessHelper{
 		err: errors.New("oh no"),

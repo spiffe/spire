@@ -381,7 +381,7 @@ func withSigstoreVerifier(v sigstore.Verifier) testPluginOpt {
 
 func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 	p := New()
-	err := doConfigure(t, p, defaultPluginConfig)
+	err := doConfigure(t, p, "")
 	require.NoError(t, err)
 
 	for _, o := range opts {

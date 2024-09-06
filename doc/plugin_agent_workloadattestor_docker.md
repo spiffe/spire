@@ -10,7 +10,7 @@ then querying the docker daemon for the container's labels.
 | docker_version                 | The API version of the docker daemon. If not specified                                         |                                  |
 | container_id_cgroup_matchers   | A list of patterns used to discover container IDs from cgroup entries (Unix)                   |                                  |
 | docker_host                    | The location of the Docker Engine API endpoint (Windows only)                                  | "npipe:////./pipe/docker_engine" |
-| use_new_container_locator      | If true, enables the new container locator algorithm that has support for cgroups v2           | false                            |
+| use_new_container_locator      | If true, enables the new container locator algorithm that has support for cgroups v2           | true                             |
 | verbose_container_locator_logs | If true, enables verbose logging of mountinfo and cgroup information used to locate containers | false                            |
 
 A sample configuration:
