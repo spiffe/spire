@@ -62,7 +62,7 @@ func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 	}()
 	closers = append(closers, dialer)
 
-	builtinServer, serverCloser := newBuiltInServer()
+	builtinServer, serverCloser := newBuiltInServer(config.Log)
 	closers = append(closers, serverCloser)
 
 	pluginServers := append([]pluginsdk.ServiceServer{builtIn.Plugin}, builtIn.Services...)
@@ -83,11 +83,11 @@ func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 	return newPlugin(ctx, builtinConn, info, config.Log, closers, config.HostServices)
 }
 
-func newBuiltInServer() (*grpc.Server, io.Closer) {
+func newBuiltInServer(log logrus.FieldLogger) (*grpc.Server, io.Closer) {
 	drain := &drainHandlers{}
 	return grpc.NewServer(
-		grpc.ChainStreamInterceptor(drain.StreamServerInterceptor, streamPanicInterceptor),
-		grpc.ChainUnaryInterceptor(drain.UnaryServerInterceptor, unaryPanicInterceptor),
+		grpc.ChainStreamInterceptor(drain.StreamServerInterceptor, streamPanicInterceptor(log)),
+		grpc.ChainUnaryInterceptor(drain.UnaryServerInterceptor, unaryPanicInterceptor(log)),
 	), closerFunc(drain.Wait)
 }
 
@@ -102,7 +102,7 @@ func (d *builtinDialer) DialHost(context.Context) (grpc.ClientConnInterface, err
 	if d.conn != nil {
 		return d.conn, nil
 	}
-	server := newHostServer(d.pluginName, d.hostServices)
+	server := newHostServer(d.log, d.pluginName, d.hostServices)
 	conn, err := startPipeServer(server, d.log)
 	if err != nil {
 		return nil, err
