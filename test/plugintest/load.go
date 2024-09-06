@@ -78,11 +78,6 @@ func testLogger(t *testing.T) logrus.FieldLogger {
 
 type logHook struct{ t *testing.T }
 
-func (l logHook) Write(p []byte) (n int, err error) {
-	l.t.Logf(string(p))
-	return len(p), nil
-}
-
 func (h logHook) Levels() []logrus.Level {
 	return logrus.AllLevels
 }
