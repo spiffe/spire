@@ -123,6 +123,7 @@ func (s *Suite) SetupTest() {
 }
 
 func (s *Suite) TearDownTest() {
+	s.clock.Add(time.Minute)
 	s.setServer(nil)
 	os.RemoveAll(s.dir)
 }
@@ -145,6 +146,7 @@ func (s *Suite) TestAttestWithPidInPodAfterRetry() {
 
 	resultCh := s.goAttest(p)
 
+	s.clock.WaitForAfter(time.Minute, "waiting for cache expiry timer")
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
 	s.clock.Add(time.Second)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
@@ -173,6 +175,24 @@ func (s *Suite) TestAttestWithPidNotInPodCancelsEarly() {
 	s.Require().Nil(selectors)
 }
 
+func (s *Suite) TestAttestPodListCache() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.addPodListResponse(podListFilePath)
+
+	s.requireAttestSuccessWithPod(p)
+	s.clock.WaitForAfter(time.Minute, "waiting for cache expiry timer")
+
+	// The pod list is cached so we don't expect a request to kubelet
+	s.requireAttestSuccessWithPod(p)
+
+	// The cache expires after the clock advances by at least half the retry interval
+	s.clock.Add(time.Minute)
+	s.addPodListResponse(podListFilePath)
+	s.requireAttestSuccessWithPod(p)
+}
+
 func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
 	s.startInsecureKubelet()
 	p := s.loadInsecurePlugin()
@@ -185,6 +205,7 @@ func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
 
 	resultCh := s.goAttest(p)
 
+	s.clock.WaitForAfter(time.Minute, "waiting for cache expiry timer")
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
 	s.clock.Add(time.Second)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
@@ -690,6 +711,7 @@ func (s *Suite) kubeletPort() int {
 func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttestor {
 	v1 := new(workloadattestor.V1)
 	p := s.newPlugin()
+
 	plugintest.Load(s.T(), builtin(p), v1,
 		plugintest.Configure(configuration),
 	)
@@ -710,7 +732,6 @@ func (s *Suite) loadInsecurePlugin() workloadattestor.WorkloadAttestor {
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
-		use_new_container_locator = true
 `, s.kubeletPort()))
 }
 
@@ -719,7 +740,6 @@ func (s *Suite) loadInsecurePluginWithExtra(extraConfig string) workloadattestor
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
-		use_new_container_locator = true
 		%s
 `, s.kubeletPort(), extraConfig))
 }
@@ -729,7 +749,6 @@ func (s *Suite) loadInsecurePluginWithSigstore() workloadattestor.WorkloadAttest
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
-		use_new_container_locator = true
 		experimental {
 			sigstore {
 			}

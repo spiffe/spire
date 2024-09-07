@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -31,6 +32,7 @@ var (
 )
 
 type Config struct {
+	Clock                       clock.Clock
 	TrustDomain                 spiffeid.TrustDomain
 	UseIntermediate             bool
 	DisallowPublishJWTKey       bool
@@ -61,6 +63,9 @@ type UpstreamAuthority struct {
 }
 
 func New(t *testing.T, config Config) *UpstreamAuthority {
+	if config.Clock == nil {
+		config.Clock = clock.NewMock(t)
+	}
 	ua := &UpstreamAuthority{
 		t:                    t,
 		config:               config,
@@ -281,7 +286,7 @@ func (ua *UpstreamAuthority) sendPublishJWTKeyStream(stream upstreamauthorityv1.
 }
 
 func (ua *UpstreamAuthority) createRootCertificate() {
-	template := createCATemplate("FAKEUPSTREAMAUTHORITY-ROOT", ua.nextX509CASN(), ua.config.KeyUsage)
+	template := createCATemplate(ua.config.Clock.Now(), "FAKEUPSTREAMAUTHORITY-ROOT", ua.nextX509CASN(), ua.config.KeyUsage)
 	root := createCertificate(ua.t, template, template, &x509RootKey.PublicKey, x509RootKey)
 	ua.x509Root = &x509certificate.X509Authority{
 		Certificate: root,
@@ -293,7 +298,7 @@ func (ua *UpstreamAuthority) createIntermediateCertificate() {
 	if ua.x509Root == nil {
 		ua.createRootCertificate()
 	}
-	template := createCATemplate("FAKEUPSTREAMAUTHORITY-INT", ua.nextX509CASN(), ua.config.KeyUsage)
+	template := createCATemplate(ua.config.Clock.Now(), "FAKEUPSTREAMAUTHORITY-INT", ua.nextX509CASN(), ua.config.KeyUsage)
 	ua.x509Intermediate = createCertificate(ua.t, template, ua.x509Root.Certificate, &x509IntKey.PublicKey, x509RootKey)
 }
 
@@ -302,8 +307,7 @@ func (ua *UpstreamAuthority) nextX509CASN() int64 {
 	return ua.x509CASN
 }
 
-func createCATemplate(cn string, sn int64, keyUsage x509.KeyUsage) *x509.Certificate {
-	now := time.Now()
+func createCATemplate(now time.Time, cn string, sn int64, keyUsage x509.KeyUsage) *x509.Certificate {
 	return &x509.Certificate{
 		SerialNumber: big.NewInt(sn),
 		Subject: pkix.Name{

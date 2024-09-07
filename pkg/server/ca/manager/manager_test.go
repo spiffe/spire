@@ -329,7 +329,7 @@ func TestUpstreamSigned(t *testing.T) {
 	ctx := context.Background()
 	test := setupTest(t)
 
-	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
 	})
@@ -496,7 +496,7 @@ func TestGetCurrentX509CASlotUpstreamSigned(t *testing.T) {
 
 	test := setupTest(t)
 
-	upstreamAuthority, ua := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
 	})
@@ -523,7 +523,7 @@ func TestGetNextX509CASlotUpstreamSigned(t *testing.T) {
 	ctx := context.Background()
 
 	test := setupTest(t)
-	upstreamAuthority, ua := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
 	})
@@ -549,7 +549,7 @@ func TestGetNextX509CASlotUpstreamSigned(t *testing.T) {
 func TestUpstreamSignedProducesInvalidChain(t *testing.T) {
 	ctx := context.Background()
 	test := setupTest(t)
-	upstreamAuthority, _ := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+	upstreamAuthority, _ := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 		// The verification code relies on go-spiffe, which for compat reasons,
 		// does not currently validate SPIFFE conformance beyond the leaf
@@ -580,7 +580,7 @@ func TestUpstreamSignedProducesInvalidChain(t *testing.T) {
 func TestUpstreamIntermediateSigned(t *testing.T) {
 	ctx := context.Background()
 	test := setupTest(t)
-	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
 		UseIntermediate:       true,
@@ -617,7 +617,7 @@ func TestUpstreamAuthorityWithPublishJWTKeyImplemented(t *testing.T) {
 	bundle := test.createBundle(ctx)
 	require.Len(t, bundle.JwtSigningKeys, 0)
 
-	upstreamAuthority, ua := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
 	})
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
@@ -1039,10 +1039,6 @@ func TestActivationThresholdCap(t *testing.T) {
 }
 
 func TestAlternateKeyTypes(t *testing.T) {
-	upstreamAuthority, _ := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
-		TrustDomain: testTrustDomain,
-	})
-
 	expectRSA := func(t *testing.T, signer crypto.Signer, keySize int) {
 		publicKey, ok := signer.Public().(*rsa.PublicKey)
 		t.Logf("PUBLIC KEY TYPE: %T", signer.Public())
@@ -1077,7 +1073,7 @@ func TestAlternateKeyTypes(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		upstreamAuthority upstreamauthority.UpstreamAuthority
+		upstreamAuthority bool
 		x509CAKeyType     keymanager.KeyType
 		jwtKeyType        keymanager.KeyType
 		checkX509CA       func(*testing.T, crypto.Signer)
@@ -1120,7 +1116,7 @@ func TestAlternateKeyTypes(t *testing.T) {
 		},
 		{
 			name:              "upstream-signed with RSA 2048",
-			upstreamAuthority: upstreamAuthority,
+			upstreamAuthority: true,
 			x509CAKeyType:     keymanager.RSA2048,
 			jwtKeyType:        keymanager.RSA2048,
 			checkX509CA:       expectRSA2048,
@@ -1128,7 +1124,7 @@ func TestAlternateKeyTypes(t *testing.T) {
 		},
 		{
 			name:              "upstream-signed with RSA 4096",
-			upstreamAuthority: upstreamAuthority,
+			upstreamAuthority: true,
 			x509CAKeyType:     keymanager.RSA4096,
 			jwtKeyType:        keymanager.RSA4096,
 			checkX509CA:       expectRSA4096,
@@ -1136,7 +1132,7 @@ func TestAlternateKeyTypes(t *testing.T) {
 		},
 		{
 			name:              "upstream-signed with EC P256",
-			upstreamAuthority: upstreamAuthority,
+			upstreamAuthority: true,
 			x509CAKeyType:     keymanager.ECP256,
 			jwtKeyType:        keymanager.ECP256,
 			checkX509CA:       expectEC256,
@@ -1144,7 +1140,7 @@ func TestAlternateKeyTypes(t *testing.T) {
 		},
 		{
 			name:              "upstream-signed with EC P384",
-			upstreamAuthority: upstreamAuthority,
+			upstreamAuthority: true,
 			x509CAKeyType:     keymanager.ECP384,
 			jwtKeyType:        keymanager.ECP384,
 			checkX509CA:       expectEC384,
@@ -1158,6 +1154,7 @@ func TestAlternateKeyTypes(t *testing.T) {
 			ctx := context.Background()
 
 			test := setupTest(t)
+
 			c := test.selfSignedConfig()
 			c.X509CAKeyType = testCase.x509CAKeyType
 			c.JWTKeyType = testCase.jwtKeyType
@@ -1167,7 +1164,12 @@ func TestAlternateKeyTypes(t *testing.T) {
 			test.cat.SetKeyManager(fakeserverkeymanager.New(t))
 
 			// Optionally provide an upstream authority
-			test.cat.SetUpstreamAuthority(testCase.upstreamAuthority)
+			if testCase.upstreamAuthority {
+				upstreamAuthority, _ := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
+					TrustDomain: testTrustDomain,
+				})
+				test.cat.SetUpstreamAuthority(upstreamAuthority)
+			}
 
 			manager, err := NewManager(ctx, c)
 			require.NoError(t, err)
@@ -1246,6 +1248,11 @@ func setupTest(t *testing.T) *managerTest {
 		dir:     dir,
 		km:      km,
 	}
+}
+
+func (m *managerTest) newFakeUpstreamAuthority(t *testing.T, config fakeupstreamauthority.Config) (upstreamauthority.UpstreamAuthority, *fakeupstreamauthority.UpstreamAuthority) {
+	config.Clock = m.clock
+	return fakeupstreamauthority.Load(t, config)
 }
 
 func (m *managerTest) initSelfSignedManager() {

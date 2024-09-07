@@ -1,4 +1,4 @@
-package localauthority_test
+package authoritycommon_test
 
 import (
 	"bytes"
@@ -15,26 +15,26 @@ import (
 )
 
 var (
-	availableFormats = []string{"pretty", "json"}
+	AvailableFormats = []string{"pretty", "json"}
 )
 
 type localAuthorityTest struct {
-	stdin  *bytes.Buffer
-	stdout *bytes.Buffer
-	stderr *bytes.Buffer
-	args   []string
-	server *fakeLocalAuthorityServer
-	client cli.Command
+	Stdin  *bytes.Buffer
+	Stdout *bytes.Buffer
+	Stderr *bytes.Buffer
+	Args   []string
+	Server *fakeLocalAuthorityServer
+	Client cli.Command
 }
 
 func (s *localAuthorityTest) afterTest(t *testing.T) {
 	t.Logf("TEST:%s", t.Name())
-	t.Logf("STDOUT:\n%s", s.stdout.String())
-	t.Logf("STDIN:\n%s", s.stdin.String())
-	t.Logf("STDERR:\n%s", s.stderr.String())
+	t.Logf("STDOUT:\n%s", s.Stdout.String())
+	t.Logf("STDIN:\n%s", s.Stdin.String())
+	t.Logf("STDERR:\n%s", s.Stderr.String())
 }
 
-func setupTest(t *testing.T, newClient func(*commoncli.Env) cli.Command) *localAuthorityTest {
+func SetupTest(t *testing.T, newClient func(*commoncli.Env) cli.Command) *localAuthorityTest {
 	server := &fakeLocalAuthorityServer{}
 
 	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
@@ -52,12 +52,12 @@ func setupTest(t *testing.T, newClient func(*commoncli.Env) cli.Command) *localA
 	})
 
 	test := &localAuthorityTest{
-		stdin:  stdin,
-		stdout: stdout,
-		stderr: stderr,
-		args:   []string{common.AddrArg, common.GetAddr(addr)},
-		server: server,
-		client: client,
+		Stdin:  stdin,
+		Stdout: stdout,
+		Stderr: stderr,
+		Args:   []string{common.AddrArg, common.GetAddr(addr)},
+		Server: server,
+		Client: client,
 	}
 
 	t.Cleanup(func() {
@@ -70,93 +70,93 @@ func setupTest(t *testing.T, newClient func(*commoncli.Env) cli.Command) *localA
 type fakeLocalAuthorityServer struct {
 	localauthorityv1.UnsafeLocalAuthorityServer
 
-	activeJWT,
-	preparedJWT,
-	oldJWT,
-	activeX509,
-	preparedX509,
-	oldX509,
-	taintedX509,
-	revokedX509,
-	taintedJWT,
-	revokedJWT *localauthorityv1.AuthorityState
+	ActiveJWT,
+	PreparedJWT,
+	OldJWT,
+	ActiveX509,
+	PreparedX509,
+	OldX509,
+	TaintedX509,
+	RevokedX509,
+	TaintedJWT,
+	RevokedJWT *localauthorityv1.AuthorityState
 
-	err error
+	Err error
 }
 
 func (s *fakeLocalAuthorityServer) GetJWTAuthorityState(context.Context, *localauthorityv1.GetJWTAuthorityStateRequest) (*localauthorityv1.GetJWTAuthorityStateResponse, error) {
 	return &localauthorityv1.GetJWTAuthorityStateResponse{
-		Active:   s.activeJWT,
-		Prepared: s.preparedJWT,
-		Old:      s.oldJWT,
-	}, s.err
+		Active:   s.ActiveJWT,
+		Prepared: s.PreparedJWT,
+		Old:      s.OldJWT,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) PrepareJWTAuthority(context.Context, *localauthorityv1.PrepareJWTAuthorityRequest) (*localauthorityv1.PrepareJWTAuthorityResponse, error) {
 	return &localauthorityv1.PrepareJWTAuthorityResponse{
-		PreparedAuthority: s.preparedJWT,
-	}, s.err
+		PreparedAuthority: s.PreparedJWT,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) ActivateJWTAuthority(context.Context, *localauthorityv1.ActivateJWTAuthorityRequest) (*localauthorityv1.ActivateJWTAuthorityResponse, error) {
 	return &localauthorityv1.ActivateJWTAuthorityResponse{
-		ActivatedAuthority: s.activeJWT,
-	}, s.err
+		ActivatedAuthority: s.ActiveJWT,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) TaintJWTAuthority(context.Context, *localauthorityv1.TaintJWTAuthorityRequest) (*localauthorityv1.TaintJWTAuthorityResponse, error) {
 	return &localauthorityv1.TaintJWTAuthorityResponse{
-		TaintedAuthority: s.taintedJWT,
-	}, s.err
+		TaintedAuthority: s.TaintedJWT,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) RevokeJWTAuthority(context.Context, *localauthorityv1.RevokeJWTAuthorityRequest) (*localauthorityv1.RevokeJWTAuthorityResponse, error) {
 	return &localauthorityv1.RevokeJWTAuthorityResponse{
-		RevokedAuthority: s.revokedJWT,
-	}, s.err
+		RevokedAuthority: s.RevokedJWT,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) GetX509AuthorityState(context.Context, *localauthorityv1.GetX509AuthorityStateRequest) (*localauthorityv1.GetX509AuthorityStateResponse, error) {
 	return &localauthorityv1.GetX509AuthorityStateResponse{
-		Active:   s.activeX509,
-		Prepared: s.preparedX509,
-		Old:      s.oldX509,
-	}, s.err
+		Active:   s.ActiveX509,
+		Prepared: s.PreparedX509,
+		Old:      s.OldX509,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) PrepareX509Authority(context.Context, *localauthorityv1.PrepareX509AuthorityRequest) (*localauthorityv1.PrepareX509AuthorityResponse, error) {
 	return &localauthorityv1.PrepareX509AuthorityResponse{
-		PreparedAuthority: s.preparedX509,
-	}, s.err
+		PreparedAuthority: s.PreparedX509,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) ActivateX509Authority(context.Context, *localauthorityv1.ActivateX509AuthorityRequest) (*localauthorityv1.ActivateX509AuthorityResponse, error) {
 	return &localauthorityv1.ActivateX509AuthorityResponse{
-		ActivatedAuthority: s.activeX509,
-	}, s.err
+		ActivatedAuthority: s.ActiveX509,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) TaintX509Authority(context.Context, *localauthorityv1.TaintX509AuthorityRequest) (*localauthorityv1.TaintX509AuthorityResponse, error) {
 	return &localauthorityv1.TaintX509AuthorityResponse{
-		TaintedAuthority: s.taintedX509,
-	}, s.err
+		TaintedAuthority: s.TaintedX509,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) TaintX509UpstreamAuthority(context.Context, *localauthorityv1.TaintX509UpstreamAuthorityRequest) (*localauthorityv1.TaintX509UpstreamAuthorityResponse, error) {
-	return &localauthorityv1.TaintX509UpstreamAuthorityResponse{}, s.err
+	return &localauthorityv1.TaintX509UpstreamAuthorityResponse{}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) RevokeX509Authority(context.Context, *localauthorityv1.RevokeX509AuthorityRequest) (*localauthorityv1.RevokeX509AuthorityResponse, error) {
 	return &localauthorityv1.RevokeX509AuthorityResponse{
-		RevokedAuthority: s.revokedX509,
-	}, s.err
+		RevokedAuthority: s.RevokedX509,
+	}, s.Err
 }
 
 func (s *fakeLocalAuthorityServer) RevokeX509UpstreamAuthority(context.Context, *localauthorityv1.RevokeX509UpstreamAuthorityRequest) (*localauthorityv1.RevokeX509UpstreamAuthorityResponse, error) {
-	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{}, s.err
+	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{}, s.Err
 }
 
-func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
+func RequireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {
 	switch format {
 	case "pretty":
 		require.Contains(t, stdoutString, expectedStdoutPretty)

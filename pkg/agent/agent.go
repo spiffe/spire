@@ -44,8 +44,7 @@ const (
 )
 
 type Agent struct {
-	c   *Config
-	sto storage.Storage
+	c *Config
 }
 
 // Run the agent
@@ -57,8 +56,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	var err error
-	a.sto, err = storage.Open(a.c.DataDir)
+	sto, err := storage.Open(a.c.DataDir)
 	if err != nil {
 		return fmt.Errorf("failed to open storage: %w", err)
 	}
@@ -111,7 +109,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		)
 
 		for {
-			as, err = a.attest(ctx, a.sto, cat, metrics, nodeAttestor)
+			as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
 			if err == nil {
 				break
 			}
@@ -138,7 +136,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 		}
 	} else {
-		as, err = a.attest(ctx, a.sto, cat, metrics, nodeAttestor)
+		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
 		if err != nil {
 			return err
 		}
@@ -146,7 +144,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	svidStoreCache := a.newSVIDStoreCache()
 
-	manager, err := a.newManager(ctx, a.sto, cat, metrics, as, svidStoreCache, nodeAttestor)
+	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
 	if err != nil {
 		return err
 	}
@@ -391,14 +389,11 @@ func (a *Agent) waitForTestDial(ctx context.Context) error {
 
 // CheckHealth is used as a top-level health check for the agent.
 func (a *Agent) CheckHealth() health.State {
-	err := errors.Join(
-		a.checkWorkloadAPI(),
-		a.checkSVID(),
-	)
+	err := a.checkWorkloadAPI()
 
-	// Both liveness and readiness checks verify that:
-	// - the workload API endpoint is available
-	// - the agent has an SVID
+	// Both liveness and readiness checks are done by
+	// agents ability to create new Workload API client
+	// for the X509SVID service.
 	// TODO: Better live check for agent.
 	return health.State{
 		Ready: err == nil,
@@ -410,20 +405,6 @@ func (a *Agent) CheckHealth() health.State {
 			WorkloadAPIErr: errString(err),
 		},
 	}
-}
-
-func (a *Agent) checkSVID() error {
-	if a.sto == nil {
-		return errors.New("storage not initialized")
-	}
-	svid, _, err := a.sto.LoadSVID()
-	if err != nil {
-		return fmt.Errorf("loading SVID: %w", err)
-	}
-	if svid == nil {
-		return errors.New("SVID is nil")
-	}
-	return nil
 }
 
 func (a *Agent) checkWorkloadAPI() error {
