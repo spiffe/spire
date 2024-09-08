@@ -166,8 +166,32 @@ func addCommandsEnabledByFFlags(commands map[string]cli.CommandFactory) {
 		commands["localauthority x509 show"] = func() (cli.Command, error) {
 			return localauthority_x509.NewX509ShowCommand(), nil
 		}
+		commands["localauthority x509 prepare"] = func() (cli.Command, error) {
+			return localauthority_x509.NewX509PrepareCommand(), nil
+		}
+		commands["localauthority x509 activate"] = func() (cli.Command, error) {
+			return localauthority_x509.NewX509ActivateCommand(), nil
+		}
+		commands["localauthority x509 taint"] = func() (cli.Command, error) {
+			return localauthority_x509.NewX509TaintCommand(), nil
+		}
+		commands["localauthority x509 revoke"] = func() (cli.Command, error) {
+			return localauthority_x509.NewX509RevokeCommand(), nil
+		}
 		commands["localauthority jwt show"] = func() (cli.Command, error) {
 			return localauthority_jwt.NewJWTShowCommand(), nil
+		}
+		commands["localauthority jwt prepare"] = func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTPrepareCommand(), nil
+		}
+		commands["localauthority jwt activate"] = func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTActivateCommand(), nil
+		}
+		commands["localauthority jwt taint"] = func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTTaintCommand(), nil
+		}
+		commands["localauthority jwt revoke"] = func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTRevokeCommand(), nil
 		}
 	}
 }
