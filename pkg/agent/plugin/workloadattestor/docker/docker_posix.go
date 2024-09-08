@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 
 	"github.com/gogo/status"
 	"github.com/hashicorp/go-hclog"
@@ -40,24 +39,21 @@ type OSConfig struct {
 }
 
 func createHelper(c *dockerPluginConfig, log hclog.Logger) (*containerHelper, error) {
-	var containerIDFinder cgroup.ContainerIDFinder
+	useNewContainerLocator := c.UseNewContainerLocator == nil || *c.UseNewContainerLocator
 
-	switch {
-	case c.UseNewContainerLocator != nil && *c.UseNewContainerLocator:
-		if len(c.ContainerIDCGroupMatchers) > 0 {
-			return nil, status.Error(codes.InvalidArgument, "the new container locator and custom cgroup matchers cannot both be used")
+	var containerIDFinder cgroup.ContainerIDFinder
+	if len(c.ContainerIDCGroupMatchers) > 0 {
+		if useNewContainerLocator {
+			return nil, status.Error(codes.InvalidArgument, "the new container locator and custom cgroup matchers cannot both be used; please open an issue if the new container locator fails to locate workload containers in your environment; to continue using custom matchers set use_new_container_locator=false")
 		}
-		log.Info("Using the new container locator")
-	case len(c.ContainerIDCGroupMatchers) > 0:
-		log.Warn("Using the legacy container locator with custom cgroup matchers. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
+		log.Warn("Using the legacy container locator with custom cgroup matchers. This feature will be removed in a future release.")
 		var err error
 		containerIDFinder, err = cgroup.NewContainerIDFinder(c.ContainerIDCGroupMatchers)
 		if err != nil {
 			return nil, err
 		}
-	default:
-		log.Warn("Using the legacy container locator. The new locator will be enabled by default in a future release. Consider using it now by setting `use_new_container_locator=true`.")
-		containerIDFinder = &defaultContainerIDFinder{}
+	} else {
+		log.Info("Using the new container locator")
 	}
 
 	rootDir := c.rootDir
@@ -143,26 +139,3 @@ func getContainerIDFromCGroups(finder cgroup.ContainerIDFinder, cgroups []cgroup
 		return containerID, nil
 	}
 }
-
-type defaultContainerIDFinder struct{}
-
-// FindContainerID returns the container ID in the given cgroup path. The cgroup
-// path must have the whole word "docker" at some point in the path followed
-// at some point by a 64 hex-character container ID. If the cgroup path does
-// not match the above description, the method returns false.
-func (f *defaultContainerIDFinder) FindContainerID(cgroupPath string) (string, bool) {
-	m := dockerCGroupRE.FindStringSubmatch(cgroupPath)
-	if m != nil {
-		return m[1], true
-	}
-	return "", false
-}
-
-// dockerCGroupRE matches cgroup paths that have the following properties.
-// 1) `\bdocker\b` the whole word docker
-// 2) `.+` followed by one or more characters (which will start on a word boundary due to #1)
-// 3) `\b([[:xdigit:]][64])\b` followed by a 64 hex-character container id on word boundary
-//
-// The "docker" prefix and 64-hex character container id can be anywhere in the path. The only
-// requirement is that the docker prefix comes before the id.
-var dockerCGroupRE = regexp.MustCompile(`\bdocker\b.+\b([[:xdigit:]]{64})\b`)

@@ -732,7 +732,6 @@ func (s *Suite) loadInsecurePlugin() workloadattestor.WorkloadAttestor {
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
-		use_new_container_locator = true
 `, s.kubeletPort()))
 }
 
@@ -741,7 +740,6 @@ func (s *Suite) loadInsecurePluginWithExtra(extraConfig string) workloadattestor
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
-		use_new_container_locator = true
 		%s
 `, s.kubeletPort(), extraConfig))
 }
@@ -751,7 +749,6 @@ func (s *Suite) loadInsecurePluginWithSigstore() workloadattestor.WorkloadAttest
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
-		use_new_container_locator = true
 		experimental {
 			sigstore {
 			}

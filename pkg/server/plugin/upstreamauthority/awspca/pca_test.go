@@ -366,7 +366,7 @@ func TestMintX509CA(t *testing.T) {
 			config:                  successConfig,
 			csr:                     makeCSR("spiffe://example.com/foo"),
 			preferredTTL:            300 * time.Second,
-			getCertificateCert:      "no a certificate",
+			getCertificateCert:      "not a certificate",
 			getCertificateCertChain: encodedCertChain.String(),
 			expectCode:              codes.Internal,
 			expectMsgPrefix:         "upstreamauthority(aws_pca): failed to parse certificate from response: no PEM blocks",
@@ -377,7 +377,7 @@ func TestMintX509CA(t *testing.T) {
 			csr:                     makeCSR("spiffe://example.com/foo"),
 			preferredTTL:            300 * time.Second,
 			getCertificateCert:      encodedCert.String(),
-			getCertificateCertChain: "no a cert chain",
+			getCertificateCertChain: "not a cert chain",
 			expectCode:              codes.Internal,
 			expectMsgPrefix:         "upstreamauthority(aws_pca): failed to parse certificate chain from response: no PEM blocks",
 		},
@@ -420,7 +420,7 @@ func TestMintX509CA(t *testing.T) {
 			}
 
 			assert.Equal(t, tt.expectX509CA, x509CA, "unexpected X509CA")
-			assert.Equal(t, tt.expectX509Authorities, x509Authorities, "unexected authorities")
+			assert.Equal(t, tt.expectX509Authorities, x509Authorities, "unexpected authorities")
 
 			// Plugin does not support streaming back changes so assert the
 			// stream returns EOF.
