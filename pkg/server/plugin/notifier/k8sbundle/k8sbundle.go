@@ -18,6 +18,7 @@ import (
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	admissionv1 "k8s.io/api/admissionregistration/v1"
@@ -63,9 +64,21 @@ type cluster struct {
 	KubeConfigFilePath string `hcl:"kube_config_file_path"`
 }
 
-type pluginConfig struct {
+type Configuration struct {
 	cluster  `hcl:",squash"` // for hcl v2 it should be `hcl:",remain"`
 	Clusters []cluster       `hcl:"clusters"`
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
+	}
+
+	// TODO: move some of the Configure func stuff here.
+
+	return newConfig
 }
 
 type Plugin struct {
@@ -74,13 +87,13 @@ type Plugin struct {
 
 	mu               sync.RWMutex
 	log              hclog.Logger
-	config           *pluginConfig
+	config           *Configuration
 	identityProvider identityproviderv1.IdentityProviderServiceClient
 	clients          []kubeClient
 	stopCh           chan struct{}
 
 	hooks struct {
-		newKubeClients   func(c *pluginConfig) ([]kubeClient, error)
+		newKubeClients   func(c *Configuration) ([]kubeClient, error)
 		informerCallback informerCallback
 	}
 }
@@ -124,39 +137,49 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv1.NotifyAndA
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
-	config := new(pluginConfig)
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	if hasRootCluster(&newConfig.cluster) || !hasRootCluster(&newConfig.cluster) && !hasMultipleClusters(newConfig.Clusters) {
+		setDefaultValues(&newConfig.cluster)
 	}
 
 	// root set with at least one value or the whole configuration is empty
-	if hasRootCluster(&config.cluster) || !hasRootCluster(&config.cluster) && !hasMultipleClusters(config.Clusters) {
-		setDefaultValues(&config.cluster)
-	}
-	for i := range config.Clusters {
-		if config.Clusters[i].KubeConfigFilePath == "" {
+	for i := range newConfig.Clusters {
+		if newConfig.Clusters[i].KubeConfigFilePath == "" {
 			return nil, status.Error(codes.InvalidArgument, "cluster configuration is missing kube_config_file_path")
 		}
-		setDefaultValues(&config.Clusters[i])
+		setDefaultValues(&newConfig.Clusters[i])
 	}
 
-	clients, err := p.hooks.newKubeClients(config)
+	clients, err := p.hooks.newKubeClients(newConfig)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to create new kubeClients: %v", err)
 	}
 
 	stopCh := make(chan struct{})
-	if err = p.startInformers(ctx, config, clients, stopCh); err != nil {
+	if err = p.startInformers(ctx, newConfig, clients, stopCh); err != nil {
 		close(stopCh)
 		return nil, status.Errorf(codes.Internal, "unable to start informers: %v", err)
 	}
 
-	p.setConfig(config, clients, stopCh)
+	p.setConfig(newConfig, clients, stopCh)
 	return &configv1.ConfigureResponse{}, nil
 }
 
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
+}
+
 // startInformers creates informers to set CA Bundle in objects created after server has started
-func (p *Plugin) startInformers(ctx context.Context, config *pluginConfig, clients []kubeClient, stopCh chan struct{}) error {
+func (p *Plugin) startInformers(ctx context.Context, config *Configuration, clients []kubeClient, stopCh chan struct{}) error {
 	if config.WebhookLabel != "" || config.APIServiceLabel != "" {
 		informerSynced := []cache.InformerSynced{}
 		for _, client := range clients {
@@ -177,7 +200,7 @@ func (p *Plugin) startInformers(ctx context.Context, config *pluginConfig, clien
 	return nil
 }
 
-func (p *Plugin) setConfig(config *pluginConfig, clients []kubeClient, stopCh chan struct{}) {
+func (p *Plugin) setConfig(config *Configuration, clients []kubeClient, stopCh chan struct{}) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -304,7 +327,7 @@ func (p *Plugin) informerCallback(client kubeClient, obj runtime.Object) {
 	}
 }
 
-func newKubeClients(c *pluginConfig) ([]kubeClient, error) {
+func newKubeClients(c *Configuration) ([]kubeClient, error) {
 	clients := []kubeClient{}
 
 	if hasRootCluster(&c.cluster) {

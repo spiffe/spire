@@ -25,6 +25,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -101,6 +102,41 @@ type Config struct {
 	KeyPolicyFile      string `hcl:"key_policy_file" json:"key_policy_file"`
 }
 
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+	newConfig := new(Config)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.Region == "" {
+		status.ReportError("configuration is missing a region")
+	}
+
+	if newConfig.KeyIdentifierValue != "" {
+		re := regexp.MustCompile(".*[^A-z0-9/_-].*")
+		if re.MatchString(newConfig.KeyIdentifierValue) {
+			status.ReportError("Key identifier must contain only alphanumeric characters, forward slashes (/), underscores (_), and dashes (-)")
+		}
+		if strings.HasPrefix(newConfig.KeyIdentifierValue, "alias/aws/") {
+			status.ReportError("Key identifier must not start with alias/aws/")
+		}
+		if len(newConfig.KeyIdentifierValue) > 256 {
+			status.ReportError("Key identifier must not be longer than 256 characters")
+		}
+	}
+
+	if newConfig.KeyIdentifierFile == "" && newConfig.KeyIdentifierValue == "" {
+		status.ReportError("configuration requires a key identifier file or a key identifier value")
+	}
+
+	if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
+		status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
+	}
+
+	return newConfig
+}
+
 // New returns an instantiated plugin
 func New() *Plugin {
 	return newPlugin(newKMSClient, newSTSClient)
@@ -128,13 +164,13 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 // Configure sets up the plugin
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := parseAndValidateConfig(req.HclConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	if config.KeyPolicyFile != "" {
-		policyBytes, err := os.ReadFile(config.KeyPolicyFile)
+	if newConfig.KeyPolicyFile != "" {
+		policyBytes, err := os.ReadFile(newConfig.KeyPolicyFile)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to read file configured in 'key_policy_file': %v", err)
 		}
@@ -142,16 +178,16 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		p.keyPolicy = &policyStr
 	}
 
-	serverID := config.KeyIdentifierValue
+	serverID := newConfig.KeyIdentifierValue
 	if serverID == "" {
-		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
+		serverID, err = getOrCreateServerID(newConfig.KeyIdentifierFile)
 		if err != nil {
 			return nil, err
 		}
 	}
 	p.log.Debug("Loaded server id", "server_id", serverID)
 
-	awsCfg, err := newAWSConfig(ctx, config)
+	awsCfg, err := newAWSConfig(ctx, newConfig)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client configuration: %v", err)
 	}
@@ -200,6 +236,15 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	go p.disposeKeysTask(ctx)
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 // GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.
@@ -823,42 +868,6 @@ func roleNameFromARN(arn string) (string, error) {
 
 func sanitizeTrustDomain(trustDomain string) string {
 	return strings.ReplaceAll(trustDomain, ".", "_")
-}
-
-// parseAndValidateConfig returns an error if any configuration provided does not meet acceptable criteria
-func parseAndValidateConfig(c string) (*Config, error) {
-	config := new(Config)
-
-	if err := hcl.Decode(config, c); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.Region == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing a region")
-	}
-
-	if config.KeyIdentifierValue != "" {
-		re := regexp.MustCompile(".*[^A-z0-9/_-].*")
-		if re.MatchString(config.KeyIdentifierValue) {
-			return nil, status.Error(codes.InvalidArgument, "Key identifier must contain only alphanumeric characters, forward slashes (/), underscores (_), and dashes (-)")
-		}
-		if strings.HasPrefix(config.KeyIdentifierValue, "alias/aws/") {
-			return nil, status.Error(codes.InvalidArgument, "Key identifier must not start with alias/aws/")
-		}
-		if len(config.KeyIdentifierValue) > 256 {
-			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 256 characters")
-		}
-	}
-
-	if config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration requires a key identifier file or a key identifier value")
-	}
-
-	if config.KeyIdentifierFile != "" && config.KeyIdentifierValue != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration can't have a key identifier file and a key identifier value at the same time")
-	}
-
-	return config, nil
 }
 
 func signingAlgorithmForKMS(keyType keymanagerv1.KeyType, signerOpts any) (types.SigningAlgorithmSpec, error) {

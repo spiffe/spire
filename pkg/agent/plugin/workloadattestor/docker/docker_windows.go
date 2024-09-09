@@ -5,6 +5,7 @@ package docker
 import (
 	hclog "github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/container/process"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -14,10 +15,10 @@ type OSConfig struct {
 	DockerHost string `hcl:"docker_host" json:"docker_host"`
 }
 
-func createHelper(*dockerPluginConfig, hclog.Logger) (*containerHelper, error) {
+func (p *Plugin) createHelper(*dockerPluginConfig, *pluginconf.Status) *containerHelper {
 	return &containerHelper{
 		ph: process.CreateHelper(),
-	}, nil
+	}
 }
 
 type containerHelper struct {

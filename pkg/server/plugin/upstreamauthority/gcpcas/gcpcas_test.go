@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"cloud.google.com/go/security/privateca/apiv1/privatecapb"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
@@ -136,7 +138,10 @@ func TestGcpCAS(t *testing.T) {
 	}
 
 	upplugin := new(upstreamauthority.V1)
-	plugintest.Load(t, builtin(p), upplugin, plugintest.Configure(`
+	plugintest.Load(t, builtin(p), upplugin, plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(`
 		root_cert_spec {
 			project_name = "proj1"
 			region_name = "us-central1"
@@ -144,7 +149,7 @@ func TestGcpCAS(t *testing.T) {
 			label_key = "proj-signer"
 			label_value = "true"
 		}
-    `))
+		`))
 
 	priv := testkey.NewEC384(t)
 	csr, err := commonutil.MakeCSRWithoutURISAN(priv)

@@ -1382,7 +1382,11 @@ func TestKeyManagerContract(t *testing.T) {
 		)
 		km := new(keymanager.V1)
 		keyIdentifierFile := filepath.ToSlash(filepath.Join(dir, "key_identifier.json"))
-		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
+		plugintest.Load(t, builtin(p), km,
+			plugintest.CoreConfig(catalog.CoreConfig{
+				TrustDomain: spiffeid.RequireTrustDomainFromString("test.example.org"),
+			}),
+			plugintest.Configuref(`
         key_identifier_file = %q
         key_ring = "projects/project-id/locations/location/keyRings/keyring"
 		`, keyIdentifierFile))

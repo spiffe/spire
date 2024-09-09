@@ -149,7 +149,7 @@ func TestConfigure(t *testing.T) {
 			name:            "Malformed configuration",
 			plainConfig:     "invalid-config",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "unable to decode configuration:",
+			expectMsgPrefix: "plugin configuration is malformed",
 		},
 		{
 			name:            "Required parameters are not given / k8s_auth_role_name",

@@ -456,7 +456,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 
 	s.T().Run("missing trust domain", func(t *testing.T) {
 		err := doConfig(t, catalog.CoreConfig{}, "", nil)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "core configuration missing trust domain")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 	})
 
 	s.T().Run("missing tenants", func(t *testing.T) {
@@ -587,7 +587,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 				},
 			},
 		)
-		spiretest.RequireGRPCStatusContains(t, err, codes.Internal, `unable to fetch client credential: some error`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `unable to fetch client credential: some error`)
 	})
 }
 

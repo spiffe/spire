@@ -78,7 +78,7 @@ func TestNewServer(t *testing.T) {
 	}{
 		{
 			desc:      "missing trust domain",
-			expectErr: "trust_domain global configuration is invalid",
+			expectErr: "server core configuration must contain trust_domain",
 		},
 		{
 			desc:         "bad config",

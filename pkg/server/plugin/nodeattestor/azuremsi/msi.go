@@ -26,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -97,6 +98,92 @@ type msiAttestorConfig struct {
 	td             spiffeid.TrustDomain
 	tenants        map[string]*tenantConfig
 	idPathTemplate *agentpathtemplate.Template
+}
+
+func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *msiAttestorConfig {
+	newConfig := new(MSIAttestorConfig)
+
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if len(newConfig.Tenants) == 0 {
+		status.ReportError("configuration must have at least one tenant")
+	}
+	for _, tenant := range newConfig.Tenants {
+		if tenant.ResourceID == "" {
+			tenant.ResourceID = azure.DefaultMSIResourceID
+		}
+	}
+
+	tenants := make(map[string]*tenantConfig)
+	for tenantID, tenant := range newConfig.Tenants {
+		var client apiClient
+
+		// Use tenant-specific credentials for resolving selectors
+		switch {
+		case tenant.SubscriptionID != "", tenant.AppID != "", tenant.AppSecret != "":
+			if tenant.SubscriptionID == "" {
+				status.ReportErrorf("misconfigured tenant %q: missing subscription id", tenantID)
+			}
+			if tenant.AppID == "" {
+				status.ReportErrorf("misconfigured tenant %q: missing app id", tenantID)
+			}
+			if tenant.AppSecret == "" {
+				status.ReportErrorf("misconfigured tenant %q: missing app secret", tenantID)
+			}
+
+			cred, err := azidentity.NewClientSecretCredential(tenantID, tenant.AppID, tenant.AppSecret, nil)
+			if err != nil {
+				status.ReportErrorf("unable to get tenant client credential: %v", err)
+			}
+
+			client, err = p.hooks.newClient(tenant.SubscriptionID, cred)
+			if err != nil {
+				status.ReportErrorf("unable to create client for tenant %q: %v", tenantID, err)
+			}
+
+		default:
+			instanceMetadata, err := p.hooks.fetchInstanceMetadata(http.DefaultClient)
+			if err != nil {
+				status.ReportError(err.Error())
+			}
+			cred, err := p.hooks.fetchCredential(tenantID)
+			if err != nil {
+				status.ReportErrorf("unable to fetch client credential: %v", err)
+			}
+			client, err = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
+			if err != nil {
+				status.ReportErrorf("unable to create client with default credential: %v", err)
+			}
+		}
+
+		// If credentials are not configured then selectors won't be gathered.
+		if client == nil {
+			status.ReportErrorf("no client credentials available for tenant %q", tenantID)
+		}
+
+		tenants[tenantID] = &tenantConfig{
+			resourceID: tenant.ResourceID,
+			client:     client,
+		}
+	}
+
+	tmpl := azure.DefaultAgentPathTemplate
+	if len(newConfig.AgentPathTemplate) > 0 {
+		var err error
+		tmpl, err = agentpathtemplate.Parse(newConfig.AgentPathTemplate)
+		if err != nil {
+			status.ReportErrorf("failed to parse agent path template: %q", newConfig.AgentPathTemplate)
+		}
+	}
+
+	return &msiAttestorConfig{
+		td:             coreConfig.TrustDomain,
+		tenants:        tenants,
+		idPathTemplate: tmpl,
+	}
 }
 
 type MSIAttestorPlugin struct {
@@ -239,100 +326,25 @@ func (p *MSIAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 }
 
 func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	hclConfig := new(MSIAttestorConfig)
-	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
-	}
-
-	if len(hclConfig.Tenants) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "configuration must have at least one tenant")
-	}
-	for _, tenant := range hclConfig.Tenants {
-		if tenant.ResourceID == "" {
-			tenant.ResourceID = azure.DefaultMSIResourceID
-		}
-	}
-
-	td, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		return nil, err
 	}
 
-	tenants := make(map[string]*tenantConfig)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.config = newConfig
 
-	for tenantID, tenant := range hclConfig.Tenants {
-		var client apiClient
-
-		// Use tenant-specific credentials for resolving selectors
-		switch {
-		case tenant.SubscriptionID != "", tenant.AppID != "", tenant.AppSecret != "":
-			if tenant.SubscriptionID == "" {
-				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: missing subscription id", tenantID)
-			}
-			if tenant.AppID == "" {
-				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: missing app id", tenantID)
-			}
-			if tenant.AppSecret == "" {
-				return nil, status.Errorf(codes.InvalidArgument, "misconfigured tenant %q: missing app secret", tenantID)
-			}
-
-			cred, err := azidentity.NewClientSecretCredential(tenantID, tenant.AppID, tenant.AppSecret, nil)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "unable to get tenant client credential: %v", err)
-			}
-
-			client, err = p.hooks.newClient(tenant.SubscriptionID, cred)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "unable to create client for tenant %q: %v", tenantID, err)
-			}
-
-		default:
-			instanceMetadata, err := p.hooks.fetchInstanceMetadata(http.DefaultClient)
-			if err != nil {
-				return nil, err
-			}
-			cred, err := p.hooks.fetchCredential(tenantID)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "unable to fetch client credential: %v", err)
-			}
-			client, err = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "unable to create client with default credential: %v", err)
-			}
-		}
-
-		// If credentials are not configured then selectors won't be gathered.
-		if client == nil {
-			return nil, status.Errorf(codes.Internal, "no client credentials available for tenant %q", tenantID)
-		}
-
-		tenants[tenantID] = &tenantConfig{
-			resourceID: tenant.ResourceID,
-			client:     client,
-		}
-	}
-
-	tmpl := azure.DefaultAgentPathTemplate
-	if len(hclConfig.AgentPathTemplate) > 0 {
-		var err error
-		tmpl, err = agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent path template: %q", hclConfig.AgentPathTemplate)
-		}
-	}
-
-	p.setConfig(&msiAttestorConfig{
-		td:             td,
-		tenants:        tenants,
-		idPathTemplate: tmpl,
-	})
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *MSIAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 func (p *MSIAttestorPlugin) getConfig() (*msiAttestorConfig, error) {
@@ -342,12 +354,6 @@ func (p *MSIAttestorPlugin) getConfig() (*msiAttestorConfig, error) {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
-}
-
-func (p *MSIAttestorPlugin) setConfig(config *msiAttestorConfig) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.config = config
 }
 
 func (p *MSIAttestorPlugin) resolve(ctx context.Context, client apiClient, principalID string) ([]string, error) {

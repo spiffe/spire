@@ -16,6 +16,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -53,6 +54,28 @@ type Configuration struct {
 	Region          string `hcl:"region" json:"region"`
 }
 
+func (p *SecretsManagerPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := &Configuration{}
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.AccessKeyID == "" {
+		newConfig.AccessKeyID = p.hooks.getenv("AWS_ACCESS_KEY_ID")
+	}
+
+	if newConfig.SecretAccessKey == "" {
+		newConfig.SecretAccessKey = p.hooks.getenv("AWS_SECRET_ACCESS_KEY")
+	}
+
+	if newConfig.Region == "" {
+		status.ReportError("region is required")
+	}
+
+	return newConfig
+}
+
 type SecretsManagerPlugin struct {
 	svidstorev1.UnsafeSVIDStoreServer
 	configv1.UnsafeConfigServer
@@ -73,25 +96,12 @@ func (p *SecretsManagerPlugin) SetLogger(log hclog.Logger) {
 
 // Configure configures the SecretsManagerPlugin.
 func (p *SecretsManagerPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	// Parse HCL config payload into config struct
-	config := &Configuration{}
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	if config.AccessKeyID == "" {
-		config.AccessKeyID = p.hooks.getenv("AWS_ACCESS_KEY_ID")
-	}
-
-	if config.SecretAccessKey == "" {
-		config.SecretAccessKey = p.hooks.getenv("AWS_SECRET_ACCESS_KEY")
-	}
-
-	if config.Region == "" {
-		return nil, status.Error(codes.InvalidArgument, "region is required")
-	}
-
-	smClient, err := p.hooks.newClient(ctx, config.SecretAccessKey, config.AccessKeyID, config.Region)
+	smClient, err := p.hooks.newClient(ctx, newConfig.SecretAccessKey, newConfig.AccessKeyID, newConfig.Region)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create secrets manager client: %v", err)
 	}
@@ -102,6 +112,15 @@ func (p *SecretsManagerPlugin) Configure(ctx context.Context, req *configv1.Conf
 	p.smClient = smClient
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *SecretsManagerPlugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 // PutX509SVID puts the specified X509-SVID in the configured AWS Secrets Manager

@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/valyala/fastjson"
 	"golang.org/x/sync/singleflight"
@@ -156,9 +157,102 @@ type k8sConfig struct {
 	NodeName                   string
 	ReloadInterval             time.Duration
 	DisableContainerSelectors  bool
+	ContainerHelper            ContainerHelper
+	sigstoreConfig             *sigstore.Config
 
 	Client     *kubeletClient
 	LastReload time.Time
+}
+
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *k8sConfig {
+	// Parse HCL config payload into config struct
+	newConfig := new(HCLConfig)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	// Determine max poll attempts with default
+	maxPollAttempts := newConfig.MaxPollAttempts
+	if maxPollAttempts <= 0 {
+		maxPollAttempts = defaultMaxPollAttempts
+	}
+
+	// Determine poll retry interval with default
+	var pollRetryInterval time.Duration
+	var err error
+	if newConfig.PollRetryInterval != "" {
+		pollRetryInterval, err = time.ParseDuration(newConfig.PollRetryInterval)
+		if err != nil {
+			status.ReportErrorf("unable to parse poll retry interval: %v", err)
+		}
+	}
+	if pollRetryInterval <= 0 {
+		pollRetryInterval = defaultPollRetryInterval
+	}
+
+	// Determine reload interval
+	var reloadInterval time.Duration
+	if newConfig.ReloadInterval != "" {
+		reloadInterval, err = time.ParseDuration(newConfig.ReloadInterval)
+		if err != nil {
+			status.ReportErrorf("unable to parse reload interval: %v", err)
+		}
+	}
+	if reloadInterval <= 0 {
+		reloadInterval = defaultReloadInterval
+	}
+
+	// Determine which kubelet port to hit. Default to the secure port if none
+	// is specified (this is backwards compatible because the read-only-port
+	// config value has always been required, so it should already be set in
+	// existing configurations that rely on it).
+	if newConfig.KubeletSecurePort > 0 && newConfig.KubeletReadOnlyPort > 0 {
+		status.ReportError("cannot use both the read-only and secure port")
+	}
+
+	port := newConfig.KubeletReadOnlyPort
+	secure := false
+	if port <= 0 {
+		port = newConfig.KubeletSecurePort
+		secure = true
+	}
+	if port <= 0 {
+		port = defaultSecureKubeletPort
+		secure = true
+	}
+
+	containerHelper := createHelper(p)
+	if err := containerHelper.Configure(newConfig, p.log); err != nil {
+		status.ReportError(err.Error())
+	}
+
+	// Determine the node name
+	nodeName := p.getNodeName(newConfig.NodeName, newConfig.NodeNameEnv)
+
+	var sigstoreConfig *sigstore.Config
+	if newConfig.Experimental.Sigstore != nil {
+		sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Experimental.Sigstore, p.log)
+	}
+
+	// return the kubelet client
+	return &k8sConfig{
+		Secure:                     secure,
+		Port:                       port,
+		MaxPollAttempts:            maxPollAttempts,
+		PollRetryInterval:          pollRetryInterval,
+		SkipKubeletVerification:    newConfig.SkipKubeletVerification,
+		TokenPath:                  newConfig.TokenPath,
+		CertificatePath:            newConfig.CertificatePath,
+		PrivateKeyPath:             newConfig.PrivateKeyPath,
+		UseAnonymousAuthentication: newConfig.UseAnonymousAuthentication,
+		KubeletCAPath:              newConfig.KubeletCAPath,
+		NodeName:                   nodeName,
+		ReloadInterval:             reloadInterval,
+		DisableContainerSelectors:  newConfig.DisableContainerSelectors,
+		ContainerHelper:            containerHelper,
+		sigstoreConfig:             sigstoreConfig,
+	}
 }
 
 type ContainerHelper interface {
@@ -321,94 +415,18 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
-	// Parse HCL config payload into config struct
-	config := new(HCLConfig)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	// Determine max poll attempts with default
-	maxPollAttempts := config.MaxPollAttempts
-	if maxPollAttempts <= 0 {
-		maxPollAttempts = defaultMaxPollAttempts
-	}
-
-	// Determine poll retry interval with default
-	var pollRetryInterval time.Duration
-	if config.PollRetryInterval != "" {
-		pollRetryInterval, err = time.ParseDuration(config.PollRetryInterval)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unable to parse poll retry interval: %v", err)
-		}
-	}
-	if pollRetryInterval <= 0 {
-		pollRetryInterval = defaultPollRetryInterval
-	}
-
-	// Determine reload interval
-	var reloadInterval time.Duration
-	if config.ReloadInterval != "" {
-		reloadInterval, err = time.ParseDuration(config.ReloadInterval)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unable to parse reload interval: %v", err)
-		}
-	}
-	if reloadInterval <= 0 {
-		reloadInterval = defaultReloadInterval
-	}
-
-	// Determine which kubelet port to hit. Default to the secure port if none
-	// is specified (this is backwards compatible because the read-only-port
-	// config value has always been required, so it should already be set in
-	// existing configurations that rely on it).
-	if config.KubeletSecurePort > 0 && config.KubeletReadOnlyPort > 0 {
-		return nil, status.Error(codes.InvalidArgument, "cannot use both the read-only and secure port")
-	}
-
-	containerHelper := createHelper(p)
-	if err := containerHelper.Configure(config, p.log); err != nil {
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
+	if err != nil {
 		return nil, err
 	}
 
-	port := config.KubeletReadOnlyPort
-	secure := false
-	if port <= 0 {
-		port = config.KubeletSecurePort
-		secure = true
-	}
-	if port <= 0 {
-		port = defaultSecureKubeletPort
-		secure = true
-	}
-
-	// Determine the node name
-	nodeName := p.getNodeName(config.NodeName, config.NodeNameEnv)
-
-	// Configure the kubelet client
-	c := &k8sConfig{
-		Secure:                     secure,
-		Port:                       port,
-		MaxPollAttempts:            maxPollAttempts,
-		PollRetryInterval:          pollRetryInterval,
-		SkipKubeletVerification:    config.SkipKubeletVerification,
-		TokenPath:                  config.TokenPath,
-		CertificatePath:            config.CertificatePath,
-		PrivateKeyPath:             config.PrivateKeyPath,
-		UseAnonymousAuthentication: config.UseAnonymousAuthentication,
-		KubeletCAPath:              config.KubeletCAPath,
-		NodeName:                   nodeName,
-		ReloadInterval:             reloadInterval,
-		DisableContainerSelectors:  config.DisableContainerSelectors,
-	}
-
-	if err := p.reloadKubeletClient(c); err != nil {
+	if err := p.reloadKubeletClient(newConfig); err != nil {
 		return nil, err
 	}
 
 	var sigstoreVerifier sigstore.Verifier
-	if config.Experimental.Sigstore != nil {
-		cfg := sigstore.NewConfigFromHCL(config.Experimental.Sigstore, p.log)
-		verifier := sigstore.NewVerifier(cfg)
+	if newConfig.sigstoreConfig != nil {
+		verifier := sigstore.NewVerifier(newConfig.sigstoreConfig)
 		err = verifier.Init(ctx)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
@@ -416,17 +434,22 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		sigstoreVerifier = verifier
 	}
 
-	// Set the config
-	p.setConfig(c, containerHelper, sigstoreVerifier)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.config = newConfig
+	p.containerHelper = newConfig.ContainerHelper
+	p.sigstoreVerifier = sigstoreVerifier
+
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) setConfig(config *k8sConfig, containerHelper ContainerHelper, sigstoreVerifier sigstore.Verifier) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.config = config
-	p.containerHelper = containerHelper
-	p.sigstoreVerifier = sigstoreVerifier
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (resp *configv1.ValidateResponse, err error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 func (p *Plugin) getConfig() (*k8sConfig, ContainerHelper, sigstore.Verifier, error) {

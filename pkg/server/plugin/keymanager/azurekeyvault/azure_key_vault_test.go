@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
@@ -68,7 +70,11 @@ func TestKeyManagerContract(t *testing.T) {
 		km := new(keymanager.V1)
 		keyIdentifierFile := createKeyIdentifierFile(t)
 
-		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
+		plugintest.Load(t, builtin(p), km,
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configuref(`
 			key_identifier_file = %q
 			key_vault_uri = "https://spire-server.vault.azure.net/"
 			use_msi=true
@@ -1002,13 +1008,14 @@ func serializedConfiguration(keyIdentifierConfigName KeyIdentifierConfigName, ke
 
 func configureRequestWithVars(keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(keyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
+		HclConfiguration:  serializedConfiguration(keyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret),
 	}
 }
 
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
+		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
 		HclConfiguration: config,
 	}
 }

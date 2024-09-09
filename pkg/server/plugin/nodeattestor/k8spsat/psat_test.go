@@ -368,11 +368,11 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// malformed configuration
 	err := doConfig(coreConfig, "blah")
-	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "plugin configuration is malformed")
 
 	// missing trust domain
 	err = doConfig(catalog.CoreConfig{}, "")
-	s.RequireGRPCStatus(err, codes.InvalidArgument, "core configuration missing trust domain")
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 
 	// missing clusters
 	err = doConfig(coreConfig, "")

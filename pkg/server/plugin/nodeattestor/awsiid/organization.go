@@ -91,7 +91,7 @@ func (o *orgValidator) configure(config *orgValidationConfig) error {
 
 	t, err := time.ParseDuration(config.AccountListTTL)
 	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "issue while parsing ttl for organization, while configuring orgnization validation: %v", err)
+		return status.Errorf(codes.InvalidArgument, "issue while parsing ttl for organization, while configuring organization validation: %v", err)
 	}
 
 	o.orgAccountListCacheTTL = t
