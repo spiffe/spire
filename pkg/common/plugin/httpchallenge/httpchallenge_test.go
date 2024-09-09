@@ -79,13 +79,14 @@ func TestValidateChallenge(t *testing.T) {
 			}))
 			defer func() { testServer.Close() }()
 
-			transport := http.DefaultTransport.(*http.Transport).Clone()
-			transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-				if addr == "foo.bar:80" {
-					addr = strings.TrimPrefix(testServer.URL, "http://")
-				}
-				dialer := &net.Dialer{}
-				return dialer.DialContext(ctx, network, addr)
+			transport := &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					if addr == "foo.bar:80" {
+						addr = strings.TrimPrefix(testServer.URL, "http://")
+					}
+					dialer := &net.Dialer{}
+					return dialer.DialContext(ctx, network, addr)
+				},
 			}
 
 			err := VerifyChallenge(context.Background(), &http.Client{Transport: transport}, ad, c)

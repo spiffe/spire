@@ -226,7 +226,7 @@ func TestDockerConfigDefault(t *testing.T) {
 
 	require.NotNil(t, p.docker)
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
-	require.Equal(t, "1.46", p.docker.(*dockerclient.Client).ClientVersion())
+	require.Equal(t, "1.47", p.docker.(*dockerclient.Client).ClientVersion())
 	verifyConfigDefault(t, p.c)
 }
 
@@ -381,7 +381,7 @@ func withSigstoreVerifier(v sigstore.Verifier) testPluginOpt {
 
 func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 	p := New()
-	err := doConfigure(t, p, defaultPluginConfig)
+	err := doConfigure(t, p, "")
 	require.NoError(t, err)
 
 	for _, o := range opts {

@@ -124,8 +124,8 @@ type HCLConfig struct {
 	DisableContainerSelectors bool `hcl:"disable_container_selectors"`
 
 	// UseNewContainerLocator, if true, uses the new container locator
-	// mechanism instead of the legacy cgroup matchers. Defaults to false if
-	// unset. This will default to true in a future release.
+	// mechanism instead of the legacy cgroup matchers. Defaults to true if
+	// unset. This configurable will be removed in a future release.
 	UseNewContainerLocator *bool `hcl:"use_new_container_locator"`
 
 	// VerboseContainerLocatorLogs, if true, dumps extra information to the log

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+KUBECONFIG="${RUNDIR}/kubeconfig"
+if [ ! -f "${RUNDIR}/kubeconfig" ]; then
+    ./bin/kind get kubeconfig --name=ejbca-test > "${RUNDIR}/kubeconfig"
+fi
+export KUBECONFIG
