@@ -39,7 +39,7 @@ type Configuration struct {
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, req.HclConfiguration); err != nil {
+	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("failed to decode configuration: %v", err)
 		return nil
 	}
@@ -187,7 +187,9 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool) (*processInfo, error)
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	newConfig, _, err := pluginconf.Build(req, buildConfig)
-
+	if err != nil {
+		return nil, err
+	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
