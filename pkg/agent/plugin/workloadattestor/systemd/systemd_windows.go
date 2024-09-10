@@ -36,5 +36,5 @@ func (p *Plugin) Validate(context.Context, *configv1.ValidateRequest) (*configv1
 	return &configv1.ValidateResponse{
 		Valid: false,
 		Notes: []string{"plugin not supported in this platform"},
-	}, statusError(codes.Unimplemented, "plugin not supported in this platform")
+	}, status.Error(codes.Unimplemented, "plugin not supported in this platform")
 }
