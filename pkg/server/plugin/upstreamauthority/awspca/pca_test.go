@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
-        "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/acmpca"
 	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -56,7 +56,7 @@ func TestConfigure(t *testing.T) {
 		expectConfig           *configuration
 
 		// core config configurations
-		trustDomain             string
+		trustDomain string
 
 		// All allowed configurations
 		region                  string
@@ -169,7 +169,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:                   "Missing certificate ARN",
-			trustDomain:             "example.org",
+			trustDomain:            "example.org",
 			expectedDescribeStatus: "ACTIVE",
 			region:                 validRegion,
 			caSigningTemplateARN:   validCASigningTemplateARN,
@@ -180,8 +180,8 @@ func TestConfigure(t *testing.T) {
 			expectMsgPrefix:        "plugin configuration is missing the certificate_authority_arn",
 		},
 		{
-			test: "Malformed config",
-			trustDomain:             "example.org",
+			test:        "Malformed config",
+			trustDomain: "example.org",
 			overrideConfig: `{
 badjson
 }`,
@@ -299,9 +299,9 @@ func TestMintX509CA(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		test   string
+		test        string
 		trustDomain string
-		config *Configuration
+		config      *Configuration
 
 		client *pcaClientFake
 
@@ -334,8 +334,8 @@ func TestMintX509CA(t *testing.T) {
 			getCertificateCertChain: encodedCertChain.String(),
 		},
 		{
-			test: "With supplemental bundle",
-			trustDomain:  "example.org",
+			test:        "With supplemental bundle",
+			trustDomain: "example.org",
 			config: &Configuration{
 				Region:                  validRegion,
 				CertificateAuthorityARN: validCertificateAuthorityARN,

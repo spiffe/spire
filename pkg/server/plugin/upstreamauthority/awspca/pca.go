@@ -62,7 +62,7 @@ type Configuration struct {
 	SupplementalBundlePath  string `hcl:"supplemental_bundle_path" json:"supplemental_bundle_path"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) (*Configuration) {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportError("plugin configuration is malformed")

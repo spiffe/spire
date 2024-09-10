@@ -13,8 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
@@ -22,8 +20,10 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/plugintest"
@@ -71,10 +71,10 @@ func TestKeyManagerContract(t *testing.T) {
 		keyIdentifierFile := createKeyIdentifierFile(t)
 
 		plugintest.Load(t, builtin(p), km,
-		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-		}),
-		plugintest.Configuref(`
+			plugintest.CoreConfig(catalog.CoreConfig{
+				TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+			}),
+			plugintest.Configuref(`
 			key_identifier_file = %q
 			key_vault_uri = "https://spire-server.vault.azure.net/"
 			use_msi=true
@@ -1016,7 +1016,7 @@ func configureRequestWithVars(keyIdentifierConfigName KeyIdentifierConfigName, k
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
-		HclConfiguration: config,
+		HclConfiguration:  config,
 	}
 }
 

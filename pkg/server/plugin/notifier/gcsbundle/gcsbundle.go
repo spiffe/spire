@@ -50,10 +50,10 @@ type configuration struct {
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
 	newConfig := new(configuration)
-        if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("plugin configuration is malformed: %s", err)
-                return nil
-        }
+		return nil
+	}
 
 	if newConfig.Bucket == "" {
 		status.ReportError("bucket must be set")
@@ -138,7 +138,6 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (r
 
 	return &configv1.ConfigureResponse{}, nil
 }
-
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (resp *configv1.ValidateResponse, err error) {
 	_, notes, err := pluginconf.Build(req, buildConfig)

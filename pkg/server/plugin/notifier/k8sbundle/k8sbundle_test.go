@@ -386,7 +386,7 @@ kube_config_file_path = "/some/file/path"
 		CoreConfiguration: &configv1.CoreConfiguration{
 			TrustDomain: "example.org",
 		},
-		HclConfiguration:  finalConfig,
+		HclConfiguration: finalConfig,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, test.rawPlugin.stopCh)
@@ -557,7 +557,7 @@ func TestConfigure(t *testing.T) {
 		expectedConfig *Configuration
 	}{
 		{
-			name: "empty configuration",
+			name:        "empty configuration",
 			trustDomain: "example.org",
 			expectedConfig: &Configuration{
 				cluster: cluster{
@@ -568,7 +568,7 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name: "full configuration",
+			name:        "full configuration",
 			trustDomain: "example.org",
 			configuration: `
 			namespace = "root"
@@ -626,7 +626,7 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name: "root only with partial configuration",
+			name:        "root only with partial configuration",
 			trustDomain: "example.org",
 			configuration: `			
 			api_service_label = "root_api_label"			
@@ -642,7 +642,7 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name: "clusters only with partial configuration",
+			name:        "clusters only with partial configuration",
 			trustDomain: "example.org",
 			configuration: `
 			clusters  = [
@@ -675,7 +675,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:         "clusters only missing kube_config_file_path",
-			trustDomain: "example.org",
+			trustDomain:  "example.org",
 			expectedErr:  "cluster configuration is missing kube_config_file_path",
 			expectedCode: codes.InvalidArgument,
 			configuration: `
@@ -969,12 +969,6 @@ type testOptions struct {
 }
 
 type testOption func(*testOptions)
-
-func withTrustDomain(trustDomain string) testOption {
-	return func(args *testOptions) {
-		args.trustDomain = spiffeid.RequireTrustDomainFromString(trustDomain)
-	}
-}
 
 func withPlainConfig(plainConfig string) testOption {
 	return func(args *testOptions) {

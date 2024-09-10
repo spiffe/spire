@@ -61,7 +61,7 @@ type Configuration struct {
 	Namespace string `hcl:"namespace" json:"namespace"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) (*Configuration) {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportError("plugin configuration is malformed")

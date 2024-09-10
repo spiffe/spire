@@ -18,8 +18,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/bundle"
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
-	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -38,7 +38,7 @@ type Configuration struct {
 	Experimental      experimentalConfig `hcl:"experimental"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) (*Configuration) {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportError("plugin configuration is malformed")

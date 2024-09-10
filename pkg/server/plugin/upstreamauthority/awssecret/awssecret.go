@@ -26,9 +26,9 @@ import (
 const (
 	pluginName = "awssecret"
 
-        CoreConfigRequired = "server core configuration is required"
-        CoreConfigTrustdomainRequired = "server core configuration must contain trust_domain"
-        CoreConfigTrustdomainMalformed = "server core configuration trust_domain is malformed"
+	CoreConfigRequired             = "server core configuration is required"
+	CoreConfigTrustdomainRequired  = "server core configuration must contain trust_domain"
+	CoreConfigTrustdomainMalformed = "server core configuration trust_domain is malformed"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -298,4 +298,3 @@ func fetchFromSecretsManager(ctx context.Context, config *Configuration, sm secr
 
 	return keyPEMstr, certsPEMstr, bundlePEMstr, nil
 }
-

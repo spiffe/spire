@@ -52,7 +52,6 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		newConfig.ResourceID = azure.DefaultMSIResourceID
 	}
 
-
 	return newConfig
 }
 
@@ -130,4 +129,3 @@ func (p *MSIAttestorPlugin) getConfig() (*MSIAttestorConfig, error) {
 	}
 	return p.config, nil
 }
-

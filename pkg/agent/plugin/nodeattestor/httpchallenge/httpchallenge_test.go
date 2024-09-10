@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	common_httpchallenge "github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/stretchr/testify/require"
@@ -31,10 +31,10 @@ func TestConfigureCommon(t *testing.T) {
 		expErr      string
 	}{
 		{
-			name:    "Configure fails if receives wrong HCL configuration",
+			name:        "Configure fails if receives wrong HCL configuration",
 			trustDomain: "example.org",
-			hclConf: "not HCL conf",
-			expErr:  "rpc error: code = InvalidArgument desc = unable to decode configuration",
+			hclConf:     "not HCL conf",
+			expErr:      "rpc error: code = InvalidArgument desc = unable to decode configuration",
 		},
 	}
 
@@ -114,9 +114,9 @@ func TestAidAttestationSucceeds(t *testing.T) {
 		serverStream    func(attestationData *common_httpchallenge.AttestationData, challenge []byte, expectPayload []byte, challengeobj *common_httpchallenge.Challenge, port int) nodeattestor.ServerStream
 	}{
 		{
-			name:   "Check for random port",
+			name:        "Check for random port",
 			trustDomain: "example.org",
-			config: "",
+			config:      "",
 			attestationData: common_httpchallenge.AttestationData{
 				HostName:  "spire-dev",
 				AgentName: "default",
@@ -136,9 +136,9 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			},
 		},
 		{
-			name:   "Check for advertised port",
+			name:        "Check for advertised port",
 			trustDomain: "example.org",
-			config: fmt.Sprintf("advertised_port = %d", port),
+			config:      fmt.Sprintf("advertised_port = %d", port),
 			attestationData: common_httpchallenge.AttestationData{
 				HostName:  "spire-dev",
 				AgentName: "default",
@@ -158,9 +158,9 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			},
 		},
 		{
-			name:   "Test with defaults except port",
+			name:        "Test with defaults except port",
 			trustDomain: "example.org",
-			config: "port=9999",
+			config:      "port=9999",
 			attestationData: common_httpchallenge.AttestationData{
 				HostName:  "localhost",
 				AgentName: "default",
@@ -175,9 +175,9 @@ func TestAidAttestationSucceeds(t *testing.T) {
 			},
 		},
 		{
-			name:   "Full test with all the settings",
+			name:        "Full test with all the settings",
 			trustDomain: "example.org",
-			config: "hostname=\"localhost\"\nagentname=\"test\"\nport=9999\nadvertised_port=9999",
+			config:      "hostname=\"localhost\"\nagentname=\"test\"\nport=9999\nadvertised_port=9999",
 			attestationData: common_httpchallenge.AttestationData{
 				HostName:  "localhost",
 				AgentName: "test",
@@ -218,7 +218,7 @@ func loadAndConfigurePlugin(t *testing.T, trustDomain string, config string) nod
 	return loadPlugin(t, plugintest.CoreConfig(catalog.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
 	}),
-	plugintest.Configure(config))
+		plugintest.Configure(config))
 }
 
 func loadPlugin(t *testing.T, options ...plugintest.Option) nodeattestor.NodeAttestor {

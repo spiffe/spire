@@ -14,15 +14,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/plugintest"
@@ -100,7 +100,7 @@ func TestKeyManagerContract(t *testing.T) {
 		plugintest.Load(t, builtin(p), km, plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
-		plugintest.Configuref(`
+			plugintest.Configuref(`
 			region = "fake-region"
 			key_identifier_file = %q
 		`, keyIdentifierFile))
@@ -141,8 +141,8 @@ func setupTest(t *testing.T, trustDomain string, pluginConfig string) *pluginTes
 	plugintest.Load(t, builtin(p), km, plugintest.CoreConfig(catalog.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
 	}),
-	plugintest.Configure(pluginConfig),
-	plugintest.Log(log))
+		plugintest.Configure(pluginConfig),
+		plugintest.Log(log))
 
 	p.hooks.clk = c
 
@@ -450,27 +450,27 @@ func TestGenerateKey(t *testing.T) {
 		configureReq           *configv1.ConfigureRequest
 	}{
 		{
-			name: "success: non existing key",
+			name:        "success: non existing key",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
 		},
 		{
-			name: "success: non existing key with special characters",
+			name:        "success: non existing key with special characters",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   "bundle-acme-foo.bar+rsa",
 				KeyType: keymanagerv1.KeyType_EC_P256,
 			},
 		},
 		{
-			name: "success: non existing key with default SPIRE policy and assumed role",
+			name:        "success: non existing key with default SPIRE policy and assumed role",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -481,9 +481,9 @@ func TestGenerateKey(t *testing.T) {
 			expectedKeyPolicy: &roleBasedPolicy,
 		},
 		{
-			name: "success: non existing key with custom policy",
+			name:        "success: non existing key with custom policy",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -494,9 +494,9 @@ func TestGenerateKey(t *testing.T) {
 			expectedKeyPolicy: &customPolicy,
 		},
 		{
-			name: "success: replace old key",
+			name:        "success: replace old key",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -523,9 +523,9 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
-			name: "success: replace old key with special characters",
+			name:        "success: replace old key with special characters",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   "bundle-acme-foo.bar+rsa",
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -552,36 +552,36 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
-			name: "success: EC 384",
+			name:        "success: EC 384",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P384,
 			},
 		},
 		{
-			name: "success: RSA 2048",
+			name:        "success: RSA 2048",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_RSA_2048,
 			},
 		},
 		{
-			name: "success: RSA 4096",
+			name:        "success: RSA 4096",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_RSA_4096,
 			},
 		},
 		{
-			name: "missing key id",
+			name:        "missing key id",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   "",
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -590,9 +590,9 @@ func TestGenerateKey(t *testing.T) {
 			code: codes.InvalidArgument,
 		},
 		{
-			name: "missing key type",
+			name:        "missing key type",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE,
@@ -602,8 +602,8 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:         "create key error",
-			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			trustDomain:  "example.org",
+			pluginConf:   "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			err:          "failed to create key: something went wrong",
 			code:         codes.Internal,
 			createKeyErr: "something went wrong",
@@ -614,8 +614,8 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:           "create alias error",
-			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			trustDomain:    "example.org",
+			pluginConf:     "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			err:            "failed to create alias: something went wrong",
 			code:           codes.Internal,
 			createAliasErr: "something went wrong",
@@ -626,8 +626,8 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:           "update alias error",
-			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			trustDomain:    "example.org",
+			pluginConf:     "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			err:            "failed to update alias: something went wrong",
 			code:           codes.Internal,
 			updateAliasErr: "something went wrong",
@@ -647,8 +647,8 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:            "get public key error",
-			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			trustDomain:     "example.org",
+			pluginConf:      "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			err:             "failed to get public key: public key error",
 			code:            codes.Internal,
 			getPublicKeyErr: "public key error",
@@ -658,9 +658,9 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
-			name: "schedule delete not found error",
+			name:        "schedule delete not found error",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -688,9 +688,9 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid arn error",
+			name:        "invalid arn error",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -718,9 +718,9 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid key state error",
+			name:        "invalid key state error",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -749,8 +749,8 @@ func TestGenerateKey(t *testing.T) {
 		},
 		{
 			name:                   "schedule key deletion error",
-			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			trustDomain:            "example.org",
+			pluginConf:             "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			scheduleKeyDeletionErr: errors.New("schedule key deletion error"),
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
@@ -785,9 +785,9 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
-			name: "fail to get caller identity",
+			name:        "fail to get caller identity",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -798,9 +798,9 @@ func TestGenerateKey(t *testing.T) {
 			code:                 codes.Internal,
 		},
 		{
-			name: "incomplete ARN",
+			name:        "incomplete ARN",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -815,9 +815,9 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 		{
-			name: "missing role in ARN",
+			name:        "missing role in ARN",
 			trustDomain: "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.GenerateKeyRequest{
 				KeyId:   spireKeyID,
 				KeyType: keymanagerv1.KeyType_EC_P256,
@@ -907,9 +907,9 @@ func TestSignData(t *testing.T) {
 		signDataError      string
 	}{
 		{
-			name: "pass EC SHA256",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass EC SHA256",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum256[:],
@@ -923,9 +923,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "pass EC SHA384",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass EC SHA384",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum384[:],
@@ -939,9 +939,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "pass RSA 2048 SHA 256",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass RSA 2048 SHA 256",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum256[:],
@@ -955,9 +955,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "pass RSA 2048 SHA 384",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass RSA 2048 SHA 384",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum384[:],
@@ -971,9 +971,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "pass RSA 2048 SHA 512",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass RSA 2048 SHA 512",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum512[:],
@@ -987,9 +987,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "pass RSA PSS 2048 SHA 256",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass RSA PSS 2048 SHA 256",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum256[:],
@@ -1006,9 +1006,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "pass RSA PSS 2048 SHA 384",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass RSA PSS 2048 SHA 384",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum384[:],
@@ -1025,9 +1025,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "pass RSA PSS 2048 SHA 512",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass RSA PSS 2048 SHA 512",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum512[:],
@@ -1044,9 +1044,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "pass RSA 4096 SHA 256",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass RSA 4096 SHA 256",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum256[:],
@@ -1060,9 +1060,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "pass RSA PSS 4096 SHA 256",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pass RSA PSS 4096 SHA 256",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum256[:],
@@ -1079,9 +1079,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "missing key id",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "missing key id",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: "",
 				Data:  sum256[:],
@@ -1093,9 +1093,9 @@ func TestSignData(t *testing.T) {
 			code: codes.InvalidArgument,
 		},
 		{
-			name: "missing key signer opts",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "missing key signer opts",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum256[:],
@@ -1104,9 +1104,9 @@ func TestSignData(t *testing.T) {
 			code: codes.InvalidArgument,
 		},
 		{
-			name: "missing hash algorithm",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "missing hash algorithm",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum256[:],
@@ -1122,9 +1122,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "unsupported combination",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "unsupported combination",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum512[:],
@@ -1140,9 +1140,9 @@ func TestSignData(t *testing.T) {
 			},
 		},
 		{
-			name: "non existing key",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "non existing key",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: "does_not_exists",
 				Data:  sum256[:],
@@ -1154,9 +1154,9 @@ func TestSignData(t *testing.T) {
 			code: codes.NotFound,
 		},
 		{
-			name: "pss options nil",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "pss options nil",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			request: &keymanagerv1.SignDataRequest{
 				KeyId: spireKeyID,
 				Data:  sum256[:],
@@ -1173,8 +1173,8 @@ func TestSignData(t *testing.T) {
 		},
 		{
 			name:          "sign error",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			trustDomain:   "example.org",
+			pluginConf:    "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			err:           "failed to sign: sign error",
 			code:          codes.Internal,
 			signDataError: "sign error",
@@ -1226,10 +1226,10 @@ func TestGetPublicKey(t *testing.T) {
 		keyID string
 	}{
 		{
-			name:  "existing key",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
-			keyID: spireKeyID,
+			name:        "existing key",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			keyID:       spireKeyID,
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName: aws.String(aliasName),
@@ -1241,10 +1241,10 @@ func TestGetPublicKey(t *testing.T) {
 			},
 		},
 		{
-			name:  "existing key with special characters",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
-			keyID: "bundle-acme-foo.bar+rsa",
+			name:        "existing key with special characters",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			keyID:       "bundle-acme-foo.bar+rsa",
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName: aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/bundle-acme-foo_2ebar_2brsa"),
@@ -1256,19 +1256,19 @@ func TestGetPublicKey(t *testing.T) {
 			},
 		},
 		{
-			name:  "non existing key",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
-			err:   "key \"spireKeyID\" not found",
-			code:  codes.NotFound,
-			keyID: spireKeyID,
+			name:        "non existing key",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			err:         "key \"spireKeyID\" not found",
+			code:        codes.NotFound,
+			keyID:       spireKeyID,
 		},
 		{
-			name: "missing key id",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
-			err:  "key id is required",
-			code: codes.InvalidArgument,
+			name:        "missing key id",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			err:         "key id is required",
+			code:        codes.InvalidArgument,
 		},
 	} {
 		tt := tt
@@ -1303,9 +1303,9 @@ func TestGetPublicKeys(t *testing.T) {
 		fakeEntries []fakeKeyEntry
 	}{
 		{
-			name: "existing key",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "existing key",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName: aws.String(aliasName),
@@ -1317,9 +1317,9 @@ func TestGetPublicKeys(t *testing.T) {
 			},
 		},
 		{
-			name: "non existing keys",
-			trustDomain:      "example.org",
-			pluginConf:       "region = \"us-fake-1\", key_identifier_value = \"fake\"",
+			name:        "non existing keys",
+			trustDomain: "example.org",
+			pluginConf:  "region = \"us-fake-1\", key_identifier_value = \"fake\"",
 		},
 	} {
 		tt := tt

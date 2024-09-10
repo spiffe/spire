@@ -3,16 +3,16 @@ package pluginconf
 import (
 	"fmt"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type Status struct {
 	notes []string
-	err error
+	err   error
 }
 
 func (s *Status) ReportInfo(message string) {
@@ -21,7 +21,7 @@ func (s *Status) ReportInfo(message string) {
 
 func (s *Status) ReportInfof(format string, args ...any) {
 	s.ReportInfo(fmt.Sprintf(format, args...))
-} 
+}
 
 func (s *Status) ReportError(message string) {
 	if s.err == nil {
@@ -45,12 +45,13 @@ func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, hclText
 
 	requestCoreConfig := req.GetCoreConfiguration()
 
-	if requestCoreConfig == nil {
+	switch {
+	case requestCoreConfig == nil:
 		s.ReportError("server core configuration is required")
 		s.ReportError("server core configuration must contain trust_domain")
-	} else if requestCoreConfig.TrustDomain == "" {
+	case requestCoreConfig.TrustDomain == "":
 		s.ReportError("server core configuration must contain trust_domain")
-	} else {
+	default:
 		var err error
 		coreConfig.TrustDomain, err = spiffeid.TrustDomainFromString(requestCoreConfig.TrustDomain)
 		if err != nil {

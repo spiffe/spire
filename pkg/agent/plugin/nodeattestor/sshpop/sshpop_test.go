@@ -6,10 +6,10 @@ import (
 	"os"
 	"testing"
 
-        "github.com/spiffe/go-spiffe/v2/spiffeid"
-        "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/plugintest"
@@ -45,8 +45,8 @@ func (s *Suite) SetupTest() {
 		host_cert_path = %q`, privateKeyPath, certificatePath)
 
 	s.na = s.loadPlugin(plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-		}),
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}),
 		plugintest.Configure(clientConfig),
 	)
 

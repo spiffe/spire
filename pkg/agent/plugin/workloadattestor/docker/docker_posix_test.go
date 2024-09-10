@@ -27,9 +27,9 @@ func TestContainerExtraction(t *testing.T) {
 		expectErr   string
 	}{
 		{
-			desc:    "no match",
+			desc:        "no match",
 			trustDomain: "example.org",
-			cgroups: testCgroupEntries,
+			cgroups:     testCgroupEntries,
 			cfg: `
 				use_new_container_locator = false
 				container_id_cgroup_matchers = [
@@ -38,9 +38,9 @@ func TestContainerExtraction(t *testing.T) {
 			`,
 		},
 		{
-			desc:    "one miss one match",
+			desc:        "one miss one match",
 			trustDomain: "example.org",
-			cgroups: testCgroupEntries,
+			cgroups:     testCgroupEntries,
 			cfg: `
 				use_new_container_locator = false
 				container_id_cgroup_matchers = [
@@ -51,9 +51,9 @@ func TestContainerExtraction(t *testing.T) {
 			hasMatch: true,
 		},
 		{
-			desc:    "no container id",
+			desc:        "no container id",
 			trustDomain: "example.org",
-			cgroups: "10:cpu:/docker/",
+			cgroups:     "10:cpu:/docker/",
 			cfg: `
 				use_new_container_locator = false
 				container_id_cgroup_matchers = [
@@ -63,28 +63,28 @@ func TestContainerExtraction(t *testing.T) {
 			expectErr: "a pattern matched, but no container id was found",
 		},
 		{
-			desc:     "RHEL docker cgroups",
+			desc:        "RHEL docker cgroups",
 			trustDomain: "example.org",
-			cgroups:  "4:devices:/system.slice/docker-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
-			hasMatch: true,
+			cgroups:     "4:devices:/system.slice/docker-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
+			hasMatch:    true,
 		},
 		{
-			desc:     "docker for desktop",
+			desc:        "docker for desktop",
 			trustDomain: "example.org",
-			cgroups:  "6:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/system.slice/containerd.service",
-			hasMatch: true,
+			cgroups:     "6:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/system.slice/containerd.service",
+			hasMatch:    true,
 		},
 		{
-			desc:      "more than one id",
+			desc:        "more than one id",
 			trustDomain: "example.org",
-			cgroups:   testCgroupEntries + "\n" + "4:devices:/system.slice/docker-41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
-			expectErr: "multiple container IDs found",
+			cgroups:     testCgroupEntries + "\n" + "4:devices:/system.slice/docker-41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
+			expectErr:   "multiple container IDs found",
 		},
 		{
-			desc:     "default configuration matches cgroup missing docker prefix",
+			desc:        "default configuration matches cgroup missing docker prefix",
 			trustDomain: "example.org",
-			cgroups:  "4:devices:/system.slice/6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
-			hasMatch: true,
+			cgroups:     "4:devices:/system.slice/6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
+			hasMatch:    true,
 		},
 	}
 

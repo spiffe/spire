@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -25,8 +25,8 @@ import (
 )
 
 const (
-	testContainerID = "6469646e742065787065637420616e796f6e6520746f20726561642074686973"
-	testImageID     = "test-image-id"
+	testContainerID    = "6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	testImageID        = "test-image-id"
 	defaultTrustDomain = "example.org"
 )
 
@@ -166,12 +166,12 @@ func TestDockerConfig(t *testing.T) {
 		sigstoreConfigured bool
 	}{
 		{
-			name:   "success configuration",
+			name:        "success configuration",
 			trustDomain: "example.org",
-			config: `docker_version = "/123/"`,
+			config:      `docker_version = "/123/"`,
 		},
 		{
-			name: "sigstore configuration",
+			name:        "sigstore configuration",
 			trustDomain: "example.org",
 			config: `
 					experimental {
@@ -192,7 +192,7 @@ func TestDockerConfig(t *testing.T) {
 			sigstoreConfigured: true,
 		},
 		{
-			name: "bad hcl",
+			name:        "bad hcl",
 			trustDomain: "example.org",
 			config: `
 container_id_cgroup_matchers = [
@@ -201,7 +201,7 @@ container_id_cgroup_matchers = [
 			expectMsg:  "unable to decode configuration:",
 		},
 		{
-			name: "unknown configuration",
+			name:        "unknown configuration",
 			trustDomain: "example.org",
 			config: `
 invalid1 = "/oh/"

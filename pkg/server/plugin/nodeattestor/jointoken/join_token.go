@@ -34,13 +34,13 @@ type Configuration struct {
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-        if err := hcl.Decode(newConfig, hclText); err != nil {
-                status.ReportError("plugin configuration is malformed")
-                return nil
-        }
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
+	}
 
 	for key, _ := range newConfig.Extra {
-		status.ReportInfof("unkonwn setting \"%s\" encountered", key)
+		status.ReportInfof("unknown setting \"%s\" encountered", key)
 	}
 
 	return newConfig

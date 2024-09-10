@@ -12,8 +12,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
-	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -53,8 +53,8 @@ func (s *MSIAttestorSuite) TestAidAttestationFailedToObtainToken() {
 
 	attestor := s.loadAttestor(
 		plugintest.CoreConfig(catalog.CoreConfig{
-                        TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-                }),
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configure(""),
 	)
 	err := attestor.Attest(context.Background(), streamBuilder.Build())
@@ -68,8 +68,8 @@ func (s *MSIAttestorSuite) TestAidAttestationSuccess() {
 
 	attestor := s.loadAttestor(
 		plugintest.CoreConfig(catalog.CoreConfig{
-                        TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-                }),
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configure(""),
 	)
 	err := attestor.Attest(context.Background(), streamBuilder.ExpectAndBuild(expectPayload))
@@ -82,8 +82,8 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	s.loadAttestor(
 		plugintest.CaptureConfigureError(&err),
 		plugintest.CoreConfig(catalog.CoreConfig{
-                        TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-                }),
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configure("blah"),
 	)
 	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
@@ -92,8 +92,8 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	s.loadAttestor(
 		plugintest.CaptureConfigureError(&err),
 		plugintest.CoreConfig(catalog.CoreConfig{
-                        TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-                }),
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configure(""),
 	)
 	s.Require().NoError(err)
@@ -102,8 +102,8 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	s.loadAttestor(
 		plugintest.CaptureConfigureError(&err),
 		plugintest.CoreConfig(catalog.CoreConfig{
-                        TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-                }),
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configure(`resource_id = "foo"`),
 	)
 	s.Require().NoError(err)

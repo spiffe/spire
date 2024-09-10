@@ -22,7 +22,7 @@ func TestKeyManagerContract(t *testing.T) {
 	keymanagertest.Test(t, keymanagertest.Config{
 		Create: func(t *testing.T) keymanager.KeyManager {
 			dir := spiretest.TempDir(t)
-			km, err := loadPlugin(t, "example.org", "keys_path = %q", filepath.Join(dir, "keys.json"))
+			km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
 			require.NoError(t, err)
 			return km
 		},
@@ -31,7 +31,7 @@ func TestKeyManagerContract(t *testing.T) {
 
 func TestConfigure(t *testing.T) {
 	t.Run("missing keys path", func(t *testing.T) {
-		_, err := loadPlugin(t, "example.org", "")
+		_, err := loadPlugin(t, "")
 		spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "keys_path is required")
 	})
 }
@@ -47,7 +47,7 @@ func TestGenerateKeyBeforeConfigure(t *testing.T) {
 func TestGenerateKeyPersistence(t *testing.T) {
 	dir := filepath.Join(spiretest.TempDir(t), "no-such-dir")
 
-	km, err := loadPlugin(t, "example.org", "keys_path = %q", filepath.Join(dir, "keys.json"))
+	km, err := loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
 	require.NoError(t, err)
 
 	// assert failure to generate key when directory is gone
@@ -60,7 +60,7 @@ func TestGenerateKeyPersistence(t *testing.T) {
 	require.NoError(t, err)
 
 	// reload the plugin. original key should have persisted.
-	km, err = loadPlugin(t, "example.org", "keys_path = %q", filepath.Join(dir, "keys.json"))
+	km, err = loadPlugin(t, "keys_path = %q", filepath.Join(dir, "keys.json"))
 	require.NoError(t, err)
 	keyOut, err := km.GetKey(context.Background(), "id")
 	require.NoError(t, err)
@@ -82,12 +82,12 @@ func TestGenerateKeyPersistence(t *testing.T) {
 	)
 }
 
-func loadPlugin(t *testing.T, trustDomain string, configFmt string, configArgs ...any) (keymanager.KeyManager, error) {
+func loadPlugin(t *testing.T, configFmt string, configArgs ...any) (keymanager.KeyManager, error) {
 	km := new(keymanager.V1)
 	var configErr error
 	plugintest.Load(t, disk.TestBuiltIn(keymanagertest.NewGenerator()), km,
 		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configuref(configFmt, configArgs...),
 		plugintest.CaptureConfigureError(&configErr),

@@ -66,7 +66,6 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		}
 	}
 
-
 	return newConfig
 }
 

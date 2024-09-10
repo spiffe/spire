@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
-        "github.com/spiffe/spire/pkg/common/catalog"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/test/plugintest"
@@ -84,7 +84,7 @@ func (s *AttestorSuite) TestConfigure() {
 	var err error
 
 	// malformed configuration
-	s.loadPlugin(plugintest.CaptureConfigureError(&err), 
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),

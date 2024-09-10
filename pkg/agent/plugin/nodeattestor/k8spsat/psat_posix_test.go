@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-        "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/stretchr/testify/require"
 )

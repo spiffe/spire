@@ -8,14 +8,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/cryptosigner"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
-	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -69,8 +69,8 @@ func (s *Suite) SetupTest() {
 	s.status = http.StatusOK
 	s.body = ""
 	s.na = s.loadPlugin(plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-		}),
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}),
 		plugintest.Configuref(`
 		service_account = "%s"
 		identity_token_host = "%s"

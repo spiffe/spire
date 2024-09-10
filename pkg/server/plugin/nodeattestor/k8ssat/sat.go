@@ -87,7 +87,7 @@ type AttestorConfig struct {
 	Clusters map[string]*ClusterConfig `hcl:"clusters"`
 }
 
-func (p* AttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *attestorConfig {
+func (p *AttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *attestorConfig {
 	status.ReportInfof("The %q node attestor plugin has been deprecated in favor of the \"k8s_psat\" plugin and will be removed in a future release", pluginName)
 	p.log.Warn(fmt.Sprintf("The %q node attestor plugin has been deprecated in favor of the \"k8s_psat\" plugin and will be removed in a future release", pluginName))
 

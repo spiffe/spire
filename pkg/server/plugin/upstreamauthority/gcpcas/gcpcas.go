@@ -110,8 +110,8 @@ type Plugin struct {
 	// need to support hot-reloading of configuration (by receiving another
 	// call to Configure). So we need to prevent the configuration from
 	// being used concurrently and make sure it is updated atomically.
-	mu sync.Mutex
-	config  *Configuration
+	mu     sync.Mutex
+	config *Configuration
 
 	log hclog.Logger
 

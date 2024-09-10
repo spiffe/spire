@@ -9,8 +9,8 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"golang.org/x/crypto/ssh"
@@ -63,7 +63,7 @@ type ClientConfig struct {
 
 type ClientConfigRequest struct {
 	coreConfig *configv1.CoreConfiguration
-	hclText string
+	hclText    string
 }
 
 func (ccr *ClientConfigRequest) GetCoreConfiguration() *configv1.CoreConfiguration {
@@ -76,7 +76,7 @@ func (ccr *ClientConfigRequest) GetHclConfiguration() string {
 
 type ServerConfigRequest struct {
 	coreConfig *configv1.CoreConfiguration
-	hclText string
+	hclText    string
 }
 
 func (scr *ServerConfigRequest) GetCoreConfiguration() *configv1.CoreConfiguration {
@@ -200,7 +200,7 @@ func NewClient(configString string) (*Client, error) {
 
 	newClientConfig, _, err := pluginconf.Build(request, BuildClientConfig)
 	if err != nil {
-			return nil, err
+		return nil, err
 	}
 
 	return newClientConfig.NewClient(), nil
@@ -239,15 +239,13 @@ func NewServer(trustDomain, configString string) (*Server, error) {
 
 	newServerConfig, _, err := pluginconf.Build(request, BuildServerConfig)
 	if err != nil {
-			return nil, err
+		return nil, err
 	}
 
 	return newServerConfig.NewServer(), nil
 }
 
 func pubkeysFromPath(pubkeysPath string) ([]string, error) {
-
-
 	pubkeysBytes, err := os.ReadFile(pubkeysPath)
 	if err != nil {
 		return nil, err

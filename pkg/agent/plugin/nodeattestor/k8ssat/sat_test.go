@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -97,7 +97,7 @@ func (s *AttestorSuite) loadPluginWithTokenPath(trustDomain string, tokenPath st
 		plugintest.Configuref(`
 			cluster = "production"
 			token_path = %q`, tokenPath),
-		)
+	)
 }
 
 func (s *AttestorSuite) loadPlugin(options ...plugintest.Option) nodeattestor.NodeAttestor {

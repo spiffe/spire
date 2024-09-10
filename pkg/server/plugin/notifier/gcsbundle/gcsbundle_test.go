@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
@@ -37,7 +37,7 @@ func TestConfigure(t *testing.T) {
 		desc        string
 	}{
 		{
-			name: "malformed",
+			name:        "malformed",
 			trustDomain: "example.org",
 			config: `
 				MALFORMED
@@ -46,7 +46,7 @@ func TestConfigure(t *testing.T) {
 			desc: "plugin configuration is malformed",
 		},
 		{
-			name: "missing bucket",
+			name:        "missing bucket",
 			trustDomain: "example.org",
 			config: `
 				object_path = "bundle.pem"
@@ -55,7 +55,7 @@ func TestConfigure(t *testing.T) {
 			desc: "bucket must be set",
 		},
 		{
-			name: "missing object path",
+			name:        "missing object path",
 			trustDomain: "example.org",
 			config: `
 				bucket = "the-bucket"
@@ -64,7 +64,7 @@ func TestConfigure(t *testing.T) {
 			desc: "object_path must be set",
 		},
 		{
-			name: "success without service account file",
+			name:        "success without service account file",
 			trustDomain: "example.org",
 			config: `
 				bucket = "the-bucket"
@@ -73,7 +73,7 @@ func TestConfigure(t *testing.T) {
 			code: codes.OK,
 		},
 		{
-			name: "success with service account file",
+			name:        "success with service account file",
 			trustDomain: "example.org",
 			config: `
 				bucket = "the-bucket"

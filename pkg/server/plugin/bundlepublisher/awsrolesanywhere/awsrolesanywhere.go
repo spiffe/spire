@@ -213,4 +213,3 @@ func newPlugin(newRolesAnywhereClientFunc func(c aws.Config) (rolesAnywhere, err
 		},
 	}
 }
-

@@ -226,4 +226,3 @@ func newPlugin(newS3ClientFunc func(c aws.Config) (simpleStorageService, error))
 		},
 	}
 }
-

@@ -56,7 +56,8 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	var caPaths []string
 	if hclConfig.CABundlePath != "" && len(hclConfig.CABundlePaths) > 0 {
 		status.ReportError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
-	} else if hclConfig.CABundlePath != "" {
+	}
+	if hclConfig.CABundlePath != "" {
 		caPaths = []string{hclConfig.CABundlePath}
 	} else {
 		caPaths = hclConfig.CABundlePaths
@@ -83,7 +84,6 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		pathTemplate = tmpl
 	}
 
-	
 	newConfig := &configuration{
 		trustDomain:  coreConfig.TrustDomain,
 		trustBundle:  util.NewCertPool(trustBundles...),

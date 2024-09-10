@@ -111,22 +111,22 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:            "malformed configuration",
-			trustDomain:  trustDomain,
+			trustDomain:     trustDomain,
 			customConfig:    "{no a config}",
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to decode configuration:",
 		},
 		{
 			name:            "failed to create client",
-			trustDomain:  trustDomain,
+			trustDomain:     trustDomain,
 			expectConfig:    &Configuration{ServiceAccountFile: "someFile"},
 			newClientErr:    errors.New("oh! no"),
 			expectCode:      codes.Internal,
 			expectMsgPrefix: "failed to create secretmanager client: oh! no",
 		},
 		{
-			name: "contains unused keys",
-			trustDomain:  trustDomain,
+			name:        "contains unused keys",
+			trustDomain: trustDomain,
 			customConfig: `
 service_account_file = "some_file"
 invalid1 = "something"

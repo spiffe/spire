@@ -263,4 +263,3 @@ func newPlugin(newGCSClientFunc func(ctx context.Context, opts ...option.ClientO
 		},
 	}
 }
-

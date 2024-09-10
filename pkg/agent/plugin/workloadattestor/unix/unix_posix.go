@@ -237,12 +237,6 @@ func (p *Plugin) getConfig() (*Configuration, error) {
 	return config, nil
 }
 
-func (p *Plugin) setConfig(config *Configuration) {
-	p.mu.Lock()
-	p.config = config
-	p.mu.Unlock()
-}
-
 func (p *Plugin) getUID(proc processInfo) (string, error) {
 	uids, err := proc.Uids()
 	if err != nil {

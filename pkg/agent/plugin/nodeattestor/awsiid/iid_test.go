@@ -95,7 +95,7 @@ func (s *Suite) SetupTest() {
 	}))
 
 	s.p = s.loadPlugin(
-		plugintest.CoreConfig(catalog.CoreConfig{ 
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configuref(`ec2_metadata_endpoint = "http://%s/latest"`, s.server.Listener.Addr()),
@@ -109,8 +109,7 @@ func (s *Suite) TearDownTest() {
 }
 
 func (s *Suite) TestErrorWhenNotConfigured() {
-	p := s.loadPlugin(
-	)
+	p := s.loadPlugin()
 
 	err := p.Attest(context.Background(), nil)
 	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(aws_iid): not configured")
@@ -147,7 +146,7 @@ func (s *Suite) TestConfigure() {
 
 	var err error
 	s.loadPlugin(
-		plugintest.CoreConfig(catalog.CoreConfig{ 
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.CaptureConfigureError(&err),
@@ -157,7 +156,7 @@ func (s *Suite) TestConfigure() {
 
 	// success
 	s.loadPlugin(
-		plugintest.CoreConfig(catalog.CoreConfig{ 
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(""),

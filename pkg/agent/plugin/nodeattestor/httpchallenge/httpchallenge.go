@@ -234,4 +234,3 @@ func (p *Plugin) getConfig() (*configData, error) {
 	}
 	return p.c, nil
 }
-

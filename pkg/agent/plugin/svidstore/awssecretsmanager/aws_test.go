@@ -107,10 +107,10 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name:   "access key and secret from env vars",
-			trustDomain:     "example.org",
-			envs:   envs,
-			region: "r1",
+			name:        "access key and secret from env vars",
+			trustDomain: "example.org",
+			envs:        envs,
+			region:      "r1",
 			expectConfig: &Configuration{
 				AccessKeyID:     "foh",
 				SecretAccessKey: "bar",

@@ -17,10 +17,10 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"github.com/spiffe/spire/pkg/common/pluginconf"
 )
 
 const (
@@ -77,7 +77,7 @@ type dockerPluginConfig struct {
 	Experimental experimentalConfig `hcl:"experimental,omitempty" json:"experimental,omitempty"`
 
 	containerHelper *containerHelper
-	dockerOpts []dockerclient.Opt
+	dockerOpts      []dockerclient.Opt
 	sigstoreConfig  *sigstore.Config
 }
 
@@ -120,7 +120,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		newConfig.sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Experimental.Sigstore, p.log)
 	}
 
-	return newConfig;
+	return newConfig
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {

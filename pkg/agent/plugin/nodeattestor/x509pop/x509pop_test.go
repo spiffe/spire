@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"testing"
 
-        "github.com/spiffe/go-spiffe/v2/spiffeid"
-        "github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/test/fixture"
