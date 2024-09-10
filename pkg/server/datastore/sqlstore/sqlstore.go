@@ -36,17 +36,19 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var sqlError = errs.Class("datastore-sql")
-var validEntryIDChars = &unicode.RangeTable{
-	R16: []unicode.Range16{
-		{0x002d, 0x002e, 1}, // - | .
-		{0x0030, 0x0039, 1}, // [0-9]
-		{0x0041, 0x005a, 1}, // [A-Z]
-		{0x005f, 0x005f, 1}, // _
-		{0x0061, 0x007a, 1}, // [a-z]
-	},
-	LatinOffset: 5,
-}
+var (
+	sqlError          = errs.Class("datastore-sql")
+	validEntryIDChars = &unicode.RangeTable{
+		R16: []unicode.Range16{
+			{0x002d, 0x002e, 1}, // - | .
+			{0x0030, 0x0039, 1}, // [0-9]
+			{0x0041, 0x005a, 1}, // [A-Z]
+			{0x005f, 0x005f, 1}, // _
+			{0x0061, 0x007a, 1}, // [a-z]
+		},
+		LatinOffset: 5,
+	}
+)
 
 const (
 	PluginName = "sql"
@@ -508,7 +510,7 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 
 // CountRegistrationEntries counts all registrations (pagination available)
 func (ds *Plugin) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (count int32, err error) {
-	var actDb = ds.db
+	actDb := ds.db
 	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
 		actDb = ds.roDb
 	}
@@ -1034,7 +1036,9 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	case isPostgresDbType(cfg.databaseTypeConfig.databaseType):
 		dialect = postgresDB{}
 	case isMySQLDbType(cfg.databaseTypeConfig.databaseType):
-		dialect = mysqlDB{}
+		dialect = mysqlDB{
+			logger: ds.log,
+		}
 	default:
 		return nil, "", false, nil, sqlError.New("unsupported database_type: %v", cfg.databaseTypeConfig.databaseType)
 	}
@@ -2926,7 +2930,7 @@ func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *dat
 func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
 	builder := new(strings.Builder)
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
-	var downstream = false
+	downstream := false
 	if req.ByDownstream != nil {
 		downstream = *req.ByDownstream
 	}
@@ -3021,7 +3025,7 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
-	var downstream = false
+	downstream := false
 	if req.ByDownstream != nil {
 		downstream = *req.ByDownstream
 	}
@@ -3160,7 +3164,7 @@ LEFT JOIN
 `)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
-	var downstream = false
+	downstream := false
 	if req.ByDownstream != nil {
 		downstream = *req.ByDownstream
 	}
@@ -3188,7 +3192,7 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, MySQL, req)
-	var downstream = false
+	downstream := false
 	if req.ByDownstream != nil {
 		downstream = *req.ByDownstream
 	}
@@ -3301,7 +3305,6 @@ func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogg
 
 	for {
 		resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, listReq)
-
 		if err != nil {
 			return -1, err
 		}
