@@ -60,7 +60,7 @@ type StaleEntry struct {
 // selector it encounters. Each selector index tracks the subscribers (i.e
 // workloads) and registration entries that have that selector.
 //
-// The LRU-like SVID cache has configurable size limit and expiry period.
+// The LRU-like SVID cache has a size limit and expiry period.
 //  1. Size limit of SVID cache is a soft limit. If SVID has a subscriber present then
 //     that SVID is never removed from cache.
 //  2. Least recently used SVIDs are removed from cache only after the cache expiry period has passed.
