@@ -24,7 +24,7 @@ const (
 	SVIDSyncInterval = 500 * time.Millisecond
 )
 
-// Update holds information for an entries update to the cache.
+// UpdateEntries holds information for an entries update to the cache.
 type UpdateEntries struct {
 	// Bundles is a set of ALL trust bundles available to the agent, keyed by trust domain
 	Bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
