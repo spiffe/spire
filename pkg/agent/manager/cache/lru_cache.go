@@ -124,8 +124,6 @@ type LRUCache struct {
 	// svids are stored by entry IDs
 	svids map[string]*X509SVID
 
-	// svidCacheMaxSize is a soft limit of max number of SVIDs that would be stored in cache
-	svidCacheMaxSize   int
 	subscribeBackoffFn func() backoff.BackOff
 }
 
@@ -143,9 +141,8 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 		bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			trustDomain: bundle,
 		},
-		svids:            make(map[string]*X509SVID),
-		svidCacheMaxSize: SVIDCacheMaxSize,
-		clk:              clk,
+		svids: make(map[string]*X509SVID),
+		clk:   clk,
 		subscribeBackoffFn: func() backoff.BackOff {
 			return backoff.NewBackoff(clk, SVIDSyncInterval)
 		},
@@ -416,7 +413,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 	// entries with active subscribers which are not cached will be put in staleEntries map;
 	// irrespective of what svid cache size as we cannot deny identity to a subscriber
 	activeSubsByEntryID, recordsWithLastAccessTime := c.syncSVIDsWithSubscribers()
-	extraSize := len(c.svids) - c.svidCacheMaxSize
+	extraSize := len(c.svids) - SVIDCacheMaxSize
 
 	// delete svids without subscribers and which have not been accessed since svidCacheExpiryTime
 	if extraSize > 0 {
@@ -425,7 +422,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 
 		for _, record := range recordsWithLastAccessTime {
 			if extraSize <= 0 {
-				// no need to delete SVIDs any further as cache size <= svidCacheMaxSize
+				// no need to delete SVIDs any further as cache size <= SVIDCacheMaxSize
 				break
 			}
 			if _, ok := c.svids[record.id]; ok {
@@ -646,7 +643,7 @@ func (c *LRUCache) syncSVIDsWithSubscribers() (map[string]struct{}, []recordAcce
 		lastAccessTimestamps = append(lastAccessTimestamps, newRecordAccessEvent(record.lastAccessTimestamp, id))
 	}
 
-	remainderSize := c.svidCacheMaxSize - len(c.svids)
+	remainderSize := SVIDCacheMaxSize - len(c.svids)
 	// add records which are not cached for remainder of cache size
 	for id := range c.records {
 		if len(c.staleEntries) >= remainderSize {
