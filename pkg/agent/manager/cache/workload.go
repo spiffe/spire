@@ -18,7 +18,7 @@ type Identity struct {
 	PrivateKey crypto.Signer
 }
 
-// Update holds information for an SVIDs update to the cache.
+// UpdateSVIDs holds information for an SVIDs update to the cache.
 type UpdateSVIDs struct {
 	// X509SVIDs is a set of updated X509-SVIDs that should be merged into
 	// the cache, keyed by registration entry id.
