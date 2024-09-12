@@ -8,6 +8,6 @@ docker compose exec -T intermediateB-server \
     -spiffeID "spiffe://domain.test/leafB" \
     -selector "docker:label:org.integration.name:leafB" \
     -downstream \
-    -ttl 90
+    -x509SVIDTTL 90
 
 check-synced-entry "intermediateB-agent" "spiffe://domain.test/leafB"
