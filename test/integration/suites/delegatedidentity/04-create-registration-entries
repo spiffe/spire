@@ -6,7 +6,7 @@ docker compose exec -T spire-server \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/authorized_delegate" \
     -selector "unix:uid:1001" \
-    -ttl 0
+    -x509SVIDTTL 0
 check-synced-entry "spire-agent" "spiffe://domain.test/authorized_delegate"
 
 log-debug "creating registration entry for workload..."
@@ -15,5 +15,5 @@ docker compose exec -T spire-server \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/workload" \
     -selector "unix:uid:1002" \
-    -ttl 0
+    -x509SVIDTTL 0
 check-synced-entry "spire-agent" "spiffe://domain.test/workload"

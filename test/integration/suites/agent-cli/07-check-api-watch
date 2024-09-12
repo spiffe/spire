@@ -8,7 +8,7 @@ docker compose exec -T spire-server \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/workload-$m" \
     -selector "unix:uid:1001" \
-    -ttl 20 &
+    -x509SVIDTTL 20 &
 
 # Get the PID of the last background process
 API_WATCH_PID=$!
