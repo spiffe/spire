@@ -387,8 +387,8 @@ Creates registration entries.
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied.                                      |                                                 |
 | `-socketPath`    | Path to the SPIRE Server API socket                                                                                                                                                               | /tmp/spire-server/private/api.sock              |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                                     |                                                 |
-| `-x509SVIDTTL`   | A TTL, in seconds, for any X509-SVID issued as a result of this record. Overrides `-ttl` value.                                                                                                   | The TTL configured with `default_x509_svid_ttl` |
-| `-jwtSVIDTTL`    | A TTL, in seconds, for any JWT-SVID issued as a result of this record. Overrides `-ttl` value.                                                                                                    | The TTL configured with `default_jwt_svid_ttl`  |
+| `-x509SVIDTTL`   | A TTL, in seconds, for any X509-SVID issued as a result of this record.                                                                                                                           | The TTL configured with `default_x509_svid_ttl` |
+| `-jwtSVIDTTL`    | A TTL, in seconds, for any JWT-SVID issued as a result of this record.                                                                                                                            | The TTL configured with `default_jwt_svid_ttl`  |
 | `-storeSVID`     | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin                                                               |
 
 ### `spire-server entry update`
@@ -408,8 +408,8 @@ Updates registration entries.
 | `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied.                              |                                                 |
 | `-socketPath`    | Path to the SPIRE Server API socket                                                                                                                                                       | /tmp/spire-server/private/api.sock              |
 | `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                             |                                                 |
-| `-x509SVIDTTL`   | A TTL, in seconds, for any X509-SVID issued as a result of this record. Overrides `-ttl` value.                                                                                           | The TTL configured with `default_x509_svid_ttl` |
-| `-jwtSVIDTTL`    | A TTL, in seconds, for any JWT-SVID issued as a result of this record. Overrides `-ttl` value.                                                                                            | The TTL configured with `default_jwt_svid_ttl`  |
+| `-x509SVIDTTL`   | A TTL, in seconds, for any X509-SVID issued as a result of this record.                                                                                                                   | The TTL configured with `default_x509_svid_ttl` |
+| `-jwtSVIDTTL`    | A TTL, in seconds, for any JWT-SVID issued as a result of this record.                                                                                                                    | The TTL configured with `default_jwt_svid_ttl`  |
 | `storeSVID`      | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin                                                       |
 
 ### `spire-server entry count`
