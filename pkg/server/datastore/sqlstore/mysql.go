@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"os"
+	"strings"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
@@ -64,7 +65,7 @@ func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, ver
 		return nil, "", false, err
 	}
 
-	if version == "5.7" {
+	if strings.HasPrefix(version, "5.7.") {
 		my.logger.Warn("MySQL 5.7 is no longer officially supported, and SPIRE does not guarantee compatibility with MySQL 5.7. Consider upgrading to a newer version of MySQL.")
 	}
 
