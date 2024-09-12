@@ -13,7 +13,9 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -139,6 +141,31 @@ func TestMintX509CA(t *testing.T) {
 	serverCertUpdate, _ := ca.CreateX509Certificate(
 		testca.WithID(spiffeid.RequireFromPath(trustDomain, "/another")),
 	)
+	serverCertUpdateTainted, _ := ca.CreateX509Certificate(
+		testca.WithID(spiffeid.RequireFromPath(trustDomain, "/another")),
+	)
+	expectedServerUpdateAuthority := []*x509certificate.X509Authority{
+		{
+			Certificate: serverCertUpdate[0],
+		},
+		{
+			Certificate: serverCertUpdateTainted[0],
+			Tainted:     true,
+		},
+	}
+
+	certToAuthority := func(certs []*x509.Certificate) []*x509certificate.X509Authority {
+		var authorities []*x509certificate.X509Authority
+		for _, eachCert := range certs {
+			authorities = append(authorities, &x509certificate.X509Authority{
+				Certificate: eachCert,
+			})
+		}
+		return authorities
+	}
+	// TODO: since now we can taint authorities may we add this feature
+	// to go-spiffe?
+	expectedX509Authorities := certToAuthority(ca.Bundle().X509Authorities())
 
 	csr, pubKey, err := util.NewCSRTemplate(trustDomain.IDString())
 	require.NoError(t, err)
@@ -218,15 +245,29 @@ func TestMintX509CA(t *testing.T) {
 			expectCode:      codes.Internal,
 			expectMsgPrefix: "upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Internal desc = unable to parse CA cert chain: x509: malformed certificate",
 		},
+		{
+			name: "honors ttl",
+			ttl:  time.Second * 99,
+			getCSR: func() ([]byte, crypto.PublicKey) {
+				return csr, pubKey
+			},
+			downstreamResp: &svidv1.NewDownstreamX509CAResponse{
+				CaCertChain: [][]byte{[]byte("malformed")},
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Internal desc = unable to parse CA cert chain: x509: malformed certificate",
+		},
 	}
 
 	cases = append(cases, mintX509CACasesOS(t)...)
 	for _, c := range cases {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
+			mockClock := clock.NewMock(t)
+
 			// Setup servers
 			server := testHandler{}
-			server.startTestServers(t, ca, serverCert, serverKey, svidCert, svidKey)
+			server.startTestServers(t, mockClock, ca, serverCert, serverKey, svidCert, svidKey)
 			server.sAPIServer.setError(c.sAPIError)
 			server.sAPIServer.setDownstreamResponse(c.downstreamResp)
 
@@ -239,7 +280,8 @@ func TestMintX509CA(t *testing.T) {
 				workloadAPIAddr = c.customWorkloadAPIAddr
 			}
 
-			ua, mockClock := newWithDefault(t, serverAddr, workloadAPIAddr)
+			ua := newWithDefault(t, mockClock, serverAddr, workloadAPIAddr)
+			server.sAPIServer.clock = mockClock
 
 			// Send initial request and get stream
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -256,7 +298,13 @@ func TestMintX509CA(t *testing.T) {
 				return
 			}
 
-			require.Equal(t, ca.X509Bundle().X509Authorities(), x509Authorities)
+			require.Equal(t, expectedX509Authorities, x509Authorities)
+
+			wantTTL := c.ttl
+			if wantTTL == 0 {
+				wantTTL = x509svid.DefaultUpstreamCATTL
+			}
+			require.Equal(t, wantTTL, x509CA[0].NotAfter.Sub(mockClock.Now()))
 
 			isEqual, err := cryptoutil.PublicKeyEqual(x509CA[0].PublicKey, pubKey)
 			require.NoError(t, err)
@@ -269,6 +317,7 @@ func TestMintX509CA(t *testing.T) {
 			// the upstream poll frequency twice to ensure the plugin picks up
 			// the change to the bundle.
 			server.sAPIServer.appendRootCA(&types.X509Certificate{Asn1: serverCertUpdate[0].Raw})
+			server.sAPIServer.appendRootCA(&types.X509Certificate{Asn1: serverCertUpdateTainted[0].Raw, Tainted: true})
 			mockClock.Add(upstreamPollFreq)
 			mockClock.Add(upstreamPollFreq)
 			mockClock.Add(internalPollFreq)
@@ -277,8 +326,7 @@ func TestMintX509CA(t *testing.T) {
 			bundleUpdateResp, err := stream.RecvUpstreamX509Authorities()
 			require.NoError(t, err)
 
-			expectBundles := append(ca.X509Authorities(), serverCertUpdate...)
-			require.Equal(t, expectBundles, bundleUpdateResp)
+			require.Equal(t, append(expectedX509Authorities, expectedServerUpdateAuthority...), bundleUpdateResp)
 
 			// Cancel ctx to stop getting updates
 			cancel()
@@ -311,9 +359,10 @@ func TestPublishJWTKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Setup servers
+	mockClock := clock.NewMock(t)
 	server := testHandler{}
-	server.startTestServers(t, ca, serverCert, serverKey, svidCert, svidKey)
-	ua, mockClock := newWithDefault(t, server.sAPIServer.addr, server.wAPIServer.workloadAPIAddr)
+	server.startTestServers(t, mockClock, ca, serverCert, serverKey, svidCert, svidKey)
+	ua := newWithDefault(t, mockClock, server.sAPIServer.addr, server.wAPIServer.workloadAPIAddr)
 
 	// Get first response
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -365,7 +414,7 @@ func TestPublishJWTKey(t *testing.T) {
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "upstreamauthority(spire): failed to push JWT authority: rpc error: code = Unknown desc = some erro")
 }
 
-func newWithDefault(t *testing.T, serverAddr string, workloadAPIAddr net.Addr) (*upstreamauthority.V1, *clock.Mock) {
+func newWithDefault(t *testing.T, mockClock *clock.Mock, serverAddr string, workloadAPIAddr net.Addr) *upstreamauthority.V1 {
 	host, port, _ := net.SplitHostPort(serverAddr)
 	config := Configuration{
 		ServerAddr: host,
@@ -373,19 +422,18 @@ func newWithDefault(t *testing.T, serverAddr string, workloadAPIAddr net.Addr) (
 	}
 	setWorkloadAPIAddr(&config, workloadAPIAddr)
 
+	p := New()
+	p.clk = mockClock
+
 	ua := new(upstreamauthority.V1)
-	plugintest.Load(t, BuiltIn(), ua,
+	plugintest.Load(t, builtin(p), ua,
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: trustDomain,
 		}),
 		plugintest.ConfigureJSON(config),
 	)
 
-	mockClock := clock.NewMock(t)
-
-	clk = mockClock
-
-	return ua, mockClock
+	return ua
 }
 
 func certChainURIs(chain []*x509.Certificate) []string {

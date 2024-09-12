@@ -2,11 +2,11 @@ run:
   # timeout for analysis, e.g. 30s, 5m, default is 1m
   timeout: 12m
 
-  skip-dirs:
+issues:
+  exclude-dirs:
     - testdata$
     - test/mock
-
-  skip-files:
+  exclude-files:
     - ".*\\.pb\\.go"
 
 linters:
@@ -29,3 +29,6 @@ linters-settings:
   revive:
     # minimal confidence for issues, default is 0.8
     confidence: 0.0
+    rules:
+      - name: unused-parameter
+        disabled: true

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -45,6 +46,10 @@ func (s *Suite) SetupTest() {
 }
 
 func (s *Suite) TestAttest() {
+	unreadableExePath := "/proc/10/unreadable-exe"
+	if runtime.GOOS != "linux" {
+		unreadableExePath = filepath.Join(s.dir, "unreadable-exe")
+	}
 	testCases := []struct {
 		name           string
 		pid            int
@@ -131,7 +136,7 @@ func (s *Suite) TestAttest() {
 			pid:        10,
 			config:     "discover_workload_path = true",
 			expectCode: codes.Internal,
-			expectMsg:  "workloadattestor(unix): SHA256 digest: open /proc/10/unreadable-exe: no such file or directory",
+			expectMsg:  fmt.Sprintf("workloadattestor(unix): SHA256 digest: open %s: no such file or directory", unreadableExePath),
 		},
 		{
 			name:       "process binary exceeds size limits",

@@ -33,10 +33,10 @@ You may use all, some, or none of the collectors. The following collectors suppo
 
 ### `Prometheus`
 
-| Configuration | Type     | Description            |
-|---------------|----------|------------------------|
-| `host`        | `string` | Prometheus server host |
-| `port`        | `int`    | Prometheus server port |
+| Configuration | Type     | Description               |
+|---------------|----------|---------------------------|
+| `host`        | `string` | Prometheus exporter listen address |
+| `port`        | `int`    | Prometheus exporter listen port    |
 
 ### `DogStatsd`
 

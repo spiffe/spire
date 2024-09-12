@@ -11,7 +11,9 @@ import (
 	"sort"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/andres-erbsen/clock"
 	w_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
@@ -28,6 +30,8 @@ import (
 )
 
 type handler struct {
+	clock clock.Clock
+
 	svidv1.SVIDServer
 	bundlev1.BundleServer
 
@@ -62,10 +66,10 @@ type testHandler struct {
 	sAPIServer *handler
 }
 
-func (h *testHandler) startTestServers(t *testing.T, ca *testca.CA, serverCert []*x509.Certificate, serverKey crypto.Signer,
+func (h *testHandler) startTestServers(t *testing.T, clk clock.Clock, ca *testca.CA, serverCert []*x509.Certificate, serverKey crypto.Signer,
 	svidCert []byte, svidKey []byte) {
 	h.wAPIServer = &whandler{cert: serverCert, key: serverKey, ca: ca, svidCert: svidCert, svidKey: svidKey}
-	h.sAPIServer = &handler{cert: serverCert, key: serverKey, ca: ca}
+	h.sAPIServer = &handler{clock: clk, cert: serverCert, key: serverKey, ca: ca}
 	h.sAPIServer.startServerAPITestServer(t)
 	h.wAPIServer.startWAPITestServer(t)
 }
@@ -162,7 +166,7 @@ func (h *handler) appendKey(key *types.JWTKey) *types.Bundle {
 	return cloneBundle(h.bundle)
 }
 
-func (h *handler) appendRootCA(rootCA *types.X509Certificate) *types.Bundle {
+func (h *handler) appendRootCA(rootCA *types.X509Certificate) *types.Bundle { //nolint: unparam // Keeping return for future use
 	h.mtx.Lock()
 	defer h.mtx.Unlock()
 	h.bundle.X509Authorities = append(h.bundle.X509Authorities, rootCA)
@@ -193,9 +197,11 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	ca := x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(h.cert[0], h.key),
 		trustDomain,
-		x509svid.UpstreamCAOptions{})
+		x509svid.UpstreamCAOptions{
+			Clock: h.clock,
+		})
 
-	cert, err := ca.SignCSR(ctx, req.Csr, 0)
+	cert, err := ca.SignCSR(ctx, req.Csr, time.Second*time.Duration(req.PreferredTtl))
 	if err != nil {
 		return nil, fmt.Errorf("unable to sign CSR: %w", err)
 	}

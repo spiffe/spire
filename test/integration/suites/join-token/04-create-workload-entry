@@ -1,7 +1,7 @@
 #!/bin/bash
 
 log-debug "creating registration entry..."
-docker-compose exec -T spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server entry create \
     -parentID "spiffe://domain.test/node" \
     -spiffeID "spiffe://domain.test/workload" \
@@ -14,8 +14,8 @@ MAXCHECKS=30
 CHECKINTERVAL=1
 for ((i=1;i<=MAXCHECKS;i++)); do
     log-info "checking for synced workload entry ($i of $MAXCHECKS max)..."
-    docker-compose logs spire-agent
-    if docker-compose logs spire-agent | grep "spiffe://domain.test/workload"; then
+    docker compose logs spire-agent
+    if docker compose logs spire-agent | grep "spiffe://domain.test/workload"; then
         exit 0
     fi
     sleep "${CHECKINTERVAL}"

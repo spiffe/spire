@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.10.3] - 2024-09-03
+
+### Fixed
+
+- Regression in agent health check, requiring the agent to have an SVID on disk to be healthy (#5459)
+
+## [1.10.2] - 2024-09-03
+
+### Added
+
+- `http_challenge` NodeAttestor plugin (#4909)
+- Experimental support for validating container image signatures through Sigstore selectors in the docker Workload Attestor (#5272)
+- Metrics for monitoring the event-based cache (#5411)
+
+### Changed
+
+- Delegated Identity API to allow subscription by process ID (#5272)
+- Agent Debug endpoint to count SVIDs by type (#5352)
+- Agent health check to report an unhealthy status until the Agent SVID is attested (#5298)
+- Small documentation improvements (#5393)
+
+### Fixed
+
+- `aws_iid` NodeAttestor to properly handle multiple network interfaces (#5300)
+- Server configuration to correctly propagate the `sql_transaction_timeout` setting in the experimental events-based cache (#5345)
+
+## [1.10.1] - 2024-08-01
+
+### Added
+
+- New Grafana dashboard template (#5188)
+- `aws_rolesanywhere_trustanchor` BundlePublisher plugin (#5048)
+
+### Changed
+
+- `spire` UpstreamAuthority to optionally use the Preferred TTL on intermediate authorities (#5264)
+- Federation endpoint to support custom bundle and certificates for authorization (#5163)
+- Small documentation improvements (#5235, #5220)
+
+### Fixed
+
+- Event-based cache to handle events missed at the cache startup (#5289)
+- LRU cache to no longer send update notifications to all subscribers (#5281)
+
 ## [1.10.0] - 2024-06-24
 
 ### Added

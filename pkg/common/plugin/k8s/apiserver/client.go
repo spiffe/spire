@@ -65,10 +65,6 @@ func (c *client) GetPod(ctx context.Context, namespace, podName string) (*v1.Pod
 		return nil, fmt.Errorf("unable to query pods API: %w", err)
 	}
 
-	if pod == nil {
-		return nil, fmt.Errorf("got nil pod for pod name: %v", podName)
-	}
-
 	return pod, nil
 }
 
@@ -88,10 +84,6 @@ func (c *client) GetNode(ctx context.Context, nodeName string) (*v1.Node, error)
 	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("unable to query nodes API: %w", err)
-	}
-
-	if node == nil {
-		return nil, fmt.Errorf("got nil node for node name: %v", nodeName)
 	}
 
 	return node, nil
@@ -119,10 +111,6 @@ func (c *client) ValidateToken(ctx context.Context, token string, audiences []st
 	}
 
 	// Evaluate token review response (review server will populate TokenReview.Status field)
-	if resp == nil {
-		return nil, errors.New("token review API response is nil")
-	}
-
 	if resp.Status.Error != "" {
 		return nil, fmt.Errorf("token review API response contains an error: %v", resp.Status.Error)
 	}

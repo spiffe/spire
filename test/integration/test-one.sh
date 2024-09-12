@@ -50,7 +50,7 @@ cleanup() {
         fail-now "\"${TESTNAME}\" failed to tear down."
     fi
 
-    # double check that if docker-compose was used that we clean everything up.
+    # double check that if docker compose was used that we clean everything up.
     # this helps us to not pollute the local docker state.
     if [ -f "${RUNDIR}/docker-compose.yaml" ]; then
         docker-cleanup
@@ -83,8 +83,7 @@ cp -R "${TESTDIR}"/* "${RUNDIR}/"
 run-step() {
     local script="$1"
     if [ ! -x "$script" ]; then
-        log-warn "skipping \"$script\"; not executable"
-        return
+        fail-now "Failing: \"$script\" is not executable"
     fi
     log-debug "executing $(basename "$script")..."
 

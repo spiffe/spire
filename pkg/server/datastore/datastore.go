@@ -2,7 +2,6 @@ package datastore
 
 import (
 	"context"
-	"crypto"
 	"net/url"
 	"time"
 
@@ -25,8 +24,8 @@ type DataStore interface {
 	UpdateBundle(context.Context, *common.Bundle, *common.BundleMask) (*common.Bundle, error)
 
 	// Keys
-	TaintX509CA(ctx context.Context, trustDomainID string, publicKeyToTaint crypto.PublicKey) error
-	RevokeX509CA(ctx context.Context, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error
+	TaintX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToTaint string) error
+	RevokeX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToRevoke string) error
 	TaintJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error)
 	RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error)
 
@@ -172,6 +171,7 @@ type ListAttestedNodesResponse struct {
 
 type ListAttestedNodesEventsRequest struct {
 	GreaterThanEventID uint
+	LessThanEventID    uint
 }
 
 type AttestedNodeEvent struct {
@@ -180,8 +180,7 @@ type AttestedNodeEvent struct {
 }
 
 type ListAttestedNodesEventsResponse struct {
-	Events       []AttestedNodeEvent
-	FirstEventID uint
+	Events []AttestedNodeEvent
 }
 
 type ListBundlesRequest struct {
@@ -226,6 +225,7 @@ type ListRegistrationEntriesResponse struct {
 
 type ListRegistrationEntriesEventsRequest struct {
 	GreaterThanEventID uint
+	LessThanEventID    uint
 }
 
 type RegistrationEntryEvent struct {
@@ -234,8 +234,7 @@ type RegistrationEntryEvent struct {
 }
 
 type ListRegistrationEntriesEventsResponse struct {
-	Events       []RegistrationEntryEvent
-	FirstEventID uint
+	Events []RegistrationEntryEvent
 }
 
 type ListFederationRelationshipsRequest struct {

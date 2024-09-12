@@ -95,10 +95,13 @@ func (s *Service) GetInfo(context.Context, *debugv1.GetInfoRequest) (*debugv1.Ge
 		// Reset clock and set current response
 		s.getInfoResp.ts = s.clock.Now()
 		s.getInfoResp.resp = &debugv1.GetInfoResponse{
-			SvidChain:       svidChain,
-			Uptime:          int32(s.uptime().Seconds()),
-			SvidsCount:      int32(s.m.CountSVIDs()),
-			LastSyncSuccess: s.m.GetLastSync().UTC().Unix(),
+			SvidChain:                     svidChain,
+			Uptime:                        int32(s.uptime().Seconds()),
+			SvidsCount:                    int32(s.m.CountX509SVIDs()),
+			CachedX509SvidsCount:          int32(s.m.CountX509SVIDs()),
+			CachedJwtSvidsCount:           int32(s.m.CountJWTSVIDs()),
+			CachedSvidstoreX509SvidsCount: int32(s.m.CountSVIDStoreX509SVIDs()),
+			LastSyncSuccess:               s.m.GetLastSync().UTC().Unix(),
 		}
 	}
 

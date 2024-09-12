@@ -20,6 +20,7 @@ import (
 	debugv1 "github.com/spiffe/spire/pkg/server/api/debug/v1"
 	entryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
 	healthv1 "github.com/spiffe/spire/pkg/server/api/health/v1"
+	localauthorityv1 "github.com/spiffe/spire/pkg/server/api/localauthority/v1"
 	loggerv1 "github.com/spiffe/spire/pkg/server/api/logger/v1"
 	svidv1 "github.com/spiffe/spire/pkg/server/api/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire/pkg/server/api/trustdomain/v1"
@@ -56,8 +57,8 @@ type Config struct {
 	// Bundle endpoint configuration
 	BundleEndpoint bundle.EndpointConfig
 
-	// JWTKey publisher
-	JWTKeyPublisher manager.JwtKeyPublisher
+	// Authority manager
+	AuthorityManager manager.AuthorityManager
 
 	// Makes policy decisions
 	AuthPolicyEngine *authpolicy.Engine
@@ -99,6 +100,13 @@ type Config struct {
 	AdminIDs []spiffeid.ID
 
 	BundleManager *bundle_client.Manager
+
+	// UseLegacyDownstreamX509CATTL, if true, the downstream X509CAs will use
+	// the legacy TTL calculation ( e.g. prefer downstream workload entry TTL,
+	// then fall back to the default workload X509-SVID TTL) v.s. the new TTL
+	// calculation (prefer the TTL passed by the downstream caller, then fall
+	// back to the default X509 CA TTL).
+	UseLegacyDownstreamX509CATTL bool
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) error) {
@@ -147,7 +155,7 @@ func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) 
 
 func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServers {
 	ds := c.Catalog.GetDataStore()
-	upstreamPublisher := UpstreamPublisher(c.JWTKeyPublisher)
+	upstreamPublisher := UpstreamPublisher(c.AuthorityManager)
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
@@ -182,15 +190,21 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			Log: c.RootLog,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
-			TrustDomain:  c.TrustDomain,
-			EntryFetcher: entryFetcher,
-			ServerCA:     c.ServerCA,
-			DataStore:    ds,
+			TrustDomain:                  c.TrustDomain,
+			EntryFetcher:                 entryFetcher,
+			ServerCA:                     c.ServerCA,
+			DataStore:                    ds,
+			UseLegacyDownstreamX509CATTL: c.UseLegacyDownstreamX509CATTL,
 		}),
 		TrustDomainServer: trustdomainv1.New(trustdomainv1.Config{
 			TrustDomain:     c.TrustDomain,
 			DataStore:       ds,
 			BundleRefresher: c.BundleManager,
+		}),
+		LocalAUthorityServer: localauthorityv1.New(localauthorityv1.Config{
+			TrustDomain: c.TrustDomain,
+			CAManager:   c.AuthorityManager,
+			DataStore:   ds,
 		}),
 	}
 }

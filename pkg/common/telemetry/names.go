@@ -344,6 +344,9 @@ const (
 	// IDType tags some type of ID (eg. registration ID, SPIFFE ID...)
 	IDType = "id_type"
 
+	// ImageID tags the image identifier in the format "repository@sha256:digest"
+	ImageID = "image_id"
+
 	// IssuedAt tags an issuance timestamp
 	IssuedAt = "issued_at"
 
@@ -541,6 +544,9 @@ const (
 	// with other tags to add clarity
 	Subject = "subject"
 
+	// SubjectKeyID tags a certificate subject key ID
+	SubjectKeyID = "subject_key_id"
+
 	// SVIDMapSize is the gauge key for the size of the LRU cache SVID map
 	SVIDMapSize = "lru_cache_svid_map_size"
 
@@ -599,6 +605,9 @@ const (
 	// with other tags to add clarity
 	Updated = "updated"
 
+	// UpstreamAuthorityID tags a signing authority ID
+	UpstreamAuthorityID = "upstream_authority_id"
+
 	// StoreSvid tags if entry is storable
 	StoreSvid = "store_svid"
 
@@ -653,6 +662,24 @@ const (
 
 	// Cache functionality related to a cache
 	Cache = "cache"
+
+	// AgentsByIDCache functionality related to the agent btree cache indexed by ID
+	AgentsByIDCache = "agents_by_id_cache"
+
+	// AgentsByExpiresAtCache functionality related to the agent btree cache indexed by ExpiresAt
+	AgentsByExpiresAtCache = "agents_by_expiresat_cache"
+
+	// NodeAliasesByEntryIDCache functionality related to the node-aliases btree cache indexed by EntryID
+	NodeAliasesByEntryIDCache = "nodealiases_by_entryid_cache"
+
+	// NodeAliasesBySelectorCache functionality related to the node-aliases btree cache indexed by Selector
+	NodeAliasesBySelectorCache = "nodealiases_by_selector_cache"
+
+	// EntriesByEntryIDCache functionality related to the entries btree cache indexed by EntryID
+	EntriesByEntryIDCache = "entries_by_entryid_cache"
+
+	// EntriesByParentIDCache functionality related to the entries btree cache indexed by ParentID
+	EntriesByParentIDCache = "entries_by_parentid_cache"
 
 	// Cache type tag
 	CacheType = "cache_type"
@@ -852,8 +879,11 @@ const (
 	// ListAgents functionality related to listing agents
 	ListAgents = "list_agents"
 
-	// CountEntries functionality related to counting all registration entries
-	CountEntries = "count_entries"
+	// SkippedEntryEventIDs functionality related to counting missed entry event IDs
+	SkippedEntryEventIDs = "skipped_entry_event_ids"
+
+	// SkippedNodeEventIDs functionality related to counting missed node event IDs
+	SkippedNodeEventIDs = "skipped_node_event_ids"
 
 	// ListAllEntriesWithPages functionality related to listing all registration entries with pagination
 	ListAllEntriesWithPages = "list_all_entries_with_pages"

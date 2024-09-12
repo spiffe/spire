@@ -92,7 +92,7 @@ func TestLRUCacheCountSVIDs(t *testing.T) {
 	cache.UpdateEntries(updateEntries, nil)
 
 	// No SVIDs expected
-	require.Equal(t, 0, cache.CountSVIDs())
+	require.Equal(t, 0, cache.CountX509SVIDs())
 
 	updateSVIDs := &UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo),
@@ -100,7 +100,7 @@ func TestLRUCacheCountSVIDs(t *testing.T) {
 	cache.UpdateSVIDs(updateSVIDs)
 
 	// Only one SVID expected
-	require.Equal(t, 1, cache.CountSVIDs())
+	require.Equal(t, 1, cache.CountX509SVIDs())
 }
 
 func TestLRUCacheCountRecords(t *testing.T) {
@@ -705,15 +705,15 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 			sub.Finish()
 		}
 	}
-	assert.Equal(t, 12, cache.CountSVIDs())
+	assert.Equal(t, 12, cache.CountX509SVIDs())
 
 	cache.UpdateEntries(updateEntries, nil)
-	assert.Equal(t, 10, cache.CountSVIDs())
+	assert.Equal(t, 10, cache.CountX509SVIDs())
 
 	// foo SVID should be removed from cache as it does not have active subscriber
-	assert.False(t, cache.Notify(makeSelectors("A")))
+	assert.False(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("A"), subA.(*lruCacheSubscriber)))
 	// bar SVID should be cached as it has active subscriber
-	assert.True(t, cache.Notify(makeSelectors("B")))
+	assert.True(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("B"), subB.(*lruCacheSubscriber)))
 
 	subA = cache.NewSubscriber(makeSelectors("A"))
 	defer subA.Finish()
@@ -724,7 +724,7 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 	require.Len(t, cache.GetStaleEntries(), 1)
 	assert.Equal(t, foo, cache.GetStaleEntries()[0].Entry)
 
-	assert.Equal(t, 10, cache.CountSVIDs())
+	assert.Equal(t, 10, cache.CountX509SVIDs())
 }
 
 func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
@@ -741,7 +741,7 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 		X509SVIDs: makeX509SVIDsFromStaleEntries(cache.GetStaleEntries()),
 	})
 	require.Len(t, cache.GetStaleEntries(), 0)
-	assert.Equal(t, 10, cache.CountSVIDs())
+	assert.Equal(t, 10, cache.CountX509SVIDs())
 
 	// Validate that active subscriber will still get SVID even if SVID count is at maxSvidCacheSize
 	foo := makeRegistrationEntry("FOO", "A")
@@ -752,12 +752,12 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 
 	cache.UpdateEntries(updateEntries, nil)
 	require.Len(t, cache.GetStaleEntries(), 1)
-	assert.Equal(t, 10, cache.CountSVIDs())
+	assert.Equal(t, 10, cache.CountX509SVIDs())
 
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo),
 	})
-	assert.Equal(t, 11, cache.CountSVIDs())
+	assert.Equal(t, 11, cache.CountX509SVIDs())
 	require.Len(t, cache.GetStaleEntries(), 0)
 }
 
@@ -770,7 +770,7 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDsFromStaleEntries(cache.GetStaleEntries()),
 	})
-	assert.Equal(t, 5, cache.CountSVIDs())
+	assert.Equal(t, 5, cache.CountX509SVIDs())
 
 	// Update foo but its SVID is not yet cached
 	foo := makeRegistrationEntry("FOO", "A")
@@ -788,11 +788,15 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	require.Len(t, cache.GetStaleEntries(), 1)
 	assert.Equal(t, []*StaleEntry{{Entry: cache.records[foo.EntryId].entry}}, cache.GetStaleEntries())
 
-	assert.Equal(t, 5, cache.CountSVIDs())
+	assert.Equal(t, 5, cache.CountX509SVIDs())
 }
 
-func TestNotify(t *testing.T) {
+func TestNotifySubscriberWhenSVIDIsAvailable(t *testing.T) {
 	cache := newTestLRUCache(t)
+
+	subscriber := cache.NewSubscriber(makeSelectors("A"))
+	sub, ok := subscriber.(*lruCacheSubscriber)
+	require.True(t, ok)
 
 	foo := makeRegistrationEntry("FOO", "A")
 	cache.UpdateEntries(&UpdateEntries{
@@ -800,11 +804,11 @@ func TestNotify(t *testing.T) {
 		RegistrationEntries: makeRegistrationEntries(foo),
 	}, nil)
 
-	assert.False(t, cache.Notify(makeSelectors("A")))
+	assert.False(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("A"), sub))
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo),
 	})
-	assert.True(t, cache.Notify(makeSelectors("A")))
+	assert.True(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("A"), sub))
 }
 
 func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
@@ -859,7 +863,7 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo, bar),
 	})
-	assert.Equal(t, 2, cache.CountSVIDs())
+	assert.Equal(t, 2, cache.CountX509SVIDs())
 
 	select {
 	case err := <-subErrCh:
@@ -928,7 +932,7 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo, bar),
 	})
-	assert.Equal(t, 2, cache.CountSVIDs())
+	assert.Equal(t, 2, cache.CountX509SVIDs())
 
 	clk.WaitForAfter(time.Second, "waiting for after to get called")
 	clk.Add(SVIDSyncInterval * 4)
