@@ -436,6 +436,23 @@ func (s *CATestSuite) TestNoJWTKeySet() {
 	s.Require().EqualError(err, "JWT key is not available for signing")
 }
 
+func (s *CATestSuite) TestTaintedAuthoritiesArePropagated() {
+	authorities := []*x509.Certificate{
+		{Raw: []byte("foh")},
+		{Raw: []byte("bar")},
+	}
+	s.ca.NotifyTaintedX509Authorities(authorities)
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	select {
+	case got := <-s.ca.TaintedAuthorities():
+		s.Require().Equal(authorities, got)
+	case <-ctx.Done():
+		s.Fail("no notification received")
+	}
+}
+
 func (s *CATestSuite) TestSignWorkloadJWTSVIDUsesDefaultTTLIfTTLUnspecified() {
 	token, err := s.ca.SignWorkloadJWTSVID(ctx, s.createJWTSVIDParams(trustDomainExample, 0))
 	s.Require().NoError(err)

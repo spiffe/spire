@@ -128,6 +128,10 @@ func (c *CA) SetJWTKey(jwtKey *ca.JWTKey) {
 	c.ca.SetJWTKey(jwtKey)
 }
 
+func (c *CA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {
+	c.ca.NotifyTaintedX509Authorities(taintedAuthorities)
+}
+
 func (c *CA) SignDownstreamX509CA(ctx context.Context, params ca.DownstreamX509CAParams) ([]*x509.Certificate, error) {
 	if c.err != nil {
 		return nil, c.err
@@ -161,6 +165,10 @@ func (c *CA) SignWorkloadJWTSVID(ctx context.Context, params ca.WorkloadJWTSVIDP
 		return "", c.err
 	}
 	return c.ca.SignWorkloadJWTSVID(ctx, params)
+}
+
+func (c *CA) TaintedAuthorities() <-chan []*x509.Certificate {
+	return c.ca.TaintedAuthorities()
 }
 
 func (c *CA) SetError(err error) {
