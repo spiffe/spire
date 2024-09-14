@@ -59,7 +59,7 @@ setup-tests() {
         -spiffeID "spiffe://federated-domain.test/downstream-proxy" \
         -selector "unix:uid:0" \
         -federatesWith "spiffe://domain.test" \
-        -ttl 0
+        -x509SVIDTTL 0
     
     log-debug "creating registration entry for upstream proxy..."
     docker compose exec -T upstream-spire-server \
@@ -68,7 +68,7 @@ setup-tests() {
         -spiffeID "spiffe://domain.test/upstream-proxy" \
         -selector "unix:uid:0" \
         -federatesWith "spiffe://federated-domain.test" \
-        -ttl 0
+        -x509SVIDTTL 0
 
     log-debug "creating registration entry for downstream proxy..."
     docker compose exec -T upstream-spire-server \
@@ -76,7 +76,7 @@ setup-tests() {
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/downstream/agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/downstream-proxy" \
         -selector "unix:uid:0" \
-        -ttl 0
+        -x509SVIDTTL 0
 }
 
 test-envoy() {

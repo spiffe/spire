@@ -33,6 +33,7 @@ type CAManager interface {
 	RotateX509CA(ctx context.Context)
 
 	IsUpstreamAuthority() bool
+	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
 }
 
 // RegisterService registers the service on the gRPC server.
@@ -365,6 +366,10 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 
 	state := &localauthorityv1.AuthorityState{
 		AuthorityId: nextSlot.AuthorityID(),
+	}
+
+	if err := s.ca.NotifyTaintedX509Authority(ctx, nextSlot.AuthorityID()); err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to notify tainted authority", err)
 	}
 
 	rpccontext.AuditRPC(ctx)

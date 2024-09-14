@@ -54,7 +54,7 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
-	fakeRespOKFromCmd2 := &entryv1.BatchCreateEntryResponse{
+	fakeRespOKFromCmdWithoutJwtTtl := &entryv1.BatchCreateEntryResponse{
 		Results: []*entryv1.BatchCreateEntryResponse_Result{
 			{
 				Entry: &types.Entry{
@@ -186,28 +186,16 @@ func TestCreate(t *testing.T) {
 			expErrJSON:   "Error: selector \"unix\" must be formatted as type:value\n",
 		},
 		{
-			name:         "Negative TTL",
-			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "-10"},
-			expErrPretty: "Error: a positive TTL is required\n",
-			expErrJSON:   "Error: a positive TTL is required\n",
+			name:         "Negative X509SvidTtl",
+			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-x509SVIDTTL", "-10"},
+			expErrPretty: "Error: a positive x509-SVID TTL is required\n",
+			expErrJSON:   "Error: a positive x509-SVID TTL is required\n",
 		},
 		{
-			name:         "Invalid TTL and X509SvidTtl",
-			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20"},
-			expErrPretty: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
-			expErrJSON:   "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
-		},
-		{
-			name:         "Invalid TTL and JwtSvidTtl",
-			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-jwtSVIDTTL", "20"},
-			expErrPretty: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
-			expErrJSON:   "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
-		},
-		{
-			name:         "Invalid TTL and both X509SvidTtl and JwtSvidTtl",
-			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-ttl", "10", "-x509SVIDTTL", "20", "-jwtSVIDTTL", "30"},
-			expErrPretty: "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
-			expErrJSON:   "Error: use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag\n",
+			name:         "Negative jwtSVIDTTL",
+			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-jwtSVIDTTL", "-10"},
+			expErrPretty: "Error: a positive JWT-SVID TTL is required\n",
+			expErrJSON:   "Error: a positive JWT-SVID TTL is required\n",
 		},
 		{
 			name:         "Federated node entries",
@@ -346,7 +334,7 @@ StoreSvid        : true
 				"-parentID", "spiffe://example.org/parent",
 				"-selector", "zebra:zebra:2000",
 				"-selector", "alpha:alpha:2000",
-				"-ttl", "60",
+				"-x509SVIDTTL", "60",
 				"-federatesWith", "spiffe://domaina.test",
 				"-federatesWith", "spiffe://domainb.test",
 				"-admin",
@@ -376,111 +364,7 @@ StoreSvid        : true
 					},
 				},
 			},
-			fakeResp: fakeRespOKFromCmd2,
-			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
-SPIFFE ID        : spiffe://example.org/workload
-Parent ID        : spiffe://example.org/parent
-Revision         : 0
-Downstream       : true
-X509-SVID TTL    : 60
-JWT-SVID TTL     : default
-Expiration time  : %s
-Selector         : zebra:zebra:2000
-Selector         : alpha:alpha:2000
-FederatesWith    : spiffe://domaina.test
-FederatesWith    : spiffe://domainb.test
-DNS name         : unu1000
-DNS name         : ung1000
-Admin            : true
-StoreSvid        : true
-
-`, time.Unix(1552410266, 0).UTC()),
-			expOutJSON: `{
-  "results": [
-    {
-      "status": {
-        "code": 0,
-        "message": "OK"
-      },
-      "entry": {
-        "id": "entry-id",
-        "spiffe_id": {
-          "trust_domain": "example.org",
-          "path": "/workload"
-        },
-        "parent_id": {
-          "trust_domain": "example.org",
-          "path": "/parent"
-        },
-        "selectors": [
-          {
-            "type": "zebra",
-            "value": "zebra:2000"
-          },
-          {
-            "type": "alpha",
-            "value": "alpha:2000"
-          }
-        ],
-        "x509_svid_ttl": 60,
-        "federates_with": [
-          "spiffe://domaina.test",
-          "spiffe://domainb.test"
-        ],
-        "hint": "",
-        "admin": true,
-        "created_at": "1547583197",
-        "downstream": true,
-        "expires_at": "1552410266",
-        "dns_names": [
-          "unu1000",
-          "ung1000"
-        ],
-        "revision_number": "0",
-        "store_svid": true,
-        "jwt_svid_ttl": 0
-      }
-    }
-  ]
-}`,
-		},
-		{
-			name: "Create succeeds using deprecated command line arguments",
-			args: []string{
-				"-spiffeID", "spiffe://example.org/workload",
-				"-parentID", "spiffe://example.org/parent",
-				"-selector", "zebra:zebra:2000",
-				"-selector", "alpha:alpha:2000",
-				"-ttl", "60",
-				"-federatesWith", "spiffe://domaina.test",
-				"-federatesWith", "spiffe://domainb.test",
-				"-admin",
-				"-entryExpiry", "1552410266",
-				"-dns", "unu1000",
-				"-dns", "ung1000",
-				"-downstream",
-				"-storeSVID",
-			},
-			expReq: &entryv1.BatchCreateEntryRequest{
-				Entries: []*types.Entry{
-					{
-						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
-						Selectors: []*types.Selector{
-							{Type: "zebra", Value: "zebra:2000"},
-							{Type: "alpha", Value: "alpha:2000"},
-						},
-						X509SvidTtl:   60,
-						FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
-						Admin:         true,
-						ExpiresAt:     1552410266,
-						DnsNames:      []string{"unu1000", "ung1000"},
-						Downstream:    true,
-						StoreSvid:     true,
-					},
-				},
-			},
-			fakeResp: fakeRespOKFromCmd2,
+			fakeResp: fakeRespOKFromCmdWithoutJwtTtl,
 			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
 SPIFFE ID        : spiffe://example.org/workload
 Parent ID        : spiffe://example.org/parent
