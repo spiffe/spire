@@ -1062,7 +1062,7 @@ func publicKeyFromJWTKey(jwtKey *ca.JWTKey) (*common.PublicKey, error) {
 	}, nil
 }
 
-// isCurrentCATainted verify if current authority is tainted
+// isX509AuthorityTainted verifies if the provided X.509 authority is tainted
 func isX509AuthorityTainted(x509CA *ca.X509CA, taintedAuthorities []*x509.Certificate) bool {
 	rootPool := x509.NewCertPool()
 	for _, taintedKey := range taintedAuthorities {

@@ -147,7 +147,7 @@ func (r *Rotator) rotateSVID(ctx context.Context) (err error) {
 		SVID: svid,
 		Key:  signer,
 	})
-	// New new SVID must not be tainted. Rotator is notified about tainted
+	// New SVID must not be tainted. Rotator is notified about tainted
 	// authorities only when the intermediate is already rotated.
 	r.isSVIDTainted = false
 

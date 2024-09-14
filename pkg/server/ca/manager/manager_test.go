@@ -464,10 +464,10 @@ func TestUpstreamProcesssTaintedAuthorityBackoff(t *testing.T) {
 		}
 	}
 
-	// Must fail because invalid key type
+	// Must fail due to the invalid key type
 	expectBackoffErr(t)
 
-	// Try againt and it will fail
+	// Try again; expect to fail
 	test.clock.Add(6 * time.Second)
 	expectBackoffErr(t)
 
