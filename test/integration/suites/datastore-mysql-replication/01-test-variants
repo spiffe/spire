@@ -68,7 +68,7 @@ get_mysql_root_password() {
   echo "${root_password}"
 }
 
-# Setup a primary server with group replication. It is compatible with MySQL 5.7 and above.
+# Setup a primary server with group replication.
 configure-readwrite-group-replication() {
     service=$1
     mysql_root_password=$2
@@ -86,7 +86,7 @@ SELECT * FROM performance_schema.replication_group_members;
     docker compose exec -T "${service}" mysql -uroot "-p$mysql_root_password" -e "${replication_script}" 
 }
 
-# Setup a replica server with group replication. It is compatible with MySQL 5.7 and above.
+# Setup a replica server with group replication.
 configure-readonly-group-replication() {
     service=$1
     mysql_root_password=$2
@@ -117,12 +117,5 @@ test-mysql-replication() {
     ./mysql-replicated.test || fail-now "tests failed"
     docker-stop "${readwrite_service_name}" "${readonly_service_name}"
 }
-
-arch=$(uname -m)
-if [ $arch = "amd64" ] || [ $arch = "x86_64" ]; then
-    test-mysql-replication mysql-5-7 || exit 1
-else
-    log-warn "skipping MySQL 5.7 test on $arch"
-fi
 
 test-mysql-replication mysql-8-0 || exit 1

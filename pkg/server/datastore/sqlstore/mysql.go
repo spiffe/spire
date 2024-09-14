@@ -5,9 +5,11 @@ import (
 	"crypto/x509"
 	"errors"
 	"os"
+	"strings"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
 
 	// gorm mysql `cloudsql` dialect, for GCP
@@ -18,7 +20,9 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 )
 
-type mysqlDB struct{}
+type mysqlDB struct {
+	logger logrus.FieldLogger
+}
 
 const (
 	tlsConfigName = "spireCustomTLS"
@@ -59,6 +63,10 @@ func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, ver
 	version, err = queryVersion(db, "SELECT VERSION()")
 	if err != nil {
 		return nil, "", false, err
+	}
+
+	if strings.HasPrefix(version, "5.7.") {
+		my.logger.Warn("MySQL 5.7 is no longer officially supported, and SPIRE does not guarantee compatibility with MySQL 5.7. Consider upgrading to a newer version of MySQL.")
 	}
 
 	supportsCTE, err = my.supportsCTE(db)
@@ -122,7 +130,6 @@ func configureConnection(cfg *configuration, isReadOnly bool) (*mysql.Config, er
 	if len(cfg.RootCAPath) > 0 {
 		rootCertPool := x509.NewCertPool()
 		pem, err := os.ReadFile(cfg.RootCAPath)
-
 		if err != nil {
 			return nil, errors.New("invalid mysql config: cannot find Root CA defined in root_ca_path")
 		}
