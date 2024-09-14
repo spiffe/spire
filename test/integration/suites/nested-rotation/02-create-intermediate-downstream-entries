@@ -7,7 +7,7 @@ docker compose exec -T root-server \
     -spiffeID "spiffe://domain.test/intermediateA" \
     -selector "docker:label:org.integration.name:intermediateA" \
     -downstream \
-    -ttl 3600
+    -x509SVIDTTL 3600
 check-synced-entry "root-agent" "spiffe://domain.test/intermediateA"
 
 log-debug "creating intermediateB downstream registration entry..."
@@ -17,5 +17,5 @@ docker compose exec -T root-server \
     -spiffeID "spiffe://domain.test/intermediateB" \
     -selector "docker:label:org.integration.name:intermediateB" \
     -downstream \
-    -ttl 3600
+    -x509SVIDTTL 3600
 check-synced-entry "root-agent" "spiffe://domain.test/intermediateB"

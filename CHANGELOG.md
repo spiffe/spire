@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.10.4] - 2024-09-12
+
+### Fixed
+
+- Add missing commits to spire-plugin-sdk and spire-api-sdk releases (spiffe/spire-api-sdk#66, spiffe/spire-plugin-sdk#39)
+
 ## [1.10.3] - 2024-09-03
 
 ### Fixed

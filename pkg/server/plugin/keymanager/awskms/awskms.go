@@ -317,10 +317,10 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	}
 
 	createKeyInput := &kms.CreateKeyInput{
-		Description:           aws.String(description),
-		KeyUsage:              types.KeyUsageTypeSignVerify,
-		CustomerMasterKeySpec: keySpec,
-		Policy:                p.keyPolicy,
+		Description: aws.String(description),
+		KeyUsage:    types.KeyUsageTypeSignVerify,
+		KeySpec:     keySpec,
+		Policy:      p.keyPolicy,
 	}
 
 	key, err := p.kmsClient.CreateKey(ctx, createKeyInput)
@@ -908,31 +908,31 @@ func signingAlgorithmForKMS(keyType keymanagerv1.KeyType, signerOpts any) (types
 	}
 }
 
-func keyTypeFromKeySpec(keySpec types.CustomerMasterKeySpec) (keymanagerv1.KeyType, bool) {
+func keyTypeFromKeySpec(keySpec types.KeySpec) (keymanagerv1.KeyType, bool) {
 	switch keySpec {
-	case types.CustomerMasterKeySpecRsa2048:
+	case types.KeySpecRsa2048:
 		return keymanagerv1.KeyType_RSA_2048, true
-	case types.CustomerMasterKeySpecRsa4096:
+	case types.KeySpecRsa4096:
 		return keymanagerv1.KeyType_RSA_4096, true
-	case types.CustomerMasterKeySpecEccNistP256:
+	case types.KeySpecEccNistP256:
 		return keymanagerv1.KeyType_EC_P256, true
-	case types.CustomerMasterKeySpecEccNistP384:
+	case types.KeySpecEccNistP384:
 		return keymanagerv1.KeyType_EC_P384, true
 	default:
 		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, false
 	}
 }
 
-func keySpecFromKeyType(keyType keymanagerv1.KeyType) (types.CustomerMasterKeySpec, bool) {
+func keySpecFromKeyType(keyType keymanagerv1.KeyType) (types.KeySpec, bool) {
 	switch keyType {
 	case keymanagerv1.KeyType_RSA_2048:
-		return types.CustomerMasterKeySpecRsa2048, true
+		return types.KeySpecRsa2048, true
 	case keymanagerv1.KeyType_RSA_4096:
-		return types.CustomerMasterKeySpecRsa4096, true
+		return types.KeySpecRsa4096, true
 	case keymanagerv1.KeyType_EC_P256:
-		return types.CustomerMasterKeySpecEccNistP256, true
+		return types.KeySpecEccNistP256, true
 	case keymanagerv1.KeyType_EC_P384:
-		return types.CustomerMasterKeySpecEccNistP384, true
+		return types.KeySpecEccNistP384, true
 	default:
 		return "", false
 	}
