@@ -133,7 +133,7 @@ invalid1 = "something"
 invalid2 = "another"
 `,
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "unknown configuration detected: invalid1",
+			expectMsgPrefix: "unknown configurations detected: invalid1,invalid2",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

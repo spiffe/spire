@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
+	"strings"
 	"sync"
 
 	"cloud.google.com/go/iam/apiv1/iampb"
@@ -61,9 +63,13 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 
 	if len(newConfig.UnusedKeyPositions) != 0 {
-		for key := range newConfig.UnusedKeyPositions {
-			status.ReportErrorf("unknown configuration detected: %s", key)
+		var keys []string
+		for k := range newConfig.UnusedKeyPositions {
+			keys = append(keys, k)
 		}
+
+		sort.Strings(keys)
+		status.ReportErrorf("unknown configurations detected: %s", strings.Join(keys, ","))
 	}
 
 	return newConfig
