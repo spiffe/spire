@@ -37,9 +37,9 @@ type eventsBasedCache interface {
 	pruneMissedEvents()
 }
 
-func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan, sqlTransactionTimeout time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
+func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, clk clock.Clock, ds datastore.DataStore, cri cacheReloadInterval, pruneEventsOlderThan, sqlTransactionTimeout time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
 	log.Info("Building event-based in-memory entry cache")
-	cache, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, sqlTransactionTimeout)
+	cache, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, cri, sqlTransactionTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -112,10 +112,12 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Con
 	return errors.Join(updateRegistrationEntriesCacheErr, updateAttestedNodesCacheErr)
 }
 
-func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, sqlTransactionTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
+func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cri cacheReloadInterval, pollPeriods uint, sqlTransactionTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
 	cache := authorizedentries.NewCache(clk)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, buildCachePageSize, sqlTransactionTimeout)
+	pollPeriods := PollPeriods(cri, sqlTransactionTimeout)
+	pollBoundaries := LinearPollBoundaryBuilder(pollPeriods, 0, sqlTransactionime.Duration(10) * time.MINUTE, time.Duration(30) * time.Second)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, buildCachePageSize, pollPeriods, sqlTransactionTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}

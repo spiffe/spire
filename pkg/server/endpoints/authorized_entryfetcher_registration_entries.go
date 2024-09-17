@@ -28,13 +28,15 @@ type registrationEntries struct {
 	firstEventID            uint
 	firstEventTime          time.Time
 	lastEventID             uint
-	missedEvents            map[uint]time.Time
+	eventTracker            *eventTracker
 	seenMissedStartupEvents map[uint]struct{}
 	sqlTransactionTimeout   time.Duration
 }
 
 // buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
 func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
+func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, pollPeriods uint, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
+	eventTracker := NewEventTracker(pollPeriods, )
 	resp, err := ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
 	if err != nil {
 		return nil, err
@@ -44,7 +46,6 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 	var firstEventID uint
 	var firstEventTime time.Time
 	var lastEventID uint
-	missedEvents := make(map[uint]time.Time)
 	for _, event := range resp.Events {
 		now := clk.Now()
 		if firstEventTime.IsZero() {
@@ -54,7 +55,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 			// After getting the first event, search for any gaps in the event stream, from the first event to the last event.
 			// During each cache refresh cycle, we will check if any of these missed events get populated.
 			for i := lastEventID + 1; i < event.EventID; i++ {
-				missedEvents[i] = clk.Now()
+				eventTracker.StartTracking(i)
 			}
 		}
 		lastEventID = event.EventID
@@ -93,12 +94,12 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 		cache:                   cache,
 		clk:                     clk,
 		ds:                      ds,
+		eventTracker:            NewEventTracker(pollPeriods, ),
 		firstEventID:            firstEventID,
 		firstEventTime:          firstEventTime,
 		log:                     log,
 		metrics:                 metrics,
 		lastEventID:             lastEventID,
-		missedEvents:            missedEvents,
 		seenMissedStartupEvents: make(map[uint]struct{}),
 		sqlTransactionTimeout:   sqlTransactionTimeout,
 	}, nil
