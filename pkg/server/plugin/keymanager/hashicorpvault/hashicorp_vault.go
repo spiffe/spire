@@ -212,9 +212,11 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	err = p.genVaultClient()
-	if err != nil {
-		return nil, err
+	if p.vc == nil {
+		err := p.genVaultClient()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// TODO: Should the encoding be done in SignData?
@@ -308,9 +310,11 @@ func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (TransitHashAlgor
 }
 
 func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keyEntry, error) {
-	err := p.genVaultClient()
-	if err != nil {
-		return nil, err
+	if p.vc == nil {
+		err := p.genVaultClient()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	kt, err := convertToTransitKeyType(keyType)
@@ -358,27 +362,23 @@ func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*TransitKeyType, err
 	}
 }
 
-// TODO: Use context here (?)
-// TODO: Should we really generate the client like this, relies on the fact that the mutex is already locked :(
 func (p *Plugin) genVaultClient() error {
-	if p.vc == nil {
-		renewCh := make(chan struct{})
-		vc, err := p.hooks.newClient(p.cc, p.authMethod, renewCh)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
-		}
-		p.vc = vc
-
-		// if renewCh has been closed, the token can not be renewed and may expire,
-		// it needs to re-authenticate to the Vault.
-		go func() {
-			<-renewCh
-			p.mu.Lock()
-			defer p.mu.Unlock()
-			p.vc = nil
-			p.logger.Debug("Going to re-authenticate to the Vault during the next key manager operation")
-		}()
+	renewCh := make(chan struct{})
+	vc, err := p.hooks.newClient(p.cc, p.authMethod, renewCh)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
 	}
+	p.vc = vc
+
+	// if renewCh has been closed, the token can not be renewed and may expire,
+	// it needs to re-authenticate to the Vault.
+	go func() {
+		<-renewCh
+		p.mu.Lock()
+		defer p.mu.Unlock()
+		p.vc = nil
+		p.logger.Debug("Going to re-authenticate to the Vault during the next key manager operation")
+	}()
 
 	return nil
 }
