@@ -37,6 +37,9 @@ type attestedNodes struct {
 // buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
 // It runs once at startup.
 func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, sqlTransactionTimeout time.Duration) (*attestedNodes, error) {
+	pollPeriods := PollPeriods(cacheReloadInterval, sqlTransactionTimeout)
+	pollBoundaries := BoundaryBuilder(cacheReloadInterval, sqlTransactionTimeout)
+
 	resp, err := ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
 	if err != nil {
 		return nil, err
@@ -237,14 +240,3 @@ func (a *attestedNodes) updateCacheEntry(ctx context.Context, spiffeID string) e
 	return nil
 }
 
-// prunedMissedEvents delete missed events that are older than the configured SQL transaction timeout time.
-func (a *attestedNodes) pruneMissedEvents() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	for eventID, eventTime := range a.missedEvents {
-		if a.clk.Now().Sub(eventTime) > a.sqlTransactionTimeout {
-			delete(a.missedEvents, eventID)
-		}
-	}
-}

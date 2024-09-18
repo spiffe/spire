@@ -31,6 +31,35 @@ func PollPeriods(pollTime time.Duration, trackTime time.Duration) uint {
 	return uint(1 + (trackTime - 1) / pollTime)
 }
 
+func BoundaryBuilder(pollTime time.Duration, trackTime time.Duration) []uint {
+	pollPeriods := PollPeriods(pollTime, trackTime)
+
+	pollBoundaries := make([]uint, 0)
+	// number of polls in a minute
+	pollsPerMinute := uint(time.Duration(1) * time.Minute / pollTime)
+	// number of polls in ten minutes
+	pollsPerTenMinutes := uint(time.Duration(10) * time.Minute / pollTime)
+
+	// for first minute, poll at cacheReloadInterval
+	pollBoundaries = append(pollBoundaries, pollsPerMinute)
+	// next 9 minutes, poll at 1/2 minute
+	currentBoundary := pollsPerMinute
+	for currentBoundary < pollsPerTenMinutes {
+		pollBoundaries = append(pollBoundaries, currentBoundary + (pollsPerMinute / 2))
+		pollBoundaries = append(pollBoundaries, currentBoundary + pollsPerMinute)
+		currentBoundary += pollsPerMinute
+	}
+	// rest of polling at 1 minute
+	for currentBoundary < pollPeriods {
+		pollBoundaries = append(pollBoundaries, currentBoundary + pollsPerMinute)
+		currentBoundary += pollsPerMinute
+	}
+	// always poll at end of transaction timeout
+	pollBoundaries = append(pollBoundaries, pollPeriods - 1)
+
+	return pollBoundaries
+}
+
 func NewEventTracker(pollPeriods uint, boundaries []uint) *eventTracker {
 	if pollPeriods < 1 {
 		pollPeriods = 1
@@ -88,6 +117,11 @@ func (et *eventTracker) StartTracking(event uint) {
 	}
 }
 
+func (et *eventTracker) StopTracking(event uint) {
+	delete(et.events, event)
+}
+
+
 func (et *eventTracker) PollEvents() []uint {
 	// fmt.Print("polling events\n")
 	pollList := make([]uint, 0)
@@ -120,6 +154,10 @@ func (et *eventTracker) PollEvents() []uint {
 		eventStats.ticks++
 	}
 	return pollList
+}
+
+func (et *eventTracker) EventCount() uint {
+	return uint(len(et.events))
 }
 
 func hash(event uint) uint {

@@ -25,46 +25,101 @@ type registrationEntries struct {
 	metrics telemetry.Metrics
 	mu      sync.RWMutex
 
-	firstEventID            uint
-	firstEventTime          time.Time
-	lastEventID             uint
-	eventTracker            *eventTracker
-	seenMissedStartupEvents map[uint]struct{}
-	sqlTransactionTimeout   time.Duration
+	eventsBeforeFirst map[uint]struct{}
+
+	firstEvent     uint
+	firstEventTime time.Time
+	lastEvent      uint
+
+	eventTracker          *eventTracker
+	sqlTransactionTimeout time.Duration
+
+	fetchEntries map[string]struct{}
 }
 
-// buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
-func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
-func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, pollPeriods uint, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
-	eventTracker := NewEventTracker(pollPeriods, )
-	resp, err := ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
-	if err != nil {
-		return nil, err
-	}
+func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
+	// first reset what we might fetch.
+	a.fetchEntries = make(map[string]struct{})
 
-	// Gather any events that may have been skipped during restart
-	var firstEventID uint
-	var firstEventTime time.Time
-	var lastEventID uint
-	for _, event := range resp.Events {
-		now := clk.Now()
-		if firstEventTime.IsZero() {
-			firstEventID = event.EventID
-			firstEventTime = now
-		} else {
-			// After getting the first event, search for any gaps in the event stream, from the first event to the last event.
-			// During each cache refresh cycle, we will check if any of these missed events get populated.
-			for i := lastEventID + 1; i < event.EventID; i++ {
-				eventTracker.StartTracking(i)
+	// before first event logic.  Typically an empty space, so we poll the range and filter out the already seen
+	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {
+		resp, err := a.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+			LessThanEventID: a.firstEvent,
+		})
+		if err != nil {
+			return err
+		}
+		for _, event := range resp.Events {
+			if _, seen := a.eventsBeforeFirst[event.EventID]; !seen {
+				a.fetchEntries[event.EntryID] = struct{}{}
+				a.eventsBeforeFirst[event.EventID] = struct{}{}
 			}
 		}
-		lastEventID = event.EventID
+	} else {
+		// clear out the before first tracking
+		a.eventsBeforeFirst = make(map[uint]struct{})
 	}
 
+	// check if the polled events have appeared out-of-order
+	for _, eventID := range a.eventTracker.PollEvents() {
+		log := a.log.WithField(telemetry.EventID, eventID)
+		event, err := a.ds.FetchRegistrationEntryEvent(ctx, eventID)
+
+		switch status.Code(err) {
+		case codes.OK:
+		case codes.NotFound:
+			continue
+		default:
+			log.WithError(err).Errorf("Failed to fetch info about skipped event %d", eventID)
+			continue
+		}
+
+		a.fetchEntries[event.EntryID] = struct{}{}
+		a.eventTracker.StopTracking(uint(eventID))
+	}
+	server_telemetry.SetSkippedEntryEventIDsCacheCountGauge(a.metrics, int(a.eventTracker.EventCount()))
+
+	// If we haven't seen an event, scan for all events; otherwise, scan from the last event.
+	var resp *datastore.ListRegistrationEntriesEventsResponse
+	var err error
+	if a.firstEventTime.IsZero() {
+		resp, err = a.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	} else {
+		resp, err = a.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+			GreaterThanEventID: a.lastEvent,
+		})
+	}
+	if err != nil {
+		return err
+	}
+
+	for _, event := range resp.Events {
+		// event time determines if we have seen the first event.
+		if a.firstEventTime.IsZero() {
+			a.firstEvent = event.EventID
+			a.lastEvent = event.EventID
+			a.fetchEntries[event.EntryID] = struct{}{}
+			a.firstEventTime = a.clk.Now()
+			continue
+		}
+
+		// track any skipped event ids, should the appear later.
+		for skipped := a.lastEvent + 1; skipped < event.EventID; skipped++ {
+			a.eventTracker.StartTracking(skipped)
+		}
+
+		// every event adds its entry to the entry fetch list.
+		a.fetchEntries[event.EntryID] = struct{}{}
+		a.lastEvent = event.EventID
+	}
+	return nil
+}
+
+func (a *registrationEntries) loadCache(ctx context.Context, pageSize int32) error {
 	// Build the cache
 	var token string
 	for {
-		resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+		resp, err := a.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 			DataConsistency: datastore.RequireCurrent, // preliminary loading should not be done via read-replicas
 			Pagination: &datastore.Pagination{
 				Token:    token,
@@ -72,7 +127,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 			},
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to list registration entries: %w", err)
+			return fmt.Errorf("failed to list registration entries: %w", err)
 		}
 
 		token = resp.Pagination.Token
@@ -82,80 +137,57 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 
 		entries, err := api.RegistrationEntriesToProto(resp.Entries)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert registration entries: %w", err)
+			return fmt.Errorf("failed to convert registration entries: %w", err)
 		}
 
 		for _, entry := range entries {
-			cache.UpdateEntry(entry)
+			a.cache.UpdateEntry(entry)
 		}
 	}
+	return nil
+}
 
-	return &registrationEntries{
+// buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
+func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, cacheReloadInterval, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
+	pollPeriods := PollPeriods(cacheReloadInterval, sqlTransactionTimeout)
+	pollBoundaries := BoundaryBuilder(cacheReloadInterval, sqlTransactionTimeout)
+
+	registrationEntries := &registrationEntries{
 		cache:                   cache,
 		clk:                     clk,
 		ds:                      ds,
-		eventTracker:            NewEventTracker(pollPeriods, ),
-		firstEventID:            firstEventID,
-		firstEventTime:          firstEventTime,
 		log:                     log,
 		metrics:                 metrics,
-		lastEventID:             lastEventID,
-		seenMissedStartupEvents: make(map[uint]struct{}),
 		sqlTransactionTimeout:   sqlTransactionTimeout,
-	}, nil
+
+		eventsBeforeFirst:       make(map[uint]struct{}),
+		fetchEntries:            make(map[string]struct{}),
+
+		eventTracker:            NewEventTracker(pollPeriods, pollBoundaries),
+	}
+
+	if err := registrationEntries.loadCache(ctx, pageSize); err != nil {
+		return nil, err
+	}
+	if err := registrationEntries.captureChangedEntries(ctx); err != nil {
+		return nil, err
+	}
+	if err := registrationEntries.updateCacheEntries(ctx); err != nil {
+		return nil, err
+	}
+
+	return registrationEntries, nil
 }
 
 // updateCache Fetches all the events since the last time this function was running and updates
 // the cache with all the changes.
 func (a *registrationEntries) updateCache(ctx context.Context) error {
-	// Process events skipped over previously
-	if err := a.missedStartupEvents(ctx); err != nil {
-		a.log.WithError(err).Error("Unable to process missed startup events")
-	}
-	a.replayMissedEvents(ctx)
 
-	req := &datastore.ListRegistrationEntriesEventsRequest{
-		GreaterThanEventID: a.lastEventID,
-	}
-	resp, err := a.ds.ListRegistrationEntriesEvents(ctx, req)
-	if err != nil {
+	if err := a.captureChangedEntries(ctx); err != nil {
 		return err
 	}
-
-	seenMap := map[string]struct{}{}
-	for _, event := range resp.Events {
-		// If there is a gap in the event stream, log the missed events for later processing.
-		// For example if the current event ID is 6 and the previous one was 3, events 4 and 5
-		// were skipped over and need to be queued in case they show up later.
-		// This can happen when a long running transaction allocates an event ID but a shorter transaction
-		// comes in after, allocates and commits the ID first. If a read comes in at this moment, the event id for
-		// the longer running transaction will be skipped over.
-		if !a.firstEventTime.IsZero() {
-			for i := a.lastEventID + 1; i < event.EventID; i++ {
-				a.log.WithField(telemetry.EventID, i).Info("Detected skipped registration entry event")
-				a.mu.Lock()
-				a.missedEvents[i] = a.clk.Now()
-				a.mu.Unlock()
-			}
-		}
-
-		// Skip fetching entries we've already fetched this call
-		if _, seen := seenMap[event.EntryID]; seen {
-			a.lastEventID = event.EventID
-			continue
-		}
-		seenMap[event.EntryID] = struct{}{}
-
-		// Update the cache
-		if err := a.updateCacheEntry(ctx, event.EntryID); err != nil {
-			return err
-		}
-
-		if a.firstEventTime.IsZero() {
-			a.firstEventID = event.EventID
-			a.firstEventTime = a.clk.Now()
-		}
-		a.lastEventID = event.EventID
+	if err := a.updateCacheEntries(ctx); err != nil {
+		return err
 	}
 
 	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
@@ -169,96 +201,28 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 	return nil
 }
 
-// missedStartupEvents will check for any events come in with an ID less than the first event ID we receive.
-// For example if the first event ID we receive is 3, this function will check for any IDs less than that.
-// If event ID 2 comes in later on, due to a long running transaction, this function will update the cache
-// with the information from this event. This function will run until time equal to sqlTransactionTimeout has elapsed after startup.
-func (a *registrationEntries) missedStartupEvents(ctx context.Context) error {
-	if a.firstEventTime.IsZero() || a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {
-		return nil
-	}
-
-	req := &datastore.ListRegistrationEntriesEventsRequest{
-		LessThanEventID: a.firstEventID,
-	}
-	resp, err := a.ds.ListRegistrationEntriesEvents(ctx, req)
-	if err != nil {
-		return err
-	}
-
-	for _, event := range resp.Events {
-		if _, seen := a.seenMissedStartupEvents[event.EventID]; !seen {
-			if err := a.updateCacheEntry(ctx, event.EntryID); err != nil {
-				a.log.WithError(err).Error("Failed to process missed startup event")
-				continue
-			}
-			a.seenMissedStartupEvents[event.EventID] = struct{}{}
-		}
-	}
-
-	return nil
-}
-
-// replayMissedEvents Processes events that have been skipped over. Events can come out of order from
-// SQL. This function processes events that came in later than expected.
-func (a *registrationEntries) replayMissedEvents(ctx context.Context) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	for eventID := range a.missedEvents {
-		log := a.log.WithField(telemetry.EventID, eventID)
-
-		event, err := a.ds.FetchRegistrationEntryEvent(ctx, eventID)
-		switch status.Code(err) {
-		case codes.OK:
-		case codes.NotFound:
-			continue
-		default:
-			log.WithError(err).Error("Failed to fetch info about missed event")
-			continue
-		}
-
-		if err := a.updateCacheEntry(ctx, event.EntryID); err != nil {
-			log.WithError(err).Error("Failed to process missed event")
-			continue
-		}
-
-		delete(a.missedEvents, eventID)
-	}
-	server_telemetry.SetSkippedEntryEventIDsCacheCountGauge(a.metrics, len(a.missedEvents))
-}
-
 // updateCacheEntry update/deletes/creates an individual registration entry in the cache.
-func (a *registrationEntries) updateCacheEntry(ctx context.Context, entryID string) error {
-	commonEntry, err := a.ds.FetchRegistrationEntry(ctx, entryID)
-	if err != nil {
-		return err
-	}
-
-	if commonEntry == nil {
-		a.cache.RemoveEntry(entryID)
-		return nil
-	}
-
-	entry, err := api.RegistrationEntryToProto(commonEntry)
-	if err != nil {
-		a.cache.RemoveEntry(entryID)
-		a.log.WithField(telemetry.RegistrationID, entryID).Warn("Removed malformed registration entry from cache")
-		return nil
-	}
-
-	a.cache.UpdateEntry(entry)
-	return nil
-}
-
-// prunedMissedEvents delete missed events that are older than the configured SQL transaction timeout time.
-func (a *registrationEntries) pruneMissedEvents() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	for eventID, eventTime := range a.missedEvents {
-		if a.clk.Now().Sub(eventTime) > a.sqlTransactionTimeout {
-			delete(a.missedEvents, eventID)
+func (a *registrationEntries) updateCacheEntries(ctx context.Context) error {
+	for entryId, _ := range a.fetchEntries {
+		commonEntry, err := a.ds.FetchRegistrationEntry(ctx, entryId)
+		if err != nil {
+			return err
 		}
+
+		if commonEntry == nil {
+			a.cache.RemoveEntry(entryId)
+			return nil
+		}
+
+		entry, err := api.RegistrationEntryToProto(commonEntry)
+		if err != nil {
+			a.cache.RemoveEntry(entryId)
+			a.log.WithField(telemetry.RegistrationID, entryId).Warn("Removed malformed registration entry from cache")
+			return nil
+		}
+
+		a.cache.UpdateEntry(entry)
+		delete(a.fetchEntries, entryId)
 	}
+	return nil
 }
