@@ -379,6 +379,8 @@ func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType Trans
 	return err
 }
 
+// GetKey gets the transit engine key with the specified spire key id.
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#read-key
 func (c *Client) GetKey(ctx context.Context, spireKeyID string) (string, error) {
 	// TODO: Handle errors here
 	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID))
@@ -420,6 +422,8 @@ func (c *Client) GetKey(ctx context.Context, spireKeyID string) (string, error) 
 	return pkStr, nil
 }
 
+// SignData signs the data using the transit engine key with the provided spire key id.
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#sign-data
 func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
 	encodedData := base64.StdEncoding.EncodeToString(data)
 
@@ -446,6 +450,7 @@ func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, h
 		return nil, status.Errorf(codes.Internal, "expected signature data type %T but got %T", sigStr, sig)
 	}
 
+	// Vault adds an application specific prefix that we need to remove
 	cutSig, ok := strings.CutPrefix(sigStr, "vault:v1:")
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "signature is missing vault prefix: %v", err)
