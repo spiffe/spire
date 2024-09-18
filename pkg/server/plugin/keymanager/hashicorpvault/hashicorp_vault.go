@@ -55,6 +55,9 @@ type Config struct {
 	// Configuration for the Token authentication method
 	TokenAuth *TokenAuthConfig `hcl:"token_auth" json:"token_auth,omitempty"`
 
+	// Name of the Vault namespace
+	Namespace string `hcl:"namespace" json:"namespace"`
+
 	// TODO: Support other auth methods
 	// TODO: Support client certificate and key
 }
@@ -145,6 +148,7 @@ func parseAuthMethod(config *Config) (AuthMethod, error) {
 func (p *Plugin) genClientParams(method AuthMethod, config *Config) (*ClientParams, error) {
 	cp := &ClientParams{
 		VaultAddr: p.getEnvOrDefault(envVaultAddr, config.VaultAddr),
+		Namespace: p.getEnvOrDefault(envVaultNamespace, config.Namespace),
 	}
 
 	switch method {
