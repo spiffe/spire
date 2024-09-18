@@ -18,8 +18,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 )
 
-// TODO: Delete everything that is unused in here
-
 const (
 	envVaultAddr              = "VAULT_ADDR"
 	envVaultToken             = "VAULT_TOKEN"
