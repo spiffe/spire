@@ -16,6 +16,8 @@ const (
 	testRootCert   = "testdata/root-cert.pem"
 	testServerCert = "testdata/server-cert.pem"
 	testServerKey  = "testdata/server-key.pem"
+	testClientCert = "testdata/client-cert.pem"
+	testClientKey  = "testdata/client-key.pem"
 )
 
 func TestNewClientConfigWithDefaultValues(t *testing.T) {
@@ -209,6 +211,97 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewAuthenticatedClientCertAuth(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	for _, tt := range []struct {
+		name      string
+		response  []byte
+		renew     bool
+		namespace string
+	}{
+		{
+			name:     "Cert Authentication success / Token is renewable",
+			response: []byte(testCertAuthResponse),
+			renew:    true,
+		},
+		{
+			name:     "Cert Authentication success / Token is not renewable",
+			response: []byte(testCertAuthResponseNotRenewable),
+		},
+		{
+			name:      "Cert Authentication success / Token is renewable / Namespace is given",
+			response:  []byte(testCertAuthResponse),
+			renew:     true,
+			namespace: "test-ns",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer.CertAuthResponse = tt.response
+
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+
+			s.Start()
+			defer s.Close()
+
+			cp := &ClientParams{
+				VaultAddr:      fmt.Sprintf("https://%v/", addr),
+				Namespace:      tt.namespace,
+				CACertPath:     testRootCert,
+				ClientCertPath: testClientCert,
+				ClientKeyPath:  testClientKey,
+			}
+			cc, err := NewClientConfig(cp, hclog.Default())
+			require.NoError(t, err)
+
+			renewCh := make(chan struct{})
+			client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+			require.NoError(t, err)
+
+			select {
+			case <-renewCh:
+				require.Equal(t, false, tt.renew)
+			default:
+				require.Equal(t, true, tt.renew)
+			}
+
+			if cp.Namespace != "" {
+				headers := client.vaultClient.Headers()
+				require.Equal(t, cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
+		})
+	}
+}
+
+func TestNewAuthenticatedClientCertAuthFailed(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 500
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:     &retry,
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(CERT, renewCh)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/cert/login: Error making API request.")
 }
 
 func TestRenewTokenFailed(t *testing.T) {

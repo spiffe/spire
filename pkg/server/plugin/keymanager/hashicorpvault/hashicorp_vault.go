@@ -55,11 +55,16 @@ type Config struct {
 	Namespace string `hcl:"namespace" json:"namespace"`
 	// TransitEnginePath specifies the path to the transit engine to perform key operations.
 	TransitEnginePath string `hcl:"transit_engine_path" json:"transit_engine_path"`
+	// If true, vault client accepts any server certificates.
+	// It should be used only test environment so on.
+	InsecureSkipVerify bool `hcl:"insecure_skip_verify" json:"insecure_skip_verify"`
 
 	// Configuration for the Token authentication method
 	TokenAuth *TokenAuthConfig `hcl:"token_auth" json:"token_auth,omitempty"`
 	// Configuration for the AppRole authentication method
 	AppRoleAuth *AppRoleAuthConfig `hcl:"approle_auth" json:"approle_auth,omitempty"`
+	// Configuration for the Client Certificate authentication method
+	CertAuth *CertAuthConfig `hcl:"cert_auth" json:"cert_auth,omitempty"`
 
 	// TODO: Support other auth methods
 	// TODO: Support client certificate and key
@@ -80,6 +85,22 @@ type AppRoleAuthConfig struct {
 	RoleID string `hcl:"approle_id" json:"approle_id"`
 	// A credential that is required for login.
 	SecretID string `hcl:"approle_secret_id" json:"approle_secret_id"`
+}
+
+// CertAuthConfig represents parameters for cert auth method
+type CertAuthConfig struct {
+	// Name of the mount point where Client Certificate Auth method is mounted. (e.g., /auth/<mount_point>/login)
+	// If the value is empty, use default mount point (/auth/cert)
+	CertAuthMountPoint string `hcl:"cert_auth_mount_point" json:"cert_auth_mount_point"`
+	// Name of the Vault role.
+	// If given, the plugin authenticates against only the named role.
+	CertAuthRoleName string `hcl:"cert_auth_role_name" json:"cert_auth_role_name"`
+	// Path to a client certificate file.
+	// Only PEM format is supported.
+	ClientCertPath string `hcl:"client_cert_path" json:"client_cert_path"`
+	// Path to a client private key file.
+	// Only PEM format is supported.
+	ClientKeyPath string `hcl:"client_key_path" json:"client_key_path"`
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -160,6 +181,13 @@ func parseAuthMethod(config *Config) (AuthMethod, error) {
 		authMethod = APPROLE
 	}
 
+	if config.CertAuth != nil {
+		if err := checkForAuthMethodConfigured(authMethod); err != nil {
+			return 0, err
+		}
+		authMethod = CERT
+	}
+
 	if authMethod != 0 {
 		return authMethod, nil
 	}
@@ -179,6 +207,7 @@ func (p *Plugin) genClientParams(method AuthMethod, config *Config) (*ClientPara
 		VaultAddr:         p.getEnvOrDefault(envVaultAddr, config.VaultAddr),
 		Namespace:         p.getEnvOrDefault(envVaultNamespace, config.Namespace),
 		TransitEnginePath: p.getEnvOrDefault(envVaultTransitEnginePath, config.TransitEnginePath),
+		TLSSKipVerify:     config.InsecureSkipVerify,
 	}
 
 	switch method {
@@ -188,6 +217,11 @@ func (p *Plugin) genClientParams(method AuthMethod, config *Config) (*ClientPara
 		cp.AppRoleAuthMountPoint = config.AppRoleAuth.AppRoleMountPoint
 		cp.AppRoleID = p.getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID)
 		cp.AppRoleSecretID = p.getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
+	case CERT:
+		cp.CertAuthMountPoint = config.CertAuth.CertAuthMountPoint
+		cp.CertAuthRoleName = config.CertAuth.CertAuthRoleName
+		cp.ClientCertPath = p.getEnvOrDefault(envVaultClientCert, config.CertAuth.ClientCertPath)
+		cp.ClientKeyPath = p.getEnvOrDefault(envVaultClientKey, config.CertAuth.ClientKeyPath)
 	}
 
 	return cp, nil
