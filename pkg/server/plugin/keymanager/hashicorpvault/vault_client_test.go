@@ -143,6 +143,70 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 	}
 }
 
+func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.AppRoleAuthResponseCode = 200
+	for _, tt := range []struct {
+		name      string
+		response  []byte
+		renew     bool
+		namespace string
+	}{
+		{
+			name:     "AppRole Authentication success / Token is renewable",
+			response: []byte(testAppRoleAuthResponse),
+			renew:    true,
+		},
+		{
+			name:     "AppRole Authentication success / Token is not renewable",
+			response: []byte(testAppRoleAuthResponseNotRenewable),
+		},
+		{
+			name:      "AppRole Authentication success / Token is renewable / Namespace is given",
+			response:  []byte(testAppRoleAuthResponse),
+			renew:     true,
+			namespace: "test-ns",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer.AppRoleAuthResponse = tt.response
+
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+
+			s.Start()
+			defer s.Close()
+
+			cp := &ClientParams{
+				VaultAddr:       fmt.Sprintf("https://%v/", addr),
+				Namespace:       tt.namespace,
+				CACertPath:      testRootCert,
+				AppRoleID:       "test-approle-id",
+				AppRoleSecretID: "test-approle-secret-id",
+			}
+			cc, err := NewClientConfig(cp, hclog.Default())
+			require.NoError(t, err)
+
+			renewCh := make(chan struct{})
+			client, err := cc.NewAuthenticatedClient(APPROLE, renewCh)
+			require.NoError(t, err)
+
+			select {
+			case <-renewCh:
+				require.Equal(t, false, tt.renew)
+			default:
+				require.Equal(t, true, tt.renew)
+			}
+
+			if cp.Namespace != "" {
+				headers := client.vaultClient.Headers()
+				require.Equal(t, cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
+		})
+	}
+}
+
 func TestRenewTokenFailed(t *testing.T) {
 	fakeVaultServer := newFakeVaultServer()
 	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponseShortTTL)

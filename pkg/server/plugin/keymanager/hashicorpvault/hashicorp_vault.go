@@ -51,20 +51,33 @@ type pluginHooks struct {
 type Config struct {
 	// A URL of Vault server. (e.g., https://vault.example.com:8443/)
 	VaultAddr string `hcl:"vault_addr" json:"vault_addr"`
+	// Name of the Vault namespace
+	Namespace string `hcl:"namespace" json:"namespace"`
 
 	// Configuration for the Token authentication method
 	TokenAuth *TokenAuthConfig `hcl:"token_auth" json:"token_auth,omitempty"`
-
-	// Name of the Vault namespace
-	Namespace string `hcl:"namespace" json:"namespace"`
+	// Configuration for the AppRole authentication method
+	AppRoleAuth *AppRoleAuthConfig `hcl:"approle_auth" json:"approle_auth,omitempty"`
 
 	// TODO: Support other auth methods
 	// TODO: Support client certificate and key
 }
 
+// TokenAuthConfig represents parameters for token auth method
 type TokenAuthConfig struct {
 	// Token string to set into "X-Vault-Token" header
 	Token string `hcl:"token" json:"token"`
+}
+
+// AppRoleAuthConfig represents parameters for AppRole auth method.
+type AppRoleAuthConfig struct {
+	// Name of the mount point where AppRole auth method is mounted. (e.g., /auth/<mount_point>/login)
+	// If the value is empty, use default mount point (/auth/approle)
+	AppRoleMountPoint string `hcl:"approle_auth_mount_point" json:"approle_auth_mount_point"`
+	// An identifier that selects the AppRole
+	RoleID string `hcl:"approle_id" json:"approle_id"`
+	// A credential that is required for login.
+	SecretID string `hcl:"approle_secret_id" json:"approle_secret_id"`
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -138,11 +151,25 @@ func parseAuthMethod(config *Config) (AuthMethod, error) {
 		authMethod = TOKEN
 	}
 
+	if config.AppRoleAuth != nil {
+		if err := checkForAuthMethodConfigured(authMethod); err != nil {
+			return 0, err
+		}
+		authMethod = APPROLE
+	}
+
 	if authMethod != 0 {
 		return authMethod, nil
 	}
 
-	return 0, status.Error(codes.InvalidArgument, "must be configured one of these authentication method 'Token'")
+	return 0, status.Error(codes.InvalidArgument, "one of the available authentication methods must be configured: 'Token, AppRole'")
+}
+
+func checkForAuthMethodConfigured(authMethod AuthMethod) error {
+	if authMethod != 0 {
+		return status.Error(codes.InvalidArgument, "only one authentication method can be configured")
+	}
+	return nil
 }
 
 func (p *Plugin) genClientParams(method AuthMethod, config *Config) (*ClientParams, error) {
@@ -154,6 +181,10 @@ func (p *Plugin) genClientParams(method AuthMethod, config *Config) (*ClientPara
 	switch method {
 	case TOKEN:
 		cp.Token = p.getEnvOrDefault(envVaultToken, config.TokenAuth.Token)
+	case APPROLE:
+		cp.AppRoleAuthMountPoint = config.AppRoleAuth.AppRoleMountPoint
+		cp.AppRoleID = p.getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID)
+		cp.AppRoleSecretID = p.getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
 	}
 
 	return cp, nil
