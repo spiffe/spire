@@ -383,10 +383,9 @@ func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType Trans
 // GetKey gets the transit engine key with the specified spire key id.
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#read-key
 func (c *Client) GetKey(ctx context.Context, spireKeyID string) (string, error) {
-	// TODO: Handle errors here
 	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID))
 	if err != nil {
-		return "", err
+		return "", status.Errorf(codes.Internal, "failed to get transit engine key: %v", err)
 	}
 
 	keys, ok := res.Data["keys"]
