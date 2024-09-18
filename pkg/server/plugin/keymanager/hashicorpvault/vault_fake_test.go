@@ -8,12 +8,13 @@ import (
 )
 
 const (
-	defaultTLSAuthEndpoint     = "/v1/auth/cert/login"
-	defaultAppRoleAuthEndpoint = "/v1/auth/approle/login"
-	defaultK8sAuthEndpoint     = "/v1/auth/kubernetes/login"
-	defaultRenewEndpoint       = "/v1/auth/token/renew-self"
-	defaultLookupSelfEndpoint  = "/v1/auth/token/lookup-self"
-	defaultCreateKeyEndpoint   = "/v1/transit/keys/x509-CA-A"
+	defaultTLSAuthEndpoint     = "PUT /v1/auth/cert/login"
+	defaultAppRoleAuthEndpoint = "PUT /v1/auth/approle/login"
+	defaultK8sAuthEndpoint     = "PUT /v1/auth/kubernetes/login"
+	defaultRenewEndpoint       = "POST /v1/auth/token/renew-self"
+	defaultLookupSelfEndpoint  = "GET /v1/auth/token/lookup-self"
+	defaultCreateKeyEndpoint   = "PUT /v1/transit/keys/{id}"
+	defaultGetKeyEndpoint      = "GET /v1/transit/keys/{id}"
 
 	listenAddr = "127.0.0.1:0"
 )
@@ -267,6 +268,41 @@ var (
     "orphan": true
   }
 }`
+
+	testGetKeyResponse = `{
+  "request_id": "646eddbd-83fd-0cc1-387b-f1a17fa88c3d",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "allow_plaintext_backup": false,
+    "auto_rotate_period": 0,
+    "deletion_allowed": false,
+    "derived": false,
+    "exportable": false,
+    "imported_key": false,
+    "keys": {
+      "1": {
+        "creation_time": "2024-09-16T18:18:54.284635756Z",
+        "name": "P-256",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEV57LFbIQZzyZ2YcKZfB9mGWkUhJv\niRzIZOqV4wRHoUOZjMuhBMR2WviEsy65TYpcBjreAc6pbneiyhlTwPvgmw==\n-----END PUBLIC KEY-----\n"
+      }
+    },
+    "latest_version": 1,
+    "min_available_version": 0,
+    "min_decryption_version": 1,
+    "min_encryption_version": 0,
+    "name": "x509-CA-A",
+    "supports_decryption": false,
+    "supports_derivation": false,
+    "supports_encryption": false,
+    "supports_signing": true,
+    "type": "ecdsa-p256"
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null
+}`
 )
 
 type FakeVaultServerConfig struct {
@@ -297,6 +333,10 @@ type FakeVaultServerConfig struct {
 	CreateKeyReqHandler      func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
 	CreateKeyResponseCode    int
 	CreateKeyResponse        []byte
+	GetKeyReqEndpoint        string
+	GetKeyReqHandler         func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	GetKeyResponseCode       int
+	GetKeyResponse           []byte
 }
 
 // NewFakeVaultServerConfig returns VaultServerConfig with default values
@@ -315,6 +355,8 @@ func NewFakeVaultServerConfig() *FakeVaultServerConfig {
 		LookupSelfReqHandler:   defaultReqHandler,
 		CreateKeyReqEndpoint:   defaultCreateKeyEndpoint,
 		CreateKeyReqHandler:    defaultReqHandler,
+		GetKeyReqEndpoint:      defaultGetKeyEndpoint,
+		GetKeyReqHandler:       defaultReqHandler,
 	}
 }
 
@@ -347,6 +389,7 @@ func (v *FakeVaultServerConfig) NewTLSServer() (srv *httptest.Server, addr strin
 	mux.HandleFunc(v.RenewReqEndpoint, v.RenewReqHandler(v.RenewResponseCode, v.RenewResponse))
 	mux.HandleFunc(v.LookupSelfReqEndpoint, v.LookupSelfReqHandler(v.LookupSelfResponseCode, v.LookupSelfResponse))
 	mux.HandleFunc(v.CreateKeyReqEndpoint, v.CreateKeyReqHandler(v.CreateKeyResponseCode, v.CreateKeyResponse))
+	mux.HandleFunc(v.GetKeyReqEndpoint, v.GetKeyReqHandler(v.GetKeyResponseCode, v.GetKeyResponse))
 
 	srv = httptest.NewUnstartedServer(mux)
 	srv.Listener = l

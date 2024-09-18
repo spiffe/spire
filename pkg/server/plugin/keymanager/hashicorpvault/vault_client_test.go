@@ -671,7 +671,73 @@ func TestCreateKeyErrorFromEndpoint(t *testing.T) {
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to create transit engine key: Error making API request.")
 }
 
-// TODO: Test GetKey
+func TestGetKey(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.GetKeyResponseCode = 200
+	fakeVaultServer.GetKeyResponse = []byte(testGetKeyResponse)
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	cp := &ClientParams{
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.GetKey(context.Background(), "x509-CA-A")
+	require.NoError(t, err)
+
+	require.Equal(t, "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEV57LFbIQZzyZ2YcKZfB9mGWkUhJv\niRzIZOqV4wRHoUOZjMuhBMR2WviEsy65TYpcBjreAc6pbneiyhlTwPvgmw==\n-----END PUBLIC KEY-----\n", resp)
+}
+
+func TestGetKeyErrorFromEndpoint(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.GetKeyResponseCode = 500
+	fakeVaultServer.GetKeyResponse = []byte("test error")
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:     &retry,
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.GetKey(context.Background(), "x509-CA-A")
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to get transit engine key: Error making API request.")
+	require.Empty(t, resp)
+}
+
 // TODO: Test SignData
 
 func newFakeVaultServer() *FakeVaultServerConfig {
