@@ -213,6 +213,32 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 	}
 }
 
+func TestNewAuthenticatedClientAppRoleAuthFailed(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.AppRoleAuthResponseCode = 500
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:      &retry,
+		VaultAddr:       fmt.Sprintf("https://%v/", addr),
+		CACertPath:      testRootCert,
+		AppRoleID:       "test-approle-id",
+		AppRoleSecretID: "test-approle-secret-id",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(APPROLE, renewCh)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/approle/login: Error making API request.")
+}
+
 func TestNewAuthenticatedClientCertAuth(t *testing.T) {
 	fakeVaultServer := newFakeVaultServer()
 	fakeVaultServer.CertAuthResponseCode = 200
