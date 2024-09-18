@@ -677,7 +677,7 @@ func TestGetKey(t *testing.T) {
 	fakeVaultServer.CertAuthResponseCode = 200
 	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
 	fakeVaultServer.GetKeyResponseCode = 200
-	fakeVaultServer.GetKeyResponse = []byte(testGetKeyResponse)
+	fakeVaultServer.GetKeyResponse = []byte(testGetKeyResponseP256)
 
 	s, addr, err := fakeVaultServer.NewTLSServer()
 	require.NoError(t, err)
