@@ -1,7 +1,12 @@
 package hashicorpvault
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	vapi "github.com/hashicorp/vault/api"
+	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -13,11 +18,14 @@ import (
 )
 
 const (
-	testRootCert   = "testdata/root-cert.pem"
-	testServerCert = "testdata/server-cert.pem"
-	testServerKey  = "testdata/server-key.pem"
-	testClientCert = "testdata/client-cert.pem"
-	testClientKey  = "testdata/client-key.pem"
+	testRootCert          = "testdata/root-cert.pem"
+	testInvalidRootCert   = "testdata/invalid-root-cert.pem"
+	testServerCert        = "testdata/server-cert.pem"
+	testServerKey         = "testdata/server-key.pem"
+	testClientCert        = "testdata/client-cert.pem"
+	testInvalidClientCert = "testdata/invalid-client-cert.pem"
+	testClientKey         = "testdata/client-key.pem"
+	testInvalidClientKey  = "testdata/invalid-client-key.pem"
 )
 
 func TestNewClientConfigWithDefaultValues(t *testing.T) {
@@ -470,9 +478,168 @@ func TestRenewTokenFailed(t *testing.T) {
 	}
 }
 
+func TestConfigureTLSWithCertAuth(t *testing.T) {
+	cp := &ClientParams{
+		VaultAddr:      "http://example.org:8200",
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+		CACertPath:     testRootCert,
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	vc := vapi.DefaultConfig()
+	err = cc.configureTLS(vc)
+	require.NoError(t, err)
+
+	tcc := vc.HttpClient.Transport.(*http.Transport).TLSClientConfig
+	cert, err := tcc.GetClientCertificate(&tls.CertificateRequestInfo{})
+	require.NoError(t, err)
+
+	testCert, err := testClientCertificatePair()
+	require.NoError(t, err)
+	require.Equal(t, testCert.Certificate, cert.Certificate)
+
+	testPool, err := testRootCAs()
+	require.NoError(t, err)
+	require.True(t, testPool.Equal(tcc.RootCAs))
+}
+
+func TestConfigureTLSWithTokenAuth(t *testing.T) {
+	cp := &ClientParams{
+		VaultAddr:  "http://example.org:8200",
+		CACertPath: testRootCert,
+		Token:      "test-token",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	vc := vapi.DefaultConfig()
+	err = cc.configureTLS(vc)
+	require.NoError(t, err)
+
+	tcc := vc.HttpClient.Transport.(*http.Transport).TLSClientConfig
+	require.Nil(t, tcc.GetClientCertificate)
+
+	testPool, err := testRootCAs()
+	require.NoError(t, err)
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects()) //nolint:staticcheck // these pools are not system pools so the use of Subjects() is ok for now
+}
+
+func TestConfigureTLSWithAppRoleAuth(t *testing.T) {
+	cp := &ClientParams{
+		VaultAddr:       "http://example.org:8200",
+		CACertPath:      testRootCert,
+		AppRoleID:       "test-approle-id",
+		AppRoleSecretID: "test-approle-secret",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	vc := vapi.DefaultConfig()
+	err = cc.configureTLS(vc)
+	require.NoError(t, err)
+
+	tcc := vc.HttpClient.Transport.(*http.Transport).TLSClientConfig
+	require.Nil(t, tcc.GetClientCertificate)
+
+	testPool, err := testRootCAs()
+	require.NoError(t, err)
+	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects()) //nolint:staticcheck // these pools are not system pools so the use of Subjects() is ok for now
+}
+
+func TestConfigureTLSInvalidCACert(t *testing.T) {
+	cp := &ClientParams{
+		VaultAddr:      "http://example.org:8200",
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+		CACertPath:     testInvalidRootCert,
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	vc := vapi.DefaultConfig()
+	err = cc.configureTLS(vc)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, "failed to load CA certificate: no PEM blocks")
+}
+
+func TestConfigureTLSInvalidClientKey(t *testing.T) {
+	cp := &ClientParams{
+		VaultAddr:      "http://example.org:8200",
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testInvalidClientKey,
+		CACertPath:     testRootCert,
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	vc := vapi.DefaultConfig()
+	err = cc.configureTLS(vc)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, "failed to parse client cert and private-key: tls: failed to find any PEM data in key input")
+}
+
+func TestConfigureTLSInvalidClientCert(t *testing.T) {
+	cp := &ClientParams{
+		VaultAddr:      "http://example.org:8200",
+		ClientCertPath: testInvalidClientCert,
+		ClientKeyPath:  testClientKey,
+		CACertPath:     testRootCert,
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	vc := vapi.DefaultConfig()
+	err = cc.configureTLS(vc)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.InvalidArgument, "failed to parse client cert and private-key: tls: failed to find any PEM data in certificate input")
+}
+
+func TestConfigureTLSRequireClientCertAndKey(t *testing.T) {
+	cp := &ClientParams{
+		VaultAddr:      "http://example.org:8200",
+		ClientCertPath: testClientCert,
+		CACertPath:     testRootCert,
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	vc := vapi.DefaultConfig()
+	err = cc.configureTLS(vc)
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "both client cert and client key are required")
+}
+
+// TODO: Test CreateKey
+// TODO: Test GetKey
+// TODO: Test SignData
+
 func newFakeVaultServer() *FakeVaultServerConfig {
 	fakeVaultServer := NewFakeVaultServerConfig()
 	fakeVaultServer.RenewResponseCode = 200
 	fakeVaultServer.RenewResponse = []byte(testRenewResponse)
 	return fakeVaultServer
+}
+
+func testClientCertificatePair() (tls.Certificate, error) {
+	cert, err := os.ReadFile(testClientCert)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	key, err := os.ReadFile(testClientKey)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	return tls.X509KeyPair(cert, key)
+}
+
+func testRootCAs() (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	pem, err := os.ReadFile(testRootCert)
+	if err != nil {
+		return nil, err
+	}
+	ok := pool.AppendCertsFromPEM(pem)
+	if !ok {
+		return nil, err
+	}
+	return pool, nil
 }

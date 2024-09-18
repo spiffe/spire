@@ -59,8 +59,9 @@ type Config struct {
 	// If true, vault client accepts any server certificates.
 	// It should be used only test environment so on.
 	InsecureSkipVerify bool `hcl:"insecure_skip_verify" json:"insecure_skip_verify"`
-
-	// TODO: Support CA certificate path here instead of insecure skip verify
+	// Path to a CA certificate file that the client verifies the server certificate.
+	// Only PEM format is supported.
+	CACertPath string `hcl:"ca_cert_path" json:"ca_cert_path"`
 
 	// Configuration for the Token authentication method
 	TokenAuth *TokenAuthConfig `hcl:"token_auth" json:"token_auth,omitempty"`
@@ -228,6 +229,7 @@ func (p *Plugin) genClientParams(method AuthMethod, config *Config) (*ClientPara
 		VaultAddr:         p.getEnvOrDefault(envVaultAddr, config.VaultAddr),
 		Namespace:         p.getEnvOrDefault(envVaultNamespace, config.Namespace),
 		TransitEnginePath: p.getEnvOrDefault(envVaultTransitEnginePath, config.TransitEnginePath),
+		CACertPath:        p.getEnvOrDefault(envVaultCACert, config.CACertPath),
 		TLSSKipVerify:     config.InsecureSkipVerify,
 	}
 
