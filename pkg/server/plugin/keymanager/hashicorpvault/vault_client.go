@@ -425,7 +425,6 @@ func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, h
 
 // GetKeys returns all the keys of the transit engine.
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#list-keys
-// TODO: Test this function
 func (c *Client) GetKeys(ctx context.Context) ([]*keyEntry, error) {
 	var keyEntries []*keyEntry
 
