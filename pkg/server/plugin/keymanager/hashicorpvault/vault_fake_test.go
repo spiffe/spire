@@ -15,6 +15,7 @@ const (
 	defaultLookupSelfEndpoint  = "GET /v1/auth/token/lookup-self"
 	defaultCreateKeyEndpoint   = "PUT /v1/transit/keys/{id}"
 	defaultGetKeyEndpoint      = "GET /v1/transit/keys/{id}"
+	defaultGetKeysEndpoint     = "GET /v1/transit/keys"
 	defaultSignDataEndpoint    = "PUT /v1/transit/sign/{id}/{algo}"
 
 	listenAddr = "127.0.0.1:0"
@@ -387,6 +388,34 @@ k8s_auth {
   }
 }`
 
+	testGetKeysResponseOneKey = `{
+  "request_id": "3d02d2cf-baa4-a4ca-90d8-448b6c3ce6b0",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "keys": [
+      "x509-CA-A"
+    ]
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null
+}`
+
+	testGetKeysResponseNoKeys = `{
+  "request_id": "3d02d2cf-baa4-a4ca-90d8-448b6c3ce6b0",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "keys": []
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null
+}`
+
 	testGetKeyResponseP256 = `{
   "request_id": "646eddbd-83fd-0cc1-387b-f1a17fa88c3d",
   "lease_id": "",
@@ -610,6 +639,10 @@ type FakeVaultServerConfig struct {
 	GetKeyReqHandler         func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
 	GetKeyResponseCode       int
 	GetKeyResponse           []byte
+	GetKeysReqEndpoint       string
+	GetKeysReqHandler        func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	GetKeysResponseCode      int
+	GetKeysResponse          []byte
 	SignDataReqEndpoint      string
 	SignDataReqHandler       func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
 	SignDataResponseCode     int
@@ -634,6 +667,8 @@ func NewFakeVaultServerConfig() *FakeVaultServerConfig {
 		CreateKeyReqHandler:    defaultReqHandler,
 		GetKeyReqEndpoint:      defaultGetKeyEndpoint,
 		GetKeyReqHandler:       defaultReqHandler,
+		GetKeysReqEndpoint:     defaultGetKeysEndpoint,
+		GetKeysReqHandler:      defaultReqHandler,
 		SignDataReqEndpoint:    defaultSignDataEndpoint,
 		SignDataReqHandler:     defaultReqHandler,
 	}
@@ -669,6 +704,7 @@ func (v *FakeVaultServerConfig) NewTLSServer() (srv *httptest.Server, addr strin
 	mux.HandleFunc(v.LookupSelfReqEndpoint, v.LookupSelfReqHandler(v.LookupSelfResponseCode, v.LookupSelfResponse))
 	mux.HandleFunc(v.CreateKeyReqEndpoint, v.CreateKeyReqHandler(v.CreateKeyResponseCode, v.CreateKeyResponse))
 	mux.HandleFunc(v.GetKeyReqEndpoint, v.GetKeyReqHandler(v.GetKeyResponseCode, v.GetKeyResponse))
+	mux.HandleFunc(v.GetKeysReqEndpoint, v.GetKeysReqHandler(v.GetKeysResponseCode, v.GetKeysResponse))
 	mux.HandleFunc(v.SignDataReqEndpoint, v.SignDataReqHandler(v.SignDataResponseCode, v.SignDataResponse))
 
 	srv = httptest.NewUnstartedServer(mux)

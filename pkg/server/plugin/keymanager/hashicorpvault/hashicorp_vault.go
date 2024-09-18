@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -154,7 +153,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.logger = log
 }
 
-func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := new(Config)
 
 	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
@@ -179,6 +178,21 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 
 	p.authMethod = am
 	p.cc = vcConfig
+
+	if p.vc == nil {
+		err := p.genVaultClient()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	p.logger.Debug("Fetching keys from Vault")
+	keyEntries, err := p.vc.GetKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	p.setCache(keyEntries)
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -349,7 +363,7 @@ func (p *Plugin) GetPublicKey(_ context.Context, req *keymanagerv1.GetPublicKeyR
 }
 
 func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysRequest) (*keymanagerv1.GetPublicKeysResponse, error) {
-	var keys = make([]*keymanagerv1.PublicKey, len(p.entries), 0)
+	var keys = make([]*keymanagerv1.PublicKey, 0, len(p.entries))
 
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -424,24 +438,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
-	pk, err := p.vc.GetKey(ctx, spireKeyID)
-	if err != nil {
-		return nil, err
-	}
-
-	pemBlock, _ := pem.Decode([]byte(pk))
-	if pemBlock == nil || pemBlock.Type != "PUBLIC KEY" {
-		return nil, status.Error(codes.Internal, "unable to decode PEM key")
-	}
-
-	return &keyEntry{
-		PublicKey: &keymanagerv1.PublicKey{
-			Id:          spireKeyID,
-			Type:        keyType,
-			PkixData:    pemBlock.Bytes,
-			Fingerprint: makeFingerprint(pemBlock.Bytes),
-		},
-	}, nil
+	return p.vc.getKeyEntry(ctx, spireKeyID)
 }
 
 func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*TransitKeyType, error) {
@@ -483,4 +480,15 @@ func (p *Plugin) genVaultClient() error {
 func makeFingerprint(pkixData []byte) string {
 	s := sha256.Sum256(pkixData)
 	return hex.EncodeToString(s[:])
+}
+
+func (p *Plugin) setCache(keyEntries []*keyEntry) {
+	// clean previous cache
+	p.entries = make(map[string]keyEntry)
+
+	// add results to cache
+	for _, e := range keyEntries {
+		p.entries[e.PublicKey.Id] = *e
+		p.logger.Debug("Key loaded", "key_id", e.PublicKey.Id, "key_type", e.PublicKey.Type)
+	}
 }
