@@ -387,7 +387,7 @@ k8s_auth {
   }
 }`
 
-	testGetKeyResponse = `{
+	testGetKeyResponseP256 = `{
   "request_id": "646eddbd-83fd-0cc1-387b-f1a17fa88c3d",
   "lease_id": "",
   "renewable": false,
@@ -421,6 +421,147 @@ k8s_auth {
   "warnings": null,
   "auth": null
 }`
+
+	testGetKeyResponseP384 = `{
+  "request_id": "a97c3069-1369-dcbb-c687-a431f8d7f324",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "allow_plaintext_backup": false,
+    "auto_rotate_period": 0,
+    "deletion_allowed": false,
+    "derived": false,
+    "exportable": false,
+    "imported_key": false,
+    "keys": {
+      "1": {
+        "creation_time": "2024-09-17T18:27:19.664989473Z",
+        "name": "P-384",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEXpDQLh6ct/CJuMV2UIXnm/GilDNgy6Qy\ngzGhGsRaGrlYtM8g3sSHoGBIR+wT2hIF0ryY4mqYPtzw39WiHSdK3J985iX/bMXD\npr5xe142+1uHbJdKfSD5LrycBBtIsoEH\n-----END PUBLIC KEY-----\n"
+      }
+    },
+    "latest_version": 1,
+    "min_available_version": 0,
+    "min_decryption_version": 1,
+    "min_encryption_version": 0,
+    "name": "x509-CA-A",
+    "supports_decryption": false,
+    "supports_derivation": false,
+    "supports_encryption": false,
+    "supports_signing": true,
+    "type": "ecdsa-p384"
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null
+}`
+
+	testGetKeyResponseRSA2048 = `{
+  "request_id": "7a74d33f-2e4b-8f34-48ba-80ff1c0a447c",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "allow_plaintext_backup": false,
+    "auto_rotate_period": 0,
+    "deletion_allowed": false,
+    "derived": false,
+    "exportable": false,
+    "imported_key": false,
+    "keys": {
+      "1": {
+        "creation_time": "2024-09-17T18:30:26.427076525Z",
+        "name": "rsa-2048",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnV4uS61DWBvfbpzuHzIQ\nRbPZfLbe5wolynACSBNB4DxskuAZOg27e9wKUVwg82gOFPM4t1mVMHYee2OqEspZ\n5zL6y5bfwK//F+H8B6egitPKcHIv6WtErCrl3NM7V8jv4JIxmSeLRFNLpsGPp2dc\nZ/Q/SwprFhMfBiskCmOf+FlOrLZXe7a6Wsfe2yTJIwC5zGn+jNPVBmscHqjzttME\n4/xoZxCg13uZa1rskIOW526RT7ccfIMo8qGoZ0KVjnAJGuTwhFvJ+D/jwhHDylsP\n1ngHgJlBnDo23GouQD13TRaRUamTb4sliRAFdrWwK3j9YaOgtJnBYikkG1T/SSsm\nMQIDAQAB\n-----END PUBLIC KEY-----\n"
+      }
+    },
+    "latest_version": 1,
+    "min_available_version": 0,
+    "min_decryption_version": 1,
+    "min_encryption_version": 0,
+    "name": "x509-CA-A",
+    "supports_decryption": true,
+    "supports_derivation": false,
+    "supports_encryption": true,
+    "supports_signing": true,
+    "type": "rsa-2048"
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null
+}`
+
+	testGetKeyResponseRSA4096 = `{
+  "request_id": "486c49b6-149a-7886-52c6-5d082d4329fc",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "allow_plaintext_backup": false,
+    "auto_rotate_period": 0,
+    "deletion_allowed": false,
+    "derived": false,
+    "exportable": false,
+    "imported_key": false,
+    "keys": {
+      "1": {
+        "creation_time": "2024-09-17T18:34:21.286589438Z",
+        "name": "rsa-4096",
+        "public_key": "-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAsmp4dJSfPGDGhmWoBD7G\nYPBQ/KGCR8/huy7/bjNRprKKpnhDl+4y5OaQVUqvFnoJZYfQvowcaGrARwBrsvPw\nkwPe6dB33XZBCWWDIvMORAQhgGeQF0MRjKibxDxlwPLZLARnHF8674gDdbL7Tg/G\nxQqThWNqVk6/GiHnAjkBntyw3V5XI5RtmpdSLDcZOUdqh/Bwi6fGOwtW1kU2NVSG\nalhdQu1O2Pr72sVZ/9+LwMYv1ZI0lFULwr7ZaIo86+vei4BIk+Pd/kkOjn9KKJD1\n84eL1QnN03XPc9ENCt7rF/R+IT7YkoqCDBZawW6VpexrA6QxtxUO0DcAffIFJ61Z\n9N7p3VULjZZIJmpOaMTEu3wFritcTBZweI3gikisg3YMqRDzC97+WqKUGpWUfGcF\ngENRvqIlE05snmmwziGB4Rey3yAqZBHSXRWFWKdDX/X7gMEJ4Av7hAumMxgR34If\ndzEShW6ushnOEtlXQR0/DE814GBWI0+oa+w9m20XkzL60bUIZevP9mOhbSNxuN8m\naCDOjIa7qeX3yg1l4+dnAZ/S8O+K3GEWkqWwq/FXH1EfCGeztp2b0pN8n0r0Tr3S\nHkHMNNEXovlQevgEFEc01Kg8PXBDd1hP31dfMfZ6v+BXygGHg95zR4AFpcRIYJWu\n9dmMkmMWQN5rZeyDO7ZfDQ0CAwEAAQ==\n-----END PUBLIC KEY-----\n"
+      }
+    },
+    "latest_version": 1,
+    "min_available_version": 0,
+    "min_decryption_version": 1,
+    "min_encryption_version": 0,
+    "name": "x509-CA-A",
+    "supports_decryption": true,
+    "supports_derivation": false,
+    "supports_encryption": true,
+    "supports_signing": true,
+    "type": "rsa-4096"
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null
+}`
+
+	testGetKeyResponseMalformed = `{
+  "request_id": "486c49b6-149a-7886-52c6-5d082d4329fc",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "allow_plaintext_backup": false,
+    "auto_rotate_period": 0,
+    "deletion_allowed": false,
+    "derived": false,
+    "exportable": false,
+    "imported_key": false,
+    "keys": {
+      "1": {
+        "creation_time": "2024-09-17T18:34:21.286589438Z",
+        "name": "rsa-4096",
+        "public_key": "-----BEGIN MALFORMED KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAsmp4dJSfPGDGhmWoBD7G\nYPBQ/KGCR8/huy7/bjNRprKKpnhDl+4y5OaQVUqvFnoJZYfQvowcaGrARwBrsvPw\nkwPe6dB33XZBCWWDIvMORAQhgGeQF0MRjKibxDxlwPLZLARnHF8674gDdbL7Tg/G\nxQqThWNqVk6/GiHnAjkBntyw3V5XI5RtmpdSLDcZOUdqh/Bwi6fGOwtW1kU2NVSG\nalhdQu1O2Pr72sVZ/9+LwMYv1ZI0lFULwr7ZaIo86+vei4BIk+Pd/kkOjn9KKJD1\n84eL1QnN03XPc9ENCt7rF/R+IT7YkoqCDBZawW6VpexrA6QxtxUO0DcAffIFJ61Z\n9N7p3VULjZZIJmpOaMTEu3wFritcTBZweI3gikisg3YMqRDzC97+WqKUGpWUfGcF\ngENRvqIlE05snmmwziGB4Rey3yAqZBHSXRWFWKdDX/X7gMEJ4Av7hAumMxgR34If\ndzEShW6ushnOEtlXQR0/DE814GBWI0+oa+w9m20XkzL60bUIZevP9mOhbSNxuN8m\naCDOjIa7qeX3yg1l4+dnAZ/S8O+K3GEWkqWwq/FXH1EfCGeztp2b0pN8n0r0Tr3S\nHkHMNNEXovlQevgEFEc01Kg8PXBDd1hP31dfMfZ6v+BXygGHg95zR4AFpcRIYJWu\n9dmMkmMWQN5rZeyDO7ZfDQ0CAwEAAQ==\n-----END MALFORMED KEY-----\n"
+      }
+    },
+    "latest_version": 1,
+    "min_available_version": 0,
+    "min_decryption_version": 1,
+    "min_encryption_version": 0,
+    "name": "x509-CA-A",
+    "supports_decryption": true,
+    "supports_derivation": false,
+    "supports_encryption": true,
+    "supports_signing": true,
+    "type": "rsa-4096"
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null
+}`
+
 	testSignDataResponse = `{
   "request_id": "51bb98fa-8da3-8678-64e7-7220bc8b94a6",
   "lease_id": "",

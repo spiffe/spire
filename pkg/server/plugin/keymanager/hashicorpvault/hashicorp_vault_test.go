@@ -2,7 +2,10 @@ package hashicorpvault
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"github.com/hashicorp/vault/sdk/helper/consts"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"testing"
@@ -251,6 +254,283 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
+func TestGenerateKey(t *testing.T) {
+	successfulConfig := &Config{
+		TransitEnginePath: "test-transit",
+		CACertPath:        "testdata/root-cert.pem",
+		TokenAuth: &TokenAuthConfig{
+			Token: "test-token",
+		},
+	}
+
+	for _, tt := range []struct {
+		name            string
+		csr             []byte
+		config          *Config
+		authMethod      AuthMethod
+		expectCode      codes.Code
+		expectMsgPrefix string
+		id              string
+		keyType         keymanager.KeyType
+
+		fakeServer func() *FakeVaultServerConfig
+	}{
+		{
+			name:       "Generate EC P-256 key with token auth",
+			id:         "x509-CA-A",
+			keyType:    keymanager.ECP256,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+
+				return fakeServer
+			},
+		},
+		{
+			name:       "Generate P-384 key with token auth",
+			id:         "x509-CA-A",
+			keyType:    keymanager.ECP384,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseP384)
+
+				return fakeServer
+			},
+		},
+		{
+			name:       "Generate RSA 2048 key with token auth",
+			id:         "x509-CA-A",
+			keyType:    keymanager.RSA2048,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseRSA2048)
+
+				return fakeServer
+			},
+		},
+		{
+			name:       "Generate RSA 4096 key with token auth",
+			id:         "x509-CA-A",
+			keyType:    keymanager.RSA4096,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseRSA4096)
+
+				return fakeServer
+			},
+		},
+		{
+			name:       "Generate key with missing id",
+			keyType:    keymanager.RSA2048,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseRSA2048)
+
+				return fakeServer
+			},
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "keymanager(hashicorp_vault): key id is required",
+		},
+		{
+			name:       "Generate key with missing key type",
+			id:         "x509-CA-A",
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseRSA2048)
+
+				return fakeServer
+			},
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "keymanager(hashicorp_vault): key type is required",
+		},
+		{
+			name:       "Generate key with unsupported key type",
+			id:         "x509-CA-A",
+			keyType:    100,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseRSA2048)
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "keymanager(hashicorp_vault): facade does not support key type \"UNKNOWN(100)\"",
+		},
+		{
+			name:       "Malformed get key response",
+			id:         "x509-CA-A",
+			keyType:    keymanager.RSA2048,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte("error")
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "keymanager(hashicorp_vault): failed to get transit engine key: invalid character",
+		},
+		{
+			name:       "Malformed create key response",
+			id:         "x509-CA-A",
+			keyType:    keymanager.RSA2048,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.CreateKeyResponse = []byte("error")
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "keymanager(hashicorp_vault): failed to create transit engine key: invalid character",
+		},
+		{
+			name:       "Bad get key response code",
+			id:         "x509-CA-A",
+			keyType:    keymanager.RSA2048,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponseCode = 500
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "keymanager(hashicorp_vault): failed to get transit engine key: Error making API request.",
+		},
+		{
+			name:       "Bad create key response code",
+			id:         "x509-CA-A",
+			keyType:    keymanager.RSA2048,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.CreateKeyResponseCode = 500
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "keymanager(hashicorp_vault): failed to create transit engine key: Error making API request.",
+		},
+		{
+			name:       "Malformed key",
+			id:         "x509-CA-A",
+			keyType:    keymanager.RSA2048,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseMalformed)
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "keymanager(hashicorp_vault): unable to decode PEM key",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer := tt.fakeServer()
+
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+
+			s.Start()
+			defer s.Close()
+
+			p := New()
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+				plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
+			}
+			if tt.config != nil {
+				tt.config.VaultAddr = fmt.Sprintf("https://%s", addr)
+				cp, err := p.genClientParams(tt.authMethod, tt.config)
+				require.NoError(t, err)
+				cc, err := NewClientConfig(cp, p.logger)
+				require.NoError(t, err)
+				p.cc = cc
+				options = append(options, plugintest.ConfigureJSON(tt.config))
+			}
+			p.authMethod = tt.authMethod
+
+			v1 := new(keymanager.V1)
+			plugintest.Load(t, builtin(p), v1,
+				options...,
+			)
+
+			key, err := v1.GenerateKey(context.Background(), tt.id, tt.keyType)
+
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+			if tt.expectCode != codes.OK {
+				require.Nil(t, key)
+				return
+			}
+
+			require.NotNil(t, key)
+			require.Equal(t, tt.id, key.ID())
+
+			if p.cc.clientParams.Namespace != "" {
+				headers := p.vc.vaultClient.Headers()
+				require.Equal(t, p.cc.clientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
+		})
+	}
+}
+
 func getTestConfigureRequest(t *testing.T, addr string, tpl string) string {
 	templ, err := template.New("plugin config").Parse(tpl)
 	require.NoError(t, err)
@@ -262,6 +542,35 @@ func getTestConfigureRequest(t *testing.T, addr string, tpl string) string {
 	require.NoError(t, err)
 
 	return c.String()
+}
+
+func setupSuccessFakeVaultServer() *FakeVaultServerConfig {
+	fakeVaultServer := setupFakeVaultServer()
+
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
+
+	fakeVaultServer.AppRoleAuthResponseCode = 200
+	fakeVaultServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponse)
+	fakeVaultServer.AppRoleAuthReqEndpoint = "/v1/auth/test-approle-auth/login"
+
+	fakeVaultServer.K8sAuthResponseCode = 200
+	fakeVaultServer.K8sAuthReqEndpoint = "/v1/auth/test-k8s-auth/login"
+	fakeVaultServer.K8sAuthResponse = []byte(testK8sAuthResponse)
+
+	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+	fakeVaultServer.LookupSelfReqEndpoint = "GET /v1/auth/token/lookup-self"
+	fakeVaultServer.LookupSelfResponseCode = 200
+
+	fakeVaultServer.CreateKeyResponseCode = 200
+	fakeVaultServer.CreateKeyReqEndpoint = "PUT /v1/test-transit/keys/{id}"
+
+	fakeVaultServer.GetKeyResponseCode = 200
+	fakeVaultServer.GetKeyReqEndpoint = "GET /v1/test-transit/keys/{id}"
+	fakeVaultServer.GetKeyResponse = []byte(testGetKeyResponseP256)
+
+	return fakeVaultServer
 }
 
 func setupFakeVaultServer() *FakeVaultServerConfig {
