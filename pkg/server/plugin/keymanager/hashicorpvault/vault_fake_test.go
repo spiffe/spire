@@ -15,6 +15,7 @@ const (
 	defaultLookupSelfEndpoint  = "GET /v1/auth/token/lookup-self"
 	defaultCreateKeyEndpoint   = "PUT /v1/transit/keys/{id}"
 	defaultGetKeyEndpoint      = "GET /v1/transit/keys/{id}"
+	defaultSignDataEndpoint    = "PUT /v1/transit/sign/{id}/{algo}"
 
 	listenAddr = "127.0.0.1:0"
 )
@@ -303,6 +304,20 @@ var (
   "warnings": null,
   "auth": null
 }`
+	testSignDataResponse = `{
+  "request_id": "51bb98fa-8da3-8678-64e7-7220bc8b94a6",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "key_version": 1,
+    "signature": "vault:v1:MEQCIHw3maFgxsmzAUsUXnw2ahUgPcomjF8+XxflwH4CsouhAiAYL3RhWx8dP2ymm7hjSUvc9EQ8GPXmLrvgacqkEKQPGw=="
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null
+}
+`
 )
 
 type FakeVaultServerConfig struct {
@@ -337,6 +352,10 @@ type FakeVaultServerConfig struct {
 	GetKeyReqHandler         func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
 	GetKeyResponseCode       int
 	GetKeyResponse           []byte
+	SignDataReqEndpoint      string
+	SignDataReqHandler       func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	SignDataResponseCode     int
+	SignDataResponse         []byte
 }
 
 // NewFakeVaultServerConfig returns VaultServerConfig with default values
@@ -357,6 +376,8 @@ func NewFakeVaultServerConfig() *FakeVaultServerConfig {
 		CreateKeyReqHandler:    defaultReqHandler,
 		GetKeyReqEndpoint:      defaultGetKeyEndpoint,
 		GetKeyReqHandler:       defaultReqHandler,
+		SignDataReqEndpoint:    defaultSignDataEndpoint,
+		SignDataReqHandler:     defaultReqHandler,
 	}
 }
 
@@ -390,6 +411,7 @@ func (v *FakeVaultServerConfig) NewTLSServer() (srv *httptest.Server, addr strin
 	mux.HandleFunc(v.LookupSelfReqEndpoint, v.LookupSelfReqHandler(v.LookupSelfResponseCode, v.LookupSelfResponse))
 	mux.HandleFunc(v.CreateKeyReqEndpoint, v.CreateKeyReqHandler(v.CreateKeyResponseCode, v.CreateKeyResponse))
 	mux.HandleFunc(v.GetKeyReqEndpoint, v.GetKeyReqHandler(v.GetKeyResponseCode, v.GetKeyResponse))
+	mux.HandleFunc(v.SignDataReqEndpoint, v.SignDataReqHandler(v.SignDataResponseCode, v.SignDataResponse))
 
 	srv = httptest.NewUnstartedServer(mux)
 	srv.Listener = l

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	vapi "github.com/hashicorp/vault/api"
 	"net/http"
@@ -738,7 +739,74 @@ func TestGetKeyErrorFromEndpoint(t *testing.T) {
 	require.Empty(t, resp)
 }
 
-// TODO: Test SignData
+func TestSignData(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.SignDataResponseCode = 200
+	fakeVaultServer.SignDataResponse = []byte(testSignDataResponse)
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	cp := &ClientParams{
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.SignData(context.Background(), "x509-CA-A", []byte("foo"), TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPKCS1v15)
+	require.NoError(t, err)
+
+	expected, err := base64.StdEncoding.DecodeString("MEQCIHw3maFgxsmzAUsUXnw2ahUgPcomjF8+XxflwH4CsouhAiAYL3RhWx8dP2ymm7hjSUvc9EQ8GPXmLrvgacqkEKQPGw==")
+	require.NoError(t, err)
+	require.Equal(t, expected, resp)
+}
+
+func TestSignDataErrorFromEndpoint(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.SignDataResponseCode = 500
+	fakeVaultServer.SignDataResponse = []byte("test error")
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:     &retry,
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.SignData(context.Background(), "x509-CA-A", []byte("foo"), TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPKCS1v15)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "transit engine sign call failed: Error making API request.")
+	require.Empty(t, resp)
+}
 
 func newFakeVaultServer() *FakeVaultServerConfig {
 	fakeVaultServer := NewFakeVaultServerConfig()
