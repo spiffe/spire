@@ -3,6 +3,7 @@ package hashicorpvault
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -212,14 +214,29 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		return nil, err
 	}
 
-	signResp, err := p.vc.SignData(ctx, req.KeyId, req.Data, hashAlgo, signingAlgo)
+	// TODO: Should this be done in SignData?
+	encodedData := base64.StdEncoding.EncodeToString(req.Data)
+	signResp, err := p.vc.SignData(ctx, req.KeyId, encodedData, hashAlgo, signingAlgo)
 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to sign: %v", err)
 	}
 
+	// TODO: Should this be done in SignData?
+	sig := signResp.Data["signature"].(string)
+	cutSig, ok := strings.CutPrefix(sig, "vault:v1:")
+
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "response should contain vault prefix: %v", err)
+	}
+
+	data, err := base64.StdEncoding.DecodeString(cutSig)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to base64 decode signature: %v", err)
+	}
+
 	return &keymanagerv1.SignDataResponse{
-		Signature:      signResp.Data["signature"].([]byte),
+		Signature:      data,
 		KeyFingerprint: keyEntry.PublicKey.Fingerprint,
 	}, nil
 }
@@ -252,8 +269,6 @@ func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysReque
 		keys = append(keys, key.PublicKey)
 	}
 
-	p.logger.Debug("getting public keys")
-
 	return &keymanagerv1.GetPublicKeysResponse{PublicKeys: keys}, nil
 }
 
@@ -283,10 +298,8 @@ func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (TransitHashAlgor
 	switch {
 	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return "", "", errors.New("hash algorithm is required")
-	case keyType == keymanagerv1.KeyType_EC_P256 && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
-		return TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPKCS1v15, nil
-	case keyType == keymanagerv1.KeyType_EC_P384 && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
-		return TransitHashAlgorithmSHA384, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+	case keyType == keymanagerv1.KeyType_EC_P256 || keyType == keymanagerv1.KeyType_EC_P384:
+		return TransitHashAlgorithmNone, TransitSignatureSignatureAlgorithmPKCS1v15, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
 		return TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPKCS1v15, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:

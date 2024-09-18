@@ -359,6 +359,7 @@ const (
 	TransitHashAlgorithmSHA256 TransitHashAlgorithm = "sha2-256"
 	TransitHashAlgorithmSHA384 TransitHashAlgorithm = "sha2-384"
 	TransitHashAlgorithmSHA512 TransitHashAlgorithm = "sha2-512"
+	TransitHashAlgorithmNone   TransitHashAlgorithm = "none"
 )
 
 type TransitSignatureAlgorithm string
@@ -387,15 +388,16 @@ func (c *Client) GetKey(ctx context.Context, spireKeyID string) (*vapi.Secret, e
 	return c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/transit/keys/%s", spireKeyID))
 }
 
-func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) (*vapi.Secret, error) {
-	// TODO: Handle errors here
-	// TODO: Make the transit engine path configurable
-	return c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/transit/sign/%s", spireKeyID), map[string]interface{}{
+func (c *Client) SignData(ctx context.Context, spireKeyID string, data string, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) (*vapi.Secret, error) {
+	body := map[string]interface{}{
 		"key_version":           "0",
-		"hash_algorithm":        hashAlgo,
 		"input":                 data,
 		"signature_algorithm":   signatureAlgo,
-		"marshalling_algorithm": "asn1", // TODO: Should this be jwt?
-		"salt_length":           "hash", // TODO: Should this be auto or should we let it be configured?
-	})
+		"marshalling_algorithm": "asn1",
+		"prehashed":             "true",
+	}
+
+	// TODO: Handle errors here
+	// TODO: Make the transit engine path configurable
+	return c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/transit/sign/%s/%s", spireKeyID, hashAlgo), body)
 }
