@@ -211,6 +211,61 @@ var (
     "renewable": false
   }
 }`
+
+	testK8sAuthResponse = `{
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": null,
+  "wrap_info": null,
+  "warnings": null,
+  "auth": {
+    "client_token": "s.scngmDktKCWVRhkggMiyV7E7",
+    "accessor": "",
+    "policies": ["default"],
+    "token_policies": ["default"],
+    "metadata": {
+      "role": "my-role",
+      "service_account_name": "spire-server",
+      "service_account_namespace": "spire",
+      "service_account_secret_name": "",
+      "service_account_uid": "6808b4c7-0b53-45f4-83f7-e8937756eeae"
+    },
+    "lease_duration": 3600,
+    "renewable": true,
+    "entity_id": "c69a6e0e-3f2c-98a0-39f9-e4d3d7cc294f",
+    "token_type": "service",
+    "orphan": true
+  }
+}
+`
+
+	testK8sAuthResponseNotRenewable = `{
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": null,
+  "wrap_info": null,
+  "warnings": null,
+  "auth": {
+    "client_token": "b.AAAAAQIUprvfquccAKnvL....",
+    "accessor": "",
+    "policies": ["default"],
+    "token_policies": ["default"],
+    "metadata": {
+      "role": "my-role",
+      "service_account_name": "spire-server",
+      "service_account_namespace": "spire",
+      "service_account_secret_name": "",
+      "service_account_uid": "6808b4c7-0b53-45f4-83f7-e8937756eeae"
+    },
+    "lease_duration": 3600,
+    "renewable": false,
+    "entity_id": "c69a6e0e-3f2c-98a0-39f9-e4d3d7cc294f",
+    "token_type": "batch",
+    "orphan": true
+  }
+}`
 )
 
 type FakeVaultServerConfig struct {

@@ -330,6 +330,112 @@ func TestNewAuthenticatedClientCertAuthFailed(t *testing.T) {
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/cert/login: Error making API request.")
 }
 
+func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.K8sAuthResponseCode = 200
+	for _, tt := range []struct {
+		name      string
+		response  []byte
+		renew     bool
+		namespace string
+	}{
+		{
+			name:     "K8s Authentication success / Token is renewable",
+			response: []byte(testK8sAuthResponse),
+			renew:    true,
+		},
+		{
+			name:     "K8s Authentication success / Token is not renewable",
+			response: []byte(testK8sAuthResponseNotRenewable),
+		},
+		{
+			name:      "K8s Authentication success / Token is renewable / Namespace is given",
+			response:  []byte(testK8sAuthResponse),
+			renew:     true,
+			namespace: "test-ns",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer.K8sAuthResponse = tt.response
+
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+
+			s.Start()
+			defer s.Close()
+
+			cp := &ClientParams{
+				VaultAddr:        fmt.Sprintf("https://%v/", addr),
+				Namespace:        tt.namespace,
+				CACertPath:       testRootCert,
+				K8sAuthRoleName:  "my-role",
+				K8sAuthTokenPath: "testdata/k8s/token",
+			}
+			cc, err := NewClientConfig(cp, hclog.Default())
+			require.NoError(t, err)
+
+			renewCh := make(chan struct{})
+			client, err := cc.NewAuthenticatedClient(K8S, renewCh)
+			require.NoError(t, err)
+
+			select {
+			case <-renewCh:
+				require.Equal(t, false, tt.renew)
+			default:
+				require.Equal(t, true, tt.renew)
+			}
+
+			if cp.Namespace != "" {
+				headers := client.vaultClient.Headers()
+				require.Equal(t, cp.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
+		})
+	}
+}
+
+func TestNewAuthenticatedClientK8sAuthFailed(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.K8sAuthResponseCode = 500
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:       &retry,
+		VaultAddr:        fmt.Sprintf("https://%v/", addr),
+		CACertPath:       testRootCert,
+		K8sAuthRoleName:  "my-role",
+		K8sAuthTokenPath: "testdata/k8s/token",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(K8S, renewCh)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unauthenticated, "authentication failed auth/kubernetes/login: Error making API request.")
+}
+
+func TestNewAuthenticatedClientK8sAuthInvalidPath(t *testing.T) {
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:       &retry,
+		VaultAddr:        "https://example.org:8200",
+		CACertPath:       testRootCert,
+		K8sAuthTokenPath: "invalid/k8s/token",
+	}
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	_, err = cc.NewAuthenticatedClient(K8S, renewCh)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to read k8s service account token:")
+}
+
 func TestRenewTokenFailed(t *testing.T) {
 	fakeVaultServer := newFakeVaultServer()
 	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponseShortTTL)
