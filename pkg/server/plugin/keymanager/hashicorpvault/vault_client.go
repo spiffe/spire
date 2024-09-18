@@ -36,12 +36,6 @@ const (
 	defaultK8sMountPoint     = "kubernetes"
 )
 
-type cloudKeyManagementService interface {
-	CreateKey(ctx context.Context, spireKeyID string, keyType TransitKeyType) error
-	GetKey(ctx context.Context, spireKeyID string) (string, error)
-	SignData(ctx context.Context, spireKeyID string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error)
-}
-
 type AuthMethod int
 
 const (
