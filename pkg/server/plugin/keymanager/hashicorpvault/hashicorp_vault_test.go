@@ -17,21 +17,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 )
 
-func TestConfigure(t *testing.T) {
-	fakeVaultServer := setupFakeVaultServer()
-	fakeVaultServer.CertAuthResponseCode = 200
-	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
-	fakeVaultServer.CertAuthReqEndpoint = "/v1/auth/test-cert-auth/login"
-	fakeVaultServer.AppRoleAuthResponseCode = 200
-	fakeVaultServer.AppRoleAuthResponse = []byte(testAppRoleAuthResponse)
-	fakeVaultServer.AppRoleAuthReqEndpoint = "/v1/auth/test-approle-auth/login"
-
-	s, addr, err := fakeVaultServer.NewTLSServer()
-	require.NoError(t, err)
-
-	s.Start()
-	defer s.Close()
-
+func TestPluginConfigure(t *testing.T) {
 	for _, tt := range []struct {
 		name                     string
 		configTmpl               string
@@ -124,19 +110,10 @@ func TestConfigure(t *testing.T) {
 			expectTransitEnginePath: "transit",
 		},
 		{
-			name:            "Multiple authentication methods configured",
-			configTmpl:      testMultipleAuthConfigsTpl,
-			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "only one authentication method can be configured",
-		},
-		{
-			name:       "Pass VaultAddr via the environment variable",
-			configTmpl: testConfigWithVaultAddrEnvTpl,
-			envKeyVal: map[string]string{
-				envVaultAddr: fmt.Sprintf("https://%v/", addr),
-			},
-			wantAuth:                TOKEN,
-			expectToken:             "test-token",
+			name:                    "Multiple authentication methods configured",
+			configTmpl:              testMultipleAuthConfigsTpl,
+			expectCode:              codes.InvalidArgument,
+			expectMsgPrefix:         "only one authentication method can be configured",
 			expectTransitEnginePath: "transit",
 		},
 		{
@@ -176,29 +153,37 @@ func TestConfigure(t *testing.T) {
 			expectToken:             "test-token",
 		},
 		{
-			name:            "Malformed configuration",
-			plainConfig:     "invalid-config",
-			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "unable to decode configuration:",
+			name:                    "Malformed configuration",
+			plainConfig:             "invalid-config",
+			expectCode:              codes.InvalidArgument,
+			expectMsgPrefix:         "unable to decode configuration:",
+			expectTransitEnginePath: "transit",
 		},
 		{
-			name:            "Required parameters are not given / k8s_auth_role_name",
-			configTmpl:      testK8sAuthNoRoleNameTpl,
-			wantAuth:        K8S,
-			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "k8s_auth_role_name is required",
+			name:                    "Required parameters are not given / k8s_auth_role_name",
+			configTmpl:              testK8sAuthNoRoleNameTpl,
+			wantAuth:                K8S,
+			expectCode:              codes.InvalidArgument,
+			expectMsgPrefix:         "k8s_auth_role_name is required",
+			expectTransitEnginePath: "transit",
 		},
 		{
-			name:            "Required parameters are not given / token_path",
-			configTmpl:      testK8sAuthNoTokenPathTpl,
-			wantAuth:        K8S,
-			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "token_path is required",
+			name:                    "Required parameters are not given / token_path",
+			configTmpl:              testK8sAuthNoTokenPathTpl,
+			wantAuth:                K8S,
+			expectCode:              codes.InvalidArgument,
+			expectMsgPrefix:         "token_path is required",
+			expectTransitEnginePath: "transit",
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			var err error
+			fakeVaultServer := setupSuccessFakeVaultServer(tt.expectTransitEnginePath)
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+
+			s.Start()
+			defer s.Close()
 
 			p := New()
 			p.hooks.lookupEnv = func(s string) (string, bool) {
@@ -254,7 +239,7 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
-func TestGenerateKey(t *testing.T) {
+func TestPluginGenerateKey(t *testing.T) {
 	successfulConfig := &Config{
 		TransitEnginePath: "test-transit",
 		CACertPath:        "testdata/root-cert.pem",
@@ -265,7 +250,6 @@ func TestGenerateKey(t *testing.T) {
 
 	for _, tt := range []struct {
 		name            string
-		csr             []byte
 		config          *Config
 		authMethod      AuthMethod
 		expectCode      codes.Code
@@ -282,7 +266,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -297,7 +281,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -313,7 +297,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -329,7 +313,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -344,7 +328,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -361,7 +345,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -379,7 +363,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -397,7 +381,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -415,7 +399,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -433,7 +417,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -451,7 +435,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -469,7 +453,7 @@ func TestGenerateKey(t *testing.T) {
 			config:     successfulConfig,
 			authMethod: TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
-				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 				fakeServer.CertAuthResponse = []byte{}
 				fakeServer.AppRoleAuthResponse = []byte{}
@@ -531,6 +515,195 @@ func TestGenerateKey(t *testing.T) {
 	}
 }
 
+func TestPluginGetKey(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		config          *Config
+		configTmpl      string
+		authMethod      AuthMethod
+		expectCode      codes.Code
+		expectMsgPrefix string
+		id              string
+
+		fakeServer func() *FakeVaultServerConfig
+	}{
+		{
+			name:       "Get EC P-256 key with token auth",
+			configTmpl: testTokenAuthConfigTpl,
+			id:         "x509-CA-A",
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer("transit")
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+
+				return fakeServer
+			},
+		},
+		{
+			name:       "Get P-384 key with token auth",
+			configTmpl: testTokenAuthConfigTpl,
+			id:         "x509-CA-A",
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer("transit")
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseP384)
+
+				return fakeServer
+			},
+		},
+		{
+			name:       "Get RSA 2048 key with token auth",
+			configTmpl: testTokenAuthConfigTpl,
+			id:         "x509-CA-A",
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer("transit")
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseRSA2048)
+
+				return fakeServer
+			},
+		},
+		{
+			name:       "Get RSA 4096 key with token auth",
+			configTmpl: testTokenAuthConfigTpl,
+			id:         "x509-CA-A",
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer("transit")
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseRSA4096)
+
+				return fakeServer
+			},
+		},
+		{
+			name:       "Get key with missing id",
+			configTmpl: testTokenAuthConfigTpl,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer("transit")
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseRSA2048)
+
+				return fakeServer
+			},
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "keymanager(hashicorp_vault): key id is required",
+		},
+		{
+			name:       "Malformed get key response",
+			configTmpl: testTokenAuthConfigTpl,
+			id:         "x509-CA-A",
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer("transit")
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte("error")
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "failed to get transit engine key:",
+		},
+		{
+			name:       "Bad get key response code",
+			configTmpl: testTokenAuthConfigTpl,
+			id:         "x509-CA-A",
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer("transit")
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponseCode = 500
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "failed to get transit engine key:",
+		},
+		{
+			name:       "Malformed key",
+			configTmpl: testTokenAuthConfigTpl,
+			id:         "x509-CA-A",
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer("transit")
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeyResponse = []byte(testGetKeyResponseMalformed)
+
+				return fakeServer
+			},
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "unable to decode PEM key",
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakeVaultServer := tt.fakeServer()
+
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+
+			s.Start()
+			defer s.Close()
+
+			p := New()
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+				plugintest.Configure(getTestConfigureRequest(t, fmt.Sprintf("https://%v/", addr), tt.configTmpl)),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}),
+			}
+
+			v1 := new(keymanager.V1)
+			plugintest.Load(t, builtin(p), v1,
+				options...,
+			)
+
+			if err != nil {
+				spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+				return
+			}
+
+			key, err := v1.GetKey(context.Background(), tt.id)
+
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
+			if tt.expectCode != codes.OK {
+				require.Nil(t, key)
+				return
+			}
+
+			require.NotNil(t, key)
+			require.Equal(t, tt.id, key.ID())
+
+			if p.cc.clientParams.Namespace != "" {
+				headers := p.vc.vaultClient.Headers()
+				require.Equal(t, p.cc.clientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
+		})
+	}
+}
+
+// TODO: Should the Sign function also be tested?
+
 func getTestConfigureRequest(t *testing.T, addr string, tpl string) string {
 	templ, err := template.New("plugin config").Parse(tpl)
 	require.NoError(t, err)
@@ -544,7 +717,7 @@ func getTestConfigureRequest(t *testing.T, addr string, tpl string) string {
 	return c.String()
 }
 
-func setupSuccessFakeVaultServer() *FakeVaultServerConfig {
+func setupSuccessFakeVaultServer(transitEnginePath string) *FakeVaultServerConfig {
 	fakeVaultServer := setupFakeVaultServer()
 
 	fakeVaultServer.CertAuthResponseCode = 200
@@ -564,11 +737,15 @@ func setupSuccessFakeVaultServer() *FakeVaultServerConfig {
 	fakeVaultServer.LookupSelfResponseCode = 200
 
 	fakeVaultServer.CreateKeyResponseCode = 200
-	fakeVaultServer.CreateKeyReqEndpoint = "PUT /v1/test-transit/keys/{id}"
+	fakeVaultServer.CreateKeyReqEndpoint = fmt.Sprintf("PUT /v1/%s/keys/{id}", transitEnginePath)
 
 	fakeVaultServer.GetKeyResponseCode = 200
-	fakeVaultServer.GetKeyReqEndpoint = "GET /v1/test-transit/keys/{id}"
+	fakeVaultServer.GetKeyReqEndpoint = fmt.Sprintf("GET /v1/%s/keys/{id}", transitEnginePath)
 	fakeVaultServer.GetKeyResponse = []byte(testGetKeyResponseP256)
+
+	fakeVaultServer.GetKeysResponseCode = 200
+	fakeVaultServer.GetKeysReqEndpoint = fmt.Sprintf("GET /v1/%s/keys", transitEnginePath)
+	fakeVaultServer.GetKeysResponse = []byte(testGetKeysResponseOneKey)
 
 	return fakeVaultServer
 }

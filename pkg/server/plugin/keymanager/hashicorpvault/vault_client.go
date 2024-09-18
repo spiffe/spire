@@ -4,10 +4,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	vapi "github.com/hashicorp/vault/api"
 	"github.com/imdario/mergo"
+	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -380,48 +382,6 @@ func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType Trans
 	return nil
 }
 
-// GetKey gets the transit engine key with the specified spire key id.
-// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#read-key
-func (c *Client) GetKey(ctx context.Context, spireKeyID string) (string, error) {
-	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID))
-	if err != nil {
-		return "", status.Errorf(codes.Internal, "failed to get transit engine key: %v", err)
-	}
-
-	keys, ok := res.Data["keys"]
-	if !ok {
-		return "", status.Errorf(codes.Internal, "transit engine get key call was successful but keys are missing")
-	}
-
-	keyMap, ok := keys.(map[string]interface{})
-	if !ok {
-		return "", status.Errorf(codes.Internal, "expected key map data type %T but got %T", keyMap, keys)
-	}
-
-	// TODO: Should we support multiple versions of the key?
-	currentKey, ok := keyMap["1"]
-	if !ok {
-		return "", status.Errorf(codes.Internal, "unable to find key with version 1 in %v", keyMap)
-	}
-
-	currentKeyMap, ok := currentKey.(map[string]interface{})
-	if !ok {
-		return "", status.Errorf(codes.Internal, "expected key data type %T but got %T", currentKeyMap, currentKey)
-	}
-
-	pk, ok := currentKeyMap["public_key"]
-	if !ok {
-		return "", status.Errorf(codes.Internal, "expected public key to be present")
-	}
-
-	pkStr, ok := pk.(string)
-	if !ok {
-		return "", status.Errorf(codes.Internal, "expected public key data type %T but got %T", pkStr, pk)
-	}
-
-	return pkStr, nil
-}
-
 // SignData signs the data using the transit engine key with the provided spire key id.
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#sign-data
 func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
@@ -461,4 +421,136 @@ func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, h
 	}
 
 	return sigData, nil
+}
+
+// GetKeys returns all the keys of the transit engine.
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#list-keys
+// TODO: Test this function
+func (c *Client) GetKeys(ctx context.Context) ([]*keyEntry, error) {
+	var keyEntries []*keyEntry
+
+	listResp, err := c.vaultClient.Logical().ListWithContext(ctx, fmt.Sprintf("/%s/keys", c.clientParams.TransitEnginePath))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "transit engine list keys call failed: %v", err)
+	}
+
+	if listResp == nil {
+		return []*keyEntry{}, nil
+	}
+
+	keys, ok := listResp.Data["keys"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine list keys call was successful but keys are missing")
+	}
+
+	keyIds, ok := keys.([]interface{})
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected keys data type %T but got %T", keyIds, keys)
+	}
+
+	for _, keyId := range keyIds {
+		keyIdStr, ok := keyId.(string)
+		if !ok {
+			return nil, status.Errorf(codes.Internal, "expected key id data type %T but got %T", keyIdStr, keyId)
+		}
+
+		keyEntry, err := c.getKeyEntry(ctx, keyIdStr)
+		if err != nil {
+			return nil, err
+		}
+
+		keyEntries = append(keyEntries, keyEntry)
+	}
+
+	return keyEntries, nil
+}
+
+// TODO: Test this function
+// getKeyEntry gets the transit engine key with the specified spire key id and converts it into a key entry.
+func (c *Client) getKeyEntry(ctx context.Context, spireKeyID string) (*keyEntry, error) {
+	keyData, err := c.getKey(ctx, spireKeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	pk, ok := keyData["public_key"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected public key to be present")
+	}
+
+	pkStr, ok := pk.(string)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected public key data type %T but got %T", pkStr, pk)
+	}
+
+	pemBlock, _ := pem.Decode([]byte(pkStr))
+	if pemBlock == nil || pemBlock.Type != "PUBLIC KEY" {
+		return nil, status.Error(codes.Internal, "unable to decode PEM key")
+	}
+
+	pubKeyType, ok := keyData["name"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected name to be present")
+	}
+
+	pubKeyTypeStr, ok := pubKeyType.(string)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected public key type to be of type %T but got %T", pubKeyTypeStr, pubKeyType)
+	}
+
+	var keyType keymanagerv1.KeyType
+
+	switch pubKeyTypeStr {
+	case "P-256":
+		keyType = keymanagerv1.KeyType_EC_P256
+	case "P-384":
+		keyType = keymanagerv1.KeyType_EC_P384
+	case "rsa-2048":
+		keyType = keymanagerv1.KeyType_RSA_2048
+	case "rsa-4096":
+		keyType = keymanagerv1.KeyType_RSA_4096
+	default:
+		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", pubKeyTypeStr)
+	}
+
+	return &keyEntry{
+		PublicKey: &keymanagerv1.PublicKey{
+			Id:          spireKeyID,
+			Type:        keyType,
+			PkixData:    pemBlock.Bytes,
+			Fingerprint: makeFingerprint(pemBlock.Bytes),
+		},
+	}, nil
+}
+
+// getKey returns a specific key from the transit engine.
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#read-key
+func (c *Client) getKey(ctx context.Context, spireKeyID string) (map[string]interface{}, error) {
+	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get transit engine key: %v", err)
+	}
+
+	keys, ok := res.Data["keys"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine get key call was successful but keys are missing")
+	}
+
+	keyMap, ok := keys.(map[string]interface{})
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected key map data type %T but got %T", keyMap, keys)
+	}
+
+	// TODO: Should we support multiple versions of the key?
+	currentKey, ok := keyMap["1"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "unable to find key with version 1 in %v", keyMap)
+	}
+
+	currentKeyMap, ok := currentKey.(map[string]interface{})
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected key data type %T but got %T", currentKeyMap, currentKey)
+	}
+
+	return currentKeyMap, nil
 }
