@@ -53,6 +53,8 @@ type Config struct {
 	VaultAddr string `hcl:"vault_addr" json:"vault_addr"`
 	// Name of the Vault namespace
 	Namespace string `hcl:"namespace" json:"namespace"`
+	// TransitEnginePath specifies the path to the transit engine to perform key operations.
+	TransitEnginePath string `hcl:"transit_engine_path" json:"transit_engine_path"`
 
 	// Configuration for the Token authentication method
 	TokenAuth *TokenAuthConfig `hcl:"token_auth" json:"token_auth,omitempty"`
@@ -174,8 +176,9 @@ func checkForAuthMethodConfigured(authMethod AuthMethod) error {
 
 func (p *Plugin) genClientParams(method AuthMethod, config *Config) (*ClientParams, error) {
 	cp := &ClientParams{
-		VaultAddr: p.getEnvOrDefault(envVaultAddr, config.VaultAddr),
-		Namespace: p.getEnvOrDefault(envVaultNamespace, config.Namespace),
+		VaultAddr:         p.getEnvOrDefault(envVaultAddr, config.VaultAddr),
+		Namespace:         p.getEnvOrDefault(envVaultNamespace, config.Namespace),
+		TransitEnginePath: p.getEnvOrDefault(envVaultTransitEnginePath, config.TransitEnginePath),
 	}
 
 	switch method {

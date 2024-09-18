@@ -21,17 +21,19 @@ import (
 // TODO: Delete everything that is unused in here
 
 const (
-	envVaultAddr            = "VAULT_ADDR"
-	envVaultToken           = "VAULT_TOKEN"
-	envVaultClientCert      = "VAULT_CLIENT_CERT"
-	envVaultClientKey       = "VAULT_CLIENT_KEY"
-	envVaultCACert          = "VAULT_CACERT"
-	envVaultAppRoleID       = "VAULT_APPROLE_ID"
-	envVaultAppRoleSecretID = "VAULT_APPROLE_SECRET_ID" // #nosec G101
-	envVaultNamespace       = "VAULT_NAMESPACE"
+	envVaultAddr              = "VAULT_ADDR"
+	envVaultToken             = "VAULT_TOKEN"
+	envVaultClientCert        = "VAULT_CLIENT_CERT"
+	envVaultClientKey         = "VAULT_CLIENT_KEY"
+	envVaultCACert            = "VAULT_CACERT"
+	envVaultAppRoleID         = "VAULT_APPROLE_ID"
+	envVaultAppRoleSecretID   = "VAULT_APPROLE_SECRET_ID" // #nosec G101
+	envVaultNamespace         = "VAULT_NAMESPACE"
+	envVaultTransitEnginePath = "VAULT_TRANSIT_ENGINE_PATH"
 
 	defaultCertMountPoint    = "cert"
 	defaultPKIMountPoint     = "pki"
+	defaultTransitEnginePath = "transit"
 	defaultAppRoleMountPoint = "approle"
 	defaultK8sMountPoint     = "kubernetes"
 )
@@ -93,6 +95,8 @@ type ClientParams struct {
 	MaxRetries *int
 	// Name of the Vault namespace
 	Namespace string
+	// TransitEnginePath specifies the path to the transit engine to perform key operations.
+	TransitEnginePath string
 }
 
 type Client struct {
@@ -110,6 +114,7 @@ func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, erro
 		AppRoleAuthMountPoint: defaultAppRoleMountPoint,
 		K8sAuthMountPoint:     defaultK8sMountPoint,
 		PKIMountPoint:         defaultPKIMountPoint,
+		TransitEnginePath:     defaultTransitEnginePath,
 	}
 	if err := mergo.Merge(cp, defaultParams); err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to merge client params: %v", err)
@@ -370,15 +375,13 @@ func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType Trans
 	}
 
 	// TODO: Handle errors here such as key already exists
-	// TODO: Make the transit engine path configurable
-	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/transit/keys/%s", spireKeyID), arguments)
+	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID), arguments)
 	return err
 }
 
 func (c *Client) GetKey(ctx context.Context, spireKeyID string) (string, error) {
 	// TODO: Handle errors here
-	// TODO: Make the transit engine path configurable
-	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/transit/keys/%s", spireKeyID))
+	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID))
 	if err != nil {
 		return "", err
 	}
@@ -428,8 +431,7 @@ func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, h
 	}
 
 	// TODO: Handle errors here
-	// TODO: Make the transit engine path configurable
-	sigResp, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/transit/sign/%s/%s", spireKeyID, hashAlgo), body)
+	sigResp, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/sign/%s/%s", c.clientParams.TransitEnginePath, spireKeyID, hashAlgo), body)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "transit engine sign call failed: %v", err)
 	}
