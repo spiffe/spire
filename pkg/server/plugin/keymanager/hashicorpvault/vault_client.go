@@ -434,7 +434,6 @@ func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, h
 		"prehashed":             "true",
 	}
 
-	// TODO: Handle errors here
 	sigResp, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/sign/%s/%s", c.clientParams.TransitEnginePath, spireKeyID, hashAlgo), body)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "transit engine sign call failed: %v", err)
