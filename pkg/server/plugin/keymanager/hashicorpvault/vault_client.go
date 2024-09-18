@@ -465,7 +465,6 @@ func (c *Client) GetKeys(ctx context.Context) ([]*keyEntry, error) {
 	return keyEntries, nil
 }
 
-// TODO: Test this function
 // getKeyEntry gets the transit engine key with the specified spire key id and converts it into a key entry.
 func (c *Client) getKeyEntry(ctx context.Context, spireKeyID string) (*keyEntry, error) {
 	keyData, err := c.getKey(ctx, spireKeyID)
