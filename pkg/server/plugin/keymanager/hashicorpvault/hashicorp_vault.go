@@ -3,7 +3,6 @@ package hashicorpvault
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -219,10 +218,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		}
 	}
 
-	// TODO: Should the encoding be done in SignData?
-	encodedData := base64.StdEncoding.EncodeToString(req.Data)
-
-	signature, err := p.vc.SignData(ctx, req.KeyId, encodedData, hashAlgo, signingAlgo)
+	signature, err := p.vc.SignData(ctx, req.KeyId, req.Data, hashAlgo, signingAlgo)
 	if err != nil {
 		return nil, err
 	}
