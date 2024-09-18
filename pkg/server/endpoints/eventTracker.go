@@ -122,7 +122,7 @@ func (et *eventTracker) StopTracking(event uint) {
 }
 
 
-func (et *eventTracker) PollEvents() []uint {
+func (et *eventTracker) SelectEvents() []uint {
 	// fmt.Print("polling events\n")
 	pollList := make([]uint, 0)
 	for event, _ := range et.events {

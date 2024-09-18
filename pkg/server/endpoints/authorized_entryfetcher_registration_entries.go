@@ -38,10 +38,22 @@ type registrationEntries struct {
 }
 
 func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
-	// first reset what we might fetch.
+	// first, reset the entries we might fetch.
 	a.fetchEntries = make(map[string]struct{})
 
-	// before first event logic.  Typically an empty space, so we poll the range and filter out the already seen
+	if err := a.searchBeforeFirstEvent(ctx); err != nil {
+		return err
+	}
+	a.selectPolledEvents(ctx);
+	if err := a.scanNewEvents(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *registrationEntries) searchBeforeFirstEvent(ctx context.Context) error {
+	// First event detected, and startup was less than a transaction timout away.
 	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {
 		resp, err := a.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
 			LessThanEventID: a.firstEvent,
@@ -50,18 +62,27 @@ func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
 			return err
 		}
 		for _, event := range resp.Events {
+			// if we have seen it before, don't reload it.
 			if _, seen := a.eventsBeforeFirst[event.EventID]; !seen {
 				a.fetchEntries[event.EntryID] = struct{}{}
 				a.eventsBeforeFirst[event.EventID] = struct{}{}
 			}
 		}
-	} else {
-		// clear out the before first tracking
+		return nil
+	}
+
+	// zero out unused event tracker
+	if len(a.eventsBeforeFirst) != 0 {
 		a.eventsBeforeFirst = make(map[uint]struct{})
 	}
 
+	return nil
+}
+
+
+func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 	// check if the polled events have appeared out-of-order
-	for _, eventID := range a.eventTracker.PollEvents() {
+	for _, eventID := range a.eventTracker.SelectEvents() {
 		log := a.log.WithField(telemetry.EventID, eventID)
 		event, err := a.ds.FetchRegistrationEntryEvent(ctx, eventID)
 
@@ -78,7 +99,9 @@ func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
 		a.eventTracker.StopTracking(uint(eventID))
 	}
 	server_telemetry.SetSkippedEntryEventIDsCacheCountGauge(a.metrics, int(a.eventTracker.EventCount()))
+}
 
+func (a *registrationEntries) scanNewEvents(ctx context.Context) error {
 	// If we haven't seen an event, scan for all events; otherwise, scan from the last event.
 	var resp *datastore.ListRegistrationEntriesEventsResponse
 	var err error
@@ -172,7 +195,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 	if err := registrationEntries.captureChangedEntries(ctx); err != nil {
 		return nil, err
 	}
-	if err := registrationEntries.updateCacheEntries(ctx); err != nil {
+	if err := registrationEntries.updateCachedEntries(ctx); err != nil {
 		return nil, err
 	}
 
@@ -182,11 +205,10 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 // updateCache Fetches all the events since the last time this function was running and updates
 // the cache with all the changes.
 func (a *registrationEntries) updateCache(ctx context.Context) error {
-
 	if err := a.captureChangedEntries(ctx); err != nil {
 		return err
 	}
-	if err := a.updateCacheEntries(ctx); err != nil {
+	if err := a.updateCachedEntries(ctx); err != nil {
 		return err
 	}
 
@@ -202,7 +224,7 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 }
 
 // updateCacheEntry update/deletes/creates an individual registration entry in the cache.
-func (a *registrationEntries) updateCacheEntries(ctx context.Context) error {
+func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 	for entryId, _ := range a.fetchEntries {
 		commonEntry, err := a.ds.FetchRegistrationEntry(ctx, entryId)
 		if err != nil {

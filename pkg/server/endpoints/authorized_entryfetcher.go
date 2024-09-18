@@ -116,7 +116,7 @@ func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.M
 		return nil, nil, nil, err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, sqlTransactionTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, cacheReloadInterval, sqlTransactionTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}
