@@ -347,10 +347,10 @@ func (c *Client) LookupSelf(token string) (*vapi.Secret, error) {
 type TransitKeyType string
 
 const (
-	TransitKeyType_RSA_2048   TransitKeyType = "rsa-2048"
-	TransitKeyType_RSA_4096   TransitKeyType = "rsa-4096"
-	TransitKeyType_ECDSA_P256 TransitKeyType = "ecdsa-p256"
-	TransitKeyType_ECDSA_P384 TransitKeyType = "ecdsa-p384"
+	TransitKeyTypeRSA2048   TransitKeyType = "rsa-2048"
+	TransitKeyTypeRSA4096   TransitKeyType = "rsa-4096"
+	TransitKeyTypeECDSAP256 TransitKeyType = "ecdsa-p256"
+	TransitKeyTypeECDSAP384 TransitKeyType = "ecdsa-p384"
 )
 
 type TransitHashAlgorithm string
@@ -390,7 +390,7 @@ func (c *Client) GetKey(ctx context.Context, spireKeyID string) (*vapi.Secret, e
 
 func (c *Client) SignData(ctx context.Context, spireKeyID string, data string, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) (*vapi.Secret, error) {
 	body := map[string]interface{}{
-		"key_version":           "0",
+		"key_version":           "0", // always use tha latest version
 		"input":                 data,
 		"signature_algorithm":   signatureAlgo,
 		"marshalling_algorithm": "asn1",
