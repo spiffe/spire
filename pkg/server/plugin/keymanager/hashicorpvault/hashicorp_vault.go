@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"os"
-	"strings"
 	"sync"
 )
 
@@ -214,29 +213,16 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		return nil, err
 	}
 
-	// TODO: Should this be done in SignData?
+	// TODO: Should the encoding be done in SignData?
 	encodedData := base64.StdEncoding.EncodeToString(req.Data)
-	signResp, err := p.vc.SignData(ctx, req.KeyId, encodedData, hashAlgo, signingAlgo)
 
+	signature, err := p.vc.SignData(ctx, req.KeyId, encodedData, hashAlgo, signingAlgo)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to sign: %v", err)
-	}
-
-	// TODO: Should this be done in SignData?
-	sig := signResp.Data["signature"].(string)
-	cutSig, ok := strings.CutPrefix(sig, "vault:v1:")
-
-	if !ok {
-		return nil, status.Errorf(codes.Internal, "response should contain vault prefix: %v", err)
-	}
-
-	data, err := base64.StdEncoding.DecodeString(cutSig)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to base64 decode signature: %v", err)
+		return nil, err
 	}
 
 	return &keymanagerv1.SignDataResponse{
-		Signature:      data,
+		Signature:      signature,
 		KeyFingerprint: keyEntry.PublicKey.Fingerprint,
 	}, nil
 }
