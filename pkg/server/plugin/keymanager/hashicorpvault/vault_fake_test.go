@@ -199,6 +199,18 @@ var (
   },
   "warnings": null
 }`
+
+	testCertAuthResponseNotRenewable = `{
+  "auth": {
+    "client_token": "cf95f87d-f95b-47ff-b1f5-ba7bff850425",
+    "policies": [
+      "web",
+      "stage"
+    ],
+    "lease_duration": 3600,
+    "renewable": false
+  }
+}`
 )
 
 type FakeVaultServerConfig struct {
