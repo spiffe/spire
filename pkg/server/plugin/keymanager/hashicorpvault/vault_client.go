@@ -353,6 +353,21 @@ const (
 	TransitKeyType_ECDSA_P384 TransitKeyType = "ecdsa-p384"
 )
 
+type TransitHashAlgorithm string
+
+const (
+	TransitHashAlgorithmSHA256 TransitHashAlgorithm = "sha2-256"
+	TransitHashAlgorithmSHA384 TransitHashAlgorithm = "sha2-384"
+	TransitHashAlgorithmSHA512 TransitHashAlgorithm = "sha2-512"
+)
+
+type TransitSignatureAlgorithm string
+
+const (
+	TransitSignatureSignatureAlgorithmPSS      TransitSignatureAlgorithm = "pss"
+	TransitSignatureSignatureAlgorithmPKCS1v15 TransitSignatureAlgorithm = "pkcs1v15"
+)
+
 // CreateKey creates a new key in the specified transit secret engine
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#create-key
 func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType TransitKeyType) (*vapi.Secret, error) {
@@ -370,4 +385,17 @@ func (c *Client) GetKey(ctx context.Context, spireKeyID string) (*vapi.Secret, e
 	// TODO: Handle errors here
 	// TODO: Make the transit engine path configurable
 	return c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/transit/keys/%s", spireKeyID))
+}
+
+func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) (*vapi.Secret, error) {
+	// TODO: Handle errors here
+	// TODO: Make the transit engine path configurable
+	return c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/transit/sign/%s", spireKeyID), map[string]interface{}{
+		"key_version":           "0",
+		"hash_algorithm":        hashAlgo,
+		"input":                 data,
+		"signature_algorithm":   signatureAlgo,
+		"marshalling_algorithm": "asn1", // TODO: Should this be jwt?
+		"salt_length":           "hash", // TODO: Should this be auto or should we let it be configured?
+	})
 }
