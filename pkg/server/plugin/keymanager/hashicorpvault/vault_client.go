@@ -3,6 +3,7 @@ package hashicorpvault
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	vapi "github.com/hashicorp/vault/api"
@@ -12,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/spiffe/spire/pkg/common/pemutil"
 )
@@ -388,7 +390,7 @@ func (c *Client) GetKey(ctx context.Context, spireKeyID string) (*vapi.Secret, e
 	return c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/transit/keys/%s", spireKeyID))
 }
 
-func (c *Client) SignData(ctx context.Context, spireKeyID string, data string, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) (*vapi.Secret, error) {
+func (c *Client) SignData(ctx context.Context, spireKeyID string, data string, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
 	body := map[string]interface{}{
 		"key_version":           "0", // always use tha latest version
 		"input":                 data,
@@ -399,5 +401,30 @@ func (c *Client) SignData(ctx context.Context, spireKeyID string, data string, h
 
 	// TODO: Handle errors here
 	// TODO: Make the transit engine path configurable
-	return c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/transit/sign/%s/%s", spireKeyID, hashAlgo), body)
+	sigResp, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/transit/sign/%s/%s", spireKeyID, hashAlgo), body)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "transit engine sign call failed: %v", err)
+	}
+
+	sig, ok := sigResp.Data["signature"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine sign call was successful but signature is missing: %v", err)
+	}
+
+	sigStr, ok := sig.(string)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected signature data type %T but got %T", sigStr, sig)
+	}
+
+	cutSig, ok := strings.CutPrefix(sigStr, "vault:v1:")
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "signature is missing vault prefix: %v", err)
+	}
+
+	sigData, err := base64.StdEncoding.DecodeString(cutSig)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to base64 decode signature: %v", err)
+	}
+
+	return sigData, nil
 }
