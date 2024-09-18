@@ -39,7 +39,7 @@ const (
 type cloudKeyManagementService interface {
 	CreateKey(ctx context.Context, spireKeyID string, keyType TransitKeyType) error
 	GetKey(ctx context.Context, spireKeyID string) (string, error)
-	SignData(ctx context.Context, spireKeyID string, data string, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error)
+	SignData(ctx context.Context, spireKeyID string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error)
 }
 
 type AuthMethod int
@@ -423,9 +423,11 @@ func (c *Client) GetKey(ctx context.Context, spireKeyID string) (string, error) 
 	return pkStr, nil
 }
 
-func (c *Client) SignData(ctx context.Context, spireKeyID string, data string, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
+func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
+	encodedData := base64.StdEncoding.EncodeToString(data)
+
 	body := map[string]interface{}{
-		"input":                 data,
+		"input":                 encodedData,
 		"signature_algorithm":   signatureAlgo,
 		"marshalling_algorithm": "asn1",
 		"prehashed":             "true",
