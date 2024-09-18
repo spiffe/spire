@@ -44,7 +44,6 @@ type pluginHooks struct {
 	refreshKeysSignal    chan error
 	disposeKeysSignal    chan error
 
-	newClient func(*ClientConfig, AuthMethod, chan struct{}) (client cloudKeyManagementService, err error)
 	lookupEnv func(string) (string, bool)
 }
 
@@ -76,25 +75,22 @@ type Plugin struct {
 
 	authMethod AuthMethod
 	cc         *ClientConfig
-	vc         cloudKeyManagementService
+	vc         *Client
 
 	hooks pluginHooks
 }
 
 // New returns an instantiated plugin.
 func New() *Plugin {
-	return newPlugin(func(config *ClientConfig, method AuthMethod, renewCh chan struct{}) (client cloudKeyManagementService, err error) {
-		return config.NewAuthenticatedClient(method, renewCh)
-	})
+	return newPlugin()
 }
 
 // newPlugin returns a new plugin instance.
-func newPlugin(newClient func(*ClientConfig, AuthMethod, chan struct{}) (client cloudKeyManagementService, err error)) *Plugin {
+func newPlugin() *Plugin {
 	return &Plugin{
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
 			lookupEnv: os.LookupEnv,
-			newClient: newClient,
 		},
 	}
 }
@@ -360,7 +356,7 @@ func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*TransitKeyType, err
 
 func (p *Plugin) genVaultClient() error {
 	renewCh := make(chan struct{})
-	vc, err := p.hooks.newClient(p.cc, p.authMethod, renewCh)
+	vc, err := p.cc.NewAuthenticatedClient(p.authMethod, renewCh)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
 	}
