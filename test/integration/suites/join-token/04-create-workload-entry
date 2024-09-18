@@ -6,7 +6,9 @@ docker compose exec -T spire-server \
     -parentID "spiffe://domain.test/node" \
     -spiffeID "spiffe://domain.test/workload" \
     -selector "unix:uid:0" \
-    -ttl 0
+    -x509SVIDTTL 0 \
+    -jwtSVIDTTL 0
+
 
 # Check at most 30 times (with one second in between) that the agent has
 # successfully synced down the workload entry.

@@ -37,6 +37,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -247,6 +248,65 @@ func TestSlotLoadedWhenJournalIsLost(t *testing.T) {
 	require.True(t, test.m.GetCurrentX509CASlot().IsEmpty())
 }
 
+func TestNotifyTaintedX509Authority(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+	test.initSelfSignedManager()
+
+	// Create a test CA
+	ca := testca.New(t, testTrustDomain)
+	cert := ca.X509Authorities()[0]
+	bundle, err := test.ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: testTrustDomain.IDString(),
+		RootCas: []*common.Certificate{
+			{
+				DerBytes:   cert.Raw,
+				TaintedKey: true,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("notify tainted authority", func(t *testing.T) {
+		err = test.m.NotifyTaintedX509Authority(ctx, ca.GetSubjectKeyID())
+		require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(ctx, time.Minute)
+		defer cancel()
+
+		expectedTaintedAuthorities := []*x509.Certificate{cert}
+		select {
+		case taintedAuthorities := <-test.ca.taintedAuthoritiesCh:
+			require.Equal(t, expectedTaintedAuthorities, taintedAuthorities)
+		case <-ctx.Done():
+			assert.Fail(t, "no notification received")
+		}
+	})
+
+	// Untaint authority
+	bundle.RootCas[0].TaintedKey = false
+	bundle, err = test.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	t.Run("no tainted authority", func(t *testing.T) {
+		err := test.m.NotifyTaintedX509Authority(ctx, ca.GetSubjectKeyID())
+
+		expectedErr := fmt.Sprintf("no tainted root CA found with authority ID: %q", ca.GetSubjectKeyID())
+		require.EqualError(t, err, expectedErr)
+	})
+
+	bundle.RootCas = append(bundle.RootCas, &common.Certificate{
+		DerBytes:   []byte("foh"),
+		TaintedKey: true,
+	})
+	_, err = test.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	t.Run("malformed root CA", func(t *testing.T) {
+		err := test.m.NotifyTaintedX509Authority(ctx, ca.GetSubjectKeyID())
+		require.EqualError(t, err, "failed to parse RootCA: x509: malformed certificate")
+	})
+}
+
 func TestSelfSigning(t *testing.T) {
 	ctx := context.Background()
 	test := setupTest(t)
@@ -307,12 +367,128 @@ func TestUpstreamSigned(t *testing.T) {
 	x509Roots := fakeUA.X509Roots()
 	require.True(t, x509Roots[0].Tainted)
 
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	select {
+	case taintedAuthorities := <-test.m.taintedUpstreamAuthoritiesCh:
+		expectedTaintedAuthorities := []*x509.Certificate{x509Roots[0].Certificate}
+		require.Equal(t, expectedTaintedAuthorities, taintedAuthorities)
+	case <-ctx.Done():
+		assert.Fail(t, "no notification received")
+	}
+}
+
+func TestUpstreamProcesssTaintedAuthority(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	test := setupTest(t)
+
+	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+		TrustDomain:           testTrustDomain,
+		DisallowPublishJWTKey: true,
+	})
+
+	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
+	require.True(t, test.m.IsUpstreamAuthority())
+
+	// Prepared must be tainted too
+	err := test.m.PrepareX509CA(ctx)
+	require.NoError(t, err)
+
+	go test.m.ProcessBundleUpdates(ctx)
+
+	// Taint first root
+	err = fakeUA.TaintAuthority(0)
+	require.NoError(t, err)
+
+	// Get the roots again and verify that the first X.509 authority is tainted
+	x509Roots := fakeUA.X509Roots()
+	require.True(t, x509Roots[0].Tainted)
+
 	commonCertificates := x509certificate.RequireToCommonProtos(x509Roots)
 	// Retry until the Tainted attribute is propagated to the database
 	require.Eventually(t, func() bool {
 		bundle := test.fetchBundle(ctx)
 		return spiretest.AssertProtoListEqual(t, commonCertificates, bundle.RootCas)
 	}, time.Minute, 500*time.Millisecond)
+
+	expectedTaintedAuthorities := []*x509.Certificate{x509Roots[0].Certificate}
+	select {
+	case received := <-test.ca.taintedAuthoritiesCh:
+		require.Equal(t, expectedTaintedAuthorities, received)
+	case <-ctx.Done():
+		assert.Fail(t, "deadline reached")
+	}
+}
+
+func TestUpstreamProcesssTaintedAuthorityBackoff(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	test := setupTest(t)
+
+	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+		TrustDomain:           testTrustDomain,
+		DisallowPublishJWTKey: true,
+	})
+
+	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
+	require.True(t, test.m.IsUpstreamAuthority())
+
+	test.m.triggerBackOffCh = make(chan error, 1)
+
+	// Prepared must be tainted too
+	go test.m.ProcessBundleUpdates(ctx)
+
+	// Set an invalid key type to make prepare fails
+	test.m.c.X509CAKeyType = 123
+	err := test.m.PrepareX509CA(ctx)
+	require.Error(t, err)
+
+	// Taint first root
+	err = fakeUA.TaintAuthority(0)
+	require.NoError(t, err)
+
+	// Get the roots again and verify that the first X.509 authority is tainted
+	x509Roots := fakeUA.X509Roots()
+	require.True(t, x509Roots[0].Tainted)
+
+	expectBackoffErr := func(t *testing.T) {
+		select {
+		case receivedErr := <-test.m.triggerBackOffCh:
+			require.EqualError(t, receivedErr, "failed to prepare x509 authority: rpc error: code = Internal desc = keymanager(fake): facade does not support key type \"UNKNOWN(123)\"")
+		case <-ctx.Done():
+			assert.Fail(t, "deadline reached")
+		}
+	}
+
+	// Must fail due to the invalid key type
+	expectBackoffErr(t)
+
+	// Try again; expect to fail
+	test.clock.Add(6 * time.Second)
+	expectBackoffErr(t)
+
+	// Restore to a valid key type, and advance time again
+	test.m.c.X509CAKeyType = keymanager.ECP256
+	test.clock.Add(10 * time.Second)
+
+	commonCertificates := x509certificate.RequireToCommonProtos(x509Roots)
+	// Retry until the Tainted attribute is propagated to the database
+	require.Eventually(t, func() bool {
+		bundle := test.fetchBundle(ctx)
+		return spiretest.AssertProtoListEqual(t, commonCertificates, bundle.RootCas)
+	}, time.Minute, 500*time.Millisecond)
+
+	expectedTaintedAuthorities := []*x509.Certificate{x509Roots[0].Certificate}
+	select {
+	case received := <-test.ca.taintedAuthoritiesCh:
+		require.Equal(t, expectedTaintedAuthorities, received)
+	case <-ctx.Done():
+		assert.Fail(t, "deadline reached")
+	}
 }
 
 func TestGetCurrentX509CASlotUpstreamSigned(t *testing.T) {
@@ -470,7 +646,7 @@ func TestX509CARotation(t *testing.T) {
 	// kick off a goroutine to service bundle update notifications. This is
 	// typically handled by Run() but using it would complicate the test.
 	test.m.dropBundleUpdated()
-	go test.m.NotifyOnBundleUpdate(ctx)
+	go test.m.ProcessBundleUpdates(ctx)
 
 	// after initialization, we should have a current X509CA but no next.
 	first := test.currentX509CA()
@@ -560,7 +736,7 @@ func TestJWTKeyRotation(t *testing.T) {
 	// kick off a goroutine to service bundle update notifications. This is
 	// typically handled by Run() but using it would complicate the test.
 	test.m.dropBundleUpdated() // drop bundle update message produce by initialization
-	go test.m.NotifyOnBundleUpdate(ctx)
+	go test.m.ProcessBundleUpdates(ctx)
 
 	// after initialization, we should have a current JWTKey but no next.
 	first := test.currentJWTKey()
@@ -646,7 +822,7 @@ func TestPruneBundle(t *testing.T) {
 	// kick off a goroutine to service bundle update notifications. This is
 	// typically handled by Run() but using it would complicate the test.
 	test.m.dropBundleUpdated() // drop bundle update message produce by initialization
-	go test.m.NotifyOnBundleUpdate(ctx)
+	go test.m.ProcessBundleUpdates(ctx)
 
 	// advance just past the expiration time of the first and prune. nothing
 	// should change.
@@ -1045,7 +1221,9 @@ type managerTest struct {
 
 func setupTest(t *testing.T) *managerTest {
 	clock := clock.NewMock(t)
-	ca := new(fakeCA)
+	ca := &fakeCA{
+		taintedAuthoritiesCh: make(chan []*x509.Certificate, 1),
+	}
 
 	log, logHook := test.NewNullLogger()
 	metrics := fakemetrics.New()
@@ -1347,6 +1525,8 @@ type fakeCA struct {
 	mu     sync.Mutex
 	x509CA *ca.X509CA
 	jwtKey *ca.JWTKey
+
+	taintedAuthoritiesCh chan []*x509.Certificate
 }
 
 func (s *fakeCA) X509CA() *ca.X509CA {
@@ -1371,4 +1551,8 @@ func (s *fakeCA) SetJWTKey(jwtKey *ca.JWTKey) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.jwtKey = jwtKey
+}
+
+func (s *fakeCA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {
+	s.taintedAuthoritiesCh <- taintedAuthorities
 }

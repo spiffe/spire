@@ -27,6 +27,7 @@ import (
 	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/testkey"
 	testutil "github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -1324,6 +1325,7 @@ func TestTaintX509Authority(t *testing.T) {
 		keyToTaint          string
 		customRootCAs       []*common.Certificate
 		isUpstreamAuthority bool
+		notifyTaintedErr    error
 
 		expectLogs []spiretest.LogEntry
 		expectCode codes.Code
@@ -1537,6 +1539,36 @@ func TestTaintX509Authority(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:             "fail to notify tainted authority",
+			currentSlot:      createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), notAfterCurrent),
+			nextSlot:         createSlot(journal.Status_OLD, nextAuthorityID, nextKey.Public(), notAfterNext),
+			keyToTaint:       nextAuthorityID,
+			notifyTaintedErr: errors.New("oh no"),
+			expectCode:       codes.Internal,
+			expectMsg:        "failed to notify tainted authority: oh no",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to notify tainted authority",
+					Data: logrus.Fields{
+						telemetry.LocalAuthorityID: nextAuthorityID,
+						logrus.ErrorKey:            "oh no",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    "failed to notify tainted authority: oh no",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: nextAuthorityID,
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
@@ -1545,6 +1577,7 @@ func TestTaintX509Authority(t *testing.T) {
 			test.ca.currentX509CASlot = tt.currentSlot
 			test.ca.nextX509CASlot = tt.nextSlot
 			test.ca.isUpstreamAuthority = tt.isUpstreamAuthority
+			test.ca.notifyTaintedExpectErr = tt.notifyTaintedErr
 
 			rootCAs := defaultRootCAs
 			if tt.customRootCAs != nil {
@@ -1564,6 +1597,10 @@ func TestTaintX509Authority(t *testing.T) {
 			spiretest.AssertGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
 			spiretest.AssertProtoEqual(t, tt.expectResp, resp)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			// Validate notification is received on success test cases
+			if tt.expectMsg == "" {
+				assert.Equal(t, tt.keyToTaint, test.ca.notifyTaintedAuthorityID)
+			}
 		})
 	}
 }
@@ -2445,6 +2482,17 @@ type fakeCAManager struct {
 
 	prepareX509CAErr    error
 	isUpstreamAuthority bool
+
+	notifyTaintedExpectErr   error
+	notifyTaintedAuthorityID string
+}
+
+func (m *fakeCAManager) NotifyTaintedX509Authority(ctx context.Context, authorityID string) error {
+	if m.notifyTaintedExpectErr != nil {
+		return m.notifyTaintedExpectErr
+	}
+	m.notifyTaintedAuthorityID = authorityID
+	return nil
 }
 
 func (m *fakeCAManager) IsUpstreamAuthority() bool {

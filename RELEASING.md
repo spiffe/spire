@@ -1,6 +1,6 @@
 # Release and Branch Management
 
-The SPIRE project maintains active support for both the current and the previous major versions. All active development occurs in the `main` branch. Version branches are used for minor releases of the previous major version when necessary.
+The SPIRE project maintains active support for both the current and the previous minor versions. All active development occurs in the `main` branch. Version branches are used for patch releases of the previous minor version when necessary.
 
 ## Version Branches
 

@@ -21,7 +21,7 @@ const (
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
   -jwtSVIDTTL int
-    	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl flag
+    	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -node
     	If set, this entry will be applied to matching nodes rather than workloads
   -output value
@@ -36,10 +36,8 @@ const (
     	The SPIFFE ID that this record represents
   -storeSVID
     	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
-  -ttl int
-    	The lifetime, in seconds, for SVIDs issued based on this registration entry. This flag is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version
   -x509SVIDTTL int
-    	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl flag
+    	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry.
 `
 	showUsage = `Usage of entry show:
   -downstream
@@ -83,7 +81,7 @@ const (
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
   -jwtSVIDTTL int
-    	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl flag
+    	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -parentID string
@@ -96,10 +94,8 @@ const (
     	The SPIFFE ID that this record represents
   -storeSVID
     	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
-  -ttl int
-    	The lifetime, in seconds, for SVIDs issued based on this registration entry. This flag is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version
   -x509SVIDTTL int
-    	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl flag
+    	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry.
 `
 	deleteUsage = `Usage of entry delete:
   -entryID string

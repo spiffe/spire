@@ -33,7 +33,7 @@ docker compose exec -T spire-server \
         -spiffeID spiffe://domain.test/otherChild \
         -node \
         -dns dnsname1 \
-        -ttl 123 || fail-now "failed to create entry 3"
+        -x509SVIDTTL 123 || fail-now "failed to create entry 3"
 
 # Verify entry count correctly indicates three entries
 docker compose exec -T spire-server /opt/spire/bin/spire-server entry count | grep 3 || fail-now "failed to count 3 entries"
@@ -139,7 +139,7 @@ docker compose exec -T spire-server \
         -parentID spiffe://domain.test/parent \
         -spiffeID spiffe://domain.test/child1 \
         -federatesWith spiffe://federated1.test \
-        -ttl 456 || fail-now "failed to update entry 1"
+        -x509SVIDTTL 456 || fail-now "failed to update entry 1"
 
 docker compose exec -T spire-server \
 	/opt/spire/bin/spire-server entry update \
