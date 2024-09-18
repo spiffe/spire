@@ -362,13 +362,13 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*TransitKeyType, error) {
 	switch keyType {
 	case keymanagerv1.KeyType_EC_P256:
-		return to.Ptr(TransitKeyType_ECDSA_P256), nil
+		return to.Ptr(TransitKeyTypeECDSAP256), nil
 	case keymanagerv1.KeyType_EC_P384:
-		return to.Ptr(TransitKeyType_ECDSA_P384), nil
+		return to.Ptr(TransitKeyTypeECDSAP384), nil
 	case keymanagerv1.KeyType_RSA_2048:
-		return to.Ptr(TransitKeyType_RSA_2048), nil
+		return to.Ptr(TransitKeyTypeRSA2048), nil
 	case keymanagerv1.KeyType_RSA_4096:
-		return to.Ptr(TransitKeyType_RSA_4096), nil
+		return to.Ptr(TransitKeyTypeRSA4096), nil
 	default:
 		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", keyType)
 	}
