@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -186,7 +187,41 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 }
 
 func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDataResponse, error) {
-	return nil, errors.New("sign data is not implemented")
+	if req.KeyId == "" {
+		return nil, status.Error(codes.InvalidArgument, "key id is required")
+	}
+	if req.SignerOpts == nil {
+		return nil, status.Error(codes.InvalidArgument, "signer opts is required")
+	}
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	keyEntry, hasKey := p.entries[req.KeyId]
+	if !hasKey {
+		return nil, status.Errorf(codes.NotFound, "key %q not found", req.KeyId)
+	}
+
+	hashAlgo, signingAlgo, err := algosForKMS(keyEntry.PublicKey.Type, req.SignerOpts)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	err = p.genVaultClient()
+	if err != nil {
+		return nil, err
+	}
+
+	signResp, err := p.vc.SignData(ctx, req.KeyId, req.Data, hashAlgo, signingAlgo)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to sign: %v", err)
+	}
+
+	return &keymanagerv1.SignDataResponse{
+		Signature:      signResp.Data["signature"].([]byte),
+		KeyFingerprint: keyEntry.PublicKey.Fingerprint,
+	}, nil
 }
 
 func (p *Plugin) GetPublicKey(_ context.Context, req *keymanagerv1.GetPublicKeyRequest) (*keymanagerv1.GetPublicKeyResponse, error) {
@@ -220,6 +255,53 @@ func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysReque
 	p.logger.Debug("getting public keys")
 
 	return &keymanagerv1.GetPublicKeysResponse{PublicKeys: keys}, nil
+}
+
+func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (TransitHashAlgorithm, TransitSignatureAlgorithm, error) {
+	var (
+		hashAlgo keymanagerv1.HashAlgorithm
+		isPSS    bool
+	)
+
+	switch opts := signerOpts.(type) {
+	case *keymanagerv1.SignDataRequest_HashAlgorithm:
+		hashAlgo = opts.HashAlgorithm
+		isPSS = false
+	case *keymanagerv1.SignDataRequest_PssOptions:
+		if opts.PssOptions == nil {
+			return "", "", errors.New("PSS options are required")
+		}
+		hashAlgo = opts.PssOptions.HashAlgorithm
+		isPSS = true
+		// opts.PssOptions.SaltLength is handled by Vault. The salt length matches the bits of the hashing algorithm.
+	default:
+		return "", "", fmt.Errorf("unsupported signer opts type %T", opts)
+	}
+
+	isRSA := keyType == keymanagerv1.KeyType_RSA_2048 || keyType == keymanagerv1.KeyType_RSA_4096
+
+	switch {
+	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
+		return "", "", errors.New("hash algorithm is required")
+	case keyType == keymanagerv1.KeyType_EC_P256 && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
+		return TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+	case keyType == keymanagerv1.KeyType_EC_P384 && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
+		return TransitHashAlgorithmSHA384, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
+		return TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
+		return TransitHashAlgorithmSHA384, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
+		return TransitHashAlgorithmSHA512, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
+		return TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPSS, nil
+	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
+		return TransitHashAlgorithmSHA384, TransitSignatureSignatureAlgorithmPSS, nil
+	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
+		return TransitHashAlgorithmSHA512, TransitSignatureSignatureAlgorithmPSS, nil
+	default:
+		return "", "", fmt.Errorf("unsupported combination of keytype: %v and hashing algorithm: %v", keyType, hashAlgo)
+	}
 }
 
 func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keyEntry, error) {
