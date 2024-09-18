@@ -425,7 +425,6 @@ func (c *Client) GetKey(ctx context.Context, spireKeyID string) (string, error) 
 
 func (c *Client) SignData(ctx context.Context, spireKeyID string, data string, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
 	body := map[string]interface{}{
-		"key_version":           "0", // always use tha latest version
 		"input":                 data,
 		"signature_algorithm":   signatureAlgo,
 		"marshalling_algorithm": "asn1",
