@@ -45,6 +45,7 @@ type pluginHooks struct {
 	refreshKeysSignal    chan error
 	disposeKeysSignal    chan error
 
+	newClient func(*ClientConfig, AuthMethod, chan struct{}) (client cloudKeyManagementService, err error)
 	lookupEnv func(string) (string, bool)
 }
 
@@ -76,22 +77,25 @@ type Plugin struct {
 
 	authMethod AuthMethod
 	cc         *ClientConfig
-	vc         *Client
+	vc         cloudKeyManagementService
 
 	hooks pluginHooks
 }
 
 // New returns an instantiated plugin.
 func New() *Plugin {
-	return newPlugin()
+	return newPlugin(func(config *ClientConfig, method AuthMethod, renewCh chan struct{}) (client cloudKeyManagementService, err error) {
+		return config.NewAuthenticatedClient(method, renewCh)
+	})
 }
 
 // newPlugin returns a new plugin instance.
-func newPlugin() *Plugin {
+func newPlugin(newClient func(*ClientConfig, AuthMethod, chan struct{}) (client cloudKeyManagementService, err error)) *Plugin {
 	return &Plugin{
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
 			lookupEnv: os.LookupEnv,
+			newClient: newClient,
 		},
 	}
 }
@@ -314,23 +318,17 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
-	s, err := p.vc.CreateKey(ctx, spireKeyID, *kt)
+	err = p.vc.CreateKey(ctx, spireKeyID, *kt)
 	if err != nil {
 		return nil, err
 	}
 
-	s, err = p.vc.GetKey(ctx, spireKeyID)
+	pk, err := p.vc.GetKey(ctx, spireKeyID)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Should we support multiple versions of the key?
-	keys := s.Data["keys"].(map[string]interface{})
-	last := keys["1"].(map[string]interface{})
-	encodedPub := []byte(last["public_key"].(string))
-
-	// TODO: Should I handle the rest somehow?
-	pemBlock, _ := pem.Decode(encodedPub)
+	pemBlock, _ := pem.Decode([]byte(pk))
 	if pemBlock == nil || pemBlock.Type != "PUBLIC KEY" {
 		return nil, status.Error(codes.Internal, "unable to decode PEM key")
 	}
@@ -365,7 +363,7 @@ func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*TransitKeyType, err
 func (p *Plugin) genVaultClient() error {
 	if p.vc == nil {
 		renewCh := make(chan struct{})
-		vc, err := p.cc.NewAuthenticatedClient(p.authMethod, renewCh)
+		vc, err := p.hooks.newClient(p.cc, p.authMethod, renewCh)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
 		}

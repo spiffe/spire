@@ -36,6 +36,12 @@ const (
 	defaultK8sMountPoint     = "kubernetes"
 )
 
+type cloudKeyManagementService interface {
+	CreateKey(ctx context.Context, spireKeyID string, keyType TransitKeyType) error
+	GetKey(ctx context.Context, spireKeyID string) (string, error)
+	SignData(ctx context.Context, spireKeyID string, data string, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error)
+}
+
 type AuthMethod int
 
 const (
@@ -98,16 +104,6 @@ type ClientParams struct {
 type Client struct {
 	vaultClient  *vapi.Client
 	clientParams *ClientParams
-}
-
-// SignCSRResponse includes certificates which are generates by Vault
-type SignCSRResponse struct {
-	// A certificate requested to sign
-	CACertPEM string
-	// A certificate of CA(Vault)
-	UpstreamCACertPEM string
-	// Set of Upstream CA certificates
-	UpstreamCACertChainPEM []string
 }
 
 // NewClientConfig returns a new *ClientConfig with default parameters.
@@ -373,7 +369,7 @@ const (
 
 // CreateKey creates a new key in the specified transit secret engine
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#create-key
-func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType TransitKeyType) (*vapi.Secret, error) {
+func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType TransitKeyType) error {
 	arguments := map[string]interface{}{
 		"type":       keyType,
 		"exportable": "false", // TODO: Maybe make this configurable
@@ -381,13 +377,50 @@ func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType Trans
 
 	// TODO: Handle errors here such as key already exists
 	// TODO: Make the transit engine path configurable
-	return c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/transit/keys/%s", spireKeyID), arguments)
+	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/transit/keys/%s", spireKeyID), arguments)
+	return err
 }
 
-func (c *Client) GetKey(ctx context.Context, spireKeyID string) (*vapi.Secret, error) {
+func (c *Client) GetKey(ctx context.Context, spireKeyID string) (string, error) {
 	// TODO: Handle errors here
 	// TODO: Make the transit engine path configurable
-	return c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/transit/keys/%s", spireKeyID))
+	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/transit/keys/%s", spireKeyID))
+	if err != nil {
+		return "", err
+	}
+
+	keys, ok := res.Data["keys"]
+	if !ok {
+		return "", status.Errorf(codes.Internal, "transit engine get key call was successful but keys are missing")
+	}
+
+	keyMap, ok := keys.(map[string]interface{})
+	if !ok {
+		return "", status.Errorf(codes.Internal, "expected key map data type %T but got %T", keyMap, keys)
+	}
+
+	// TODO: Should we support multiple versions of the key?
+	currentKey, ok := keyMap["1"]
+	if !ok {
+		return "", status.Errorf(codes.Internal, "unable to find key with version 1 in %v", keyMap)
+	}
+
+	currentKeyMap, ok := currentKey.(map[string]interface{})
+	if !ok {
+		return "", status.Errorf(codes.Internal, "expected key data type %T but got %T", currentKeyMap, currentKey)
+	}
+
+	pk, ok := currentKeyMap["public_key"]
+	if !ok {
+		return "", status.Errorf(codes.Internal, "expected public key to be present")
+	}
+
+	pkStr, ok := pk.(string)
+	if !ok {
+		return "", status.Errorf(codes.Internal, "expected public key data type %T but got %T", pkStr, pk)
+	}
+
+	return pkStr, nil
 }
 
 func (c *Client) SignData(ctx context.Context, spireKeyID string, data string, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
@@ -408,7 +441,7 @@ func (c *Client) SignData(ctx context.Context, spireKeyID string, data string, h
 
 	sig, ok := sigResp.Data["signature"]
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "transit engine sign call was successful but signature is missing: %v", err)
+		return nil, status.Errorf(codes.Internal, "transit engine sign call was successful but signature is missing")
 	}
 
 	sigStr, ok := sig.(string)
