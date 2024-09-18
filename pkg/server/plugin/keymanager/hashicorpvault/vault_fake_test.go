@@ -13,6 +13,7 @@ const (
 	defaultK8sAuthEndpoint     = "/v1/auth/kubernetes/login"
 	defaultRenewEndpoint       = "/v1/auth/token/renew-self"
 	defaultLookupSelfEndpoint  = "/v1/auth/token/lookup-self"
+	defaultCreateKeyEndpoint   = "/v1/transit/keys/x509-CA-A"
 
 	listenAddr = "127.0.0.1:0"
 )
@@ -292,6 +293,10 @@ type FakeVaultServerConfig struct {
 	LookupSelfReqHandler     func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
 	LookupSelfResponseCode   int
 	LookupSelfResponse       []byte
+	CreateKeyReqEndpoint     string
+	CreateKeyReqHandler      func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	CreateKeyResponseCode    int
+	CreateKeyResponse        []byte
 }
 
 // NewFakeVaultServerConfig returns VaultServerConfig with default values
@@ -308,6 +313,8 @@ func NewFakeVaultServerConfig() *FakeVaultServerConfig {
 		RenewReqHandler:        defaultReqHandler,
 		LookupSelfReqEndpoint:  defaultLookupSelfEndpoint,
 		LookupSelfReqHandler:   defaultReqHandler,
+		CreateKeyReqEndpoint:   defaultCreateKeyEndpoint,
+		CreateKeyReqHandler:    defaultReqHandler,
 	}
 }
 
@@ -339,6 +346,7 @@ func (v *FakeVaultServerConfig) NewTLSServer() (srv *httptest.Server, addr strin
 	mux.HandleFunc(v.K8sAuthReqEndpoint, v.AppRoleAuthReqHandler(v.K8sAuthResponseCode, v.K8sAuthResponse))
 	mux.HandleFunc(v.RenewReqEndpoint, v.RenewReqHandler(v.RenewResponseCode, v.RenewResponse))
 	mux.HandleFunc(v.LookupSelfReqEndpoint, v.LookupSelfReqHandler(v.LookupSelfResponseCode, v.LookupSelfResponse))
+	mux.HandleFunc(v.CreateKeyReqEndpoint, v.CreateKeyReqHandler(v.CreateKeyResponseCode, v.CreateKeyResponse))
 
 	srv = httptest.NewUnstartedServer(mux)
 	srv.Listener = l
