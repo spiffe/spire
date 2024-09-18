@@ -372,9 +372,12 @@ func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType Trans
 		"exportable": "false", // TODO: Maybe make this configurable
 	}
 
-	// TODO: Handle errors here such as key already exists
 	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID), arguments)
-	return err
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to create transit engine key: %v", err)
+	}
+
+	return nil
 }
 
 // GetKey gets the transit engine key with the specified spire key id.
