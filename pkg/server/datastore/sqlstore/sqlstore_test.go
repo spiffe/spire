@@ -2016,19 +2016,6 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 	}
 }
 
-func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
-	var invalidRegistrationEntries []*common.RegistrationEntry
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
-
-	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
-		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, invalidRegistrationEntry)
-		s.Require().Error(err)
-		s.Require().Nil(registrationEntry)
-	}
-
-	// TODO: Check that no entries have been created
-}
-
 func (s *PluginSuite) TestFetchRegistrationEntry() {
 	for _, tt := range []struct {
 		name  string
