@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +25,7 @@ type Plugin interface {
 func Load(t *testing.T, builtIn catalog.BuiltIn, pluginFacade catalog.Facade, options ...Option) Plugin {
 	conf := &config{
 		builtInConfig: catalog.BuiltInConfig{
-			Log: nullLogger(),
+			Log: testLogger(t),
 		},
 	}
 	for _, opt := range options {
@@ -70,7 +69,24 @@ func Load(t *testing.T, builtIn catalog.BuiltIn, pluginFacade catalog.Facade, op
 	}
 }
 
-func nullLogger() logrus.FieldLogger {
-	log, _ := test.NewNullLogger()
+func testLogger(t *testing.T) logrus.FieldLogger {
+	log := logrus.New()
+	log.SetOutput(io.Discard)
+	log.AddHook(logHook{t: t})
 	return log
+}
+
+type logHook struct{ t *testing.T }
+
+func (h logHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+func (h logHook) Fire(e *logrus.Entry) error {
+	s, err := e.String()
+	if err != nil {
+		return err
+	}
+	h.t.Logf("log: %s\n", s)
+	return nil
 }

@@ -10,7 +10,8 @@ docker compose exec -T spire-server \
   -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
   -spiffeID "spiffe://domain.test/oidc-provider" \
   -selector "docker:label:org.integration.name:oidc-discovery-provider" \
-  -ttl 0
+  -x509SVIDTTL 0 \
+  -jwtSVIDTTL 0
 
 check-synced-entry "spire-agent" "spiffe://domain.test/oidc-provider"
 

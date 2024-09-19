@@ -12,6 +12,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -58,7 +59,7 @@ func Test_MintX509CA(t *testing.T) {
 		preferredTTL          time.Duration
 		updateCR              func(t *testing.T, cr *cmapi.CertificateRequest)
 		expectX509CA          []*x509.Certificate
-		expectX509Authorities []*x509.Certificate
+		expectX509Authorities []*x509certificate.X509Authority
 		expectCode            codes.Code
 		expectMsgPrefix       string
 	}{
@@ -120,8 +121,10 @@ func Test_MintX509CA(t *testing.T) {
 				cr.Status.Certificate = intermediatePEM
 				cr.Status.CA = rootPEM
 			},
-			expectX509CA:          []*x509.Certificate{intermediate},
-			expectX509Authorities: []*x509.Certificate{root},
+			expectX509CA: []*x509.Certificate{intermediate},
+			expectX509Authorities: []*x509certificate.X509Authority{
+				{Certificate: root},
+			},
 		},
 	}
 

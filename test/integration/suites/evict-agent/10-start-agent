@@ -1,7 +1,9 @@
 #!/bin/bash
 
 log-debug "starting agent again..."
-
+log-debug "bringing agent down..."
+docker-down spire-agent
+log-debug "starting agent again..."
 docker-up spire-agent
 
 # Check at most 30 times (with one second in between) that the agent is back up

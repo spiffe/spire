@@ -200,6 +200,66 @@
 			"full_method": "/spire.api.server.trustdomain.v1.TrustDomain/RefreshBundle",
 			"allow_local": true,
 			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/GetJWTAuthorityState",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/PrepareJWTAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/ActivateJWTAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/TaintJWTAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/RevokeJWTAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/GetX509AuthorityState",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/PrepareX509Authority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/ActivateX509Authority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/TaintX509Authority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/TaintX509UpstreamAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509Authority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509UpstreamAuthority",
+			"allow_local": true,
+			"allow_admin": true
 		}
 	]
 }

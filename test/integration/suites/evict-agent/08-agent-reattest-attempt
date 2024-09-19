@@ -1,0 +1,20 @@
+#!/bin/bash
+
+log-debug "agent re-attesting..."
+
+# Check at most 30 times (with one second in between) that the agent knows it can re-attest.
+# This is not true "re-attestation" since when the agent was banned it removed its own SVID.
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "checking for agent to get notification and try to reattest ($i of $MAXCHECKS max)..."
+    log-debug "starting agent again..."
+    docker-up spire-agent
+    docker compose logs spire-agent
+    if docker compose logs spire-agent | grep "SVID is not found. Starting node attestation"; then
+	    exit 0
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+fail-now "timed out waiting for agent to try to re-attest"

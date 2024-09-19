@@ -157,7 +157,7 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 	case config.WorkloadAPI != nil:
 		workloadAPIAddr, err := config.getWorkloadAPIAddr()
 		if err != nil {
-			return nil, errs.New(err.Error())
+			return nil, errs.Wrap(err)
 		}
 		return NewWorkloadAPISource(WorkloadAPISourceConfig{
 			Log:          log,

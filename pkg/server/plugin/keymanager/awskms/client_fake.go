@@ -110,17 +110,17 @@ func (k *kmsClientFake) CreateKey(_ context.Context, input *kms.CreateKeyInput, 
 	}
 
 	var privateKey crypto.Signer
-	switch input.CustomerMasterKeySpec { //nolint:staticcheck // not deprecated in a released version yet
-	case types.CustomerMasterKeySpecEccNistP256:
+	switch input.KeySpec {
+	case types.KeySpecEccNistP256:
 		privateKey = k.testKeys.NewEC256(k.t)
-	case types.CustomerMasterKeySpecEccNistP384:
+	case types.KeySpecEccNistP384:
 		privateKey = k.testKeys.NewEC384(k.t)
-	case types.CustomerMasterKeySpecRsa2048:
+	case types.KeySpecRsa2048:
 		privateKey = k.testKeys.NewRSA2048(k.t)
-	case types.CustomerMasterKeySpecRsa4096:
+	case types.KeySpecRsa4096:
 		privateKey = k.testKeys.NewRSA4096(k.t)
 	default:
-		return nil, fmt.Errorf("unknown key type %q", input.CustomerMasterKeySpec) //nolint:staticcheck // not deprecated in a released version yet
+		return nil, fmt.Errorf("unknown key type %q", input.KeySpec)
 	}
 
 	pkixData, err := x509.MarshalPKIXPublicKey(privateKey.Public())
@@ -133,7 +133,7 @@ func (k *kmsClientFake) CreateKey(_ context.Context, input *kms.CreateKeyInput, 
 		CreationDate: aws.Time(time.Unix(0, 0)),
 		PublicKey:    pkixData,
 		privateKey:   privateKey,
-		KeySpec:      input.CustomerMasterKeySpec, //nolint:staticcheck // not deprecated in a released version yet
+		KeySpec:      input.KeySpec,
 		Enabled:      true,
 	}
 
@@ -163,12 +163,12 @@ func (k *kmsClientFake) DescribeKey(_ context.Context, input *kms.DescribeKeyInp
 
 	return &kms.DescribeKeyOutput{
 		KeyMetadata: &types.KeyMetadata{
-			KeyId:                 keyEntry.KeyID,
-			Arn:                   keyEntry.Arn,
-			CustomerMasterKeySpec: keyEntry.KeySpec,
-			Enabled:               keyEntry.Enabled,
-			Description:           keyEntry.Description,
-			CreationDate:          keyEntry.CreationDate,
+			KeyId:        keyEntry.KeyID,
+			Arn:          keyEntry.Arn,
+			KeySpec:      keyEntry.KeySpec,
+			Enabled:      keyEntry.Enabled,
+			Description:  keyEntry.Description,
+			CreationDate: keyEntry.CreationDate,
 		},
 	}, nil
 }
@@ -494,7 +494,7 @@ type fakeKeyEntry struct {
 	PublicKey            []byte
 	privateKey           crypto.Signer
 	Enabled              bool
-	KeySpec              types.CustomerMasterKeySpec
+	KeySpec              types.KeySpec
 }
 
 type fakeAlias struct {

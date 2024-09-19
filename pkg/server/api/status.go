@@ -11,7 +11,15 @@ import (
 )
 
 // CreateStatus creates a proto Status
-func CreateStatus(code codes.Code, format string, a ...any) *types.Status {
+func CreateStatus(code codes.Code, msg string) *types.Status {
+	return &types.Status{
+		Code:    int32(code),
+		Message: msg,
+	}
+}
+
+// CreateStatus creates a proto Status
+func CreateStatusf(code codes.Code, format string, a ...any) *types.Status {
 	return &types.Status{
 		Code:    int32(code),
 		Message: fmt.Sprintf(format, a...),

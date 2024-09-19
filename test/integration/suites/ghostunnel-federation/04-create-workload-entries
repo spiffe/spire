@@ -9,7 +9,7 @@ docker compose exec -T downstream-spire-server \
     -spiffeID "spiffe://downstream-domain.test/downstream-workload" \
     -selector "unix:uid:0" \
     -federatesWith "spiffe://upstream-domain.test" \
-    -ttl 0
+    -x509SVIDTTL 0
 
 log-debug "creating registration entry for upstream workload..."
 docker compose exec -T upstream-spire-server \
@@ -18,4 +18,4 @@ docker compose exec -T upstream-spire-server \
     -spiffeID "spiffe://upstream-domain.test/upstream-workload" \
     -selector "unix:uid:0" \
     -federatesWith "spiffe://downstream-domain.test" \
-    -ttl 0
+    -x509SVIDTTL 0

@@ -20,7 +20,7 @@ setup-tests() {
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/upstream-agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/upstream-workload" \
         -selector "unix:uid:0" \
-        -ttl 0
+        -x509SVIDTTL 0
 
     log-debug "creating registration entry for downstream workload..."
     docker compose exec -T spire-server \
@@ -28,7 +28,7 @@ setup-tests() {
         -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/downstream-agent/agent.crt.pem)" \
         -spiffeID "spiffe://domain.test/downstream-workload" \
         -selector "unix:uid:0" \
-        -ttl 0
+        -x509SVIDTTL 0
 }
 
 test-envoy() {

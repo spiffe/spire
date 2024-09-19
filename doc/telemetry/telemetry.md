@@ -51,7 +51,15 @@ The following metrics are emitted:
 | Call Counter | `datastore`, `registration_entry_event`, `list`  |                              | The Datastore is listing a registration entry events.                                 |
 | Call Counter | `datastore`, `registration_entry_event`, `prune` |                              | The Datastore is pruning expired registration entry events.                           |
 | Call Counter | `datastore`, `registration_entry_event`, `fetch` |                              | The Datastore is fetching a specific registration entry event.                        |
-| Call Counter | `entry`, `cache`, `reload`                       |                              | The Server is reloading its in-memory entry cache from the datastore.                 |
+| Call Counter | `entry`, `cache`, `reload`                       |                              | The Server is reloading its in-memory entry cache from the datastore                 |
+| Gauge |  `node`, `agents_by_id_cache`, `count`                  |                              | The Server is re-hydrating the agents-by-id event-based cache |
+| Gauge |  `node`, `agents_by_expiresat_cache`, `count`           |                              | The Server is re-hydrating the agents-by-expiresat event-based cache  |
+| Gauge | `node`, `skipped_node_event_ids`, `count`         |                              | The count of skipped ids detected in the last `sql_transaction_timout` period.  For databases that autoincrement ids by more than one, this number will overreport the skipped ids. [Issue](https://github.com/spiffe/spire/issues/5341) |
+| Gauge | `entry`, `nodealiases_by_entryid_cache`, `count`        |                              | The Server is re-hydrating the nodealiases-by-entryid event-based cache |
+| Gauge | `entry`, `nodealiases_by_selector_cache`, `count`       |                              | The Server is re-hydrating the nodealiases-by-selector event-based cache |
+| Gauge | `entry`, `entries_by_entryid_cache`, `count`            |                              | The Server is re-hydrating the entries-by-entryid event-based cache |
+| Gauge | `entry`, `entries_by_parentid_cache`, `count`           |                              | The Server is re-hydrating the entries-by-parentid event-based cache |
+| Gauge | `entry`, `skipped_entry_event_ids`, `count`       |                              | The count of skipped ids detected in the last sql_transaction_timout period.  For databases that autoincrement ids by more than one, this number will overreport the skipped ids. [Issue](https://github.com/spiffe/spire/issues/5341)  |
 | Counter      | `manager`, `jwt_key`, `activate`                 |                              | The CA manager has successfully activated a JWT Key.                                  |
 | Gauge        | `manager`, `x509_ca`, `rotate`, `ttl`            | `trust_domain_id`            | The CA manager is rotating the X.509 CA with a given TTL for a specific Trust Domain. |
 | Call Counter | `registration_entry`, `manager`, `prune`         |                              | The Registration manager is pruning entries.                                          |

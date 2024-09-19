@@ -14,8 +14,7 @@ import (
 )
 
 const (
-	testCgroupEntries   = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
-	defaultPluginConfig = "use_new_container_locator = true"
+	testCgroupEntries = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
 )
 
 func TestContainerExtraction(t *testing.T) {
@@ -29,26 +28,34 @@ func TestContainerExtraction(t *testing.T) {
 		{
 			desc:    "no match",
 			cgroups: testCgroupEntries,
-			cfg: `container_id_cgroup_matchers = [
-"/docker/*/<id>",
-]
-`,
+			cfg: `
+				use_new_container_locator = false
+				container_id_cgroup_matchers = [
+					"/docker/*/<id>",
+				]
+			`,
 		},
 		{
 			desc:    "one miss one match",
 			cgroups: testCgroupEntries,
-			cfg: `container_id_cgroup_matchers = [
-"/docker/*/<id>",
-"/docker/<id>"
-]`,
+			cfg: `
+				use_new_container_locator = false
+				container_id_cgroup_matchers = [
+					"/docker/*/<id>",
+					"/docker/<id>"
+				]
+			`,
 			hasMatch: true,
 		},
 		{
 			desc:    "no container id",
 			cgroups: "10:cpu:/docker/",
-			cfg: `container_id_cgroup_matchers = [
-"/docker/<id>"
-]`,
+			cfg: `
+				use_new_container_locator = false
+				container_id_cgroup_matchers = [
+					"/docker/<id>"
+				]
+			`,
 			expectErr: "a pattern matched, but no container id was found",
 		},
 		{
@@ -64,11 +71,12 @@ func TestContainerExtraction(t *testing.T) {
 		{
 			desc:      "more than one id",
 			cgroups:   testCgroupEntries + "\n" + "4:devices:/system.slice/docker-41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
-			expectErr: "multiple container IDs found in cgroups",
+			expectErr: "multiple container IDs found",
 		},
 		{
-			desc:    "default finder does not match cgroup missing docker prefix",
-			cgroups: "4:devices:/system.slice/41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
+			desc:     "default configuration matches cgroup missing docker prefix",
+			cgroups:  "4:devices:/system.slice/6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
+			hasMatch: true,
 		},
 	}
 
@@ -125,6 +133,7 @@ func TestDockerConfigPosix(t *testing.T) {
 		require.NoError(t, err)
 
 		p := newTestPlugin(t, withConfig(t, `
+use_new_container_locator = false
 docker_socket_path = "unix:///socket_path"
 docker_version = "1.20"
 container_id_cgroup_matchers = [
@@ -139,6 +148,7 @@ container_id_cgroup_matchers = [
 	t.Run("bad matcher", func(t *testing.T) {
 		p := New()
 		cfg := `
+use_new_container_locator = false
 container_id_cgroup_matchers = [
 "/docker/",
 ]`

@@ -173,7 +173,7 @@ func TestCacheInternalStats(t *testing.T) {
 	clk := clock.NewMock(t)
 	t.Run("pristine", func(t *testing.T) {
 		cache := NewCache(clk)
-		require.Zero(t, cache.stats())
+		require.Zero(t, cache.Stats())
 	})
 
 	t.Run("entries and aliases", func(t *testing.T) {
@@ -189,13 +189,13 @@ func TestCacheInternalStats(t *testing.T) {
 		require.Equal(t, cacheStats{
 			EntriesByEntryID:  1,
 			EntriesByParentID: 1,
-		}, cache.stats())
+		}, cache.Stats())
 
 		cache.UpdateEntry(entry2a)
 		require.Equal(t, cacheStats{
 			EntriesByEntryID:  2,
 			EntriesByParentID: 2,
-		}, cache.stats())
+		}, cache.Stats())
 
 		cache.UpdateEntry(entry2b)
 		require.Equal(t, cacheStats{
@@ -203,20 +203,20 @@ func TestCacheInternalStats(t *testing.T) {
 			EntriesByParentID: 1,
 			AliasesByEntryID:  2, // one for each selector
 			AliasesBySelector: 2, // one for each selector
-		}, cache.stats())
+		}, cache.Stats())
 
 		cache.RemoveEntry(entry1.Id)
 		require.Equal(t, cacheStats{
 			AliasesByEntryID:  2, // one for each selector
 			AliasesBySelector: 2, // one for each selector
-		}, cache.stats())
+		}, cache.Stats())
 
 		cache.RemoveEntry(entry2b.Id)
-		require.Zero(t, cache.stats())
+		require.Zero(t, cache.Stats())
 
 		// Remove again and make sure nothing happens.
 		cache.RemoveEntry(entry2b.Id)
-		require.Zero(t, cache.stats())
+		require.Zero(t, cache.Stats())
 	})
 
 	t.Run("agents", func(t *testing.T) {
@@ -225,28 +225,28 @@ func TestCacheInternalStats(t *testing.T) {
 		require.Equal(t, cacheStats{
 			AgentsByID:        1,
 			AgentsByExpiresAt: 1,
-		}, cache.stats())
+		}, cache.Stats())
 
 		cache.UpdateAgent(agent2.String(), now.Add(time.Hour*2), []*types.Selector{sel2})
 		require.Equal(t, cacheStats{
 			AgentsByID:        2,
 			AgentsByExpiresAt: 2,
-		}, cache.stats())
+		}, cache.Stats())
 
 		cache.UpdateAgent(agent2.String(), now.Add(time.Hour*3), []*types.Selector{sel2})
 		require.Equal(t, cacheStats{
 			AgentsByID:        2,
 			AgentsByExpiresAt: 2,
-		}, cache.stats())
+		}, cache.Stats())
 
 		cache.RemoveAgent(agent1.String())
 		require.Equal(t, cacheStats{
 			AgentsByID:        1,
 			AgentsByExpiresAt: 1,
-		}, cache.stats())
+		}, cache.Stats())
 
 		cache.RemoveAgent(agent2.String())
-		require.Zero(t, cache.stats())
+		require.Zero(t, cache.Stats())
 	})
 }
 

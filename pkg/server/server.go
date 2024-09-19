@@ -379,7 +379,7 @@ func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metri
 	return svidRotator, nil
 }
 
-func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, jwtKeyPublisher manager.JwtKeyPublisher, authPolicyEngine *authpolicy.Engine, bundleManager *bundle_client.Manager) (endpoints.Server, error) {
+func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog, svidObserver svid.Observer, serverCA ca.ServerCA, metrics telemetry.Metrics, authorityManager manager.AuthorityManager, authPolicyEngine *authpolicy.Engine, bundleManager *bundle_client.Manager) (endpoints.Server, error) {
 	config := endpoints.Config{
 		TCPAddr:                      s.config.BindAddress,
 		LocalAddr:                    s.config.BindLocalAddress,
@@ -390,7 +390,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Log:                          s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		RootLog:                      s.config.Log,
 		Metrics:                      metrics,
-		JWTKeyPublisher:              jwtKeyPublisher,
+		AuthorityManager:             authorityManager,
 		RateLimit:                    s.config.RateLimit,
 		Uptime:                       uptime.Uptime,
 		Clock:                        clock.New(),

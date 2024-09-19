@@ -22,21 +22,25 @@ var (
 	pkixBytes, _       = x509.MarshalPKIXPublicKey(publicKey)
 	junk               = []byte("JUNK")
 	jwtKeyGood         = jwtkey.JWTKey{ID: "ID", PublicKey: publicKey, ExpiresAt: expiresAt}
+	jwtKeyTaintedGood  = jwtkey.JWTKey{ID: "ID", PublicKey: publicKey, ExpiresAt: expiresAt, Tainted: true}
 	jwtKeyNoKeyID      = jwtkey.JWTKey{PublicKey: publicKey, ExpiresAt: expiresAt}
 	jwtKeyNoPublicKey  = jwtkey.JWTKey{ID: "ID", ExpiresAt: expiresAt}
 	jwtKeyBadPublicKey = jwtkey.JWTKey{ID: "ID", PublicKey: junk, ExpiresAt: expiresAt}
 	jwtKeyNoExpiresAt  = jwtkey.JWTKey{ID: "ID", PublicKey: publicKey}
 	pluginGood         = &plugintypes.JWTKey{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()}
+	pluginTaintedGood  = &plugintypes.JWTKey{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix(), Tainted: true}
 	pluginNoKeyID      = &plugintypes.JWTKey{PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()}
 	pluginNoPublicKey  = &plugintypes.JWTKey{KeyId: "ID", ExpiresAt: expiresAt.Unix()}
 	pluginBadPublicKey = &plugintypes.JWTKey{KeyId: "ID", PublicKey: junk, ExpiresAt: expiresAt.Unix()}
 	pluginNoExpiresAt  = &plugintypes.JWTKey{KeyId: "ID", PublicKey: pkixBytes}
 	commonGood         = &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}
+	commonTaintedGood  = &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes, NotAfter: expiresAt.Unix(), TaintedKey: true}
 	commonNoKeyID      = &common.PublicKey{PkixBytes: pkixBytes, NotAfter: expiresAt.Unix()}
 	commonNoPublicKey  = &common.PublicKey{Kid: "ID", NotAfter: expiresAt.Unix()}
 	commonBadPublicKey = &common.PublicKey{Kid: "ID", PkixBytes: junk, NotAfter: expiresAt.Unix()}
 	commonNoExpiresAt  = &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes}
 	apiGood            = &apitypes.JWTKey{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()}
+	apiTaintedGood     = &apitypes.JWTKey{KeyId: "ID", PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix(), Tainted: true}
 	apiNoKeyID         = &apitypes.JWTKey{PublicKey: pkixBytes, ExpiresAt: expiresAt.Unix()}
 	apiNoPublicKey     = &apitypes.JWTKey{KeyId: "ID", ExpiresAt: expiresAt.Unix()}
 	apiBadPublicKey    = &apitypes.JWTKey{KeyId: "ID", PublicKey: junk, ExpiresAt: expiresAt.Unix()}
@@ -59,6 +63,7 @@ func TestFromCommonProto(t *testing.T) {
 	}
 
 	assertOK(t, commonGood, jwtKeyGood)
+	assertOK(t, commonTaintedGood, jwtKeyTaintedGood)
 	assertFail(t, commonNoKeyID, "missing key ID for JWT key")
 	assertFail(t, commonNoPublicKey, `missing public key for JWT key "ID"`)
 	assertFail(t, commonBadPublicKey, `failed to unmarshal public key for JWT key "ID": `)
@@ -80,7 +85,8 @@ func TestFromCommonProtos(t *testing.T) {
 		assert.Panics(t, func() { jwtkey.RequireFromCommonProtos(in) })
 	}
 
-	assertOK(t, []*common.PublicKey{commonGood}, []jwtkey.JWTKey{jwtKeyGood})
+	assertOK(t, []*common.PublicKey{commonGood, commonTaintedGood},
+		[]jwtkey.JWTKey{jwtKeyGood, jwtKeyTaintedGood})
 	assertFail(t, []*common.PublicKey{commonNoKeyID}, "missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
@@ -101,6 +107,7 @@ func TestToCommonProto(t *testing.T) {
 	}
 
 	assertOK(t, jwtKeyGood, commonGood)
+	assertOK(t, jwtKeyTaintedGood, commonTaintedGood)
 	assertFail(t, jwtKeyNoKeyID, "missing key ID for JWT key")
 	assertFail(t, jwtKeyNoPublicKey, `missing public key for JWT key "ID"`)
 	assertFail(t, jwtKeyBadPublicKey, `failed to marshal public key for JWT key "ID": `)
@@ -122,7 +129,8 @@ func TestToCommonProtos(t *testing.T) {
 		assert.Panics(t, func() { jwtkey.RequireToCommonProtos(in) })
 	}
 
-	assertOK(t, []jwtkey.JWTKey{jwtKeyGood}, []*common.PublicKey{commonGood})
+	assertOK(t, []jwtkey.JWTKey{jwtKeyGood, jwtKeyTaintedGood},
+		[]*common.PublicKey{commonGood, commonTaintedGood})
 	assertFail(t, []jwtkey.JWTKey{jwtKeyNoKeyID}, "missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
@@ -143,6 +151,7 @@ func TestFromPluginProto(t *testing.T) {
 	}
 
 	assertOK(t, pluginGood, jwtKeyGood)
+	assertOK(t, pluginTaintedGood, jwtKeyTaintedGood)
 	assertFail(t, pluginNoKeyID, "missing key ID for JWT key")
 	assertFail(t, pluginNoPublicKey, `missing public key for JWT key "ID"`)
 	assertFail(t, pluginBadPublicKey, `failed to unmarshal public key for JWT key "ID": `)
@@ -164,7 +173,8 @@ func TestFromPluginProtos(t *testing.T) {
 		assert.Panics(t, func() { jwtkey.RequireFromPluginProtos(in) })
 	}
 
-	assertOK(t, []*plugintypes.JWTKey{pluginGood}, []jwtkey.JWTKey{jwtKeyGood})
+	assertOK(t, []*plugintypes.JWTKey{pluginGood, pluginTaintedGood},
+		[]jwtkey.JWTKey{jwtKeyGood, jwtKeyTaintedGood})
 	assertFail(t, []*plugintypes.JWTKey{pluginNoKeyID}, "missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
@@ -185,6 +195,7 @@ func TestToPluginProto(t *testing.T) {
 	}
 
 	assertOK(t, jwtKeyGood, pluginGood)
+	assertOK(t, jwtKeyTaintedGood, pluginTaintedGood)
 	assertFail(t, jwtKeyNoKeyID, "missing key ID for JWT key")
 	assertFail(t, jwtKeyNoPublicKey, `missing public key for JWT key "ID"`)
 	assertFail(t, jwtKeyBadPublicKey, `failed to marshal public key for JWT key "ID": `)
@@ -206,7 +217,8 @@ func TestToPluginProtos(t *testing.T) {
 		assert.Panics(t, func() { jwtkey.RequireToPluginProtos(in) })
 	}
 
-	assertOK(t, []jwtkey.JWTKey{jwtKeyGood}, []*plugintypes.JWTKey{pluginGood})
+	assertOK(t, []jwtkey.JWTKey{jwtKeyGood, jwtKeyTaintedGood},
+		[]*plugintypes.JWTKey{pluginGood, pluginTaintedGood})
 	assertFail(t, []jwtkey.JWTKey{jwtKeyNoKeyID}, "missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
@@ -227,6 +239,7 @@ func TestToCommonFromPluginProto(t *testing.T) {
 	}
 
 	assertOK(t, pluginGood, commonGood)
+	assertOK(t, pluginTaintedGood, commonTaintedGood)
 	assertFail(t, pluginNoKeyID, "missing key ID for JWT key")
 	assertFail(t, pluginNoPublicKey, `missing public key for JWT key "ID"`)
 	assertFail(t, pluginBadPublicKey, `failed to unmarshal public key for JWT key "ID": `)
@@ -248,7 +261,8 @@ func TestToCommonFromPluginProtos(t *testing.T) {
 		assert.Panics(t, func() { jwtkey.RequireToCommonFromPluginProtos(in) })
 	}
 
-	assertOK(t, []*plugintypes.JWTKey{pluginGood}, []*common.PublicKey{commonGood})
+	assertOK(t, []*plugintypes.JWTKey{pluginGood, pluginTaintedGood},
+		[]*common.PublicKey{commonGood, commonTaintedGood})
 	assertFail(t, []*plugintypes.JWTKey{pluginNoKeyID}, "missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
@@ -269,6 +283,7 @@ func TestToPluginFromCommonProto(t *testing.T) {
 	}
 
 	assertOK(t, commonGood, pluginGood)
+	assertOK(t, commonTaintedGood, pluginTaintedGood)
 	assertFail(t, commonNoKeyID, "missing key ID for JWT key")
 	assertFail(t, commonNoPublicKey, `missing public key for JWT key "ID"`)
 	assertFail(t, commonBadPublicKey, `failed to unmarshal public key for JWT key "ID": `)
@@ -290,7 +305,8 @@ func TestToPluginFromCommonProtos(t *testing.T) {
 		assert.Panics(t, func() { jwtkey.RequireToPluginFromCommonProtos(in) })
 	}
 
-	assertOK(t, []*common.PublicKey{commonGood}, []*plugintypes.JWTKey{pluginGood})
+	assertOK(t, []*common.PublicKey{commonGood, commonTaintedGood},
+		[]*plugintypes.JWTKey{pluginGood, pluginTaintedGood})
 	assertFail(t, []*common.PublicKey{commonNoKeyID}, "missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
@@ -308,6 +324,7 @@ func TestToPluginFromAPIProto(t *testing.T) {
 	}
 
 	assertOK(t, apiGood, pluginGood)
+	assertOK(t, apiTaintedGood, pluginTaintedGood)
 	assertFail(t, apiNoKeyID, "missing key ID for JWT key")
 	assertFail(t, apiNoPublicKey, `missing public key for JWT key "ID"`)
 	assertFail(t, apiBadPublicKey, `failed to unmarshal public key for JWT key "ID": `)
@@ -328,7 +345,8 @@ func TestToPluginFromAPIProtos(t *testing.T) {
 		assert.Empty(t, actualOut)
 	}
 
-	assertOK(t, []*apitypes.JWTKey{apiGood}, []*plugintypes.JWTKey{pluginGood})
+	assertOK(t, []*apitypes.JWTKey{apiGood, apiTaintedGood},
+		[]*plugintypes.JWTKey{pluginGood, pluginTaintedGood})
 	assertFail(t, []*apitypes.JWTKey{apiNoKeyID}, "missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
@@ -347,6 +365,7 @@ func TestToAPIProto(t *testing.T) {
 	}
 
 	assertOK(t, jwtKeyGood, apiGood)
+	assertOK(t, jwtKeyTaintedGood, apiTaintedGood)
 	assertFail(t, jwtKeyNoKeyID, "missing key ID for JWT key")
 	assertFail(t, jwtKeyNoPublicKey, `missing public key for JWT key "ID"`)
 	assertFail(t, jwtKeyBadPublicKey, `failed to marshal public key for JWT key "ID": `)
@@ -367,6 +386,7 @@ func TestToAPIFromPluginProto(t *testing.T) {
 	}
 
 	assertOK(t, pluginGood, apiGood)
+	assertOK(t, pluginTaintedGood, apiTaintedGood)
 	assertFail(t, pluginNoKeyID, "missing key ID for JWT key")
 	assertFail(t, pluginNoPublicKey, `missing public key for JWT key "ID"`)
 	assertFail(t, pluginBadPublicKey, `failed to unmarshal public key for JWT key "ID": `)

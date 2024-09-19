@@ -158,11 +158,11 @@ func TestGcpCAS(t *testing.T) {
 	require.NotNil(t, x509Authorities)
 	// Confirm that we don't have unexpected CAs
 	require.Equal(t, 2, len(x509Authorities))
-	require.Equal(t, "caX", x509Authorities[0].Subject.CommonName)
-	require.Equal(t, "caX", x509Authorities[0].Issuer.CommonName)
+	require.Equal(t, "caX", x509Authorities[0].Certificate.Subject.CommonName)
+	require.Equal(t, "caX", x509Authorities[0].Certificate.Issuer.CommonName)
 	// We intentionally return the root externalcaY rather than intermediate caZ
-	require.Equal(t, "externalcaY", x509Authorities[1].Subject.CommonName)
-	require.Equal(t, "externalcaY", x509Authorities[1].Issuer.CommonName)
+	require.Equal(t, "externalcaY", x509Authorities[1].Certificate.Subject.CommonName)
+	require.Equal(t, "externalcaY", x509Authorities[1].Certificate.Issuer.CommonName)
 
 	require.NotNil(t, x509CA)
 	require.Equal(t, 1, len(x509CA))
@@ -170,8 +170,8 @@ func TestGcpCAS(t *testing.T) {
 	require.Equal(t, "caX", x509CA[0].Issuer.CommonName)
 
 	rootPool := x509.NewCertPool()
-	rootPool.AddCert(x509Authorities[0])
-	rootPool.AddCert(x509Authorities[1])
+	rootPool.AddCert(x509Authorities[0].Certificate)
+	rootPool.AddCert(x509Authorities[1].Certificate)
 	var opt x509.VerifyOptions
 	opt.Roots = rootPool
 	res, err := x509CA[0].Verify(opt)

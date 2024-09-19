@@ -154,7 +154,7 @@ func (s *ClientSuite) TestGetPodFailsToLoadClient() {
 }
 
 func (s *ClientSuite) TestGetPodFailsIfGetsErrorFromAPIServer() {
-	fakeClient := fake.NewSimpleClientset()
+	fakeClient := fake.NewClientset()
 
 	client := s.createClient(fakeClient)
 	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
@@ -162,8 +162,8 @@ func (s *ClientSuite) TestGetPodFailsIfGetsErrorFromAPIServer() {
 	s.Nil(pod)
 }
 
-func (s *ClientSuite) TestGetPodFailsIfGetsNilPod() {
-	fakeClient := fake.NewSimpleClientset()
+func (s *ClientSuite) TestGetPodIsEmptyIfGetsNilPod() {
+	fakeClient := fake.NewClientset()
 	fakeClient.CoreV1().(*fake_corev1.FakeCoreV1).PrependReactor("get", "pods",
 		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, nil, nil
@@ -171,12 +171,12 @@ func (s *ClientSuite) TestGetPodFailsIfGetsNilPod() {
 
 	client := s.createClient(fakeClient)
 	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
-	s.AssertErrorContains(err, "got nil pod for pod name: PODNAME")
-	s.Nil(pod)
+	s.NoError(err)
+	s.Require().Empty(pod)
 }
 
 func (s *ClientSuite) TestGetPodSucceeds() {
-	fakeClient := fake.NewSimpleClientset(createPod("PODNAME", "NAMESPACE"))
+	fakeClient := fake.NewClientset(createPod("PODNAME", "NAMESPACE"))
 	expectedPod := createPod("PODNAME", "NAMESPACE")
 
 	client := s.createClient(fakeClient)
@@ -200,7 +200,7 @@ func (s *ClientSuite) TestGetNodeFailsToLoadClient() {
 }
 
 func (s *ClientSuite) TestGetNodeFailsIfGetsErrorFromAPIServer() {
-	fakeClient := fake.NewSimpleClientset()
+	fakeClient := fake.NewClientset()
 
 	client := s.createClient(fakeClient)
 	node, err := client.GetNode(ctx, "NODENAME")
@@ -208,8 +208,8 @@ func (s *ClientSuite) TestGetNodeFailsIfGetsErrorFromAPIServer() {
 	s.Nil(node)
 }
 
-func (s *ClientSuite) TestGetNodeFailsIfGetsNilNode() {
-	fakeClient := fake.NewSimpleClientset()
+func (s *ClientSuite) TestGetNodeIsEmptyIfGetsNilNode() {
+	fakeClient := fake.NewClientset()
 	fakeClient.CoreV1().(*fake_corev1.FakeCoreV1).PrependReactor("get", "nodes",
 		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, nil, nil
@@ -217,12 +217,12 @@ func (s *ClientSuite) TestGetNodeFailsIfGetsNilNode() {
 
 	client := s.createClient(fakeClient)
 	node, err := client.GetNode(ctx, "NODENAME")
-	s.AssertErrorContains(err, "got nil node for node name: NODENAME")
-	s.Nil(node)
+	s.Require().NoError(err)
+	s.Require().Empty(node)
 }
 
 func (s *ClientSuite) TestGetNodeSucceeds() {
-	fakeClient := fake.NewSimpleClientset(createNode("NODENAME"))
+	fakeClient := fake.NewClientset(createNode("NODENAME"))
 	expectedNode := createNode("NODENAME")
 
 	client := s.createClient(fakeClient)
@@ -239,7 +239,7 @@ func (s *ClientSuite) TestValidateTokenFailsToLoadClient() {
 }
 
 func (s *ClientSuite) TestValidateTokenFailsIfGetsErrorFromAPIServer() {
-	fakeClient := fake.NewSimpleClientset()
+	fakeClient := fake.NewClientset()
 	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
 		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, &authv1.TokenReview{}, errors.New("error creating token review")
@@ -251,8 +251,8 @@ func (s *ClientSuite) TestValidateTokenFailsIfGetsErrorFromAPIServer() {
 	s.Nil(status)
 }
 
-func (s *ClientSuite) TestValidateTokenFailsIfGetsNilResponse() {
-	fakeClient := fake.NewSimpleClientset()
+func (s *ClientSuite) TestValidateTokenIsEmptyIfGetsNilResponse() {
+	fakeClient := fake.NewClientset()
 	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
 		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, nil, nil
@@ -260,12 +260,12 @@ func (s *ClientSuite) TestValidateTokenFailsIfGetsNilResponse() {
 
 	client := s.createClient(fakeClient)
 	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
-	s.AssertErrorContains(err, "token review API response is nil")
-	s.Nil(status)
+	s.Require().NoError(err)
+	s.Require().Empty(status)
 }
 
 func (s *ClientSuite) TestValidateTokenFailsIfStatusContainsError() {
-	fakeClient := fake.NewSimpleClientset()
+	fakeClient := fake.NewClientset()
 	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
 		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, &authv1.TokenReview{Status: authv1.TokenReviewStatus{Error: "an error"}}, nil
@@ -278,7 +278,7 @@ func (s *ClientSuite) TestValidateTokenFailsIfStatusContainsError() {
 }
 
 func (s *ClientSuite) TestValidateTokenFailsDueToAudienceUnawareValidator() {
-	fakeClient := fake.NewSimpleClientset()
+	fakeClient := fake.NewClientset()
 	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
 		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, &authv1.TokenReview{
@@ -296,7 +296,7 @@ func (s *ClientSuite) TestValidateTokenFailsDueToAudienceUnawareValidator() {
 }
 
 func (s *ClientSuite) TestValidateTokenSucceeds() {
-	fakeClient := fake.NewSimpleClientset()
+	fakeClient := fake.NewClientset()
 	fakeClient.AuthenticationV1().(*fake_authv1.FakeAuthenticationV1).PrependReactor("create", "tokenreviews",
 		func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 			return true, &authv1.TokenReview{

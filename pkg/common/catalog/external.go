@@ -157,7 +157,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 		return nil, errs.Wrap(err)
 	}
 
-	server := newHostServer(p.config.Name, p.config.HostServices)
+	server := newHostServer(p.config.Log, p.config.Name, p.config.HostServices)
 
 	var wg sync.WaitGroup
 	wg.Add(1)

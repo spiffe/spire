@@ -2,7 +2,6 @@ package datastore
 
 import (
 	"context"
-	"crypto"
 	"errors"
 	"reflect"
 	"strings"
@@ -490,11 +489,11 @@ func (ds *fakeDataStore) SetBundle(context.Context, *common.Bundle) (*common.Bun
 	return &common.Bundle{}, ds.err
 }
 
-func (ds *fakeDataStore) TaintX509CA(context.Context, string, crypto.PublicKey) error {
+func (ds *fakeDataStore) TaintX509CA(context.Context, string, string) error {
 	return ds.err
 }
 
-func (ds *fakeDataStore) RevokeX509CA(context.Context, string, crypto.PublicKey) error {
+func (ds *fakeDataStore) RevokeX509CA(context.Context, string, string) error {
 	return ds.err
 }
 

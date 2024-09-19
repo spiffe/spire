@@ -7,6 +7,6 @@ docker compose exec -T spire-server \
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/workload" \
     -selector "windows:user_name:User Manager\ContainerUser" \
-    -ttl 0
+    -x509SVIDTTL 0
 
 assert-synced-entry "spiffe://domain.test/workload"

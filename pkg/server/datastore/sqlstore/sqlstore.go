@@ -3,7 +3,6 @@ package sqlstore
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/x509"
 	"database/sql"
 	"errors"
@@ -25,9 +24,9 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -37,17 +36,19 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var sqlError = errs.Class("datastore-sql")
-var validEntryIDChars = &unicode.RangeTable{
-	R16: []unicode.Range16{
-		{0x002d, 0x002e, 1}, // - | .
-		{0x0030, 0x0039, 1}, // [0-9]
-		{0x0041, 0x005a, 1}, // [A-Z]
-		{0x005f, 0x005f, 1}, // _
-		{0x0061, 0x007a, 1}, // [a-z]
-	},
-	LatinOffset: 5,
-}
+var (
+	sqlError          = errs.Class("datastore-sql")
+	validEntryIDChars = &unicode.RangeTable{
+		R16: []unicode.Range16{
+			{0x002d, 0x002e, 1}, // - | .
+			{0x0030, 0x0039, 1}, // [0-9]
+			{0x0041, 0x005a, 1}, // [A-Z]
+			{0x005f, 0x005f, 1}, // _
+			{0x0061, 0x007a, 1}, // [a-z]
+		},
+		LatinOffset: 5,
+	}
+)
 
 const (
 	PluginName = "sql"
@@ -246,16 +247,16 @@ func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expires
 }
 
 // TaintX509CAByKey taints an X.509 CA signed using the provided public key
-func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, publicKeyToTaint crypto.PublicKey) error {
+func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, subjectKeyIDToTaint string) error {
 	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return taintX509CA(tx, trustDoaminID, publicKeyToTaint)
+		return taintX509CA(tx, trustDoaminID, subjectKeyIDToTaint)
 	})
 }
 
 // RevokeX509CA removes a Root CA from the bundle
-func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, publicKeyToRevoke crypto.PublicKey) error {
+func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, subjectKeyIDToRevoke string) error {
 	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return revokeX509CA(tx, trustDoaminID, publicKeyToRevoke)
+		return revokeX509CA(tx, trustDoaminID, subjectKeyIDToRevoke)
 	})
 }
 
@@ -509,7 +510,7 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 
 // CountRegistrationEntries counts all registrations (pagination available)
 func (ds *Plugin) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (count int32, err error) {
-	var actDb = ds.db
+	actDb := ds.db
 	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
 		actDb = ds.roDb
 	}
@@ -1035,7 +1036,9 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	case isPostgresDbType(cfg.databaseTypeConfig.databaseType):
 		dialect = postgresDB{}
 	case isMySQLDbType(cfg.databaseTypeConfig.databaseType):
-		dialect = mysqlDB{}
+		dialect = mysqlDB{
+			logger: ds.log,
+		}
 	default:
 		return nil, "", false, nil, sqlError.New("unsupported database_type: %v", cfg.databaseTypeConfig.databaseType)
 	}
@@ -1147,10 +1150,6 @@ func applyBundleMask(model *Bundle, newBundle *common.Bundle, inputMask *common.
 
 	if inputMask.SequenceNumber {
 		bundle.SequenceNumber = newBundle.SequenceNumber
-	}
-
-	if inputMask.X509TaintedKeys {
-		bundle.X509TaintedKeys = newBundle.X509TaintedKeys
 	}
 
 	newModel, err := bundleToModel(bundle)
@@ -1376,33 +1375,37 @@ func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus
 	return changed, nil
 }
 
-func taintX509CA(tx *gorm.DB, trustDomainID string, publicKeyToTaint crypto.PublicKey) error {
+func taintX509CA(tx *gorm.DB, trustDomainID string, subjectKeyIDToTaint string) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
 
-	for _, eachTaintedKey := range bundle.X509TaintedKeys {
-		taintedKey, err := x509.ParsePKIXPublicKey(eachTaintedKey.PublicKey)
+	found := false
+	for _, eachRootCA := range bundle.RootCas {
+		x509CA, err := x509.ParseCertificate(eachRootCA.DerBytes)
 		if err != nil {
-			return status.Errorf(codes.Internal, "failed to parse tainted Key: %v", err)
+			return status.Errorf(codes.Internal, "failed to parse rootCA: %v", err)
 		}
 
-		ok, err := cryptoutil.PublicKeyEqual(taintedKey, publicKeyToTaint)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
+		caSubjectKeyID := x509util.SubjectKeyIDToString(x509CA.SubjectKeyId)
+		if subjectKeyIDToTaint != caSubjectKeyID {
+			continue
 		}
-		if ok {
+
+		if eachRootCA.TaintedKey {
 			return status.Errorf(codes.InvalidArgument, "root CA is already tainted")
 		}
+
+		found = true
+		eachRootCA.TaintedKey = true
 	}
 
-	pKey, err := x509.MarshalPKIXPublicKey(publicKeyToTaint)
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "failed to marshal public key to taint: %v", err)
+	if !found {
+		return status.Error(codes.NotFound, "no ca found with provided subject key ID")
 	}
 
-	bundle.X509TaintedKeys = append(bundle.X509TaintedKeys, &common.X509TaintedKey{PublicKey: pKey})
+	bundle.SequenceNumber++
 
 	_, err = updateBundle(tx, bundle, nil)
 	if err != nil {
@@ -1412,41 +1415,13 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, publicKeyToTaint crypto.Publ
 	return nil
 }
 
-func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKeyToRevoke crypto.PublicKey) error {
+func revokeX509CA(tx *gorm.DB, trustDomainID string, subjectKeyIDToRevoke string) error {
 	bundle, err := getBundle(tx, trustDomainID)
 	if err != nil {
 		return err
 	}
 
-	var taintedKeyFound bool
-	var taintedKeys []*common.X509TaintedKey
-
-	for _, eachTaintedKey := range bundle.X509TaintedKeys {
-		taintedKey, err := x509.ParsePKIXPublicKey(eachTaintedKey.PublicKey)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to parse tainted Key: %v", err)
-		}
-
-		ok, err := cryptoutil.PublicKeyEqual(taintedKey, publicKeyToRevoke)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
-		}
-		if ok {
-			taintedKeyFound = true
-			continue
-		}
-
-		taintedKeys = append(taintedKeys, eachTaintedKey)
-	}
-
-	if !taintedKeyFound {
-		return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
-	}
-	bundle.X509TaintedKeys = taintedKeys
-
-	// It is possible to keep bundles on journal, when there is no upstream authority,
-	// this code will be used to remove a CA bundle that is persisted on datastore,
-	// only in case it is found
+	keyFound := false
 	var rootCAs []*common.Certificate
 	for _, ca := range bundle.RootCas {
 		cert, err := x509.ParseCertificate(ca.DerBytes)
@@ -1454,17 +1429,24 @@ func revokeX509CA(tx *gorm.DB, trustDomainID string, publicKeyToRevoke crypto.Pu
 			return status.Errorf(codes.Internal, "failed to parse root CA: %v", err)
 		}
 
-		ok, err := cryptoutil.PublicKeyEqual(cert.PublicKey, publicKeyToRevoke)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to compare public key: %v", err)
-		}
-
-		if ok {
+		caSubjectKeyID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+		if subjectKeyIDToRevoke == caSubjectKeyID {
+			if !ca.TaintedKey {
+				return status.Error(codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
+			}
+			keyFound = true
 			continue
 		}
+
 		rootCAs = append(rootCAs, ca)
 	}
+
+	if !keyFound {
+		return status.Error(codes.NotFound, "no root CA found with provided subject key ID")
+	}
+
 	bundle.RootCas = rootCAs
+	bundle.SequenceNumber++
 
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
 		return status.Errorf(codes.Internal, "failed to update bundle: %v", err)
@@ -1503,6 +1485,7 @@ func taintJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*common
 		return nil, status.Error(codes.NotFound, "no JWT Key found with provided key ID")
 	}
 
+	bundle.SequenceNumber++
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
 		return nil, err
 	}
@@ -1542,6 +1525,7 @@ func revokeJWTKey(tx *gorm.DB, trustDomainID string, authorityID string) (*commo
 		return nil, status.Error(codes.NotFound, "no JWT Key found with provided key ID")
 	}
 
+	bundle.SequenceNumber++
 	if _, err := updateBundle(tx, bundle, nil); err != nil {
 		return nil, err
 	}
@@ -2946,7 +2930,7 @@ func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *dat
 func buildListRegistrationEntriesQuerySQLite3(req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
 	builder := new(strings.Builder)
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, SQLite, req)
-	var downstream = false
+	downstream := false
 	if req.ByDownstream != nil {
 		downstream = *req.ByDownstream
 	}
@@ -3041,7 +3025,7 @@ func buildListRegistrationEntriesQueryPostgreSQL(req *datastore.ListRegistration
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, PostgreSQL, req)
-	var downstream = false
+	downstream := false
 	if req.ByDownstream != nil {
 		downstream = *req.ByDownstream
 	}
@@ -3180,7 +3164,7 @@ LEFT JOIN
 `)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("WHERE E.id IN (\n", builder, MySQL, req)
-	var downstream = false
+	downstream := false
 	if req.ByDownstream != nil {
 		downstream = *req.ByDownstream
 	}
@@ -3208,7 +3192,7 @@ func buildListRegistrationEntriesQueryMySQLCTE(req *datastore.ListRegistrationEn
 	builder := new(strings.Builder)
 
 	filtered, args, err := appendListRegistrationEntriesFilterQuery("\nWITH listing AS (\n", builder, MySQL, req)
-	var downstream = false
+	downstream := false
 	if req.ByDownstream != nil {
 		downstream = *req.ByDownstream
 	}
@@ -3321,7 +3305,6 @@ func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogg
 
 	for {
 		resp, err := listRegistrationEntriesOnce(ctx, db.raw, db.databaseType, db.supportsCTE, listReq)
-
 		if err != nil {
 			return -1, err
 		}
@@ -4418,7 +4401,7 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		return sqlError.New("invalid request: missing registered entry")
 	}
 
-	if entry.Selectors == nil || len(entry.Selectors) == 0 {
+	if len(entry.Selectors) == 0 {
 		return sqlError.New("invalid registration entry: missing selector list")
 	}
 
@@ -4479,8 +4462,7 @@ func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *c
 		return sqlError.New("invalid request: missing registered entry")
 	}
 
-	if (mask == nil || mask.Selectors) &&
-		(entry.Selectors == nil || len(entry.Selectors) == 0) {
+	if (mask == nil || mask.Selectors) && len(entry.Selectors) == 0 {
 		return sqlError.New("invalid registration entry: missing selector list")
 	}
 

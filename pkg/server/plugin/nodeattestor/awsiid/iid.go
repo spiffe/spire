@@ -436,12 +436,12 @@ func unmarshalAndValidateIdentityDocument(data []byte, getAWSCACertificate func(
 	switch publicKeyType {
 	case RSA1024:
 		if err := verifyRSASignature(caCert.PublicKey.(*rsa.PublicKey), attestationData.Document, signature); err != nil {
-			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, err.Error())
+			return imds.InstanceIdentityDocument{}, status.Error(codes.InvalidArgument, err.Error())
 		}
 	case RSA2048:
 		pkcs7Sig, err := decodeAndParsePKCS7Signature(signature, caCert)
 		if err != nil {
-			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, err.Error())
+			return imds.InstanceIdentityDocument{}, status.Error(codes.InvalidArgument, err.Error())
 		}
 
 		if err := pkcs7Sig.Verify(); err != nil {

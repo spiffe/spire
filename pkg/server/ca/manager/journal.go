@@ -61,13 +61,14 @@ func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time
 
 	backup := j.entries.X509CAs
 	j.entries.X509CAs = append(j.entries.X509CAs, &journal.X509CAEntry{
-		SlotId:        slotID,
-		IssuedAt:      issuedAt.Unix(),
-		NotAfter:      x509CA.Certificate.NotAfter.Unix(),
-		Certificate:   x509CA.Certificate.Raw,
-		UpstreamChain: chainDER(x509CA.UpstreamChain),
-		Status:        journal.Status_PREPARED,
-		AuthorityId:   x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId),
+		SlotId:              slotID,
+		IssuedAt:            issuedAt.Unix(),
+		NotAfter:            x509CA.Certificate.NotAfter.Unix(),
+		Certificate:         x509CA.Certificate.Raw,
+		UpstreamChain:       chainDER(x509CA.UpstreamChain),
+		Status:              journal.Status_PREPARED,
+		AuthorityId:         x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId),
+		UpstreamAuthorityId: x509util.SubjectKeyIDToString(x509CA.Certificate.AuthorityKeyId),
 	})
 
 	exceeded := len(j.entries.X509CAs) - journalCap

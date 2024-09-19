@@ -36,6 +36,7 @@ type ServerCA interface {
 	SignAgentX509SVID(ctx context.Context, params AgentX509SVIDParams) ([]*x509.Certificate, error)
 	SignWorkloadX509SVID(ctx context.Context, params WorkloadX509SVIDParams) ([]*x509.Certificate, error)
 	SignWorkloadJWTSVID(ctx context.Context, params WorkloadJWTSVIDParams) (string, error)
+	TaintedAuthorities() <-chan []*x509.Certificate
 }
 
 // DownstreamX509CAParams are parameters relevant to downstream X.509 CA creation
@@ -133,10 +134,11 @@ type Config struct {
 type CA struct {
 	c Config
 
-	mu          sync.RWMutex
-	x509CA      *X509CA
-	x509CAChain []*x509.Certificate
-	jwtKey      *JWTKey
+	mu                   sync.RWMutex
+	x509CA               *X509CA
+	x509CAChain          []*x509.Certificate
+	jwtKey               *JWTKey
+	taintedAuthoritiesCh chan []*x509.Certificate
 }
 
 func NewCA(config Config) *CA {
@@ -146,6 +148,9 @@ func NewCA(config Config) *CA {
 
 	ca := &CA{
 		c: config,
+
+		// Notify caller about any tainted authority
+		taintedAuthoritiesCh: make(chan []*x509.Certificate, 1),
 	}
 
 	_ = config.HealthChecker.AddCheck("server.ca", &caHealth{
@@ -186,6 +191,17 @@ func (ca *CA) SetJWTKey(jwtKey *JWTKey) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
 	ca.jwtKey = jwtKey
+}
+
+func (ca *CA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {
+	select {
+	case ca.taintedAuthoritiesCh <- taintedAuthorities:
+	default:
+	}
+}
+
+func (ca *CA) TaintedAuthorities() <-chan []*x509.Certificate {
+	return ca.taintedAuthoritiesCh
 }
 
 func (ca *CA) SignDownstreamX509CA(ctx context.Context, params DownstreamX509CAParams) ([]*x509.Certificate, error) {

@@ -7,25 +7,25 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
-func RequireFromCommonProto(pb *common.Certificate) *x509.Certificate {
+func RequireFromCommonProto(pb *common.Certificate) *X509Authority {
 	out, err := FromCommonProto(pb)
 	panicOnError(err)
 	return out
 }
 
-func RequireFromCommonProtos(pbs []*common.Certificate) []*x509.Certificate {
+func RequireFromCommonProtos(pbs []*common.Certificate) []*X509Authority {
 	out, err := FromCommonProtos(pbs)
 	panicOnError(err)
 	return out
 }
 
-func RequireToCommonProto(x509Certificate *x509.Certificate) *common.Certificate {
+func RequireToCommonProto(x509Certificate *X509Authority) *common.Certificate {
 	out, err := ToCommonProto(x509Certificate)
 	panicOnError(err)
 	return out
 }
 
-func RequireToCommonProtos(x509Certificates []*x509.Certificate) []*common.Certificate {
+func RequireToCommonProtos(x509Certificates []*X509Authority) []*common.Certificate {
 	out, err := ToCommonProtos(x509Certificates)
 	panicOnError(err)
 	return out
@@ -37,25 +37,25 @@ func RequireToCommonFromPluginProtos(pbs []*plugintypes.X509Certificate) []*comm
 	return out
 }
 
-func RequireFromPluginProto(pb *plugintypes.X509Certificate) *x509.Certificate {
+func RequireFromPluginProto(pb *plugintypes.X509Certificate) *X509Authority {
 	out, err := FromPluginProto(pb)
 	panicOnError(err)
 	return out
 }
 
-func RequireFromPluginProtos(pbs []*plugintypes.X509Certificate) []*x509.Certificate {
+func RequireFromPluginProtos(pbs []*plugintypes.X509Certificate) []*X509Authority {
 	out, err := FromPluginProtos(pbs)
 	panicOnError(err)
 	return out
 }
 
-func RequireToPluginProto(x509Certificate *x509.Certificate) *plugintypes.X509Certificate {
+func RequireToPluginProto(x509Certificate *X509Authority) *plugintypes.X509Certificate {
 	out, err := ToPluginProto(x509Certificate)
 	panicOnError(err)
 	return out
 }
 
-func RequireToPluginProtos(x509Certificates []*x509.Certificate) []*plugintypes.X509Certificate {
+func RequireToPluginProtos(x509Certificates []*X509Authority) []*plugintypes.X509Certificate {
 	out, err := ToPluginProtos(x509Certificates)
 	panicOnError(err)
 	return out
@@ -67,52 +67,16 @@ func RequireToPluginFromCommonProtos(pbs []*common.Certificate) []*plugintypes.X
 	return out
 }
 
-func RequireRawFromCommonProto(pb *common.Certificate) []byte {
-	out, err := RawFromCommonProto(pb)
+func RequireToPluginFromCertificates(x509Certificates []*x509.Certificate) []*plugintypes.X509Certificate {
+	pbs, err := ToPluginFromCertificates(x509Certificates)
 	panicOnError(err)
-	return out
+	return pbs
 }
 
-func RequireRawFromCommonProtos(pbs []*common.Certificate) [][]byte {
-	out, err := RawFromCommonProtos(pbs)
+func RequireToPluginFromCertificate(x509Certificate *x509.Certificate) *plugintypes.X509Certificate {
+	pb, err := ToPluginFromCertificate(x509Certificate)
 	panicOnError(err)
-	return out
-}
-
-func RequireRawToCommonProto(rawX509Certificate []byte) *common.Certificate {
-	out, err := RawToCommonProto(rawX509Certificate)
-	panicOnError(err)
-	return out
-}
-
-func RequireRawToCommonProtos(rawX509Certificates [][]byte) []*common.Certificate {
-	out, err := RawToCommonProtos(rawX509Certificates)
-	panicOnError(err)
-	return out
-}
-
-func RequireRawFromPluginProto(pb *plugintypes.X509Certificate) []byte {
-	out, err := RawFromPluginProto(pb)
-	panicOnError(err)
-	return out
-}
-
-func RequireRawFromPluginProtos(pbs []*plugintypes.X509Certificate) [][]byte {
-	out, err := RawFromPluginProtos(pbs)
-	panicOnError(err)
-	return out
-}
-
-func RequireRawToPluginProto(rawX509Certificate []byte) *plugintypes.X509Certificate {
-	out, err := RawToPluginProto(rawX509Certificate)
-	panicOnError(err)
-	return out
-}
-
-func RequireRawToPluginProtos(rawX509Certificates [][]byte) []*plugintypes.X509Certificate {
-	out, err := RawToPluginProtos(rawX509Certificates)
-	panicOnError(err)
-	return out
+	return pb
 }
 
 func panicOnError(err error) {

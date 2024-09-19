@@ -16,6 +16,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -713,7 +714,7 @@ func TestMintX509CA(t *testing.T) {
 			x509CAIDs := certChainURIs(x509CA)
 			require.Equal(t, tt.expectX509CA, x509CAIDs)
 
-			x509AuthoritiesIDs := certChainURIs(x509Authorities)
+			x509AuthoritiesIDs := authChainURIs(x509Authorities)
 			require.Equal(t, tt.expectedX509Authorities, x509AuthoritiesIDs)
 
 			if p.cc.clientParams.Namespace != "" {
@@ -838,6 +839,14 @@ func certChainURIs(chain []*x509.Certificate) []string {
 	var uris []string
 	for _, cert := range chain {
 		uris = append(uris, certURI(cert))
+	}
+	return uris
+}
+
+func authChainURIs(chain []*x509certificate.X509Authority) []string {
+	var uris []string
+	for _, authority := range chain {
+		uris = append(uris, certURI(authority.Certificate))
 	}
 	return uris
 }

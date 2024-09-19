@@ -2036,7 +2036,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 				},
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
+				{Status: api.CreateStatusf(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2787,7 +2787,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 				},
 			},
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
+				{Status: api.CreateStatusf(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{

@@ -17,5 +17,5 @@ func TestLoadCertPool(t *testing.T) {
 	// be ignored.
 	pool, err := LoadCertPool("testdata/mixed-bundle.pem")
 	require.NoError(err)
-	require.Len(pool.Subjects(), 2) //nolint:staticcheck // these pools are not system pools so the use of Subjects() is ok for now
+	require.Len(pool.Subjects(), 2)
 }

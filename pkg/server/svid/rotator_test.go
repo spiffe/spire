@@ -14,15 +14,25 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
 const (
 	testTTL = time.Minute * 10
+)
+
+var (
+	trustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 )
 
 func TestRotator(t *testing.T) {
@@ -39,8 +49,6 @@ type RotatorTestSuite struct {
 }
 
 func (s *RotatorTestSuite) SetupTest() {
-	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
-
 	s.clock = clock.NewMock(s.T())
 	s.serverCA = fakeserverca.New(s.T(), trustDomain, &fakeserverca.Options{
 		Clock:       s.clock,
@@ -100,6 +108,79 @@ func (s *RotatorTestSuite) TestRotationSucceeds() {
 	s.clock.Set(certHalfLife(cert).Add(-time.Minute))
 	s.clock.Add(DefaultRotatorInterval)
 	s.requireStateChangeTimeout(stream)
+
+	cancel()
+	s.Require().NoError(<-errCh)
+}
+
+func (s *RotatorTestSuite) TestForceRotation() {
+	stream := s.r.Subscribe()
+	t := s.T()
+
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	err := s.r.Initialize(ctx)
+	s.Require().NoError(err)
+
+	originalCA := s.serverCA.Bundle()
+
+	// New CA
+	signer := testkey.MustEC256()
+	template, err := s.serverCA.CredBuilder().BuildSelfSignedX509CATemplate(context.Background(), credtemplate.SelfSignedX509CAParams{
+		PublicKey: signer.Public(),
+	})
+	require.NoError(t, err)
+
+	newCA, err := x509util.CreateCertificate(template, template, signer.Public(), signer)
+	require.NoError(t, err)
+
+	newCASubjectID := newCA.SubjectKeyId
+
+	// The call to initialize should do the first rotation
+	cert := s.requireNewCert(stream, big.NewInt(-1))
+
+	// Run should rotate whenever the certificate is within half of its
+	// remaining lifetime.
+	wg.Add(1)
+	errCh := make(chan error, 1)
+	go func() {
+		defer wg.Done()
+		errCh <- s.r.Run(ctx)
+	}()
+
+	// Change X509CA
+	s.serverCA.SetX509CA(&ca.X509CA{
+		Signer:      signer,
+		Certificate: newCA,
+	})
+
+	s.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
+
+	s.r.taintedReceived = make(chan bool, 1)
+	// Notify that old authority is tainted
+	s.serverCA.NotifyTaintedX509Authorities(originalCA)
+
+	select {
+	case received := <-s.r.taintedReceived:
+		assert.True(t, received)
+	case <-ctx.Done():
+		s.Fail("no notification received")
+	}
+
+	// Advance interval, so new SVID is signed
+	s.clock.Add(DefaultRotatorInterval)
+	cert = s.requireNewCert(stream, cert.SerialNumber)
+	require.Equal(t, newCASubjectID, cert.AuthorityKeyId)
+
+	// Notify again, must not mark as tainted
+	s.serverCA.NotifyTaintedX509Authorities(originalCA)
+	s.clock.Add(DefaultRotatorInterval)
+	s.requireStateChangeTimeout(stream)
+	require.False(t, s.r.isSVIDTainted)
 
 	cancel()
 	s.Require().NoError(<-errCh)

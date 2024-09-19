@@ -45,13 +45,23 @@ func TestV1MintX509CA(t *testing.T) {
 	x509CA := upstreamCA.ChildCA()
 
 	expectedX509CAChain := x509CA.X509Authorities()
-	expectedUpstreamX509Roots := upstreamCA.X509Authorities()
+	var expectedUpstreamX509Roots []*x509certificate.X509Authority
+	for _, eachCert := range upstreamCA.X509Authorities() {
+		expectedUpstreamX509Roots = append(expectedUpstreamX509Roots, &x509certificate.X509Authority{
+			Certificate: eachCert,
+		})
+	}
+	taintedUpstreamX509Roots := []*x509certificate.X509Authority{
+		{
+			Certificate: expectedUpstreamX509Roots[0].Certificate,
+			Tainted:     true,
+		},
+	}
 
-	validX509CAChain := x509certificate.RequireToPluginProtos(expectedX509CAChain)
+	validX509CAChain := x509certificate.RequireToPluginFromCertificates(expectedX509CAChain)
 	validUpstreamX509Roots := x509certificate.RequireToPluginProtos(expectedUpstreamX509Roots)
 	malformedX509CAChain := []*types.X509Certificate{{Asn1: []byte("OHNO")}}
 	malformedUpstreamX509Roots := []*types.X509Certificate{{Asn1: []byte("OHNO")}}
-
 	withoutX509CAChain := &upstreamauthorityv1.MintX509CAResponse{
 		X509CaChain:       nil,
 		UpstreamX509Roots: validUpstreamX509Roots,
@@ -72,18 +82,28 @@ func TestV1MintX509CA(t *testing.T) {
 		X509CaChain:       validX509CAChain,
 		UpstreamX509Roots: validUpstreamX509Roots,
 	}
+	withTaintedUpstreamX509Roots := &upstreamauthorityv1.MintX509CAResponse{
+		X509CaChain: validX509CAChain,
+		UpstreamX509Roots: []*types.X509Certificate{
+			{
+				Asn1:    validUpstreamX509Roots[0].Asn1,
+				Tainted: true,
+			},
+		},
+	}
 
 	builder := BuildV1()
 
 	for _, tt := range []struct {
-		test                string
-		builder             *V1Builder
-		expectCode          codes.Code
-		expectMessage       string
-		expectStreamUpdates bool
-		expectStreamCode    codes.Code
-		expectStreamMessage string
-		expectLogs          []spiretest.LogEntry
+		test                            string
+		builder                         *V1Builder
+		expectCode                      codes.Code
+		expectMessage                   string
+		expectStreamUpdates             bool
+		expectStreamCode                codes.Code
+		expectStreamMessage             string
+		expectLogs                      []spiretest.LogEntry
+		expectUpstreamX509RootsResponse []*x509certificate.X509Authority
 	}{
 		{
 			test:          "plugin returns before sending first response",
@@ -139,6 +159,15 @@ func TestV1MintX509CA(t *testing.T) {
 			expectStreamMessage: "",
 		},
 		{
+			test: "success with tainted authority",
+			builder: builder.
+				WithMintX509CAResponse(withTaintedUpstreamX509Roots),
+			expectCode:                      codes.OK,
+			expectMessage:                   "",
+			expectStreamUpdates:             false,
+			expectUpstreamX509RootsResponse: taintedUpstreamX509Roots,
+		},
+		{
 			test: "second plugin response is bad (contains X.509 CA)",
 			builder: builder.
 				WithMintX509CAResponse(withX509CAChainAndUpstreamX509Roots).
@@ -182,8 +211,12 @@ func TestV1MintX509CA(t *testing.T) {
 			}
 			require.NotNil(t, upstreamX509RootsStream, "stream should have been returned")
 			defer upstreamX509RootsStream.Close()
+			expectUpstreamX509Roots := expectedUpstreamX509Roots
+			if tt.expectUpstreamX509RootsResponse != nil {
+				expectUpstreamX509Roots = tt.expectUpstreamX509RootsResponse
+			}
 			assert.Equal(t, expectedX509CAChain, x509CA)
-			assert.Equal(t, expectedUpstreamX509Roots, upstreamX509Roots)
+			assert.Equal(t, expectUpstreamX509Roots, upstreamX509Roots)
 
 			switch {
 			case !tt.expectStreamUpdates:
@@ -193,7 +226,11 @@ func TestV1MintX509CA(t *testing.T) {
 			case tt.expectStreamCode == codes.OK:
 				upstreamX509Roots, err = upstreamX509RootsStream.RecvUpstreamX509Authorities()
 				assert.NoError(t, err, "stream should have returned update")
-				assert.Equal(t, expectedUpstreamX509Roots, upstreamX509Roots)
+				expected := expectUpstreamX509Roots
+				if tt.expectUpstreamX509RootsResponse != nil {
+					expected = tt.expectUpstreamX509RootsResponse
+				}
+				assert.Equal(t, expected, upstreamX509Roots)
 			default:
 				upstreamX509Roots, err = upstreamX509RootsStream.RecvUpstreamX509Authorities()
 				spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectStreamCode, tt.expectStreamMessage)

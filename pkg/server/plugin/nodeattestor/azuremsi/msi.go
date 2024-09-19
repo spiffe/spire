@@ -261,7 +261,7 @@ func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 
 	td, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, err.Error())
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
 	tenants := make(map[string]*tenantConfig)

@@ -3,14 +3,12 @@
 package k8s
 
 import (
-	"context"
 	"path/filepath"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/container/process"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -28,16 +26,8 @@ type containerHelper struct {
 	ph process.Helper
 }
 
-func (h *containerHelper) Configure(config *HCLConfig, _ hclog.Logger) error {
-	if config.Experimental != nil && config.Experimental.Sigstore != nil {
-		return status.Error(codes.InvalidArgument, "sigstore configuration is not supported on windows environment")
-	}
+func (h *containerHelper) Configure(_ *HCLConfig, _ hclog.Logger) error {
 	return nil
-}
-
-func (h *containerHelper) GetOSSelectors(context.Context, hclog.Logger, *corev1.ContainerStatus) ([]string, error) {
-	// No additional selectors on windows
-	return nil, nil
 }
 
 func (h *containerHelper) GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error) {

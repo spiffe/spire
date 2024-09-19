@@ -1,0 +1,122 @@
+# ConfigMap containing the SPIRE server configuration.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-server
+  namespace: spire
+data:
+  server.conf: |
+    server {
+      bind_address = "0.0.0.0"
+      bind_port = "8081"
+      trust_domain = "example.org"
+      data_dir = "/run/spire/data"
+      log_level = "DEBUG"
+      default_x509_svid_ttl = "1h"
+      ca_ttl = "12h"
+      ca_subject {
+        country = ["US"]
+        organization = ["SPIFFE"]
+        common_name = ""
+      }
+    }
+
+    plugins {
+      DataStore "sql" {
+        plugin_data {
+          database_type = "sqlite3"
+          connection_string = "/run/spire/data/datastore.sqlite3"
+        }
+      }
+
+      KeyManager "memory" {
+        plugin_data = {}
+      }
+
+      UpstreamAuthority "ejbca" {
+        plugin_data = {
+          hostname = "ejbca-rp-service.ejbca.svc.cluster.local:8443"
+          ca_cert_path = "/run/spire/ejbca/ca/ca.crt"
+          client_cert_path = "/run/spire/ejbca/mtls/tls.crt"
+          client_cert_key_path = "/run/spire/ejbca/mtls/tls.key"
+          ca_name = "Sub-CA"
+          end_entity_profile_name = "spireIntermediateCA"
+          certificate_profile_name = "SUBCA"
+          end_entity_name = ""
+          account_binding_id = ""
+        }
+      }
+    }
+
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+      live_path = "/live"
+      ready_path = "/ready"
+    }
+
+---
+
+# This is the Deployment for the SPIRE server. It waits for SPIRE database to
+# initialize and uses the SPIRE healthcheck command for liveness/readiness
+# probes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spire-server
+  namespace: spire
+  labels:
+    app: spire-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-server
+  template:
+    metadata:
+      namespace: spire
+      labels:
+        app: spire-server
+    spec:
+      shareProcessNamespace: true
+      containers:
+        - name: spire-server
+          image: spire-server:latest-local
+          imagePullPolicy: Never
+          args: ["-config", "/run/spire/config/server.conf"]
+          ports:
+            - containerPort: 8081
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: superadmin-tls
+              mountPath: /run/spire/ejbca/mtls
+              readOnly: true
+            - name: subca
+              mountPath: /run/spire/ejbca/ca
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-server
+        - name: superadmin-tls
+          secret:
+            secretName: superadmin-tls
+        - name: subca
+          secret:
+            secretName: subca
+

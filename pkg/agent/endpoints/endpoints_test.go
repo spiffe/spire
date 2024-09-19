@@ -283,7 +283,7 @@ func (s FakeSDSv3Server) FetchSecrets(ctx context.Context, _ *discovery_v3.Disco
 }
 
 type FakeHealthServer struct {
-	*grpc_health_v1.UnimplementedHealthServer
+	grpc_health_v1.UnimplementedHealthServer
 }
 
 func attest(ctx context.Context, attestor PeerTrackerAttestor) error {

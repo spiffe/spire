@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
+	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -172,20 +173,20 @@ type bundleUpdateErr struct {
 }
 
 type fakeBundleUpdater struct {
-	x509RootsCh chan []*x509.Certificate
+	x509RootsCh chan []*x509certificate.X509Authority
 	jwtKeysCh   chan []*common.PublicKey
 	errorCh     chan bundleUpdateErr
 }
 
 func newFakeBundleUpdater() *fakeBundleUpdater {
 	return &fakeBundleUpdater{
-		x509RootsCh: make(chan []*x509.Certificate, 1),
+		x509RootsCh: make(chan []*x509certificate.X509Authority, 1),
 		jwtKeysCh:   make(chan []*common.PublicKey, 1),
 		errorCh:     make(chan bundleUpdateErr, 1),
 	}
 }
 
-func (u *fakeBundleUpdater) AppendX509Roots(ctx context.Context, x509Roots []*x509.Certificate) error {
+func (u *fakeBundleUpdater) SyncX509Roots(ctx context.Context, x509Roots []*x509certificate.X509Authority) error {
 	select {
 	case u.x509RootsCh <- x509Roots:
 		return nil
@@ -194,7 +195,7 @@ func (u *fakeBundleUpdater) AppendX509Roots(ctx context.Context, x509Roots []*x5
 	}
 }
 
-func (u *fakeBundleUpdater) WaitForAppendedX509Roots(t *testing.T) []*x509.Certificate {
+func (u *fakeBundleUpdater) WaitForAppendedX509Roots(t *testing.T) []*x509certificate.X509Authority {
 	select {
 	case <-time.After(time.Minute):
 		require.FailNow(t, "timed out waiting for X.509 roots to be appended")

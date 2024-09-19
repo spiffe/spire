@@ -1,0 +1,118 @@
+#!/bin/bash
+
+set -e -o pipefail
+source init-kubectl
+
+EJBCA_NAMESPACE="ejbca"
+EJBCA_SUBCA_SECRET_NAME="subca"
+
+log-debug "verifying CA..."
+
+cert_start="-----BEGIN CERTIFICATE-----"
+cert_end="-----END CERTIFICATE-----"
+
+# First, collect the CA chain from the K8s secret created by the EJCBA
+# deployment script. We expect this secret to have the full chain up to the root.
+
+i=0
+while read -r line; do
+    if [[ "$line" == "$cert_start" ]]; then
+        cert="$line"$'\n'
+        in_cert=1
+    elif [[ "$line" == "$cert_end" ]]; then
+        cert+="$line"$'\n'
+        chain[i]=$(echo "$cert")
+        i=$((i + 1))
+        in_cert=0
+    elif [[ $in_cert -eq 1 ]]; then
+        cert+="$line"$'\n'
+    fi
+done < <(kubectl --namespace "$EJBCA_NAMESPACE" get secret "$EJBCA_SUBCA_SECRET_NAME" -o jsonpath='{.data.ca\.crt}' | base64 -d)
+
+log-debug "the issuing ca in EJBCA has a chain length of ${#chain[@]} certificates (including the root)"
+
+# Second, mint an x509 SVID from the SPIRE server and collect them into an array.
+#
+# The contents of mintx509svid_out should have the following format:
+#
+# X509-SVID:
+# <x509 svid>
+# <the intermediate signing certificate issued by EJBCA>
+# <the CA chain up to but not including the Root CA...>
+#
+# Private key:
+# <x509 svid's private key>
+#
+# Root CAs:
+# <the Root CA>
+
+# So, the contents of `certs` should be the entire certificate chain, starting 
+# with the x509 svid at index 0, up to the root CA at index i.
+
+i=0
+while read -r line; do
+    if [[ "$line" == "$cert_start" ]]; then
+        cert="$line"$'\n'
+        in_cert=1
+    elif [[ "$line" == "$cert_end" ]]; then
+        cert+="$line"$'\n'
+        certs[i]=$(echo "$cert")
+        i=$((i + 1))
+        in_cert=0
+    elif [[ $in_cert -eq 1 ]]; then
+        cert+="$line"$'\n'
+    fi
+done < <(./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- /opt/spire/bin/spire-server x509 mint -spiffeID spiffe://example.org/ns/foo/sa/bar)
+
+log-debug "the x509 svid has a chain length of ${#certs[@]} certificates (including the svid and root)"
+
+# Verify that the SPIRE server is using the EJBCA UpstreamAuthority by comparing the CA chain
+
+log-debug "verifying that the intermediate ca(s) and root ca from the svid are the EJBCA issuing ca/intermediates and root ca"
+
+i=0
+while [[ $i -lt ${#chain[@]} ]]; do
+    expected_hash=$(echo "${chain[$i]}" | openssl x509 -noout -modulus | openssl sha256 | awk '{print $2}')
+
+    corresponding_certs_index=$((${#certs[@]} - ${#chain[@]} + i))
+    actual_hash=$(echo "${certs[$corresponding_certs_index]}" | openssl x509 -noout -modulus | openssl sha256 | awk '{print $2}')
+    if [[ "$expected_hash" != "$actual_hash" ]]; then
+        fail-now "ca chain verification failed: expected modulus to have hash $expected_hash, got $actual_hash (cert $((i+1))/${#chain[@]})"
+    fi
+    i=$((i + 1))
+done
+
+log-debug "verifying that the x509 svid was signed by the spire intermediate ca, and that the spire intermediate ca has a valid chain up to the root ca in EJBCA"
+
+# We use -untrusted since none of the intermediates are trusted roots - IE, verify the whole chain
+# Also, we verify against the CA chain from EJBCA to make extra sure that the SVID was signed by the correct CA
+# We trust SPIRE to build a valid certificate chain, but we want to make sure that the SVID is part of the correct PKI.
+
+root_ca=("${chain[@]:((${#chain[@]} - 1)):1}")
+full_chain=("${certs[1]}" "${chain[@]:0:${#chain[@]}-1}")
+
+# SPIRE requested the second certificate in certs
+if ! openssl verify -CAfile <(printf "%s\n" "${root_ca[@]}") \
+    -untrusted <(printf "%s\n" "${full_chain[@]}") \
+    <(echo "${certs[0]}"); 
+then
+    fail-now "x509 svid verification failed: failed to verify the x509 svid up to the root ca in EJBCA"
+fi
+
+log-debug "verifying that the x509 svid has the expected uri san"
+
+# Make sure that the x509 SVID has the correct URI
+expectedURI="URI:spiffe://example.org/ns/foo/sa/bar"
+actualURI=$(openssl x509 -noout -text -in <(echo "${certs[0]}") | grep URI | sed 's/^ *//g')
+if [[ "$expectedURI" != "$actualURI" ]]; then
+    fail-now "x509 svid verification failed: expected URI to be $expectedURI, got $actualURI"
+fi
+
+log-debug "verifying that the intermediate ca issued by EJBCA has the expected uri san"
+
+# Make sure that the intermediate CA has the correct URI
+expectedURI="URI:spiffe://example.org"
+actualURI=$(openssl x509 -noout -text -in <(echo "${certs[1]}") | grep URI | sed 's/^ *//g')
+if [[ "$expectedURI" != "$actualURI" ]]; then
+    fail-now "x509 svid verification failed: expected URI to be $expectedURI, got $actualURI"
+fi

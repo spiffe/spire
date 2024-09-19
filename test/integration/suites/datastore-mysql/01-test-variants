@@ -51,11 +51,4 @@ test-mysql() {
     docker-stop "${SERVICE}"
 }
 
-arch=$(uname -m)
-if [ $arch = "amd64" ] || [ $arch = "x86_64" ]; then
-    test-mysql mysql-5-7 || exit 1
-else
-    log-warn "skipping MySQL 5.7 test on $arch"
-fi
-
 test-mysql mysql-8-0 || exit 1

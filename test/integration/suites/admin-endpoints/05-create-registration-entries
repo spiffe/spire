@@ -7,7 +7,7 @@ docker compose exec -T spire-server-a \
     -spiffeID "spiffe://domain-a.test/admin" \
     -selector "unix:uid:1001" \
     -admin \
-    -ttl 0
+    -x509SVIDTTL 0
 check-synced-entry "spire-agent-a" "spiffe://domain-a.test/admin"
 
 log-debug "creating foreign admin registration entry..."
@@ -17,7 +17,7 @@ docker compose exec -T spire-server-b \
     -spiffeID "spiffe://domain-b.test/admin" \
     -selector "unix:uid:1003" \
     -federatesWith "spiffe://domain-a.test" \
-    -ttl 0
+    -x509SVIDTTL 0
 check-synced-entry "spire-agent-b" "spiffe://domain-b.test/admin"
 
 log-debug "creating regular registration entry..."
@@ -26,5 +26,5 @@ docker compose exec -T spire-server-a \
     -parentID "spiffe://domain-a.test/spire/agent/x509pop/$(fingerprint conf/domain-a/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain-a.test/workload" \
     -selector "unix:uid:1002" \
-    -ttl 0
+    -x509SVIDTTL 0
 check-synced-entry "spire-agent-a" "spiffe://domain-a.test/workload"

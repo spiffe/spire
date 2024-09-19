@@ -22,7 +22,7 @@ const (
 
 type CAManager interface {
 	NotifyBundleLoaded(ctx context.Context) error
-	NotifyOnBundleUpdate(ctx context.Context)
+	ProcessBundleUpdates(ctx context.Context)
 
 	GetCurrentX509CASlot() manager.Slot
 	GetNextX509CASlot() manager.Slot
@@ -91,7 +91,7 @@ func (r *Rotator) Run(ctx context.Context) error {
 		func(ctx context.Context) error {
 			// notifyOnBundleUpdate does not fail but rather logs any errors
 			// encountered while notifying
-			r.c.Manager.NotifyOnBundleUpdate(ctx)
+			r.c.Manager.ProcessBundleUpdates(ctx)
 			return nil
 		},
 	)

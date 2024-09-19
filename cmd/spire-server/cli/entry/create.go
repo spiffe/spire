@@ -45,11 +45,6 @@ type createCommand struct {
 	// Entry hint, used to disambiguate entries with the same SPIFFE ID
 	hint string
 
-	// TTL for x509 and JWT SVIDs issued to this workload, unless type specific TTLs are set.
-	// This field is deprecated in favor of the x509SVIDTTL and jwtSVIDTTL fields and will be
-	// removed in a future release.
-	ttl int
-
 	// TTL for x509 SVIDs issued to this workload
 	x509SVIDTTL int
 
@@ -94,9 +89,8 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.entryID, "entryID", "", "A custom ID for this registration entry (optional). If not set, a new entry ID will be generated")
 	f.StringVar(&c.parentID, "parentID", "", "The SPIFFE ID of this record's parent")
 	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
-	f.IntVar(&c.ttl, "ttl", 0, "The lifetime, in seconds, for SVIDs issued based on this registration entry. This flag is deprecated in favor of x509SVIDTTL and jwtSVIDTTL and will be removed in a future version")
-	f.IntVar(&c.x509SVIDTTL, "x509SVIDTTL", 0, "The lifetime, in seconds, for x509-SVIDs issued based on this registration entry. Overrides ttl flag")
-	f.IntVar(&c.jwtSVIDTTL, "jwtSVIDTTL", 0, "The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry. Overrides ttl flag")
+	f.IntVar(&c.x509SVIDTTL, "x509SVIDTTL", 0, "The lifetime, in seconds, for x509-SVIDs issued based on this registration entry.")
+	f.IntVar(&c.jwtSVIDTTL, "jwtSVIDTTL", 0, "The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.")
 	f.StringVar(&c.path, "data", "", "Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.")
 	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
@@ -158,20 +152,12 @@ func (c *createCommand) validate() (err error) {
 		return errors.New("a SPIFFE ID is required")
 	}
 
-	if c.ttl < 0 {
-		return errors.New("a positive TTL is required")
-	}
-
 	if c.x509SVIDTTL < 0 {
 		return errors.New("a positive x509-SVID TTL is required")
 	}
 
 	if c.jwtSVIDTTL < 0 {
 		return errors.New("a positive JWT-SVID TTL is required")
-	}
-
-	if c.ttl > 0 && (c.x509SVIDTTL > 0 || c.jwtSVIDTTL > 0) {
-		return errors.New("use x509SVIDTTL and jwtSVIDTTL flags or the deprecated ttl flag")
 	}
 
 	return nil
@@ -200,18 +186,6 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		X509SvidTtl: int32(c.x509SVIDTTL),
 		JwtSvidTtl:  int32(c.jwtSVIDTTL),
 		Hint:        c.hint,
-	}
-
-	// c.ttl is deprecated but usable if the new c.x509Svid field is not used.
-	// c.ttl should not be used to set the jwtSVIDTTL value because the previous
-	// behavior was to have a hard-coded 5 minute JWT TTL no matter what the value
-	// of ttl was set to.
-	// validate(...) ensures that either the new fields or the deprecated field is
-	// used, but never a mixture.
-	//
-	// https://github.com/spiffe/spire/issues/2700
-	if e.X509SvidTtl == 0 {
-		e.X509SvidTtl = int32(c.ttl)
 	}
 
 	selectors := []*types.Selector{}

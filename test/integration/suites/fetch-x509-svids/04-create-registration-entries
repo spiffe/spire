@@ -10,7 +10,7 @@ for ((m=1;m<=$SIZE;m++)); do
     -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
     -spiffeID "spiffe://domain.test/workload-$m" \
     -selector "unix:uid:1001" \
-    -ttl 0 &
+    -x509SVIDTTL 0 &
 done
 
 for ((m=1;m<=$SIZE;m++)); do
