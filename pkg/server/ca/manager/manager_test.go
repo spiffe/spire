@@ -379,7 +379,7 @@ func TestUpstreamSigned(t *testing.T) {
 	}
 }
 
-func TestUpstreamProcesssTaintedAuthority(t *testing.T) {
+func TestUpstreamProcessTaintedAuthority(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
@@ -407,13 +407,6 @@ func TestUpstreamProcesssTaintedAuthority(t *testing.T) {
 	x509Roots := fakeUA.X509Roots()
 	require.True(t, x509Roots[0].Tainted)
 
-	commonCertificates := x509certificate.RequireToCommonProtos(x509Roots)
-	// Retry until the Tainted attribute is propagated to the database
-	require.Eventually(t, func() bool {
-		bundle := test.fetchBundle(ctx)
-		return spiretest.AssertProtoListEqual(t, commonCertificates, bundle.RootCas)
-	}, time.Minute, 500*time.Millisecond)
-
 	expectedTaintedAuthorities := []*x509.Certificate{x509Roots[0].Certificate}
 	select {
 	case received := <-test.ca.taintedAuthoritiesCh:
@@ -421,9 +414,13 @@ func TestUpstreamProcesssTaintedAuthority(t *testing.T) {
 	case <-ctx.Done():
 		assert.Fail(t, "deadline reached")
 	}
+
+	bundle := test.fetchBundle(ctx)
+	expectRootCas := x509certificate.RequireToCommonProtos(x509Roots)
+	spiretest.AssertProtoListEqual(t, expectRootCas, bundle.RootCas)
 }
 
-func TestUpstreamProcesssTaintedAuthorityBackoff(t *testing.T) {
+func TestUpstreamProcessTaintedAuthorityBackoff(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
@@ -475,13 +472,6 @@ func TestUpstreamProcesssTaintedAuthorityBackoff(t *testing.T) {
 	test.m.c.X509CAKeyType = keymanager.ECP256
 	test.clock.Add(10 * time.Second)
 
-	commonCertificates := x509certificate.RequireToCommonProtos(x509Roots)
-	// Retry until the Tainted attribute is propagated to the database
-	require.Eventually(t, func() bool {
-		bundle := test.fetchBundle(ctx)
-		return spiretest.AssertProtoListEqual(t, commonCertificates, bundle.RootCas)
-	}, time.Minute, 500*time.Millisecond)
-
 	expectedTaintedAuthorities := []*x509.Certificate{x509Roots[0].Certificate}
 	select {
 	case received := <-test.ca.taintedAuthoritiesCh:
@@ -489,6 +479,10 @@ func TestUpstreamProcesssTaintedAuthorityBackoff(t *testing.T) {
 	case <-ctx.Done():
 		assert.Fail(t, "deadline reached")
 	}
+
+	bundle := test.fetchBundle(ctx)
+	expectRootCas := x509certificate.RequireToCommonProtos(x509Roots)
+	spiretest.AssertProtoListEqual(t, expectRootCas, bundle.RootCas)
 }
 
 func TestGetCurrentX509CASlotUpstreamSigned(t *testing.T) {
