@@ -39,10 +39,6 @@ type keyEntry struct {
 
 type pluginHooks struct {
 	// Used for testing only.
-	scheduleDeleteSignal chan error
-	refreshKeysSignal    chan error
-	disposeKeysSignal    chan error
-
 	lookupEnv func(string) (string, bool)
 }
 
