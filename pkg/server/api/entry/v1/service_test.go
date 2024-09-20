@@ -2185,24 +2185,23 @@ func TestBatchCreateEntry(t *testing.T) {
 			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
-						Code:    int32(codes.Internal),
-						Message: "failed to create entry: datastore-sql: invalid registration entry: entry ID contains invalid characters",
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to create entry: invalid registration entry: entry ID contains invalid characters",
 					},
 				},
 				{
 					Status: &types.Status{
-						Code:    int32(codes.Internal),
-						Message: "failed to create entry: datastore-sql: invalid registration entry: entry ID too long",
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to create entry: invalid registration entry: entry ID too long",
 					},
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to create entry",
+					Message: "Invalid argument: failed to create entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "datastore-sql: invalid registration entry: entry ID contains invalid characters",
-						telemetry.SPIFFEID: "spiffe://example.org/bar",
+						logrus.ErrorKey: "invalid registration entry: entry ID contains invalid characters",
 					},
 				},
 				{
@@ -2224,16 +2223,15 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
-						telemetry.StatusCode:     "Internal",
-						telemetry.StatusMessage:  "failed to create entry: datastore-sql: invalid registration entry: entry ID contains invalid characters",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to create entry: invalid registration entry: entry ID contains invalid characters",
 					},
 				},
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to create entry",
+					Message: "Invalid argument: failed to create entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "datastore-sql: invalid registration entry: entry ID too long",
-						telemetry.SPIFFEID: "spiffe://example.org/bar",
+						logrus.ErrorKey: "invalid registration entry: entry ID too long",
 					},
 				},
 				{
@@ -2255,8 +2253,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
-						telemetry.StatusCode:     "Internal",
-						telemetry.StatusMessage:  "failed to create entry: datastore-sql: invalid registration entry: entry ID too long",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to create entry: invalid registration entry: entry ID too long",
 					},
 				},
 			},
@@ -2388,6 +2386,214 @@ func TestBatchCreateEntry(t *testing.T) {
 				ParentId: "spiffe://example.org/path",
 				SpiffeId: "sparfe://invalid/scheme",
 			}},
+		},
+		{
+			name: "missing selector list",
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: selector list is empty",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to convert entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "selector list is empty",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "missingselectorlist",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/foo",
+						telemetry.RevisionNumber: "0",
+						telemetry.SPIFFEID:       "spiffe://example.org/bar",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
+						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
+						telemetry.StoreSvid:      "false",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to convert entry: selector list is empty",
+					},
+				},
+			},
+			reqEntries: []*types.Entry{
+				{
+					Id:          "missingselectorlist",
+					ParentId:    api.ProtoFromID(entryParentID),
+					SpiffeId:    api.ProtoFromID(entrySpiffeID),
+					X509SvidTtl: 45,
+					JwtSvidTtl:  30,
+				},
+			},
+			noCustomCreate: true,
+		},
+		{
+			name: "missing SPIFFE ID",
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid spiffe ID: request must specify SPIFFE ID",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to convert entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "invalid spiffe ID: request must specify SPIFFE ID",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "missingspiffeid",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/foo",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "30",
+						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
+						telemetry.StoreSvid:      "false",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to convert entry: invalid spiffe ID: request must specify SPIFFE ID",
+					},
+				},
+			},
+			reqEntries: []*types.Entry{
+				{
+					Id:          "missingspiffeid",
+					ParentId:    api.ProtoFromID(entryParentID),
+					X509SvidTtl: 45,
+					JwtSvidTtl:  30,
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "value1"},
+					},
+				},
+			},
+			noCustomCreate: true,
+		},
+		{
+			name: "negative X509/JWT-SVID TTL",
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to create entry: invalid registration entry: JwtSvidTtl is not set",
+					},
+				},
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to create entry: invalid registration entry: X509SvidTtl is not set",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to create entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "invalid registration entry: JwtSvidTtl is not set",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "invalidjwtsvidttl",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/foo",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1",
+						telemetry.SPIFFEID:       "spiffe://example.org/bar",
+						telemetry.X509SVIDTTL:    "45",
+						telemetry.JWTSVIDTTL:     "-1",
+						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
+						telemetry.StoreSvid:      "false",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to create entry: invalid registration entry: JwtSvidTtl is not set",
+					},
+				},
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to create entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "invalid registration entry: X509SvidTtl is not set",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.RegistrationID: "invalidx509svidttl",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/foo",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1",
+						telemetry.SPIFFEID:       "spiffe://example.org/bar",
+						telemetry.X509SVIDTTL:    "-1",
+						telemetry.JWTSVIDTTL:     "30",
+						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
+						telemetry.StoreSvid:      "false",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to create entry: invalid registration entry: X509SvidTtl is not set",
+					},
+				},
+			},
+			reqEntries: []*types.Entry{
+				{
+					Id:          "invalidjwtsvidttl",
+					ParentId:    api.ProtoFromID(entryParentID),
+					SpiffeId:    api.ProtoFromID(entrySpiffeID),
+					X509SvidTtl: 45,
+					JwtSvidTtl:  -1,
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "value1"},
+					},
+				},
+				{
+					Id:          "invalidx509svidttl",
+					ParentId:    api.ProtoFromID(entryParentID),
+					SpiffeId:    api.ProtoFromID(entrySpiffeID),
+					X509SvidTtl: -1,
+					JwtSvidTtl:  30,
+					Selectors: []*types.Selector{
+						{Type: "type", Value: "value1"},
+					},
+				},
+			},
+			noCustomCreate: true,
 		},
 	} {
 		tt := tt
@@ -4130,17 +4336,17 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
-					Status: &types.Status{Code: int32(codes.Internal), Message: "failed to update entry: datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled"},
+					Status: &types.Status{Code: int32(codes.InvalidArgument), Message: "failed to update entry: invalid registration entry: selector types must be the same when store SVID is enabled"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to update entry",
+						Message: "Invalid argument: failed to update entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							logrus.ErrorKey:          "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled",
+							logrus.ErrorKey:          "invalid registration entry: selector types must be the same when store SVID is enabled",
 						},
 					},
 					{
@@ -4148,8 +4354,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Message: "API accessed",
 						Data: logrus.Fields{
 							telemetry.Status:         "error",
-							telemetry.StatusCode:     "Internal",
-							telemetry.StatusMessage:  "failed to update entry: datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled",
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to update entry: invalid registration entry: selector types must be the same when store SVID is enabled",
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.Selectors:      "type1:key1:value,type2:key2:value",
@@ -4318,6 +4524,90 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.StatusCode:     "InvalidArgument",
 							telemetry.StatusMessage:  "failed to convert entry: invalid spiffe ID: trust domain is missing",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Fail Invalid X509-SVID TTL",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				X509SvidTtl: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					X509SvidTtl: -1,
+				},
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.InvalidArgument),
+						Message: "failed to update entry: invalid registration entry: X509SvidTtl is not set"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Invalid argument: failed to update entry",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							logrus.ErrorKey:          "invalid registration entry: X509SvidTtl is not set",
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.X509SVIDTTL:    "-1",
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to update entry: invalid registration entry: X509SvidTtl is not set",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Fail Invalid JWT-SVID TTL",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				JwtSvidTtl: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					JwtSvidTtl: -1,
+				},
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.InvalidArgument),
+						Message: "failed to update entry: invalid registration entry: JwtSvidTtl is not set"},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Invalid argument: failed to update entry",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							logrus.ErrorKey:          "invalid registration entry: JwtSvidTtl is not set",
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.JWTSVIDTTL:     "-1",
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to update entry: invalid registration entry: JwtSvidTtl is not set",
 						},
 					},
 				}
