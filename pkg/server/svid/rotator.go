@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
 
@@ -49,7 +50,9 @@ func (r *Rotator) Interval() time.Duration {
 }
 
 func (r *Rotator) triggerTaintedReceived(tainted bool) {
-	r.taintedReceived <- tainted
+	if r.taintedReceived != nil {
+		r.taintedReceived <- tainted
+	}
 }
 
 // Run starts a ticker which monitors the server SVID
@@ -67,6 +70,7 @@ func (r *Rotator) Run(ctx context.Context) error {
 			r.c.Log.Debug("Stopping SVID rotator")
 			return nil
 		case taintedAuthorities := <-r.c.ServerCA.TaintedAuthorities():
+			x509util.IsSignedByRoot()
 			isTainted := r.isX509AuthorityTainted(taintedAuthorities)
 			if isTainted {
 				r.triggerTaintedReceived(true)
