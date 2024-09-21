@@ -10,7 +10,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/ca"
 )
 
@@ -70,7 +69,6 @@ func (r *Rotator) Run(ctx context.Context) error {
 			r.c.Log.Debug("Stopping SVID rotator")
 			return nil
 		case taintedAuthorities := <-r.c.ServerCA.TaintedAuthorities():
-			x509util.IsSignedByRoot()
 			isTainted := r.isX509AuthorityTainted(taintedAuthorities)
 			if isTainted {
 				r.triggerTaintedReceived(true)
