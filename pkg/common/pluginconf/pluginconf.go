@@ -48,7 +48,6 @@ func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, hclText
 	switch {
 	case requestCoreConfig == nil:
 		s.ReportError("server core configuration is required")
-		s.ReportError("server core configuration must contain trust_domain")
 	case requestCoreConfig.TrustDomain == "":
 		s.ReportError("server core configuration must contain trust_domain")
 	default:

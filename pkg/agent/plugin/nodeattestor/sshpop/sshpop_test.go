@@ -50,7 +50,7 @@ func (s *Suite) SetupTest() {
 		plugintest.Configure(clientConfig),
 	)
 
-	sshclient, err := sshpop.NewClient(clientConfig)
+	sshclient, err := sshpop.NewClient("example.org", clientConfig)
 	require.NoError(err)
 	s.sshclient = sshclient
 

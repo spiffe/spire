@@ -74,16 +74,17 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	bundleFormat, err := bundleformat.FromString(newConfig.Format)
 	if err != nil {
 		status.ReportErrorf("could not parse bundle format from configuration: %v", err)
+	} else {
+		// This plugin only supports some bundleformats.
+		switch bundleFormat {
+		case bundleformat.JWKS:
+		case bundleformat.SPIFFE:
+		case bundleformat.PEM:
+		default:
+			status.ReportErrorf("bundle format %q is not supported", newConfig.Format)
+		}
+		newConfig.bundleFormat = bundleFormat
 	}
-	// This pluign only supports some bundleformats.
-	switch bundleFormat {
-	case bundleformat.JWKS:
-	case bundleformat.SPIFFE:
-	case bundleformat.PEM:
-	default:
-		status.ReportErrorf("bundle format %q is not supported", newConfig.Format)
-	}
-	newConfig.bundleFormat = bundleFormat
 
 	return newConfig
 }
@@ -127,10 +128,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 	p.s3Client = s3Client
 
-	p.configMtx.Lock()
-	defer p.configMtx.Unlock()
-	p.config = newConfig
-
+	p.setConfig(newConfig)
 	p.setBundle(nil)
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -208,6 +206,14 @@ func (p *Plugin) setBundle(bundle *types.Bundle) {
 	defer p.bundleMtx.Unlock()
 
 	p.bundle = bundle
+}
+
+// setConfig sets the configuration for the plugin.
+func (p *Plugin) setConfig(config *Config) {
+	p.configMtx.Lock()
+	defer p.configMtx.Unlock()
+
+	p.config = config
 }
 
 // builtin creates a new BundlePublisher built-in plugin.

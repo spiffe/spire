@@ -190,10 +190,10 @@ func (cc *ClientConfig) NewClient() *Client {
 	}
 }
 
-func NewClient(configString string) (*Client, error) {
+func NewClient(trustDomain string, configString string) (*Client, error) {
 	request := &ClientConfigRequest{
 		coreConfig: &configv1.CoreConfiguration{
-			TrustDomain: "spiffe://example.org",
+			TrustDomain: fmt.Sprintf("spiffe://%s", trustDomain),
 		},
 		hclText: configString,
 	}

@@ -321,7 +321,7 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 		p.clients.configure(p.config.SessionConfig, *p.config.ValidateOrgAccountID)
 		// Setup required config, for validation and for bootstrapping org client
 		if err := p.orgValidation.configure(p.config.ValidateOrgAccountID); err != nil {
-			return nil, fmt.Errorf("here %s", err.Error())
+			return nil, err
 		}
 	}
 

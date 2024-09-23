@@ -72,14 +72,15 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	bundleFormat, err := bundleformat.FromString(newConfig.Format)
 	if err != nil {
 		status.ReportErrorf("could not parse bundle format from configuration: %v", err)
-	}
-	// Only some bundleformats are supported by this plugin.
-	switch bundleFormat {
-	case bundleformat.JWKS:
-	case bundleformat.SPIFFE:
-	case bundleformat.PEM:
-	default:
-		status.ReportErrorf("format not supported %q", newConfig.Format)
+	} else {
+		// Only some bundleformats are supported by this plugin.
+		switch bundleFormat {
+		case bundleformat.JWKS:
+		case bundleformat.SPIFFE:
+		case bundleformat.PEM:
+		default:
+			status.ReportErrorf("format not supported %q", newConfig.Format)
+		}
 	}
 	newConfig.bundleFormat = bundleFormat
 
@@ -124,9 +125,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 	p.gcsClient = gcsClient
 
-	p.configMtx.Lock()
-	defer p.configMtx.Unlock()
-	p.config = newConfig
+	p.setConfig(newConfig)
 
 	p.setBundle(nil)
 
@@ -243,6 +242,14 @@ func (p *Plugin) setBundle(bundle *types.Bundle) {
 	defer p.bundleMtx.Unlock()
 
 	p.bundle = bundle
+}
+
+// setConfig sets the configuration for the plugin.
+func (p *Plugin) setConfig(config *Config) {
+	p.configMtx.Lock()
+	defer p.configMtx.Unlock()
+
+	p.config = config
 }
 
 // builtin creates a new BundlePublisher built-in plugin.

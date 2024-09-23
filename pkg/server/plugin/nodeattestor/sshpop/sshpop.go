@@ -101,10 +101,6 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, err
 	}
 
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
 	p.mu.Lock()
 	p.sshserver = newConfig.NewServer()
 	p.mu.Unlock()
