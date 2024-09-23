@@ -49,6 +49,7 @@ type Config struct {
 	EndorsementHierarchyPassword string `hcl:"endorsement_hierarchy_password"`
 
 	DevicePath string `hcl:"tpm_device_path"`
+	Autodetect bool
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -75,11 +76,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 
 	if newConfig.DevicePath == "" && runtime.GOOS != "windows" {
-		tpmPath, err := AutoDetectTPMPath(BaseTPMDir)
-		if err != nil {
-			status.ReportErrorf("tpm autodetection failed: %v", err)
-		}
-		newConfig.DevicePath = tpmPath
+		newConfig.Autodetect = true
 	}
 
 	return newConfig
@@ -231,6 +228,14 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
+	}
+
+	if newConfig.Autodetect {
+		tpmPath, err := AutoDetectTPMPath(BaseTPMDir)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "tpm autodetection failed: %v", err)
+		}
+		newConfig.DevicePath = tpmPath
 	}
 
 	p.m.Lock()

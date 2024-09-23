@@ -228,7 +228,7 @@ func TestConfigurePosix(t *testing.T) {
 			hclConf: `devid_cert_path = "non-existent-path/to/devid.cert" 
 					devid_priv_path = "non-existent-path/to/devid-private-blob"
 					devid_pub_path = "non-existent-path/to/devid-public-blob"`,
-			expErr:             "rpc error: code = InvalidArgument desc = tpm autodetection failed: unable to autodetect TPM",
+			expErr:             "rpc error: code = Internal desc = tpm autodetection failed: unable to autodetect TPM",
 			autoDetectTPMFails: true,
 		},
 		{
