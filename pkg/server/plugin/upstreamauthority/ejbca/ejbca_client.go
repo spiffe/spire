@@ -8,62 +8,12 @@ import (
 
 	ejbcaclient "github.com/Keyfactor/ejbca-go-client-sdk/api/ejbca"
 	"github.com/gogo/status"
-	"github.com/hashicorp/hcl"
-	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"google.golang.org/grpc/codes"
 )
 
 type ejbcaClient interface {
 	EnrollPkcs10Certificate(ctx context.Context) ejbcaclient.ApiEnrollPkcs10CertificateRequest
-}
-
-func (p *Plugin) parseConfig(req *configv1.ConfigureRequest) (*Config, error) {
-	logger := p.logger.Named("parseConfig")
-	config := new(Config)
-	logger.Debug("Decoding EJBCA configuration")
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
-	}
-
-	if config.Hostname == "" {
-		return nil, status.Error(codes.InvalidArgument, "hostname is required")
-	}
-	if config.CAName == "" {
-		return nil, status.Error(codes.InvalidArgument, "ca_name is required")
-	}
-	if config.EndEntityProfileName == "" {
-		return nil, status.Error(codes.InvalidArgument, "end_entity_profile_name is required")
-	}
-	if config.CertificateProfileName == "" {
-		return nil, status.Error(codes.InvalidArgument, "certificate_profile_name is required")
-	}
-
-	// If ClientCertPath or ClientCertKeyPath were not found in the main server conf file,
-	// load them from the environment.
-	if config.ClientCertPath == "" {
-		config.ClientCertPath = p.hooks.getEnv("EJBCA_CLIENT_CERT_PATH")
-	}
-	if config.ClientCertKeyPath == "" {
-		config.ClientCertKeyPath = p.hooks.getEnv("EJBCA_CLIENT_CERT_KEY_PATH")
-	}
-
-	// If ClientCertPath or ClientCertKeyPath were not present in either the conf file or
-	// the environment, return an error.
-	if config.ClientCertPath == "" {
-		logger.Error("Client certificate is required for mTLS authentication")
-		return nil, status.Error(codes.InvalidArgument, "client_cert or EJBCA_CLIENT_CERT_PATH is required for mTLS authentication")
-	}
-	if config.ClientCertKeyPath == "" {
-		logger.Error("Client key is required for mTLS authentication")
-		return nil, status.Error(codes.InvalidArgument, "client_key or EJBCA_CLIENT_KEY_PATH is required for mTLS authentication")
-	}
-
-	if config.CaCertPath == "" {
-		config.CaCertPath = p.hooks.getEnv("EJBCA_CA_CERT_PATH")
-	}
-
-	return config, nil
 }
 
 func (p *Plugin) getAuthenticator(config *Config) (ejbcaclient.Authenticator, error) {

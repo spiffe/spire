@@ -308,7 +308,7 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// missing trust domain
 	err = doConfig(catalog.CoreConfig{}, "")
-	s.RequireGRPCStatus(err, codes.InvalidArgument, "core configuration missing trust domain")
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 
 	// missing clusters
 	err = doConfig(coreConfig, "")

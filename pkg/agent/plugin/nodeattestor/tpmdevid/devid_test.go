@@ -15,11 +15,13 @@ import (
 
 	"github.com/google/go-tpm/legacy/tpm2"
 	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	server_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/test/plugintest"
@@ -34,6 +36,7 @@ var (
 
 	tpmDevicePath = "/dev/tpmrm0"
 
+	trustDomain                   string
 	devIDCertPath                 string
 	devIDPrivPath                 string
 	devIDPubPath                  string
@@ -85,6 +88,7 @@ func setupSimulator(t *testing.T) *tpmsimulator.TPMSimulator {
 
 func writeDevIDFiles(t *testing.T) {
 	dir := t.TempDir()
+	trustDomain = "example.org"
 	devIDCertPath = path.Join(dir, "devid-certificate.pem")
 	devIDPrivPath = path.Join(dir, "devid-priv-path")
 	devIDPubPath = path.Join(dir, "devid-pub-path")
@@ -109,33 +113,39 @@ func TestConfigureCommon(t *testing.T) {
 
 	tests := []struct {
 		name               string
+		trustDomain        string
 		hclConf            string
 		expErr             string
 		autoDetectTPMFails bool
 	}{
 		{
-			name:    "Configure fails if receives wrong HCL configuration",
-			hclConf: "not HCL conf",
-			expErr:  "rpc error: code = InvalidArgument desc = unable to decode configuration",
+			name:        "Configure fails if receives wrong HCL configuration",
+			trustDomain: "example.org",
+			hclConf:     "not HCL conf",
+			expErr:      "rpc error: code = InvalidArgument desc = unable to decode configuration",
 		},
 		{
-			name:    "Configure fails if DevID certificate path is empty",
-			hclConf: "",
-			expErr:  "rpc error: code = InvalidArgument desc = invalid configuration: devid_cert_path is required",
+			name:        "Configure fails if DevID certificate path is empty",
+			trustDomain: "example.org",
+			hclConf:     "",
+			expErr:      "rpc error: code = InvalidArgument desc = invalid configuration: devid_cert_path is required",
 		},
 		{
-			name:    "Configure fails if DevID private key path is empty",
-			hclConf: `devid_cert_path = "non-existent-path/to/devid.cert"`,
-			expErr:  "rpc error: code = InvalidArgument desc = invalid configuration: devid_priv_path is required",
+			name:        "Configure fails if DevID private key path is empty",
+			trustDomain: "example.org",
+			hclConf:     `devid_cert_path = "non-existent-path/to/devid.cert"`,
+			expErr:      "rpc error: code = InvalidArgument desc = invalid configuration: devid_priv_path is required",
 		},
 		{
-			name: "Configure fails if DevID public key path is empty",
+			name:        "Configure fails if DevID public key path is empty",
+			trustDomain: "example.org",
 			hclConf: `	devid_cert_path = "non-existent-path/to/devid.cert" 
 						devid_priv_path = "non-existent-path/to/devid-private-blob"`,
 			expErr: "rpc error: code = InvalidArgument desc = invalid configuration: devid_pub_path is required",
 		},
 		{
-			name: "Configure succeeds auto detecting the TPM path",
+			name:        "Configure succeeds auto detecting the TPM path",
+			trustDomain: "example.org",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q 
 						devid_priv_path = %q
 						devid_pub_path = %q`,
@@ -144,7 +154,8 @@ func TestConfigureCommon(t *testing.T) {
 				devIDPubPath),
 		},
 		{
-			name: "Configure succeeds if DevID does not have intermediates certificates",
+			name:        "Configure succeeds if DevID does not have intermediates certificates",
+			trustDomain: "example.org",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q
 						devid_priv_path = %q
 						devid_pub_path = %q`,
@@ -170,7 +181,12 @@ func TestConfigureCommon(t *testing.T) {
 
 			plugin := tpmdevid.New()
 
-			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{HclConfiguration: tt.hclConf})
+			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{
+				CoreConfiguration: &configv1.CoreConfiguration{
+					TrustDomain: tt.trustDomain,
+				},
+				HclConfiguration: tt.hclConf,
+			})
 			if tt.expErr != "" {
 				require.Contains(t, err.Error(), tt.expErr)
 				require.Nil(t, resp)
@@ -192,12 +208,14 @@ func TestConfigurePosix(t *testing.T) {
 
 	tests := []struct {
 		name               string
+		trustDomain        string
 		hclConf            string
 		expErr             string
 		autoDetectTPMFails bool
 	}{
 		{
-			name: "Configure fails if DevID certificate cannot be opened",
+			name:        "Configure fails if DevID certificate cannot be opened",
+			trustDomain: "example.org",
 			hclConf: `	devid_cert_path = "non-existent-path/to/devid.cert" 
 						devid_priv_path = "non-existent-path/to/devid-private-blob"
 						devid_pub_path = "non-existent-path/to/devid-public-blob"
@@ -205,7 +223,8 @@ func TestConfigurePosix(t *testing.T) {
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load certificate(s): open non-existent-path/to/devid.cert:",
 		},
 		{
-			name: "Configure fails if TPM path is not provided and it cannot be auto detected",
+			name:        "Configure fails if TPM path is not provided and it cannot be auto detected",
+			trustDomain: "example.org",
 			hclConf: `devid_cert_path = "non-existent-path/to/devid.cert" 
 					devid_priv_path = "non-existent-path/to/devid-private-blob"
 					devid_pub_path = "non-existent-path/to/devid-public-blob"`,
@@ -213,7 +232,8 @@ func TestConfigurePosix(t *testing.T) {
 			autoDetectTPMFails: true,
 		},
 		{
-			name: "Configure fails if DevID private key cannot be opened",
+			name:        "Configure fails if DevID private key cannot be opened",
+			trustDomain: "example.org",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q 
 						devid_priv_path = "non-existent-path/to/devid-private-blob"
 						devid_pub_path = "non-existent-path/to/devid-public-blob"
@@ -221,7 +241,8 @@ func TestConfigurePosix(t *testing.T) {
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load private key: open non-existent-path/to/devid-private-blob:",
 		},
 		{
-			name: "Configure fails if DevID public key cannot be opened",
+			name:        "Configure fails if DevID public key cannot be opened",
+			trustDomain: "example.org",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q 
 						devid_priv_path = %q
 						devid_pub_path = "non-existent-path/to/devid-public-blob"
@@ -231,7 +252,8 @@ func TestConfigurePosix(t *testing.T) {
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load public key: open non-existent-path/to/devid-public-blob:",
 		},
 		{
-			name: "Configure succeeds providing a TPM path",
+			name:        "Configure succeeds providing a TPM path",
+			trustDomain: "example.org",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q 
 						devid_priv_path = %q
 						devid_pub_path = %q
@@ -254,7 +276,12 @@ func TestConfigurePosix(t *testing.T) {
 
 			plugin := tpmdevid.New()
 
-			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{HclConfiguration: tt.hclConf})
+			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{
+				CoreConfiguration: &configv1.CoreConfiguration{
+					TrustDomain: tt.trustDomain,
+				},
+				HclConfiguration: tt.hclConf,
+			})
 			if tt.expErr != "" {
 				require.Contains(t, err.Error(), tt.expErr)
 				require.Nil(t, resp)
@@ -276,26 +303,30 @@ func TestConfigureWindows(t *testing.T) {
 
 	tests := []struct {
 		name               string
+		trustDomain        string
 		hclConf            string
 		expErr             string
 		autoDetectTPMFails bool
 	}{
 		{
-			name: "Configure fails if DevID certificate cannot be opened",
+			name:        "Configure fails if DevID certificate cannot be opened",
+			trustDomain: "example.org",
 			hclConf: `	devid_cert_path = "non-existent-path/to/devid.cert" 
 						devid_priv_path = "non-existent-path/to/devid-private-blob"
 						devid_pub_path = "non-existent-path/to/devid-public-blob"`,
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load certificate(s): open non-existent-path/to/devid.cert:",
 		},
 		{
-			name: "Configure fails if DevID private key cannot be opened",
+			name:        "Configure fails if DevID private key cannot be opened",
+			trustDomain: "example.org",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q 
 						devid_priv_path = "non-existent-path/to/devid-private-blob"
 						devid_pub_path = "non-existent-path/to/devid-public-blob"`, devIDCertPath),
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load private key: open non-existent-path/to/devid-private-blob:",
 		},
 		{
-			name: "Configure fails if Device Path is provided",
+			name:        "Configure fails if Device Path is provided",
+			trustDomain: "example.org",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q 
 						devid_priv_path = %q
 						devid_pub_path = %q
@@ -306,7 +337,8 @@ func TestConfigureWindows(t *testing.T) {
 			expErr: "rpc error: code = InvalidArgument desc = device path is not allowed on windows",
 		},
 		{
-			name: "Configure fails if DevID public key cannot be opened",
+			name:        "Configure fails if DevID public key cannot be opened",
+			trustDomain: "example.org",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q 
 						devid_priv_path = %q
 						devid_pub_path = "non-existent-path/to/devid-public-blob"`,
@@ -315,7 +347,8 @@ func TestConfigureWindows(t *testing.T) {
 			expErr: "rpc error: code = Internal desc = unable to load DevID files: cannot load public key: open non-existent-path/to/devid-public-blob:",
 		},
 		{
-			name: "Configure succeeds providing a TPM path",
+			name:        "Configure succeeds providing a TPM path",
+			trustDomain: "example.org",
 			hclConf: fmt.Sprintf(`devid_cert_path = %q 
 						devid_priv_path = %q
 						devid_pub_path = %q`,
@@ -334,7 +367,12 @@ func TestConfigureWindows(t *testing.T) {
 
 			plugin := tpmdevid.New()
 
-			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{HclConfiguration: tt.hclConf})
+			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{
+				CoreConfiguration: &configv1.CoreConfiguration{
+					TrustDomain: tt.trustDomain,
+				},
+				HclConfiguration: tt.hclConf,
+			})
 			if tt.expErr != "" {
 				require.Contains(t, err.Error(), tt.expErr)
 				require.Nil(t, resp)
@@ -578,7 +616,11 @@ func loadAndConfigurePlugin(t *testing.T, passwords tpmutil.TPMPasswords) nodeat
 		passwords.EndorsementHierarchy,
 	)
 
-	return loadPlugin(t, plugintest.Configure(config))
+	return loadPlugin(t, plugintest.CoreConfig(catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
+	}),
+		plugintest.Configure(config),
+	)
 }
 
 func loadPlugin(t *testing.T, options ...plugintest.Option) nodeattestor.NodeAttestor {

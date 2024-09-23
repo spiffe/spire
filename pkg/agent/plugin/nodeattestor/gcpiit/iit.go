@@ -16,6 +16,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 )
 
 const (
@@ -50,6 +51,24 @@ type IITAttestorConfig struct {
 	ServiceAccount    string `hcl:"service_account"`
 }
 
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IITAttestorConfig {
+	newConfig := &IITAttestorConfig{}
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.ServiceAccount == "" {
+		newConfig.ServiceAccount = defaultServiceAccount
+	}
+
+	if newConfig.IdentityTokenHost == "" {
+		newConfig.IdentityTokenHost = defaultIdentityTokenHost
+	}
+
+	return newConfig
+}
+
 // NewIITAttestorPlugin creates a new IITAttestorPlugin.
 func New() *IITAttestorPlugin {
 	return &IITAttestorPlugin{}
@@ -76,24 +95,25 @@ func (p *IITAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 }
 
 func (p *IITAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config := &IITAttestorConfig{}
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.ServiceAccount == "" {
-		config.ServiceAccount = defaultServiceAccount
-	}
-
-	if config.IdentityTokenHost == "" {
-		config.IdentityTokenHost = defaultIdentityTokenHost
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
-	p.config = config
+	p.config = newConfig
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *IITAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {

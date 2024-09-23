@@ -8,8 +8,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
@@ -28,21 +30,24 @@ func TestRequiresIdentityProvider(t *testing.T) {
 
 func TestConfigure(t *testing.T) {
 	testCases := []struct {
-		name   string
-		config string
-		code   codes.Code
-		desc   string
+		name        string
+		trustDomain string
+		config      string
+		code        codes.Code
+		desc        string
 	}{
 		{
-			name: "malformed",
+			name:        "malformed",
+			trustDomain: "example.org",
 			config: `
 				MALFORMED
 			`,
 			code: codes.InvalidArgument,
-			desc: "unable to decode configuration",
+			desc: "plugin configuration is malformed",
 		},
 		{
-			name: "missing bucket",
+			name:        "missing bucket",
+			trustDomain: "example.org",
 			config: `
 				object_path = "bundle.pem"
 			`,
@@ -50,7 +55,8 @@ func TestConfigure(t *testing.T) {
 			desc: "bucket must be set",
 		},
 		{
-			name: "missing object path",
+			name:        "missing object path",
+			trustDomain: "example.org",
 			config: `
 				bucket = "the-bucket"
 			`,
@@ -58,7 +64,8 @@ func TestConfigure(t *testing.T) {
 			desc: "object_path must be set",
 		},
 		{
-			name: "success without service account file",
+			name:        "success without service account file",
+			trustDomain: "example.org",
 			config: `
 				bucket = "the-bucket"
 				object_path = "bundle.pem"
@@ -66,7 +73,8 @@ func TestConfigure(t *testing.T) {
 			code: codes.OK,
 		},
 		{
-			name: "success with service account file",
+			name:        "success with service account file",
+			trustDomain: "example.org",
 			config: `
 				bucket = "the-bucket"
 				object_path = "bundle.pem"
@@ -83,6 +91,9 @@ func TestConfigure(t *testing.T) {
 
 			var err error
 			plugintest.Load(t, BuiltIn(), nil,
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
+				}),
 				plugintest.Configure(tt.config),
 				plugintest.CaptureConfigureError(&err),
 				plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(idp)))
@@ -220,6 +231,9 @@ func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) 
 				plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(idp)),
 			}
 			if !tt.skipConfigure {
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}))
 				options = append(options, plugintest.Configure(`
 					bucket = "the-bucket"
 					object_path = "bundle.pem"

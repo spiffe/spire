@@ -18,8 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -335,15 +337,17 @@ func (s *Suite) TestConfigure() {
 	}
 
 	testCases := []struct {
-		name    string
-		raw     string
-		hcl     string
-		config  *config
-		errCode codes.Code
-		errMsg  string
+		name        string
+		trustDomain string
+		raw         string
+		hcl         string
+		config      *config
+		errCode     codes.Code
+		errMsg      string
 	}{
 		{
-			name: "insecure defaults",
+			name:        "insecure defaults",
+			trustDomain: "example.org",
 			hcl: `
 				kubelet_read_only_port = 12345
 			`,
@@ -356,8 +360,9 @@ func (s *Suite) TestConfigure() {
 			},
 		},
 		{
-			name: "secure defaults",
-			hcl:  ``,
+			name:        "secure defaults",
+			trustDomain: "example.org",
+			hcl:         ``,
 			config: &config{
 				VerifyKubelet:     true,
 				Token:             "default-token",
@@ -368,7 +373,8 @@ func (s *Suite) TestConfigure() {
 			},
 		},
 		{
-			name: "skip kubelet verification",
+			name:        "skip kubelet verification",
+			trustDomain: "example.org",
 			hcl: `
 				skip_kubelet_verification = true
 			`,
@@ -382,7 +388,8 @@ func (s *Suite) TestConfigure() {
 			},
 		},
 		{
-			name: "secure overrides",
+			name:        "secure overrides",
+			trustDomain: "example.org",
 			hcl: `
 				kubelet_secure_port = 12345
 				kubelet_ca_path = "some-other-ca"
@@ -401,7 +408,8 @@ func (s *Suite) TestConfigure() {
 			},
 		},
 		{
-			name: "secure with keypair",
+			name:        "secure with keypair",
+			trustDomain: "example.org",
 			hcl: `
 				skip_kubelet_verification = true
 				certificate_path = "cert.pem"
@@ -415,7 +423,8 @@ func (s *Suite) TestConfigure() {
 			},
 		},
 		{
-			name: "secure with node name",
+			name:        "secure with node name",
+			trustDomain: "example.org",
 			hcl: `
 				node_name = "boo"
 			`,
@@ -431,13 +440,15 @@ func (s *Suite) TestConfigure() {
 		},
 
 		{
-			name:    "invalid hcl",
-			hcl:     "bad",
-			errCode: codes.InvalidArgument,
-			errMsg:  "unable to decode configuration",
+			name:        "invalid hcl",
+			trustDomain: "example.org",
+			hcl:         "bad",
+			errCode:     codes.InvalidArgument,
+			errMsg:      "unable to decode configuration",
 		},
 		{
-			name: "both insecure and secure ports specified",
+			name:        "both insecure and secure ports specified",
+			trustDomain: "example.org",
 			hcl: `
 				kubelet_read_only_port = 10255
 				kubelet_secure_port = 10250
@@ -446,7 +457,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "cannot use both the read-only and secure port",
 		},
 		{
-			name: "non-existent kubelet ca",
+			name:        "non-existent kubelet ca",
+			trustDomain: "example.org",
 			hcl: `
 				kubelet_ca_path = "no-such-file"
 			`,
@@ -454,7 +466,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "unable to load kubelet CA",
 		},
 		{
-			name: "bad kubelet ca",
+			name:        "bad kubelet ca",
+			trustDomain: "example.org",
 			hcl: `
 				kubelet_ca_path =  "bad-pem"
 			`,
@@ -462,7 +475,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "unable to parse kubelet CA",
 		},
 		{
-			name: "non-existent token",
+			name:        "non-existent token",
+			trustDomain: "example.org",
 			hcl: `
 				skip_kubelet_verification = true
 				token_path = "no-such-file"
@@ -471,7 +485,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "unable to load token",
 		},
 		{
-			name: "invalid poll retry interval",
+			name:        "invalid poll retry interval",
+			trustDomain: "example.org",
 			hcl: `
 				kubelet_read_only_port = 10255
 				poll_retry_interval = "blah"
@@ -480,7 +495,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "unable to parse poll retry interval",
 		},
 		{
-			name: "invalid reload interval",
+			name:        "invalid reload interval",
+			trustDomain: "example.org",
 			hcl: `
 				kubelet_read_only_port = 10255
 				reload_interval = "blah"
@@ -489,7 +505,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "unable to parse reload interval",
 		},
 		{
-			name: "cert but no key",
+			name:        "cert but no key",
+			trustDomain: "example.org",
 			hcl: `
 				skip_kubelet_verification = true
 				certificate_path = "cert"
@@ -498,7 +515,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "the private key path is required with the certificate path",
 		},
 		{
-			name: "key but no cert",
+			name:        "key but no cert",
+			trustDomain: "example.org",
 			hcl: `
 				skip_kubelet_verification = true
 				private_key_path = "key"
@@ -507,7 +525,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "the certificate path is required with the private key path",
 		},
 		{
-			name: "bad cert",
+			name:        "bad cert",
+			trustDomain: "example.org",
 			hcl: `
 				skip_kubelet_verification = true
 				certificate_path = "bad-pem"
@@ -517,7 +536,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "unable to load keypair",
 		},
 		{
-			name: "non-existent cert",
+			name:        "non-existent cert",
+			trustDomain: "example.org",
 			hcl: `
 				skip_kubelet_verification = true
 				certificate_path = "no-such-file"
@@ -527,7 +547,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "unable to load certificate",
 		},
 		{
-			name: "bad key",
+			name:        "bad key",
+			trustDomain: "example.org",
 			hcl: `
 				skip_kubelet_verification = true
 				certificate_path = "cert.pem"
@@ -537,7 +558,8 @@ func (s *Suite) TestConfigure() {
 			errMsg:  "unable to load keypair",
 		},
 		{
-			name: "non-existent key",
+			name:        "non-existent key",
+			trustDomain: "example.org",
 			hcl: `
 				skip_kubelet_verification = true
 				certificate_path = "cert.pem"
@@ -555,6 +577,9 @@ func (s *Suite) TestConfigure() {
 
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString(testCase.trustDomain),
+				}),
 				plugintest.Configure(testCase.hcl),
 				plugintest.CaptureConfigureError(&err))
 
@@ -598,12 +623,14 @@ func (s *Suite) TestConfigure() {
 func (s *Suite) TestConfigureWithSigstore() {
 	cases := []struct {
 		name          string
+		trustDomain   string
 		hcl           string
 		expectedError string
 		want          *sigstore.Config
 	}{
 		{
-			name: "complete sigstore configuration",
+			name:        "complete sigstore configuration",
+			trustDomain: "example.org",
 			hcl: `
 				    skip_kubelet_verification = true
 					experimental {
@@ -626,7 +653,8 @@ func (s *Suite) TestConfigureWithSigstore() {
 			expectedError: "",
 		},
 		{
-			name: "empty sigstore configuration",
+			name:        "empty sigstore configuration",
+			trustDomain: "example.org",
 			hcl: `
 				    skip_kubelet_verification = true
 					experimental { sigstore {} }
@@ -634,7 +662,8 @@ func (s *Suite) TestConfigureWithSigstore() {
 			expectedError: "",
 		},
 		{
-			name: "invalid HCL",
+			name:        "invalid HCL",
+			trustDomain: "example.org",
 			hcl: `
 				    skip_kubelet_verification = true
 					experimental { sigstore = "invalid" }
@@ -650,6 +679,9 @@ func (s *Suite) TestConfigureWithSigstore() {
 
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString(tc.trustDomain),
+				}),
 				plugintest.Configure(tc.hcl),
 				plugintest.CaptureConfigureError(&err))
 
@@ -713,6 +745,9 @@ func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttest
 	p := s.newPlugin()
 
 	plugintest.Load(s.T(), builtin(p), v1,
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configure(configuration),
 	)
 

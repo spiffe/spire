@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -36,7 +37,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 	)
 }
 
-type Config struct {
+type Configuration struct {
 	// Options which are used for configuring the target issuer to sign requests.
 	// The CertificateRequest will be created in the configured namespace.
 	IssuerName  string `hcl:"issuer_name" json:"issuer_name"`
@@ -46,6 +47,36 @@ type Config struct {
 
 	// File path to the kubeconfig used to build the generic Kubernetes client.
 	KubeConfigFilePath string `hcl:"kube_config_file" json:"kube_config_file"`
+}
+
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
+	}
+
+	// namespace is a required field
+	if len(newConfig.Namespace) == 0 {
+		status.ReportError("plugin configuration has empty namespace property")
+	}
+	// issuer_name is a required field
+	if len(newConfig.IssuerName) == 0 {
+		status.ReportError("plugin configuration has empty issuer_name property")
+	}
+	// If no issuer_kind given, default to Issuer
+	if len(newConfig.IssuerKind) == 0 {
+		status.ReportInfo("plugin configuration has empty issuer_kind property, defaulting to value 'Issuer'")
+		newConfig.IssuerKind = "Issuer"
+	}
+	// If no issuer_group given, default to cert-manager.io
+	if len(newConfig.IssuerGroup) == 0 {
+		status.ReportInfo("plugin configuration has empty issuer_group property, defaulting to value 'cert-manager.io'")
+		p.log.Debug("plugin configuration has empty issuer_group property, defaulting to 'cert-manager.io'")
+		newConfig.IssuerGroup = "cert-manager.io"
+	}
+
+	return newConfig
 }
 
 // Event hooks used by unit tests to coordinate goroutines
@@ -62,7 +93,7 @@ type Plugin struct {
 	configv1.UnsafeConfigServer
 
 	log    hclog.Logger
-	config *Config
+	config *Configuration
 	mtx    sync.RWMutex
 
 	// trustDomain is the trust domain of this SPIRE server. Used to label
@@ -96,20 +127,12 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := p.loadConfig(req)
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
-	cmclient, err := p.hooks.newClient(config.KubeConfigFilePath)
+	cmclient, err := p.hooks.newClient(newConfig.KubeConfigFilePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create cert-manager client: %v", err)
 	}
@@ -118,12 +141,21 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	defer p.mtx.Unlock()
 
 	p.cmclient = cmclient
-	p.config = config
+	p.config = newConfig
 	// Used for adding labels to created CertificateRequests, which can be listed
 	// for cleanup.
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
@@ -227,34 +259,6 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 // PublishJWTKey is not implemented by the wrapper and returns a codes.Unimplemented status
 func (*Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
-}
-
-// loadConfig parses and defaults incoming configure requests
-func (p *Plugin) loadConfig(req *configv1.ConfigureRequest) (*Config, error) {
-	config := new(Config)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration file: %v", err)
-	}
-
-	// namespace is a required field
-	if len(config.Namespace) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "configuration has empty namespace property")
-	}
-	// issuer_name is a required field
-	if len(config.IssuerName) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "configuration has empty issuer_name property")
-	}
-	// If no issuer_kind given, default to Issuer
-	if len(config.IssuerKind) == 0 {
-		p.log.Debug("Configuration has empty issuer_kind property, defaulting to 'Issuer'")
-		config.IssuerKind = "Issuer"
-	}
-	// If no issuer_group given, default to cert-manager.io
-	if len(config.IssuerGroup) == 0 {
-		p.log.Debug("Configuration has empty issuer_group property, defaulting to 'cert-manager.io'")
-		config.IssuerGroup = "cert-manager.io"
-	}
-	return config, nil
 }
 
 func newCertManagerClient(configPath string) (client.Client, error) {

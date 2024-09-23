@@ -201,7 +201,7 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 				log:         hclog.New(logOptions),
 				cmclient:    client,
 				trustDomain: trustDomain,
-				config: &Config{
+				config: &Configuration{
 					Namespace: namespace,
 				},
 			}

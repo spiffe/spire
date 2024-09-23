@@ -20,8 +20,10 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/plugintest"
@@ -68,7 +70,11 @@ func TestKeyManagerContract(t *testing.T) {
 		km := new(keymanager.V1)
 		keyIdentifierFile := createKeyIdentifierFile(t)
 
-		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
+		plugintest.Load(t, builtin(p), km,
+			plugintest.CoreConfig(catalog.CoreConfig{
+				TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+			}),
+			plugintest.Configuref(`
 			key_identifier_file = %q
 			key_vault_uri = "https://spire-server.vault.azure.net/"
 			use_msi=true
@@ -1002,14 +1008,15 @@ func serializedConfiguration(keyIdentifierConfigName KeyIdentifierConfigName, ke
 
 func configureRequestWithVars(keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(keyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
+		HclConfiguration:  serializedConfiguration(keyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret),
 	}
 }
 
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration: config,
+		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
+		HclConfiguration:  config,
 	}
 }
 

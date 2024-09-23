@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/test/fixture"
@@ -19,6 +21,7 @@ import (
 )
 
 var (
+	trustDomain      = "example.org"
 	leafKeyPath      = fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
 	leafCertPath     = fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
 	intermediatePath = fixture.Join("nodeattestor", "x509pop", "intermediate.pem")
@@ -87,10 +90,13 @@ func (s *Suite) TestConfigure() {
 	// malformed
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
 		plugintest.Configure(`bad juju`))
-	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 
 	// missing private_key_path
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configure(`
 			certificate_path = "blah"
 		`),
@@ -99,6 +105,9 @@ func (s *Suite) TestConfigure() {
 
 	// missing certificate_path
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configure(`
 			private_key_path = "blah"
 		`),
@@ -107,6 +116,9 @@ func (s *Suite) TestConfigure() {
 
 	// cannot load keypair
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configure(`
 			private_key_path = "blah"
 			certificate_path = "blah"
@@ -116,6 +128,9 @@ func (s *Suite) TestConfigure() {
 
 	// cannot load intermediates
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configuref(`
 			private_key_path = %q
 			certificate_path = %q
@@ -138,7 +153,12 @@ func (s *Suite) loadAndConfigurePlugin(withIntermediate bool) nodeattestor.NodeA
 		config += fmt.Sprintf(`
 			intermediates_path = %q`, intermediatePath)
 	}
-	return s.loadPlugin(plugintest.Configure(config))
+	return s.loadPlugin(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
+		}),
+		plugintest.Configure(config),
+	)
 }
 
 func (s *Suite) testAttestSuccess(p nodeattestor.NodeAttestor, expectBundle [][]byte) {

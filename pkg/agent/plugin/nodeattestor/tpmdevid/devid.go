@@ -3,7 +3,6 @@ package tpmdevid
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -16,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -49,6 +49,37 @@ type Config struct {
 	EndorsementHierarchyPassword string `hcl:"endorsement_hierarchy_password"`
 
 	DevicePath string `hcl:"tpm_device_path"`
+	Autodetect bool
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+	newConfig := new(Config)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.DevIDCertPath == "" {
+		status.ReportError("invalid configuration: devid_cert_path is required")
+	}
+
+	if newConfig.DevIDPrivPath == "" {
+		status.ReportError("invalid configuration: devid_priv_path is required")
+	}
+
+	if newConfig.DevIDPubPath == "" {
+		status.ReportError("invalid configuration: devid_pub_path is required")
+	}
+
+	if newConfig.DevicePath != "" && runtime.GOOS == "windows" {
+		status.ReportError("device path is not allowed on windows")
+	}
+
+	if newConfig.DevicePath == "" && runtime.GOOS != "windows" {
+		newConfig.Autodetect = true
+	}
+
+	return newConfig
 }
 
 type config struct {
@@ -194,44 +225,43 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	extConf, err := decodePluginConfig(req.HclConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+		return nil, err
 	}
 
-	err = validatePluginConfig(extConf)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid configuration: %v", err)
+	if newConfig.Autodetect {
+		tpmPath, err := AutoDetectTPMPath(BaseTPMDir)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "tpm autodetection failed: %v", err)
+		}
+		newConfig.DevicePath = tpmPath
 	}
 
 	p.m.Lock()
 	defer p.m.Unlock()
 
-	switch {
-	case runtime.GOOS == "windows" && extConf.DevicePath == "":
-		// OK
-	case runtime.GOOS == "windows" && extConf.DevicePath != "":
-		return nil, status.Error(codes.InvalidArgument, "device path is not allowed on windows")
-	case runtime.GOOS != "windows" && extConf.DevicePath != "":
-		p.c.devicePath = extConf.DevicePath
-	case runtime.GOOS != "windows" && extConf.DevicePath == "":
-		tpmPath, err := AutoDetectTPMPath(BaseTPMDir)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "tpm autodetection failed: %v", err)
-		}
-		p.c.devicePath = tpmPath
-	}
+	p.c.devicePath = newConfig.DevicePath
 
-	err = p.loadDevIDFiles(extConf)
+	err = p.loadDevIDFiles(newConfig)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to load DevID files: %v", err)
 	}
 
-	p.c.passwords.DevIDKey = extConf.DevIDKeyPassword
-	p.c.passwords.OwnerHierarchy = extConf.OwnerHierarchyPassword
-	p.c.passwords.EndorsementHierarchy = extConf.EndorsementHierarchyPassword
+	p.c.passwords.DevIDKey = newConfig.DevIDKeyPassword
+	p.c.passwords.OwnerHierarchy = newConfig.OwnerHierarchyPassword
+	p.c.passwords.EndorsementHierarchy = newConfig.EndorsementHierarchyPassword
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -262,31 +292,6 @@ func (p *Plugin) loadDevIDFiles(c *Config) error {
 	p.c.devIDPub, err = os.ReadFile(c.DevIDPubPath)
 	if err != nil {
 		return fmt.Errorf("cannot load public key: %w", err)
-	}
-
-	return nil
-}
-
-func decodePluginConfig(hclConf string) (*Config, error) {
-	extConfig := new(Config)
-	if err := hcl.Decode(extConfig, hclConf); err != nil {
-		return nil, err
-	}
-
-	return extConfig, nil
-}
-
-func validatePluginConfig(c *Config) error {
-	// DevID certificate, public and private key are always required
-	switch {
-	case c.DevIDCertPath == "":
-		return errors.New("devid_cert_path is required")
-
-	case c.DevIDPrivPath == "":
-		return errors.New("devid_priv_path is required")
-
-	case c.DevIDPubPath == "":
-		return errors.New("devid_pub_path is required")
 	}
 
 	return nil

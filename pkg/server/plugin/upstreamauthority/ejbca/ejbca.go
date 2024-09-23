@@ -14,11 +14,13 @@ import (
 
 	ejbcaclient "github.com/Keyfactor/ejbca-go-client-sdk/api/ejbca"
 	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -84,6 +86,56 @@ type Config struct {
 	AccountBindingID       string `hcl:"account_binding_id" json:"account_binding_id"`
 }
 
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+	logger := p.logger.Named("parseConfig")
+	logger.Debug("Decoding EJBCA configuration")
+
+	newConfig := &Config{}
+	if err := hcl.Decode(&newConfig, hclText); err != nil {
+		status.ReportErrorf("failed to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.Hostname == "" {
+		status.ReportError("hostname is required")
+	}
+	if newConfig.CAName == "" {
+		status.ReportError("ca_name is required")
+	}
+	if newConfig.EndEntityProfileName == "" {
+		status.ReportError("end_entity_profile_name is required")
+	}
+	if newConfig.CertificateProfileName == "" {
+		status.ReportError("certificate_profile_name is required")
+	}
+
+	// If ClientCertPath or ClientCertKeyPath were not found in the main server conf file,
+	// load them from the environment.
+	if newConfig.ClientCertPath == "" {
+		newConfig.ClientCertPath = p.hooks.getEnv("EJBCA_CLIENT_CERT_PATH")
+	}
+	if newConfig.ClientCertKeyPath == "" {
+		newConfig.ClientCertKeyPath = p.hooks.getEnv("EJBCA_CLIENT_CERT_KEY_PATH")
+	}
+
+	// If ClientCertPath or ClientCertKeyPath were not present in either the conf file or
+	// the environment, return an error.
+	if newConfig.ClientCertPath == "" {
+		logger.Error("Client certificate is required for mTLS authentication")
+		status.ReportError("client_cert or EJBCA_CLIENT_CERT_PATH is required for mTLS authentication")
+	}
+	if newConfig.ClientCertKeyPath == "" {
+		logger.Error("Client key is required for mTLS authentication")
+		status.ReportError("client_key or EJBCA_CLIENT_KEY_PATH is required for mTLS authentication")
+	}
+
+	if newConfig.CaCertPath == "" {
+		newConfig.CaCertPath = p.hooks.getEnv("EJBCA_CA_CERT_PATH")
+	}
+
+	return newConfig
+}
+
 // New returns an instantiated EJBCA UpstreamAuthority plugin
 func New() *Plugin {
 	p := &Plugin{}
@@ -96,24 +148,33 @@ func New() *Plugin {
 // Configure configures the EJBCA UpstreamAuthority plugin. This is invoked by SPIRE when the plugin is
 // first loaded. After the first invocation, it may be used to reconfigure the plugin.
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := p.parseConfig(req)
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	authenticator, err := p.hooks.newAuthenticator(config)
+	authenticator, err := p.hooks.newAuthenticator(newConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := p.newEjbcaClient(config, authenticator)
+	client, err := p.newEjbcaClient(newConfig, authenticator)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to create EJBCA client: %v", err)
 	}
 
-	p.setConfig(config)
+	p.setConfig(newConfig)
 	p.setClient(client)
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 // SetLogger is called by the framework when the plugin is loaded and provides
