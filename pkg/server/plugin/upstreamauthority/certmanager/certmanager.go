@@ -132,10 +132,6 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, err
 	}
 
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
 	cmclient, err := p.hooks.newClient(newConfig.KubeConfigFilePath)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create cert-manager client: %v", err)

@@ -46,6 +46,7 @@ func (p *Plugin) createHelper(c *dockerPluginConfig, status *pluginconf.Status) 
 			status.ReportError("the new container locator and custom cgroup matchers cannot both be used; please open an issue if the new container locator fails to locate workload containers in your environment; to continue using custom matchers set use_new_container_locator=false")
 			return nil
 		}
+		p.log.Warn("Using the legacy container locator with custom cgroup matchers. This feature will be removed in a future release.")
 		status.ReportInfo("Using the legacy container locator with custom cgroup matchers. This feature will be removed in a future release.")
 		var err error
 		containerIDFinder, err = cgroup.NewContainerIDFinder(c.ContainerIDCGroupMatchers)

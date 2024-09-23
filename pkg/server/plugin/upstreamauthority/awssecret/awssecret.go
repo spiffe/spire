@@ -60,17 +60,9 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		return nil
 	}
 
-	env_session_token, env_session_token_exists := os.LookupEnv("AWS_SESSION_TOKEN")
-	if newConfig.SecurityToken == "" && !env_session_token_exists {
-		status.ReportError("either the config 'secret_token' or the env variable AWS_SESSION_TOKEN must be set")
+	if newConfig.SecurityToken == "" {
+		newConfig.SecurityToken = p.hooks.getenv("AWS_SESSION_TOKEN")
 	}
-	if newConfig.SecurityToken == "" && env_session_token == "" {
-		status.ReportError("when the config 'secret_token' is unset, the env variable AWS_SESSION_TOKEN must have a value")
-	}
-	if newConfig.SecurityToken != "" && env_session_token_exists {
-		status.ReportInfo("security token set twice, once in the config 'secret_token' and once in env variable AWS_SESSION_TOKEN, using the config file setting")
-	}
-	newConfig.SecurityToken = p.hooks.getenv("AWS_SESSION_TOKEN")
 
 	if newConfig.CertFileARN == "" {
 		status.ReportError("configuration missing 'cert_file_arn' value")
