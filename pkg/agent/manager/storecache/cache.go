@@ -231,8 +231,6 @@ func (c *Cache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x5
 	counter := telemetry.StartCall(c.c.Metrics, telemetry.CacheManager, "svid_store", telemetry.ProcessTaintedSVIDs)
 	defer counter.Done(nil)
 
-	// start := time.Now()
-
 	taintedSVIDs := 0
 	for _, record := range c.records {
 		// Skip nil or already tainted SVIDs
@@ -248,11 +246,6 @@ func (c *Cache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x5
 
 	telemetry_agent.AddCacheManagerExpiredSVIDsSample(c.c.Metrics, "svid_store", float32(taintedSVIDs))
 	c.c.Log.WithField(telemetry.TaintedSVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
-
-	// TODO: remove....
-	// c.c.Log.Debugf("******************************************************")
-	// c.c.Log.Debugf("Duration to process %d svids: %v", taintedSVIDs, time.Since(start))
-	// c.c.Log.Debugf("******************************************************")
 }
 
 // GetStaleEntries obtains a list of stale entries, that needs new SVIDs

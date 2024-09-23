@@ -138,7 +138,17 @@ func (r *rotator) Subscribe() observer.Stream {
 }
 
 func (r *rotator) IsTainted() bool {
+	r.rotMtx.RLock()
+	defer r.rotMtx.RUnlock()
+
 	return r.tainted
+}
+
+func (r *rotator) setTainted(tainted bool) {
+	r.rotMtx.Lock()
+	defer r.rotMtx.Unlock()
+
+	r.tainted = tainted
 }
 
 func (r *rotator) NotifyTaintedAuthorities(taintedAuthorities []*x509.Certificate) error {
@@ -147,14 +157,15 @@ func (r *rotator) NotifyTaintedAuthorities(taintedAuthorities []*x509.Certificat
 		return fmt.Errorf("unexpected state value type: %T", r.state.Value())
 	}
 
-	if r.tainted {
+	if r.IsTainted() {
 		r.c.Log.Debug("Agent SVID already tainted")
 		return nil
 	}
 
-	r.tainted = x509util.IsSignedByRoot(state.SVID, taintedAuthorities)
-	if r.tainted {
+	tainted := x509util.IsSignedByRoot(state.SVID, taintedAuthorities)
+	if tainted {
 		r.c.Log.Debug("Agent SVID is tainted by a root authority, forcing rotation")
+		r.setTainted(tainted)
 	}
 	return nil
 }
@@ -191,7 +202,7 @@ func (r *rotator) rotateSVIDIfNeeded(ctx context.Context) (err error) {
 		return fmt.Errorf("unexpected value type: %T", r.state.Value())
 	}
 
-	if r.c.RotationStrategy.ShouldRotateX509(r.clk.Now(), state.SVID[0]) || r.tainted {
+	if r.c.RotationStrategy.ShouldRotateX509(r.clk.Now(), state.SVID[0]) || r.IsTainted() {
 		if state.Reattestable {
 			err = r.reattest(ctx)
 		} else {

@@ -25,7 +25,7 @@ const (
 	// SVIDSyncInterval is the interval at which SVIDs are synced with subscribers
 	SVIDSyncInterval = 500 * time.Millisecond
 	// Default batch size for processing tainted SVIDs
-	DefaultProcessingBatchSize = 100
+	defaultProcessingBatchSize = 100
 )
 
 var (
@@ -159,7 +159,7 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 		subscribeBackoffFn: func() backoff.BackOff {
 			return backoff.NewBackoff(clk, SVIDSyncInterval)
 		},
-		processingBatchSize: DefaultProcessingBatchSize,
+		processingBatchSize: defaultProcessingBatchSize,
 	}
 }
 
@@ -507,7 +507,8 @@ func (c *LRUCache) UpdateSVIDs(update *UpdateSVIDs) {
 	}
 }
 
-// TaintX509SVIDs initiates the processing of all cached SVIDs, checking if they are tainted by the provided authorities.
+// TaintX509SVIDs initiates the processing of all cached SVIDs, checking if they are tainted
+// by any of the provided authorities.
 // It schedules the processing to run asynchronously in batches.
 func (c *LRUCache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x509.Certificate) {
 	c.mu.RLock()
@@ -585,18 +586,11 @@ func (c *LRUCache) scheduleRotation(ctx context.Context, entryIDs []string, tain
 	}
 
 	for {
-		// Process batch of entries
+		// Process entries in batches
 		batchSize := min(c.processingBatchSize, len(entryIDs))
 		processingEntries := entryIDs[:batchSize]
 
-		// TODO: this is for testing... REMOVE BEFORE MERGING!!!!
-		// start := time.Now()
 		c.processTaintedSVIDs(processingEntries, taintedX509Authorities)
-
-		// TODO: this is for testing... REMOVE BEFORE MERGING!!!!
-		// c.log.Debugf("******************************************************")
-		// c.log.Debugf("Processed %d SVIDs in %v", len(processingEntries), time.Since(start))
-		// c.log.Debugf("******************************************************")
 
 		// Remove processed entries from the list
 		entryIDs = entryIDs[batchSize:]
