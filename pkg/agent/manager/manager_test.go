@@ -884,7 +884,7 @@ func TestForceRotation(t *testing.T) {
 	// Wait until tainted authorities are fully processed, then retry synchronization
 	assert.Eventually(t, func() bool {
 		for _, logEntry := range logHook.Entries {
-			if logEntry.Message == "Finished to process all tainted entries" {
+			if logEntry.Message == "Finished processing all tainted entries" {
 				return true
 			}
 		}

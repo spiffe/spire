@@ -162,7 +162,11 @@ func (r *rotator) NotifyTaintedAuthorities(taintedAuthorities []*x509.Certificat
 		return nil
 	}
 
-	tainted := x509util.IsSignedByRoot(state.SVID, taintedAuthorities)
+	tainted, err := x509util.IsSignedByRoot(state.SVID, taintedAuthorities)
+	if err != nil {
+		return fmt.Errorf("failed to check if SVID is tainted: %w", err)
+	}
+
 	if tainted {
 		r.c.Log.Debug("Agent SVID is tainted by a root authority, forcing rotation")
 		r.setTainted(tainted)

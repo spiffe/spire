@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -324,7 +325,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 
 		err := m.synchronize(ctx)
 		switch {
-		case nodeutil.IsUnknownAuthorityError(err):
+		case x509util.IsUnknownAuthorityError(err):
 			m.c.Log.WithError(err).Info("Synchronize failed, non-recoverable error")
 			return fmt.Errorf("failed to sync with SPIRE Server: %w", err)
 		case err != nil && nodeutil.ShouldAgentReattest(err):

@@ -238,7 +238,15 @@ func (c *Cache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x5
 			continue
 		}
 
-		if x509util.IsSignedByRoot(record.svid.Chain, taintedX509Authorities) {
+		isTainted, err := x509util.IsSignedByRoot(record.svid.Chain, taintedX509Authorities)
+		if err != nil {
+			c.c.Log.WithError(err).
+				WithField(telemetry.RegistrationID, record.entry.EntryId).
+				Error("Failed to check if SVID is signed by tainted authority")
+			continue
+		}
+
+		if isTainted {
 			taintedSVIDs++
 			record.svid = nil // Mark SVID as tainted by setting it to nil
 		}

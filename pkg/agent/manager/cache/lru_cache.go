@@ -597,17 +597,17 @@ func (c *LRUCache) scheduleRotation(ctx context.Context, entryIDs []string, tain
 
 		entriesLeftCount := len(entryIDs)
 		if entriesLeftCount == 0 {
-			c.log.Debug("Finished to process all tainted entries")
+			c.log.Debug("Finished processing all tainted entries")
 			c.notifyTaintedBatchProcessed()
 			return
 		}
-		c.log.WithField(telemetry.Count, entriesLeftCount).Debug("Entries left to process")
+		c.log.WithField(telemetry.Count, entriesLeftCount).Debug("Tainted entries left to be processed")
 		c.notifyTaintedBatchProcessed()
 
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
-			c.log.Debug("Context cancelled, exiting rotation schedule")
+			c.log.WithError(ctx.Err()).Warn("Context cancelled, exiting rotation schedule")
 			return
 		}
 	}
@@ -624,7 +624,6 @@ func (c *LRUCache) processTaintedSVIDs(entryIDs []string, taintedX509Authorities
 	counter := telemetry.StartCall(c.metrics, telemetry.CacheManager, "", telemetry.ProcessTaintedSVIDs)
 	defer counter.Done(nil)
 
-	// TODO: add metric fr time
 	taintedSVIDs := 0
 
 	c.mu.Lock()
@@ -638,7 +637,14 @@ func (c *LRUCache) processTaintedSVIDs(entryIDs []string, taintedX509Authorities
 		}
 
 		// Check if the SVID is signed by any tainted authority
-		if x509util.IsSignedByRoot(svid.Chain, taintedX509Authorities) {
+		isTainted, err := x509util.IsSignedByRoot(svid.Chain, taintedX509Authorities)
+		if err != nil {
+			c.log.WithError(err).
+				WithField(telemetry.RegistrationID, entryID).
+				Error("Failed to check if SVID is signed by tainted authority")
+			continue
+		}
+		if isTainted {
 			taintedSVIDs++
 			delete(c.svids, entryID)
 		}
