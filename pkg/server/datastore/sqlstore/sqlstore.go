@@ -295,6 +295,8 @@ func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedN
 		if err != nil {
 			return err
 		}
+		// TODO: this is at the wrong level of the software stack.
+		// It should be created in the caller of the datastore interface.
 		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
 			SpiffeID: node.SpiffeId,
 		})

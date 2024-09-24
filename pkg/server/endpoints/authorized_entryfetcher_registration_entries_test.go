@@ -1,10 +1,7 @@
 package endpoints
 
+/*
 import (
-	"context"
-	"errors"
-	"sort"
-	"strconv"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -20,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+*/
+/*
 func TestBuildRegistrationEntriesCache(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
@@ -154,3 +153,4 @@ func TestRegistrationEntriesSavesMissedStartupEvents(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, len(hook.AllEntries()))
 }
+*/

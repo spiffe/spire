@@ -409,7 +409,6 @@ func TestEvenDispersion(t *testing.T) {
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
 			expectedSlotCount: 500,
-			expectedSlotCount: 500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
