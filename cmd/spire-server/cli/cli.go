@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
 	"github.com/spiffe/spire/cmd/spire-server/cli/token"
+	"github.com/spiffe/spire/cmd/spire-server/cli/upstreamauthority"
 	"github.com/spiffe/spire/cmd/spire-server/cli/validate"
 	"github.com/spiffe/spire/cmd/spire-server/cli/x509"
 	"github.com/spiffe/spire/pkg/common/fflag"
@@ -192,6 +193,12 @@ func addCommandsEnabledByFFlags(commands map[string]cli.CommandFactory) {
 		}
 		commands["localauthority jwt revoke"] = func() (cli.Command, error) {
 			return localauthority_jwt.NewJWTRevokeCommand(), nil
+		}
+		commands["upstreamauthority taint"] = func() (cli.Command, error) {
+			return upstreamauthority.NewTaintCommand(), nil
+		}
+		commands["upstreamauthority revoke"] = func() (cli.Command, error) {
+			return upstreamauthority.NewRevokeCommand(), nil
 		}
 	}
 }
