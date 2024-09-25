@@ -56,7 +56,7 @@ func (a *attestedNodes) captureChangedNodes(ctx context.Context) error {
 
 func (a *attestedNodes) searchBeforeFirstEvent(ctx context.Context) error {
 	// First event detected, and startup was less than a transaction timout away.
-	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {
+	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.sqlTransactionTimeout {
 		resp, err := a.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{
 			LessThanEventID: a.firstEvent,
 		})
@@ -230,6 +230,7 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
 		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+		delete(a.fetchNodes, node.SpiffeId)
 
 	}
 	a.emitCacheMetrics()

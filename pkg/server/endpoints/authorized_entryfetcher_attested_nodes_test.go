@@ -40,7 +40,6 @@ func TestLoadCache(t *testing.T) {
 		attestedNodes []*common.AttestedNode
 		errors        []error
 
-		expectedNodes             int
 		expectedError             error
 		expectedAuthorizedEntries []string
 		expectedGauges            []expectedGauge
@@ -183,9 +182,6 @@ func TestLoadCache(t *testing.T) {
 				ds.AppendNextError(err)
 			}
 
-			cacheStats := cache.Stats()
-			require.Equal(t, 0, cacheStats.AgentsByID, "cache must be empty to start")
-
 			attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, defaultCacheReloadInterval, defaultSQLTransactionTimeout)
 			if tt.expectedError != nil {
 				require.Error(t, err, tt.expectedError)
@@ -194,16 +190,18 @@ func TestLoadCache(t *testing.T) {
 
 			require.NoError(t, err)
 
-			cacheStats = attestedNodes.cache.Stats()
+			cacheStats := attestedNodes.cache.Stats()
 			require.Equal(t, len(tt.expectedAuthorizedEntries), cacheStats.AgentsByID, "wrong number of agents by ID")
 
+			// for now, the only way to ensure the desired agent ids are prsent is
+			// to remove the desired ids and check the count it zero.
 			for _, expectedAuthorizedId := range tt.expectedAuthorizedEntries {
 				attestedNodes.cache.RemoveAgent(expectedAuthorizedId)
 			}
-
 			cacheStats = attestedNodes.cache.Stats()
 			require.Equal(t, 0, cacheStats.AgentsByID, "clearing all expected agent ids didn't clear ccache")
 
+			// build up a map of the last metrics
 			var lastMetrics map[string]int = make(map[string]int)
 			for _, metricItem := range metrics.AllMetrics() {
 				if metricItem.Type == fakemetrics.SetGaugeType {
@@ -225,6 +223,404 @@ func TestLoadCache(t *testing.T) {
 }
 
 func TestSearchBeforeFirstEvent(t *testing.T) {
+	var (
+		defaultFirstEvent = uint(60)
+		defaultLastEvent = uint(61)
+		defaultAttestedNodes = []*common.AttestedNode{
+			&common.AttestedNode{
+				SpiffeId:     "spiffe://example.org/test_node_2",
+				CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+			},
+			&common.AttestedNode{
+				SpiffeId:     "spiffe://example.org/test_node_3",
+				CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+			},
+		}
+		defaultEventsStartingAt60 = []*datastore.AttestedNodeEvent{
+			&datastore.AttestedNodeEvent{
+				EventID:  60,
+				SpiffeID: "spiffe://example.org/test_node_2",
+			},
+			&datastore.AttestedNodeEvent{
+				EventID:  61,
+				SpiffeID: "spiffe://example.org/test_node_3",
+			},
+		}
+		NoFetches = []string{}
+	)
+	for _, tt := range []struct {
+		name               string
+		attestedNodes      []*common.AttestedNode
+		attestedNodeEvents []*datastore.AttestedNodeEvent
+		waitToPoll         time.Duration
+		eventsBeforeFirst  []uint
+		polledEvents       []*datastore.AttestedNodeEvent
+		errors             []error
+
+		expectedError             error
+		expectedEventsBeforeFirst []uint
+		expectedFetches           []string
+	}{
+		{
+			name: "first event not loaded",
+
+			expectedEventsBeforeFirst: []uint{},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "before first event arrived, after transaction timeout",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			waitToPoll:         time.Duration(2) * defaultSQLTransactionTimeout,
+			// even with new before first events, they shouldn't load
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  58,
+					SpiffeID: "spiffe://example.org/test_node_1",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{},
+			expectedFetches:           NoFetches,
+		},
+		{
+			name: "no before first events",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			polledEvents:       []*datastore.AttestedNodeEvent{},
+
+			expectedEventsBeforeFirst: []uint{},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "new before first event",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  58,
+					SpiffeID: "spiffe://example.org/test_node_1",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{58},
+			expectedFetches:           []string{"spiffe://example.org/test_node_1"},
+		},
+		{
+			name: "new after last event",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  64,
+					SpiffeID: "spiffe://example.org/test_node_1",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "previously seen before first event",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			eventsBeforeFirst:  []uint{58},
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  58,
+					SpiffeID: "spiffe://example.org/test_node_1",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{58},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "previously seen before first event and after last event",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			eventsBeforeFirst:  []uint{58},
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  defaultFirstEvent - 2,
+					SpiffeID: "spiffe://example.org/test_node_1",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  defaultLastEvent + 2,
+					SpiffeID: "spiffe://example.org/test_node_4",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{defaultFirstEvent - 2},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "five new before first events",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  48,
+					SpiffeID: "spiffe://example.org/test_node_10",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  49,
+					SpiffeID: "spiffe://example.org/test_node_11",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  53,
+					SpiffeID: "spiffe://example.org/test_node_12",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  56,
+					SpiffeID: "spiffe://example.org/test_node_13",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  57,
+					SpiffeID: "spiffe://example.org/test_node_14",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			expectedFetches: []string{
+				"spiffe://example.org/test_node_10",
+				"spiffe://example.org/test_node_11",
+				"spiffe://example.org/test_node_12",
+				"spiffe://example.org/test_node_13",
+				"spiffe://example.org/test_node_14",
+			},
+		},
+		{
+			name: "five new before first events, one after last event",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  48,
+					SpiffeID: "spiffe://example.org/test_node_10",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  49,
+					SpiffeID: "spiffe://example.org/test_node_11",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  53,
+					SpiffeID: "spiffe://example.org/test_node_12",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  56,
+					SpiffeID: "spiffe://example.org/test_node_13",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  defaultLastEvent + 1,
+					SpiffeID: "spiffe://example.org/test_node_14",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56},
+			expectedFetches: []string{
+				"spiffe://example.org/test_node_10",
+				"spiffe://example.org/test_node_11",
+				"spiffe://example.org/test_node_12",
+				"spiffe://example.org/test_node_13",
+			},
+		},
+		{
+			name: "five before first events, two previously seen",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			eventsBeforeFirst:  []uint{48, 49},
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  48,
+					SpiffeID: "spiffe://example.org/test_node_10",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  49,
+					SpiffeID: "spiffe://example.org/test_node_11",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  53,
+					SpiffeID: "spiffe://example.org/test_node_12",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  56,
+					SpiffeID: "spiffe://example.org/test_node_13",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  57,
+					SpiffeID: "spiffe://example.org/test_node_14",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			expectedFetches: []string{
+				"spiffe://example.org/test_node_12",
+				"spiffe://example.org/test_node_13",
+				"spiffe://example.org/test_node_14",
+			},
+		},
+		{
+			name:          "five before first events, two previously seen, one after last event",
+			attestedNodes: defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			eventsBeforeFirst:  []uint{48, 49},
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  48,
+					SpiffeID: "spiffe://example.org/test_node_10",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  49,
+					SpiffeID: "spiffe://example.org/test_node_11",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  53,
+					SpiffeID: "spiffe://example.org/test_node_12",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  56,
+					SpiffeID: "spiffe://example.org/test_node_13",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  defaultLastEvent + 1,
+					SpiffeID: "spiffe://example.org/test_node_14",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56},
+			expectedFetches: []string{
+				"spiffe://example.org/test_node_12",
+				"spiffe://example.org/test_node_13",
+			},
+		},
+		{
+			name: "five before first events, five previously seen",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			eventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  48,
+					SpiffeID: "spiffe://example.org/test_node_10",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  49,
+					SpiffeID: "spiffe://example.org/test_node_11",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  53,
+					SpiffeID: "spiffe://example.org/test_node_12",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  56,
+					SpiffeID: "spiffe://example.org/test_node_13",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  57,
+					SpiffeID: "spiffe://example.org/test_node_14",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			expectedFetches: []string{
+			},
+		},
+		{
+			name: "five before first events, five previously seen, with after last event",
+
+			attestedNodes:      defaultAttestedNodes,
+			attestedNodeEvents: defaultEventsStartingAt60,
+			eventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			polledEvents: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  48,
+					SpiffeID: "spiffe://example.org/test_node_10",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  49,
+					SpiffeID: "spiffe://example.org/test_node_11",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  53,
+					SpiffeID: "spiffe://example.org/test_node_12",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  56,
+					SpiffeID: "spiffe://example.org/test_node_13",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  57,
+					SpiffeID: "spiffe://example.org/test_node_14",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  defaultLastEvent + 1,
+					SpiffeID: "spiffe://example.org/test_node_28",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			expectedFetches: []string{
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			log, hook := test.NewNullLogger()
+			log.SetLevel(logrus.DebugLevel)
+			clk := clock.NewMock(t)
+			cache := authorizedentries.NewCache(clk)
+			metrics := fakemetrics.New()
+
+			ds := fakedatastore.New(t)
+			// initialize the database
+			for _, attestedNode := range tt.attestedNodes {
+				ds.CreateAttestedNode(ctx, attestedNode)
+			}
+			// prune attested node entires, to test the load independently of the events
+			// this can be removed once CreateAttestedNode no longer creates node events.
+			ds.PruneAttestedNodesEvents(ctx, time.Duration(-5)*time.Hour)
+			// add them back so we can control their event id.
+			for _, event := range tt.attestedNodeEvents {
+				ds.CreateAttestedNodeEventForTesting(ctx, event)
+			}
+
+			attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, defaultCacheReloadInterval, defaultSQLTransactionTimeout)
+			require.NoError(t, err)
+
+			if tt.waitToPoll == 0 {
+				clk.Add(time.Duration(1) * defaultCacheReloadInterval)
+			} else {
+				clk.Add(tt.waitToPoll)
+			}
+
+			for _, event := range tt.eventsBeforeFirst {
+				attestedNodes.eventsBeforeFirst[event] = struct{}{}
+			}
+
+			for _, event := range tt.polledEvents {
+				ds.CreateAttestedNodeEventForTesting(ctx, event)
+			}
+
+			attestedNodes.searchBeforeFirstEvent(ctx)
+
+			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(attestedNodes.eventsBeforeFirst)), "expected events before tracking mismatch")
+			require.ElementsMatch(t, tt.expectedFetches, slices.Collect(maps.Keys(attestedNodes.fetchNodes)), "expected fetches mismatch")
+
+			require.Zero(t, hook.Entries)
+		})
+	}
 }
 
 func TestSelectedPolledEvents(t *testing.T) {
@@ -236,11 +632,11 @@ func TestSelectedPolledEvents(t *testing.T) {
 	}{
 		// polling is based on the eventTracker, not on events in the database
 		{
-			name:   "nothing to poll, no action taken, no events",
+			name:   "nothing after to poll, no action taken, no events",
 			events: []*datastore.AttestedNodeEvent{},
 		},
 		{
-			name: "nothing to poll, no action taken, one event",
+			name: "nothing to poll, no action take, one event",
 			events: []*datastore.AttestedNodeEvent{
 				&datastore.AttestedNodeEvent{
 					EventID:  100,
@@ -430,6 +826,111 @@ func TestSelectedPolledEvents(t *testing.T) {
 }
 
 func TestScanForNewEvents(t *testing.T) {
+	var (
+		defaultLastEvent = uint(81)
+	)
+	for _, tt := range []struct {
+		name            string
+		polling         []uint
+		events          []*datastore.AttestedNodeEvent
+		expectedFetches []string
+	}{
+		{
+			name:   "nothing to poll, no action taken, no events",
+			events: []*datastore.AttestedNodeEvent{},
+		},
+		{
+			name: "nothing to poll, no action taken, one event",
+			events: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  defaultLastEvent + 1,
+					SpiffeID: "spiffe://example.org/test_node_1",
+				},
+			},
+		},
+		{
+			name: "poll first event",
+			events: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  101,
+					SpiffeID: "spiffe://example.org/test_node_1",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  102,
+					SpiffeID: "spiffe://example.org/test_node_2",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  103,
+					SpiffeID: "spiffe://example.org/test_node_3",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  104,
+					SpiffeID: "spiffe://example.org/test_node_4",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  105,
+					SpiffeID: "spiffe://example.org/test_node_5",
+				},
+			},
+		},
+		{
+			name:    "polling one item, not found",
+			polling: []uint{103},
+			events: []*datastore.AttestedNodeEvent{
+				&datastore.AttestedNodeEvent{
+					EventID:  101,
+					SpiffeID: "spiffe://example.org/test_node_1",
+				},
+				&datastore.AttestedNodeEvent{
+					EventID:  102,
+					SpiffeID: "spiffe://example.org/test_node_2",
+				},
+		{
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			log, hook := test.NewNullLogger()
+			log.SetLevel(logrus.DebugLevel)
+			clk := clock.NewMock(t)
+			cache := authorizedentries.NewCache(clk)
+			metrics := fakemetrics.New()
+
+			ds := fakedatastore.New(t)
+			// initialize the database
+			for _, attestedNode := range tt.attestedNodes {
+				ds.CreateAttestedNode(ctx, attestedNode)
+			}
+			// prune attested node entires, to test the load independently of the events
+			// this can be removed once CreateAttestedNode no longer creates node events.
+			ds.PruneAttestedNodesEvents(ctx, time.Duration(-5)*time.Hour)
+			// add them back so we can control their event id.
+			for _, event := range tt.attestedNodeEvents {
+				ds.CreateAttestedNodeEventForTesting(ctx, event)
+			}
+
+			attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, defaultCacheReloadInterval, defaultSQLTransactionTimeout)
+			require.NoError(t, err)
+
+			if tt.waitToPoll == 0 {
+				clk.Add(time.Duration(1) * defaultCacheReloadInterval)
+			} else {
+				clk.Add(tt.waitToPoll)
+			}
+
+			for _, event := range tt.polledEvents {
+				ds.CreateAttestedNodeEventForTesting(ctx, event)
+			}
+
+			attestedNodes.searchBeforeFirstEvent(ctx)
+
+			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(attestedNodes.eventsBeforeFirst)), "expected events before tracking mismatch")
+			require.ElementsMatch(t, tt.expectedFetches, slices.Collect(maps.Keys(attestedNodes.fetchNodes)), "expected fetches mismatch")
+
+			require.Zero(t, hook.Entries)
+		})
+	}
 }
 
 func TestUpdateAttestedNodesCache(t *testing.T) {
