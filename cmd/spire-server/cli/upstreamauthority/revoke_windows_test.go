@@ -9,6 +9,6 @@ var (
   -output value
     	Desired output format (pretty, json); default: pretty.
   -subjectKeyID string
-    	The X.509 Subject Key Identifier (or SKID) of the authority's CA certificate of the upstream X.509 authority to revoke
+    	The X.509 Subject Key Identifier (or SKID) of the authority's CA certificate of the X.509 upstream authority to revoke
 `
 )
