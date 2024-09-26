@@ -179,8 +179,8 @@ func (et *eventTracker) StopTracking(event uint) {
 func (et *eventTracker) SelectEvents() []uint {
 	pollList := make([]uint, 0)
 	for event, _ := range et.events {
-		if event.ticks >= et.pollPeriods {
-			et.RemoveEvent(event)
+		if et.events[event].ticks >= et.pollPeriods {
+			et.StopTracking(event)
 			continue
 		}
 		eventStats := et.events[event]
