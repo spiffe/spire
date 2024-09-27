@@ -407,6 +407,10 @@ func (s *Service) TaintX509UpstreamAuthority(ctx context.Context, req *localauth
 		return nil, api.MakeErr(log, codes.Internal, "failed to taint upstream authority", err)
 	}
 
+	if err := s.ca.NotifyTaintedX509Authority(ctx, subjectKeyIDRequest); err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to notify tainted authority", err)
+	}
+
 	rpccontext.AuditRPC(ctx)
 	log.Info("X.509 upstream authority tainted successfully")
 
