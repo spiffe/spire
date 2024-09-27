@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -84,6 +85,66 @@ type ClusterConfig struct {
 
 type AttestorConfig struct {
 	Clusters map[string]*ClusterConfig `hcl:"clusters"`
+}
+
+func (p *AttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *attestorConfig {
+	status.ReportInfof("The %q node attestor plugin has been deprecated in favor of the \"k8s_psat\" plugin and will be removed in a future release", pluginName)
+	p.log.Warn(fmt.Sprintf("The %q node attestor plugin has been deprecated in favor of the \"k8s_psat\" plugin and will be removed in a future release", pluginName))
+
+	hclConfig := new(AttestorConfig)
+	if err := hcl.Decode(hclConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if len(hclConfig.Clusters) == 0 {
+		status.ReportError("configuration must have at least one cluster")
+	}
+
+	newConfig := &attestorConfig{
+		trustDomain: coreConfig.TrustDomain.String(),
+		clusters:    make(map[string]*clusterConfig),
+	}
+
+	for name, cluster := range hclConfig.Clusters {
+		var serviceAccountKeys []crypto.PublicKey
+		var apiserverClient apiServerClient
+		var err error
+		if cluster.UseTokenReviewAPI {
+			apiserverClient = apiserver.New(cluster.KubeConfigFile)
+		} else {
+			if cluster.ServiceAccountKeyFile == "" {
+				status.ReportErrorf("cluster %q configuration missing service account key file", name)
+			}
+
+			serviceAccountKeys, err = loadServiceAccountKeys(cluster.ServiceAccountKeyFile)
+			if err != nil {
+				status.ReportErrorf("failed to load cluster %q service account keys from %q: %v", name, cluster.ServiceAccountKeyFile, err)
+			}
+
+			if len(serviceAccountKeys) == 0 {
+				status.ReportErrorf("cluster %q has no service account keys in %q", name, cluster.ServiceAccountKeyFile)
+			}
+		}
+
+		if len(cluster.ServiceAccountAllowList) == 0 {
+			status.ReportErrorf("cluster %q configuration must have at least one service account allowed", name)
+		}
+
+		serviceAccounts := make(map[string]bool)
+		for _, serviceAccount := range cluster.ServiceAccountAllowList {
+			serviceAccounts[serviceAccount] = true
+		}
+
+		newConfig.clusters[name] = &clusterConfig{
+			serviceAccountKeys: serviceAccountKeys,
+			serviceAccounts:    serviceAccounts,
+			useTokenReviewAPI:  cluster.UseTokenReviewAPI,
+			client:             apiserverClient,
+		}
+	}
+
+	return newConfig
 }
 
 type apiServerClient interface {
@@ -277,68 +338,25 @@ func (p *AttestorPlugin) getNamesFromClaims(claims *k8s.SATClaims) (namespace st
 }
 
 func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	p.log.Warn(fmt.Sprintf("The %q node attestor plugin has been deprecated in favor of the \"k8s_psat\" plugin and will be removed in a future release", pluginName))
-
-	hclConfig := new(AttestorConfig)
-	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(hclConfig.Clusters) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "configuration must have at least one cluster")
-	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.config = newConfig
 
-	config := &attestorConfig{
-		trustDomain: req.CoreConfiguration.TrustDomain,
-		clusters:    make(map[string]*clusterConfig),
-	}
-	config.trustDomain = req.CoreConfiguration.TrustDomain
-	for name, cluster := range hclConfig.Clusters {
-		var serviceAccountKeys []crypto.PublicKey
-		var apiserverClient apiServerClient
-		var err error
-		if cluster.UseTokenReviewAPI {
-			apiserverClient = apiserver.New(cluster.KubeConfigFile)
-		} else {
-			if cluster.ServiceAccountKeyFile == "" {
-				return nil, status.Errorf(codes.InvalidArgument, "cluster %q configuration missing service account key file", name)
-			}
-
-			serviceAccountKeys, err = loadServiceAccountKeys(cluster.ServiceAccountKeyFile)
-			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "failed to load cluster %q service account keys from %q: %v", name, cluster.ServiceAccountKeyFile, err)
-			}
-
-			if len(serviceAccountKeys) == 0 {
-				return nil, status.Errorf(codes.InvalidArgument, "cluster %q has no service account keys in %q", name, cluster.ServiceAccountKeyFile)
-			}
-		}
-
-		if len(cluster.ServiceAccountAllowList) == 0 {
-			return nil, status.Errorf(codes.InvalidArgument, "cluster %q configuration must have at least one service account allowed", name)
-		}
-
-		serviceAccounts := make(map[string]bool)
-		for _, serviceAccount := range cluster.ServiceAccountAllowList {
-			serviceAccounts[serviceAccount] = true
-		}
-
-		config.clusters[name] = &clusterConfig{
-			serviceAccountKeys: serviceAccountKeys,
-			serviceAccounts:    serviceAccounts,
-			useTokenReviewAPI:  cluster.UseTokenReviewAPI,
-			client:             apiserverClient,
-		}
-	}
-
-	p.setConfig(config)
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *AttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
@@ -348,12 +366,6 @@ func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 		return nil, status.Errorf(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
-}
-
-func (p *AttestorPlugin) setConfig(config *attestorConfig) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.config = config
 }
 
 func verifyTokenSignature(keys []crypto.PublicKey, token *jwt.JSONWebToken, claims any) (err error) {

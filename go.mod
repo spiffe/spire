@@ -35,7 +35,7 @@ require (
 	github.com/aws/smithy-go v1.20.4
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/docker/docker v27.2.1+incompatible
+	github.com/docker/docker v27.3.1+incompatible
 	github.com/envoyproxy/go-control-plane v0.13.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/go-jose/go-jose/v4 v4.0.4
@@ -65,7 +65,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.23
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.68.0
-	github.com/prometheus/client_golang v1.20.3
+	github.com/prometheus/client_golang v1.20.4
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/sigstore/cosign/v2 v2.4.0
 	github.com/sigstore/rekor v1.3.6
@@ -73,7 +73,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spiffe/go-spiffe/v2 v2.3.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20240807182354-18e423ce2c1c
-	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20230721151831-bf67dde4721d
+	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20240701180828-594312f4444d
 	github.com/stretchr/testify v1.9.0
 	github.com/uber-go/tally/v4 v4.1.16
 	github.com/valyala/fastjson v1.6.4

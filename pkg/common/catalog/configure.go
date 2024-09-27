@@ -29,11 +29,16 @@ func (c CoreConfig) v1() *configv1.CoreConfiguration {
 
 type Configurer interface {
 	Configure(ctx context.Context, coreConfig CoreConfig, configuration string) error
+	Validate(ctx context.Context, coreConfig CoreConfig, configuration string) error
 }
 
 type ConfigurerFunc func(ctx context.Context, coreConfig CoreConfig, configuration string) error
 
 func (fn ConfigurerFunc) Configure(ctx context.Context, coreConfig CoreConfig, configuration string) error {
+	return fn(ctx, coreConfig, configuration)
+}
+
+func (fn ConfigurerFunc) Validate(ctx context.Context, coreConfig CoreConfig, configuration string) error {
 	return fn(ctx, coreConfig, configuration)
 }
 
@@ -172,10 +177,22 @@ func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, hc
 	return err
 }
 
+func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) error {
+	_, err := v1.ConfigServiceClient.Validate(ctx, &configv1.ValidateRequest{
+		CoreConfiguration: coreConfig.v1(),
+		HclConfiguration:  hclConfiguration,
+	})
+	return err
+}
+
 type configurerUnsupported struct{}
 
 func (c configurerUnsupported) Configure(context.Context, CoreConfig, string) error {
 	return status.Error(codes.FailedPrecondition, "plugin does not support a configuration interface")
+}
+
+func (c configurerUnsupported) Validate(context.Context, CoreConfig, string) error {
+	return status.Error(codes.FailedPrecondition, "plugin does not support a validation interface")
 }
 
 func hashData(data string) string {

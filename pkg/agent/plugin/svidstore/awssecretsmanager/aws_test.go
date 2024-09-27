@@ -82,6 +82,7 @@ func TestConfigure(t *testing.T) {
 
 	for _, tt := range []struct {
 		name            string
+		trustDomain     string
 		envs            map[string]string
 		accessKeyID     string
 		secretAccessKey string
@@ -94,6 +95,7 @@ func TestConfigure(t *testing.T) {
 	}{
 		{
 			name:            "access key and secret from config",
+			trustDomain:     "example.org",
 			envs:            envs,
 			accessKeyID:     "ACCESS_KEY",
 			secretAccessKey: "ID",
@@ -105,9 +107,10 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name:   "access key and secret from env vars",
-			envs:   envs,
-			region: "r1",
+			name:        "access key and secret from env vars",
+			trustDomain: "example.org",
+			envs:        envs,
+			region:      "r1",
 			expectConfig: &Configuration{
 				AccessKeyID:     "foh",
 				SecretAccessKey: "bar",
@@ -116,12 +119,14 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:            "no region provided",
+			trustDomain:     "example.org",
 			envs:            envs,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "region is required",
 		},
 		{
 			name:            "new client fails",
+			trustDomain:     "example.org",
 			envs:            envs,
 			region:          "r1",
 			expectClientErr: errors.New("oh no"),
@@ -130,6 +135,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:            "malformed configuration",
+			trustDomain:     "example.org",
 			envs:            envs,
 			region:          "r1",
 			customConfig:    "{ not a config }",
@@ -142,6 +148,9 @@ func TestConfigure(t *testing.T) {
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
 			}
+			options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
+				TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
+			}))
 
 			if tt.customConfig != "" {
 				options = append(options, plugintest.Configure(tt.customConfig))

@@ -59,13 +59,13 @@ func TestConfigure(t *testing.T) {
 			test:            "malformed configuration",
 			overrideConfig:  "MALFORMED",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "unable to decode configuration:",
+			expectMsgPrefix: "plugin configuration is malformed",
 		},
 		{
 			test:               "no trust domain",
 			overrideCoreConfig: &catalog.CoreConfig{},
 			expectCode:         codes.InvalidArgument,
-			expectMsgPrefix:    "trust_domain is required",
+			expectMsgPrefix:    "server core configuration must contain trust_domain",
 		},
 		{
 			test:            "missing key ARN",
@@ -76,7 +76,7 @@ func TestConfigure(t *testing.T) {
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "configuration missing key ARN",
+			expectMsgPrefix: "configuration missing 'key_file_arn' value",
 		},
 		{
 			test:            "missing cert ARN",
@@ -87,7 +87,7 @@ func TestConfigure(t *testing.T) {
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "configuration missing cert ARN",
+			expectMsgPrefix: "configuration missing 'cert_file_arn' value",
 		},
 		{
 			test:            "missing cert and key ARNs",
@@ -97,7 +97,7 @@ func TestConfigure(t *testing.T) {
 			securityToken:   "security_token",
 			assumeRoleARN:   "assume_role_arn",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "configuration missing both cert ARN and key ARN",
+			expectMsgPrefix: "configuration missing 'cert_file_arn' value",
 		},
 		{
 			test:            "fails to create client",
@@ -228,7 +228,7 @@ func TestConfigure(t *testing.T) {
 				}))
 			}
 
-			p := new(Plugin)
+			p := New()
 			p.hooks.clock = clk
 			p.hooks.newClient = fakeStorageClientCreator
 
@@ -330,7 +330,7 @@ func TestMintX509CA(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
-			p := new(Plugin)
+			p := New()
 			p.hooks.clock = clk
 			p.hooks.getenv = func(s string) string {
 				return ""
@@ -396,7 +396,7 @@ func TestMintX509CA(t *testing.T) {
 func TestPublishJWTKey(t *testing.T) {
 	clk := clock.NewMock(t)
 	_, fakeStorageClientCreator := generateTestData(t, clk)
-	p := new(Plugin)
+	p := New()
 	p.hooks.clock = clk
 	p.hooks.newClient = fakeStorageClientCreator
 

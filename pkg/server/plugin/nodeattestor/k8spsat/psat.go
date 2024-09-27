@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s/apiserver"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -77,6 +78,61 @@ type clusterConfig struct {
 	client               apiserver.Client
 	allowedNodeLabelKeys map[string]bool
 	allowedPodLabelKeys  map[string]bool
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *attestorConfig {
+	hclConfig := new(AttestorConfig)
+	if err := hcl.Decode(hclConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
+	}
+
+	if len(hclConfig.Clusters) < 1 {
+		status.ReportInfo("No clusters configured, PSAT attestation is effectively disabled")
+	}
+
+	newConfig := &attestorConfig{
+		trustDomain: coreConfig.TrustDomain.String(),
+		clusters:    make(map[string]*clusterConfig),
+	}
+
+	for name, hclCluster := range hclConfig.Clusters {
+		if len(hclCluster.ServiceAccountAllowList) == 0 {
+			status.ReportErrorf("cluster %q configuration must have at least one service account allowed", name)
+		}
+
+		serviceAccounts := make(map[string]bool)
+		for _, serviceAccount := range hclCluster.ServiceAccountAllowList {
+			serviceAccounts[serviceAccount] = true
+		}
+
+		var audience []string
+		if hclCluster.Audience == nil {
+			audience = defaultAudience
+		} else {
+			audience = *hclCluster.Audience
+		}
+
+		allowedNodeLabelKeys := make(map[string]bool)
+		for _, label := range hclCluster.AllowedNodeLabelKeys {
+			allowedNodeLabelKeys[label] = true
+		}
+
+		allowedPodLabelKeys := make(map[string]bool)
+		for _, label := range hclCluster.AllowedPodLabelKeys {
+			allowedPodLabelKeys[label] = true
+		}
+
+		newConfig.clusters[name] = &clusterConfig{
+			serviceAccounts:      serviceAccounts,
+			audience:             audience,
+			client:               apiserver.New(hclCluster.KubeConfigFile),
+			allowedNodeLabelKeys: allowedNodeLabelKeys,
+			allowedPodLabelKeys:  allowedPodLabelKeys,
+		}
+	}
+
+	return newConfig
 }
 
 // AttestorPlugin is a PSAT (Projected SAT) node attestor plugin
@@ -214,65 +270,25 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 }
 
 func (p *AttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	hclConfig := new(AttestorConfig)
-
-	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "core configuration missing trust domain")
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	config := &attestorConfig{
-		trustDomain: req.CoreConfiguration.TrustDomain,
-		clusters:    make(map[string]*clusterConfig),
-	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.config = newConfig
 
-	for name, cluster := range hclConfig.Clusters {
-		if len(cluster.ServiceAccountAllowList) == 0 {
-			return nil, status.Errorf(codes.InvalidArgument, "cluster %q configuration must have at least one service account allowed", name)
-		}
-
-		serviceAccounts := make(map[string]bool)
-		for _, serviceAccount := range cluster.ServiceAccountAllowList {
-			serviceAccounts[serviceAccount] = true
-		}
-
-		var audience []string
-		if cluster.Audience == nil {
-			audience = defaultAudience
-		} else {
-			audience = *cluster.Audience
-		}
-
-		allowedNodeLabelKeys := make(map[string]bool)
-		for _, label := range cluster.AllowedNodeLabelKeys {
-			allowedNodeLabelKeys[label] = true
-		}
-
-		allowedPodLabelKeys := make(map[string]bool)
-		for _, label := range cluster.AllowedPodLabelKeys {
-			allowedPodLabelKeys[label] = true
-		}
-
-		config.clusters[name] = &clusterConfig{
-			serviceAccounts:      serviceAccounts,
-			audience:             audience,
-			client:               apiserver.New(cluster.KubeConfigFile),
-			allowedNodeLabelKeys: allowedNodeLabelKeys,
-			allowedPodLabelKeys:  allowedPodLabelKeys,
-		}
-	}
-
-	if len(hclConfig.Clusters) < 1 {
-		p.log.Warn("No clusters configured, PSAT attestation is effectively disabled")
-	}
-
-	p.setConfig(config)
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *AttestorPlugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
@@ -282,10 +298,4 @@ func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
-}
-
-func (p *AttestorPlugin) setConfig(config *attestorConfig) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.config = config
 }

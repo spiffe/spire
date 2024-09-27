@@ -11,6 +11,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -38,6 +39,20 @@ type MSIAttestorConfig struct {
 	// of use of the token. A bogus value cannot be used; Azure makes sure the
 	// resource ID is either an azure service ID or a registered app ID.
 	ResourceID string `hcl:"resource_id"`
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *MSIAttestorConfig {
+	newConfig := new(MSIAttestorConfig)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.ResourceID == "" {
+		newConfig.ResourceID = azure.DefaultMSIResourceID
+	}
+
+	return newConfig
 }
 
 type MSIAttestorPlugin struct {
@@ -85,17 +100,25 @@ func (p *MSIAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 }
 
 func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config := new(MSIAttestorConfig)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	if config.ResourceID == "" {
-		config.ResourceID = azure.DefaultMSIResourceID
-	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.config = newConfig
 
-	p.setConfig(config)
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *MSIAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 func (p *MSIAttestorPlugin) getConfig() (*MSIAttestorConfig, error) {
@@ -105,10 +128,4 @@ func (p *MSIAttestorPlugin) getConfig() (*MSIAttestorConfig, error) {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
-}
-
-func (p *MSIAttestorPlugin) setConfig(config *MSIAttestorConfig) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.config = config
 }

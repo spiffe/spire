@@ -296,7 +296,7 @@ func TestConfigure(t *testing.T) {
 			test:            "malformed config",
 			overrideConfig:  "MALFORMED",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "unable to decode configuration: ",
+			expectMsgPrefix: "plugin configuration is malformed",
 		},
 		{
 			test:               "missing trust domain",
@@ -304,7 +304,7 @@ func TestConfigure(t *testing.T) {
 			keyFilePath:        testData.ECRootKey,
 			overrideCoreConfig: &catalog.CoreConfig{},
 			expectCode:         codes.InvalidArgument,
-			expectMsgPrefix:    "trust_domain is required",
+			expectMsgPrefix:    "server core configuration must contain trust_domain",
 		},
 	} {
 		tt := tt

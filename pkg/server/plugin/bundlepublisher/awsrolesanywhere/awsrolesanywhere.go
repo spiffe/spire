@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -43,6 +44,24 @@ type Config struct {
 	TrustAnchorID   string `hcl:"trust_anchor_id" json:"trust_anchor_id"`
 }
 
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+	newConfig := new(Config)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.Region == "" {
+		status.ReportError("configuration is missing the region")
+	}
+
+	if newConfig.TrustAnchorID == "" {
+		status.ReportError("configuration is missing the trust anchor id")
+	}
+
+	return newConfig
+}
+
 // Plugin is the main representation of this bundle publisher plugin.
 type Plugin struct {
 	bundlepublisherv1.UnsafeBundlePublisherServer
@@ -66,12 +85,12 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 // Configure configures the plugin.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := parseAndValidateConfig(req.HclConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	awsCfg, err := newAWSConfig(ctx, config)
+	awsCfg, err := newAWSConfig(ctx, newConfig)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client configuration: %v", err)
 	}
@@ -81,9 +100,21 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 	p.rolesAnywhereClient = rolesAnywhere
 
-	p.setConfig(config)
+	p.configMtx.Lock()
+	defer p.configMtx.Unlock()
+	p.config = newConfig
+
 	p.setBundle(nil)
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 // PublishBundle puts the bundle in the Roles Anywhere trust anchor, with
@@ -166,14 +197,6 @@ func (p *Plugin) setBundle(bundle *types.Bundle) {
 	p.bundle = bundle
 }
 
-// setConfig sets the configuration for the plugin.
-func (p *Plugin) setConfig(config *Config) {
-	p.configMtx.Lock()
-	defer p.configMtx.Unlock()
-
-	p.config = config
-}
-
 // builtin creates a new BundlePublisher built-in plugin.
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
@@ -189,23 +212,4 @@ func newPlugin(newRolesAnywhereClientFunc func(c aws.Config) (rolesAnywhere, err
 			newRolesAnywhereClientFunc: newRolesAnywhereClientFunc,
 		},
 	}
-}
-
-// parseAndValidateConfig returns an error if any configuration provided does
-// not meet acceptable criteria
-func parseAndValidateConfig(c string) (*Config, error) {
-	config := new(Config)
-
-	if err := hcl.Decode(config, c); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.Region == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the region")
-	}
-
-	if config.TrustAnchorID == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the trust anchor id")
-	}
-	return config, nil
 }

@@ -31,3 +31,7 @@ func New() *Plugin {
 func (p *Plugin) Configure(context.Context, *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "plugin not supported in this platform")
 }
+
+func (p *Plugin) Validate(context.Context, *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "plugin not supported in this platform")
+}

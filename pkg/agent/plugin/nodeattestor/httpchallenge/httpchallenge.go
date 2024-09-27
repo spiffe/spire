@@ -16,6 +16,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -48,6 +49,43 @@ type Config struct {
 	AdvertisedPort int    `hcl:"advertised_port"`
 }
 
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configData {
+	hclConfig := new(Config)
+	if err := hcl.Decode(hclConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+	}
+
+	hostName := hclConfig.HostName
+	// hostname unset, autodetect hostname
+	if hostName == "" {
+		var err error
+		hostName, err = os.Hostname()
+		if err != nil {
+			status.ReportErrorf("unable to fetch hostname: %v", err)
+		}
+	}
+
+	agentName := hclConfig.AgentName
+	if agentName == "" {
+		agentName = "default"
+	}
+
+	advertisedPort := hclConfig.AdvertisedPort
+	// if unset, advertised port is same as hcl:"port"
+	if advertisedPort == 0 {
+		advertisedPort = hclConfig.Port
+	}
+
+	newConfig := &configData{
+		port:           hclConfig.Port,
+		advertisedPort: advertisedPort,
+		hostName:       hostName,
+		agentName:      agentName,
+	}
+
+	return newConfig
+}
+
 type Plugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
@@ -70,14 +108,14 @@ func New() *Plugin {
 }
 
 func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) (err error) {
-	data, err := p.getConfig()
+	config, err := p.getConfig()
 	if err != nil {
 		return err
 	}
 
 	ctx := stream.Context()
 
-	port := data.port
+	port := config.port
 
 	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", p.hooks.bindHost, port))
 	if err != nil {
@@ -85,14 +123,14 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 	}
 	defer l.Close()
 
-	advertisedPort := data.advertisedPort
+	advertisedPort := config.advertisedPort
 	if advertisedPort == 0 {
 		advertisedPort = l.Addr().(*net.TCPAddr).Port
 	}
 
 	attestationPayload, err := json.Marshal(httpchallenge.AttestationData{
-		HostName:  data.hostName,
-		AgentName: data.agentName,
+		HostName:  config.hostName,
+		AgentName: config.agentName,
 		Port:      advertisedPort,
 	})
 	if err != nil {
@@ -129,7 +167,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return err
 	}
 
-	err = p.serveNonce(ctx, l, data.agentName, challenge.Nonce)
+	err = p.serveNonce(ctx, l, config.agentName, challenge.Nonce)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to start webserver: %v", err)
 	}
@@ -137,21 +175,25 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	// Parse HCL config payload into config struct
-	config := new(Config)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	// Make sure the configuration produces valid data
-	configData, err := p.loadConfigData(config)
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	p.setConfig(configData)
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.c = newConfig
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 func (p *Plugin) serveNonce(ctx context.Context, l net.Listener, agentName string, nonce string) (err error) {
@@ -191,41 +233,4 @@ func (p *Plugin) getConfig() (*configData, error) {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.c, nil
-}
-
-func (p *Plugin) setConfig(c *configData) {
-	p.m.Lock()
-	defer p.m.Unlock()
-	p.c = c
-}
-
-func (p *Plugin) loadConfigData(config *Config) (*configData, error) {
-	// Determine the host name to pass to the server. Values are preferred in
-	// this order:
-	// 1. HCL HostName configuration value
-	// 2. OS hostname value
-	hostName := config.HostName
-	if hostName == "" {
-		var err error
-		hostName, err = os.Hostname()
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unable to fetch hostname: %v", err)
-		}
-	}
-
-	var agentName = "default"
-	if config.AgentName != "" {
-		agentName = config.AgentName
-	}
-
-	if config.AdvertisedPort == 0 {
-		config.AdvertisedPort = config.Port
-	}
-
-	return &configData{
-		port:           config.Port,
-		advertisedPort: config.AdvertisedPort,
-		hostName:       hostName,
-		agentName:      agentName,
-	}, nil
 }

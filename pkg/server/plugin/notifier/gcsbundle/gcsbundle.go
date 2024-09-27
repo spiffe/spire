@@ -17,6 +17,7 @@ import (
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -41,10 +42,27 @@ type bucketClient interface {
 	Close() error
 }
 
-type pluginConfig struct {
+type configuration struct {
 	Bucket             string `hcl:"bucket"`
 	ObjectPath         string `hcl:"object_path"`
 	ServiceAccountFile string `hcl:"service_account_file"`
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+	newConfig := new(configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("plugin configuration is malformed: %s", err)
+		return nil
+	}
+
+	if newConfig.Bucket == "" {
+		status.ReportError("bucket must be set")
+	}
+	if newConfig.ObjectPath == "" {
+		status.ReportError("object_path must be set")
+	}
+
+	return newConfig
 }
 
 type Plugin struct {
@@ -53,7 +71,7 @@ type Plugin struct {
 
 	mu               sync.RWMutex
 	log              hclog.Logger
-	config           *pluginConfig
+	config           *configuration
 	identityProvider identityproviderv1.IdentityProviderServiceClient
 
 	hooks struct {
@@ -109,23 +127,28 @@ func (p *Plugin) NotifyAndAdvise(ctx context.Context, req *notifierv1.NotifyAndA
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
-	config := new(pluginConfig)
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	if config.Bucket == "" {
-		return nil, status.Error(codes.InvalidArgument, "bucket must be set")
-	}
-	if config.ObjectPath == "" {
-		return nil, status.Error(codes.InvalidArgument, "object_path must be set")
-	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.config = newConfig
 
-	p.setConfig(config)
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *Plugin) getConfig() (*pluginConfig, error) {
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (resp *configv1.ValidateResponse, err error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
+}
+
+func (p *Plugin) getConfig() (*configuration, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
@@ -134,13 +157,7 @@ func (p *Plugin) getConfig() (*pluginConfig, error) {
 	return p.config, nil
 }
 
-func (p *Plugin) setConfig(config *pluginConfig) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.config = config
-}
-
-func (p *Plugin) updateBundleObject(ctx context.Context, c *pluginConfig) (err error) {
+func (p *Plugin) updateBundleObject(ctx context.Context, c *configuration) (err error) {
 	client, err := p.hooks.newBucketClient(ctx, c.ServiceAccountFile)
 	if err != nil {
 		return status.Errorf(codes.Unknown, "unable to instantiate bucket client: %v", err)

@@ -236,7 +236,7 @@ func (s *Suite) TestConfigure() {
 		err := doConfig(t, catalog.CoreConfig{}, `
 		ca_bundle_path = "blah"
 `)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "trust_domain is required")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 	})
 
 	s.T().Run("missing ca_bundle_path and ca_bundle_paths", func(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -33,16 +34,63 @@ func builtin(p *Plugin) catalog.BuiltIn {
 	)
 }
 
+type Config struct {
+	CABundlePath      string   `hcl:"ca_bundle_path"`
+	CABundlePaths     []string `hcl:"ca_bundle_paths"`
+	AgentPathTemplate string   `hcl:"agent_path_template"`
+}
+
 type configuration struct {
 	trustDomain  spiffeid.TrustDomain
 	trustBundle  *x509.CertPool
 	pathTemplate *agentpathtemplate.Template
 }
 
-type Config struct {
-	CABundlePath      string   `hcl:"ca_bundle_path"`
-	CABundlePaths     []string `hcl:"ca_bundle_paths"`
-	AgentPathTemplate string   `hcl:"agent_path_template"`
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+	hclConfig := new(Config)
+	if err := hcl.Decode(hclConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	var caPaths []string
+	if hclConfig.CABundlePath != "" && len(hclConfig.CABundlePaths) > 0 {
+		status.ReportError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
+	}
+	if hclConfig.CABundlePath != "" {
+		caPaths = []string{hclConfig.CABundlePath}
+	} else {
+		caPaths = hclConfig.CABundlePaths
+	}
+	if len(caPaths) == 0 {
+		status.ReportError("one of ca_bundle_path or ca_bundle_paths must be configured")
+	}
+
+	var trustBundles []*x509.Certificate
+	for _, caPath := range caPaths {
+		certs, err := util.LoadCertificates(caPath)
+		if err != nil {
+			status.ReportErrorf("unable to load trust bundle %q: %v", caPath, err)
+		}
+		trustBundles = append(trustBundles, certs...)
+	}
+
+	pathTemplate := x509pop.DefaultAgentPathTemplate
+	if len(hclConfig.AgentPathTemplate) > 0 {
+		tmpl, err := agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
+		if err != nil {
+			status.ReportErrorf("failed to parse agent svid template: %q", hclConfig.AgentPathTemplate)
+		}
+		pathTemplate = tmpl
+	}
+
+	newConfig := &configuration{
+		trustDomain:  coreConfig.TrustDomain,
+		trustBundle:  util.NewCertPool(trustBundles...),
+		pathTemplate: pathTemplate,
+	}
+
+	return newConfig
 }
 
 type Plugin struct {
@@ -157,71 +205,25 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	hclConfig := new(Config)
-	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
-	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
-	}
-
-	bundles, err := getBundles(hclConfig)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	pathTemplate := x509pop.DefaultAgentPathTemplate
-	if len(hclConfig.AgentPathTemplate) > 0 {
-		tmpl, err := agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", hclConfig.AgentPathTemplate)
-		}
-		pathTemplate = tmpl
-	}
-
-	p.setConfiguration(&configuration{
-		trustDomain:  trustDomain,
-		trustBundle:  util.NewCertPool(bundles...),
-		pathTemplate: pathTemplate,
-	})
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.config = newConfig
 
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func getBundles(config *Config) ([]*x509.Certificate, error) {
-	var caPaths []string
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
 
-	switch {
-	case config.CABundlePath != "" && len(config.CABundlePaths) > 0:
-		return nil, status.Error(codes.InvalidArgument, "only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
-	case config.CABundlePath != "":
-		caPaths = append(caPaths, config.CABundlePath)
-	case len(config.CABundlePaths) > 0:
-		caPaths = append(caPaths, config.CABundlePaths...)
-	default:
-		return nil, status.Error(codes.InvalidArgument, "ca_bundle_path or ca_bundle_paths must be configured")
-	}
-
-	var cas []*x509.Certificate
-	for _, caPath := range caPaths {
-		certs, err := util.LoadCertificates(caPath)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unable to load trust bundle %q: %v", caPath, err)
-		}
-		cas = append(cas, certs...)
-	}
-
-	return cas, nil
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *Plugin) getConfig() (*configuration, error) {
@@ -231,12 +233,6 @@ func (p *Plugin) getConfig() (*configuration, error) {
 		return nil, status.Errorf(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
-}
-
-func (p *Plugin) setConfiguration(config *configuration) {
-	p.m.Lock()
-	defer p.m.Unlock()
-	p.config = config
 }
 
 func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {

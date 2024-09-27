@@ -19,8 +19,15 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
+)
+
+const (
+	CoreConfigRequired             = "server core configuration is required"
+	CoreConfigTrustDomainRequired  = "server core configuration must contain trust_domain"
+	CoreConfigTrustDomainMalformed = "server core configuration trust_domain is malformed"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -40,6 +47,19 @@ type Configuration struct {
 	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path"`
 	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path"`
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
+	}
+
+	newConfig.trustDomain = coreConfig.TrustDomain
+	// TODO: add field validation
+
+	return newConfig
 }
 
 type Plugin struct {
@@ -73,27 +93,12 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	// Parse HCL config payload into config struct
-	config := &Configuration{}
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
-	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is malformed: %v", err)
+		return nil, err
 	}
-	config.trustDomain = trustDomain
 
-	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(config)
+	upstreamCA, certs, err := p.loadUpstreamCAAndCerts(newConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -102,11 +107,20 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	p.config = config
+	p.config = newConfig
 	p.certs = certs
 	p.upstreamCA = upstreamCA
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
@@ -162,6 +176,7 @@ func (p *Plugin) reloadCA() (*x509svid.UpstreamCA, *caCerts, error) {
 	return upstreamCA, upstreamCerts, nil
 }
 
+// TODO: perhaps load this into the config
 func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.UpstreamCA, *caCerts, error) {
 	key, err := pemutil.LoadPrivateKey(config.KeyFilePath)
 	if err != nil {

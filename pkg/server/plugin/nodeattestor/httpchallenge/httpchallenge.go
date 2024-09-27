@@ -15,6 +15,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -52,6 +53,55 @@ type configuration struct {
 	allowNonRootPorts bool
 	dnsPatterns       []*regexp.Regexp
 	tofu              bool
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+	hclConfig := new(Config)
+	if err := hcl.Decode(hclConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	var dnsPatterns []*regexp.Regexp
+	for _, r := range hclConfig.AllowedDNSPatterns {
+		re := regexp.MustCompile(r)
+		dnsPatterns = append(dnsPatterns, re)
+	}
+
+	allowNonRootPorts := true
+	if hclConfig.AllowNonRootPorts != nil {
+		allowNonRootPorts = *hclConfig.AllowNonRootPorts
+	}
+
+	tofu := true
+	if hclConfig.TOFU != nil {
+		tofu = *hclConfig.TOFU
+	}
+
+	mustUseTOFU := false
+	switch {
+	// User has explicitly asked for a required port that is untrusted
+	case hclConfig.RequiredPort != nil && *hclConfig.RequiredPort >= 1024:
+		mustUseTOFU = true
+	// User has just chosen the defaults, any port is allowed
+	case hclConfig.AllowNonRootPorts == nil && hclConfig.RequiredPort == nil:
+		mustUseTOFU = true
+	// User explicitly set AllowNonRootPorts to true and no required port specified
+	case hclConfig.AllowNonRootPorts != nil && *hclConfig.AllowNonRootPorts && hclConfig.RequiredPort == nil:
+		mustUseTOFU = true
+	}
+
+	if !tofu && mustUseTOFU {
+		status.ReportError("you can not turn off trust on first use (TOFU) when non-root ports are allowed")
+	}
+
+	return &configuration{
+		trustDomain:       coreConfig.TrustDomain,
+		dnsPatterns:       dnsPatterns,
+		requiredPort:      hclConfig.RequiredPort,
+		allowNonRootPorts: allowNonRootPorts,
+		tofu:              tofu,
+	}
 }
 
 type Config struct {
@@ -173,66 +223,25 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	hclConfig := new(Config)
-	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
-	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
+		return nil, err
 	}
 
-	var dnsPatterns []*regexp.Regexp
-	for _, r := range hclConfig.AllowedDNSPatterns {
-		re := regexp.MustCompile(r)
-		dnsPatterns = append(dnsPatterns, re)
-	}
-
-	allowNonRootPorts := true
-	if hclConfig.AllowNonRootPorts != nil {
-		allowNonRootPorts = *hclConfig.AllowNonRootPorts
-	}
-
-	tofu := true
-	if hclConfig.TOFU != nil {
-		tofu = *hclConfig.TOFU
-	}
-
-	mustUseTOFU := false
-	switch {
-	// User has explicitly asked for a required port that is untrusted
-	case hclConfig.RequiredPort != nil && *hclConfig.RequiredPort >= 1024:
-		mustUseTOFU = true
-	// User has just chosen the defaults, any port is allowed
-	case hclConfig.AllowNonRootPorts == nil && hclConfig.RequiredPort == nil:
-		mustUseTOFU = true
-	// User explicitly set AllowNonRootPorts to true and no required port specified
-	case hclConfig.AllowNonRootPorts != nil && *hclConfig.AllowNonRootPorts && hclConfig.RequiredPort == nil:
-		mustUseTOFU = true
-	}
-
-	if !tofu && mustUseTOFU {
-		return nil, status.Errorf(codes.InvalidArgument, "you can not turn off trust on first use (TOFU) when non-root ports are allowed")
-	}
-
-	p.setConfiguration(&configuration{
-		trustDomain:       trustDomain,
-		dnsPatterns:       dnsPatterns,
-		requiredPort:      hclConfig.RequiredPort,
-		allowNonRootPorts: allowNonRootPorts,
-		tofu:              tofu,
-	})
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.config = newConfig
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 // SetLogger sets this plugin's logger
@@ -247,12 +256,6 @@ func (p *Plugin) getConfig() (*configuration, error) {
 		return nil, status.Errorf(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
-}
-
-func (p *Plugin) setConfiguration(config *configuration) {
-	p.m.Lock()
-	defer p.m.Unlock()
-	p.config = config
 }
 
 func buildSelectorValues(hostName string) []string {

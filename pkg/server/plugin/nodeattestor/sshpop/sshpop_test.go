@@ -59,7 +59,7 @@ func (s *Suite) loadPlugin(t *testing.T) nodeattestor.NodeAttestor {
 	clientConfig := fmt.Sprintf(`
 		host_key_path = %q
 		host_cert_path = %q`, privateKeyPath, certificatePath)
-	sshclient, err := sshpop.NewClient(clientConfig)
+	sshclient, err := sshpop.NewClient("example.org", clientConfig)
 	require.NoError(t, err)
 	s.sshclient = sshclient
 

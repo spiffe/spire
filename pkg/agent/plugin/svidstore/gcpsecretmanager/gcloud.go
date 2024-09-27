@@ -19,6 +19,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -54,6 +55,26 @@ type Configuration struct {
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" json:",omitempty"`
 }
 
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := &Configuration{}
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if len(newConfig.UnusedKeyPositions) != 0 {
+		var keys []string
+		for k := range newConfig.UnusedKeyPositions {
+			keys = append(keys, k)
+		}
+
+		sort.Strings(keys)
+		status.ReportErrorf("unknown configurations detected: %s", strings.Join(keys, ","))
+	}
+
+	return newConfig
+}
+
 type SecretManagerPlugin struct {
 	svidstorev1.UnsafeSVIDStoreServer
 	configv1.UnsafeConfigServer
@@ -74,23 +95,12 @@ func (p *SecretManagerPlugin) SetLogger(log hclog.Logger) {
 
 // Configure configures the SecretManagerPlugin.
 func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	// Parse HCL config payload into config struct
-	config := &Configuration{}
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(config.UnusedKeyPositions) != 0 {
-		var keys []string
-		for k := range config.UnusedKeyPositions {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(keys, ","))
-	}
-
-	secretMangerClient, err := p.hooks.newSecretManagerClient(ctx, config.ServiceAccountFile)
+	secretMangerClient, err := p.hooks.newSecretManagerClient(ctx, newConfig.ServiceAccountFile)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create secretmanager client: %v", err)
 	}
@@ -105,6 +115,15 @@ func (p *SecretManagerPlugin) Configure(ctx context.Context, req *configv1.Confi
 	p.tdHash = hex.EncodeToString(tdHash[:])
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *SecretManagerPlugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 // PutX509SVID puts the specified X509-SVID in the configured Google Cloud Secrets Manager

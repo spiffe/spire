@@ -56,7 +56,7 @@ func TestNewClient(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			c, err := NewClient(tt.configString)
+			c, err := NewClient("example.org", tt.configString)
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)
@@ -78,7 +78,7 @@ func TestNewServer(t *testing.T) {
 	}{
 		{
 			desc:      "missing trust domain",
-			expectErr: "trust_domain global configuration is invalid",
+			expectErr: "server core configuration must contain trust_domain",
 		},
 		{
 			desc:         "bad config",

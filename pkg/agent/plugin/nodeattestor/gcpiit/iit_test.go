@@ -11,8 +11,10 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/cryptosigner"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -66,7 +68,10 @@ func (s *Suite) SetupSuite() {
 func (s *Suite) SetupTest() {
 	s.status = http.StatusOK
 	s.body = ""
-	s.na = s.loadPlugin(plugintest.Configuref(`
+	s.na = s.loadPlugin(plugintest.CoreConfig(catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}),
+		plugintest.Configuref(`
 		service_account = "%s"
 		identity_token_host = "%s"
 `, testServiceAccount, s.server.Listener.Addr().String()))
@@ -111,7 +116,12 @@ func (s *Suite) TestConfigure() {
 
 	// malformed
 	var err error
-	s.loadPlugin(plugintest.CaptureConfigureError(&err), plugintest.Configure("malformed"))
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure("malformed"),
+	)
 	require.Error(err)
 }
 
@@ -135,7 +145,7 @@ func TestRetrieveIdentity(t *testing.T) {
 		},
 		{
 			msg:               "invalid port",
-			url:               "http://0.0.0.0:70000",
+			url:               "http://127.0.0.1:70000",
 			expectErrContains: "invalid port",
 		},
 		{

@@ -9,12 +9,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gogo/status"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/pkg/common/containerinfo"
-	"google.golang.org/grpc/codes"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 )
 
 type OSConfig struct {
@@ -38,22 +37,25 @@ type OSConfig struct {
 	rootDir string
 }
 
-func createHelper(c *dockerPluginConfig, log hclog.Logger) (*containerHelper, error) {
+func (p *Plugin) createHelper(c *dockerPluginConfig, status *pluginconf.Status) *containerHelper {
 	useNewContainerLocator := c.UseNewContainerLocator == nil || *c.UseNewContainerLocator
 
 	var containerIDFinder cgroup.ContainerIDFinder
 	if len(c.ContainerIDCGroupMatchers) > 0 {
 		if useNewContainerLocator {
-			return nil, status.Error(codes.InvalidArgument, "the new container locator and custom cgroup matchers cannot both be used; please open an issue if the new container locator fails to locate workload containers in your environment; to continue using custom matchers set use_new_container_locator=false")
+			status.ReportError("the new container locator and custom cgroup matchers cannot both be used; please open an issue if the new container locator fails to locate workload containers in your environment; to continue using custom matchers set use_new_container_locator=false")
+			return nil
 		}
-		log.Warn("Using the legacy container locator with custom cgroup matchers. This feature will be removed in a future release.")
+		p.log.Warn("Using the legacy container locator with custom cgroup matchers. This feature will be removed in a future release.")
+		status.ReportInfo("Using the legacy container locator with custom cgroup matchers. This feature will be removed in a future release.")
 		var err error
 		containerIDFinder, err = cgroup.NewContainerIDFinder(c.ContainerIDCGroupMatchers)
 		if err != nil {
-			return nil, err
+			status.ReportError(err.Error())
+			return nil
 		}
 	} else {
-		log.Info("Using the new container locator")
+		status.ReportInfo("Using the new container locator")
 	}
 
 	rootDir := c.rootDir
@@ -65,7 +67,7 @@ func createHelper(c *dockerPluginConfig, log hclog.Logger) (*containerHelper, er
 		rootDir:                     rootDir,
 		containerIDFinder:           containerIDFinder,
 		verboseContainerLocatorLogs: c.VerboseContainerLocatorLogs,
-	}, nil
+	}
 }
 
 type dirFS string

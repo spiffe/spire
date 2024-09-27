@@ -15,6 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/acmpca"
 	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -53,6 +55,9 @@ func TestConfigure(t *testing.T) {
 		expectDescribeErr      error
 		expectConfig           *configuration
 
+		// core config configurations
+		trustDomain string
+
 		// All allowed configurations
 		region                  string
 		endpoint                string
@@ -65,6 +70,7 @@ func TestConfigure(t *testing.T) {
 		{
 			test:                    "success",
 			expectedDescribeStatus:  "ACTIVE",
+			trustDomain:             "example.org",
 			region:                  validRegion,
 			certificateAuthorityARN: validCertificateAuthorityARN,
 			caSigningTemplateARN:    validCASigningTemplateARN,
@@ -79,6 +85,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:                    "using default signing algorithm",
+			trustDomain:             "example.org",
 			expectedDescribeStatus:  "ACTIVE",
 			region:                  validRegion,
 			certificateAuthorityARN: validCertificateAuthorityARN,
@@ -93,6 +100,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:                    "using default signing template ARN",
+			trustDomain:             "example.org",
 			expectedDescribeStatus:  "ACTIVE",
 			region:                  validRegion,
 			certificateAuthorityARN: validCertificateAuthorityARN,
@@ -107,6 +115,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:                    "DISABLED template",
+			trustDomain:             "example.org",
 			expectedDescribeStatus:  "DISABLED",
 			region:                  validRegion,
 			certificateAuthorityARN: validCertificateAuthorityARN,
@@ -122,6 +131,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:                    "Describe certificate fails",
+			trustDomain:             "example.org",
 			expectDescribeErr:       awsErr("Internal", "some error", errors.New("oh no")),
 			region:                  validRegion,
 			certificateAuthorityARN: validCertificateAuthorityARN,
@@ -134,6 +144,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:                    "Invalid supplemental bundle Path",
+			trustDomain:             "example.org",
 			expectedDescribeStatus:  "ACTIVE",
 			region:                  validRegion,
 			certificateAuthorityARN: validCertificateAuthorityARN,
@@ -146,6 +157,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:                    "Missing region",
+			trustDomain:             "example.org",
 			expectedDescribeStatus:  "ACTIVE",
 			certificateAuthorityARN: validCertificateAuthorityARN,
 			caSigningTemplateARN:    validCASigningTemplateARN,
@@ -153,10 +165,11 @@ func TestConfigure(t *testing.T) {
 			assumeRoleARN:           validAssumeRoleARN,
 			supplementalBundlePath:  validSupplementalBundlePath,
 			expectCode:              codes.InvalidArgument,
-			expectMsgPrefix:         "configuration is missing a region",
+			expectMsgPrefix:         "plugin configuration is missing the region",
 		},
 		{
 			test:                   "Missing certificate ARN",
+			trustDomain:            "example.org",
 			expectedDescribeStatus: "ACTIVE",
 			region:                 validRegion,
 			caSigningTemplateARN:   validCASigningTemplateARN,
@@ -164,18 +177,20 @@ func TestConfigure(t *testing.T) {
 			assumeRoleARN:          validAssumeRoleARN,
 			supplementalBundlePath: validSupplementalBundlePath,
 			expectCode:             codes.InvalidArgument,
-			expectMsgPrefix:        "configuration is missing a certificate authority ARN",
+			expectMsgPrefix:        "plugin configuration is missing the certificate_authority_arn",
 		},
 		{
-			test: "Malformed config",
+			test:        "Malformed config",
+			trustDomain: "example.org",
 			overrideConfig: `{
 badjson
 }`,
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "unable to decode configuration:",
+			expectMsgPrefix: "plugin configuration is malformed",
 		},
 		{
 			test:                    "Fail to create client",
+			trustDomain:             "example.org",
 			newClientErr:            awsErr("MissingEndpoint", "'Endpoint' configuration is required for this service", nil),
 			region:                  validRegion,
 			certificateAuthorityARN: validCertificateAuthorityARN,
@@ -196,6 +211,12 @@ badjson
 
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
+			}
+
+			if tt.trustDomain != "" {
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
+				}))
 			}
 
 			if tt.overrideConfig != "" {
@@ -278,8 +299,9 @@ func TestMintX509CA(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		test   string
-		config *Configuration
+		test        string
+		trustDomain string
+		config      *Configuration
 
 		client *pcaClientFake
 
@@ -298,6 +320,7 @@ func TestMintX509CA(t *testing.T) {
 	}{
 		{
 			test:         "Successful mint",
+			trustDomain:  "example.org",
 			config:       successConfig,
 			csr:          makeCSR("spiffe://example.com/foo"),
 			preferredTTL: 300 * time.Second,
@@ -311,7 +334,8 @@ func TestMintX509CA(t *testing.T) {
 			getCertificateCertChain: encodedCertChain.String(),
 		},
 		{
-			test: "With supplemental bundle",
+			test:        "With supplemental bundle",
+			trustDomain: "example.org",
 			config: &Configuration{
 				Region:                  validRegion,
 				CertificateAuthorityARN: validCertificateAuthorityARN,
@@ -336,6 +360,7 @@ func TestMintX509CA(t *testing.T) {
 		},
 		{
 			test:            "Issuance fails",
+			trustDomain:     "example.org",
 			config:          successConfig,
 			csr:             makeCSR("spiffe://example.com/foo"),
 			preferredTTL:    300 * time.Second,
@@ -345,6 +370,7 @@ func TestMintX509CA(t *testing.T) {
 		},
 		{
 			test:            "Issuance wait fails",
+			trustDomain:     "example.org",
 			config:          successConfig,
 			csr:             makeCSR("spiffe://example.com/foo"),
 			preferredTTL:    300 * time.Second,
@@ -354,6 +380,7 @@ func TestMintX509CA(t *testing.T) {
 		},
 		{
 			test:              "Get certificate fails",
+			trustDomain:       "example.org",
 			config:            successConfig,
 			csr:               makeCSR("spiffe://example.com/foo"),
 			preferredTTL:      300 * time.Second,
@@ -363,6 +390,7 @@ func TestMintX509CA(t *testing.T) {
 		},
 		{
 			test:                    "Fails to parse certificate from GetCertificate",
+			trustDomain:             "example.org",
 			config:                  successConfig,
 			csr:                     makeCSR("spiffe://example.com/foo"),
 			preferredTTL:            300 * time.Second,
@@ -373,6 +401,7 @@ func TestMintX509CA(t *testing.T) {
 		},
 		{
 			test:                    "Fails to parse certificate chain from GetCertificate",
+			trustDomain:             "example.org",
 			config:                  successConfig,
 			csr:                     makeCSR("spiffe://example.com/foo"),
 			preferredTTL:            300 * time.Second,
@@ -397,6 +426,9 @@ func TestMintX509CA(t *testing.T) {
 
 			ua := new(upstreamauthority.V1)
 			plugintest.Load(t, builtin(p), ua,
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
+				}),
 				plugintest.ConfigureJSON(tt.config),
 			)
 
@@ -445,6 +477,9 @@ func TestPublishJWTKey(t *testing.T) {
 	var err error
 	plugintest.Load(t, builtin(p), ua,
 		plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.ConfigureJSON(&Configuration{
 			Region:                  validRegion,
 			CertificateAuthorityARN: validCertificateAuthorityARN,
