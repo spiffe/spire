@@ -1,6 +1,8 @@
 #!/bin/bash
 
-SIZE=10
+# LRU Cache size is 1000; we expect uid:1002 to receive all 1002 identities,
+# and later on disconnect for the cache to be pruned back to 1000
+SIZE=1002
 
 # Create entries for uid 1002
 for ((m=1;m<=$SIZE;m++)); do

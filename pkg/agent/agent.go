@@ -275,8 +275,6 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		Storage:                  sto,
 		SyncInterval:             a.c.SyncInterval,
 		UseSyncAuthorizedEntries: a.c.UseSyncAuthorizedEntries,
-		SVIDCacheMaxSize:         a.c.X509SVIDCacheMaxSize,
-		DisableLRUCache:          a.c.DisableLRUCache,
 		SVIDStoreCache:           cache,
 		NodeAttestor:             na,
 		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
