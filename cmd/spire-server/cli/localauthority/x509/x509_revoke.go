@@ -81,7 +81,7 @@ func prettyPrintX509Revoke(env *commoncli.Env, results ...any) error {
 		return errors.New("internal error: expected to have revoked X.509 authority information")
 	}
 
-	authoritycommon.PrettyPrintAuthorityState(env, r.RevokedAuthority, true)
+	authoritycommon.PrettyPrintX509AuthorityState(env, r.RevokedAuthority)
 
 	return nil
 }

@@ -65,7 +65,7 @@ func prettyPrintX509Prepare(env *commoncli.Env, results ...any) error {
 		return errors.New("internal error: expected to have prepared X.509 authority information")
 	}
 
-	authoritycommon.PrettyPrintAuthorityState(env, r.PreparedAuthority, true)
+	authoritycommon.PrettyPrintX509AuthorityState(env, r.PreparedAuthority)
 
 	return nil
 }

@@ -80,7 +80,7 @@ func prettyPrintJWTActivate(env *commoncli.Env, results ...any) error {
 	if r.ActivatedAuthority == nil {
 		return errors.New("internal error: expected to have activated JWT authority information")
 	}
-	authoritycommon.PrettyPrintAuthorityState(env, r.ActivatedAuthority, false)
+	authoritycommon.PrettyPrintJWTAuthorityState(env, r.ActivatedAuthority)
 
 	return nil
 }

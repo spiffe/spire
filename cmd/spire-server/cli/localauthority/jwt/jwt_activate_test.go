@@ -41,17 +41,15 @@ func TestJWTActivate(t *testing.T) {
 			expectReturnCode: 0,
 			args:             []string{"-authorityID", "prepared-id"},
 			active: &localauthorityv1.AuthorityState{
-				AuthorityId:                   "active-id",
-				ExpiresAt:                     1001,
-				UpstreamAuthoritySubjectKeyId: "some-subject-key-id",
+				AuthorityId: "active-id",
+				ExpiresAt:   1001,
 			},
 			prepared: &localauthorityv1.AuthorityState{
-				AuthorityId:                   "prepared-id",
-				ExpiresAt:                     1002,
-				UpstreamAuthoritySubjectKeyId: "some-subject-key-id",
+				AuthorityId: "prepared-id",
+				ExpiresAt:   1002,
 			},
 			expectStdoutPretty: "Activated JWT authority:\n  Authority ID: active-id\n  Expires at: 1970-01-01 00:16:41 +0000 UTC\n",
-			expectStdoutJSON:   `{"activated_authority":{"authority_id":"active-id","expires_at":"1001","upstream_authority_subject_key_id":"some-subject-key-id"}}`,
+			expectStdoutJSON:   `{"activated_authority":{"authority_id":"active-id","expires_at":"1001","upstream_authority_subject_key_id":""}}`,
 		},
 		{
 			name:             "no authority id",

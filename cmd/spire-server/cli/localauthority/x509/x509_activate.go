@@ -81,7 +81,7 @@ func prettyPrintX509Activate(env *commoncli.Env, results ...any) error {
 		return errors.New("internal error: expected to have activated X.509 authority information")
 	}
 
-	authoritycommon.PrettyPrintAuthorityState(env, r.ActivatedAuthority, true)
+	authoritycommon.PrettyPrintX509AuthorityState(env, r.ActivatedAuthority)
 
 	return nil
 }

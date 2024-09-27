@@ -77,7 +77,7 @@ func prettyPrintX509Taint(env *commoncli.Env, results ...any) error {
 		return errors.New("internal error: expected to have tainted X.509 authority information")
 	}
 
-	authoritycommon.PrettyPrintAuthorityState(env, r.TaintedAuthority, true)
+	authoritycommon.PrettyPrintX509AuthorityState(env, r.TaintedAuthority)
 
 	return nil
 }

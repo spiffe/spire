@@ -80,7 +80,7 @@ func prettyPrintJWTRevoke(env *commoncli.Env, results ...any) error {
 	if r.RevokedAuthority == nil {
 		return errors.New("internal error: expected to have revoked JWT authority information")
 	}
-	authoritycommon.PrettyPrintAuthorityState(env, r.RevokedAuthority, false)
+	authoritycommon.PrettyPrintJWTAuthorityState(env, r.RevokedAuthority)
 
 	return nil
 }

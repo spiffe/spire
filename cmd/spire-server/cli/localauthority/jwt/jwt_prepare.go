@@ -64,7 +64,7 @@ func prettyPrintJWTPrepare(env *commoncli.Env, results ...any) error {
 	if r.PreparedAuthority == nil {
 		return errors.New("internal error: expected to have prepared JWT authority information")
 	}
-	authoritycommon.PrettyPrintAuthorityState(env, r.PreparedAuthority, false)
+	authoritycommon.PrettyPrintJWTAuthorityState(env, r.PreparedAuthority)
 
 	return nil
 }

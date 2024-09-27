@@ -62,21 +62,21 @@ func prettyPrintJWTShow(env *commoncli.Env, results ...any) error {
 
 	env.Println("Active JWT authority:")
 	if r.Active != nil {
-		authoritycommon.PrettyPrintAuthorityState(env, r.Active, false)
+		authoritycommon.PrettyPrintJWTAuthorityState(env, r.Active)
 	} else {
 		env.Println("  No active JWT authority found")
 	}
 	env.Println()
 	env.Println("Prepared JWT authority:")
 	if r.Prepared != nil {
-		authoritycommon.PrettyPrintAuthorityState(env, r.Prepared, false)
+		authoritycommon.PrettyPrintJWTAuthorityState(env, r.Prepared)
 	} else {
 		env.Println("  No prepared JWT authority found")
 	}
 	env.Println()
 	env.Println("Old JWT authority:")
 	if r.Old != nil {
-		authoritycommon.PrettyPrintAuthorityState(env, r.Old, false)
+		authoritycommon.PrettyPrintJWTAuthorityState(env, r.Old)
 	} else {
 		env.Println("  No old JWT authority found")
 	}

@@ -7,7 +7,15 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 )
 
-func PrettyPrintAuthorityState(env *commoncli.Env, authorityState *localauthorityv1.AuthorityState, includeUpstreamAuthority bool) {
+func PrettyPrintJWTAuthorityState(env *commoncli.Env, authorityState *localauthorityv1.AuthorityState) {
+	prettyPrintAuthorityState(env, authorityState, false)
+}
+
+func PrettyPrintX509AuthorityState(env *commoncli.Env, authorityState *localauthorityv1.AuthorityState) {
+	prettyPrintAuthorityState(env, authorityState, true)
+}
+
+func prettyPrintAuthorityState(env *commoncli.Env, authorityState *localauthorityv1.AuthorityState, includeUpstreamAuthority bool) {
 	env.Printf("  Authority ID: %s\n", authorityState.AuthorityId)
 	env.Printf("  Expires at: %s\n", time.Unix(authorityState.ExpiresAt, 0).UTC())
 	if !includeUpstreamAuthority {

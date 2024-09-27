@@ -76,7 +76,7 @@ func prettyPrintJWTTaint(env *commoncli.Env, results ...any) error {
 	if r.TaintedAuthority == nil {
 		return errors.New("internal error: expected to have tainted JWT authority information")
 	}
-	authoritycommon.PrettyPrintAuthorityState(env, r.TaintedAuthority, false)
+	authoritycommon.PrettyPrintJWTAuthorityState(env, r.TaintedAuthority)
 
 	return nil
 }

@@ -63,21 +63,21 @@ func prettyPrintX509Show(env *commoncli.Env, results ...any) error {
 
 	env.Println("Active X.509 authority:")
 	if r.Active != nil {
-		authoritycommon.PrettyPrintAuthorityState(env, r.Active, true)
+		authoritycommon.PrettyPrintX509AuthorityState(env, r.Active)
 	} else {
 		env.Println("  No active X.509 authority found")
 	}
 	env.Println()
 	env.Println("Prepared X.509 authority:")
 	if r.Prepared != nil {
-		authoritycommon.PrettyPrintAuthorityState(env, r.Prepared, true)
+		authoritycommon.PrettyPrintX509AuthorityState(env, r.Prepared)
 	} else {
 		env.Println("  No prepared X.509 authority found")
 	}
 	env.Println()
 	env.Println("Old X.509 authority:")
 	if r.Old != nil {
-		authoritycommon.PrettyPrintAuthorityState(env, r.Old, true)
+		authoritycommon.PrettyPrintX509AuthorityState(env, r.Old)
 	} else {
 		env.Println("  No old X.509 authority found")
 	}
