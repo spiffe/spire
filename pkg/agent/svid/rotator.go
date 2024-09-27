@@ -168,7 +168,7 @@ func (r *rotator) NotifyTaintedAuthorities(taintedAuthorities []*x509.Certificat
 	}
 
 	if tainted {
-		r.c.Log.Debug("Agent SVID is tainted by a root authority, forcing rotation")
+		r.c.Log.Info("Agent SVID is tainted by a root authority, forcing rotation")
 		r.setTainted(tainted)
 	}
 	return nil

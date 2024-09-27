@@ -597,11 +597,11 @@ func (c *LRUCache) scheduleRotation(ctx context.Context, entryIDs []string, tain
 
 		entriesLeftCount := len(entryIDs)
 		if entriesLeftCount == 0 {
-			c.log.Debug("Finished processing all tainted entries")
+			c.log.Info("Finished processing all tainted entries")
 			c.notifyTaintedBatchProcessed()
 			return
 		}
-		c.log.WithField(telemetry.Count, entriesLeftCount).Debug("Tainted entries left to be processed")
+		c.log.WithField(telemetry.Count, entriesLeftCount).Info("There are tainted X.509 SVIDs left to be processed")
 		c.notifyTaintedBatchProcessed()
 
 		select {
@@ -651,7 +651,7 @@ func (c *LRUCache) processTaintedSVIDs(entryIDs []string, taintedX509Authorities
 	}
 
 	agentmetrics.AddCacheManagerTaintedSVIDsSample(c.metrics, "", float32(taintedSVIDs))
-	c.log.WithField(telemetry.TaintedSVIDs, taintedSVIDs).Debug("Tainted X.509 SVIDs")
+	c.log.WithField(telemetry.TaintedSVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
 }
 
 // Notify subscriber of selector set only if all SVIDs for corresponding selector set are cached

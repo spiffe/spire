@@ -445,7 +445,7 @@ func TestNotifyTaintedAuthority(t *testing.T) {
 			expectTainted: true,
 			expectLogs: []spiretest.LogEntry{
 				{
-					Level:   logrus.DebugLevel,
+					Level:   logrus.InfoLevel,
 					Message: "Agent SVID is tainted by a root authority, forcing rotation",
 				},
 			},
