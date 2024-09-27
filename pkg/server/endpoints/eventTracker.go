@@ -1,7 +1,7 @@
 package endpoints
 
 import (
-	// 	"fmt"
+	"maps"
 	"slices"
 	"time"
 )
@@ -65,30 +65,34 @@ func PollPeriods(pollTime time.Duration, trackTime time.Duration) uint {
 func BoundaryBuilder(pollTime time.Duration, trackTime time.Duration) []uint {
 	pollPeriods := PollPeriods(pollTime, trackTime)
 
-	pollBoundaries := make([]uint, 0)
 	// number of polls in a minute
 	pollsPerMinute := uint(time.Duration(1) * time.Minute / pollTime)
 	// number of polls in ten minutes
 	pollsPerTenMinutes := uint(time.Duration(10) * time.Minute / pollTime)
 
-	// for first minute, poll at cacheReloadInterval
-	pollBoundaries = append(pollBoundaries, pollsPerMinute)
-	// next 9 minutes, poll at 1/2 minute
-	currentBoundary := pollsPerMinute
-	for currentBoundary < pollsPerTenMinutes {
-		pollBoundaries = append(pollBoundaries, currentBoundary+(pollsPerMinute/2))
-		pollBoundaries = append(pollBoundaries, currentBoundary+pollsPerMinute)
-		currentBoundary += pollsPerMinute
-	}
-	// rest of polling at 1 minute
+	// initialize poll boundaries one minute out
+	boundaries := make(map[uint]struct{})
+	currentBoundary := uint(pollsPerMinute)
 	for currentBoundary < pollPeriods {
-		pollBoundaries = append(pollBoundaries, currentBoundary+pollsPerMinute)
+		if currentBoundary < pollsPerTenMinutes {
+			boundaries[currentBoundary] = struct{}{}
+			boundaries[currentBoundary+(pollsPerMinute/2)] = struct{}{}
+		} else {
+			boundaries[currentBoundary] = struct{}{}
+		}
 		currentBoundary += pollsPerMinute
 	}
-	// always poll at end of transaction timeout
-	pollBoundaries = append(pollBoundaries, pollPeriods-1)
+	if 0 < len(boundaries) {
+		boundaries[pollPeriods-1] = struct{}{}
+	}
 
-	return pollBoundaries
+	boundaryList := slices.Collect(maps.Keys(boundaries))
+	slices.Sort(boundaryList)
+	if boundaryList == nil {
+		boundaryList = []uint{}
+	}
+
+	return boundaryList
 }
 
 func NewEventTracker(pollPeriods uint, boundaries []uint) *eventTracker {

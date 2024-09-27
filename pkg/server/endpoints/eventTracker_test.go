@@ -971,4 +971,151 @@ func TestEvenDispersion(t *testing.T) {
 }
 
 func TestBoundaryBuilder(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		pollInterval string
+		pollDuration string
+
+		expectedPollPeriods uint
+		expectedBoundaries  []uint
+	}{
+		{
+			name:         "poll every second, over 1 minute",
+			pollInterval: "1s",
+			pollDuration: "1m",
+
+			expectedPollPeriods: 60,
+			expectedBoundaries:  []uint{},
+		},
+		{
+			name:         "poll every second, over 10 minutes",
+			pollInterval: "1s",
+			pollDuration: "10m",
+
+			expectedPollPeriods: 600,
+			expectedBoundaries: []uint{
+				60, 90, 120, 150, 180, 210, 240, 270, 300, 330,
+				360, 390, 420, 450, 480, 510, 540, 570, 599,
+			},
+		},
+		{
+			name:         "poll every second, over 20 minutes",
+			pollInterval: "1s",
+			pollDuration: "20m",
+
+			expectedPollPeriods: 1200,
+			expectedBoundaries: []uint{
+				60, 90, 120, 150, 180, 210, 240, 270, 300, 330,
+				360, 390, 420, 450, 480, 510, 540, 570,
+				600, 660, 720, 780, 840, 900, 960, 1020,
+				1080, 1140, 1199,
+			},
+		},
+		{
+			name:         "poll every 5 seconds, over 1 minute",
+			pollInterval: "5s",
+			pollDuration: "1m",
+
+			expectedPollPeriods: 12,
+			expectedBoundaries:  []uint{},
+		},
+		{
+			name:         "poll every 5 seconds, over 10 minutes",
+			pollInterval: "5s",
+			pollDuration: "10m",
+
+			expectedPollPeriods: 120,
+			expectedBoundaries: []uint{
+				12, 18, 24, 30, 36, 42, 48, 54, 60, 66,
+				72, 78, 84, 90, 96, 102, 108, 114, 119,
+			},
+		},
+		{
+			name:         "poll every 5 seconds, over 20 minutes",
+			pollInterval: "5s",
+			pollDuration: "20m",
+
+			expectedPollPeriods: 240,
+			expectedBoundaries: []uint{
+				12, 18, 24, 30, 36, 42, 48, 54, 60, 66,
+				72, 78, 84, 90, 96, 102, 108, 114, 120,
+				132, 144, 156, 168, 180, 192, 204, 216, 228, 239,
+			},
+		},
+		{
+			name:         "poll every 10 seconds, over 1 minute",
+			pollInterval: "10s",
+			pollDuration: "1m",
+
+			expectedPollPeriods: 6,
+			expectedBoundaries:  []uint{},
+		},
+		{
+			name:         "poll every 10 seconds, over 10 minutes",
+			pollInterval: "10s",
+			pollDuration: "10m",
+
+			expectedPollPeriods: 60,
+			expectedBoundaries: []uint{
+				6, 9, 12, 15, 18, 21, 24, 27, 30,
+				33, 36, 39, 42, 45, 48, 51, 54, 57, 59,
+			},
+		},
+		{
+			name:         "poll every 10 seconds, over 20 minutes",
+			pollInterval: "10s",
+			pollDuration: "20m",
+
+			expectedPollPeriods: 120,
+			expectedBoundaries: []uint{
+				6, 9, 12, 15, 18, 21, 24, 27, 30,
+				33, 36, 39, 42, 45, 48, 51, 54, 57, 60,
+				66, 72, 78, 84, 90, 96, 102, 108, 114, 119,
+			},
+		},
+		{
+			name:         "poll every 20 seconds, over 1 minute",
+			pollInterval: "20s",
+			pollDuration: "1m",
+
+			expectedPollPeriods: 3,
+			expectedBoundaries:  []uint{},
+		},
+		{
+			name:         "poll every 20 seconds, over 10 minutes",
+			pollInterval: "20s",
+			pollDuration: "10m",
+
+			expectedPollPeriods: 30,
+			expectedBoundaries: []uint{
+				3, 4, 6, 7, 9, 10, 12, 13, 15, 16,
+				18, 19, 21, 22, 24, 25, 27, 28, 29,
+			},
+		},
+		{
+			name:         "poll every 20 seconds, over 20 minutes",
+			pollInterval: "20s",
+			pollDuration: "20m",
+
+			expectedPollPeriods: 60,
+			expectedBoundaries: []uint{
+				3, 4, 6, 7, 9, 10, 12, 13, 15, 16,
+				18, 19, 21, 22, 24, 25, 27, 28, 30,
+				33, 36, 39, 42, 45, 48, 51, 54, 57, 59,
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			pollInterval, err := time.ParseDuration(tt.pollInterval)
+			require.NoError(t, err, "error in specifying test poll interval")
+			pollDuration, err := time.ParseDuration(tt.pollDuration)
+			require.NoError(t, err, "error in specifying test poll duration")
+			pollPeriods := endpoints.PollPeriods(pollInterval, pollDuration)
+
+			require.Equal(t, tt.expectedPollPeriods, pollPeriods)
+			boundaries := endpoints.BoundaryBuilder(pollInterval, pollDuration)
+			require.Equal(t, tt.expectedBoundaries, boundaries)
+		})
+	}
 }
