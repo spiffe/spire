@@ -979,7 +979,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 	batchProcessedCh := make(chan struct{}, 1)
 
 	// Initialize cache with configuration
-	cache := newTestLRUCacheWithConfig(10, clk)
+	cache := newTestLRUCacheWithConfig(clk)
 	cache.processingBatchSize = 4
 	cache.log = log
 	cache.taintedBatchProcessedCh = batchProcessedCh

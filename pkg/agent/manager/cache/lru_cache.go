@@ -38,6 +38,12 @@ type UpdateEntries struct {
 	// Bundles is a set of ALL trust bundles available to the agent, keyed by trust domain
 	Bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
 
+	// TaintedX509Authorities is a set of all tainted X.509 authorities notified by the server.
+	TaintedX509Authorities []string
+
+	// TaintedJWTAuthorities is a set of all tainted JWT authorities notified by the server.
+	TaintedJWTAuthorities []string
+
 	// RegistrationEntries is a set of all registration entries available to the
 	// agent, keyed by registration entry id.
 	RegistrationEntries map[string]*common.RegistrationEntry
