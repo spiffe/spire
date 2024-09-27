@@ -5,10 +5,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"time"
 
 	"github.com/mitchellh/cli"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
+	"github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -81,8 +81,7 @@ func prettyPrintX509Activate(env *commoncli.Env, results ...any) error {
 		return errors.New("internal error: expected to have activated X.509 authority information")
 	}
 
-	env.Printf("  Authority ID: %s\n", r.ActivatedAuthority.AuthorityId)
-	env.Printf("  Expires at: %s\n", time.Unix(r.ActivatedAuthority.ExpiresAt, 0).UTC())
+	authoritycommon.PrettyPrintX509AuthorityState(env, r.ActivatedAuthority)
 
 	return nil
 }

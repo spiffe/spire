@@ -285,8 +285,9 @@ func (s *Service) PrepareX509Authority(ctx context.Context, _ *localauthorityv1.
 
 	return &localauthorityv1.PrepareX509AuthorityResponse{
 		PreparedAuthority: &localauthorityv1.AuthorityState{
-			AuthorityId: slot.AuthorityID(),
-			ExpiresAt:   slot.NotAfter().Unix(),
+			AuthorityId:                   slot.AuthorityID(),
+			ExpiresAt:                     slot.NotAfter().Unix(),
+			UpstreamAuthoritySubjectKeyId: slot.UpstreamAuthorityID(),
 		},
 	}, nil
 }
@@ -319,8 +320,9 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 
 	current := s.ca.GetCurrentX509CASlot()
 	state := &localauthorityv1.AuthorityState{
-		AuthorityId: current.AuthorityID(),
-		ExpiresAt:   current.NotAfter().Unix(),
+		AuthorityId:                   current.AuthorityID(),
+		ExpiresAt:                     current.NotAfter().Unix(),
+		UpstreamAuthoritySubjectKeyId: current.UpstreamAuthorityID(),
 	}
 	rpccontext.AuditRPC(ctx)
 
@@ -365,7 +367,9 @@ func (s *Service) TaintX509Authority(ctx context.Context, req *localauthorityv1.
 	}
 
 	state := &localauthorityv1.AuthorityState{
-		AuthorityId: nextSlot.AuthorityID(),
+		AuthorityId:                   nextSlot.AuthorityID(),
+		ExpiresAt:                     nextSlot.NotAfter().Unix(),
+		UpstreamAuthoritySubjectKeyId: nextSlot.UpstreamAuthorityID(),
 	}
 
 	if err := s.ca.NotifyTaintedX509Authority(ctx, nextSlot.AuthorityID()); err != nil {
@@ -406,7 +410,9 @@ func (s *Service) TaintX509UpstreamAuthority(ctx context.Context, req *localauth
 	rpccontext.AuditRPC(ctx)
 	log.Info("X.509 upstream authority tainted successfully")
 
-	return &localauthorityv1.TaintX509UpstreamAuthorityResponse{}, nil
+	return &localauthorityv1.TaintX509UpstreamAuthorityResponse{
+		UpstreamAuthoritySubjectKeyId: subjectKeyIDRequest,
+	}, nil
 }
 
 func (s *Service) RevokeX509Authority(ctx context.Context, req *localauthorityv1.RevokeX509AuthorityRequest) (*localauthorityv1.RevokeX509AuthorityResponse, error) {
@@ -468,7 +474,9 @@ func (s *Service) RevokeX509UpstreamAuthority(ctx context.Context, req *localaut
 	rpccontext.AuditRPC(ctx)
 	log.Info("X.509 upstream authority successfully revoked")
 
-	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{}, nil
+	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{
+		UpstreamAuthoritySubjectKeyId: subjectKeyIDRequest,
+	}, nil
 }
 
 // validateLocalAuthorityID validates provided authority ID, and return OLD associated public key
@@ -562,7 +570,8 @@ func buildAuditUpstreamLogFields(authorityID string) logrus.Fields {
 
 func stateFromSlot(s manager.Slot) *localauthorityv1.AuthorityState {
 	return &localauthorityv1.AuthorityState{
-		AuthorityId: s.AuthorityID(),
-		ExpiresAt:   s.NotAfter().Unix(),
+		AuthorityId:                   s.AuthorityID(),
+		ExpiresAt:                     s.NotAfter().Unix(),
+		UpstreamAuthoritySubjectKeyId: s.UpstreamAuthorityID(),
 	}
 }

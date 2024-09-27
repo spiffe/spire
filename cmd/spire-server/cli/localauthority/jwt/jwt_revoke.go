@@ -5,10 +5,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"time"
 
 	"github.com/mitchellh/cli"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
+	"github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -80,9 +80,7 @@ func prettyPrintJWTRevoke(env *commoncli.Env, results ...any) error {
 	if r.RevokedAuthority == nil {
 		return errors.New("internal error: expected to have revoked JWT authority information")
 	}
-
-	env.Printf("  Authority ID: %s\n", r.RevokedAuthority.AuthorityId)
-	env.Printf("  Expires at: %s\n", time.Unix(r.RevokedAuthority.ExpiresAt, 0).UTC())
+	authoritycommon.PrettyPrintJWTAuthorityState(env, r.RevokedAuthority)
 
 	return nil
 }

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"time"
 
 	"github.com/mitchellh/cli"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
+	"github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -62,24 +62,21 @@ func prettyPrintJWTShow(env *commoncli.Env, results ...any) error {
 
 	env.Println("Active JWT authority:")
 	if r.Active != nil {
-		env.Printf("  Authority ID: %s\n", r.Active.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.Active.ExpiresAt, 0).UTC())
+		authoritycommon.PrettyPrintJWTAuthorityState(env, r.Active)
 	} else {
 		env.Println("  No active JWT authority found")
 	}
 	env.Println()
 	env.Println("Prepared JWT authority:")
 	if r.Prepared != nil {
-		env.Printf("  Authority ID: %s\n", r.Prepared.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.Prepared.ExpiresAt, 0).UTC())
+		authoritycommon.PrettyPrintJWTAuthorityState(env, r.Prepared)
 	} else {
 		env.Println("  No prepared JWT authority found")
 	}
 	env.Println()
 	env.Println("Old JWT authority:")
 	if r.Old != nil {
-		env.Printf("  Authority ID: %s\n", r.Old.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.Old.ExpiresAt, 0).UTC())
+		authoritycommon.PrettyPrintJWTAuthorityState(env, r.Old)
 	} else {
 		env.Println("  No old JWT authority found")
 	}
