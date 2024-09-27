@@ -31,16 +31,16 @@ func TestPollPeriods(t *testing.T) {
 			expectedPollPeriods: 1,
 		},
 		{
-			name:         "minimum poll interval of one minute",
-			pollInterval: time.Duration(20) * time.Second,
-			pollDuration: time.Duration(10) * time.Minute,
+			name:         "minimum poll interval of one second",
+			pollInterval: time.Duration(0) * time.Second,
+			pollDuration: time.Duration(10) * time.Second,
 
 			expectedPollPeriods: 10,
 		},
 		{
-			name:         "minimum poll interval of one minute, even for negative intervals",
-			pollInterval: time.Duration(-1) * time.Minute,
-			pollDuration: time.Duration(10) * time.Minute,
+			name:         "minimum poll interval of one second, even for negative intervals",
+			pollInterval: time.Duration(-100) * time.Second,
+			pollDuration: time.Duration(10) * time.Second,
 
 			expectedPollPeriods: 10,
 		},
@@ -220,20 +220,6 @@ func TestNewEventTracker(t *testing.T) {
 	}
 }
 
-/*
- 0 1 2 3 4 5 (pollPeriods)
- 0     3     (boundaries)
- 0 0 0 1 1 1 (bucket number)
- 3 3 3 3 3 3 (bucket width)
-
- 0 3 0 0 3 0 (timeslots to poll event 3)
- 3 3 3 3 3 3 (every slot is polled)
-
- pollEvent(3)
- hash := hash(3) # hash must distribute well
- poll within the bucket = 34234 % (bucket width)
- */
-
 func TestEvenTrackerPolling(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
@@ -353,608 +339,608 @@ func TestEvenTrackerPolling(t *testing.T) {
 
 func TestEvenDispersion(t *testing.T) {
 	for _, tt := range []struct {
-		name           string
-		pollPeriods    uint
+		name        string
+		pollPeriods uint
 
 		startEvent     uint
 		eventIncrement uint
 		eventCount     uint
 
-		expectedSlotCount uint
+		expectedSlotCount     uint
 		permissibleCountError uint
 	}{
 		{
 			// sequence of Events: 0, 2, 4, 6, 8, 10, 12, ...
-			name: "increment by 2 (offset 0) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 0,
+			name:           "increment by 2 (offset 0) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     0,
 			eventIncrement: 2,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 1, 3, 5, 7, 9, 11, 13, ...
-			name: "increment by 2 (offset 1) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 1,
+			name:           "increment by 2 (offset 1) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     1,
 			eventIncrement: 2,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 0, 3, 6, 9, 12, 15, ...
-			name: "increment by 3 (offset 0) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 0,
+			name:           "increment by 3 (offset 0) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     0,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 1, 4, 7, 10, 13, 16, ...
-			name: "increment by 3 (offset 1) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 1,
+			name:           "increment by 3 (offset 1) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     1,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 2, 5, 8, 11, 14, 17, ...
-			name: "increment by 3 (offset 2) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 2,
+			name:           "increment by 3 (offset 2) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     2,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 0, 4, 8, 12, 16, 20, ...
-			name: "increment by 4 (offset 0) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 0,
+			name:           "increment by 4 (offset 0) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     0,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 1, 5, 9, 13, 17, 21, ...
-			name: "increment by 4 (offset 1) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 1,
+			name:           "increment by 4 (offset 1) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     1,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 2, 6, 10, 14, 18, 22, ...
-			name: "increment by 4 (offset 2) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 2,
+			name:           "increment by 4 (offset 2) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     2,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 3, 7, 11, 15, 19, 23, ...
-			name: "increment by 4 (offset 3) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 3,
+			name:           "increment by 4 (offset 3) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     3,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 0, 5, 10, 15, 20, 25, ...
-			name: "increment by 5 (offset 0) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 0,
+			name:           "increment by 5 (offset 0) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     0,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 1, 6, 11, 16, 21, 26, ...
-			name: "increment by 5 (offset 1) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 1,
+			name:           "increment by 5 (offset 1) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     1,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 2, 7, 12, 17, 22, 27, ...
-			name: "increment by 5 (offset 2) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 2,
+			name:           "increment by 5 (offset 2) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     2,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 3, 8, 13, 18, 23, 28, ...
-			name: "increment by 5 (offset 3) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 3,
+			name:           "increment by 5 (offset 3) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     3,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 4, 9, 14, 19, 24, 29, ...
-			name: "increment by 5 (offset 4) events distribute fairly across 2 slots",
-			pollPeriods: 2,
-			startEvent: 4,
+			name:           "increment by 5 (offset 4) events distribute fairly across 2 slots",
+			pollPeriods:    2,
+			startEvent:     4,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
-			expectedSlotCount: 500,
+			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 0, 2, 4, 6, 8, 10, 12, ...
-			name: "increment by 2 (offset 0) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 0,
+			name:           "increment by 2 (offset 0) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     0,
 			eventIncrement: 2,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into three slots, with an approxmiate count of [ 333, 333, 333 ]
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 2 (offset 1) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 1,
+			name:           "increment by 2 (offset 1) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     1,
 			eventIncrement: 2,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 3 (offset 0) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 0,
+			name:           "increment by 3 (offset 0) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     0,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 3 (offset 1) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 1,
+			name:           "increment by 3 (offset 1) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     1,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 3 (offset 2) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 2,
+			name:           "increment by 3 (offset 2) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     2,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 0) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 0,
+			name:           "increment by 4 (offset 0) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     0,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 1) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 1,
+			name:           "increment by 4 (offset 1) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     1,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 2) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 2,
+			name:           "increment by 4 (offset 2) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     2,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 3) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 3,
+			name:           "increment by 4 (offset 3) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     3,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 0) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 0,
+			name:           "increment by 5 (offset 0) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     0,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 1) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 1,
+			name:           "increment by 5 (offset 1) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     1,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 2) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 2,
+			name:           "increment by 5 (offset 2) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     2,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 3) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 3,
+			name:           "increment by 5 (offset 3) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     3,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 4) events distribute fairly across 3 slots",
-			pollPeriods: 3,
-			startEvent: 4,
+			name:           "increment by 5 (offset 4) events distribute fairly across 3 slots",
+			pollPeriods:    3,
+			startEvent:     4,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 333,
+			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 0, 2, 4, 6, 8, 10, 12, ...
-			name: "increment by 2 (offset 0) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 0,
+			name:           "increment by 2 (offset 0) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     0,
 			eventIncrement: 2,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into four slots, with an approxmiate count of [ 250, 250, 250, 250 ]
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 2 (offset 1) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 1,
+			name:           "increment by 2 (offset 1) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     1,
 			eventIncrement: 2,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 3 (offset 0) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 0,
+			name:           "increment by 3 (offset 0) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     0,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 3 (offset 1) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 1,
+			name:           "increment by 3 (offset 1) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     1,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 3 (offset 2) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 2,
+			name:           "increment by 3 (offset 2) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     2,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 0) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 0,
+			name:           "increment by 4 (offset 0) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     0,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 1) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 1,
+			name:           "increment by 4 (offset 1) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     1,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 2) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 2,
+			name:           "increment by 4 (offset 2) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     2,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 3) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 3,
+			name:           "increment by 4 (offset 3) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     3,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 0) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 0,
+			name:           "increment by 5 (offset 0) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     0,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 1) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 1,
+			name:           "increment by 5 (offset 1) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     1,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 2) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 2,
+			name:           "increment by 5 (offset 2) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     2,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 3) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 3,
+			name:           "increment by 5 (offset 3) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     3,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 4) events distribute fairly across 4 slots",
-			pollPeriods: 4,
-			startEvent: 4,
+			name:           "increment by 5 (offset 4) events distribute fairly across 4 slots",
+			pollPeriods:    4,
+			startEvent:     4,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 250,
+			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
 			// sequence of Events: 0, 2, 4, 6, 8, 10, 12, ...
-			name: "increment by 2 (offset 0) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 0,
+			name:           "increment by 2 (offset 0) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     0,
 			eventIncrement: 2,
-			eventCount: 1000,
+			eventCount:     1000,
 
 			// should disperse into five slots, with an approxmiate count of [ 200, 200, 200, 200, 200 ]
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 2 (offset 1) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 1,
+			name:           "increment by 2 (offset 1) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     1,
 			eventIncrement: 2,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 3 (offset 0) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 0,
+			name:           "increment by 3 (offset 0) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     0,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 3 (offset 1) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 1,
+			name:           "increment by 3 (offset 1) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     1,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 3 (offset 2) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 2,
+			name:           "increment by 3 (offset 2) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     2,
 			eventIncrement: 3,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 0) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 0,
+			name:           "increment by 4 (offset 0) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     0,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 1) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 1,
+			name:           "increment by 4 (offset 1) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     1,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 2) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 2,
+			name:           "increment by 4 (offset 2) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     2,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 4 (offset 3) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 3,
+			name:           "increment by 4 (offset 3) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     3,
 			eventIncrement: 4,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 0) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 0,
+			name:           "increment by 5 (offset 0) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     0,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 1) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 1,
+			name:           "increment by 5 (offset 1) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     1,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 2) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 2,
+			name:           "increment by 5 (offset 2) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     2,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 3) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 3,
+			name:           "increment by 5 (offset 3) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     3,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 		{
-			name: "increment by 5 (offset 4) events distribute fairly across 5 slots",
-			pollPeriods: 5,
-			startEvent: 4,
+			name:           "increment by 5 (offset 4) events distribute fairly across 5 slots",
+			pollPeriods:    5,
+			startEvent:     4,
 			eventIncrement: 5,
-			eventCount: 1000,
+			eventCount:     1000,
 
-			expectedSlotCount: 200,
+			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},
 	} {
@@ -972,14 +958,17 @@ func TestEvenDispersion(t *testing.T) {
 				t.Logf("pollPeriod %d, count = %d", pollPeriod, slotCount[pollPeriod])
 			}
 			for slot, count := range slotCount {
-				require.LessOrEqual(t, tt.expectedSlotCount - tt.permissibleCountError, count,
+				require.LessOrEqual(t, tt.expectedSlotCount-tt.permissibleCountError, count,
 					"for slot %d, expecting at least %d polls, but received %d polls",
-					slot, tt.expectedSlotCount - tt.permissibleCountError, count)
-				require.GreaterOrEqual(t, tt.expectedSlotCount + tt.permissibleCountError, count,
+					slot, tt.expectedSlotCount-tt.permissibleCountError, count)
+				require.GreaterOrEqual(t, tt.expectedSlotCount+tt.permissibleCountError, count,
 					"for slot %d, expecting no more than %d polls, but received %d polls",
-					slot, tt.expectedSlotCount + tt.permissibleCountError, count)
+					slot, tt.expectedSlotCount+tt.permissibleCountError, count)
 			}
 
 		})
 	}
+}
+
+func TestBoundaryBuilder(t *testing.T) {
 }

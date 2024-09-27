@@ -35,6 +35,10 @@ type registrationEntries struct {
 	sqlTransactionTimeout time.Duration
 
 	fetchEntries map[string]struct{}
+
+	// metrics change detection
+	skippedEntryEvents int
+	lastCacheStats     authorizedentries.CacheStats
 }
 
 func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
@@ -44,7 +48,7 @@ func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
 	if err := a.searchBeforeFirstEvent(ctx); err != nil {
 		return err
 	}
-	a.selectPolledEvents(ctx);
+	a.selectPolledEvents(ctx)
 	if err := a.scanNewEvents(ctx); err != nil {
 		return err
 	}
@@ -54,7 +58,7 @@ func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
 
 func (a *registrationEntries) searchBeforeFirstEvent(ctx context.Context) error {
 	// First event detected, and startup was less than a transaction timout away.
-	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {
+	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.sqlTransactionTimeout {
 		resp, err := a.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
 			LessThanEventID: a.firstEvent,
 		})
@@ -79,7 +83,6 @@ func (a *registrationEntries) searchBeforeFirstEvent(ctx context.Context) error 
 	return nil
 }
 
-
 func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 	// check if the polled events have appeared out-of-order
 	for _, eventID := range a.eventTracker.SelectEvents() {
@@ -98,7 +101,6 @@ func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 		a.fetchEntries[event.EntryID] = struct{}{}
 		a.eventTracker.StopTracking(uint(eventID))
 	}
-	server_telemetry.SetSkippedEntryEventIDsCacheCountGauge(a.metrics, int(a.eventTracker.EventCount()))
 }
 
 func (a *registrationEntries) scanNewEvents(ctx context.Context) error {
@@ -176,26 +178,31 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 	pollBoundaries := BoundaryBuilder(cacheReloadInterval, sqlTransactionTimeout)
 
 	registrationEntries := &registrationEntries{
-		cache:                   cache,
-		clk:                     clk,
-		ds:                      ds,
-		log:                     log,
-		metrics:                 metrics,
-		sqlTransactionTimeout:   sqlTransactionTimeout,
+		cache:                 cache,
+		clk:                   clk,
+		ds:                    ds,
+		log:                   log,
+		metrics:               metrics,
+		sqlTransactionTimeout: sqlTransactionTimeout,
 
-		eventsBeforeFirst:       make(map[uint]struct{}),
-		fetchEntries:            make(map[string]struct{}),
+		eventsBeforeFirst: make(map[uint]struct{}),
+		fetchEntries:      make(map[string]struct{}),
 
-		eventTracker:            NewEventTracker(pollPeriods, pollBoundaries),
+		eventTracker: NewEventTracker(pollPeriods, pollBoundaries),
+
+		skippedEntryEvents: -1,
+		lastCacheStats: authorizedentries.CacheStats{
+			AliasesByEntryID:  -1,
+			AliasesBySelector: -1,
+			EntriesByEntryID:  -1,
+			EntriesByParentID: -1,
+		},
 	}
 
 	if err := registrationEntries.loadCache(ctx, pageSize); err != nil {
 		return nil, err
 	}
-	if err := registrationEntries.captureChangedEntries(ctx); err != nil {
-		return nil, err
-	}
-	if err := registrationEntries.updateCachedEntries(ctx); err != nil {
+	if err := registrationEntries.updateCache(ctx); err != nil {
 		return nil, err
 	}
 
@@ -211,14 +218,7 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 	if err := a.updateCachedEntries(ctx); err != nil {
 		return err
 	}
-
-	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
-	server_telemetry.SetNodeAliasesByEntryIDCacheCountGauge(a.metrics, a.cache.Stats().AliasesByEntryID)
-	server_telemetry.SetNodeAliasesBySelectorCacheCountGauge(a.metrics, a.cache.Stats().AliasesBySelector)
-
-	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
-	server_telemetry.SetEntriesByEntryIDCacheCountGauge(a.metrics, a.cache.Stats().EntriesByEntryID)
-	server_telemetry.SetEntriesByParentIDCacheCountGauge(a.metrics, a.cache.Stats().EntriesByParentID)
+	a.emitMetrics()
 
 	return nil
 }
@@ -247,4 +247,30 @@ func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 		delete(a.fetchEntries, entryId)
 	}
 	return nil
+}
+
+func (a *registrationEntries) emitMetrics() {
+	if a.skippedEntryEvents != int(a.eventTracker.EventCount()) {
+		a.skippedEntryEvents = int(a.eventTracker.EventCount())
+		server_telemetry.SetSkippedEntryEventIDsCacheCountGauge(a.metrics, a.skippedEntryEvents)
+	}
+
+	cacheStats := a.cache.Stats()
+	if a.lastCacheStats.AliasesByEntryID != cacheStats.AliasesByEntryID {
+		a.lastCacheStats.AliasesByEntryID = cacheStats.AliasesByEntryID
+		server_telemetry.SetNodeAliasesByEntryIDCacheCountGauge(a.metrics, a.lastCacheStats.AliasesByEntryID)
+	}
+	if a.lastCacheStats.AliasesBySelector != cacheStats.AliasesBySelector {
+		a.lastCacheStats.AliasesBySelector = cacheStats.AliasesBySelector
+		server_telemetry.SetNodeAliasesBySelectorCacheCountGauge(a.metrics, a.lastCacheStats.AliasesBySelector)
+	}
+	if a.lastCacheStats.EntriesByEntryID != cacheStats.EntriesByEntryID {
+		a.lastCacheStats.EntriesByEntryID = cacheStats.EntriesByEntryID
+		server_telemetry.SetEntriesByEntryIDCacheCountGauge(a.metrics, a.lastCacheStats.EntriesByEntryID)
+	}
+	if a.lastCacheStats.EntriesByParentID != cacheStats.EntriesByParentID {
+		a.lastCacheStats.EntriesByParentID = cacheStats.EntriesByParentID
+		server_telemetry.SetEntriesByParentIDCacheCountGauge(a.metrics, a.lastCacheStats.EntriesByParentID)
+	}
+
 }

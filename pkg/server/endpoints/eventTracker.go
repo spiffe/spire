@@ -11,7 +11,7 @@ import (
  *
  * An event track is defined with a set of foundaries, which are indexes to
  * virtual hash tables, with the event's hash determining the position within
- * that hash table where the event will be selected to be polled.  
+ * that hash table where the event will be selected to be polled.
  * For eventTRackers that lack boundaries, or polls that exist prior to
  * boundaries, the event is always polled.
  */
@@ -19,11 +19,11 @@ type eventTracker struct {
 	/* Times the event is polled before entering a boundary */
 	initialPolls uint
 	/* Times the event is polled */
-	pollPeriods  uint
+	pollPeriods uint
 	/* Per event context of each event's walk across the boudaries */
-	events       map[uint]*eventStats
+	events map[uint]*eventStats
 	/* The leading index of boundaries in which an event should only report once */
-	boundaries   []uint
+	boundaries []uint
 }
 
 /**
@@ -31,7 +31,7 @@ type eventTracker struct {
  */
 type eventStats struct {
 	/* The event's hash for hash table calcuations */
-	hash  uint
+	hash uint
 	/* The number of times the event was considered for polling */
 	ticks uint
 	/* The number of times the event was selected for polling */
@@ -55,6 +55,13 @@ func PollPeriods(pollTime time.Duration, trackTime time.Duration) uint {
 	return uint(1 + (trackTime-1)/pollTime)
 }
 
+/**
+ * The default boundary strategy.
+ *
+ * Poll everything at poll rate for at least one minute, then poll everything
+ * twice a minute for 9 minute, then onece a minute for rest of time, with a
+ * guaranteed poll just before no longer tracking.
+ */
 func BoundaryBuilder(pollTime time.Duration, trackTime time.Duration) []uint {
 	pollPeriods := PollPeriods(pollTime, trackTime)
 
@@ -164,7 +171,7 @@ func (et *eventTracker) StopTracking(event uint) {
  *
  * The event's boundary Index is computed, and if it is below the
  * number of initial polls, the event is polled without further
- * analysis.  
+ * analysis.
  *
  * If the boundary index is inside a defined boundary, the width
  * of the boundary is computed and the event's position within

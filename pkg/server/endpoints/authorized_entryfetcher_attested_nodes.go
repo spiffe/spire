@@ -35,8 +35,11 @@ type attestedNodes struct {
 	eventTracker          *eventTracker
 	sqlTransactionTimeout time.Duration
 
-	fetchNodes     map[string]struct{}
-	lastCacheStats authorizedentries.CacheStats
+	fetchNodes map[string]struct{}
+
+	// metrics change detection
+	skippedNodeEvents int
+	lastCacheStats    authorizedentries.CacheStats
 }
 
 func (a *attestedNodes) captureChangedNodes(ctx context.Context) error {
@@ -99,7 +102,6 @@ func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
 		a.fetchNodes[event.SpiffeID] = struct{}{}
 		a.eventTracker.StopTracking(uint(eventID))
 	}
-	server_telemetry.SetSkippedNodeEventIDsCacheCountGauge(a.metrics, int(a.eventTracker.EventCount()))
 }
 
 func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {
@@ -155,7 +157,6 @@ func (a *attestedNodes) loadCache(ctx context.Context) error {
 		}
 		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
 	}
-	a.emitCacheMetrics()
 
 	return nil
 }
@@ -178,8 +179,10 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metric
 		fetchNodes:        make(map[string]struct{}),
 
 		eventTracker: NewEventTracker(pollPeriods, pollBoundaries),
+
+		// initialize guages to nonsense values to force a change.
+		skippedNodeEvents: -1,
 		lastCacheStats: authorizedentries.CacheStats{
-			// nonsense counts to force a change, even to zero
 			AgentsByID:        -1,
 			AgentsByExpiresAt: -1,
 		},
@@ -188,7 +191,6 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metric
 	if err := attestedNodes.loadCache(ctx); err != nil {
 		return nil, err
 	}
-	// TODO: is it really necessary to udpate on first load?
 	if err := attestedNodes.updateCache(ctx); err != nil {
 		return nil, err
 	}
@@ -205,6 +207,7 @@ func (a *attestedNodes) updateCache(ctx context.Context) error {
 	if err := a.updateCachedNodes(ctx); err != nil {
 		return err
 	}
+	a.emitMetrics()
 
 	return nil
 }
@@ -233,20 +236,23 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 		delete(a.fetchNodes, node.SpiffeId)
 
 	}
-	a.emitCacheMetrics()
 	return nil
 }
 
-func (a *attestedNodes) emitCacheMetrics() {
-	cacheStats := a.cache.Stats()
-
-	if a.lastCacheStats.AgentsByExpiresAt != cacheStats.AgentsByExpiresAt {
-		server_telemetry.SetAgentsByExpiresAtCacheCountGauge(a.metrics, cacheStats.AgentsByExpiresAt)
-		a.lastCacheStats.AgentsByExpiresAt = cacheStats.AgentsByExpiresAt
+func (a *attestedNodes) emitMetrics() {
+	if a.skippedNodeEvents != int(a.eventTracker.EventCount()) {
+		a.skippedNodeEvents = int(a.eventTracker.EventCount())
+		server_telemetry.SetSkippedNodeEventIDsCacheCountGauge(a.metrics, a.skippedNodeEvents)
 	}
-	// Should be the same as AgentsByExpireAt.  Not de-duplicated for incident triage.
+
+	cacheStats := a.cache.Stats()
+	// AgentsByID and AgentsByExpiresAt should be the same.
 	if a.lastCacheStats.AgentsByID != cacheStats.AgentsByID {
-		server_telemetry.SetAgentsByIDCacheCountGauge(a.metrics, cacheStats.AgentsByID)
 		a.lastCacheStats.AgentsByID = cacheStats.AgentsByID
+		server_telemetry.SetAgentsByIDCacheCountGauge(a.metrics, a.lastCacheStats.AgentsByID)
+	}
+	if a.lastCacheStats.AgentsByExpiresAt != cacheStats.AgentsByExpiresAt {
+		a.lastCacheStats.AgentsByExpiresAt = cacheStats.AgentsByExpiresAt
+		server_telemetry.SetAgentsByExpiresAtCacheCountGauge(a.metrics, a.lastCacheStats.AgentsByExpiresAt)
 	}
 }
