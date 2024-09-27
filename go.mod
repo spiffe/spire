@@ -35,7 +35,7 @@ require (
 	github.com/aws/smithy-go v1.20.4
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/docker/docker v27.2.1+incompatible
+	github.com/docker/docker v27.3.1+incompatible
 	github.com/envoyproxy/go-control-plane v0.13.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/go-jose/go-jose/v4 v4.0.4
@@ -65,7 +65,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.23
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v0.68.0
-	github.com/prometheus/client_golang v1.20.3
+	github.com/prometheus/client_golang v1.20.4
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/sigstore/cosign/v2 v2.4.0
 	github.com/sigstore/rekor v1.3.6
