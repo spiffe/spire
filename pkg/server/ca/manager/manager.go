@@ -195,8 +195,8 @@ func (m *Manager) Close() {
 	}
 }
 
-func (m *Manager) NotifyTaintedX509Authority(ctx context.Context, authoirtyID string) error {
-	taintedAuthority, err := m.fetchRootCAByAuthorityID(ctx, authoirtyID)
+func (m *Manager) NotifyTaintedX509Authority(ctx context.Context, authorityID string) error {
+	taintedAuthority, err := m.fetchRootCAByAuthorityID(ctx, authorityID)
 	if err != nil {
 		return err
 	}

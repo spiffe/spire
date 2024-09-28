@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -15,6 +16,8 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
+	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -964,6 +967,196 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 	}
 }
 
+func TestTaintX509SVIDs(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	clk := clock.NewMock(t)
+	fakeMetrics := fakemetrics.New()
+	log, logHook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	batchProcessedCh := make(chan struct{}, 1)
+
+	// Initialize cache with configuration
+	cache := newTestLRUCacheWithConfig(clk)
+	cache.processingBatchSize = 4
+	cache.log = log
+	cache.taintedBatchProcessedCh = batchProcessedCh
+	cache.metrics = fakeMetrics
+
+	entries := createTestEntries(10)
+	updateEntries := &UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(entries...),
+	}
+
+	// Add entries to cache
+	cache.UpdateEntries(updateEntries, nil)
+
+	taintedCA := testca.New(t, trustDomain1)
+	newCA := testca.New(t, trustDomain1)
+	svids := makeX509SVIDs(entries...)
+
+	// Prepare SVIDs (some are signed by tainted authority, others are not)
+	prepareSVIDs(t, entries[:3], svids, taintedCA) // SVIDs for e0-e2 tainted
+	prepareSVIDs(t, entries[3:5], svids, newCA)    // SVIDs for e3-e4 not tainted
+	prepareSVIDs(t, entries[5:], svids, taintedCA) // SVIDs for e5-e9 tainted
+
+	cache.svids = svids
+	require.Equal(t, 10, cache.CountX509SVIDs())
+
+	waitForBatchFinished := func() {
+		select {
+		case <-cache.taintedBatchProcessedCh:
+		case <-ctx.Done():
+			require.Fail(t, "failed to process tainted authorities")
+		}
+	}
+
+	assertBatchProcess := func(expectLogs []spiretest.LogEntry, expectMetrics []fakemetrics.MetricItem, svidIDs ...string) {
+		waitForBatchFinished()
+		spiretest.AssertLogs(t, logHook.AllEntries(), expectLogs)
+		assert.Equal(t, expectMetrics, fakeMetrics.AllMetrics())
+
+		assert.Len(t, cache.svids, len(svidIDs))
+		for _, svidID := range svidIDs {
+			_, found := cache.svids[svidID]
+			assert.True(t, found, "svid not found: %q", svidID)
+		}
+	}
+
+	expectElapsedTimeMetric := []fakemetrics.MetricItem{
+		{
+			Type: fakemetrics.IncrCounterWithLabelsType,
+			Key:  []string{"cache_manager", "", "process_tainted_svids"},
+			Val:  1,
+			Labels: []telemetry.Label{
+				{
+					Name:  "status",
+					Value: "OK",
+				},
+			},
+		},
+		{
+			Type: fakemetrics.MeasureSinceWithLabelsType,
+			Key:  []string{"cache_manager", "", "process_tainted_svids", "elapsed_time"},
+			Val:  0,
+			Labels: []telemetry.Label{
+				{
+					Name:  "status",
+					Value: "OK",
+				},
+			},
+		},
+	}
+
+	// Reset logs and metrics before testing
+	resetLogsAndMetrics(logHook, fakeMetrics)
+
+	// Schedule taint and assert initial batch processing
+	cache.TaintX509SVIDs(ctx, taintedCA.X509Authorities())
+
+	expectLog := []spiretest.LogEntry{
+		{
+			Level:   logrus.DebugLevel,
+			Message: "Scheduled rotation for SVID entries due to tainted X.509 authorities",
+			Data:    logrus.Fields{telemetry.Count: "10"},
+		},
+		{
+			Level:   logrus.InfoLevel,
+			Message: "Tainted X.509 SVIDs",
+			Data:    logrus.Fields{telemetry.TaintedSVIDs: "3"},
+		},
+		{
+			Level:   logrus.InfoLevel,
+			Message: "There are tainted X.509 SVIDs left to be processed",
+			Data:    logrus.Fields{telemetry.Count: "6"},
+		},
+	}
+	expectMetrics := append([]fakemetrics.MetricItem{
+		{Type: fakemetrics.AddSampleType, Key: []string{telemetry.CacheManager, "", telemetry.TaintedSVIDs}, Val: 3}},
+		expectElapsedTimeMetric...)
+	assertBatchProcess(expectLog, expectMetrics, "e3", "e4", "e5", "e6", "e7", "e8", "e9")
+
+	// Advance clock, reset logs and metrics, and verify batch processing
+	resetLogsAndMetrics(logHook, fakeMetrics)
+	clk.Add(6 * time.Second)
+
+	expectLog = []spiretest.LogEntry{
+		{
+			Level:   logrus.InfoLevel,
+			Message: "Tainted X.509 SVIDs",
+			Data:    logrus.Fields{telemetry.TaintedSVIDs: "3"},
+		},
+		{
+			Level:   logrus.InfoLevel,
+			Message: "There are tainted X.509 SVIDs left to be processed",
+			Data:    logrus.Fields{telemetry.Count: "2"},
+		},
+	}
+	expectMetrics = append([]fakemetrics.MetricItem{
+		{Type: fakemetrics.AddSampleType, Key: []string{telemetry.CacheManager, "", telemetry.TaintedSVIDs}, Val: 3}},
+		expectElapsedTimeMetric...)
+	assertBatchProcess(expectLog, expectMetrics, "e3", "e4", "e8", "e9")
+
+	// Advance clock again for the final batch
+	resetLogsAndMetrics(logHook, fakeMetrics)
+	clk.Add(6 * time.Second)
+
+	expectLog = []spiretest.LogEntry{
+		{
+			Level:   logrus.InfoLevel,
+			Message: "Tainted X.509 SVIDs",
+			Data:    logrus.Fields{telemetry.TaintedSVIDs: "2"},
+		},
+		{
+			Level:   logrus.InfoLevel,
+			Message: "Finished processing all tainted entries",
+		},
+	}
+	expectMetrics = append([]fakemetrics.MetricItem{
+		{Type: fakemetrics.AddSampleType, Key: []string{telemetry.CacheManager, "", telemetry.TaintedSVIDs}, Val: 2}},
+		expectElapsedTimeMetric...)
+	assertBatchProcess(expectLog, expectMetrics, "e3", "e4")
+}
+
+func TestTaintX509SVIDsNoSVIDs(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	clk := clock.NewMock(t)
+	log, logHook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	// Initialize cache with configuration
+	cache := newTestLRUCacheWithConfig(clk)
+	cache.log = log
+
+	entries := createTestEntries(10)
+	updateEntries := &UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(entries...),
+	}
+	// All entries has no chain...
+	cache.svids = makeX509SVIDs(entries...)
+
+	// Add entries to cache
+	cache.UpdateEntries(updateEntries, nil)
+	logHook.Reset()
+
+	fakeBundle := []*x509.Certificate{{Raw: []byte("foo")}}
+	cache.TaintX509SVIDs(ctx, fakeBundle)
+
+	expectLog := []spiretest.LogEntry{
+		{
+			Level:   logrus.DebugLevel,
+			Message: "No SVID entries to process for tainted X.509 authorities",
+		},
+	}
+	spiretest.AssertLogs(t, logHook.AllEntries(), expectLog)
+}
+
 func TestMetrics(t *testing.T) {
 	cache := newTestLRUCache(t)
 	fakeMetrics := fakemetrics.New()
@@ -1081,7 +1274,7 @@ func newTestLRUCache(t testing.TB) *LRUCache {
 
 func newTestLRUCacheWithConfig(clk clock.Clock) *LRUCache {
 	log, _ := test.NewNullLogger()
-	return NewLRUCache(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1, telemetry.Blackhole{}, clk)
+	return NewLRUCache(log, trustDomain1, bundleV1, telemetry.Blackhole{}, clk)
 }
 
 // numEntries should not be more than 12 digits
@@ -1224,4 +1417,32 @@ func makeFederatesWith(bundles ...*Bundle) []string {
 		out = append(out, bundle.TrustDomain().IDString())
 	}
 	return out
+}
+
+func createTestEntries(count int) []*common.RegistrationEntry {
+	var entries []*common.RegistrationEntry
+	for i := 0; i < count; i++ {
+		entry := makeRegistrationEntry(fmt.Sprintf("e%d", i), fmt.Sprintf("s%d", i))
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func prepareSVIDs(t *testing.T, entries []*common.RegistrationEntry, svids map[string]*X509SVID, ca *testca.CA) {
+	for _, entry := range entries {
+		svid, ok := svids[entry.EntryId]
+		require.True(t, ok)
+
+		chain, key := ca.CreateX509Certificate(
+			testca.WithID(spiffeid.RequireFromPath(trustDomain1, "/"+entry.EntryId)),
+		)
+
+		svid.Chain = chain
+		svid.PrivateKey = key
+	}
+}
+
+func resetLogsAndMetrics(logHook *test.Hook, fakeMetrics *fakemetrics.FakeMetrics) {
+	logHook.Reset()
+	fakeMetrics.Reset()
 }

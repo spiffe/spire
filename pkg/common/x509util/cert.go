@@ -4,8 +4,14 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/x509"
+	"fmt"
+	"strings"
 
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+)
+
+const (
+	unknowAuthorityErr = "x509: certificate signed by unknown authority"
 )
 
 func CreateCertificate(template, parent *x509.Certificate, pub, priv any) (*x509.Certificate, error) {
@@ -71,4 +77,46 @@ func RawCertsFromCertificates(certs []*x509.Certificate) [][]byte {
 		rawCerts = append(rawCerts, cert.Raw)
 	}
 	return rawCerts
+}
+
+// IsUnknownAuthorityError returns tru if the Server returned an unknow authority error when verifying
+// presented SVID
+func IsUnknownAuthorityError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Since it is an rpc error we are unable to use errors.As since it is not possible to unwrap
+	return strings.Contains(err.Error(), unknowAuthorityErr)
+}
+
+// IsSignedByRoot checks if the provided certificate chain is signed by one of the specified root CAs.
+func IsSignedByRoot(chain []*x509.Certificate, rootCAs []*x509.Certificate) (bool, error) {
+	if len(chain) == 0 {
+		return false, nil
+	}
+	rootPool := x509.NewCertPool()
+	for _, x509Authority := range rootCAs {
+		rootPool.AddCert(x509Authority)
+	}
+
+	intermediatePool := x509.NewCertPool()
+	for _, intermediateCA := range chain[1:] {
+		intermediatePool.AddCert(intermediateCA)
+	}
+
+	// Verify certificate chain, using tainted authorities as root
+	_, err := chain[0].Verify(x509.VerifyOptions{
+		Intermediates: intermediatePool,
+		Roots:         rootPool,
+	})
+	if err == nil {
+		return true, nil
+	}
+
+	if IsUnknownAuthorityError(err) {
+		return false, nil
+	}
+
+	return false, fmt.Errorf("failed to verify certificate chain: %w", err)
 }

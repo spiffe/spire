@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -15,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -33,6 +36,10 @@ type SVIDCache interface {
 
 	// GetStaleEntries gets a list of records that need update SVIDs
 	GetStaleEntries() []*cache.StaleEntry
+
+	// TaintX509SVIDs marks all SVIDs signed by a tainted X.509 authority as tainted
+	// to force their rotation.
+	TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x509.Certificate)
 }
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
@@ -40,11 +47,54 @@ func (m *manager) syncSVIDs(ctx context.Context) (err error) {
 	return m.updateSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.cache)
 }
 
+// processTaintedAuthorities verifies if a new authority is tainted and forces rotation in all caches if required.
+func (m *manager) processTaintedAuthorities(ctx context.Context, x509Authorities []string, jwtAuthorities []string) error {
+	newTaintedX509Authorities := getNewItems(m.processedTaintedX509Authorities, x509Authorities)
+	if len(newTaintedX509Authorities) > 0 {
+		m.c.Log.WithField(telemetry.SubjectKeyIDs, strings.Join(newTaintedX509Authorities, ",")).
+			Debug("New tainted X.509 authorities found")
+
+		taintedX509Authorities, err := bundleutil.FindX509Authorities(m.c.Bundle, newTaintedX509Authorities)
+		if err != nil {
+			return fmt.Errorf("failed to search X.509 authorities: %w", err)
+		}
+
+		// Taint all regular X.509 SVIDs
+		m.cache.TaintX509SVIDs(ctx, taintedX509Authorities)
+
+		// Taint all SVIDStore SVIDs
+		m.svidStoreCache.TaintX509SVIDs(ctx, taintedX509Authorities)
+
+		// Notify rotator about new tainted authorities
+		if err := m.svid.NotifyTaintedAuthorities(taintedX509Authorities); err != nil {
+			return err
+		}
+
+		for _, subjectKeyID := range newTaintedX509Authorities {
+			m.processedTaintedX509Authorities[subjectKeyID] = struct{}{}
+		}
+	}
+
+	newTaintedJWTAuthorities := getNewItems(m.processedTaintedJWTAuthorities, jwtAuthorities)
+	if len(newTaintedJWTAuthorities) > 0 {
+		m.c.Log.WithField(telemetry.SubjectKeyIDs, strings.Join(newTaintedJWTAuthorities, ",")).
+			Debug("New tainted JWT authorities found")
+		// TODO: IMPLEMENT!!!
+	}
+
+	return nil
+}
+
 // synchronize fetches the authorized entries from the server, updates the
 // cache, and fetches missing/expiring SVIDs.
 func (m *manager) synchronize(ctx context.Context) (err error) {
 	cacheUpdate, storeUpdate, err := m.fetchEntries(ctx)
 	if err != nil {
+		return err
+	}
+
+	// Process all tainted authorities. The bundle is shared between both caches using regular cache data.
+	if err := m.processTaintedAuthorities(ctx, cacheUpdate.TaintedX509Authorities, cacheUpdate.TaintedJWTAuthorities); err != nil {
 		return err
 	}
 
@@ -254,6 +304,27 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 		return nil, nil, err
 	}
 
+	// Get all Subject Key IDs and KeyIDs of tainted authorities
+	var taintedX509Authorities []string
+	var taintedJWTAuthorities []string
+	if b, ok := update.Bundles[m.c.TrustDomain.IDString()]; ok {
+		for _, rootCA := range b.RootCas {
+			if rootCA.TaintedKey {
+				cert, err := x509.ParseCertificate(rootCA.DerBytes)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to parse tainted x509 authority: %w", err)
+				}
+				subjectKeyID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
+				taintedX509Authorities = append(taintedX509Authorities, subjectKeyID)
+			}
+		}
+		for _, jwtKey := range b.JwtSigningKeys {
+			if jwtKey.TaintedKey {
+				taintedJWTAuthorities = append(taintedJWTAuthorities, jwtKey.Kid)
+			}
+		}
+	}
+
 	cacheEntries := make(map[string]*common.RegistrationEntry)
 	storeEntries := make(map[string]*common.RegistrationEntry)
 
@@ -267,11 +338,15 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 	}
 
 	return &cache.UpdateEntries{
-			Bundles:             bundles,
-			RegistrationEntries: cacheEntries,
+			Bundles:                bundles,
+			RegistrationEntries:    cacheEntries,
+			TaintedJWTAuthorities:  taintedJWTAuthorities,
+			TaintedX509Authorities: taintedX509Authorities,
 		}, &cache.UpdateEntries{
-			Bundles:             bundles,
-			RegistrationEntries: storeEntries,
+			Bundles:                bundles,
+			RegistrationEntries:    storeEntries,
+			TaintedJWTAuthorities:  taintedJWTAuthorities,
+			TaintedX509Authorities: taintedX509Authorities,
 		}, nil
 }
 
@@ -302,4 +377,15 @@ func parseBundles(bundles map[string]*common.Bundle) (map[spiffeid.TrustDomain]*
 		out[td] = bundle
 	}
 	return out, nil
+}
+
+func getNewItems(current map[string]struct{}, items []string) []string {
+	var newItems []string
+	for _, subjectKeyID := range items {
+		if _, ok := current[subjectKeyID]; !ok {
+			newItems = append(newItems, subjectKeyID)
+		}
+	}
+
+	return newItems
 }

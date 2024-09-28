@@ -16,6 +16,7 @@ import (
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
@@ -149,6 +150,42 @@ func TestCommonBundleFromProto(t *testing.T) {
 						PkixBytes: pkixBytes,
 						Kid:       "key-id-1",
 						NotAfter:  1590514224,
+					},
+				},
+			},
+		},
+		{
+			name: "tainted authority",
+			bundle: &types.Bundle{
+				TrustDomain: td.Name(),
+				RefreshHint: 10,
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1:    rootCA.Raw,
+						Tainted: true,
+					},
+				},
+				JwtAuthorities: []*types.JWTKey{
+					{
+						PublicKey: pkixBytes,
+						KeyId:     "key-id-1",
+						ExpiresAt: 1590514224,
+						Tainted:   true,
+					},
+				},
+				SequenceNumber: 42,
+			},
+			expectBundle: &common.Bundle{
+				TrustDomainId:  td.IDString(),
+				RefreshHint:    10,
+				SequenceNumber: 42,
+				RootCas:        []*common.Certificate{{DerBytes: rootCA.Raw, TaintedKey: true}},
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes:  pkixBytes,
+						Kid:        "key-id-1",
+						NotAfter:   1590514224,
+						TaintedKey: true,
 					},
 				},
 			},
@@ -360,6 +397,38 @@ func TestSPIFFEBundleFromProto(t *testing.T) {
 			assert.Equal(t, tt.expBundle, got)
 		})
 	}
+}
+
+func TestFindX509Authorities(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+
+	skID1 := x509util.SubjectKeyIDToString([]byte("ca1"))
+	ca1 := &x509.Certificate{
+		SubjectKeyId: []byte("ca1"),
+	}
+	ca2 := &x509.Certificate{
+		SubjectKeyId: []byte("ca2"),
+	}
+	skID3 := x509util.SubjectKeyIDToString([]byte("ca3"))
+	ca3 := &x509.Certificate{
+		SubjectKeyId: []byte("ca3"),
+	}
+	testBundle := spiffebundle.FromX509Authorities(td, []*x509.Certificate{ca1, ca2, ca3})
+
+	runTest := func(skIDs []string, expectErr string, expectResp ...*x509.Certificate) {
+		found, err := FindX509Authorities(testBundle, skIDs)
+		if expectErr != "" {
+			require.EqualError(t, err, expectErr)
+			require.Nil(t, found)
+			return
+		}
+		require.NoError(t, err)
+		require.Equal(t, expectResp, found)
+	}
+
+	runTest([]string{skID1}, "", ca1)
+	runTest([]string{skID1, skID3}, "", ca1, ca3)
+	runTest([]string{skID1, "foo"}, `no X.509 authority found with SubjectKeyID "foo"`)
 }
 
 func createBundle(certs []*x509.Certificate, jwtKeys []*common.PublicKey) *common.Bundle {

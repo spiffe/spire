@@ -1,6 +1,8 @@
 package storecache
 
 import (
+	"context"
+	"crypto/x509"
 	"sort"
 	"sync"
 	"time"
@@ -10,6 +12,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -46,6 +50,7 @@ type cachedRecord struct {
 type Config struct {
 	Log         logrus.FieldLogger
 	TrustDomain spiffeid.TrustDomain
+	Metrics     telemetry.Metrics
 }
 
 type Cache struct {
@@ -217,6 +222,38 @@ func (c *Cache) UpdateSVIDs(update *cache.UpdateSVIDs) {
 		// Cache record is updated, remove it from stale map
 		delete(c.staleEntries, entryID)
 	}
+}
+
+func (c *Cache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x509.Certificate) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	counter := telemetry.StartCall(c.c.Metrics, telemetry.CacheManager, "svid_store", telemetry.ProcessTaintedSVIDs)
+	defer counter.Done(nil)
+
+	taintedSVIDs := 0
+	for _, record := range c.records {
+		// Skip nil or already tainted SVIDs
+		if record.svid == nil {
+			continue
+		}
+
+		isTainted, err := x509util.IsSignedByRoot(record.svid.Chain, taintedX509Authorities)
+		if err != nil {
+			c.c.Log.WithError(err).
+				WithField(telemetry.RegistrationID, record.entry.EntryId).
+				Error("Failed to check if SVID is signed by tainted authority")
+			continue
+		}
+
+		if isTainted {
+			taintedSVIDs++
+			record.svid = nil // Mark SVID as tainted by setting it to nil
+		}
+	}
+
+	telemetry_agent.AddCacheManagerExpiredSVIDsSample(c.c.Metrics, "svid_store", float32(taintedSVIDs))
+	c.c.Log.WithField(telemetry.TaintedSVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
 }
 
 // GetStaleEntries obtains a list of stale entries, that needs new SVIDs

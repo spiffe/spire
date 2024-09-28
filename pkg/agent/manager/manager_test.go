@@ -9,11 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -770,6 +772,178 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	compareRegistrationEntries(t,
 		regEntriesMap["resp3"],
 		m.cache.Entries())
+}
+
+func TestForceRotation(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	// Big number to never get into regular rotation
+	ttl := 10000
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		svidTTL: ttl,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	log, logHook := testlog.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              log,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		RotationInterval: time.Hour,
+		SyncInterval:     time.Hour,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger, Metrics: &telemetry.Blackhole{}}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	}
+
+	m := newManager(c)
+
+	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{
+		{Type: "unix", Value: "uid:1111"},
+		{Type: "spiffe_id", Value: joinTokenID.String()},
+	})
+	require.NoError(t, err)
+	defer sub.Finish()
+
+	if err := m.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	require.Equal(t, clk.Now(), m.GetLastSync())
+
+	// Before synchronization
+	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	if len(identitiesBefore) != 3 {
+		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
+	}
+
+	// This is the initial update based on the selector set
+	u := <-sub.Updates()
+	if len(u.Identities) != 3 {
+		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
+	}
+
+	if len(u.Bundle.X509Authorities()) != 1 {
+		t.Fatal("expected 1 bundle root CA")
+	}
+
+	if !u.Bundle.Equal(api.bundle) {
+		t.Fatal("received bundle should be equals to the server bundle")
+	}
+
+	for key, eu := range identitiesByEntryID(u.Identities) {
+		eb, ok := identitiesBefore[key]
+		if !ok {
+			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
+		}
+		require.Equal(t, eb, eu, "identity received does not match identity on cache")
+	}
+
+	require.Equal(t, clk.Now(), m.GetLastSync())
+
+	// No ttl and bundle updates
+	clk.Add(time.Second)
+	require.NoError(t, m.synchronize(context.Background()))
+	select {
+	case <-sub.Updates():
+		t.Fatal("update unexpected after 1 second")
+	default:
+	}
+	assert.False(t, m.svid.IsTainted())
+
+	// Taint authority
+	api.taintCurrentX509Authority()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	// Initial synchronization
+	require.NoError(t, m.synchronize(ctx))
+
+	// Wait until tainted authorities are fully processed, then retry synchronization
+	assert.Eventually(t, func() bool {
+		for _, logEntry := range logHook.Entries {
+			if logEntry.Message == "Finished processing all tainted entries" {
+				return true
+			}
+		}
+		return false
+	}, time.Minute, 50*time.Millisecond, "No tainted authority processed")
+
+	// Retry synchronization to handle potential edge case
+	require.NoError(t, m.synchronize(ctx))
+
+	select {
+	case u = <-sub.Updates():
+	case <-ctx.Done():
+		t.Fatal("Expected update after tainting authority, but none received")
+	}
+
+	// SVID is signed by a tainted authority, it must be tainted
+	assert.True(t, m.svid.IsTainted())
+	taintedSubjectKeyID := x509util.SubjectKeyIDToString(api.taintedX509Authority.SubjectKeyId)
+	expectProcessedTaintedX509Authorities := map[string]struct{}{
+		taintedSubjectKeyID: {},
+	}
+	assert.Equal(t, expectProcessedTaintedX509Authorities, m.processedTaintedX509Authorities)
+
+	// Make sure the update contains the updated entries and that the cache
+	// has a consistent view.
+	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	if len(identitiesAfter) != 3 {
+		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
+	}
+
+	for key, eb := range identitiesBefore {
+		ea, ok := identitiesAfter[key]
+		if !ok {
+			t.Fatalf("expected identity with EntryId=%v after synchronization", key)
+		}
+		require.NotEqual(t, eb, ea, "there is at least one identity that was not refreshed: %v", ea)
+	}
+
+	if len(u.Identities) != 3 {
+		t.Fatalf("expected 3 identities, got: %d", len(u.Identities))
+	}
+
+	if len(u.Bundle.X509Authorities()) != 2 {
+		t.Fatal("expected 1 bundle root CA")
+	}
+
+	if !u.Bundle.Equal(api.bundle) {
+		t.Fatal("received bundle should be equals to the server bundle")
+	}
+
+	for key, eu := range identitiesByEntryID(u.Identities) {
+		ea, ok := identitiesAfter[key]
+		if !ok {
+			t.Fatalf("an update was received for an inexistent entry on the cache with EntryId=%v", key)
+		}
+		require.Equal(t, eu, ea, "entry received does not match entry on cache")
+	}
+
+	require.Equal(t, clk.Now(), m.GetLastSync())
 }
 
 func TestSubscribersGetUpToDateBundle(t *testing.T) {
@@ -1597,6 +1771,8 @@ type mockAPI struct {
 	getAuthorizedEntriesCount int32
 	batchNewX509SVIDCount     int32
 
+	taintedX509Authority *x509.Certificate
+
 	clk clock.Clock
 
 	// Add latest's SVIDs per entry, to verify returned SVIDs are valid
@@ -1716,7 +1892,16 @@ func (h *mockAPI) NewJWTSVID(_ context.Context, req *svidv1.NewJWTSVIDRequest) (
 }
 
 func (h *mockAPI) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
-	return api.BundleToProto(bundleutil.BundleProtoFromRootCAs(h.bundle.TrustDomain().IDString(), h.bundle.X509Authorities()))
+	bundle := bundleutil.BundleProtoFromRootCAs(h.bundle.TrustDomain().IDString(), h.bundle.X509Authorities())
+	if h.taintedX509Authority != nil {
+		for _, eachRootCA := range bundle.RootCas {
+			if reflect.DeepEqual(eachRootCA.DerBytes, h.taintedX509Authority.Raw) {
+				eachRootCA.TaintedKey = true
+			}
+		}
+	}
+
+	return api.BundleToProto(bundle)
 }
 
 func (h *mockAPI) GetFederatedBundle(_ context.Context, req *bundlev1.GetFederatedBundleRequest) (*types.Bundle, error) {
@@ -1726,6 +1911,15 @@ func (h *mockAPI) GetFederatedBundle(_ context.Context, req *bundlev1.GetFederat
 			{Asn1: h.ca.Raw},
 		},
 	}, nil
+}
+
+// taintCurrentX509Authority create a new X.509 authority and taint old
+func (h *mockAPI) taintCurrentX509Authority() {
+	h.taintedX509Authority = h.ca
+	ca, caKey := createCA(h.t, h.clk)
+	h.ca = ca
+	h.caKey = caKey
+	h.bundle.AddX509Authority(ca)
 }
 
 func (h *mockAPI) rotateCA() {
