@@ -18,7 +18,7 @@ The integration test is structured with three layers of server/agents pairs:
                 |                       |
            leafA-agent             leafA-agent
 
-Test steps:
+## Test steps
 
 1. **Prepare a new X.509 authority**: Validate that the new X.509 authority is propagated to all nested servers.
 2. **Activate the new X.509 authority**: Ensure the new X.509 authority becomes active.
