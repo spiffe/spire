@@ -107,6 +107,23 @@ check-server-started() {
   fail-now "timed out waiting for server to start"
 }
 
+check-log-line() {
+  # Check at most 30 times (with one second in between) that the agent has
+  # successfully synced down the workload entry.
+  MAXCHECKS=30
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+      log-info "checking for log line ($i of $MAXCHECKS max)..."
+      if docker compose logs "$1" | grep -E "$2"; then
+          return 0
+      fi
+      sleep "${CHECKINTERVAL}"
+  done
+
+  docker compose logs "$1"
+  fail-now "timed out waiting for "$2" in log in container $1"
+}
+
 check-synced-entry() {
   # Check at most 30 times (with one second in between) that the agent has
   # successfully synced down the workload entry.

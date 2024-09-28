@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# Fetch the prepared authority ID
+prepared_authority=$(docker compose exec -t -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server \
+    localauthority x509 show -output json | jq -r .prepared.authority_id) || fail-now "Failed to fetch prepared authority ID"
+upstream_authority=$(docker compose exec -t -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server \
+    localauthority x509 show -output json | jq -r .prepared.upstream_authority_subject_key_id) || fail-now "Failed to fetch prepared authority ID"
+
+# Activate the authority
+activated_authority=$(docker compose exec -t -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server \
+    localauthority x509 activate -authorityID "${prepared_authority}" \
+    -output json | jq -r .activated_authority.authority_id) || fail-now "Failed to activate authority"
+
+log-info "Activated authority: ${activated_authority}"
+
+# Check logs for specific lines
+check-log-line spire-server "X509 CA activated|local_authority_id=${prepared_authority}|upstream_authority_id=${upstream_authority}"
+check-log-line spire-server "Successfully rotated X\.509 CA"
+
