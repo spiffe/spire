@@ -24,6 +24,8 @@ keyUsage=critical,keyCertSign,cRLSign
 subjectAltName = @alt_names
 EOF
     ) -extensions 'v3_req'
+
+    chmod 644 "${key_path}" "${crt_path}"
 }
 
 "${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
