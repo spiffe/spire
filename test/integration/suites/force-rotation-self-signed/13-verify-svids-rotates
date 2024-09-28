@@ -27,13 +27,13 @@ check-tainted-authorities() {
     local agent=$2
     local agent_dir=$3
 
-    x509Authorities=$(fetch-x509-authorities "$server")
+    log-debug "Checking tainted authorities for $server and $agent"
+    x509_authorities=$(fetch-x509-authorities "$server")
 
-    taintedFound=$(echo "$x509Authorities" | jq '.[] | select(.tainted == true)') || fail-now "Tainted authority not found"
+    echo "$x509_authorities" | jq '.[] | select(.tainted == true)' || fail-now "Tainted authority not found"
+    non_tainted_found=$(echo "$x509_authorities" | jq '.[] | select(.tainted == false)') || fail-now "Non-tainted authority not found"
 
-    nonTaintedFound=$(echo "$x509Authorities" | jq '.[] | select(.tainted == false)') || fail-now "Non-tainted authority not found"
-
-    echo "$nonTaintedFound" | jq -r .asn1 | base64 -d | openssl x509 -inform der > "$agent_dir/agent/non-tainted.pem"
+    echo "$non_tainted_found" | jq -r .asn1 | base64 -d | openssl x509 -inform der > "$agent_dir/agent/non-tainted.pem"
 
     RETRY_COUNT=0
 
@@ -45,7 +45,7 @@ check-tainted-authorities() {
             break
         else
             RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "Verification failed, retrying in $RETRY_DELAY seconds... ($RETRY_COUNT/$MAX_RETRIES)"
+            log-debug "Verification failed, retrying in $RETRY_DELAY seconds... ($RETRY_COUNT/$MAX_RETRIES)"
             sleep $RETRY_DELAY
         fi
 

@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# Constants
-MAXCHECKS=30
-RETRY_DELAY=1
-
 # Initial check for x509 authorities in spire-server
 x509_authorities=$(docker compose exec -T spire-server \
     /opt/spire/bin/spire-server bundle show -output json | jq '.x509_authorities' -c)

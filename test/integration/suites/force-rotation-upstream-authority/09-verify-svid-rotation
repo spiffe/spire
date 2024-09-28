@@ -25,20 +25,20 @@ check-tainted-authorities() {
     local agent=$2
     local agent_dir=$3
 
-    x509Authorities=$(fetch-x509-authorities "$server")
-    echo "$x509Authorities" | jq '.[] | select(.tainted == true)' || fail-now "Tainted authority not found"
+    x509_authorities=$(fetch-x509-authorities "$server")
+    echo "$x509_authorities" | jq '.[] | select(.tainted == true)' || fail-now "Tainted authority not found"
 
-    RETRY_COUNT=0
+    retry_count=0
 
-    while [[ $RETRY_COUNT -lt $MAX_RETRIES ]]; do
+    while [[ $retry_count -lt $MAX_RETRIES ]]; do
         verify-svid "$agent" "$agent_dir"
 
         if [ $? -eq 0 ]; then
             log-info "SVID rotated"
             break
         else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-	    log-debug "Verification failed, retrying in $RETRY_DELAY seconds... ($RETRY_COUNT/$MAX_RETRIES)"
+            retry_count=$((retry_count + 1))
+	    log-debug "Verification failed, retrying in $RETRY_DELAY seconds... ($retry_count/$MAX_RETRIES)"
             sleep $RETRY_DELAY
         fi
 
