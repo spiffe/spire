@@ -812,10 +812,8 @@ func TestSelectedPolledEvents(t *testing.T) {
 			attestedNodes, err := scenario.buildAttestedNodesCache()
 			require.NoError(t, err)
 
-			t.Logf("startup expected fetches %v\n", slices.Collect(maps.Keys(attestedNodes.fetchNodes)))
 			// initialize the event tracker
 			for _, event := range tt.polling {
-				t.Logf("polling %d\n", event)
 				attestedNodes.eventTracker.StartTracking(event)
 			}
 			// poll the events
@@ -1081,6 +1079,388 @@ func TestScanForNewEvents(t *testing.T) {
 }
 
 func TestUpdateAttestedNodesCache(t *testing.T) {
+	for _, tt := range []struct {
+		name                string
+		setup               *scenarioSetup
+		createAttestedNodes []*common.AttestedNode // Nodes created after setup
+		deleteAttestedNodes []string               // Nodes delted after setup
+		fetchNodes          []string
+
+		expectedAuthorizedEntries []string
+	}{
+		{
+			name:       "empty cache, no fetch nodes",
+			fetchNodes: []string{},
+
+			expectedAuthorizedEntries: []string{},
+		},
+		{
+			name: "empty cache, fetch one node, as a new entry",
+			createAttestedNodes: []*common.AttestedNode{
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_3",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_3",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_3",
+			},
+		},
+		{
+			name: "empty cache, fetch one node, as a delete",
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_3",
+			},
+		},
+		{
+			name: "empty cache, fetch five nodes, all new entries",
+			createAttestedNodes: []*common.AttestedNode{
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_1",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_2",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_3",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_4",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_5",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+			},
+		},
+		{
+			name: "empty cache, fetch five nodes, three new and two deletes",
+			createAttestedNodes: []*common.AttestedNode{
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_1",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_3",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_4",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+			},
+		},
+		{
+			name: "empty cache, fetch five nodes, all deletes",
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+			},
+
+			expectedAuthorizedEntries: []string{},
+		},
+		{
+			name: "one node in cache, no fetch nodes",
+			setup: &scenarioSetup{
+				attestedNodes: []*common.AttestedNode{
+					&common.AttestedNode{
+						SpiffeId:     "spiffe://example.org/test_node_3",
+						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+					},
+				},
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_3",
+			},
+		},
+		{
+			name: "one node in cache, fetch one node, as new entry",
+			setup: &scenarioSetup{
+				attestedNodes: []*common.AttestedNode{
+					&common.AttestedNode{
+						SpiffeId:     "spiffe://example.org/test_node_3",
+						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+					},
+				},
+			},
+			createAttestedNodes: []*common.AttestedNode{
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_4",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_4",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+			},
+		},
+		{
+			name: "one node in cache, fetch one node, as an update",
+			setup: &scenarioSetup{
+				attestedNodes: []*common.AttestedNode{
+					&common.AttestedNode{
+						SpiffeId:     "spiffe://example.org/test_node_3",
+						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+					},
+				},
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_3",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_3",
+			},
+		},
+		{
+			name: "one node in cache, fetch one node, as a delete",
+			setup: &scenarioSetup{
+				attestedNodes: []*common.AttestedNode{
+					&common.AttestedNode{
+						SpiffeId:     "spiffe://example.org/test_node_3",
+						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+					},
+				},
+			},
+			deleteAttestedNodes: []string{
+				"spiffe://example.org/test_node_3",
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_3",
+			},
+
+			expectedAuthorizedEntries: []string{},
+		},
+		{
+			name: "one node in cache, fetch five nodes, all new entries",
+			setup: &scenarioSetup{
+				attestedNodes: []*common.AttestedNode{
+					&common.AttestedNode{
+						SpiffeId:     "spiffe://example.org/test_node_3",
+						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+					},
+				},
+			},
+			createAttestedNodes: []*common.AttestedNode{
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_1",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_2",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_4",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_5",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_6",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+				"spiffe://example.org/test_node_6",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+				"spiffe://example.org/test_node_6",
+			},
+		},
+		{
+			name: "one node in cache, fetch five nodes, four new entries and one update",
+			setup: &scenarioSetup{
+				attestedNodes: []*common.AttestedNode{
+					&common.AttestedNode{
+						SpiffeId:     "spiffe://example.org/test_node_3",
+						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+					},
+				},
+			},
+			createAttestedNodes: []*common.AttestedNode{
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_1",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_2",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_4",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_5",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+			},
+		},
+		{
+			name: "one node in cache, fetch five nodes, two new and three deletes",
+			setup: &scenarioSetup{
+				attestedNodes: []*common.AttestedNode{
+					&common.AttestedNode{
+						SpiffeId:     "spiffe://example.org/test_node_3",
+						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+					},
+				},
+			},
+			createAttestedNodes: []*common.AttestedNode{
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_1",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				&common.AttestedNode{
+					SpiffeId:     "spiffe://example.org/test_node_2",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+			},
+			deleteAttestedNodes: []string{
+				"spiffe://example.org/test_node_3",
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+			},
+		},
+		{
+			name: "one node in cache, fetch five nodes, all deletes",
+			setup: &scenarioSetup{
+				attestedNodes: []*common.AttestedNode{
+					&common.AttestedNode{
+						SpiffeId:     "spiffe://example.org/test_node_3",
+						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+					},
+				},
+			},
+			deleteAttestedNodes: []string{
+				"spiffe://example.org/test_node_3",
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+			},
+
+			expectedAuthorizedEntries: []string{},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			scenario := NewScenario(t, tt.setup)
+			attestedNodes, err := scenario.buildAttestedNodesCache()
+			require.NoError(t, err)
+			for _, attestedNode := range tt.createAttestedNodes {
+				scenario.ds.CreateAttestedNode(scenario.ctx, attestedNode)
+			}
+			for _, attestedNode := range tt.deleteAttestedNodes {
+				_, err = scenario.ds.DeleteAttestedNode(scenario.ctx, attestedNode)
+				require.NoError(t, err)
+			}
+			for _, fetchNode := range tt.fetchNodes {
+				attestedNodes.fetchNodes[fetchNode] = struct{}{}
+			}
+			// clear out the events, to prove updates are not event based
+			scenario.ds.PruneAttestedNodesEvents(scenario.ctx, time.Duration(-5)*time.Hour)
+
+			err = attestedNodes.updateCachedNodes(scenario.ctx)
+			require.NoError(t, err)
+
+			cacheStats := attestedNodes.cache.Stats()
+			require.Equal(t, len(tt.expectedAuthorizedEntries), cacheStats.AgentsByID, "wrong number of agents by ID")
+
+			// for now, the only way to ensure the desired agent ids are prsent is
+			// to remove the desired ids and check the count it zero.
+			for _, expectedAuthorizedId := range tt.expectedAuthorizedEntries {
+				attestedNodes.cache.RemoveAgent(expectedAuthorizedId)
+			}
+			cacheStats = attestedNodes.cache.Stats()
+			require.Equal(t, 0, cacheStats.AgentsByID, "clearing all expected agent ids didn't clear ccache")
+		})
+	}
 }
 
 // utility functions

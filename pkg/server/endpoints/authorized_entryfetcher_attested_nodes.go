@@ -222,7 +222,8 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 		// Node was deleted
 		if node == nil {
 			a.cache.RemoveAgent(spiffeId)
-			return nil
+			delete(a.fetchNodes, spiffeId)
+			continue
 		}
 
 		selectors, err := a.ds.GetNodeSelectors(ctx, spiffeId, datastore.RequireCurrent)
@@ -233,7 +234,7 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
 		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
-		delete(a.fetchNodes, node.SpiffeId)
+		delete(a.fetchNodes, spiffeId)
 
 	}
 	return nil

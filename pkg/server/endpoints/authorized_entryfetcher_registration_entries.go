@@ -233,14 +233,16 @@ func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 
 		if commonEntry == nil {
 			a.cache.RemoveEntry(entryId)
-			return nil
+			delete(a.fetchEntries, entryId)
+			continue
 		}
 
 		entry, err := api.RegistrationEntryToProto(commonEntry)
 		if err != nil {
 			a.cache.RemoveEntry(entryId)
+			delete(a.fetchEntries, entryId)
 			a.log.WithField(telemetry.RegistrationID, entryId).Warn("Removed malformed registration entry from cache")
-			return nil
+			continue
 		}
 
 		a.cache.UpdateEntry(entry)
