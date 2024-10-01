@@ -49,7 +49,7 @@ func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
 		return err
 	}
 	a.selectPolledEvents(ctx)
-	if err := a.scanNewEvents(ctx); err != nil {
+	if err := a.scanForNewEvents(ctx); err != nil {
 		return err
 	}
 
@@ -103,7 +103,7 @@ func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 	}
 }
 
-func (a *registrationEntries) scanNewEvents(ctx context.Context) error {
+func (a *registrationEntries) scanForNewEvents(ctx context.Context) error {
 	// If we haven't seen an event, scan for all events; otherwise, scan from the last event.
 	var resp *datastore.ListRegistrationEntryEventsResponse
 	var err error

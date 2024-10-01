@@ -1036,6 +1036,270 @@ func TestSelectedPolledEntryEvents(t *testing.T) {
 	}
 }
 
+func TestScanForNewEntryEvents(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		setup *entryScenarioSetup
+
+		newEvents []*datastore.RegistrationEntryEvent
+
+		expectedTrackedEvents []uint
+		expectedFetches       []string
+	}{
+		{
+			name: "no new events, no first event",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+			},
+
+			expectedTrackedEvents: []uint{},
+			expectedFetches:       []string{},
+		},
+		{
+			name: "no new event, with first event",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+				},
+			},
+
+			expectedTrackedEvents: []uint{},
+			expectedFetches:       []string{},
+		},
+		{
+			name: "one new event",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+				},
+			},
+			newEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 102,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+			},
+
+			expectedTrackedEvents: []uint{},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+			},
+		},
+		{
+			name: "one new event, skipping an event",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+				},
+			},
+			newEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 103,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+			},
+
+			expectedTrackedEvents: []uint{102},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+			},
+		},
+		{
+			name: "two new events, same registered event",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+				},
+			},
+			newEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 102,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 103,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+			},
+
+			expectedTrackedEvents: []uint{},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+			},
+		},
+		{
+			name: "two new events, different attested nodes",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+				},
+			},
+			newEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 102,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 103,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+			},
+
+			expectedTrackedEvents: []uint{},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+			},
+		},
+		{
+			name: "two new events, with a skipped event",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+				},
+			},
+			newEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 102,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 104,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+			},
+
+			expectedTrackedEvents: []uint{103},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+			},
+		},
+		{
+			name: "two new events, with three skipped events",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+				},
+			},
+			newEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 102,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 106,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+			},
+
+			expectedTrackedEvents: []uint{103, 104, 105},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+			},
+		},
+		{
+			name: "five events, four new events, two skip regions",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 102,
+						EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 103,
+						EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 104,
+						EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 105,
+						EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+					},
+				},
+			},
+			newEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 108,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 109,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 110,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 112,
+					EntryID: "c3f4ada0-3f8d-421e-b5d1-83aaee203d94",
+				},
+			},
+
+			expectedTrackedEvents: []uint{106, 107, 111},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"c3f4ada0-3f8d-421e-b5d1-83aaee203d94",
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			scenario := NewEntryScenario(t, tt.setup)
+			attestedEntries, err := scenario.buildRegistrationEntriesCache()
+			require.NoError(t, err)
+
+			for _, newEvent := range tt.newEvents {
+				scenario.ds.CreateRegistrationEntryEventForTesting(scenario.ctx, newEvent)
+			}
+			err = attestedEntries.scanForNewEvents(scenario.ctx)
+			require.NoError(t, err)
+
+			require.ElementsMatch(t, tt.expectedTrackedEvents, slices.Collect(maps.Keys(attestedEntries.eventTracker.events)))
+			require.ElementsMatch(t, tt.expectedFetches, slices.Collect(maps.Keys(attestedEntries.fetchEntries)))
+			require.Zero(t, scenario.hook.Entries)
+		})
+	}
+}
+
 type entryScenario struct {
 	ctx      context.Context
 	log      *logrus.Logger

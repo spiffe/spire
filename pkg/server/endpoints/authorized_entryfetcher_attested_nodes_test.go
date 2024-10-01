@@ -825,7 +825,7 @@ func TestSelectedPolledNodeEvents(t *testing.T) {
 	}
 }
 
-func TestScanForNewEvents(t *testing.T) {
+func TestScanForNewNodeEvents(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		setup *nodeScenarioSetup
