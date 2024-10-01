@@ -804,10 +804,12 @@ func TestSearchBeforeFirstEntryEvent(t *testing.T) {
 			}
 
 			for _, event := range tt.polledEvents {
-				scenario.ds.CreateRegistrationEntryEventForTesting(scenario.ctx, event)
+				err = scenario.ds.CreateRegistrationEntryEventForTesting(scenario.ctx, event)
+				require.NoError(t, err, "error while setting up test")
 			}
 
-			registrationEntries.searchBeforeFirstEvent(scenario.ctx)
+			err = registrationEntries.searchBeforeFirstEvent(scenario.ctx)
+			require.NoError(t, err, "error while running the test")
 
 			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(registrationEntries.eventsBeforeFirst)), "expected events before tracking mismatch")
 			require.ElementsMatch(t, tt.expectedFetches, slices.Collect[string](maps.Keys(registrationEntries.fetchEntries)), "expected fetches mismatch")
@@ -1288,10 +1290,11 @@ func TestScanForNewEntryEvents(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, newEvent := range tt.newEvents {
-				scenario.ds.CreateRegistrationEntryEventForTesting(scenario.ctx, newEvent)
+				err = scenario.ds.CreateRegistrationEntryEventForTesting(scenario.ctx, newEvent)
+				require.NoError(t, err, "error while setting up test")
 			}
 			err = attestedEntries.scanForNewEvents(scenario.ctx)
-			require.NoError(t, err)
+			require.NoError(t, err, "error while running the test")
 
 			require.ElementsMatch(t, tt.expectedTrackedEvents, slices.Collect(maps.Keys(attestedEntries.eventTracker.events)))
 			require.ElementsMatch(t, tt.expectedFetches, slices.Collect(maps.Keys(attestedEntries.fetchEntries)))
@@ -1798,17 +1801,19 @@ func TestUpdateRegistrationEntriesCache(t *testing.T) {
 			registeredEntries, err := scenario.buildRegistrationEntriesCache()
 			require.NoError(t, err)
 			for _, registrationEntry := range tt.createRegistrationEntries {
-				scenario.ds.CreateRegistrationEntry(scenario.ctx, registrationEntry)
+				_, err = scenario.ds.CreateRegistrationEntry(scenario.ctx, registrationEntry)
+				require.NoError(t, err, "error while setting up test")
 			}
 			for _, registrationEntry := range tt.deleteRegistrationEntries {
 				_, err = scenario.ds.DeleteRegistrationEntry(scenario.ctx, registrationEntry)
-				require.NoError(t, err)
+				require.NoError(t, err, "error while setting up test")
 			}
 			for _, fetchEntry := range tt.fetchEntries {
 				registeredEntries.fetchEntries[fetchEntry] = struct{}{}
 			}
 			// clear out the events, to prove updates are not event based
-			scenario.ds.PruneRegistrationEntryEvents(scenario.ctx, time.Duration(-5)*time.Hour)
+			err = scenario.ds.PruneRegistrationEntryEvents(scenario.ctx, time.Duration(-5)*time.Hour)
+			require.NoError(t, err, "error while running the test")
 
 			err = registeredEntries.updateCachedEntries(scenario.ctx)
 			require.NoError(t, err)
@@ -1861,26 +1866,33 @@ func NewEntryScenario(t *testing.T, setup *entryScenarioSetup) *entryScenario {
 		setup = &entryScenarioSetup{}
 	}
 
+	var err error
 	for _, attestedNode := range setup.attestedNodes {
-		ds.CreateAttestedNode(ctx, attestedNode)
+		_, err = ds.CreateAttestedNode(ctx, attestedNode)
+		require.NoError(t, err, "error while setting up test")
 	}
 	// prune autocreated node events, to test the event logic in more scenarios
 	// than possible with autocreated node events.
-	ds.PruneAttestedNodesEvents(ctx, time.Duration(-5)*time.Hour)
+	err = ds.PruneAttestedNodesEvents(ctx, time.Duration(-5)*time.Hour)
+	require.NoError(t, err, "error while setting up test")
 	// and then add back the specified node events
 	for _, event := range setup.attestedNodeEvents {
-		ds.CreateAttestedNodeEventForTesting(ctx, event)
+		err = ds.CreateAttestedNodeEventForTesting(ctx, event)
+		require.NoError(t, err, "error while setting up test")
 	}
 	// initialize the database
 	for _, registrationEntry := range setup.registrationEntries {
-		ds.CreateRegistrationEntry(ctx, registrationEntry)
+		_, err = ds.CreateRegistrationEntry(ctx, registrationEntry)
+		require.NoError(t, err, "error while setting up test")
 	}
 	// prune autocreated entry events, to test the event logic in more
 	// scenarios than possible with autocreated entry events.
-	ds.PruneRegistrationEntryEvents(ctx, time.Duration(-5)*time.Hour)
+	err = ds.PruneRegistrationEntryEvents(ctx, time.Duration(-5)*time.Hour)
+	require.NoError(t, err, "error while setting up test")
 	// and then add back the specified node events
 	for _, event := range setup.registrationEntryEvents {
-		ds.CreateRegistrationEntryEventForTesting(ctx, event)
+		err = ds.CreateRegistrationEntryEventForTesting(ctx, event)
+		require.NoError(t, err, "error while setting up test")
 	}
 	// inject db error for buildRegistrationEntriesCache call
 	if setup.err != nil {

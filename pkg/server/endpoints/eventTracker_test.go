@@ -965,7 +965,6 @@ func TestEvenDispersion(t *testing.T) {
 					"for slot %d, expecting no more than %d polls, but received %d polls",
 					slot, tt.expectedSlotCount+tt.permissibleCountError, count)
 			}
-
 		})
 	}
 }

@@ -233,7 +233,6 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
 		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
 		delete(a.fetchNodes, spiffeId)
-
 	}
 	return nil
 }

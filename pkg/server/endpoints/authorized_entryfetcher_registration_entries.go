@@ -3,7 +3,6 @@ package endpoints
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -23,7 +22,6 @@ type registrationEntries struct {
 	ds      datastore.DataStore
 	log     logrus.FieldLogger
 	metrics telemetry.Metrics
-	mu      sync.RWMutex
 
 	eventsBeforeFirst map[uint]struct{}
 
@@ -99,7 +97,7 @@ func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 		}
 
 		a.fetchEntries[event.EntryID] = struct{}{}
-		a.eventTracker.StopTracking(uint(eventID))
+		a.eventTracker.StopTracking(eventID)
 	}
 }
 
@@ -274,5 +272,4 @@ func (a *registrationEntries) emitMetrics() {
 		a.lastCacheStats.EntriesByParentID = cacheStats.EntriesByParentID
 		server_telemetry.SetEntriesByParentIDCacheCountGauge(a.metrics, a.lastCacheStats.EntriesByParentID)
 	}
-
 }
