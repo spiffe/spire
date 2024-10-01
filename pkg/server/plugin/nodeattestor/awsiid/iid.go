@@ -36,6 +36,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -125,6 +126,53 @@ type IIDAttestorConfig struct {
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
 	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
+}
+
+func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IIDAttestorConfig {
+	newConfig := new(IIDAttestorConfig)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	// Function to get the AWS CA certificate. We do this lazily on configure so deployments
+	// not using this plugin don't pay for parsing it on startup. This
+	// operation should not fail, but we check the return value just in case.
+	newConfig.getAWSCACertificate = p.hooks.getAWSCACertificate
+
+	if err := newConfig.Validate(p.hooks.getenv(accessKeyIDVarName), p.hooks.getenv(secretAccessKeyVarName)); err != nil {
+		status.ReportError(err.Error())
+	}
+
+	newConfig.trustDomain = coreConfig.TrustDomain
+
+	newConfig.pathTemplate = defaultAgentPathTemplate
+	if len(newConfig.AgentPathTemplate) > 0 {
+		tmpl, err := agentpathtemplate.Parse(newConfig.AgentPathTemplate)
+		if err != nil {
+			status.ReportErrorf("failed to parse agent svid template: %q", newConfig.AgentPathTemplate)
+		} else {
+			newConfig.pathTemplate = tmpl
+		}
+	}
+
+	if newConfig.Partition == "" {
+		newConfig.Partition = defaultPartition
+	}
+
+	if !isValidAWSPartition(newConfig.Partition) {
+		status.ReportErrorf("invalid partition %q, must be one of: %v", newConfig.Partition, partitions)
+	}
+
+	// Check if Feature flag for account belongs to organization is enabled.
+	if newConfig.ValidateOrgAccountID != nil {
+		err := validateOrganizationConfig(newConfig)
+		if err != nil {
+			status.ReportError(err.Error())
+		}
+	}
+
+	return newConfig
 }
 
 // New creates a new IIDAttestorPlugin.
@@ -257,69 +305,36 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 
 // Configure configures the IIDAttestorPlugin.
 func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config := new(IIDAttestorConfig)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	// Function to get the AWS CA certificate. We do this lazily on configure so deployments
-	// not using this plugin don't pay for parsing it on startup. This
-	// operation should not fail, but we check the return value just in case.
-	config.getAWSCACertificate = p.hooks.getAWSCACertificate
-
-	if err := config.Validate(p.hooks.getenv(accessKeyIDVarName), p.hooks.getenv(secretAccessKeyVarName)); err != nil {
-		return nil, err
-	}
-
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	var err error
-	config.trustDomain, err = spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "core configuration has invalid trust domain: %v", err)
-	}
-
-	config.pathTemplate = defaultAgentPathTemplate
-	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := agentpathtemplate.Parse(config.AgentPathTemplate)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", config.AgentPathTemplate)
-		}
-		config.pathTemplate = tmpl
-	}
-
-	if config.Partition == "" {
-		config.Partition = defaultPartition
-	}
-	if !isValidAWSPartition(config.Partition) {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid partition %q, must be one of: %v", config.Partition, partitions)
-	}
-
-	// Check if Feature flag for account belongs to organization is enabled.
-	orgConfig := &orgValidationConfig{}
-	if config.ValidateOrgAccountID != nil {
-		err = validateOrganizationConfig(config)
-		if err != nil {
-			return nil, err
-		}
-		orgConfig = config.ValidateOrgAccountID
+		return nil, err
 	}
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
+	p.config = newConfig
 
-	p.config = config
-	p.clients.configure(config.SessionConfig, *orgConfig)
-	if config.ValidateOrgAccountID != nil {
+	if newConfig.ValidateOrgAccountID == nil {
+		// unconfigure existing clients
+		p.clients.configure(p.config.SessionConfig, orgValidationConfig{})
+	} else {
+		p.clients.configure(p.config.SessionConfig, *p.config.ValidateOrgAccountID)
 		// Setup required config, for validation and for bootstrapping org client
-		if err := p.orgValidation.configure(orgConfig); err != nil {
+		if err := p.orgValidation.configure(p.config.ValidateOrgAccountID); err != nil {
 			return nil, err
 		}
 	}
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *IIDAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 // SetLogger sets this plugin's logger

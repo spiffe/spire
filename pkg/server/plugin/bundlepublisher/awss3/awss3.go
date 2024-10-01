@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -49,6 +50,45 @@ type Config struct {
 	bundleFormat bundleformat.Format
 }
 
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+	newConfig := new(Config)
+
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.Region == "" {
+		status.ReportError("configuration is missing the region")
+	}
+	if newConfig.Bucket == "" {
+		status.ReportError("configuration is missing the bucket name")
+	}
+	if newConfig.ObjectKey == "" {
+		status.ReportError("configuration is missing the object key")
+	}
+	if newConfig.Format == "" {
+		status.ReportError("configuration is missing the bundle format")
+	}
+
+	bundleFormat, err := bundleformat.FromString(newConfig.Format)
+	if err != nil {
+		status.ReportErrorf("could not parse bundle format from configuration: %v", err)
+	} else {
+		// This plugin only supports some bundleformats.
+		switch bundleFormat {
+		case bundleformat.JWKS:
+		case bundleformat.SPIFFE:
+		case bundleformat.PEM:
+		default:
+			status.ReportErrorf("bundle format %q is not supported", newConfig.Format)
+		}
+		newConfig.bundleFormat = bundleFormat
+	}
+
+	return newConfig
+}
+
 // Plugin is the main representation of this bundle publisher plugin.
 type Plugin struct {
 	bundlepublisherv1.UnsafeBundlePublisherServer
@@ -72,12 +112,13 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 // Configure configures the plugin.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := parseAndValidateConfig(req.HclConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	awsCfg, err := newAWSConfig(ctx, config)
+	// seems wrong to change plugin s3Client before config change
+	awsCfg, err := newAWSConfig(ctx, newConfig)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client configuration: %v", err)
 	}
@@ -87,9 +128,18 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 	p.s3Client = s3Client
 
-	p.setConfig(config)
+	p.setConfig(newConfig)
 	p.setBundle(nil)
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 // PublishBundle puts the bundle in the configured S3 bucket name and
@@ -181,46 +231,4 @@ func newPlugin(newS3ClientFunc func(c aws.Config) (simpleStorageService, error))
 			newS3ClientFunc: newS3ClientFunc,
 		},
 	}
-}
-
-// parseAndValidateConfig returns an error if any configuration provided does
-// not meet acceptable criteria
-func parseAndValidateConfig(c string) (*Config, error) {
-	config := new(Config)
-
-	if err := hcl.Decode(config, c); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.Region == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the region")
-	}
-
-	if config.Bucket == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the bucket name")
-	}
-
-	if config.ObjectKey == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the object key")
-	}
-
-	if config.Format == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the bundle format")
-	}
-	bundleFormat, err := bundleformat.FromString(config.Format)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "could not parse bundle format from configuration: %v", err)
-	}
-	// The bundleformat package may support formats that this plugin does not
-	// support. Validate that the format is a supported format in this plugin.
-	switch bundleFormat {
-	case bundleformat.JWKS:
-	case bundleformat.SPIFFE:
-	case bundleformat.PEM:
-	default:
-		return nil, status.Errorf(codes.InvalidArgument, "format not supported %q", config.Format)
-	}
-
-	config.bundleFormat = bundleFormat
-	return config, nil
 }

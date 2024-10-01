@@ -6,7 +6,7 @@ import (
 
 	"github.com/gogo/status"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
-	authority_common "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon"
+	authoritycommon_test "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon/test"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority/jwt"
 	"github.com/stretchr/testify/require"
@@ -14,14 +14,14 @@ import (
 )
 
 func TestJWTPrepareHelp(t *testing.T) {
-	test := authority_common.SetupTest(t, jwt.NewJWTPrepareCommandWithEnv)
+	test := authoritycommon_test.SetupTest(t, jwt.NewJWTPrepareCommandWithEnv)
 
 	test.Client.Help()
 	require.Equal(t, jwtPrepareUsage, test.Stderr.String())
 }
 
 func TestJWTPrepareSynopsys(t *testing.T) {
-	test := authority_common.SetupTest(t, jwt.NewJWTPrepareCommandWithEnv)
+	test := authoritycommon_test.SetupTest(t, jwt.NewJWTPrepareCommandWithEnv)
 	require.Equal(t, "Prepares a new JWT authority for use by generating a new key and injecting it into the bundle", test.Client.Synopsis())
 }
 
@@ -40,7 +40,7 @@ func TestJWTPrepare(t *testing.T) {
 			name:               "success",
 			expectReturnCode:   0,
 			expectStdoutPretty: "Prepared JWT authority:\n  Authority ID: prepared-id\n  Expires at: 1970-01-01 00:16:42 +0000 UTC\n",
-			expectStdoutJSON:   `{"prepared_authority":{"authority_id":"prepared-id","expires_at":"1002"}}`,
+			expectStdoutJSON:   `{"prepared_authority":{"authority_id":"prepared-id","expires_at":"1002","upstream_authority_subject_key_id":""}}`,
 			prepared: &localauthorityv1.AuthorityState{
 				AuthorityId: "prepared-id",
 				ExpiresAt:   1002,
@@ -59,9 +59,9 @@ func TestJWTPrepare(t *testing.T) {
 			expectStderr:     "Error: could not prepare JWT authority: rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
-		for _, format := range authority_common.AvailableFormats {
+		for _, format := range authoritycommon_test.AvailableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
-				test := authority_common.SetupTest(t, jwt.NewJWTPrepareCommandWithEnv)
+				test := authoritycommon_test.SetupTest(t, jwt.NewJWTPrepareCommandWithEnv)
 				test.Server.PreparedJWT = tt.prepared
 				test.Server.Err = tt.serverErr
 				args := tt.args
@@ -69,7 +69,7 @@ func TestJWTPrepare(t *testing.T) {
 
 				returnCode := test.Client.Run(append(test.Args, args...))
 
-				authority_common.RequireOutputBasedOnFormat(t, format, test.Stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
+				authoritycommon_test.RequireOutputBasedOnFormat(t, format, test.Stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
 				require.Equal(t, tt.expectStderr, test.Stderr.String())
 				require.Equal(t, tt.expectReturnCode, returnCode)
 			})

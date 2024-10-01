@@ -75,8 +75,6 @@ This may be useful for templating configuration files, for example across differ
 |:------------------------------|--------------------------------------------------------------------------------------|-------------------------|
 | `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                      | \spire-agent\public\api |
 | `sync_interval`               | Sync interval with SPIRE server with exponential backoff                             | 5 sec                   |
-| `x509_svid_cache_max_size`    | Soft limit of max number of SVIDs that would be stored in LRU cache (deprecated)     | 1000                    |
-| `disable_lru_cache`           | Reverts back to use the SPIRE Agent non-LRU cache for storing SVIDs (deprecated)     | false                   |
 | `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries | false                   |
 
 ### Initial trust bundle configuration
@@ -387,7 +385,7 @@ There are two ways the trusted delegate workload can request SVIDs for other wor
   In this approach, the trusted delegate workload is entirely responsible for attesting the other workload and building the attested selectors.
   When those selectors are presented to the SPIRE Agent, the SPIRE Agent will simply return SVIDs for any workload registration entries that match the provided selectors.
   No other checks or attestations will be performed by the SPIRE Agent.
-  
+
 1. By obtaining a PID for the other workload, and providing that PID to the SPIRE Agent over the Delegated Identity API.
    In this approach, the SPIRE Agent will do attestation for the provided PID, build the attested selectors, and return SVIDs for any workload registration entries that match the selectors the SPIRE Agent attested from that PID.
    This differs from the previous approach in that the SPIRE Agent itself (not the trusted delegate) handles the attestation of the other workload.

@@ -19,8 +19,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/plugintest"
@@ -95,7 +97,10 @@ func TestKeyManagerContract(t *testing.T) {
 		if isWindows {
 			keyIdentifierFile = filepath.ToSlash(keyIdentifierFile)
 		}
-		plugintest.Load(t, builtin(p), km, plugintest.Configuref(`
+		plugintest.Load(t, builtin(p), km, plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+			plugintest.Configuref(`
 			region = "fake-region"
 			key_identifier_file = %q
 		`, keyIdentifierFile))
@@ -283,16 +288,16 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "list aliases error",
+			configureRequest: configureRequestWithDefaults(t),
 			err:              "failed to fetch aliases: fake list aliases error",
 			code:             codes.Internal,
-			configureRequest: configureRequestWithDefaults(t),
 			listAliasesErr:   "fake list aliases error",
 		},
 		{
 			name:             "describe key error",
+			configureRequest: configureRequestWithDefaults(t),
 			err:              "failed to describe key: describe key error",
 			code:             codes.Internal,
-			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName: aws.String(aliasName),
@@ -306,9 +311,9 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "unsupported key error",
+			configureRequest: configureRequestWithDefaults(t),
 			err:              "unsupported key spec: unsupported key spec",
 			code:             codes.Internal,
-			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName: aws.String(aliasName),
@@ -321,9 +326,9 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:             "get public key error",
+			configureRequest: configureRequestWithDefaults(t),
 			err:              "failed to fetch aliases: failed to get public key: get public key error",
 			code:             codes.Internal,
-			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName: aws.String(aliasName),
@@ -338,9 +343,9 @@ func TestConfigure(t *testing.T) {
 
 		{
 			name:             "disabled key",
+			configureRequest: configureRequestWithDefaults(t),
 			err:              "failed to fetch aliases: found disabled SPIRE key: \"arn:aws:kms:region:1234:key/abcd-fghi\", alias: \"arn:aws:kms:region:1234:alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/spireKeyID\"",
 			code:             codes.FailedPrecondition,
-			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
 				{
 					AliasName: aws.String(aliasName),
@@ -1964,8 +1969,8 @@ func TestDisposeKeys(t *testing.T) {
 
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  config,
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
+		HclConfiguration:  config,
 	}
 }
 
@@ -1978,6 +1983,7 @@ const (
 
 func configureRequestWithVars(accessKeyID, secretAccessKey, region, keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyPolicyFile string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
+		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
 		HclConfiguration: fmt.Sprintf(`{
 			"access_key_id": "%s",
 			"secret_access_key": "%s",
@@ -1991,14 +1997,13 @@ func configureRequestWithVars(accessKeyID, secretAccessKey, region, keyIdentifie
 			keyIdentifierConfigName,
 			keyIdentifierConfigValue,
 			keyPolicyFile),
-		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
 	}
 }
 
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, KeyIdentifierFile, getKeyIdentifierFile(t)),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
+		HclConfiguration:  serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, KeyIdentifierFile, getKeyIdentifierFile(t)),
 	}
 }
 

@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -59,6 +60,22 @@ type Configuration struct {
 	CASigningTemplateARN    string `hcl:"ca_signing_template_arn" json:"ca_signing_template_arn"`
 	AssumeRoleARN           string `hcl:"assume_role_arn" json:"assume_role_arn"`
 	SupplementalBundlePath  string `hcl:"supplemental_bundle_path" json:"supplemental_bundle_path"`
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
+	}
+	if newConfig.Region == "" {
+		status.ReportError("plugin configuration is missing the region")
+	}
+	if newConfig.CertificateAuthorityARN == "" {
+		status.ReportError("plugin configuration is missing the certificate_authority_arn")
+	}
+
+	return newConfig
 }
 
 // PCAPlugin is the main representation of this upstreamauthority plugin
@@ -105,30 +122,30 @@ func (p *PCAPlugin) SetLogger(log hclog.Logger) {
 
 // Configure sets up the plugin for use as an upstream authority
 func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := p.validateConfig(req)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	var supplementalBundle []*x509.Certificate
-	if config.SupplementalBundlePath != "" {
-		p.log.Info("Loading supplemental certificates for inclusion in the bundle", "supplemental_bundle_path", config.SupplementalBundlePath)
-		supplementalBundle, err = pemutil.LoadCertificates(config.SupplementalBundlePath)
+	if newConfig.SupplementalBundlePath != "" {
+		p.log.Info("Loading supplemental certificates for inclusion in the bundle", "supplemental_bundle_path", newConfig.SupplementalBundlePath)
+		supplementalBundle, err = pemutil.LoadCertificates(newConfig.SupplementalBundlePath)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "failed to load supplemental bundle: %v", err)
 		}
 	}
 
 	// Create the client
-	pcaClient, err := p.hooks.newClient(ctx, config)
+	pcaClient, err := p.hooks.newClient(ctx, newConfig)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
 
 	// Perform a check for the presence of the CA
-	p.log.Info("Looking up certificate authority from ACM", "certificate_authority_arn", config.CertificateAuthorityARN)
+	p.log.Info("Looking up certificate authority from ACM", "certificate_authority_arn", newConfig.CertificateAuthorityARN)
 	describeResponse, err := pcaClient.DescribeCertificateAuthority(ctx, &acmpca.DescribeCertificateAuthorityInput{
-		CertificateAuthorityArn: aws.String(config.CertificateAuthorityARN),
+		CertificateAuthorityArn: aws.String(newConfig.CertificateAuthorityARN),
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to describe CertificateAuthority: %v", err)
@@ -138,13 +155,13 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 	caStatus := describeResponse.CertificateAuthority.Status
 	if caStatus != "ACTIVE" {
 		p.log.Warn("Certificate is in an invalid state for issuance",
-			"certificate_authority_arn", config.CertificateAuthorityARN,
+			"certificate_authority_arn", newConfig.CertificateAuthorityARN,
 			"status", caStatus)
 	}
 
 	// If a signing algorithm has been provided, use it.
 	// Otherwise, fall back to the pre-configured value on the CA
-	signingAlgorithm := config.SigningAlgorithm
+	signingAlgorithm := newConfig.SigningAlgorithm
 	if signingAlgorithm == "" {
 		signingAlgorithm = string(describeResponse.CertificateAuthority.CertificateAuthorityConfiguration.SigningAlgorithm)
 		p.log.Info("No signing algorithm specified, using the CA default", "signing_algorithm", signingAlgorithm)
@@ -152,7 +169,7 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 
 	// If a CA signing template ARN has been provided, use it.
 	// Otherwise, fall back to the default value (PathLen=0)
-	caSigningTemplateArn := config.CASigningTemplateARN
+	caSigningTemplateArn := newConfig.CASigningTemplateARN
 	if caSigningTemplateArn == "" {
 		p.log.Info("No CA signing template ARN specified, using the default", "ca_signing_template_arn", defaultCASigningTemplateArn)
 		caSigningTemplateArn = defaultCASigningTemplateArn
@@ -167,10 +184,19 @@ func (p *PCAPlugin) Configure(ctx context.Context, req *configv1.ConfigureReques
 		supplementalBundle:      supplementalBundle,
 		signingAlgorithm:        signingAlgorithm,
 		caSigningTemplateArn:    caSigningTemplateArn,
-		certificateAuthorityArn: config.CertificateAuthorityARN,
+		certificateAuthorityArn: newConfig.CertificateAuthorityARN,
 	}
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *PCAPlugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 // MintX509CA mints an X509CA by submitting the CSR to ACM to be signed by the certificate authority
@@ -292,23 +318,4 @@ func (p *PCAPlugin) getConfig() (*configuration, error) {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
-}
-
-// validateConfig returns an error if any configuration provided does not meet acceptable criteria
-func (p *PCAPlugin) validateConfig(req *configv1.ConfigureRequest) (*Configuration, error) {
-	config := new(Configuration)
-
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.Region == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing a region")
-	}
-
-	if config.CertificateAuthorityARN == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing a certificate authority ARN")
-	}
-
-	return config, nil
 }

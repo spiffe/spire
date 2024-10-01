@@ -32,11 +32,11 @@ func TestConfigure(t *testing.T) {
 	}{
 		{
 			name:   "Configure fails if core config is not provided",
-			expErr: "rpc error: code = InvalidArgument desc = core configuration is required",
+			expErr: "rpc error: code = InvalidArgument desc = server core configuration is required",
 		},
 		{
 			name:     "Configure fails if trust domain is empty",
-			expErr:   "rpc error: code = InvalidArgument desc = trust_domain is required",
+			expErr:   "rpc error: code = InvalidArgument desc = server core configuration must contain trust_domain",
 			coreConf: &configv1.CoreConfiguration{},
 		},
 		{

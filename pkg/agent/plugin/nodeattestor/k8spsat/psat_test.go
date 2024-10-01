@@ -9,8 +9,10 @@ import (
 
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/test/plugintest"
@@ -52,7 +54,8 @@ func (s *AttestorSuite) SetupTest() {
 func (s *AttestorSuite) TestAttestNotConfigured() {
 	na := s.loadPlugin()
 	err := na.Attest(context.Background(), streamBuilder.Build())
-	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(k8s_psat): not configured")
+	s.T().Logf("failed: %s", err.Error())
+	s.RequireGRPCStatusContains(err, codes.FailedPrecondition, "nodeattestor(k8s_psat): not configured")
 }
 
 func (s *AttestorSuite) TestAttestNoToken() {
@@ -81,23 +84,43 @@ func (s *AttestorSuite) TestConfigure() {
 	var err error
 
 	// malformed configuration
-	s.loadPlugin(plugintest.CaptureConfigureError(&err), plugintest.Configure("malformed"))
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure("malformed"),
+	)
 	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
 
 	// missing cluster
-	s.loadPlugin(plugintest.CaptureConfigureError(&err), plugintest.Configure(""))
-	s.RequireGRPCStatus(err, codes.InvalidArgument, "configuration missing cluster")
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(""),
+	)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "missing required cluster block")
 
 	// success
-	s.loadPlugin(plugintest.CaptureConfigureError(&err), plugintest.Configure(`cluster = "production"`))
+	s.loadPlugin(plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(`cluster = "production"`),
+	)
 	s.Require().NoError(err)
 }
 
 func (s *AttestorSuite) loadPluginWithTokenPath(tokenPath string) nodeattestor.NodeAttestor {
-	return s.loadPlugin(plugintest.Configuref(`
+	return s.loadPlugin(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configuref(`
 			cluster = "production"
 			token_path = %q
-	`, tokenPath))
+		`, tokenPath),
+	)
 }
 
 func (s *AttestorSuite) loadPlugin(options ...plugintest.Option) nodeattestor.NodeAttestor {

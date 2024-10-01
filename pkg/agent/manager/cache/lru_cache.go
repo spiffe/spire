@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"sort"
 	"sync"
@@ -14,15 +15,47 @@ import (
 	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	agentmetrics "github.com/spiffe/spire/pkg/common/telemetry/agent"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
 const (
-	// DefaultSVIDCacheMaxSize is set when svidCacheMaxSize is not provided
-	DefaultSVIDCacheMaxSize = 1000
+	// SVIDCacheMaxSize is the size for the cache
+	SVIDCacheMaxSize = 1000
 	// SVIDSyncInterval is the interval at which SVIDs are synced with subscribers
 	SVIDSyncInterval = 500 * time.Millisecond
+	// Default batch size for processing tainted SVIDs
+	defaultProcessingBatchSize = 100
 )
+
+var (
+	// Time interval between SVID batch processing
+	processingTaintedX509SVIDInterval = 5 * time.Second
+)
+
+// UpdateEntries holds information for an entries update to the cache.
+type UpdateEntries struct {
+	// Bundles is a set of ALL trust bundles available to the agent, keyed by trust domain
+	Bundles map[spiffeid.TrustDomain]*spiffebundle.Bundle
+
+	// TaintedX509Authorities is a set of all tainted X.509 authorities notified by the server.
+	TaintedX509Authorities []string
+
+	// TaintedJWTAuthorities is a set of all tainted JWT authorities notified by the server.
+	TaintedJWTAuthorities []string
+
+	// RegistrationEntries is a set of all registration entries available to the
+	// agent, keyed by registration entry id.
+	RegistrationEntries map[string]*common.RegistrationEntry
+}
+
+// StaleEntry holds stale entries with SVIDs expiration time
+type StaleEntry struct {
+	// Entry stale registration entry
+	Entry *common.RegistrationEntry
+	// SVIDs expiration time
+	SVIDExpiresAt time.Time
+}
 
 // Cache caches each registration entry, bundles, and JWT SVIDs for the agent.
 // The signed X509-SVIDs for those entries are stored in LRU-like cache.
@@ -42,7 +75,7 @@ const (
 // selector it encounters. Each selector index tracks the subscribers (i.e
 // workloads) and registration entries that have that selector.
 //
-// The LRU-like SVID cache has configurable size limit and expiry period.
+// The LRU-like SVID cache has a size limit and expiry period.
 //  1. Size limit of SVID cache is a soft limit. If SVID has a subscriber present then
 //     that SVID is never removed from cache.
 //  2. Least recently used SVIDs are removed from cache only after the cache expiry period has passed.
@@ -106,17 +139,14 @@ type LRUCache struct {
 	// svids are stored by entry IDs
 	svids map[string]*X509SVID
 
-	// svidCacheMaxSize is a soft limit of max number of SVIDs that would be stored in cache
-	svidCacheMaxSize   int
 	subscribeBackoffFn func() backoff.BackOff
+
+	processingBatchSize int
+	// used to debug scheduled batchs for tainted authorities
+	taintedBatchProcessedCh chan struct{}
 }
 
-func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics,
-	svidCacheMaxSize int, clk clock.Clock) *LRUCache {
-	if svidCacheMaxSize <= 0 {
-		svidCacheMaxSize = DefaultSVIDCacheMaxSize
-	}
-
+func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics, clk clock.Clock) *LRUCache {
 	return &LRUCache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
 		JWTSVIDCache: NewJWTSVIDCache(),
@@ -130,12 +160,12 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 		bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			trustDomain: bundle,
 		},
-		svids:            make(map[string]*X509SVID),
-		svidCacheMaxSize: svidCacheMaxSize,
-		clk:              clk,
+		svids: make(map[string]*X509SVID),
+		clk:   clk,
 		subscribeBackoffFn: func() backoff.BackOff {
 			return backoff.NewBackoff(clk, SVIDSyncInterval)
 		},
+		processingBatchSize: defaultProcessingBatchSize,
 	}
 }
 
@@ -403,7 +433,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 	// entries with active subscribers which are not cached will be put in staleEntries map;
 	// irrespective of what svid cache size as we cannot deny identity to a subscriber
 	activeSubsByEntryID, recordsWithLastAccessTime := c.syncSVIDsWithSubscribers()
-	extraSize := len(c.svids) - c.svidCacheMaxSize
+	extraSize := len(c.svids) - SVIDCacheMaxSize
 
 	// delete svids without subscribers and which have not been accessed since svidCacheExpiryTime
 	if extraSize > 0 {
@@ -412,7 +442,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 
 		for _, record := range recordsWithLastAccessTime {
 			if extraSize <= 0 {
-				// no need to delete SVIDs any further as cache size <= svidCacheMaxSize
+				// no need to delete SVIDs any further as cache size <= SVIDCacheMaxSize
 				break
 			}
 			if _, ok := c.svids[record.id]; ok {
@@ -483,6 +513,35 @@ func (c *LRUCache) UpdateSVIDs(update *UpdateSVIDs) {
 	}
 }
 
+// TaintX509SVIDs initiates the processing of all cached SVIDs, checking if they are tainted
+// by any of the provided authorities.
+// It schedules the processing to run asynchronously in batches.
+func (c *LRUCache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x509.Certificate) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	var entriesToProcess []string
+	for key, svid := range c.svids {
+		if svid != nil && len(svid.Chain) > 0 {
+			entriesToProcess = append(entriesToProcess, key)
+		}
+	}
+
+	// Check if there are any entries to process before scheduling
+	if len(entriesToProcess) == 0 {
+		c.log.Debug("No SVID entries to process for tainted X.509 authorities")
+		return
+	}
+
+	// Schedule the rotation process in a separate goroutine
+	go func() {
+		c.scheduleRotation(ctx, entriesToProcess, taintedX509Authorities)
+	}()
+
+	c.log.WithField(telemetry.Count, len(entriesToProcess)).
+		Debug("Scheduled rotation for SVID entries due to tainted X.509 authorities")
+}
+
 // GetStaleEntries obtains a list of stale entries
 func (c *LRUCache) GetStaleEntries() []*StaleEntry {
 	c.mu.Lock()
@@ -519,6 +578,86 @@ func (c *LRUCache) SyncSVIDsWithSubscribers() {
 	defer c.mu.Unlock()
 
 	c.syncSVIDsWithSubscribers()
+}
+
+// scheduleRotation processes SVID entries in batches, removing those tainted by X.509 authorities.
+// The process continues at regular intervals until all entries have been processed or the context is cancelled.
+func (c *LRUCache) scheduleRotation(ctx context.Context, entryIDs []string, taintedX509Authorities []*x509.Certificate) {
+	ticker := c.clk.Ticker(processingTaintedX509SVIDInterval)
+	defer ticker.Stop()
+
+	// Ensure consistent order for test cases if channel is used
+	if c.taintedBatchProcessedCh != nil {
+		sort.Strings(entryIDs)
+	}
+
+	for {
+		// Process entries in batches
+		batchSize := min(c.processingBatchSize, len(entryIDs))
+		processingEntries := entryIDs[:batchSize]
+
+		c.processTaintedSVIDs(processingEntries, taintedX509Authorities)
+
+		// Remove processed entries from the list
+		entryIDs = entryIDs[batchSize:]
+
+		entriesLeftCount := len(entryIDs)
+		if entriesLeftCount == 0 {
+			c.log.Info("Finished processing all tainted entries")
+			c.notifyTaintedBatchProcessed()
+			return
+		}
+		c.log.WithField(telemetry.Count, entriesLeftCount).Info("There are tainted X.509 SVIDs left to be processed")
+		c.notifyTaintedBatchProcessed()
+
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			c.log.WithError(ctx.Err()).Warn("Context cancelled, exiting rotation schedule")
+			return
+		}
+	}
+}
+
+func (c *LRUCache) notifyTaintedBatchProcessed() {
+	if c.taintedBatchProcessedCh != nil {
+		c.taintedBatchProcessedCh <- struct{}{}
+	}
+}
+
+// processTaintedSVIDs identifies and removes tainted SVIDs from the cache that have been signed by the given tainted authorities.
+func (c *LRUCache) processTaintedSVIDs(entryIDs []string, taintedX509Authorities []*x509.Certificate) {
+	counter := telemetry.StartCall(c.metrics, telemetry.CacheManager, "", telemetry.ProcessTaintedSVIDs)
+	defer counter.Done(nil)
+
+	taintedSVIDs := 0
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, entryID := range entryIDs {
+		svid, exists := c.svids[entryID]
+		if !exists || svid == nil {
+			// Skip if the SVID is not in cache or is nil
+			continue
+		}
+
+		// Check if the SVID is signed by any tainted authority
+		isTainted, err := x509util.IsSignedByRoot(svid.Chain, taintedX509Authorities)
+		if err != nil {
+			c.log.WithError(err).
+				WithField(telemetry.RegistrationID, entryID).
+				Error("Failed to check if SVID is signed by tainted authority")
+			continue
+		}
+		if isTainted {
+			taintedSVIDs++
+			delete(c.svids, entryID)
+		}
+	}
+
+	agentmetrics.AddCacheManagerTaintedSVIDsSample(c.metrics, "", float32(taintedSVIDs))
+	c.log.WithField(telemetry.TaintedSVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
 }
 
 // Notify subscriber of selector set only if all SVIDs for corresponding selector set are cached
@@ -633,7 +772,7 @@ func (c *LRUCache) syncSVIDsWithSubscribers() (map[string]struct{}, []recordAcce
 		lastAccessTimestamps = append(lastAccessTimestamps, newRecordAccessEvent(record.lastAccessTimestamp, id))
 	}
 
-	remainderSize := c.svidCacheMaxSize - len(c.svids)
+	remainderSize := SVIDCacheMaxSize - len(c.svids)
 	// add records which are not cached for remainder of cache size
 	for id := range c.records {
 		if len(c.staleEntries) >= remainderSize {

@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/protobuf/proto"
 )
@@ -29,7 +30,8 @@ func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 	var rootCAs []*common.Certificate
 	for _, rootCA := range b.X509Authorities {
 		rootCAs = append(rootCAs, &common.Certificate{
-			DerBytes: rootCA.Asn1,
+			DerBytes:   rootCA.Asn1,
+			TaintedKey: rootCA.Tainted,
 		})
 	}
 
@@ -40,9 +42,10 @@ func CommonBundleFromProto(b *types.Bundle) (*common.Bundle, error) {
 		}
 
 		jwtKeys = append(jwtKeys, &common.PublicKey{
-			PkixBytes: key.PublicKey,
-			Kid:       key.KeyId,
-			NotAfter:  key.ExpiresAt,
+			PkixBytes:  key.PublicKey,
+			Kid:        key.KeyId,
+			NotAfter:   key.ExpiresAt,
+			TaintedKey: key.Tainted,
 		})
 	}
 
@@ -235,6 +238,32 @@ pruneRootCA:
 	}
 
 	return newBundle, changed, nil
+}
+
+// FindX509Authorities search for all X.509 authorities with provided subjectKeyIDs
+func FindX509Authorities(bundle *spiffebundle.Bundle, subjectKeyIDs []string) ([]*x509.Certificate, error) {
+	var x509Authorities []*x509.Certificate
+	for _, subjectKeyID := range subjectKeyIDs {
+		x509Authority, err := getX509Authority(bundle, subjectKeyID)
+		if err != nil {
+			return nil, err
+		}
+
+		x509Authorities = append(x509Authorities, x509Authority)
+	}
+
+	return x509Authorities, nil
+}
+
+func getX509Authority(bundle *spiffebundle.Bundle, subjectKeyID string) (*x509.Certificate, error) {
+	for _, x509Authority := range bundle.X509Authorities() {
+		authoritySKID := x509util.SubjectKeyIDToString(x509Authority.SubjectKeyId)
+		if authoritySKID == subjectKeyID {
+			return x509Authority, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no X.509 authority found with SubjectKeyID %q", subjectKeyID)
 }
 
 func cloneBundle(b *common.Bundle) *common.Bundle {

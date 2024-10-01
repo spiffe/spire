@@ -13,6 +13,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -41,6 +42,24 @@ type Config struct {
 	PrivateKeyPath    string `hcl:"private_key_path"`
 	CertificatePath   string `hcl:"certificate_path"`
 	IntermediatesPath string `hcl:"intermediates_path"`
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+	newConfig := new(Config)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.PrivateKeyPath == "" {
+		status.ReportError("private_key_path is required")
+	}
+
+	if newConfig.CertificatePath == "" {
+		status.ReportError("certificate_path is required")
+	}
+
+	return newConfig
 }
 
 type Plugin struct {
@@ -100,39 +119,36 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	// Parse HCL config payload into config struct
-	config := new(Config)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.PrivateKeyPath == "" {
-		return nil, status.Error(codes.InvalidArgument, "private_key_path is required")
-	}
-	if config.CertificatePath == "" {
-		return nil, status.Error(codes.InvalidArgument, "certificate_path is required")
-	}
-
-	// make sure the configuration produces valid data
-	if _, err := loadConfigData(config); err != nil {
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
 		return nil, err
 	}
 
-	p.setConfig(config)
+	// make sure the configuration produces valid data
+	if _, err := loadConfigData(newConfig); err != nil {
+		return nil, err
+	}
+
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.c = newConfig
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 func (p *Plugin) getConfig() *Config {
 	p.m.Lock()
 	defer p.m.Unlock()
 	return p.c
-}
-
-func (p *Plugin) setConfig(c *Config) {
-	p.m.Lock()
-	defer p.m.Unlock()
-	p.c = c
 }
 
 func (p *Plugin) loadConfigData() (*configData, error) {
@@ -143,6 +159,7 @@ func (p *Plugin) loadConfigData() (*configData, error) {
 	return loadConfigData(config)
 }
 
+// TODO: this needs more attention.  Parts of it might belong in buildConfig
 func loadConfigData(config *Config) (*configData, error) {
 	certificate, err := tls.LoadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
 	if err != nil {

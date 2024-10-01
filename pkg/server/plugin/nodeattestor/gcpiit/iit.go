@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
@@ -82,6 +83,50 @@ type IITAttestorConfig struct {
 	AllowedMetadataKeys  []string `hcl:"allowed_metadata_keys"`
 	MaxMetadataValueSize int      `hcl:"max_metadata_value_size"`
 	ServiceAccountFile   string   `hcl:"service_account_file"`
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IITAttestorConfig {
+	newConfig := new(IITAttestorConfig)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if len(newConfig.ProjectIDAllowList) == 0 {
+		status.ReportError("projectid_allow_list is required")
+	}
+
+	tmpl := gcp.DefaultAgentPathTemplate
+	if len(newConfig.AgentPathTemplate) > 0 {
+		var err error
+		tmpl, err = agentpathtemplate.Parse(newConfig.AgentPathTemplate)
+		if err != nil {
+			status.ReportErrorf("failed to parse agent path template: %q", newConfig.AgentPathTemplate)
+		}
+	}
+
+	if len(newConfig.AllowedLabelKeys) > 0 {
+		newConfig.allowedLabelKeys = make(map[string]bool, len(newConfig.AllowedLabelKeys))
+		for _, key := range newConfig.AllowedLabelKeys {
+			newConfig.allowedLabelKeys[key] = true
+		}
+	}
+
+	if len(newConfig.AllowedMetadataKeys) > 0 {
+		newConfig.allowedMetadataKeys = make(map[string]bool, len(newConfig.AllowedMetadataKeys))
+		for _, key := range newConfig.AllowedMetadataKeys {
+			newConfig.allowedMetadataKeys[key] = true
+		}
+	}
+
+	if newConfig.MaxMetadataValueSize == 0 {
+		newConfig.MaxMetadataValueSize = defaultMaxMetadataValueSize
+	}
+
+	newConfig.idPathTemplate = tmpl
+	newConfig.trustDomain = coreConfig.TrustDomain
+
+	return newConfig
 }
 
 // New creates a new IITAttestorPlugin.
@@ -168,64 +213,25 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 
 // Configure configures the IITAttestorPlugin.
 func (p *IITAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	hclConfig := new(IITAttestorConfig)
-	if err := hcl.Decode(hclConfig, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "global configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
-	trustDomain, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
+		return nil, err
 	}
-
-	if len(hclConfig.ProjectIDAllowList) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "projectid_allow_list is required")
-	}
-
-	tmpl := gcp.DefaultAgentPathTemplate
-	if len(hclConfig.AgentPathTemplate) > 0 {
-		var err error
-		tmpl, err = agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent path template: %q", hclConfig.AgentPathTemplate)
-		}
-	}
-
-	if len(hclConfig.AllowedLabelKeys) > 0 {
-		hclConfig.allowedLabelKeys = make(map[string]bool, len(hclConfig.AllowedLabelKeys))
-		for _, key := range hclConfig.AllowedLabelKeys {
-			hclConfig.allowedLabelKeys[key] = true
-		}
-	}
-
-	if len(hclConfig.AllowedMetadataKeys) > 0 {
-		hclConfig.allowedMetadataKeys = make(map[string]bool, len(hclConfig.AllowedMetadataKeys))
-		for _, key := range hclConfig.AllowedMetadataKeys {
-			hclConfig.allowedMetadataKeys[key] = true
-		}
-	}
-
-	if hclConfig.MaxMetadataValueSize == 0 {
-		hclConfig.MaxMetadataValueSize = defaultMaxMetadataValueSize
-	}
-
-	hclConfig.idPathTemplate = tmpl
-	hclConfig.trustDomain = trustDomain
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
-
-	p.config = hclConfig
+	p.config = newConfig
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *IITAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 func (p *IITAttestorPlugin) getConfig() (*IITAttestorConfig, error) {

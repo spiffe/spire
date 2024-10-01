@@ -17,6 +17,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -74,11 +75,52 @@ type dockerPluginConfig struct {
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 
 	Experimental experimentalConfig `hcl:"experimental,omitempty" json:"experimental,omitempty"`
+
+	containerHelper *containerHelper
+	dockerOpts      []dockerclient.Opt
+	sigstoreConfig  *sigstore.Config
 }
 
 type experimentalConfig struct {
 	// Sigstore contains sigstore specific configs.
 	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
+}
+
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *dockerPluginConfig {
+	var err error
+	newConfig := &dockerPluginConfig{}
+	if err = hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if len(newConfig.UnusedKeyPositions) > 0 {
+		var keys []string
+		for k := range newConfig.UnusedKeyPositions {
+			keys = append(keys, k)
+		}
+
+		sort.Strings(keys)
+		status.ReportErrorf("unknown configurations detected: %s", strings.Join(keys, ","))
+	}
+
+	newConfig.containerHelper = p.createHelper(newConfig, status)
+
+	dockerHost := getDockerHost(newConfig)
+	if dockerHost != "" {
+		newConfig.dockerOpts = append(newConfig.dockerOpts, dockerclient.WithHost(dockerHost))
+	}
+	if newConfig.DockerVersion == "" {
+		newConfig.dockerOpts = append(newConfig.dockerOpts, dockerclient.WithAPIVersionNegotiation())
+	} else {
+		newConfig.dockerOpts = append(newConfig.dockerOpts, dockerclient.WithVersion(newConfig.DockerVersion))
+	}
+
+	if newConfig.Experimental.Sigstore != nil {
+		newConfig.sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Experimental.Sigstore, p.log)
+	}
+
+	return newConfig
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -165,48 +207,19 @@ func getSelectorValuesFromConfig(cfg *container.Config) []string {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	var err error
-	config := &dockerPluginConfig{}
-	if err = hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if len(config.UnusedKeyPositions) > 0 {
-		var keys []string
-		for k := range config.UnusedKeyPositions {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-		return nil, status.Errorf(codes.InvalidArgument, "unknown configurations detected: %s", strings.Join(keys, ","))
-	}
-
-	containerHelper, err := createHelper(config, p.log)
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	var opts []dockerclient.Opt
-	dockerHost := getDockerHost(config)
-	if dockerHost != "" {
-		opts = append(opts, dockerclient.WithHost(dockerHost))
-	}
-	switch {
-	case config.DockerVersion != "":
-		opts = append(opts, dockerclient.WithVersion(config.DockerVersion))
-	default:
-		opts = append(opts, dockerclient.WithAPIVersionNegotiation())
-	}
-
-	docker, err := dockerclient.NewClientWithOpts(opts...)
+	docker, err := dockerclient.NewClientWithOpts(newConfig.dockerOpts...)
 	if err != nil {
 		return nil, err
 	}
 
 	var sigstoreVerifier sigstore.Verifier
-	if config.Experimental.Sigstore != nil {
-		cfg := sigstore.NewConfigFromHCL(config.Experimental.Sigstore, p.log)
-		verifier := sigstore.NewVerifier(cfg)
+	if newConfig.sigstoreConfig != nil {
+		verifier := sigstore.NewVerifier(newConfig.sigstoreConfig)
 		err = verifier.Init(ctx)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
@@ -217,7 +230,17 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	p.docker = docker
-	p.c = containerHelper
+	p.c = newConfig.containerHelper
 	p.sigstoreVerifier = sigstoreVerifier
+
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }

@@ -20,6 +20,7 @@ import (
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -89,6 +90,16 @@ func (ps PSProcessInfo) Groups() ([]string, error) {
 type Configuration struct {
 	DiscoverWorkloadPath bool  `hcl:"discover_workload_path"`
 	WorkloadSizeLimit    int64 `hcl:"workload_size_limit"`
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("failed to decode configuration: %v", err)
+		return nil
+	}
+
+	return newConfig
 }
 
 type Plugin struct {
@@ -195,12 +206,25 @@ func (p *Plugin) Attest(_ context.Context, req *workloadattestorv1.AttestRequest
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config := new(Configuration)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
 	}
-	p.setConfig(config)
+
+	p.mu.Lock()
+	p.config = newConfig
+	p.mu.Unlock()
+
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 func (p *Plugin) getConfig() (*Configuration, error) {
@@ -211,12 +235,6 @@ func (p *Plugin) getConfig() (*Configuration, error) {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return config, nil
-}
-
-func (p *Plugin) setConfig(config *Configuration) {
-	p.mu.Lock()
-	p.config = config
-	p.mu.Unlock()
 }
 
 func (p *Plugin) getUID(proc processInfo) (string, error) {

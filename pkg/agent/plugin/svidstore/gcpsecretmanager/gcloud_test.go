@@ -87,9 +87,9 @@ func TestConfigure(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 
+		trustDomain     spiffeid.TrustDomain
 		customConfig    string
 		newClientErr    error
-		trustDomain     spiffeid.TrustDomain
 		expectCode      codes.Code
 		expectMsgPrefix string
 		expectFilePath  string
@@ -98,32 +98,35 @@ func TestConfigure(t *testing.T) {
 	}{
 		{
 			name:           "success",
+			trustDomain:    trustDomain,
 			expectFilePath: "someFile",
 			expectConfig:   &Configuration{ServiceAccountFile: "someFile"},
-			trustDomain:    trustDomain,
 			expectTD:       tdHash,
 		},
 		{
 			name:         "no config file",
-			expectConfig: &Configuration{ServiceAccountFile: ""},
 			trustDomain:  trustDomain,
+			expectConfig: &Configuration{ServiceAccountFile: ""},
 			expectTD:     tdHash,
 		},
 		{
 			name:            "malformed configuration",
+			trustDomain:     trustDomain,
 			customConfig:    "{no a config}",
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "unable to decode configuration:",
 		},
 		{
 			name:            "failed to create client",
+			trustDomain:     trustDomain,
 			expectConfig:    &Configuration{ServiceAccountFile: "someFile"},
 			newClientErr:    errors.New("oh! no"),
 			expectCode:      codes.Internal,
 			expectMsgPrefix: "failed to create secretmanager client: oh! no",
 		},
 		{
-			name: "contains unused keys",
+			name:        "contains unused keys",
+			trustDomain: trustDomain,
 			customConfig: `
 service_account_file = "some_file"
 invalid1 = "something"

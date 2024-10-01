@@ -6,7 +6,7 @@ import (
 
 	"github.com/gogo/status"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
-	authority_common "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon"
+	authoritycommon_test "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon/test"
 	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority/x509"
 	"github.com/stretchr/testify/require"
@@ -14,14 +14,14 @@ import (
 )
 
 func TestX509TaintHelp(t *testing.T) {
-	test := authority_common.SetupTest(t, x509.NewX509TaintCommandWithEnv)
+	test := authoritycommon_test.SetupTest(t, x509.NewX509TaintCommandWithEnv)
 
 	test.Client.Help()
 	require.Equal(t, x509TaintUsage, test.Stderr.String())
 }
 
 func TestX509TaintSynopsys(t *testing.T) {
-	test := authority_common.SetupTest(t, x509.NewX509TaintCommandWithEnv)
+	test := authoritycommon_test.SetupTest(t, x509.NewX509TaintCommandWithEnv)
 	require.Equal(t, "Marks the previously active X.509 authority as being tainted", test.Client.Synopsis())
 }
 
@@ -41,11 +41,12 @@ func TestX509Taint(t *testing.T) {
 			expectReturnCode: 0,
 			args:             []string{"-authorityID", "prepared-id"},
 			tainted: &localauthorityv1.AuthorityState{
-				AuthorityId: "tainted-id",
-				ExpiresAt:   1001,
+				AuthorityId:                   "tainted-id",
+				ExpiresAt:                     1001,
+				UpstreamAuthoritySubjectKeyId: "some-subject-key-id",
 			},
 			expectStdoutPretty: "Tainted X.509 authority:\n  Authority ID: tainted-id\n  Expires at: 1970-01-01 00:16:41 +0000 UTC\n",
-			expectStdoutJSON:   `{"tainted_authority":{"authority_id":"tainted-id","expires_at":"1001"}}`,
+			expectStdoutJSON:   `{"tainted_authority":{"authority_id":"tainted-id","expires_at":"1001","upstream_authority_subject_key_id":"some-subject-key-id"}}`,
 		},
 		{
 			name:             "no authority id",
@@ -66,9 +67,9 @@ func TestX509Taint(t *testing.T) {
 			expectStderr:     "Error: could not taint X.509 authority: rpc error: code = Internal desc = internal server error\n",
 		},
 	} {
-		for _, format := range authority_common.AvailableFormats {
+		for _, format := range authoritycommon_test.AvailableFormats {
 			t.Run(fmt.Sprintf("%s using %s format", tt.name, format), func(t *testing.T) {
-				test := authority_common.SetupTest(t, x509.NewX509TaintCommandWithEnv)
+				test := authoritycommon_test.SetupTest(t, x509.NewX509TaintCommandWithEnv)
 				test.Server.TaintedX509 = tt.tainted
 				test.Server.Err = tt.serverErr
 				args := tt.args
@@ -76,7 +77,7 @@ func TestX509Taint(t *testing.T) {
 
 				returnCode := test.Client.Run(append(test.Args, args...))
 
-				authority_common.RequireOutputBasedOnFormat(t, format, test.Stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
+				authoritycommon_test.RequireOutputBasedOnFormat(t, format, test.Stdout.String(), tt.expectStdoutPretty, tt.expectStdoutJSON)
 				require.Equal(t, tt.expectStderr, test.Stderr.String())
 				require.Equal(t, tt.expectReturnCode, returnCode)
 			})

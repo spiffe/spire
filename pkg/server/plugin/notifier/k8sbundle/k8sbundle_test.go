@@ -18,6 +18,7 @@ import (
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -382,8 +383,10 @@ api_service_label = "API_SERVICE_LABEL2"
 kube_config_file_path = "/some/file/path"
 `
 	_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{
-		CoreConfiguration: &configv1.CoreConfiguration{},
-		HclConfiguration:  finalConfig,
+		CoreConfiguration: &configv1.CoreConfiguration{
+			TrustDomain: "example.org",
+		},
+		HclConfiguration: finalConfig,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, test.rawPlugin.stopCh)
@@ -534,7 +537,7 @@ func TestConfigureWithMalformedConfiguration(t *testing.T) {
 		CoreConfiguration: coreConfig,
 	})
 
-	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "unable to decode configuration")
+	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "plugin configuration is malformed")
 }
 
 func TestBundleFailsToLoadIfHostServicesUnavailable(t *testing.T) {
@@ -547,14 +550,16 @@ func TestBundleFailsToLoadIfHostServicesUnavailable(t *testing.T) {
 func TestConfigure(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
+		trustDomain    string
 		configuration  string
 		expectedErr    string
 		expectedCode   codes.Code
-		expectedConfig *pluginConfig
+		expectedConfig *Configuration
 	}{
 		{
-			name: "empty configuration",
-			expectedConfig: &pluginConfig{
+			name:        "empty configuration",
+			trustDomain: "example.org",
+			expectedConfig: &Configuration{
 				cluster: cluster{
 					Namespace:    "spire",
 					ConfigMap:    "spire-bundle",
@@ -563,7 +568,8 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name: "full configuration",
+			name:        "full configuration",
+			trustDomain: "example.org",
 			configuration: `
 			namespace = "root"
 			config_map = "root_config_map"
@@ -590,7 +596,7 @@ func TestConfigure(t *testing.T) {
 			},
 			]
 			`,
-			expectedConfig: &pluginConfig{
+			expectedConfig: &Configuration{
 				cluster: cluster{
 					Namespace:          "root",
 					ConfigMap:          "root_config_map",
@@ -620,11 +626,12 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name: "root only with partial configuration",
+			name:        "root only with partial configuration",
+			trustDomain: "example.org",
 			configuration: `			
 			api_service_label = "root_api_label"			
 			`,
-			expectedConfig: &pluginConfig{
+			expectedConfig: &Configuration{
 				cluster: cluster{
 					Namespace:          "spire",
 					ConfigMap:          "spire-bundle",
@@ -635,7 +642,8 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name: "clusters only with partial configuration",
+			name:        "clusters only with partial configuration",
+			trustDomain: "example.org",
 			configuration: `
 			clusters  = [
 			{
@@ -648,7 +656,7 @@ func TestConfigure(t *testing.T) {
 			},
 			]
 			`,
-			expectedConfig: &pluginConfig{
+			expectedConfig: &Configuration{
 				Clusters: []cluster{
 					{
 						Namespace:          "spire",
@@ -667,6 +675,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:         "clusters only missing kube_config_file_path",
+			trustDomain:  "example.org",
 			expectedErr:  "cluster configuration is missing kube_config_file_path",
 			expectedCode: codes.InvalidArgument,
 			configuration: `
@@ -711,7 +720,7 @@ type fakeKubeClient struct {
 	configMapKey string
 }
 
-func newFakeKubeClient(config *pluginConfig, configMaps ...*corev1.ConfigMap) *fakeKubeClient {
+func newFakeKubeClient(config *Configuration, configMaps ...*corev1.ConfigMap) *fakeKubeClient {
 	fake := &fakeKubeClient{
 		configMaps:   make(map[string]*corev1.ConfigMap),
 		namespace:    config.Namespace,
@@ -838,7 +847,7 @@ type fakeWebhookClient struct {
 	watcherStarted chan struct{}
 }
 
-func newFakeWebhookClient(config *pluginConfig) *fakeWebhookClient {
+func newFakeWebhookClient(config *Configuration) *fakeWebhookClient {
 	client := fake.NewSimpleClientset()
 	w := &fakeWebhookClient{
 		mutatingWebhookClient: mutatingWebhookClient{
@@ -894,7 +903,7 @@ type fakeAPIServiceClient struct {
 	watcherStarted chan struct{}
 }
 
-func newFakeAPIServiceClient(config *pluginConfig) *fakeAPIServiceClient {
+func newFakeAPIServiceClient(config *Configuration) *fakeAPIServiceClient {
 	client := fakeaggregator.NewSimpleClientset()
 	a := &fakeAPIServiceClient{
 		apiServiceClient: apiServiceClient{
@@ -952,6 +961,7 @@ type test struct {
 }
 
 type testOptions struct {
+	trustDomain      spiffeid.TrustDomain
 	plainConfig      string
 	kubeClientError  bool
 	doConfigure      bool
@@ -981,6 +991,7 @@ func withInformerCallback(callback informerCallback) testOption {
 func setupTest(t *testing.T, options ...testOption) *test {
 	args := &testOptions{
 		doConfigure: true,
+		trustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		plainConfig: fmt.Sprintf(`
 		namespace = "%s"
 		config_map = "%s"
@@ -992,7 +1003,7 @@ func setupTest(t *testing.T, options ...testOption) *test {
 		opt(args)
 	}
 
-	config := new(pluginConfig)
+	config := new(Configuration)
 	err := hcl.Decode(&config, args.plainConfig)
 	require.Nil(t, err)
 
@@ -1007,7 +1018,7 @@ func setupTest(t *testing.T, options ...testOption) *test {
 	}
 
 	test.kubeClient = newFakeKubeClient(config)
-	raw.hooks.newKubeClients = func(c *pluginConfig) ([]kubeClient, error) {
+	raw.hooks.newKubeClients = func(c *Configuration) ([]kubeClient, error) {
 		if args.kubeClientError {
 			return nil, errors.New("kube client not configured")
 		}
@@ -1036,6 +1047,9 @@ func setupTest(t *testing.T, options ...testOption) *test {
 			builtIn(raw),
 			notifier,
 			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
+			plugintest.CoreConfig(catalog.CoreConfig{
+				TrustDomain: args.trustDomain,
+			}),
 			plugintest.Configure(args.plainConfig),
 		)
 	} else {

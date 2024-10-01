@@ -120,7 +120,9 @@ func TestRotator(t *testing.T) {
 			// Create the starting SVID
 			svidKey, err := svidKM.GenerateKey(context.Background(), nil)
 			require.NoError(t, err)
+
 			svid, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(tt.notAfter))
+
 			require.NoError(t, err)
 
 			// Advance the clock by one second so SVID will always be expired
@@ -379,6 +381,163 @@ func TestRotationFails(t *testing.T) {
 			spiretest.RequireErrorPrefix(t, err, tt.expectErr)
 		})
 	}
+}
+
+func TestNotifyTaintedAuthority(t *testing.T) {
+	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
+	anotherCert, _ := testca.CreateCACertificate(t, nil, nil)
+
+	svidKM := keymanager.ForSVID(fakeagentkeymanager.New(t, ""))
+	clk := clock.NewMock(t)
+	log, logHook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	mockClient := &fakeClient{
+		clk:    clk,
+		caCert: caCert,
+		caKey:  caKey,
+	}
+
+	// Create the bundle
+	bundle := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
+	bundle[trustDomain] = spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{caCert})
+
+	// Create the starting SVID
+	svidKey, err := svidKM.GenerateKey(context.Background(), nil)
+	require.NoError(t, err)
+
+	svid, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(time.Minute))
+	require.NoError(t, err)
+
+	// Initialize the rotator
+	rotator, _ := newRotator(&RotatorConfig{
+		SVIDKeyManager:   svidKM,
+		Log:              log,
+		Metrics:          telemetry.Blackhole{},
+		TrustDomain:      trustDomain,
+		BundleStream:     cache.NewBundleStream(observer.NewProperty(bundle).Observe()),
+		Clk:              clk,
+		SVID:             svid,
+		SVIDKey:          svidKey,
+		NodeAttestor:     fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	})
+	rotator.client = mockClient
+
+	// Ensure cert is not tainted initially
+	require.False(t, rotator.IsTainted())
+
+	for _, tt := range []struct {
+		name        string
+		authorities []*x509.Certificate
+
+		expectTainted bool
+		expectLogs    []spiretest.LogEntry
+	}{
+		{
+			name:          "no tainted",
+			authorities:   []*x509.Certificate{anotherCert},
+			expectTainted: false,
+		},
+		{
+			name:          "taint successfully",
+			authorities:   []*x509.Certificate{caCert},
+			expectTainted: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Agent SVID is tainted by a root authority, forcing rotation",
+				},
+			},
+		},
+		{
+			name:          "already tainted",
+			authorities:   []*x509.Certificate{caCert},
+			expectTainted: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.DebugLevel,
+					Message: "Agent SVID already tainted",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			logHook.Reset()
+
+			err := rotator.NotifyTaintedAuthorities(tt.authorities)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.expectTainted, rotator.IsTainted())
+			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectLogs)
+		})
+	}
+}
+
+func TestTaintedSVIDIsRotated(t *testing.T) {
+	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
+
+	svidKM := keymanager.ForSVID(fakeagentkeymanager.New(t, ""))
+	clk := clock.NewMock(t)
+	log, _ := test.NewNullLogger()
+
+	mockClient := &fakeClient{
+		clk:    clk,
+		caCert: caCert,
+		caKey:  caKey,
+	}
+
+	// Create the bundle
+	bundle := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
+	bundle[trustDomain] = spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{caCert})
+
+	// Create the starting SVID
+	svidKey, err := svidKM.GenerateKey(context.Background(), nil)
+	require.NoError(t, err)
+
+	svid, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(time.Minute))
+	require.NoError(t, err)
+
+	// Initialize the rotator
+	rotator, _ := newRotator(&RotatorConfig{
+		SVIDKeyManager:   svidKM,
+		Log:              log,
+		Metrics:          telemetry.Blackhole{},
+		TrustDomain:      trustDomain,
+		BundleStream:     cache.NewBundleStream(observer.NewProperty(bundle).Observe()),
+		Clk:              clk,
+		SVID:             svid,
+		SVIDKey:          svidKey,
+		NodeAttestor:     fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	})
+	rotator.client = mockClient
+	rotationFinishedCh := make(chan struct{}, 1)
+	rotator.rotationFinishedHook = func() {
+		close(rotationFinishedCh)
+	}
+
+	// Mark SVID as tainted
+	rotator.tainted = true
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	errCh := make(chan error)
+	go func() {
+		errCh <- rotator.Run(ctx)
+	}()
+
+	select {
+	case err = <-errCh:
+		t.Fatalf("unexpected error during first rotation loop: %v", err)
+	case <-rotationFinishedCh:
+		// Rotation expected
+	case <-ctx.Done():
+		t.Fatal("expected rotation to finish before timeout")
+	}
+
+	require.False(t, rotator.IsTainted(), "SVID must not be tainted after rotation")
 }
 
 type fakeClient struct {

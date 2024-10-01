@@ -12,8 +12,10 @@ import (
 	"github.com/docker/docker/api/types/container"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -23,8 +25,9 @@ import (
 )
 
 const (
-	testContainerID = "6469646e742065787065637420616e796f6e6520746f20726561642074686973"
-	testImageID     = "test-image-id"
+	testContainerID    = "6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	testImageID        = "test-image-id"
+	defaultTrustDomain = "example.org"
 )
 
 var disabledRetryer = &retryer{disabled: true}
@@ -156,17 +159,20 @@ func TestDockerErrorContextCancel(t *testing.T) {
 func TestDockerConfig(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
+		trustDomain        string
 		expectCode         codes.Code
 		expectMsg          string
 		config             string
 		sigstoreConfigured bool
 	}{
 		{
-			name:   "success configuration",
-			config: `docker_version = "/123/"`,
+			name:        "success configuration",
+			trustDomain: "example.org",
+			config:      `docker_version = "/123/"`,
 		},
 		{
-			name: "sigstore configuration",
+			name:        "sigstore configuration",
+			trustDomain: "example.org",
 			config: `
 					experimental {
     					sigstore {
@@ -186,7 +192,8 @@ func TestDockerConfig(t *testing.T) {
 			sigstoreConfigured: true,
 		},
 		{
-			name: "bad hcl",
+			name:        "bad hcl",
+			trustDomain: "example.org",
 			config: `
 container_id_cgroup_matchers = [
 	"/docker/"`,
@@ -194,7 +201,8 @@ container_id_cgroup_matchers = [
 			expectMsg:  "unable to decode configuration:",
 		},
 		{
-			name: "unknown configuration",
+			name:        "unknown configuration",
+			trustDomain: "example.org",
 			config: `
 invalid1 = "/oh/"
 invalid2 = "/no/"`,
@@ -207,6 +215,9 @@ invalid2 = "/no/"`,
 
 			var err error
 			plugintest.Load(t, builtin(p), new(workloadattestor.V1),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
+				}),
 				plugintest.Configure(tt.config),
 				plugintest.CaptureConfigureError(&err))
 
@@ -345,9 +356,12 @@ func doAttestWithContext(ctx context.Context, t *testing.T, p *Plugin) ([]string
 	return selectorValues, nil
 }
 
-func doConfigure(t *testing.T, p *Plugin, cfg string) error {
+func doConfigure(t *testing.T, p *Plugin, trustDomain string, cfg string) error {
 	var err error
 	plugintest.Load(t, builtin(p), new(workloadattestor.V1),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
+		}),
 		plugintest.Configure(cfg),
 		plugintest.CaptureConfigureError(&err))
 	return err
@@ -381,7 +395,7 @@ func withSigstoreVerifier(v sigstore.Verifier) testPluginOpt {
 
 func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 	p := New()
-	err := doConfigure(t, p, "")
+	err := doConfigure(t, p, defaultTrustDomain, "")
 	require.NoError(t, err)
 
 	for _, o := range opts {

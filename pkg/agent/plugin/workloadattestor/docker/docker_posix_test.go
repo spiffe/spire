@@ -19,15 +19,17 @@ const (
 
 func TestContainerExtraction(t *testing.T) {
 	tests := []struct {
-		desc      string
-		cfg       string
-		cgroups   string
-		hasMatch  bool
-		expectErr string
+		desc        string
+		trustDomain string
+		cfg         string
+		cgroups     string
+		hasMatch    bool
+		expectErr   string
 	}{
 		{
-			desc:    "no match",
-			cgroups: testCgroupEntries,
+			desc:        "no match",
+			trustDomain: "example.org",
+			cgroups:     testCgroupEntries,
 			cfg: `
 				use_new_container_locator = false
 				container_id_cgroup_matchers = [
@@ -36,8 +38,9 @@ func TestContainerExtraction(t *testing.T) {
 			`,
 		},
 		{
-			desc:    "one miss one match",
-			cgroups: testCgroupEntries,
+			desc:        "one miss one match",
+			trustDomain: "example.org",
+			cgroups:     testCgroupEntries,
 			cfg: `
 				use_new_container_locator = false
 				container_id_cgroup_matchers = [
@@ -48,8 +51,9 @@ func TestContainerExtraction(t *testing.T) {
 			hasMatch: true,
 		},
 		{
-			desc:    "no container id",
-			cgroups: "10:cpu:/docker/",
+			desc:        "no container id",
+			trustDomain: "example.org",
+			cgroups:     "10:cpu:/docker/",
 			cfg: `
 				use_new_container_locator = false
 				container_id_cgroup_matchers = [
@@ -59,24 +63,28 @@ func TestContainerExtraction(t *testing.T) {
 			expectErr: "a pattern matched, but no container id was found",
 		},
 		{
-			desc:     "RHEL docker cgroups",
-			cgroups:  "4:devices:/system.slice/docker-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
-			hasMatch: true,
+			desc:        "RHEL docker cgroups",
+			trustDomain: "example.org",
+			cgroups:     "4:devices:/system.slice/docker-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
+			hasMatch:    true,
 		},
 		{
-			desc:     "docker for desktop",
-			cgroups:  "6:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/system.slice/containerd.service",
-			hasMatch: true,
+			desc:        "docker for desktop",
+			trustDomain: "example.org",
+			cgroups:     "6:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973/system.slice/containerd.service",
+			hasMatch:    true,
 		},
 		{
-			desc:      "more than one id",
-			cgroups:   testCgroupEntries + "\n" + "4:devices:/system.slice/docker-41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
-			expectErr: "multiple container IDs found",
+			desc:        "more than one id",
+			trustDomain: "example.org",
+			cgroups:     testCgroupEntries + "\n" + "4:devices:/system.slice/docker-41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",
+			expectErr:   "multiple container IDs found",
 		},
 		{
-			desc:     "default configuration matches cgroup missing docker prefix",
-			cgroups:  "4:devices:/system.slice/6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
-			hasMatch: true,
+			desc:        "default configuration matches cgroup missing docker prefix",
+			trustDomain: "example.org",
+			cgroups:     "4:devices:/system.slice/6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope",
+			hasMatch:    true,
 		},
 	}
 
@@ -93,7 +101,7 @@ func TestContainerExtraction(t *testing.T) {
 
 			p := newTestPlugin(
 				t,
-				withConfig(t, tt.cfg), // this must be the first option
+				withConfig(t, tt.trustDomain, tt.cfg), // this must be the first option
 				withDocker(d),
 				withRootDirOpt,
 			)
@@ -132,7 +140,7 @@ func TestDockerConfigPosix(t *testing.T) {
 		expectFinder, err := cgroup.NewContainerIDFinder([]string{"/docker/<id>"})
 		require.NoError(t, err)
 
-		p := newTestPlugin(t, withConfig(t, `
+		p := newTestPlugin(t, withConfig(t, "example.org", `
 use_new_container_locator = false
 docker_socket_path = "unix:///socket_path"
 docker_version = "1.20"
@@ -152,7 +160,7 @@ use_new_container_locator = false
 container_id_cgroup_matchers = [
 "/docker/",
 ]`
-		err := doConfigure(t, p, cfg)
+		err := doConfigure(t, p, "example.org", cfg)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `must contain the container id token "<id>" exactly once`)
 	})
@@ -184,9 +192,9 @@ func withRootDir(dir string) testPluginOpt {
 }
 
 // this must be the first plugin opt
-func withConfig(t *testing.T, cfg string) testPluginOpt {
+func withConfig(t *testing.T, trustDomain string, cfg string) testPluginOpt {
 	return func(p *Plugin) {
-		err := doConfigure(t, p, cfg)
+		err := doConfigure(t, p, trustDomain, cfg)
 		require.NoError(t, err)
 	}
 }

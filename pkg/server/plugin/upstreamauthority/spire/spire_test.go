@@ -66,7 +66,7 @@ func TestConfigure(t *testing.T) {
 			name:            "malformed configuration",
 			overrideConfig:  "{1}",
 			expectCode:      codes.InvalidArgument,
-			expectMsgPrefix: "unable to decode configuration: expected: STRING got: NUMBER",
+			expectMsgPrefix: "plugin configuration is malformed",
 		},
 		{
 			name:               "no trust domain",
@@ -75,7 +75,7 @@ func TestConfigure(t *testing.T) {
 			workloadAPISocket:  "socketPath",
 			overrideCoreConfig: &catalog.CoreConfig{},
 			expectCode:         codes.InvalidArgument,
-			expectMsgPrefix:    "trust_domain is required",
+			expectMsgPrefix:    "server core configuration must contain trust_domain",
 		},
 	}
 	cases = append(cases, configureCasesOS(t)...)

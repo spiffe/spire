@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -39,6 +40,11 @@ func builtin(p *Plugin) catalog.BuiltIn {
 	)
 }
 
+type Config struct {
+	DevIDBundlePath       string `hcl:"devid_ca_path"`
+	EndorsementBundlePath string `hcl:"endorsement_ca_path"`
+}
+
 type config struct {
 	trustDomain spiffeid.TrustDomain
 
@@ -46,9 +52,39 @@ type config struct {
 	ekRoots    *x509.CertPool
 }
 
-type Config struct {
-	DevIDBundlePath       string `hcl:"devid_ca_path"`
-	EndorsementBundlePath string `hcl:"endorsement_ca_path"`
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *config {
+	hclConfig := new(Config)
+	if err := hcl.Decode(hclConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
+	}
+
+	if hclConfig.DevIDBundlePath == "" {
+		status.ReportError("devid_ca_path is required")
+	}
+	if hclConfig.EndorsementBundlePath == "" {
+		status.ReportError("endorsement_ca_path is required")
+	}
+
+	// Create initial internal configuration
+	newConfig := &config{
+		trustDomain: coreConfig.TrustDomain,
+	}
+
+	// Load DevID bundle
+	var err error
+	newConfig.devIDRoots, err = util.LoadCertPool(hclConfig.DevIDBundlePath)
+	if err != nil {
+		status.ReportErrorf("unable to load DevID trust bundle: %v", err)
+	}
+
+	// Load endorsement bundle if configured
+	newConfig.ekRoots, err = util.LoadCertPool(hclConfig.EndorsementBundlePath)
+	if err != nil {
+		status.ReportErrorf("unable to load endorsement trust bundle: %v", err)
+	}
+
+	return newConfig
 }
 
 type Plugin struct {
@@ -188,91 +224,31 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	trustDomain, err := parseCoreConfig(req.CoreConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	extConf, err := decodePluginConfig(req.HclConfiguration)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	err = validatePluginConfig(extConf)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid configuration: %v", err)
-	}
-
-	// Create initial internal configuration
-	intConf := &config{
-		trustDomain: trustDomain,
-	}
-
-	// Load DevID bundle
-	intConf.devIDRoots, err = util.LoadCertPool(extConf.DevIDBundlePath)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to load DevID trust bundle: %v", err)
-	}
-
-	// Load endorsement bundle if configured
-	intConf.ekRoots, err = util.LoadCertPool(extConf.EndorsementBundlePath)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to load endorsement trust bundle: %v", err)
-	}
-
-	p.setConfiguration(intConf)
+	p.m.Lock()
+	defer p.m.Unlock()
+	p.c = newConfig
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *Plugin) getConfiguration() *config {
 	p.m.Lock()
 	defer p.m.Unlock()
 	return p.c
-}
-
-func (p *Plugin) setConfiguration(c *config) {
-	p.m.Lock()
-	defer p.m.Unlock()
-	p.c = c
-}
-
-func decodePluginConfig(hclConf string) (*Config, error) {
-	extConfig := new(Config)
-	if err := hcl.Decode(extConfig, hclConf); err != nil {
-		return nil, err
-	}
-
-	return extConfig, nil
-}
-
-func parseCoreConfig(c *configv1.CoreConfiguration) (spiffeid.TrustDomain, error) {
-	if c == nil {
-		return spiffeid.TrustDomain{}, status.Error(codes.InvalidArgument, "core configuration is missing")
-	}
-
-	if c.TrustDomain == "" {
-		return spiffeid.TrustDomain{}, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
-	trustDomain, err := spiffeid.TrustDomainFromString(c.TrustDomain)
-	if err != nil {
-		return spiffeid.TrustDomain{}, status.Errorf(codes.InvalidArgument, "trust_domain is invalid: %v", err)
-	}
-
-	return trustDomain, nil
-}
-
-func validatePluginConfig(extConf *Config) error {
-	switch {
-	case extConf.DevIDBundlePath == "":
-		return errors.New("devid_ca_path is required")
-
-	case extConf.EndorsementBundlePath == "":
-		return errors.New("endorsement_ca_path is required")
-	}
-
-	return nil
 }
 
 func verifyDevIDSignature(cert *x509.Certificate, intermediates *x509.CertPool, roots *x509.CertPool) ([][]*x509.Certificate, error) {

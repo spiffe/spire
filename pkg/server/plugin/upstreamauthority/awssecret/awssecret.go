@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc/codes"
@@ -24,6 +25,10 @@ import (
 
 const (
 	pluginName = "awssecret"
+
+	CoreConfigRequired             = "server core configuration is required"
+	CoreConfigTrustdomainRequired  = "server core configuration must contain trust_domain"
+	CoreConfigTrustdomainMalformed = "server core configuration trust_domain is malformed"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -46,6 +51,27 @@ type Configuration struct {
 	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
 	SecurityToken   string `hcl:"secret_token" json:"secret_token"`
 	AssumeRoleARN   string `hcl:"assume_role_arn" json:"assume_role_arn"`
+}
+
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
+	}
+
+	if newConfig.SecurityToken == "" {
+		newConfig.SecurityToken = p.hooks.getenv("AWS_SESSION_TOKEN")
+	}
+
+	if newConfig.CertFileARN == "" {
+		status.ReportError("configuration missing 'cert_file_arn' value")
+	}
+	if newConfig.KeyFileARN == "" {
+		status.ReportError("configuration missing 'key_file_arn' value")
+	}
+
+	return newConfig
 }
 
 type Plugin struct {
@@ -83,19 +109,21 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := p.validateConfig(req)
+	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
+	// TODO: determine if the items before the lock contain configuration validation.
+
 	// set the AWS configuration and reset clients +
 	// Set local vars from config struct
-	sm, err := p.hooks.newClient(ctx, config, config.Region)
+	sm, err := p.hooks.newClient(ctx, newConfig, newConfig.Region)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to create AWS client: %v", err)
 	}
 
-	keyPEMstr, certsPEMstr, bundleCertsPEMstr, err := fetchFromSecretsManager(ctx, config, sm)
+	keyPEMstr, certsPEMstr, bundleCertsPEMstr, err := fetchFromSecretsManager(ctx, newConfig, sm)
 	if err != nil {
 		p.log.Error("Error loading files from AWS: %v", err)
 		return nil, err
@@ -121,6 +149,15 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.upstreamCA = upstreamCA
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 // MintX509CAAndSubscribe mints an X509CA by signing presented CSR with root CA fetched from AWS Secrets Manager
@@ -252,38 +289,4 @@ func fetchFromSecretsManager(ctx context.Context, config *Configuration, sm secr
 	}
 
 	return keyPEMstr, certsPEMstr, bundlePEMstr, nil
-}
-
-func (p *Plugin) validateConfig(req *configv1.ConfigureRequest) (*Configuration, error) {
-	// Parse HCL config payload into config struct
-	config := new(Configuration)
-
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
-	}
-
-	// Set defaults from the environment
-	if config.SecurityToken == "" {
-		config.SecurityToken = p.hooks.getenv("AWS_SESSION_TOKEN")
-	}
-
-	switch {
-	case config.CertFileARN != "" && config.KeyFileARN != "":
-	case config.CertFileARN != "" && config.KeyFileARN == "":
-		return nil, status.Error(codes.InvalidArgument, "configuration missing key ARN")
-	case config.CertFileARN == "" && config.KeyFileARN != "":
-		return nil, status.Error(codes.InvalidArgument, "configuration missing cert ARN")
-	case config.CertFileARN == "" && config.KeyFileARN == "":
-		return nil, status.Error(codes.InvalidArgument, "configuration missing both cert ARN and key ARN")
-	}
-
-	return config, nil
 }

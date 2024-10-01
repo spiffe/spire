@@ -49,7 +49,9 @@ func (r *Rotator) Interval() time.Duration {
 }
 
 func (r *Rotator) triggerTaintedReceived(tainted bool) {
-	r.taintedReceived <- tainted
+	if r.taintedReceived != nil {
+		r.taintedReceived <- tainted
+	}
 }
 
 // Run starts a ticker which monitors the server SVID

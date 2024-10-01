@@ -9,10 +9,11 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
+	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const (
@@ -55,6 +56,35 @@ type Server struct {
 type ClientConfig struct {
 	HostKeyPath  string `hcl:"host_key_path"`
 	HostCertPath string `hcl:"host_cert_path"`
+
+	cert   *ssh.Certificate
+	signer ssh.Signer
+}
+
+type ClientConfigRequest struct {
+	coreConfig *configv1.CoreConfiguration
+	hclText    string
+}
+
+func (ccr *ClientConfigRequest) GetCoreConfiguration() *configv1.CoreConfiguration {
+	return ccr.coreConfig
+}
+
+func (ccr *ClientConfigRequest) GetHclConfiguration() string {
+	return ccr.hclText
+}
+
+type ServerConfigRequest struct {
+	coreConfig *configv1.CoreConfiguration
+	hclText    string
+}
+
+func (scr *ServerConfigRequest) GetCoreConfiguration() *configv1.CoreConfiguration {
+	return scr.coreConfig
+}
+
+func (scr *ServerConfigRequest) GetHclConfiguration() string {
+	return scr.hclText
 }
 
 // ServerConfig configures the server.
@@ -65,31 +95,115 @@ type ServerConfig struct {
 	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
 	CanonicalDomain   string `hcl:"canonical_domain"`
 	AgentPathTemplate string `hcl:"agent_path_template"`
+
+	certChecker       *ssh.CertChecker
+	agentPathTemplate *agentpathtemplate.Template
+	trustDomain       spiffeid.TrustDomain
 }
 
-func NewClient(configString string) (*Client, error) {
-	config := new(ClientConfig)
-	if err := hcl.Decode(config, configString); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
+func BuildServerConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *ServerConfig {
+	newConfig := new(ServerConfig)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("failed to decode configuration: %v", err)
+		return nil
 	}
-	config.HostKeyPath = stringOrDefault(config.HostKeyPath, defaultHostKeyPath)
-	config.HostCertPath = stringOrDefault(config.HostCertPath, defaultHostCertPath)
-	keyBytes, err := os.ReadFile(config.HostKeyPath)
+
+	newConfig.trustDomain = coreConfig.TrustDomain
+
+	if newConfig.CertAuthorities == nil && newConfig.CertAuthoritiesPath == "" {
+		status.ReportErrorf("missing required config value for \"cert_authorities\" or \"cert_authorities_path\"")
+	}
+	var certAuthorities []string
+	if newConfig.CertAuthorities != nil {
+		certAuthorities = append(certAuthorities, newConfig.CertAuthorities...)
+	}
+	if newConfig.CertAuthoritiesPath != "" {
+		fileCertAuthorities, err := pubkeysFromPath(newConfig.CertAuthoritiesPath)
+		if err != nil {
+			status.ReportErrorf("failed to get cert authorities from file: %v", err)
+		}
+		certAuthorities = append(certAuthorities, fileCertAuthorities...)
+	}
+
+	certChecker, err := certCheckerFromPubkeys(certAuthorities)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to read host key file: %v", err)
+		status.ReportErrorf("failed to create cert checker: %v", err)
 	}
-	certBytes, err := os.ReadFile(config.HostCertPath)
+	newConfig.certChecker = certChecker
+
+	newConfig.agentPathTemplate = DefaultAgentPathTemplate
+	if len(newConfig.AgentPathTemplate) != 0 {
+		tmpl, err := agentpathtemplate.Parse(newConfig.AgentPathTemplate)
+		if err != nil {
+			status.ReportErrorf("failed to parse agent svid template: %q", newConfig.AgentPathTemplate)
+		} else {
+			newConfig.agentPathTemplate = tmpl
+		}
+	}
+
+	return newConfig
+}
+
+func (sc *ServerConfig) NewServer() *Server {
+	return &Server{
+		certChecker:       sc.certChecker,
+		agentPathTemplate: sc.agentPathTemplate,
+		trustDomain:       sc.trustDomain,
+		canonicalDomain:   sc.CanonicalDomain,
+	}
+}
+
+func BuildClientConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *ClientConfig {
+	newConfig := new(ClientConfig)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("failed to decode configuration: %v", err)
+		return nil
+	}
+
+	newConfig.HostKeyPath = stringOrDefault(newConfig.HostKeyPath, defaultHostKeyPath)
+	newConfig.HostCertPath = stringOrDefault(newConfig.HostCertPath, defaultHostCertPath)
+
+	keyBytes, err := os.ReadFile(newConfig.HostKeyPath)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to read host cert file: %v", err)
+		status.ReportErrorf("failed to read host key file: %v", err)
 	}
-	cert, signer, err := getCertAndSignerFromBytes(certBytes, keyBytes)
+	certBytes, err := os.ReadFile(newConfig.HostCertPath)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to get cert and signer from pem: %v", err)
+		status.ReportErrorf("failed to read host cert file: %v", err)
 	}
+	if keyBytes != nil && certBytes != nil {
+		cert, signer, err := getCertAndSignerFromBytes(certBytes, keyBytes)
+		if err != nil {
+			status.ReportErrorf("failed to get cert and signer from pem: %v", err)
+		}
+		newConfig.cert = cert
+		newConfig.signer = signer
+	}
+
+	return newConfig
+}
+
+func (cc *ClientConfig) NewClient() *Client {
 	return &Client{
-		cert:   cert,
-		signer: signer,
-	}, nil
+		cert:   cc.cert,
+		signer: cc.signer,
+	}
+}
+
+func NewClient(trustDomain string, configString string) (*Client, error) {
+	request := &ClientConfigRequest{
+		coreConfig: &configv1.CoreConfiguration{
+			TrustDomain: fmt.Sprintf("spiffe://%s", trustDomain),
+		},
+		hclText: configString,
+	}
+
+	newClientConfig, _, err := pluginconf.Build(request, BuildClientConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return newClientConfig.NewClient(), nil
 }
 
 func stringOrDefault(configValue, defaultValue string) string {
@@ -116,46 +230,19 @@ func getCertAndSignerFromBytes(certBytes, keyBytes []byte) (*ssh.Certificate, ss
 }
 
 func NewServer(trustDomain, configString string) (*Server, error) {
-	td, err := spiffeid.TrustDomainFromString(trustDomain)
+	request := &ServerConfigRequest{
+		coreConfig: &configv1.CoreConfiguration{
+			TrustDomain: trustDomain,
+		},
+		hclText: configString,
+	}
+
+	newServerConfig, _, err := pluginconf.Build(request, BuildServerConfig)
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain global configuration is invalid: %v", err)
+		return nil, err
 	}
-	config := new(ServerConfig)
-	if err := hcl.Decode(config, configString); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "failed to decode configuration: %v", err)
-	}
-	if config.CertAuthorities == nil && config.CertAuthoritiesPath == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "missing required config value for \"cert_authorities\" or \"cert_authorities_path\"")
-	}
-	var certAuthorities []string
-	if config.CertAuthorities != nil {
-		certAuthorities = append(certAuthorities, config.CertAuthorities...)
-	}
-	if config.CertAuthoritiesPath != "" {
-		fileCertAuthorities, err := pubkeysFromPath(config.CertAuthoritiesPath)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to get cert authorities from file: %v", err)
-		}
-		certAuthorities = append(certAuthorities, fileCertAuthorities...)
-	}
-	certChecker, err := certCheckerFromPubkeys(certAuthorities)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create cert checker: %v", err)
-	}
-	agentPathTemplate := DefaultAgentPathTemplate
-	if len(config.AgentPathTemplate) > 0 {
-		tmpl, err := agentpathtemplate.Parse(config.AgentPathTemplate)
-		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "failed to parse agent svid template: %q", config.AgentPathTemplate)
-		}
-		agentPathTemplate = tmpl
-	}
-	return &Server{
-		certChecker:       certChecker,
-		agentPathTemplate: agentPathTemplate,
-		trustDomain:       td,
-		canonicalDomain:   config.CanonicalDomain,
-	}, nil
+
+	return newServerConfig.NewServer(), nil
 }
 
 func pubkeysFromPath(pubkeysPath string) ([]string, error) {

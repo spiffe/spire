@@ -27,6 +27,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 	"google.golang.org/grpc/codes"
@@ -86,6 +87,35 @@ type Config struct {
 	AppSecret          string `hcl:"app_secret" json:"app_secret"`
 }
 
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+	newConfig := new(Config)
+
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.KeyVaultURI == "" {
+		status.ReportError("configuration is missing the Key Vault URI")
+	}
+
+	if newConfig.KeyIdentifierValue != "" {
+		if len(newConfig.KeyIdentifierValue) > 256 {
+			status.ReportError("Key identifier must not be longer than 256 characters")
+		}
+	}
+
+	if newConfig.KeyIdentifierFile == "" && newConfig.KeyIdentifierValue == "" {
+		status.ReportError("configuration requires a key identifier file or a key identifier value")
+	}
+
+	if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
+		status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
+	}
+
+	return newConfig
+}
+
 // Plugin is the main representation of this keymanager plugin
 type Plugin struct {
 	keymanagerv1.UnsafeKeyManagerServer
@@ -131,14 +161,14 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config, err := parseAndValidateConfig(req.HclConfiguration)
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	serverID := config.KeyIdentifierValue
+	serverID := newConfig.KeyIdentifierValue
 	if serverID == "" {
-		serverID, err = getOrCreateServerID(config.KeyIdentifierFile)
+		serverID, err = getOrCreateServerID(newConfig.KeyIdentifierFile)
 		if err != nil {
 			return nil, err
 		}
@@ -148,26 +178,26 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	var client cloudKeyManagementService
 
 	switch {
-	case config.SubscriptionID != "", config.AppID != "", config.AppSecret != "", config.TenantID != "":
-		if config.TenantID == "" {
+	case newConfig.SubscriptionID != "", newConfig.AppID != "", newConfig.AppSecret != "", newConfig.TenantID != "":
+		if newConfig.TenantID == "" {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid configuration, missing tenant id")
 		}
-		if config.SubscriptionID == "" {
+		if newConfig.SubscriptionID == "" {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid configuration, missing subscription id")
 		}
-		if config.AppID == "" {
+		if newConfig.AppID == "" {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid configuration, missing application id")
 		}
-		if config.AppSecret == "" {
+		if newConfig.AppSecret == "" {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid configuration, missing app secret")
 		}
 
-		creds, err := azidentity.NewClientSecretCredential(config.TenantID, config.AppID, config.AppSecret, nil)
+		creds, err := azidentity.NewClientSecretCredential(newConfig.TenantID, newConfig.AppID, newConfig.AppSecret, nil)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to get client credential: %v", err)
 		}
 
-		client, err = p.hooks.newKeyVaultClient(creds, config.KeyVaultURI)
+		client, err = p.hooks.newKeyVaultClient(creds, newConfig.KeyVaultURI)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to create Key Vault client with client credentials: %v", err)
 		}
@@ -176,7 +206,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to fetch client credential: %v", err)
 		}
-		client, err = p.hooks.newKeyVaultClient(cred, config.KeyVaultURI)
+		client, err = p.hooks.newKeyVaultClient(cred, newConfig.KeyVaultURI)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to create Key Vault client with MSI credential: %v", err)
 		}
@@ -189,7 +219,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		trustDomain:    req.CoreConfiguration.TrustDomain,
 	}
 
-	p.log.Debug("Fetching keys from Azure Key Vault", "key_vault_uri", config.KeyVaultURI)
+	p.log.Debug("Fetching keys from Azure Key Vault", "key_vault_uri", newConfig.KeyVaultURI)
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
 	if err != nil {
 		return nil, err
@@ -218,6 +248,15 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	go p.disposeKeysTask(ctx)
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
 }
 
 // refreshKeysTask will update the keys in the cache every 6 hours.
@@ -663,35 +702,6 @@ func (p *Plugin) generateKeyName(spireKeyID string) (keyName string, err error) 
 	}
 
 	return fmt.Sprintf("%s-%s-%s", keyNamePrefix, uniqueID, spireKeyID), nil
-}
-
-// parseAndValidateConfig returns an error if any configuration provided does not meet acceptable criteria
-func parseAndValidateConfig(c string) (*Config, error) {
-	config := new(Config)
-
-	if err := hcl.Decode(config, c); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if config.KeyVaultURI == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration is missing the Key Vault URI")
-	}
-
-	if config.KeyIdentifierValue != "" {
-		if len(config.KeyIdentifierValue) > 256 {
-			return nil, status.Error(codes.InvalidArgument, "Key identifier must not be longer than 256 characters")
-		}
-	}
-
-	if config.KeyIdentifierFile == "" && config.KeyIdentifierValue == "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration requires a key identifier file or a key identifier value")
-	}
-
-	if config.KeyIdentifierFile != "" && config.KeyIdentifierValue != "" {
-		return nil, status.Error(codes.InvalidArgument, "configuration can't have a key identifier file and a key identifier value at the same time")
-	}
-
-	return config, nil
 }
 
 func getOrCreateServerID(idPath string) (string, error) {

@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -35,6 +36,17 @@ type Configuration struct {
 	ServerPort        string             `hcl:"server_port" json:"server_port"`
 	WorkloadAPISocket string             `hcl:"workload_api_socket" json:"workload_api_socket"`
 	Experimental      experimentalConfig `hcl:"experimental"`
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+	newConfig := new(Configuration)
+	if err := hcl.Decode(newConfig, hclText); err != nil {
+		status.ReportError("plugin configuration is malformed")
+		return nil
+	}
+
+	// TODO: add field validation
+	return newConfig
 }
 
 type experimentalConfig struct {
@@ -83,33 +95,17 @@ func New() *Plugin {
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	// Parse HCL config payload into config struct
-	config := new(Configuration)
-
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
-	}
-
-	if req.CoreConfiguration == nil {
-		return nil, status.Error(codes.InvalidArgument, "core configuration is required")
-	}
-
-	if req.CoreConfiguration.TrustDomain == "" {
-		return nil, status.Error(codes.InvalidArgument, "trust_domain is required")
+	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	// Create trust domain
-	td, err := spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is malformed: %v", err)
-	}
-	p.trustDomain = td
-
-	// Set config
-	p.config = config
+	// Swap Running Config
+	p.trustDomain, _ = spiffeid.TrustDomainFromString(req.CoreConfiguration.TrustDomain)
+	p.config = newConfig
 
 	// Create spire-server client
 	serverAddr := fmt.Sprintf("%s:%s", p.config.ServerAddr, p.config.ServerPort)
@@ -118,7 +114,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, status.Errorf(codes.InvalidArgument, "unable to set Workload API address: %v", err)
 	}
 
-	serverID, err := idutil.ServerID(td)
+	serverID, err := idutil.ServerID(p.trustDomain)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to build server ID: %v", err)
 	}
@@ -126,6 +122,15 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.serverClient = newServerClient(serverID, serverAddr, workloadAPIAddr, p.log)
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, err
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {

@@ -21,12 +21,17 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
 )
 
 type Rotator interface {
 	Run(ctx context.Context) error
 	Reattest(ctx context.Context) error
+	// NotifyTaintedAuthorities processes new tainted authorities. If the current SVID is compromised,
+	// it is marked to force rotation.
+	NotifyTaintedAuthorities([]*x509.Certificate) error
+	IsTainted() bool
 
 	State() State
 	Subscribe() observer.Stream
@@ -58,6 +63,8 @@ type rotator struct {
 
 	// Hook that will be called when the SVID rotation finishes
 	rotationFinishedHook func()
+
+	tainted bool
 }
 
 type State struct {
@@ -130,6 +137,43 @@ func (r *rotator) Subscribe() observer.Stream {
 	return r.state.Observe()
 }
 
+func (r *rotator) IsTainted() bool {
+	r.rotMtx.RLock()
+	defer r.rotMtx.RUnlock()
+
+	return r.tainted
+}
+
+func (r *rotator) setTainted(tainted bool) {
+	r.rotMtx.Lock()
+	defer r.rotMtx.Unlock()
+
+	r.tainted = tainted
+}
+
+func (r *rotator) NotifyTaintedAuthorities(taintedAuthorities []*x509.Certificate) error {
+	state, ok := r.state.Value().(State)
+	if !ok {
+		return fmt.Errorf("unexpected state value type: %T", r.state.Value())
+	}
+
+	if r.IsTainted() {
+		r.c.Log.Debug("Agent SVID already tainted")
+		return nil
+	}
+
+	tainted, err := x509util.IsSignedByRoot(state.SVID, taintedAuthorities)
+	if err != nil {
+		return fmt.Errorf("failed to check if SVID is tainted: %w", err)
+	}
+
+	if tainted {
+		r.c.Log.Info("Agent SVID is tainted by a root authority, forcing rotation")
+		r.setTainted(tainted)
+	}
+	return nil
+}
+
 func (r *rotator) GetRotationMtx() *sync.RWMutex {
 	return r.rotMtx
 }
@@ -162,7 +206,7 @@ func (r *rotator) rotateSVIDIfNeeded(ctx context.Context) (err error) {
 		return fmt.Errorf("unexpected value type: %T", r.state.Value())
 	}
 
-	if r.c.RotationStrategy.ShouldRotateX509(r.clk.Now(), state.SVID[0]) {
+	if r.c.RotationStrategy.ShouldRotateX509(r.clk.Now(), state.SVID[0]) || r.IsTainted() {
 		if state.Reattestable {
 			err = r.reattest(ctx)
 		} else {
@@ -222,6 +266,7 @@ func (r *rotator) reattest(ctx context.Context) (err error) {
 	}
 
 	r.state.Update(s)
+	r.tainted = false
 
 	// We must release the client because its underlaying connection is tied to an
 	// expired SVID, so next time the client is used, it will get a new connection with
@@ -269,6 +314,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	}
 
 	r.state.Update(s)
+	r.tainted = false
 
 	// We must release the client because its underlaying connection is tied to an
 	// expired SVID, so next time the client is used, it will get a new connection with

@@ -13,21 +13,9 @@ var (
 		},
 	}
 
-	subscriberSetPool = sync.Pool{
-		New: func() any {
-			return make(subscriberSet)
-		},
-	}
-
 	selectorSetPool = sync.Pool{
 		New: func() any {
 			return make(selectorSet)
-		},
-	}
-
-	recordSetPool = sync.Pool{
-		New: func() any {
-			return make(recordSet)
 		},
 	}
 
@@ -64,23 +52,6 @@ func clearStringSet(set stringSet) {
 func (set stringSet) Merge(ss ...string) {
 	for _, s := range ss {
 		set[s] = struct{}{}
-	}
-}
-
-// unique set of subscribers, allocated from a pool
-type subscriberSet map[*subscriber]struct{}
-
-func allocSubscriberSet() (subscriberSet, func()) {
-	set := subscriberSetPool.Get().(subscriberSet)
-	return set, func() {
-		clearSubscriberSet(set)
-		subscriberSetPool.Put(set)
-	}
-}
-
-func clearSubscriberSet(set subscriberSet) {
-	for k := range set {
-		delete(set, k)
 	}
 }
 
@@ -142,23 +113,6 @@ func (set selectorSet) SuperSetOf(other selectorSet) bool {
 		}
 	}
 	return true
-}
-
-// unique set of cache records, allocated from a pool
-type recordSet map[*cacheRecord]struct{}
-
-func allocRecordSet() (recordSet, func()) {
-	set := recordSetPool.Get().(recordSet)
-	return set, func() {
-		clearRecordSet(set)
-		recordSetPool.Put(set)
-	}
-}
-
-func clearRecordSet(set recordSet) {
-	for k := range set {
-		delete(set, k)
-	}
 }
 
 // unique set of LRU cache records, allocated from a pool

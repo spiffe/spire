@@ -259,6 +259,7 @@ agent_path_template = "/{{ .InstanceID }}"
 
 func (s *IITAttestorSuite) TestConfigure() {
 	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
+		t.Logf("core config: %+v, config: %s\n", coreConfig, config)
 		var err error
 		plugintest.Load(t, BuiltIn(), nil,
 			plugintest.CaptureConfigureError(&err),
@@ -282,7 +283,7 @@ func (s *IITAttestorSuite) TestConfigure() {
 		err := doConfig(t, catalog.CoreConfig{}, `
 projectid_allow_list = ["bar"]
 		`)
-		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "trust_domain is required")
+		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 	})
 
 	s.T().Run("missing projectID allow list", func(t *testing.T) {

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"time"
 
 	"github.com/mitchellh/cli"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
+	"github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -76,9 +76,7 @@ func prettyPrintJWTTaint(env *commoncli.Env, results ...any) error {
 	if r.TaintedAuthority == nil {
 		return errors.New("internal error: expected to have tainted JWT authority information")
 	}
-
-	env.Printf("  Authority ID: %s\n", r.TaintedAuthority.AuthorityId)
-	env.Printf("  Expires at: %s\n", time.Unix(r.TaintedAuthority.ExpiresAt, 0).UTC())
+	authoritycommon.PrettyPrintJWTAuthorityState(env, r.TaintedAuthority)
 
 	return nil
 }

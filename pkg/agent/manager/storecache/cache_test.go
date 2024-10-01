@@ -1,11 +1,14 @@
 package storecache_test
 
 import (
+	"context"
 	"crypto/x509"
+	"fmt"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-metrics"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -14,7 +17,9 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -907,6 +912,141 @@ func TestUpdateEntriesCreatesNewEntriesOnCache(t *testing.T) {
 	spiretest.AssertLogsAnyOrder(t, hook.AllEntries(), expectedLogs)
 }
 
+func TestTaintX509SVIDs(t *testing.T) {
+	ctx := context.Background()
+	log, hook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	fakeMetrics := fakemetrics.New()
+	taintedAuthority := testca.New(t, td)
+	newAuthority := testca.New(t, td)
+
+	c := storecache.New(&storecache.Config{
+		Log:         log,
+		TrustDomain: td,
+		Metrics:     fakeMetrics,
+	})
+
+	// Create initial entries
+	entries := makeEntries(td, "e1", "e2", "e3", "e4", "e5")
+	updateEntries := &cache.UpdateEntries{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+			td: tdBundle,
+		},
+		RegistrationEntries: entries,
+	}
+
+	// Set entries to cache
+	c.UpdateEntries(updateEntries, nil)
+
+	noTaintedSVID := createX509SVID(td, "e3", newAuthority)
+	updateSVIDs := &cache.UpdateSVIDs{
+		X509SVIDs: map[string]*cache.X509SVID{
+			"e1": createX509SVID(td, "e1", taintedAuthority),
+			"e2": createX509SVID(td, "e2", taintedAuthority),
+			"e3": noTaintedSVID,
+			"e5": createX509SVID(td, "e5", taintedAuthority),
+		},
+	}
+	c.UpdateSVIDs(updateSVIDs)
+
+	for _, tt := range []struct {
+		name               string
+		taintedAuthorities []*x509.Certificate
+		expectSVID         map[string]*cache.X509SVID
+		expectLogs         []spiretest.LogEntry
+		expectMetrics      []fakemetrics.MetricItem
+	}{
+		{
+			name:               "taint SVIDs",
+			taintedAuthorities: taintedAuthority.X509Authorities(),
+			expectSVID: map[string]*cache.X509SVID{
+				"e1": nil,
+				"e2": nil,
+				"e3": noTaintedSVID,
+				"e4": nil,
+				"e5": nil,
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Tainted X.509 SVIDs",
+					Data: logrus.Fields{
+						telemetry.TaintedSVIDs: "3",
+					},
+				},
+			},
+			expectMetrics: []fakemetrics.MetricItem{
+				{
+					Type: fakemetrics.AddSampleType,
+					Key:  []string{"cache_manager", "svid_store", "expiring_svids", "svid_store"},
+					Val:  3,
+				},
+				{
+					Type:   fakemetrics.IncrCounterWithLabelsType,
+					Key:    []string{"cache_manager", "svid_store", "process_tainted_svids"},
+					Val:    1,
+					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
+				},
+				{
+					Type:   fakemetrics.MeasureSinceWithLabelsType,
+					Key:    []string{"cache_manager", "svid_store", "process_tainted_svids", "elapsed_time"},
+					Val:    0,
+					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
+				},
+			},
+		},
+		{
+			name:               "taint again",
+			taintedAuthorities: taintedAuthority.X509Authorities(),
+			expectSVID: map[string]*cache.X509SVID{
+				"e1": nil,
+				"e2": nil,
+				"e3": noTaintedSVID,
+				"e4": nil,
+				"e5": nil,
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Tainted X.509 SVIDs",
+					Data: logrus.Fields{
+						telemetry.TaintedSVIDs: "0",
+					},
+				},
+			},
+			expectMetrics: []fakemetrics.MetricItem{
+				{
+					Type: fakemetrics.AddSampleType,
+					Key:  []string{"cache_manager", "svid_store", "expiring_svids", "svid_store"},
+					Val:  0,
+				},
+				{
+					Type:   fakemetrics.IncrCounterWithLabelsType,
+					Key:    []string{"cache_manager", "svid_store", "process_tainted_svids"},
+					Val:    1,
+					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
+				},
+				{
+					Type:   fakemetrics.MeasureSinceWithLabelsType,
+					Key:    []string{"cache_manager", "svid_store", "process_tainted_svids", "elapsed_time"},
+					Val:    0,
+					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			hook.Reset()
+			fakeMetrics.Reset()
+
+			c.TaintX509SVIDs(ctx, tt.taintedAuthorities)
+			assert.Equal(t, tt.expectSVID, svidMapFromRecords(c.Records()))
+			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)
+			assert.Equal(t, tt.expectMetrics, fakeMetrics.AllMetrics())
+		})
+	}
+}
+
 func TestUpdateSVIDs(t *testing.T) {
 	log, hook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
@@ -1240,4 +1380,46 @@ func createTestEntry() *common.RegistrationEntry {
 		StoreSvid:      true,
 		RevisionNumber: 1,
 	}
+}
+
+func svidMapFromRecords(records []*storecache.Record) map[string]*cache.X509SVID {
+	recordsMap := make(map[string]*cache.X509SVID, len(records))
+	for _, eachRecord := range records {
+		recordsMap[eachRecord.ID] = eachRecord.Svid
+	}
+	return recordsMap
+}
+
+func createX509SVID(td spiffeid.TrustDomain, id string, ca *testca.CA) *cache.X509SVID {
+	chain, key := ca.CreateX509Certificate(
+		testca.WithID(spiffeid.RequireFromPath(td, "/"+id)),
+	)
+	return &cache.X509SVID{
+		Chain:      chain,
+		PrivateKey: key,
+	}
+}
+
+func makeEntries(td spiffeid.TrustDomain, ids ...string) map[string]*common.RegistrationEntry {
+	entries := make(map[string]*common.RegistrationEntry, len(ids))
+	for _, id := range ids {
+		entries[id] = &common.RegistrationEntry{
+			EntryId:   id,
+			SpiffeId:  spiffeid.RequireFromPath(td, "/"+id).String(),
+			Selectors: makeSelectors(id),
+			StoreSvid: true,
+		}
+	}
+	return entries
+}
+
+func makeSelectors(values ...string) []*common.Selector {
+	var selectors []*common.Selector
+	for _, value := range values {
+		selectors = append(selectors, &common.Selector{
+			Type:  "t",
+			Value: fmt.Sprintf("v:%s", value),
+		})
+	}
+	return selectors
 }

@@ -18,8 +18,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/fullsailor/pkcs7"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/test/plugintest"
@@ -93,6 +95,9 @@ func (s *Suite) SetupTest() {
 	}))
 
 	s.p = s.loadPlugin(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.Configuref(`ec2_metadata_endpoint = "http://%s/latest"`, s.server.Listener.Addr()),
 	)
 
@@ -141,13 +146,21 @@ func (s *Suite) TestConfigure() {
 
 	var err error
 	s.loadPlugin(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
 		plugintest.CaptureConfigureError(&err),
 		plugintest.Configure("malformed"),
 	)
 	require.Error(err)
 
 	// success
-	s.loadPlugin(plugintest.Configure(""))
+	s.loadPlugin(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(""),
+	)
 }
 
 func (s *Suite) loadPlugin(opts ...plugintest.Option) nodeattestor.NodeAttestor {

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"time"
 
 	"github.com/mitchellh/cli"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
+	"github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
@@ -63,24 +63,21 @@ func prettyPrintX509Show(env *commoncli.Env, results ...any) error {
 
 	env.Println("Active X.509 authority:")
 	if r.Active != nil {
-		env.Printf("  Authority ID: %s\n", r.Active.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.Active.ExpiresAt, 0).UTC())
+		authoritycommon.PrettyPrintX509AuthorityState(env, r.Active)
 	} else {
 		env.Println("  No active X.509 authority found")
 	}
 	env.Println()
 	env.Println("Prepared X.509 authority:")
 	if r.Prepared != nil {
-		env.Printf("  Authority ID: %s\n", r.Prepared.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.Prepared.ExpiresAt, 0).UTC())
+		authoritycommon.PrettyPrintX509AuthorityState(env, r.Prepared)
 	} else {
 		env.Println("  No prepared X.509 authority found")
 	}
 	env.Println()
 	env.Println("Old X.509 authority:")
 	if r.Old != nil {
-		env.Printf("  Authority ID: %s\n", r.Old.AuthorityId)
-		env.Printf("  Expires at: %s\n", time.Unix(r.Old.ExpiresAt, 0).UTC())
+		authoritycommon.PrettyPrintX509AuthorityState(env, r.Old)
 	} else {
 		env.Println("  No old X.509 authority found")
 	}

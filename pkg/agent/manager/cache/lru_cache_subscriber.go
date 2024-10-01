@@ -6,6 +6,11 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
+type Subscriber interface {
+	Updates() <-chan *WorkloadUpdate
+	Finish()
+}
+
 type lruCacheSubscriber struct {
 	cache   *LRUCache
 	set     selectorSet
