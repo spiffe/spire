@@ -616,7 +616,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 	}
 }
 
-func TestSelectedPolledEvents(t *testing.T) {
+func TestSelectedPolledNodeEvents(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		setup *nodeScenarioSetup

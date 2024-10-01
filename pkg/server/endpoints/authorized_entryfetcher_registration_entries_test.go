@@ -817,62 +817,224 @@ func TestSearchBeforeFirstEntryEvent(t *testing.T) {
 	}
 }
 
-/*
-func TestRegistrationEntriesCacheMissedEventNotFound(t *testing.T) {
-	ctx := context.Background()
-	log, hook := test.NewNullLogger()
-	log.SetLevel(logrus.DebugLevel)
-	clk := clock.NewMock(t)
-	ds := fakedatastore.New(t)
-	cache := authorizedentries.NewCache(clk)
-	metrics := fakemetrics.New()
+func TestSelectedPolledEntryEvents(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		setup *entryScenarioSetup
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, buildCachePageSize, defaultSQLTransactionTimeout)
-	require.NoError(t, err)
-	require.NotNil(t, registrationEntries)
+		polling         []uint
+		events          []*datastore.RegistrationEntryEvent
+		expectedFetches []string
+	}{
+		// polling is based on the eventTracker, not on events in the database
+		{
+			name:   "nothing after to poll, no action taken, no events",
+			events: []*datastore.RegistrationEntryEvent{},
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+			},
+		},
+		{
+			name: "nothing to poll, no action take, one event",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 100,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+				},
+			},
+		},
+		{
+			name: "nothing to poll, no action taken, five events",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 102,
+						EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 103,
+						EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 104,
+						EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 105,
+						EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+					},
+				},
+			},
+		},
+		{
+			name: "polling one item, not found",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 102,
+						EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 104,
+						EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 105,
+						EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+					},
+				},
+			},
+			polling: []uint{103},
+		},
+		{
+			name: "polling five items, not found",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 107,
+						EntryID: "c3f4ada0-3f8d-421e-b5d1-83aaee203d94",
+					},
+				},
+			},
+			polling: []uint{102, 103, 104, 105, 106},
+		},
+		{
+			name: "polling one item, found",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 102,
+						EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 103,
+						EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+					},
+				},
+			},
+			polling: []uint{102},
 
-	registrationEntries.missedEvents[1] = clk.Now()
-	registrationEntries.replayMissedEvents(ctx)
-	require.Zero(t, len(hook.Entries))
+			expectedFetches: []string{
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+			},
+		},
+		{
+			name: "polling five items, two found",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 103,
+						EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 106,
+						EntryID: "aeb603b2-e1d1-4832-8809-60a1d14b42e0",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 107,
+						EntryID: "c3f4ada0-3f8d-421e-b5d1-83aaee203d94",
+					},
+				},
+			},
+			polling: []uint{102, 103, 104, 105, 106},
+
+			expectedFetches: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"aeb603b2-e1d1-4832-8809-60a1d14b42e0",
+			},
+		},
+		{
+			name: "polling five items, five found",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
+					&datastore.RegistrationEntryEvent{
+						EventID: 101,
+						EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 102,
+						EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 103,
+						EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 104,
+						EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 105,
+						EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 106,
+						EntryID: "aeb603b2-e1d1-4832-8809-60a1d14b42e0",
+					},
+					&datastore.RegistrationEntryEvent{
+						EventID: 107,
+						EntryID: "c3f4ada0-3f8d-421e-b5d1-83aaee203d94",
+					},
+				},
+			},
+			polling: []uint{102, 103, 104, 105, 106},
+
+			expectedFetches: []string{
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+				"aeb603b2-e1d1-4832-8809-60a1d14b42e0",
+			},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			scenario := NewEntryScenario(t, tt.setup)
+			registrationEntries, err := scenario.buildRegistrationEntriesCache()
+			require.NoError(t, err)
+
+			// initialize the event tracker
+			for _, event := range tt.polling {
+				registrationEntries.eventTracker.StartTracking(event)
+			}
+			// poll the events
+			registrationEntries.selectPolledEvents(scenario.ctx)
+
+			require.ElementsMatch(t, tt.expectedFetches, slices.Collect(maps.Keys(registrationEntries.fetchEntries)))
+			require.Zero(t, scenario.hook.Entries)
+		})
+	}
 }
-
-func TestRegistrationEntriesSavesMissedStartupEvents(t *testing.T) {
-	ctx := context.Background()
-	log, hook := test.NewNullLogger()
-	log.SetLevel(logrus.DebugLevel)
-	clk := clock.NewMock(t)
-	ds := fakedatastore.New(t)
-	cache := authorizedentries.NewCache(clk)
-	metrics := fakemetrics.New()
-
-	err := ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
-		EventID: 3,
-		EntryID: "test",
-	})
-	require.NoError(t, err)
-
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, buildCachePageSize, defaultSQLTransactionTimeout)
-	require.NoError(t, err)
-	require.NotNil(t, registrationEntries)
-	require.Equal(t, uint(3), registrationEntries.firstEventID)
-
-	err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
-		EventID: 2,
-		EntryID: "test",
-	})
-	require.NoError(t, err)
-
-	err = registrationEntries.missedStartupEvents(ctx)
-	require.NoError(t, err)
-
-	// Make sure no dupliate calls are made
-	ds.AppendNextError(nil)
-	ds.AppendNextError(errors.New("Duplicate call"))
-	err = registrationEntries.missedStartupEvents(ctx)
-	require.NoError(t, err)
-	require.Equal(t, 0, len(hook.AllEntries()))
-}
-*/
 
 type entryScenario struct {
 	ctx      context.Context
