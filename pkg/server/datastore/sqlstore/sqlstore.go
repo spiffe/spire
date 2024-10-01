@@ -382,10 +382,10 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 	return attestedNode, nil
 }
 
-// ListAttestedNodesEvents lists all attested node events
-func (ds *Plugin) ListAttestedNodesEvents(ctx context.Context, req *datastore.ListAttestedNodesEventsRequest) (resp *datastore.ListAttestedNodesEventsResponse, err error) {
+// ListAttestedNodeEvents lists all attested node events
+func (ds *Plugin) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (resp *datastore.ListAttestedNodeEventsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listAttestedNodesEvents(tx, req)
+		resp, err = listAttestedNodeEvents(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -393,10 +393,10 @@ func (ds *Plugin) ListAttestedNodesEvents(ctx context.Context, req *datastore.Li
 	return resp, nil
 }
 
-// PruneAttestedNodesEvents deletes all attested node events older than a specified duration (i.e. more than 24 hours old)
-func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) (err error) {
+// PruneAttestedNodeEvents deletes all attested node events older than a specified duration (i.e. more than 24 hours old)
+func (ds *Plugin) PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneAttestedNodesEvents(tx, olderThan)
+		err = pruneAttestedNodeEvents(tx, olderThan)
 		return err
 	})
 }
@@ -1707,7 +1707,7 @@ func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) er
 	return nil
 }
 
-func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEventsRequest) (*datastore.ListAttestedNodesEventsResponse, error) {
+func listAttestedNodeEvents(tx *gorm.DB, req *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
 	var events []AttestedNodeEvent
 
 	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
@@ -1725,7 +1725,7 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 		}
 	}
 
-	resp := &datastore.ListAttestedNodesEventsResponse{
+	resp := &datastore.ListAttestedNodeEventsResponse{
 		Events: make([]datastore.AttestedNodeEvent, len(events)),
 	}
 	for i, event := range events {
@@ -1736,7 +1736,7 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 	return resp, nil
 }
 
-func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration) error {
+func pruneAttestedNodeEvents(tx *gorm.DB, olderThan time.Duration) error {
 	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&AttestedNodeEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}

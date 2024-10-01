@@ -58,7 +58,7 @@ func (a *attestedNodes) captureChangedNodes(ctx context.Context) error {
 func (a *attestedNodes) searchBeforeFirstEvent(ctx context.Context) error {
 	// First event detected, and startup was less than a transaction timout away.
 	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.sqlTransactionTimeout {
-		resp, err := a.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{
+		resp, err := a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
 			LessThanEventID: a.firstEvent,
 		})
 		if err != nil {
@@ -104,12 +104,12 @@ func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
 
 func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {
 	// If we haven't seen an event, scan for all events; otherwise, scan from the last event.
-	var resp *datastore.ListAttestedNodesEventsResponse
+	var resp *datastore.ListAttestedNodeEventsResponse
 	var err error
 	if a.firstEventTime.IsZero() {
-		resp, err = a.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+		resp, err = a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
 	} else {
-		resp, err = a.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{
+		resp, err = a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
 			GreaterThanEventID: a.lastEvent,
 		})
 	}

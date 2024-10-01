@@ -1873,7 +1873,7 @@ func NewEntryScenario(t *testing.T, setup *entryScenarioSetup) *entryScenario {
 	}
 	// prune autocreated node events, to test the event logic in more scenarios
 	// than possible with autocreated node events.
-	err = ds.PruneAttestedNodesEvents(ctx, time.Duration(-5)*time.Hour)
+	err = ds.PruneAttestedNodeEvents(ctx, time.Duration(-5)*time.Hour)
 	require.NoError(t, err, "error while setting up test")
 	// and then add back the specified node events
 	for _, event := range setup.attestedNodeEvents {

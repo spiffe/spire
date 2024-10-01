@@ -55,8 +55,8 @@ type DataStore interface {
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
 	// Nodes Events
-	ListAttestedNodesEvents(ctx context.Context, req *ListAttestedNodesEventsRequest) (*ListAttestedNodesEventsResponse, error)
-	PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) error
+	ListAttestedNodeEvents(ctx context.Context, req *ListAttestedNodeEventsRequest) (*ListAttestedNodeEventsResponse, error)
+	PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error
 	FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*AttestedNodeEvent, error)
 	CreateAttestedNodeEventForTesting(ctx context.Context, event *AttestedNodeEvent) error
 	DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error
@@ -169,7 +169,7 @@ type ListAttestedNodesResponse struct {
 	Pagination *Pagination
 }
 
-type ListAttestedNodesEventsRequest struct {
+type ListAttestedNodeEventsRequest struct {
 	GreaterThanEventID uint
 	LessThanEventID    uint
 }
@@ -179,7 +179,7 @@ type AttestedNodeEvent struct {
 	SpiffeID string
 }
 
-type ListAttestedNodesEventsResponse struct {
+type ListAttestedNodeEventsResponse struct {
 	Events []AttestedNodeEvent
 }
 

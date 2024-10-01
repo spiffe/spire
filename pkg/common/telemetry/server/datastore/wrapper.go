@@ -179,10 +179,10 @@ func (w metricsWrapper) ListAttestedNodes(ctx context.Context, req *datastore.Li
 	return w.ds.ListAttestedNodes(ctx, req)
 }
 
-func (w metricsWrapper) ListAttestedNodesEvents(ctx context.Context, req *datastore.ListAttestedNodesEventsRequest) (_ *datastore.ListAttestedNodesEventsResponse, err error) {
-	callCounter := StartListAttestedNodesEventsCall(w.m)
+func (w metricsWrapper) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (_ *datastore.ListAttestedNodeEventsResponse, err error) {
+	callCounter := StartListAttestedNodeEventsCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.ListAttestedNodesEvents(ctx, req)
+	return w.ds.ListAttestedNodeEvents(ctx, req)
 }
 
 func (w metricsWrapper) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (_ *datastore.ListBundlesResponse, err error) {
@@ -227,10 +227,10 @@ func (w metricsWrapper) CountRegistrationEntries(ctx context.Context, req *datas
 	return w.ds.CountRegistrationEntries(ctx, req)
 }
 
-func (w metricsWrapper) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) (err error) {
-	callCounter := StartPruneAttestedNodesEventsCall(w.m)
+func (w metricsWrapper) PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) (err error) {
+	callCounter := StartPruneAttestedNodeEventsCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.PruneAttestedNodesEvents(ctx, olderThan)
+	return w.ds.PruneAttestedNodeEvents(ctx, olderThan)
 }
 
 func (w metricsWrapper) PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (_ bool, err error) {

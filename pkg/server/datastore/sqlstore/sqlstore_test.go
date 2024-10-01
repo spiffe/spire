@@ -1498,7 +1498,7 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	})
 }
 
-func (s *PluginSuite) TestListAttestedNodesEvents() {
+func (s *PluginSuite) TestListAttestedNodeEvents() {
 	var expectedEvents []datastore.AttestedNodeEvent
 
 	// Create an attested node
@@ -1601,7 +1601,7 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
-			resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{
+			resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
 				GreaterThanEventID: test.greaterThanEventID,
 				LessThanEventID:    test.lessThanEventID,
 			})
@@ -1620,7 +1620,7 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 	}
 }
 
-func (s *PluginSuite) TestPruneAttestedNodesEvents() {
+func (s *PluginSuite) TestPruneAttestedNodeEvents() {
 	node, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
@@ -1629,7 +1629,7 @@ func (s *PluginSuite) TestPruneAttestedNodesEvents() {
 	})
 	s.Require().NoError(err)
 
-	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(node.SpiffeId, resp.Events[0].SpiffeID)
 
@@ -1656,9 +1656,9 @@ func (s *PluginSuite) TestPruneAttestedNodesEvents() {
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
 			s.Require().Eventuallyf(func() bool {
-				err = s.ds.PruneAttestedNodesEvents(ctx, tt.olderThan)
+				err = s.ds.PruneAttestedNodeEvents(ctx, tt.olderThan)
 				s.Require().NoError(err)
-				resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+				resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
 				s.Require().NoError(err)
 				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
@@ -5287,7 +5287,7 @@ func (s *PluginSuite) checkAttestedNodeEvents(expectedEvents []datastore.Atteste
 		SpiffeID: spiffeID,
 	})
 
-	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(expectedEvents, resp.Events)
 

@@ -1451,7 +1451,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 				attestedNodes.fetchNodes[fetchNode] = struct{}{}
 			}
 			// clear out the events, to prove updates are not event based
-			err = scenario.ds.PruneAttestedNodesEvents(scenario.ctx, time.Duration(-5)*time.Hour)
+			err = scenario.ds.PruneAttestedNodeEvents(scenario.ctx, time.Duration(-5)*time.Hour)
 			require.NoError(t, err, "error while setting up test")
 
 			err = attestedNodes.updateCachedNodes(scenario.ctx)
@@ -1510,7 +1510,7 @@ func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
 	}
 	// prune autocreated node events, to test the event logic in more scenarios
 	// than possible with autocreated node events.
-	err = ds.PruneAttestedNodesEvents(ctx, time.Duration(-5)*time.Hour)
+	err = ds.PruneAttestedNodeEvents(ctx, time.Duration(-5)*time.Hour)
 	require.NoError(t, err, "error while setting up test")
 	// and then add back the specified node events
 	for _, event := range setup.attestedNodeEvents {
