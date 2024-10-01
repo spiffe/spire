@@ -167,7 +167,7 @@ func TestWithMetrics(t *testing.T) {
 		},
 		{
 			key:        "datastore.registration_entry_event.list",
-			methodName: "ListRegistrationEntriesEvents",
+			methodName: "ListRegistrationEntryEvents",
 		},
 		{
 			key:        "datastore.federation_relationship.list",
@@ -191,7 +191,7 @@ func TestWithMetrics(t *testing.T) {
 		},
 		{
 			key:        "datastore.registration_entry_event.prune",
-			methodName: "PruneRegistrationEntriesEvents",
+			methodName: "PruneRegistrationEntryEvents",
 		},
 		{
 			key:        "datastore.bundle.set",
@@ -461,8 +461,8 @@ func (ds *fakeDataStore) ListRegistrationEntries(context.Context, *datastore.Lis
 	return &datastore.ListRegistrationEntriesResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) ListRegistrationEntriesEvents(context.Context, *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
-	return &datastore.ListRegistrationEntriesEventsResponse{}, ds.err
+func (ds *fakeDataStore) ListRegistrationEntryEvents(context.Context, *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
+	return &datastore.ListRegistrationEntryEventsResponse{}, ds.err
 }
 
 func (ds *fakeDataStore) PruneAttestedNodesEvents(context.Context, time.Duration) error {
@@ -481,7 +481,7 @@ func (ds *fakeDataStore) PruneRegistrationEntries(context.Context, time.Time) er
 	return ds.err
 }
 
-func (ds *fakeDataStore) PruneRegistrationEntriesEvents(context.Context, time.Duration) error {
+func (ds *fakeDataStore) PruneRegistrationEntryEvents(context.Context, time.Duration) error {
 	return ds.err
 }
 
