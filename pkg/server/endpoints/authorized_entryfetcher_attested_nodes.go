@@ -127,7 +127,7 @@ func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {
 			continue
 		}
 
-		// track any skipped event ids, should the appear later.
+		// track any skipped event ids, should they appear later.
 		for skipped := a.lastEvent + 1; skipped < event.EventID; skipped++ {
 			a.eventTracker.StartTracking(skipped)
 		}
@@ -178,7 +178,7 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metric
 
 		eventTracker: NewEventTracker(pollPeriods, pollBoundaries),
 
-		// initialize guages to nonsense values to force a change.
+		// initialize gauges to nonsense values to force a change.
 		skippedNodeEvents: -1,
 		lastCacheStats: authorizedentries.CacheStats{
 			AgentsByID:        -1,

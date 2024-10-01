@@ -126,7 +126,7 @@ func (a *registrationEntries) scanForNewEvents(ctx context.Context) error {
 			continue
 		}
 
-		// track any skipped event ids, should the appear later.
+		// track any skipped event ids, should they appear later.
 		for skipped := a.lastEvent + 1; skipped < event.EventID; skipped++ {
 			a.eventTracker.StartTracking(skipped)
 		}
