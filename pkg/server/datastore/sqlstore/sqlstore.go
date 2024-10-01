@@ -580,10 +580,10 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore ti
 	})
 }
 
-// ListRegistrationEntriesEvents lists all registration entry events
-func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (resp *datastore.ListRegistrationEntriesEventsResponse, err error) {
+// ListRegistrationEntryEvents lists all registration entry events
+func (ds *Plugin) ListRegistrationEntryEvents(ctx context.Context, req *datastore.ListRegistrationEntryEventsRequest) (resp *datastore.ListRegistrationEntryEventsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listRegistrationEntriesEvents(tx, req)
+		resp, err = listRegistrationEntryEvents(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -591,10 +591,10 @@ func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datast
 	return resp, nil
 }
 
-// PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
-func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
+// PruneRegistrationEntryEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
+func (ds *Plugin) PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneRegistrationEntriesEvents(tx, olderThan)
+		err = pruneRegistrationEntryEvents(tx, olderThan)
 		return err
 	})
 }
@@ -4092,7 +4092,7 @@ func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
 	return nil
 }
 
-func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+func listRegistrationEntryEvents(tx *gorm.DB, req *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
 	var events []RegisteredEntryEvent
 
 	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
@@ -4110,7 +4110,7 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 		}
 	}
 
-	resp := &datastore.ListRegistrationEntriesEventsResponse{
+	resp := &datastore.ListRegistrationEntryEventsResponse{
 		Events: make([]datastore.RegistrationEntryEvent, len(events)),
 	}
 	for i, event := range events {
@@ -4121,7 +4121,7 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	return resp, nil
 }
 
-func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
+func pruneRegistrationEntryEvents(tx *gorm.DB, olderThan time.Duration) error {
 	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}

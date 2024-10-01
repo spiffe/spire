@@ -40,8 +40,8 @@ type DataStore interface {
 	UpdateRegistrationEntry(context.Context, *common.RegistrationEntry, *common.RegistrationEntryMask) (*common.RegistrationEntry, error)
 
 	// Entries Events
-	ListRegistrationEntriesEvents(ctx context.Context, req *ListRegistrationEntriesEventsRequest) (*ListRegistrationEntriesEventsResponse, error)
-	PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) error
+	ListRegistrationEntryEvents(ctx context.Context, req *ListRegistrationEntryEventsRequest) (*ListRegistrationEntryEventsResponse, error)
+	PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) error
 	FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*RegistrationEntryEvent, error)
 	CreateRegistrationEntryEventForTesting(ctx context.Context, event *RegistrationEntryEvent) error
 	DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error
@@ -223,7 +223,7 @@ type ListRegistrationEntriesResponse struct {
 	Pagination *Pagination
 }
 
-type ListRegistrationEntriesEventsRequest struct {
+type ListRegistrationEntryEventsRequest struct {
 	GreaterThanEventID uint
 	LessThanEventID    uint
 }
@@ -233,7 +233,7 @@ type RegistrationEntryEvent struct {
 	EntryID string
 }
 
-type ListRegistrationEntriesEventsResponse struct {
+type ListRegistrationEntryEventsResponse struct {
 	Events []RegistrationEntryEvent
 }
 

@@ -60,28 +60,28 @@ type expectedGauge struct {
 	Value int
 }
 
-func TestLoadCache(t *testing.T) {
+func TestLoadNodeCache(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
-		setup *scenarioSetup
+		setup *nodeScenarioSetup
 
-		expectedError             error
+		expectedError             string
 		expectedAuthorizedEntries []string
 		expectedGauges            []expectedGauge
 	}{
 		{
 			name: "initial load returns an error",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				err: errors.New("any error, doesn't matter"),
 			},
-			expectedError: errors.New("any error, doesn't matter"),
+			expectedError: "any error, doesn't matter",
 		},
 		{
 			name: "initial load loads nothing",
 		},
 		{
 			name: "initial load loads one attested node",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_1",
@@ -100,7 +100,7 @@ func TestLoadCache(t *testing.T) {
 		},
 		{
 			name: "initial load loads five attested nodes",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_1",
@@ -134,7 +134,7 @@ func TestLoadCache(t *testing.T) {
 		},
 		{
 			name: "initial load loads five attested nodes, one expired",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_1",
@@ -167,7 +167,7 @@ func TestLoadCache(t *testing.T) {
 		},
 		{
 			name: "initial load loads five attested nodes, all expired",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_1",
@@ -196,11 +196,11 @@ func TestLoadCache(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			scenario := NewScenario(t, tt.setup)
+			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
 
-			if tt.expectedError != nil {
-				require.Error(t, err, tt.expectedError)
+			if tt.expectedError != "" {
+				require.ErrorContains(t, err, tt.expectedError)
 				return
 			}
 			require.NoError(t, err)
@@ -214,7 +214,7 @@ func TestLoadCache(t *testing.T) {
 				attestedNodes.cache.RemoveAgent(expectedAuthorizedId)
 			}
 			cacheStats = attestedNodes.cache.Stats()
-			require.Equal(t, 0, cacheStats.AgentsByID, "clearing all expected agent ids didn't clear ccache")
+			require.Equal(t, 0, cacheStats.AgentsByID, "clearing all expected agent ids didn't clear cache")
 
 			var lastMetrics map[string]int = make(map[string]int)
 			for _, metricItem := range scenario.metrics.AllMetrics() {
@@ -239,7 +239,7 @@ func TestLoadCache(t *testing.T) {
 func TestSearchBeforeFirstEvent(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
-		setup *scenarioSetup
+		setup *nodeScenarioSetup
 
 		waitToPoll        time.Duration
 		eventsBeforeFirst []uint
@@ -258,7 +258,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		},
 		{
 			name: "before first event arrived, after transaction timeout",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -278,7 +278,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		{
 			name: "no before first events",
 
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -290,7 +290,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		{
 			name: "new before first event",
 
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -307,7 +307,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		{
 			name: "new after last event",
 
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -324,7 +324,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		{
 			name: "previously seen before first event",
 
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -342,7 +342,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		{
 			name: "previously seen before first event and after last event",
 
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -364,7 +364,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		{
 			name: "five new before first events",
 
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -403,7 +403,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		{
 			name: "five new before first events, one after last event",
 
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -440,7 +440,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		},
 		{
 			name: "five before first events, two previously seen",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -478,7 +478,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		},
 		{
 			name: "five before first events, two previously seen, one after last event",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -514,7 +514,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		},
 		{
 			name: "five before first events, five previously seen",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -548,7 +548,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 		},
 		{
 			name: "five before first events, five previously seen, with after last event",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
 				attestedNodeEvents: defaultEventsStartingAt60,
 			},
@@ -587,7 +587,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			scenario := NewScenario(t, tt.setup)
+			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
 
 			require.NoError(t, err)
@@ -619,7 +619,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 func TestSelectedPolledEvents(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
-		setup *scenarioSetup
+		setup *nodeScenarioSetup
 
 		polling         []uint
 		events          []*datastore.AttestedNodeEvent
@@ -632,7 +632,7 @@ func TestSelectedPolledEvents(t *testing.T) {
 		},
 		{
 			name: "nothing to poll, no action take, one event",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  100,
@@ -643,7 +643,7 @@ func TestSelectedPolledEvents(t *testing.T) {
 		},
 		{
 			name: "nothing to poll, no action taken, five events",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -670,7 +670,7 @@ func TestSelectedPolledEvents(t *testing.T) {
 		},
 		{
 			name: "polling one item, not found",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -694,7 +694,7 @@ func TestSelectedPolledEvents(t *testing.T) {
 		},
 		{
 			name: "polling five items, not found",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -710,7 +710,7 @@ func TestSelectedPolledEvents(t *testing.T) {
 		},
 		{
 			name: "polling one item, found",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -734,7 +734,7 @@ func TestSelectedPolledEvents(t *testing.T) {
 		},
 		{
 			name: "polling five items, two found",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -763,7 +763,7 @@ func TestSelectedPolledEvents(t *testing.T) {
 		},
 		{
 			name: "polling five items, five found",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -808,7 +808,7 @@ func TestSelectedPolledEvents(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			scenario := NewScenario(t, tt.setup)
+			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
 			require.NoError(t, err)
 
@@ -828,7 +828,7 @@ func TestSelectedPolledEvents(t *testing.T) {
 func TestScanForNewEvents(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
-		setup *scenarioSetup
+		setup *nodeScenarioSetup
 
 		newEvents []*datastore.AttestedNodeEvent
 
@@ -843,7 +843,7 @@ func TestScanForNewEvents(t *testing.T) {
 		},
 		{
 			name: "no new event, with first event",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -857,7 +857,7 @@ func TestScanForNewEvents(t *testing.T) {
 		},
 		{
 			name: "one new event",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -879,7 +879,7 @@ func TestScanForNewEvents(t *testing.T) {
 		},
 		{
 			name: "one new event, skipping an event",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -901,7 +901,7 @@ func TestScanForNewEvents(t *testing.T) {
 		},
 		{
 			name: "two new events, same attested node",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -927,7 +927,7 @@ func TestScanForNewEvents(t *testing.T) {
 		},
 		{
 			name: "two new events, different attested nodes",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -954,7 +954,7 @@ func TestScanForNewEvents(t *testing.T) {
 		},
 		{
 			name: "two new events, with a skipped event",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -981,7 +981,7 @@ func TestScanForNewEvents(t *testing.T) {
 		},
 		{
 			name: "two new events, with three skipped events",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -1008,7 +1008,7 @@ func TestScanForNewEvents(t *testing.T) {
 		},
 		{
 			name: "five events, four new events, two skip regions",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
 					&datastore.AttestedNodeEvent{
 						EventID:  101,
@@ -1061,7 +1061,7 @@ func TestScanForNewEvents(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			scenario := NewScenario(t, tt.setup)
+			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
 			require.NoError(t, err)
 
@@ -1081,7 +1081,7 @@ func TestScanForNewEvents(t *testing.T) {
 func TestUpdateAttestedNodesCache(t *testing.T) {
 	for _, tt := range []struct {
 		name                string
-		setup               *scenarioSetup
+		setup               *nodeScenarioSetup
 		createAttestedNodes []*common.AttestedNode // Nodes created after setup
 		deleteAttestedNodes []string               // Nodes delted after setup
 		fetchNodes          []string
@@ -1200,7 +1200,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		},
 		{
 			name: "one node in cache, no fetch nodes",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_3",
@@ -1215,7 +1215,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		},
 		{
 			name: "one node in cache, fetch one node, as new entry",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_3",
@@ -1240,7 +1240,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		},
 		{
 			name: "one node in cache, fetch one node, as an update",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_3",
@@ -1258,7 +1258,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		},
 		{
 			name: "one node in cache, fetch one node, as a delete",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_3",
@@ -1277,7 +1277,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		},
 		{
 			name: "one node in cache, fetch five nodes, all new entries",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_3",
@@ -1326,7 +1326,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		},
 		{
 			name: "one node in cache, fetch five nodes, four new entries and one update",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_3",
@@ -1370,7 +1370,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		},
 		{
 			name: "one node in cache, fetch five nodes, two new and three deletes",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_3",
@@ -1406,7 +1406,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		},
 		{
 			name: "one node in cache, fetch five nodes, all deletes",
-			setup: &scenarioSetup{
+			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
 					&common.AttestedNode{
 						SpiffeId:     "spiffe://example.org/test_node_3",
@@ -1430,7 +1430,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			scenario := NewScenario(t, tt.setup)
+			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
 			require.NoError(t, err)
 			for _, attestedNode := range tt.createAttestedNodes {
@@ -1458,7 +1458,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 				attestedNodes.cache.RemoveAgent(expectedAuthorizedId)
 			}
 			cacheStats = attestedNodes.cache.Stats()
-			require.Equal(t, 0, cacheStats.AgentsByID, "clearing all expected agent ids didn't clear ccache")
+			require.Equal(t, 0, cacheStats.AgentsByID, "clearing all expected agent ids didn't clear cache")
 		})
 	}
 }
@@ -1474,13 +1474,13 @@ type scenario struct {
 	ds      *fakedatastore.DataStore
 }
 
-type scenarioSetup struct {
+type nodeScenarioSetup struct {
 	attestedNodes      []*common.AttestedNode
 	attestedNodeEvents []*datastore.AttestedNodeEvent
 	err                error
 }
 
-func NewScenario(t *testing.T, setup *scenarioSetup) *scenario {
+func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
 	t.Helper()
 	ctx := context.Background()
 	log, hook := test.NewNullLogger()
@@ -1491,7 +1491,7 @@ func NewScenario(t *testing.T, setup *scenarioSetup) *scenario {
 	ds := fakedatastore.New(t)
 
 	if setup == nil {
-		setup = &scenarioSetup{}
+		setup = &nodeScenarioSetup{}
 	}
 
 	// initialize the database

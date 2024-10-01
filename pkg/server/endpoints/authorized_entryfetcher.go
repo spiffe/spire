@@ -95,10 +95,10 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) PruneEventsTask(ctx context
 }
 
 func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneEvents(ctx context.Context, olderThan time.Duration) error {
-	pruneRegistrationEntriesEventsErr := a.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
+	pruneRegistrationEntryEventsErr := a.ds.PruneRegistrationEntryEvents(ctx, olderThan)
 	pruneAttestedNodesEventsErr := a.ds.PruneAttestedNodesEvents(ctx, olderThan)
 
-	return errors.Join(pruneRegistrationEntriesEventsErr, pruneAttestedNodesEventsErr)
+	return errors.Join(pruneRegistrationEntryEventsErr, pruneAttestedNodesEventsErr)
 }
 
 func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Context) error {

@@ -59,7 +59,7 @@ func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
 func (a *registrationEntries) searchBeforeFirstEvent(ctx context.Context) error {
 	// First event detected, and startup was less than a transaction timout away.
 	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.sqlTransactionTimeout {
-		resp, err := a.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+		resp, err := a.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
 			LessThanEventID: a.firstEvent,
 		})
 		if err != nil {
@@ -105,12 +105,12 @@ func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 
 func (a *registrationEntries) scanNewEvents(ctx context.Context) error {
 	// If we haven't seen an event, scan for all events; otherwise, scan from the last event.
-	var resp *datastore.ListRegistrationEntriesEventsResponse
+	var resp *datastore.ListRegistrationEntryEventsResponse
 	var err error
 	if a.firstEventTime.IsZero() {
-		resp, err = a.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+		resp, err = a.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 	} else {
-		resp, err = a.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+		resp, err = a.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
 			GreaterThanEventID: a.lastEvent,
 		})
 	}
