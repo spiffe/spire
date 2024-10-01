@@ -39,7 +39,7 @@ var (
 			CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 		},
 	}
-	defaultEventsStartingAt60 = []*datastore.AttestedNodeEvent{
+	defaultNodeEventsStartingAt60 = []*datastore.AttestedNodeEvent{
 		&datastore.AttestedNodeEvent{
 			EventID:  60,
 			SpiffeID: "spiffe://example.org/test_node_2",
@@ -49,10 +49,10 @@ var (
 			SpiffeID: "spiffe://example.org/test_node_3",
 		},
 	}
-	defaultFirstEvent = uint(60)
-	defaultLastEvent  = uint(61)
+	defaultFirstNodeEvent = uint(60)
+	defaultLastNodeEvent  = uint(61)
 
-	NoFetches = []string{}
+	NoNodeFetches = []string{}
 )
 
 type expectedGauge struct {
@@ -236,7 +236,7 @@ func TestLoadNodeCache(t *testing.T) {
 	}
 }
 
-func TestSearchBeforeFirstEvent(t *testing.T) {
+func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		setup *nodeScenarioSetup
@@ -260,7 +260,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 			name: "before first event arrived, after transaction timeout",
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 
 			waitToPoll: time.Duration(2) * defaultSQLTransactionTimeout,
@@ -273,14 +273,14 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 			},
 
 			expectedEventsBeforeFirst: []uint{},
-			expectedFetches:           NoFetches,
+			expectedFetches:           NoNodeFetches,
 		},
 		{
 			name: "no before first events",
 
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			polledEvents: []*datastore.AttestedNodeEvent{},
 
@@ -292,7 +292,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			polledEvents: []*datastore.AttestedNodeEvent{
 				&datastore.AttestedNodeEvent{
@@ -309,7 +309,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			polledEvents: []*datastore.AttestedNodeEvent{
 				&datastore.AttestedNodeEvent{
@@ -326,7 +326,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			eventsBeforeFirst: []uint{58},
 			polledEvents: []*datastore.AttestedNodeEvent{
@@ -344,21 +344,21 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			eventsBeforeFirst: []uint{58},
 			polledEvents: []*datastore.AttestedNodeEvent{
 				&datastore.AttestedNodeEvent{
-					EventID:  defaultFirstEvent - 2,
+					EventID:  defaultFirstNodeEvent - 2,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
 				&datastore.AttestedNodeEvent{
-					EventID:  defaultLastEvent + 2,
+					EventID:  defaultLastNodeEvent + 2,
 					SpiffeID: "spiffe://example.org/test_node_4",
 				},
 			},
 
-			expectedEventsBeforeFirst: []uint{defaultFirstEvent - 2},
+			expectedEventsBeforeFirst: []uint{defaultFirstNodeEvent - 2},
 			expectedFetches:           []string{},
 		},
 		{
@@ -366,7 +366,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			polledEvents: []*datastore.AttestedNodeEvent{
 				&datastore.AttestedNodeEvent{
@@ -405,7 +405,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			polledEvents: []*datastore.AttestedNodeEvent{
 				&datastore.AttestedNodeEvent{
@@ -425,7 +425,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 					SpiffeID: "spiffe://example.org/test_node_13",
 				},
 				&datastore.AttestedNodeEvent{
-					EventID:  defaultLastEvent + 1,
+					EventID:  defaultLastNodeEvent + 1,
 					SpiffeID: "spiffe://example.org/test_node_14",
 				},
 			},
@@ -442,7 +442,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 			name: "five before first events, two previously seen",
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 
 			eventsBeforeFirst: []uint{48, 49},
@@ -480,7 +480,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 			name: "five before first events, two previously seen, one after last event",
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			eventsBeforeFirst: []uint{48, 49},
 			polledEvents: []*datastore.AttestedNodeEvent{
@@ -501,7 +501,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 					SpiffeID: "spiffe://example.org/test_node_13",
 				},
 				&datastore.AttestedNodeEvent{
-					EventID:  defaultLastEvent + 1,
+					EventID:  defaultLastNodeEvent + 1,
 					SpiffeID: "spiffe://example.org/test_node_14",
 				},
 			},
@@ -516,7 +516,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 			name: "five before first events, five previously seen",
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 
 			eventsBeforeFirst: []uint{48, 49, 53, 56, 57},
@@ -550,7 +550,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 			name: "five before first events, five previously seen, with after last event",
 			setup: &nodeScenarioSetup{
 				attestedNodes:      defaultAttestedNodes,
-				attestedNodeEvents: defaultEventsStartingAt60,
+				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 
 			eventsBeforeFirst: []uint{48, 49, 53, 56, 57},
@@ -576,7 +576,7 @@ func TestSearchBeforeFirstEvent(t *testing.T) {
 					SpiffeID: "spiffe://example.org/test_node_14",
 				},
 				&datastore.AttestedNodeEvent{
-					EventID:  defaultLastEvent + 1,
+					EventID:  defaultLastNodeEvent + 1,
 					SpiffeID: "spiffe://example.org/test_node_28",
 				},
 			},

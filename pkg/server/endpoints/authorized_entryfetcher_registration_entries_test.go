@@ -3,6 +3,8 @@ package endpoints
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +30,39 @@ var (
 	EntriesByEntryID      = []string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count}
 	EntriesByParentID     = []string{telemetry.Entry, telemetry.EntriesByParentIDCache, telemetry.Count}
 	SkippedEntryEventID   = []string{telemetry.Entry, telemetry.SkippedEntryEventIDs, telemetry.Count}
+
+	defaultRegistrationEntries = []*common.RegistrationEntry{
+		&common.RegistrationEntry{
+			EntryId:  "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+			ParentId: "spiffe://example.org/test_node_1",
+			SpiffeId: "spiffe://example.org/test_job_2",
+			Selectors: []*common.Selector{
+				{Type: "testjob", Value: "2"},
+			},
+		},
+		&common.RegistrationEntry{
+			EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			ParentId: "spiffe://example.org/test_node_2",
+			SpiffeId: "spiffe://example.org/test_job_3",
+			Selectors: []*common.Selector{
+				{Type: "testjob", Value: "3"},
+			},
+		},
+	}
+	defaultRegistrationEntryEventsStartingAt60 = []*datastore.RegistrationEntryEvent{
+		&datastore.RegistrationEntryEvent{
+			EventID: 60,
+			EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+		},
+		&datastore.RegistrationEntryEvent{
+			EventID: 61,
+			EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+		},
+	}
+	defaultFirstEntryEvent = uint(60)
+	defaultLastEntryEvent  = uint(61)
+
+	NoEntryFetches = []string{}
 )
 
 func TestLoadEntryCache(t *testing.T) {
@@ -341,7 +376,7 @@ func TestLoadEntryCache(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewEntryScenario(t, tt.setup)
-			attestedNodes, err := scenario.buildRegistrationEntriesCache()
+			registrationEntries, err := scenario.buildRegistrationEntriesCache()
 
 			if tt.expectedError != "" {
 				t.Logf("expecting error: %s\n", tt.expectedError)
@@ -350,7 +385,7 @@ func TestLoadEntryCache(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			cacheStats := attestedNodes.cache.Stats()
+			cacheStats := registrationEntries.cache.Stats()
 			t.Logf("%s: cache stats %+v\n", tt.name, cacheStats)
 			require.Equal(t, len(tt.expectedRegistrationEntries), cacheStats.EntriesByEntryID,
 				"wrong number of entries by ID")
@@ -358,9 +393,9 @@ func TestLoadEntryCache(t *testing.T) {
 			// for now, the only way to ensure the desired agent ids are prsent is
 			// to remove the desired ids and check the count it zero.
 			for _, expectedRegistrationEntry := range tt.expectedRegistrationEntries {
-				attestedNodes.cache.RemoveEntry(expectedRegistrationEntry)
+				registrationEntries.cache.RemoveEntry(expectedRegistrationEntry)
 			}
-			cacheStats = attestedNodes.cache.Stats()
+			cacheStats = registrationEntries.cache.Stats()
 			require.Equal(t, 0, cacheStats.EntriesByEntryID,
 				"clearing all expected entry ids didn't clear cache")
 
@@ -379,6 +414,403 @@ func TestLoadEntryCache(t *testing.T) {
 				require.True(t, exists, "No metric value for %q", key)
 				require.Equal(t, expectedGauge.Value, value, "unexpected final metric value for %q", key)
 			}
+
+			require.Zero(t, scenario.hook.Entries)
+		})
+	}
+}
+
+func TestSearchBeforeFirstEntryEvent(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		setup *entryScenarioSetup
+
+		waitToPoll        time.Duration
+		eventsBeforeFirst []uint
+		polledEvents      []*datastore.RegistrationEntryEvent
+		errors            []error
+
+		expectedError             error
+		expectedEventsBeforeFirst []uint
+		expectedFetches           []string
+	}{
+		{
+			name: "first event not loaded",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+			},
+
+			expectedEventsBeforeFirst: []uint{},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "before first event arrived, after transaction timeout",
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+
+			waitToPoll: time.Duration(2) * defaultSQLTransactionTimeout,
+			// even with new before first events, they shouldn't load
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 58,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{},
+			expectedFetches:           NoEntryFetches,
+		},
+		{
+			name: "no before first events",
+
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+			polledEvents: []*datastore.RegistrationEntryEvent{},
+
+			expectedEventsBeforeFirst: []uint{},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "new before first event",
+
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 58,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{58},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+			},
+		},
+		{
+			name: "new after last event",
+
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 64,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "previously seen before first event",
+
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+			eventsBeforeFirst: []uint{58},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 58,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{58},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "previously seen before first event and after last event",
+
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+			eventsBeforeFirst: []uint{58},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: defaultFirstEntryEvent - 2,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: defaultLastEntryEvent + 2,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{defaultFirstEntryEvent - 2},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "five new before first events",
+
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 48,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 49,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 53,
+					EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 56,
+					EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 57,
+					EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+		},
+		{
+			name: "five new before first events, one after last event",
+
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 48,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 49,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 53,
+					EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 56,
+					EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: defaultLastEntryEvent + 1,
+					EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56},
+			expectedFetches: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+			},
+		},
+		{
+			name: "five before first events, two previously seen",
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+
+			eventsBeforeFirst: []uint{48, 49},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 48,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 49,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 53,
+					EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 56,
+					EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 57,
+					EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			expectedFetches: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+		},
+		{
+			name: "five before first events, two previously seen, one after last event",
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+			eventsBeforeFirst: []uint{48, 49},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 48,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 49,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 53,
+					EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 56,
+					EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: defaultLastEntryEvent + 1,
+					EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56},
+			expectedFetches: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+			},
+		},
+		{
+			name: "five before first events, five previously seen",
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+
+			eventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 48,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 49,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 53,
+					EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 56,
+					EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 57,
+					EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			expectedFetches:           []string{},
+		},
+		{
+			name: "five before first events, five previously seen, with after last event",
+			setup: &entryScenarioSetup{
+				pageSize:                1024,
+				registrationEntries:     defaultRegistrationEntries,
+				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
+			},
+
+			eventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			polledEvents: []*datastore.RegistrationEntryEvent{
+				&datastore.RegistrationEntryEvent{
+					EventID: 48,
+					EntryID: "6837984a-bc44-462b-9ca6-5cd59be35066",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 49,
+					EntryID: "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 53,
+					EntryID: "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 56,
+					EntryID: "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: 57,
+					EntryID: "354c16f4-4e61-4c17-8596-7baa7744d504",
+				},
+				&datastore.RegistrationEntryEvent{
+					EventID: defaultLastEntryEvent + 1,
+					EntryID: "aeb603b2-e1d1-4832-8809-60a1d14b42e0",
+				},
+			},
+
+			expectedEventsBeforeFirst: []uint{48, 49, 53, 56, 57},
+			expectedFetches:           []string{},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			scenario := NewEntryScenario(t, tt.setup)
+			registrationEntries, err := scenario.buildRegistrationEntriesCache()
+
+			require.NoError(t, err)
+
+			if tt.waitToPoll == 0 {
+				scenario.clk.Add(time.Duration(1) * defaultCacheReloadInterval)
+			} else {
+				scenario.clk.Add(tt.waitToPoll)
+			}
+
+			for _, event := range tt.eventsBeforeFirst {
+				registrationEntries.eventsBeforeFirst[event] = struct{}{}
+			}
+
+			for _, event := range tt.polledEvents {
+				scenario.ds.CreateRegistrationEntryEventForTesting(scenario.ctx, event)
+			}
+
+			registrationEntries.searchBeforeFirstEvent(scenario.ctx)
+
+			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(registrationEntries.eventsBeforeFirst)), "expected events before tracking mismatch")
+			require.ElementsMatch(t, tt.expectedFetches, slices.Collect[string](maps.Keys(registrationEntries.fetchEntries)), "expected fetches mismatch")
 
 			require.Zero(t, scenario.hook.Entries)
 		})
@@ -472,13 +904,11 @@ func NewEntryScenario(t *testing.T, setup *entryScenarioSetup) *entryScenario {
 	metrics := fakemetrics.New()
 	ds := fakedatastore.New(t)
 
-	t.Log("NEW SCENARIO\n")
 	if setup == nil {
 		setup = &entryScenarioSetup{}
 	}
 
 	for _, attestedNode := range setup.attestedNodes {
-		t.Logf("creating attested node: %+v\n", attestedNode)
 		ds.CreateAttestedNode(ctx, attestedNode)
 	}
 	// prune autocreated node events, to test the event logic in more scenarios
@@ -490,7 +920,6 @@ func NewEntryScenario(t *testing.T, setup *entryScenarioSetup) *entryScenario {
 	}
 	// initialize the database
 	for _, registrationEntry := range setup.registrationEntries {
-		t.Logf("creating entry: %+v\n", registrationEntry)
 		ds.CreateRegistrationEntry(ctx, registrationEntry)
 	}
 	// prune autocreated entry events, to test the event logic in more
