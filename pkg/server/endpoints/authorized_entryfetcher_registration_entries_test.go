@@ -1144,7 +1144,7 @@ func TestScanForNewEntryEvents(t *testing.T) {
 			},
 		},
 		{
-			name: "two new events, different attested nodes",
+			name: "two new events, different attested entries",
 			setup: &entryScenarioSetup{
 				pageSize: 1024,
 				registrationEntryEvents: []*datastore.RegistrationEntryEvent{
@@ -1300,6 +1300,533 @@ func TestScanForNewEntryEvents(t *testing.T) {
 	}
 }
 
+func TestUpdateRegistrationEntriesCache(t *testing.T) {
+	for _, tt := range []struct {
+		name                      string
+		setup                     *entryScenarioSetup
+		createRegistrationEntries []*common.RegistrationEntry // Entries created after setup
+		deleteRegistrationEntries []string                    // Entries delted after setup
+		fetchEntries              []string
+
+		expectedAuthorizedEntries []string
+	}{
+		{
+			name: "empty cache, no fetch entries",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+			},
+			fetchEntries: []string{},
+
+			expectedAuthorizedEntries: []string{},
+		},
+		{
+			name: "empty cache, fetch one entry, as a new entry",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+			},
+			createRegistrationEntries: []*common.RegistrationEntry{
+				&common.RegistrationEntry{
+					EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_3",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "3"},
+					},
+				},
+			},
+			fetchEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+		},
+		{
+			name: "empty cache, fetch one entry, as a delete",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+			},
+			fetchEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+		},
+		{
+			name: "empty cache, fetch five entries, all new entries",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+			},
+			createRegistrationEntries: []*common.RegistrationEntry{
+				&common.RegistrationEntry{
+					EntryId:  "6837984a-bc44-462b-9ca6-5cd59be35066",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_1",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "1"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_2",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "2"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_3",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "3"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_4",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "4"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "354c16f4-4e61-4c17-8596-7baa7744d504",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_5",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "5"},
+					},
+				},
+			},
+			fetchEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+		},
+		{
+			name: "empty cache, fetch five entries, three new and two deletes",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+			},
+			createRegistrationEntries: []*common.RegistrationEntry{
+				&common.RegistrationEntry{
+					EntryId:  "6837984a-bc44-462b-9ca6-5cd59be35066",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_1",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "1"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_3",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "3"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_4",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "4"},
+					},
+				},
+			},
+			fetchEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+			},
+		},
+		{
+			name: "empty cache, fetch five entries, all deletes",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+			},
+			fetchEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+
+			expectedAuthorizedEntries: []string{},
+		},
+		{
+			name: "one entry in cache, no fetch entries",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntries: []*common.RegistrationEntry{
+					&common.RegistrationEntry{
+						EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+						ParentId: "spiffe://example.org/test_node_2",
+						SpiffeId: "spiffe://example.org/test_job_3",
+						Selectors: []*common.Selector{
+							{Type: "testjob", Value: "3"},
+						},
+					},
+				},
+			},
+
+			expectedAuthorizedEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+		},
+		{
+			name: "one entry in cache, fetch one entry, as new entry",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntries: []*common.RegistrationEntry{
+					&common.RegistrationEntry{
+						EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+						ParentId: "spiffe://example.org/test_node_2",
+						SpiffeId: "spiffe://example.org/test_job_3",
+						Selectors: []*common.Selector{
+							{Type: "testjob", Value: "3"},
+						},
+					},
+				},
+			},
+			createRegistrationEntries: []*common.RegistrationEntry{
+				&common.RegistrationEntry{
+					EntryId:  "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_4",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "4"},
+					},
+				},
+			},
+			fetchEntries: []string{
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+			},
+		},
+		{
+			name: "one entry in cache, fetch one entry, as an update",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntries: []*common.RegistrationEntry{
+					&common.RegistrationEntry{
+						EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+						ParentId: "spiffe://example.org/test_node_2",
+						SpiffeId: "spiffe://example.org/test_job_3",
+						Selectors: []*common.Selector{
+							{Type: "testjob", Value: "3"},
+						},
+					},
+				},
+			},
+			fetchEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+		},
+		{
+			name: "one entry in cache, fetch one entry, as a delete",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntries: []*common.RegistrationEntry{
+					&common.RegistrationEntry{
+						EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+						ParentId: "spiffe://example.org/test_node_2",
+						SpiffeId: "spiffe://example.org/test_job_3",
+						Selectors: []*common.Selector{
+							{Type: "testjob", Value: "3"},
+						},
+					},
+				},
+			},
+			deleteRegistrationEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+			fetchEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+
+			expectedAuthorizedEntries: []string{},
+		},
+		{
+			name: "one entry in cache, fetch five entries, all new entries",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntries: []*common.RegistrationEntry{
+					&common.RegistrationEntry{
+						EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+						ParentId: "spiffe://example.org/test_node_2",
+						SpiffeId: "spiffe://example.org/test_job_3",
+						Selectors: []*common.Selector{
+							{Type: "testjob", Value: "3"},
+						},
+					},
+				},
+			},
+			createRegistrationEntries: []*common.RegistrationEntry{
+				&common.RegistrationEntry{
+					EntryId:  "6837984a-bc44-462b-9ca6-5cd59be35066",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_1",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "1"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_2",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "2"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_4",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "4"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "354c16f4-4e61-4c17-8596-7baa7744d504",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_5",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "5"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "aeb603b2-e1d1-4832-8809-60a1d14b42e0",
+					ParentId: "spiffe://example.org/test_node_3",
+					SpiffeId: "spiffe://example.org/test_job_6",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "6"},
+					},
+				},
+			},
+			fetchEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+				"aeb603b2-e1d1-4832-8809-60a1d14b42e0",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+				"aeb603b2-e1d1-4832-8809-60a1d14b42e0",
+			},
+		},
+		{
+			name: "one entry in cache, fetch five entries, four new entries and one update",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntries: []*common.RegistrationEntry{
+					&common.RegistrationEntry{
+						EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+						ParentId: "spiffe://example.org/test_node_2",
+						SpiffeId: "spiffe://example.org/test_job_3",
+						Selectors: []*common.Selector{
+							{Type: "testjob", Value: "3"},
+						},
+					},
+				},
+			},
+			createRegistrationEntries: []*common.RegistrationEntry{
+				&common.RegistrationEntry{
+					EntryId:  "6837984a-bc44-462b-9ca6-5cd59be35066",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_1",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "1"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_2",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "2"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_4",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "4"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "354c16f4-4e61-4c17-8596-7baa7744d504",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_5",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "5"},
+					},
+				},
+			},
+			fetchEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+		},
+		{
+			name: "one entry in cache, fetch five entries, two new and three deletes",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntries: []*common.RegistrationEntry{
+					&common.RegistrationEntry{
+						EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+						ParentId: "spiffe://example.org/test_node_2",
+						SpiffeId: "spiffe://example.org/test_job_3",
+						Selectors: []*common.Selector{
+							{Type: "testjob", Value: "3"},
+						},
+					},
+				},
+			},
+			createRegistrationEntries: []*common.RegistrationEntry{
+				&common.RegistrationEntry{
+					EntryId:  "6837984a-bc44-462b-9ca6-5cd59be35066",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_1",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "1"},
+					},
+				},
+				&common.RegistrationEntry{
+					EntryId:  "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_2",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "2"},
+					},
+				},
+			},
+			deleteRegistrationEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+			fetchEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+			},
+		},
+		{
+			name: "one entry in cache, fetch five entries, all deletes",
+			setup: &entryScenarioSetup{
+				pageSize: 1024,
+				registrationEntries: []*common.RegistrationEntry{
+					&common.RegistrationEntry{
+						EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+						ParentId: "spiffe://example.org/test_node_2",
+						SpiffeId: "spiffe://example.org/test_job_3",
+						Selectors: []*common.Selector{
+							{Type: "testjob", Value: "3"},
+						},
+					},
+				},
+			},
+			deleteRegistrationEntries: []string{
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+			fetchEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+
+			expectedAuthorizedEntries: []string{},
+		},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			scenario := NewEntryScenario(t, tt.setup)
+			registeredEntries, err := scenario.buildRegistrationEntriesCache()
+			require.NoError(t, err)
+			for _, registrationEntry := range tt.createRegistrationEntries {
+				scenario.ds.CreateRegistrationEntry(scenario.ctx, registrationEntry)
+			}
+			for _, registrationEntry := range tt.deleteRegistrationEntries {
+				_, err = scenario.ds.DeleteRegistrationEntry(scenario.ctx, registrationEntry)
+				require.NoError(t, err)
+			}
+			for _, fetchEntry := range tt.fetchEntries {
+				registeredEntries.fetchEntries[fetchEntry] = struct{}{}
+			}
+			// clear out the events, to prove updates are not event based
+			scenario.ds.PruneRegistrationEntryEvents(scenario.ctx, time.Duration(-5)*time.Hour)
+
+			err = registeredEntries.updateCachedEntries(scenario.ctx)
+			require.NoError(t, err)
+
+			cacheStats := registeredEntries.cache.Stats()
+			require.Equal(t, len(tt.expectedAuthorizedEntries), cacheStats.EntriesByEntryID, "wrong number of registered entries by ID")
+
+			// for now, the only way to ensure the desired agent ids are prsent is
+			// to remove the desired ids and check the count it zero.
+			for _, expectedAuthorizedId := range tt.expectedAuthorizedEntries {
+				registeredEntries.cache.RemoveEntry(expectedAuthorizedId)
+			}
+			cacheStats = registeredEntries.cache.Stats()
+			require.Equal(t, 0, cacheStats.EntriesByEntryID, "clearing all expected registered entries didn't clear cache")
+		})
+	}
+}
+
 type entryScenario struct {
 	ctx      context.Context
 	log      *logrus.Logger
@@ -1376,8 +1903,8 @@ func (s *entryScenario) buildRegistrationEntriesCache() (*registrationEntries, e
 	registrationEntries, err := buildRegistrationEntriesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, s.pageSize, defaultCacheReloadInterval, defaultSQLTransactionTimeout)
 	if registrationEntries != nil {
 		// clear out the fetches
-		for node, _ := range registrationEntries.fetchEntries {
-			delete(registrationEntries.fetchEntries, node)
+		for entry, _ := range registrationEntries.fetchEntries {
+			delete(registrationEntries.fetchEntries, entry)
 		}
 	}
 	return registrationEntries, err
