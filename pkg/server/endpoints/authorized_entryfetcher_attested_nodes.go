@@ -3,7 +3,6 @@ package endpoints
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -24,7 +23,6 @@ type attestedNodes struct {
 	ds      datastore.DataStore
 	log     logrus.FieldLogger
 	metrics telemetry.Metrics
-	mu      sync.RWMutex
 
 	eventsBeforeFirst map[uint]struct{}
 
@@ -100,7 +98,7 @@ func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
 		}
 
 		a.fetchNodes[event.SpiffeID] = struct{}{}
-		a.eventTracker.StopTracking(uint(eventID))
+		a.eventTracker.StopTracking(eventID)
 	}
 }
 

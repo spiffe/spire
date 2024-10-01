@@ -9,7 +9,7 @@ import (
 /**
  * Tracks events as they indivicually walk through a list of event boundaries.
  *
- * An event track is defined with a set of foundaries, which are indexes to
+ * An event track is defined with a set of boundaries, which are indexes to
  * virtual hash tables, with the event's hash determining the position within
  * that hash table where the event will be selected to be polled.
  * For eventTRackers that lack boundaries, or polls that exist prior to
@@ -72,7 +72,7 @@ func BoundaryBuilder(pollTime time.Duration, trackTime time.Duration) []uint {
 
 	// initialize poll boundaries one minute out
 	boundaries := make(map[uint]struct{})
-	currentBoundary := uint(pollsPerMinute)
+	currentBoundary := pollsPerMinute
 	for currentBoundary < pollPeriods {
 		if currentBoundary < pollsPerTenMinutes {
 			boundaries[currentBoundary] = struct{}{}
@@ -243,7 +243,7 @@ func (et *eventTracker) EventCount() uint {
  * previously found on the internet.  It avoids the factorization problem
  * (even events only go into even slots) by repeatedly mixing high order
  * bits into the low order bits ( h^h >> (number)).  The high order bits
- * are primarly set by the low order bits repeatedly by multipliation with
+ * are primarily set by the low order bits repeatedly by multipliation with
  * a number designed to mix bits deterministicly for better hash dispersion.
  */
 func hash(event uint) uint {

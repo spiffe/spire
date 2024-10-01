@@ -214,7 +214,7 @@ func TestNewEventTracker(t *testing.T) {
 			require.Equal(t, tt.expectedPollPeriods, eventTracker.PollPeriods(), "expcting %d poll periods; but, %d poll periods reported", eventTracker.PollPeriods(), tt.expectedPollPeriods)
 
 			require.Equal(t, tt.expectedBoundaries, eventTracker.PollBoundaries(), "expected %v boundaries, not %v boundaries", eventTracker.PollBoundaries(), tt.expectedBoundaries)
-			require.Equal(t, tt.expectedInitialPolls, eventTracker.InitialPolls(), "inital polls of %d when requesting %d", eventTracker.InitialPolls(), tt.expectedInitialPolls)
+			require.Equal(t, tt.expectedInitialPolls, eventTracker.InitialPolls(), "initial polls of %d when requesting %d", eventTracker.InitialPolls(), tt.expectedInitialPolls)
 			require.Equal(t, tt.expectedPolls, eventTracker.Polls(), "polling each element %d times, when expecting %d times", tt.expectedPolls, eventTracker.Polls())
 		})
 	}
@@ -357,7 +357,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 2,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -369,7 +369,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 2,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -381,7 +381,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 3,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -393,7 +393,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 3,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -405,7 +405,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 3,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -417,7 +417,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 4,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -429,7 +429,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 4,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -441,7 +441,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 4,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -453,7 +453,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 4,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -465,7 +465,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 5,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -477,7 +477,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 5,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -489,7 +489,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 5,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -501,7 +501,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 5,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -513,7 +513,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 5,
 			eventCount:     1000,
 
-			// should disperse into two slots, with an approxmiate count of [ 500, 500 ]
+			// should disperse into two slots, with an approximate count of [ 500, 500 ]
 			expectedSlotCount:     500,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -525,7 +525,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 2,
 			eventCount:     1000,
 
-			// should disperse into three slots, with an approxmiate count of [ 333, 333, 333 ]
+			// should disperse into three slots, with an approximate count of [ 333, 333, 333 ]
 			expectedSlotCount:     333,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -667,7 +667,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 2,
 			eventCount:     1000,
 
-			// should disperse into four slots, with an approxmiate count of [ 250, 250, 250, 250 ]
+			// should disperse into four slots, with an approximate count of [ 250, 250, 250, 250 ]
 			expectedSlotCount:     250,
 			permissibleCountError: 50, // 5% of 1000
 		},
@@ -809,7 +809,7 @@ func TestEvenDispersion(t *testing.T) {
 			eventIncrement: 2,
 			eventCount:     1000,
 
-			// should disperse into five slots, with an approxmiate count of [ 200, 200, 200, 200, 200 ]
+			// should disperse into five slots, with an approximate count of [ 200, 200, 200, 200, 200 ]
 			expectedSlotCount:     200,
 			permissibleCountError: 50, // 5% of 1000
 		},

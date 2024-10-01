@@ -198,7 +198,6 @@ func TestLoadNodeCache(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
-
 			if tt.expectedError != "" {
 				require.ErrorContains(t, err, tt.expectedError)
 				return
@@ -246,7 +245,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 		polledEvents      []*datastore.AttestedNodeEvent
 		errors            []error
 
-		expectedError             error
+		expectedError             string
 		expectedEventsBeforeFirst []uint
 		expectedFetches           []string
 	}{
@@ -589,7 +588,10 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
-
+			if tt.expectedError != "" {
+				require.ErrorContains(t, err, tt.expectedError)
+				return
+			}
 			require.NoError(t, err)
 
 			if tt.waitToPoll == 0 {
@@ -603,10 +605,12 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			}
 
 			for _, event := range tt.polledEvents {
-				scenario.ds.CreateAttestedNodeEventForTesting(scenario.ctx, event)
+				err = scenario.ds.CreateAttestedNodeEventForTesting(scenario.ctx, event)
+				require.NoError(t, err, "error while setting up test")
 			}
 
-			attestedNodes.searchBeforeFirstEvent(scenario.ctx)
+			err = attestedNodes.searchBeforeFirstEvent(scenario.ctx)
+			require.NoError(t, err, "error while running test")
 
 			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(attestedNodes.eventsBeforeFirst)), "expected events before tracking mismatch")
 			require.ElementsMatch(t, tt.expectedFetches, slices.Collect[string](maps.Keys(attestedNodes.fetchNodes)), "expected fetches mismatch")
@@ -1066,10 +1070,11 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, newEvent := range tt.newEvents {
-				scenario.ds.CreateAttestedNodeEventForTesting(scenario.ctx, newEvent)
+				err = scenario.ds.CreateAttestedNodeEventForTesting(scenario.ctx, newEvent)
+				require.NoError(t, err, "error while setting up test")
 			}
 			err = attestedNodes.scanForNewEvents(scenario.ctx)
-			require.NoError(t, err)
+			require.NoError(t, err, "error while running test")
 
 			require.ElementsMatch(t, tt.expectedTrackedEvents, slices.Collect(maps.Keys(attestedNodes.eventTracker.events)))
 			require.ElementsMatch(t, tt.expectedFetches, slices.Collect(maps.Keys(attestedNodes.fetchNodes)))
@@ -1433,18 +1438,21 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
 			require.NoError(t, err)
+
 			for _, attestedNode := range tt.createAttestedNodes {
-				scenario.ds.CreateAttestedNode(scenario.ctx, attestedNode)
+				_, err = scenario.ds.CreateAttestedNode(scenario.ctx, attestedNode)
+				require.NoError(t, err, "error while setting up test")
 			}
 			for _, attestedNode := range tt.deleteAttestedNodes {
 				_, err = scenario.ds.DeleteAttestedNode(scenario.ctx, attestedNode)
-				require.NoError(t, err)
+				require.NoError(t, err, "error while setting up test")
 			}
 			for _, fetchNode := range tt.fetchNodes {
 				attestedNodes.fetchNodes[fetchNode] = struct{}{}
 			}
 			// clear out the events, to prove updates are not event based
-			scenario.ds.PruneAttestedNodesEvents(scenario.ctx, time.Duration(-5)*time.Hour)
+			err = scenario.ds.PruneAttestedNodesEvents(scenario.ctx, time.Duration(-5)*time.Hour)
+			require.NoError(t, err, "error while setting up test")
 
 			err = attestedNodes.updateCachedNodes(scenario.ctx)
 			require.NoError(t, err)
@@ -1494,16 +1502,19 @@ func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
 		setup = &nodeScenarioSetup{}
 	}
 
+	var err error
 	// initialize the database
 	for _, attestedNode := range setup.attestedNodes {
-		ds.CreateAttestedNode(ctx, attestedNode)
+		_, err = ds.CreateAttestedNode(ctx, attestedNode)
+		require.NoError(t, err, "error while setting up test")
 	}
 	// prune autocreated node events, to test the event logic in more scenarios
 	// than possible with autocreated node events.
 	ds.PruneAttestedNodesEvents(ctx, time.Duration(-5)*time.Hour)
 	// and then add back the specified node events
 	for _, event := range setup.attestedNodeEvents {
-		ds.CreateAttestedNodeEventForTesting(ctx, event)
+		err = ds.CreateAttestedNodeEventForTesting(ctx, event)
+		require.NoError(t, err, "error while setting up test")
 	}
 	// inject db error for buildAttestedNodesCache call
 	if setup.err != nil {
