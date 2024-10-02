@@ -659,7 +659,8 @@ func TestLRUCacheSubscriberNotNotifiedOnOverlappingSVIDChanges(t *testing.T) {
 
 func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(clk)
+	svidCacheMaxSize := 10
+	cache := newTestLRUCacheWithConfig(svidCacheMaxSize, clk)
 
 	clk.Add(1 * time.Second)
 	foo := makeRegistrationEntry("FOO", "A")
@@ -703,7 +704,7 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 	// Move clk by 2 seconds
 	clk.Add(2 * time.Second)
 	// update total of size+2 entries
-	updateEntries := createUpdateEntries(SVIDCacheMaxSize, makeBundles(bundleV1))
+	updateEntries := createUpdateEntries(svidCacheMaxSize, makeBundles(bundleV1))
 	updateEntries.RegistrationEntries[foo.EntryId] = foo
 	updateEntries.RegistrationEntries[bar.EntryId] = bar
 
@@ -720,10 +721,10 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 			sub.Finish()
 		}
 	}
-	assert.Equal(t, SVIDCacheMaxSize+2, cache.CountX509SVIDs())
+	assert.Equal(t, svidCacheMaxSize+2, cache.CountX509SVIDs())
 
 	cache.UpdateEntries(updateEntries, nil)
-	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
+	assert.Equal(t, svidCacheMaxSize, cache.CountX509SVIDs())
 
 	// foo SVID should be removed from cache as it does not have active subscriber
 	assert.False(t, cache.notifySubscriberIfSVIDAvailable(makeSelectors("A"), subA.(*lruCacheSubscriber)))
@@ -739,24 +740,25 @@ func TestLRUCacheSVIDCacheExpiry(t *testing.T) {
 	require.Len(t, cache.GetStaleEntries(), 1)
 	assert.Equal(t, foo, cache.GetStaleEntries()[0].Entry)
 
-	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
+	assert.Equal(t, svidCacheMaxSize, cache.CountX509SVIDs())
 }
 
 func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(clk)
+	svidCacheMaxSize := 10
+	cache := newTestLRUCacheWithConfig(svidCacheMaxSize, clk)
 
-	// create entries more than maxSvidCacheSize
-	updateEntries := createUpdateEntries(SVIDCacheMaxSize+2, makeBundles(bundleV1))
+	// create entries more than svidCacheMaxSize
+	updateEntries := createUpdateEntries(svidCacheMaxSize+2, makeBundles(bundleV1))
 	cache.UpdateEntries(updateEntries, nil)
 
-	require.Len(t, cache.GetStaleEntries(), SVIDCacheMaxSize)
+	require.Len(t, cache.GetStaleEntries(), svidCacheMaxSize)
 
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDsFromStaleEntries(cache.GetStaleEntries()),
 	})
 	require.Len(t, cache.GetStaleEntries(), 0)
-	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
+	assert.Equal(t, svidCacheMaxSize, cache.CountX509SVIDs())
 
 	// Validate that active subscriber will still get SVID even if SVID count is at maxSvidCacheSize
 	foo := makeRegistrationEntry("FOO", "A")
@@ -767,25 +769,26 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 
 	cache.UpdateEntries(updateEntries, nil)
 	require.Len(t, cache.GetStaleEntries(), 1)
-	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
+	assert.Equal(t, svidCacheMaxSize, cache.CountX509SVIDs())
 
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo),
 	})
-	assert.Equal(t, SVIDCacheMaxSize+1, cache.CountX509SVIDs())
+	assert.Equal(t, svidCacheMaxSize+1, cache.CountX509SVIDs())
 	require.Len(t, cache.GetStaleEntries(), 0)
 }
 
 func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(clk)
+	svidCacheMaxSize := 5
+	cache := newTestLRUCacheWithConfig(svidCacheMaxSize, clk)
 
-	updateEntries := createUpdateEntries(SVIDCacheMaxSize, makeBundles(bundleV1))
+	updateEntries := createUpdateEntries(svidCacheMaxSize, makeBundles(bundleV1))
 	cache.UpdateEntries(updateEntries, nil)
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDsFromStaleEntries(cache.GetStaleEntries()),
 	})
-	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
+	assert.Equal(t, svidCacheMaxSize, cache.CountX509SVIDs())
 
 	// Update foo but its SVID is not yet cached
 	foo := makeRegistrationEntry("FOO", "A")
@@ -803,7 +806,7 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	require.Len(t, cache.GetStaleEntries(), 1)
 	assert.Equal(t, []*StaleEntry{{Entry: cache.records[foo.EntryId].entry}}, cache.GetStaleEntries())
 
-	assert.Equal(t, SVIDCacheMaxSize, cache.CountX509SVIDs())
+	assert.Equal(t, svidCacheMaxSize, cache.CountX509SVIDs())
 }
 
 func TestNotifySubscriberWhenSVIDIsAvailable(t *testing.T) {
@@ -828,12 +831,13 @@ func TestNotifySubscriberWhenSVIDIsAvailable(t *testing.T) {
 
 func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(clk)
+	svidCacheMaxSize := 1
+	cache := newTestLRUCacheWithConfig(svidCacheMaxSize, clk)
 
 	// Creating test entries, but this will not affect current test...
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
-	updateEntries := createUpdateEntries(SVIDCacheMaxSize, makeBundles(bundleV1))
+	updateEntries := createUpdateEntries(svidCacheMaxSize, makeBundles(bundleV1))
 	updateEntries.RegistrationEntries[foo.EntryId] = foo
 	updateEntries.RegistrationEntries[bar.EntryId] = bar
 	cache.UpdateEntries(updateEntries, nil)
@@ -874,7 +878,7 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 	<-subWaitCh
 	cache.SyncSVIDsWithSubscribers()
 
-	assert.Len(t, cache.GetStaleEntries(), SVIDCacheMaxSize)
+	assert.Len(t, cache.GetStaleEntries(), svidCacheMaxSize)
 	cache.UpdateSVIDs(&UpdateSVIDs{
 		X509SVIDs: makeX509SVIDs(foo, bar),
 	})
@@ -890,7 +894,7 @@ func TestSubscribeToWorkloadUpdatesLRUNoSelectors(t *testing.T) {
 
 func TestSubscribeToLRUCacheChanges(t *testing.T) {
 	clk := clock.NewMock(t)
-	cache := newTestLRUCacheWithConfig(clk)
+	cache := newTestLRUCacheWithConfig(1, clk)
 
 	foo := makeRegistrationEntry("FOO", "A")
 	bar := makeRegistrationEntry("BAR", "B")
@@ -979,7 +983,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 	batchProcessedCh := make(chan struct{}, 1)
 
 	// Initialize cache with configuration
-	cache := newTestLRUCacheWithConfig(clk)
+	cache := newTestLRUCacheWithConfig(10, clk)
 	cache.processingBatchSize = 4
 	cache.log = log
 	cache.taintedBatchProcessedCh = batchProcessedCh
@@ -1130,7 +1134,7 @@ func TestTaintX509SVIDsNoSVIDs(t *testing.T) {
 	log.Level = logrus.DebugLevel
 
 	// Initialize cache with configuration
-	cache := newTestLRUCacheWithConfig(clk)
+	cache := newTestLRUCacheWithConfig(10, clk)
 	cache.log = log
 
 	entries := createTestEntries(10)
@@ -1216,9 +1220,19 @@ func TestMetrics(t *testing.T) {
 }
 
 func TestNewLRUCache(t *testing.T) {
-	// expected cache size
-	cache := newTestLRUCacheWithConfig(clock.NewMock(t))
-	require.NotNil(t, cache)
+	// Negative for value for svidCacheMaxSize should set default value in
+	// cache.svidCacheMaxSize
+	cache := newTestLRUCacheWithConfig(-5, clock.NewMock(t))
+	require.Equal(t, DefaultSVIDCacheMaxSize, cache.svidCacheMaxSize)
+
+	// Zero for value for svidCacheMaxSize should set default value in
+	// cache.svidCacheMaxSize
+	cache = newTestLRUCacheWithConfig(0, clock.NewMock(t))
+	require.Equal(t, DefaultSVIDCacheMaxSize, cache.svidCacheMaxSize)
+
+	// Custom value for svidCacheMaxSize should propagate properly
+	cache = newTestLRUCacheWithConfig(55, clock.NewMock(t))
+	require.Equal(t, 55, cache.svidCacheMaxSize)
 }
 
 func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
@@ -1269,12 +1283,12 @@ func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
 func newTestLRUCache(t testing.TB) *LRUCache {
 	log, _ := test.NewNullLogger()
 	return NewLRUCache(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1,
-		telemetry.Blackhole{}, clock.NewMock(t))
+		telemetry.Blackhole{}, 0, clock.NewMock(t))
 }
 
-func newTestLRUCacheWithConfig(clk clock.Clock) *LRUCache {
+func newTestLRUCacheWithConfig(svidCacheMaxSize int, clk clock.Clock) *LRUCache {
 	log, _ := test.NewNullLogger()
-	return NewLRUCache(log, trustDomain1, bundleV1, telemetry.Blackhole{}, clk)
+	return NewLRUCache(log, trustDomain1, bundleV1, telemetry.Blackhole{}, svidCacheMaxSize, clk)
 }
 
 // numEntries should not be more than 12 digits

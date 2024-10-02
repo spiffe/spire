@@ -66,7 +66,7 @@ func newManager(c *Config) *manager {
 	}
 
 	cache := managerCache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
-		c.Metrics, c.Clk)
+		c.Metrics, c.SVIDCacheMaxSize, c.Clk)
 
 	rotCfg := &svid.RotatorConfig{
 		SVIDKeyManager:   keymanager.ForSVID(c.Catalog.GetKeyManager()),
