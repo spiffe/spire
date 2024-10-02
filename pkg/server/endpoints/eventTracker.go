@@ -61,6 +61,11 @@ func PollPeriods(pollTime time.Duration, trackTime time.Duration) uint {
  * Poll everything at poll rate for at least one minute, then poll everything
  * twice a minute for 9 minute, then onece a minute for rest of time, with a
  * guaranteed poll just before no longer tracking.
+ *
+ * This strategy is completely arbitrary.  Future boundary building approaches
+ * may be added if necessary, like linear (5, 10, 15, 20, 25, 30, 35, ...),
+ * exponential (2, 4, 8, 16, 32, 64, 128, 256, ...), exponential capped at a
+ * limit (2, 4, 8, 16, 30, 60, 90, 120, ...), cube root, etc.
  */
 func BoundaryBuilder(pollTime time.Duration, trackTime time.Duration) []uint {
 	pollPeriods := PollPeriods(pollTime, trackTime)
