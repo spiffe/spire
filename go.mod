@@ -64,7 +64,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.23
 	github.com/mitchellh/cli v1.1.5
-	github.com/open-policy-agent/opa v0.68.0
+	github.com/open-policy-agent/opa v0.69.0
 	github.com/prometheus/client_golang v1.20.4
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/sigstore/cosign/v2 v2.4.0
@@ -111,7 +111,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
-	github.com/agnivade/levenshtein v1.1.1 // indirect
+	github.com/agnivade/levenshtein v1.2.0 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.5 // indirect
