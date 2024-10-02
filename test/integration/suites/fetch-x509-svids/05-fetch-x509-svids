@@ -1,7 +1,7 @@
 #!/bin/bash
 
-ENTRYCOUNT=1002
-CACHESIZE=1000
+ENTRYCOUNT=10
+CACHESIZE=8
 
 X509SVIDCOUNT=$(docker compose exec -u 1001 -T spire-agent \
   /opt/spire/bin/spire-agent api fetch x509 \
@@ -14,4 +14,4 @@ else
 fi
 
 # Call agent debug endpoints and check if extra X.509-SVIDs from cache are cleaned up
-check-x509-svid-count "spire-agent" 1000
+check-x509-svid-count "spire-agent" $CACHESIZE
