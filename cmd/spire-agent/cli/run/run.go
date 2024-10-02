@@ -90,6 +90,7 @@ type agentConfig struct {
 	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
 	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
 	AvailabilityTarget            string    `hcl:"availability_target"`
+	X509SVIDCacheMaxSize          int       `hcl:"x509_svid_cache_max_size"`
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
@@ -493,6 +494,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if reopenableFile != nil {
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}
+
+	if c.Agent.X509SVIDCacheMaxSize < 0 {
+		return nil, errors.New("x509_svid_cache_max_size should not be negative")
+	}
+	ac.X509SVIDCacheMaxSize = c.Agent.X509SVIDCacheMaxSize
 
 	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
 	if err != nil {

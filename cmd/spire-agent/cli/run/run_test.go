@@ -898,6 +898,42 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "x509_svid_cache_max_size is set",
+			input: func(c *Config) {
+				c.Agent.X509SVIDCacheMaxSize = 100
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 100, c.X509SVIDCacheMaxSize)
+			},
+		},
+		{
+			msg: "x509_svid_cache_max_size is not set",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 0, c.X509SVIDCacheMaxSize)
+			},
+		},
+		{
+			msg: "x509_svid_cache_max_size is zero",
+			input: func(c *Config) {
+				c.Agent.X509SVIDCacheMaxSize = 0
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.EqualValues(t, 0, c.X509SVIDCacheMaxSize)
+			},
+		},
+		{
+			msg:         "x509_svid_cache_max_size is negative",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.X509SVIDCacheMaxSize = -10
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "allowed_foreign_jwt_claims provided",
 			input: func(c *Config) {
 				c.Agent.AllowedForeignJWTClaims = []string{"c1", "c2"}
