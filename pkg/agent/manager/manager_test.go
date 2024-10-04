@@ -1956,6 +1956,9 @@ func (h *mockAPI) getGRPCServerConfig(*tls.ClientHelloInfo) (*tls.Config, error)
 		Certificates: certs,
 		ClientCAs:    roots,
 		MinVersion:   tls.VersionTLS12,
+		NextProtos: []string{
+			"h2",
+		},
 	}, nil
 }
 
