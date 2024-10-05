@@ -621,7 +621,6 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 	// CryptoKeyVersions enabled.
 	storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
 	for _, fakeKey := range storedFakeCryptoKeys {
-
 		require.Equal(t, "true", fakeKey.getLabelValue(labelNameActive))
 		storedFakeCryptoKeyVersions := fakeKey.fetchFakeCryptoKeyVersions()
 		for _, fakeKeyVersion := range storedFakeCryptoKeyVersions {
