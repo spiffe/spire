@@ -13,9 +13,12 @@ import (
 	"fmt"
 	"path"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"cloud.google.com/go/iam"
 	"cloud.google.com/go/iam/apiv1/iampb"
@@ -31,6 +34,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+var lastUpdateFilterRegexp = regexp.MustCompile(fmt.Sprintf(`labels.%s < ([[:digit:]]+)`, labelNameLastUpdate))
 
 type fakeCryptoKeyIterator struct {
 	mu sync.RWMutex
@@ -614,15 +619,37 @@ func (k *fakeKMSClient) ListCryptoKeys(_ context.Context, req *kmspb.ListCryptoK
 		}
 
 		// We Have a simplified filtering logic in this fake implementation,
-		// where we only care about the spire-active label.
+		// where we only care about the spire-active and spire-last-update labels.
 		if req.Filter != "" {
 			if !strings.Contains(req.Filter, "labels.spire-active = true") {
-				{
-					k.t.Fatal("Unsupported filter in ListCryptoKeys request")
+				k.t.Fatal("Unsupported filter in ListCryptoKeys request")
+			}
+
+			lastUpdateRegexpResults := lastUpdateFilterRegexp.FindStringSubmatch(req.Filter)
+			var lastUpdateTimeFilter time.Time
+			var keyLastUpdateTime time.Time
+			if len(lastUpdateRegexpResults) == 2 {
+				lastUpdate := lastUpdateRegexpResults[1]
+				lastUpdateUnix, err := strconv.ParseInt(lastUpdate, 10, 64)
+				if err != nil {
+					k.t.Fatalf("Failed to parse last update time in request filter: %s", err)
 				}
-				if fck.Labels[labelNameActive] != "true" {
-					continue
+
+				lastUpdateTimeFilter = time.Unix(lastUpdateUnix, 0)
+
+				if keyLastUpdate, ok := fck.Labels[labelNameLastUpdate]; ok {
+					keyLastUpdateUnix, err := strconv.ParseInt(keyLastUpdate, 10, 64)
+					if err != nil {
+						k.t.Fatalf("Failed to parse last update time in crypto key: %s", err)
+					}
+
+					keyLastUpdateTime = time.Unix(keyLastUpdateUnix, 0)
 				}
+			}
+
+			if fck.Labels[labelNameActive] != "true" ||
+				(!lastUpdateTimeFilter.IsZero() && !keyLastUpdateTime.IsZero() && !keyLastUpdateTime.Before(lastUpdateTimeFilter)) {
+				continue
 			}
 		}
 
