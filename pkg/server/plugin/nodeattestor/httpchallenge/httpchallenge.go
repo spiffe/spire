@@ -64,7 +64,11 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 	var dnsPatterns []*regexp.Regexp
 	for _, r := range hclConfig.AllowedDNSPatterns {
-		re := regexp.MustCompile(r)
+		re, err := regexp.Compile(r)
+		if err != nil {
+			status.ReportErrorf("cannot compile allowed_dns_pattern: %q, %s", r, err)
+			continue
+		}
 		dnsPatterns = append(dnsPatterns, re)
 	}
 
