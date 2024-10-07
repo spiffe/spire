@@ -66,7 +66,6 @@ func TestPollPeriods(t *testing.T) {
 			expectedPollPeriods: 4,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			pollPeriods := endpoints.PollPeriods(tt.pollInterval, tt.pollDuration)
 
@@ -207,7 +206,6 @@ func TestNewEventTracker(t *testing.T) {
 			expectedBoundaries:   []uint{0, 10, 20, 30, 40, 50, 60, 120, 240, 480},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			eventTracker := endpoints.NewEventTracker(tt.pollPeriods, tt.boundaries)
 
@@ -300,7 +298,6 @@ func TestEvenTrackerPolling(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			eventTracker := endpoints.NewEventTracker(tt.pollPeriods, tt.boundaries)
 			require.Equal(t, tt.expectedPolls, eventTracker.Polls(),
@@ -944,15 +941,14 @@ func TestEvenDispersion(t *testing.T) {
 			permissibleCountError: 50, // 5% of 1000
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			eventTracker := endpoints.NewEventTracker(tt.pollPeriods, []uint{0})
+			eventTracker := endpoints.NewEventTracker(3*tt.pollPeriods, []uint{0, tt.pollPeriods, 2 * tt.pollPeriods})
 			slotCount := make(map[uint]uint)
 			for item := range tt.eventCount {
 				event := tt.startEvent + tt.eventIncrement*item
 				eventTracker.StartTracking(event)
 			}
-			for pollPeriod := range tt.pollPeriods {
+			for pollPeriod := range 3 * tt.pollPeriods {
 				events := eventTracker.SelectEvents()
 				slotCount[pollPeriod] = uint(len(events))
 				t.Logf("pollPeriod %d, count = %d", pollPeriod, slotCount[pollPeriod])
@@ -1104,7 +1100,6 @@ func TestBoundaryBuilder(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			pollInterval, err := time.ParseDuration(tt.pollInterval)
 			require.NoError(t, err, "error in specifying test poll interval")
