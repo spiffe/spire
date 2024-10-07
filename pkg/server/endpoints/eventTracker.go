@@ -7,14 +7,28 @@ import (
 )
 
 /**
- * Tracks events as they indivicually walk through a list of event boundaries.
+ * A dummy event tracker that polls every item every time it can.
  *
- * An event track is defined with a set of boundaries, which are indexes to
- * virtual hash tables, with the event's hash determining the position within
- * that hash table where the event will be selected to be polled.
- * For eventTRackers that lack boundaries, or polls that exist prior to
- * boundaries, the event is always polled.
+ * This is a stub, and only exists for future replacement when
+ * be entangled in slow-to commit transactions.
+ *
+ * If an event is discovered to exist, please call "StopTracking(id)" to release
+ * the item from the tracker prior to hitting that item's remaining "PollPeriods"
+ * limit of time slices.
  */
+type EventTracker interface {
+	/* Starts tracking an event. */
+	StartTracking(event uint)
+	/* Stops tracking an event. */
+	StopTracking(event uint)
+	/* The nubmer of times an item will be considered for polling */
+	PollPeriods() uint
+	/* The nubmer of times an item will be considered for polling */
+	InitialPolls() uint
+	/* The maximum number of times an item will be polled */
+	Polls() uint
+}
+
 type eventTracker struct {
 	/* Times the event is polled before entering a boundary */
 	initialPolls uint
@@ -212,6 +226,7 @@ func (et *eventTracker) SelectEvents() []uint {
 			boundaryPosition := eventStats.hash % boundaryWidth
 			if eventStats.ticks == et.boundaries[boundaryIndex]+boundaryPosition {
 				pollList = append(pollList, event)
+				eventStats.polls++
 			}
 		// last boundary
 		case boundaryIndex < uint(len(et.boundaries)):
@@ -219,6 +234,7 @@ func (et *eventTracker) SelectEvents() []uint {
 			boundaryPosition := eventStats.hash % boundaryWidth
 			if eventStats.ticks == et.boundaries[boundaryIndex]+boundaryPosition {
 				pollList = append(pollList, event)
+				eventStats.polls++
 			}
 		}
 		eventStats.ticks++
