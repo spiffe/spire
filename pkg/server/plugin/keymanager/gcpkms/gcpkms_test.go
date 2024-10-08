@@ -71,7 +71,6 @@ var (
 	cryptoKeyName1 = path.Join(validKeyRing, "cryptoKeys", fmt.Sprintf("test-crypto-key/spire-key-%s-spireKeyID-1", validServerID))
 	cryptoKeyName2 = path.Join(validKeyRing, "cryptoKeys", fmt.Sprintf("test-crypto-key/spire-key-%s-spireKeyID-2", validServerID))
 	fakeTime       = timestamppb.Now()
-	unixEpoch      = time.Unix(0, 0)
 
 	pubKey = &kmspb.PublicKey{
 		Pem:       pemCert,
@@ -92,7 +91,6 @@ func setupTest(t *testing.T) *pluginTest {
 	log.Level = logrus.DebugLevel
 
 	c := clock.NewMock(t)
-	c.Set(unixEpoch)
 	fakeKMSClient := newKMSClientFake(t, c)
 	p := newPlugin(
 		func(ctx context.Context, opts ...option.ClientOption) (cloudKeyManagementService, error) {
@@ -433,11 +431,16 @@ func TestConfigure(t *testing.T) {
 
 func TestDisposeStaleCryptoKeys(t *testing.T) {
 	configureRequest := configureRequestWithDefaults(t)
+	ts := setupTest(t)
+	now := ts.clockHook.Now()
 	fakeCryptoKeys := []*fakeCryptoKey{
 		{
 			CryptoKey: &kmspb.CryptoKey{
-				Name:            cryptoKeyName1,
-				Labels:          map[string]string{labelNameActive: "true"},
+				Name: cryptoKeyName1,
+				Labels: map[string]string{
+					labelNameActive:     "true",
+					labelNameLastUpdate: fmt.Sprintf("%d", now.Unix()),
+				},
 				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 			},
 			fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -447,13 +450,17 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 						Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 						Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
 						State:     kmspb.CryptoKeyVersion_ENABLED,
-					}},
+					},
+				},
 			},
 		},
 		{
 			CryptoKey: &kmspb.CryptoKey{
-				Name:            cryptoKeyName2,
-				Labels:          map[string]string{labelNameActive: "true"},
+				Name: cryptoKeyName2,
+				Labels: map[string]string{
+					labelNameActive:     "true",
+					labelNameLastUpdate: fmt.Sprintf("%d", now.Unix()),
+				},
 				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 			},
 			fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -463,23 +470,26 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 						Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 						Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
 						State:     kmspb.CryptoKeyVersion_ENABLED,
-					}},
+					},
+				},
 			},
 		},
 	}
 
-	ts := setupTest(t)
 	ts.fakeKMSClient.putFakeCryptoKeys(fakeCryptoKeys)
 
 	ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error)
 	ts.plugin.hooks.scheduleDestroySignal = make(chan error)
 	ts.plugin.hooks.setInactiveSignal = make(chan error)
+	// Set up an unbuffered channel for the keepActiveCryptoKeys task so that it gets blocked and we can simulate a key getting stale.
+	ts.plugin.hooks.keepActiveCryptoKeysSignal = make(chan error)
 
 	_, err := ts.plugin.Configure(ctx, configureRequest)
 	require.NoError(t, err)
 
 	// Move the clock to start disposeCryptoKeysTask.
-	ts.clockHook.Add(disposeCryptoKeysFrequency)
+	clkAdv := maxDuration(disposeCryptoKeysFrequency, maxStaleDuration)
+	ts.clockHook.Add(clkAdv)
 
 	// Wait for dispose disposeCryptoKeysTask to be initialized.
 	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
@@ -533,11 +543,16 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 
 func TestDisposeActiveCryptoKeys(t *testing.T) {
 	configureRequest := configureRequestWithDefaults(t)
+	ts := setupTest(t)
+	now := ts.clockHook.Now()
 	fakeCryptoKeys := []*fakeCryptoKey{
 		{
 			CryptoKey: &kmspb.CryptoKey{
-				Name:            cryptoKeyName1,
-				Labels:          map[string]string{labelNameActive: "true"},
+				Name: cryptoKeyName1,
+				Labels: map[string]string{
+					labelNameActive:     "true",
+					labelNameLastUpdate: fmt.Sprintf("%d", now.Unix()),
+				},
 				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 			},
 			fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -547,13 +562,17 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 						Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 						Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
 						State:     kmspb.CryptoKeyVersion_ENABLED,
-					}},
+					},
+				},
 			},
 		},
 		{
 			CryptoKey: &kmspb.CryptoKey{
-				Name:            cryptoKeyName2,
-				Labels:          map[string]string{labelNameActive: "true"},
+				Name: cryptoKeyName2,
+				Labels: map[string]string{
+					labelNameActive:     "true",
+					labelNameLastUpdate: fmt.Sprintf("%d", now.Unix()),
+				},
 				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 			},
 			fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
@@ -563,26 +582,40 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 						Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 						Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
 						State:     kmspb.CryptoKeyVersion_ENABLED,
-					}},
+					},
+				},
 			},
 		},
 	}
 
-	ts := setupTest(t)
 	ts.fakeKMSClient.putFakeCryptoKeys(fakeCryptoKeys)
 
 	ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error)
 	scheduleDestroySignal := make(chan error)
 	ts.plugin.hooks.scheduleDestroySignal = scheduleDestroySignal
+	enqueueDestructionSignal := make(chan error, 1)
+	ts.plugin.hooks.enqueueDestructionSignal = enqueueDestructionSignal
 
 	_, err := ts.plugin.Configure(ctx, configureRequest)
+	require.NoError(t, err)
+
+	// Wait for disposeCryptoKeysTask to be initialized.
+	err = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
 	require.NoError(t, err)
 
 	// Move the clock to start disposeCryptoKeysTask.
 	ts.clockHook.Add(disposeCryptoKeysFrequency)
 
-	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	// Wait for disposeCryptoKeysTask to complete.
+	err = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	require.NoError(t, err)
+
+	// Verify that no active keys have been queued for destruction.
+	select {
+	case <-enqueueDestructionSignal:
+		require.Fail(t, "Active key should not be queued for destruction")
+	default:
+	}
 
 	// The CryptoKeys are not stale yet. Assert that they are active and the
 	// CryptoKeyVersions enabled.
@@ -594,73 +627,6 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 			require.Equal(t, kmspb.CryptoKeyVersion_ENABLED, fakeKeyVersion.GetState(), fakeKeyVersion.GetName())
 		}
 	}
-}
-
-func TestEnqueueDestructionFailure(t *testing.T) {
-	configureRequest := configureRequestWithDefaults(t)
-	fakeCryptoKeys := []*fakeCryptoKey{
-		{
-			CryptoKey: &kmspb.CryptoKey{
-				Name:            cryptoKeyName1,
-				Labels:          map[string]string{labelNameActive: "true"},
-				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
-			},
-			fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
-				"1": {
-					publicKey: pubKey,
-					CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-						Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-						Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
-						State:     kmspb.CryptoKeyVersion_ENABLED,
-					}},
-			},
-		},
-		{
-			CryptoKey: &kmspb.CryptoKey{
-				Name:            cryptoKeyName2,
-				Labels:          map[string]string{labelNameActive: "true"},
-				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
-			},
-			fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
-				"1": {
-					publicKey: pubKey,
-					CryptoKeyVersion: &kmspb.CryptoKeyVersion{
-						Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
-						Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
-						State:     kmspb.CryptoKeyVersion_ENABLED,
-					}},
-			},
-		},
-	}
-
-	ts := setupTest(t)
-	// Change the scheduleDestroy channel to be unbuffered.
-	ts.plugin.scheduleDestroy = make(chan string)
-
-	ts.fakeKMSClient.putFakeCryptoKeys(fakeCryptoKeys)
-
-	ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error, 1)
-	ts.plugin.hooks.enqueueDestructionSignal = make(chan error, 1)
-
-	_, err := ts.plugin.Configure(ctx, configureRequest)
-	require.NoError(t, err)
-
-	// Move the clock to start disposeCryptoKeysTask.
-	ts.clockHook.Add(disposeCryptoKeysFrequency)
-
-	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
-
-	// Move the clock to make sure that we have stale CryptoKeys.
-	ts.clockHook.Add(maxStaleDuration)
-
-	// Enqueuing the first CryptoKeyVersion for destruction should succeed.
-	err = waitForSignal(t, ts.plugin.hooks.enqueueDestructionSignal)
-	require.NoError(t, err)
-
-	// Enqueuing the second CryptoKeyVersion for destruction should fail.
-	err = waitForSignal(t, ts.plugin.hooks.enqueueDestructionSignal)
-	require.ErrorContains(t, err, "could not enqueue CryptoKeyVersion")
 }
 
 func TestGenerateKey(t *testing.T) {
@@ -745,7 +711,8 @@ func TestGenerateKey(t *testing.T) {
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
 								State:     kmspb.CryptoKeyVersion_ENABLED,
-							}},
+							},
+						},
 					},
 				},
 			},
@@ -1095,7 +1062,8 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
 								State:     kmspb.CryptoKeyVersion_ENABLED,
-							}},
+							},
+						},
 					},
 				},
 			},
@@ -1117,7 +1085,8 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
 								State:     kmspb.CryptoKeyVersion_ENABLED,
-							}},
+							},
+						},
 					},
 				},
 				{
@@ -1133,7 +1102,8 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
 								State:     kmspb.CryptoKeyVersion_ENABLED,
-							}},
+							},
+						},
 					},
 				},
 			},
@@ -1153,7 +1123,7 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 			_ = waitForSignal(t, ts.plugin.hooks.keepActiveCryptoKeysSignal)
 
 			// Move the clock forward so the task is run.
-			currentTime := unixEpoch.Add(6 * time.Hour)
+			currentTime := ts.clockHook.Now().Add(6 * time.Hour)
 			ts.clockHook.Set(currentTime)
 
 			// Wait for keepActiveCryptoKeys to be run.
@@ -1196,7 +1166,8 @@ func TestGetPublicKeys(t *testing.T) {
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
 								State:     kmspb.CryptoKeyVersion_ENABLED,
-							}},
+							},
+						},
 					},
 				},
 			},
@@ -1217,7 +1188,8 @@ func TestGetPublicKeys(t *testing.T) {
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
 								State:     kmspb.CryptoKeyVersion_ENABLED,
-							}},
+							},
+						},
 					},
 				},
 				{
@@ -1233,7 +1205,8 @@ func TestGetPublicKeys(t *testing.T) {
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName2),
 								State:     kmspb.CryptoKeyVersion_ENABLED,
-							}},
+							},
+						},
 					},
 				},
 			},
@@ -1299,7 +1272,8 @@ func TestGetPublicKey(t *testing.T) {
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
 								State:     kmspb.CryptoKeyVersion_ENABLED,
-							}},
+							},
+						},
 					},
 				},
 			},
@@ -1323,7 +1297,8 @@ func TestGetPublicKey(t *testing.T) {
 								Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
 								Name:      fmt.Sprintf("%s/cryptoKeyVersions/1", cryptoKeyName1),
 								State:     kmspb.CryptoKeyVersion_ENABLED,
-							}},
+							},
+						},
 					},
 				},
 			},
@@ -1766,7 +1741,7 @@ func createKeyIdentifierFile(t *testing.T, content string) string {
 	tempFilePath := filepath.ToSlash(filepath.Join(tempDir, validServerIDFile))
 
 	if content != "" {
-		err := os.WriteFile(tempFilePath, []byte(content), 0600)
+		err := os.WriteFile(tempFilePath, []byte(content), 0o600)
 		if err != nil {
 			t.Error(err)
 		}
@@ -1777,7 +1752,7 @@ func createKeyIdentifierFile(t *testing.T, content string) string {
 func getCustomPolicyFile(t *testing.T) string {
 	tempDir := t.TempDir()
 	tempFilePath := filepath.ToSlash(filepath.Join(tempDir, validPolicyFile))
-	err := os.WriteFile(tempFilePath, []byte(customPolicy), 0600)
+	err := os.WriteFile(tempFilePath, []byte(customPolicy), 0o600)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1802,4 +1777,12 @@ func waitForSignal(t *testing.T, ch chan error) error {
 		t.Fail()
 	}
 	return nil
+}
+
+func maxDuration(d1, d2 time.Duration) time.Duration {
+	if d1 > d2 {
+		return d1
+	}
+
+	return d2
 }

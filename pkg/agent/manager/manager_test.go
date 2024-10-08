@@ -883,7 +883,7 @@ func TestForceRotation(t *testing.T) {
 
 	// Wait until tainted authorities are fully processed, then retry synchronization
 	assert.Eventually(t, func() bool {
-		for _, logEntry := range logHook.Entries {
+		for _, logEntry := range logHook.AllEntries() {
 			if logEntry.Message == "Finished processing all tainted entries" {
 				return true
 			}
@@ -1956,6 +1956,9 @@ func (h *mockAPI) getGRPCServerConfig(*tls.ClientHelloInfo) (*tls.Config, error)
 		Certificates: certs,
 		ClientCAs:    roots,
 		MinVersion:   tls.VersionTLS12,
+		NextProtos: []string{
+			"h2",
+		},
 	}, nil
 }
 

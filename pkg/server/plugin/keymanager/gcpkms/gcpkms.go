@@ -605,7 +605,7 @@ func (p *Plugin) disposeCryptoKeys(ctx context.Context) error {
 	return nil
 }
 
-// disposeCryptoKeysTask will be run every 24hs.
+// disposeCryptoKeysTask will be run every 24hr.
 // It will schedule the destruction of CryptoKeyVersions that have a
 // spire-last-update label value older than two weeks.
 // It will only schedule the destruction of CryptoKeyVersions belonging to the

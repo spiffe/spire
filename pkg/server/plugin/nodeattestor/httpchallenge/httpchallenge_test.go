@@ -69,6 +69,40 @@ func TestConfigure(t *testing.T) {
 			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
 			hclConf:  "tofu = false\nallow_non_root_ports = true",
 		},
+		{
+			name:     "allowed_dns_patterns cannot compile, report an error",
+			expErr:   "rpc error: code = InvalidArgument desc = cannot compile allowed_dns_pattern: ",
+			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
+			hclConf:  `allowed_dns_patterns = ["*"]`,
+		},
+		{
+			name:     "first allowed_dns_patterns cannot compile, report an error",
+			expErr:   "rpc error: code = InvalidArgument desc = cannot compile allowed_dns_pattern: ",
+			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
+			hclConf: `allowed_dns_patterns = [
+					"*",
+					"gateway[.]example[.]com"
+			  	  ]`,
+		},
+		{
+			name:     "middle allowed_dns_patterns cannot compile, report an error",
+			expErr:   "rpc error: code = InvalidArgument desc = cannot compile allowed_dns_pattern: ",
+			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
+			hclConf: `allowed_dns_patterns = [
+                                         "ps1[.]example[.]org",
+                                         "*",
+                                         "gateway[.]example[.]com"
+                                   ]`,
+		},
+		{
+			name:     "last allowed_dns_patterns cannot compile, report an error",
+			expErr:   "rpc error: code = InvalidArgument desc = cannot compile allowed_dns_pattern: ",
+			coreConf: &configv1.CoreConfiguration{TrustDomain: "example.org"},
+			hclConf: `allowed_dns_patterns = [
+                                         "gateway[.]example[.]com",
+                                         "*"
+                                   ]`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -80,7 +114,8 @@ func TestConfigure(t *testing.T) {
 				CoreConfiguration: tt.coreConf,
 			})
 			if tt.expErr != "" {
-				require.Contains(t, err.Error(), tt.expErr)
+				require.Error(t, err, "no error raised when error is expected")
+				require.ErrorContains(t, err, tt.expErr)
 				require.Nil(t, resp)
 				return
 			}
