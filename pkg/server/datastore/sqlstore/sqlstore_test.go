@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -1873,38 +1872,6 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			expectError: "datastore-sql: invalid request: missing registered entry",
 		},
 		{
-			name: "no selectors",
-			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
-				e.Selectors = nil
-				return e
-			},
-			expectError: "datastore-sql: invalid registration entry: missing selector list",
-		},
-		{
-			name: "no SPIFFE ID",
-			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
-				e.SpiffeId = ""
-				return e
-			},
-			expectError: "datastore-sql: invalid registration entry: missing SPIFFE ID",
-		},
-		{
-			name: "negative X509 ttl",
-			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
-				e.X509SvidTtl = -1
-				return e
-			},
-			expectError: "datastore-sql: invalid registration entry: X509SvidTtl is not set",
-		},
-		{
-			name: "negative JWT ttl",
-			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
-				e.JwtSvidTtl = -1
-				return e
-			},
-			expectError: "datastore-sql: invalid registration entry: JwtSvidTtl is not set",
-		},
-		{
 			name: "create entry successfully",
 			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				return e
@@ -1962,22 +1929,6 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			},
 			expectSimilar: true,
 		},
-		{
-			name: "entry ID too long",
-			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
-				e.EntryId = strings.Repeat("e", 256)
-				return e
-			},
-			expectError: "datastore-sql: invalid registration entry: entry ID too long",
-		},
-		{
-			name: "entry ID contains invalid characters",
-			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
-				e.EntryId = "éntry😊"
-				return e
-			},
-			expectError: "datastore-sql: invalid registration entry: entry ID contains invalid characters",
-		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
 			entry := &common.RegistrationEntry{
@@ -2014,19 +1965,6 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			s.assertEntryEqual(t, entry, createdEntry, now)
 		})
 	}
-}
-
-func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
-	var invalidRegistrationEntries []*common.RegistrationEntry
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
-
-	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
-		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, invalidRegistrationEntry)
-		s.Require().Error(err)
-		s.Require().Nil(registrationEntry)
-	}
-
-	// TODO: Check that no entries have been created
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntry() {
@@ -3024,16 +2962,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithStoreSvid() {
 	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
 	s.Require().NoError(err)
 	s.RequireProtoEqual(updateRegistrationEntry, fetchRegistrationEntry)
-
-	// Update with invalid selectors
-	entry.Selectors = []*common.Selector{
-		{Type: "Type1", Value: "Value1"},
-		{Type: "Type1", Value: "Value2"},
-		{Type: "Type2", Value: "Value3"},
-	}
-	resp, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
-	s.Require().Nil(resp)
-	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled")
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
@@ -3103,10 +3031,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{SpiffeId: false},
 			update: func(e *common.RegistrationEntry) { e.SpiffeId = newEntry.SpiffeId },
 			result: func(e *common.RegistrationEntry) {}},
-		{name: "Update Spiffe ID, Bad Data, Mask True",
-			mask:   &common.RegistrationEntryMask{SpiffeId: true},
-			update: func(e *common.RegistrationEntry) { e.SpiffeId = badEntry.SpiffeId },
-			err:    errors.New("invalid registration entry: missing SPIFFE ID")},
 		{name: "Update Spiffe ID, Bad Data, Mask False",
 			mask:   &common.RegistrationEntryMask{SpiffeId: false},
 			update: func(e *common.RegistrationEntry) { e.SpiffeId = badEntry.SpiffeId },
@@ -3129,10 +3053,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{X509SvidTtl: false},
 			update: func(e *common.RegistrationEntry) { e.X509SvidTtl = badEntry.X509SvidTtl },
 			result: func(e *common.RegistrationEntry) {}},
-		{name: "Update X509 SVID TTL, Bad Data, Mask True",
-			mask:   &common.RegistrationEntryMask{X509SvidTtl: true},
-			update: func(e *common.RegistrationEntry) { e.X509SvidTtl = badEntry.X509SvidTtl },
-			err:    errors.New("invalid registration entry: X509SvidTtl is not set")},
 		{name: "Update X509 SVID TTL, Bad Data, Mask False",
 			mask:   &common.RegistrationEntryMask{X509SvidTtl: false},
 			update: func(e *common.RegistrationEntry) { e.X509SvidTtl = badEntry.X509SvidTtl },
@@ -3146,10 +3066,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{JwtSvidTtl: false},
 			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
 			result: func(e *common.RegistrationEntry) {}},
-		{name: "Update JWT SVID TTL, Bad Data, Mask True",
-			mask:   &common.RegistrationEntryMask{JwtSvidTtl: true},
-			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
-			err:    errors.New("invalid registration entry: JwtSvidTtl is not set")},
 		{name: "Update JWT SVID TTL, Bad Data, Mask False",
 			mask:   &common.RegistrationEntryMask{JwtSvidTtl: false},
 			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
@@ -3163,10 +3079,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Selectors: false},
 			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
 			result: func(e *common.RegistrationEntry) {}},
-		{name: "Update Selectors, Bad Data, Mask True",
-			mask:   &common.RegistrationEntryMask{Selectors: true},
-			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
-			err:    errors.New("invalid registration entry: missing selector list")},
 		{name: "Update Selectors, Bad Data, Mask False",
 			mask:   &common.RegistrationEntryMask{Selectors: false},
 			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
@@ -3199,17 +3111,6 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 			mask:   &common.RegistrationEntryMask{Admin: false},
 			update: func(e *common.RegistrationEntry) { e.StoreSvid = newEntry.StoreSvid },
 			result: func(e *common.RegistrationEntry) {}},
-		{name: "Update StoreSvid, Invalid selectors, Mask True",
-			mask: &common.RegistrationEntryMask{StoreSvid: true, Selectors: true},
-			update: func(e *common.RegistrationEntry) {
-				e.StoreSvid = newEntry.StoreSvid
-				e.Selectors = []*common.Selector{
-					{Type: "Type1", Value: "Value1"},
-					{Type: "Type2", Value: "Value2"},
-				}
-			},
-			err: sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
-		},
 
 		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
 		{name: "Update EntryExpiry, Good Data, Mask True",

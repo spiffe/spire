@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -21,6 +22,17 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var validEntryIDChars = &unicode.RangeTable{
+	R16: []unicode.Range16{
+		{0x002d, 0x002e, 1}, // - | .
+		{0x0030, 0x0039, 1}, // [0-9]
+		{0x0041, 0x005a, 1}, // [A-Z]
+		{0x005f, 0x005f, 1}, // _
+		{0x0061, 0x007a, 1}, // [a-z]
+	},
+	LatinOffset: 5,
+}
 
 const defaultEntryPageSize = 500
 
@@ -275,6 +287,45 @@ func (s *Service) BatchCreateEntry(ctx context.Context, req *entryv1.BatchCreate
 	}, nil
 }
 
+func validateRegistrationEntry(entry *common.RegistrationEntry) error {
+	// In case of StoreSvid is set, all entries 'must' be the same type,
+	// it is done to avoid users to mix selectors from different platforms in
+	// entries with storable SVIDs
+	if entry.StoreSvid {
+		// Selectors must never be empty
+		tpe := entry.Selectors[0].Type
+		for _, t := range entry.Selectors {
+			if tpe != t.Type {
+				return errors.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+			}
+		}
+	}
+
+	if len(entry.EntryId) > 255 {
+		return errors.New("invalid registration entry: entry ID too long")
+	}
+
+	for _, e := range entry.EntryId {
+		if !unicode.In(e, validEntryIDChars) {
+			return errors.New("invalid registration entry: entry ID contains invalid characters")
+		}
+	}
+
+	if len(entry.SpiffeId) == 0 {
+		return errors.New("invalid registration entry: missing SPIFFE ID")
+	}
+
+	if entry.X509SvidTtl < 0 {
+		return errors.New("invalid registration entry: X509SvidTtl is not set")
+	}
+
+	if entry.JwtSvidTtl < 0 {
+		return errors.New("invalid registration entry: JwtSvidTtl is not set")
+	}
+
+	return nil
+}
+
 func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *types.EntryMask) *entryv1.BatchCreateEntryResponse_Result {
 	log := rpccontext.Logger(ctx)
 
@@ -282,6 +333,12 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 	if err != nil {
 		return &entryv1.BatchCreateEntryResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
+		}
+	}
+
+	if err := validateRegistrationEntry(cEntry); err != nil {
+		return &entryv1.BatchCreateEntryResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to create entry", err),
 		}
 	}
 
@@ -630,6 +687,46 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 	}
 }
 
+func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) error {
+	if entry == nil {
+		return errors.New("invalid request: missing registered entry")
+	}
+
+	if (mask == nil || mask.Selectors) && len(entry.Selectors) == 0 {
+		return errors.New("invalid registration entry: missing selector list")
+	}
+
+	// In case of StoreSvid is set, all entries 'must' be the same type,
+	// it is done to avoid users to mix selectors from different platforms in
+	// entries with storable SVIDs
+	if entry.StoreSvid {
+		// Selectors must never be empty
+		tpe := entry.Selectors[0].Type
+		for _, t := range entry.Selectors {
+			if tpe != t.Type {
+				return errors.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+			}
+		}
+	}
+
+	if (mask == nil || mask.SpiffeId) &&
+		entry.SpiffeId == "" {
+		return errors.New("invalid registration entry: missing SPIFFE ID")
+	}
+
+	if (mask == nil || mask.X509SvidTtl) &&
+		(entry.X509SvidTtl < 0) {
+		return errors.New("invalid registration entry: X509SvidTtl is not set")
+	}
+
+	if (mask == nil || mask.JwtSvidTtl) &&
+		(entry.JwtSvidTtl < 0) {
+		return errors.New("invalid registration entry: JwtSvidTtl is not set")
+	}
+
+	return nil
+}
+
 func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *types.EntryMask, outputMask *types.EntryMask) *entryv1.BatchUpdateEntryResponse_Result {
 	log := rpccontext.Logger(ctx)
 	log = log.WithField(telemetry.RegistrationID, e.Id)
@@ -658,6 +755,13 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 			Hint:          inputMask.Hint,
 		}
 	}
+
+	if err := validateRegistrationEntryForUpdate(convEntry, mask); err != nil {
+		return &entryv1.BatchUpdateEntryResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to update entry", err),
+		}
+	}
+
 	dsEntry, err := s.ds.UpdateRegistrationEntry(ctx, convEntry, mask)
 	if err != nil {
 		return &entryv1.BatchUpdateEntryResponse_Result{

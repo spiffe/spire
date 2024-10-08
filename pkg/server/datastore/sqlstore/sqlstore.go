@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/hcl"
@@ -37,17 +36,7 @@ import (
 )
 
 var (
-	sqlError          = errs.Class("datastore-sql")
-	validEntryIDChars = &unicode.RangeTable{
-		R16: []unicode.Range16{
-			{0x002d, 0x002e, 1}, // - | .
-			{0x0030, 0x0039, 1}, // [0-9]
-			{0x0041, 0x005a, 1}, // [A-Z]
-			{0x005f, 0x005f, 1}, // _
-			{0x0061, 0x007a, 1}, // [a-z]
-		},
-		LatinOffset: 5,
-	}
+	sqlError = errs.Class("datastore-sql")
 )
 
 const (
@@ -473,9 +462,8 @@ func (ds *Plugin) CreateOrReturnRegistrationEntry(ctx context.Context,
 func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 	entry *common.RegistrationEntry,
 ) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
-	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
-	if err = validateRegistrationEntry(entry); err != nil {
-		return nil, false, err
+	if entry == nil {
+		return nil, false, sqlError.New("invalid request: missing registered entry")
 	}
 
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -3879,8 +3867,8 @@ func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error
 }
 
 func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *common.RegistrationEntryMask) (*common.RegistrationEntry, error) {
-	if err := validateRegistrationEntryForUpdate(e, mask); err != nil {
-		return nil, err
+	if e == nil {
+		return nil, sqlError.New("invalid request: missing registered entry")
 	}
 
 	// Get the existing entry
@@ -3907,11 +3895,6 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 			selectors = append(selectors, selector)
 		}
 		entry.Selectors = selectors
-	}
-
-	// Verify that final selectors contains the same 'type' when entry is used for store SVIDs
-	if entry.StoreSvid && !equalSelectorTypes(entry.Selectors) {
-		return nil, sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 	}
 
 	if mask == nil || mask.DnsNames {
@@ -4394,94 +4377,6 @@ func modelToBundle(model *Bundle) (*common.Bundle, error) {
 	}
 
 	return bundle, nil
-}
-
-func validateRegistrationEntry(entry *common.RegistrationEntry) error {
-	if entry == nil {
-		return sqlError.New("invalid request: missing registered entry")
-	}
-
-	if len(entry.Selectors) == 0 {
-		return sqlError.New("invalid registration entry: missing selector list")
-	}
-
-	// In case of StoreSvid is set, all entries 'must' be the same type,
-	// it is done to avoid users to mix selectors from different platforms in
-	// entries with storable SVIDs
-	if entry.StoreSvid {
-		// Selectors must never be empty
-		tpe := entry.Selectors[0].Type
-		for _, t := range entry.Selectors {
-			if tpe != t.Type {
-				return sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
-			}
-		}
-	}
-
-	if len(entry.EntryId) > 255 {
-		return sqlError.New("invalid registration entry: entry ID too long")
-	}
-
-	for _, e := range entry.EntryId {
-		if !unicode.In(e, validEntryIDChars) {
-			return sqlError.New("invalid registration entry: entry ID contains invalid characters")
-		}
-	}
-
-	if len(entry.SpiffeId) == 0 {
-		return sqlError.New("invalid registration entry: missing SPIFFE ID")
-	}
-
-	if entry.X509SvidTtl < 0 {
-		return sqlError.New("invalid registration entry: X509SvidTtl is not set")
-	}
-
-	if entry.JwtSvidTtl < 0 {
-		return sqlError.New("invalid registration entry: JwtSvidTtl is not set")
-	}
-
-	return nil
-}
-
-// equalSelectorTypes validates that all selectors has the same type,
-func equalSelectorTypes(selectors []Selector) bool {
-	typ := ""
-	for _, t := range selectors {
-		switch {
-		case typ == "":
-			typ = t.Type
-		case typ != t.Type:
-			return false
-		}
-	}
-	return true
-}
-
-func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) error {
-	if entry == nil {
-		return sqlError.New("invalid request: missing registered entry")
-	}
-
-	if (mask == nil || mask.Selectors) && len(entry.Selectors) == 0 {
-		return sqlError.New("invalid registration entry: missing selector list")
-	}
-
-	if (mask == nil || mask.SpiffeId) &&
-		entry.SpiffeId == "" {
-		return sqlError.New("invalid registration entry: missing SPIFFE ID")
-	}
-
-	if (mask == nil || mask.X509SvidTtl) &&
-		(entry.X509SvidTtl < 0) {
-		return sqlError.New("invalid registration entry: X509SvidTtl is not set")
-	}
-
-	if (mask == nil || mask.JwtSvidTtl) &&
-		(entry.JwtSvidTtl < 0) {
-		return sqlError.New("invalid registration entry: JwtSvidTtl is not set")
-	}
-
-	return nil
 }
 
 // bundleToModel converts the given Protobuf bundle message to a database model. It
