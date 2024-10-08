@@ -194,7 +194,6 @@ func TestLoadNodeCache(t *testing.T) {
 			expectedAuthorizedEntries: []string{},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()

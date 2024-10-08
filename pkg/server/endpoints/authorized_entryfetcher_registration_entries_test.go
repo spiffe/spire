@@ -19,10 +19,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/require"
-	/*
-	   "github.com/spiffe/go-spiffe/v2/spiffeid"
-	   "github.com/spiffe/spire/pkg/common/idutil"
-	*/)
+)
 
 var (
 	NodeAliasesByEntryID  = []string{telemetry.Entry, telemetry.NodeAliasesByEntryIDCache, telemetry.Count}
@@ -373,7 +370,6 @@ func TestLoadEntryCache(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewEntryScenario(t, tt.setup)
 			registrationEntries, err := scenario.buildRegistrationEntriesCache()
