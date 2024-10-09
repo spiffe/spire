@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -30,11 +31,11 @@ var (
 
 	// defaults used to setup a small initial load of attested nodes and events.
 	defaultAttestedNodes = []*common.AttestedNode{
-		&common.AttestedNode{
+		{
 			SpiffeId:     "spiffe://example.org/test_node_2",
 			CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 		},
-		&common.AttestedNode{
+		{
 			SpiffeId:     "spiffe://example.org/test_node_3",
 			CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 		},
@@ -83,7 +84,7 @@ func TestLoadNodeCache(t *testing.T) {
 			name: "initial load loads one attested node",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_1",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
@@ -102,23 +103,23 @@ func TestLoadNodeCache(t *testing.T) {
 			name: "initial load loads five attested nodes",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_1",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_2",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_4",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_5",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
@@ -136,23 +137,23 @@ func TestLoadNodeCache(t *testing.T) {
 			name: "initial load loads five attested nodes, one expired",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_1",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_2",
 						CertNotAfter: time.Now().Add(time.Duration(-5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_4",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_5",
 						CertNotAfter: time.Now().Add(time.Duration(5) * time.Hour).Unix(),
 					},
@@ -169,23 +170,23 @@ func TestLoadNodeCache(t *testing.T) {
 			name: "initial load loads five attested nodes, all expired",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_1",
 						CertNotAfter: time.Now().Add(time.Duration(-5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_2",
 						CertNotAfter: time.Now().Add(time.Duration(-5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(-5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_4",
 						CertNotAfter: time.Now().Add(time.Duration(-5) * time.Hour).Unix(),
 					},
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_5",
 						CertNotAfter: time.Now().Add(time.Duration(-5) * time.Hour).Unix(),
 					},
@@ -206,8 +207,8 @@ func TestLoadNodeCache(t *testing.T) {
 			cacheStats := attestedNodes.cache.Stats()
 			require.Equal(t, len(tt.expectedAuthorizedEntries), cacheStats.AgentsByID, "wrong number of agents by ID")
 
-			// for now, the only way to ensure the desired agent ids are prsent is
-			// to remove the desired ids and check the count it zero.
+			// for now, the only way to ensure the desired agent ids are present is
+			// to remove the desired ids and check the count is zero.
 			for _, expectedAuthorizedId := range tt.expectedAuthorizedEntries {
 				attestedNodes.cache.RemoveAgent(expectedAuthorizedId)
 			}
@@ -594,7 +595,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.waitToPoll == 0 {
-				scenario.clk.Add(time.Duration(1) * defaultCacheReloadInterval)
+				scenario.clk.Add(defaultCacheReloadInterval)
 			} else {
 				scenario.clk.Add(tt.waitToPoll)
 			}
@@ -611,6 +612,8 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			err = attestedNodes.searchBeforeFirstEvent(scenario.ctx)
 			require.NoError(t, err, "error while running test")
 
+			t.Log(reflect.TypeOf(maps.Keys(attestedNodes.eventsBeforeFirst)))
+			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(attestedNodes.eventsBeforeFirst)), "expected events before tracking mismatch")
 			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(attestedNodes.eventsBeforeFirst)), "expected events before tracking mismatch")
 			require.ElementsMatch(t, tt.expectedFetches, slices.Collect[string](maps.Keys(attestedNodes.fetchNodes)), "expected fetches mismatch")
 
@@ -1101,7 +1104,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		{
 			name: "empty cache, fetch one node, as a new entry",
 			createAttestedNodes: []*common.AttestedNode{
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_3",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
@@ -1123,23 +1126,23 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		{
 			name: "empty cache, fetch five nodes, all new entries",
 			createAttestedNodes: []*common.AttestedNode{
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_1",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_2",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_3",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_4",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_5",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
@@ -1163,15 +1166,15 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		{
 			name: "empty cache, fetch five nodes, three new and two deletes",
 			createAttestedNodes: []*common.AttestedNode{
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_1",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_3",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_4",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
@@ -1206,7 +1209,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			name: "one node in cache, no fetch nodes",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 					},
@@ -1221,14 +1224,14 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			name: "one node in cache, fetch one node, as new entry",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 					},
 				},
 			},
 			createAttestedNodes: []*common.AttestedNode{
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_4",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
@@ -1246,7 +1249,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			name: "one node in cache, fetch one node, as an update",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 					},
@@ -1264,7 +1267,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			name: "one node in cache, fetch one node, as a delete",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 					},
@@ -1283,30 +1286,30 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			name: "one node in cache, fetch five nodes, all new entries",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 					},
 				},
 			},
 			createAttestedNodes: []*common.AttestedNode{
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_1",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_2",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_4",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_5",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_6",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
@@ -1332,26 +1335,26 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			name: "one node in cache, fetch five nodes, four new entries and one update",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 					},
 				},
 			},
 			createAttestedNodes: []*common.AttestedNode{
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_1",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_2",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_4",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_5",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
@@ -1376,18 +1379,18 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			name: "one node in cache, fetch five nodes, two new and three deletes",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 					},
 				},
 			},
 			createAttestedNodes: []*common.AttestedNode{
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_1",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
-				&common.AttestedNode{
+				{
 					SpiffeId:     "spiffe://example.org/test_node_2",
 					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 				},
@@ -1412,7 +1415,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			name: "one node in cache, fetch five nodes, all deletes",
 			setup: &nodeScenarioSetup{
 				attestedNodes: []*common.AttestedNode{
-					&common.AttestedNode{
+					{
 						SpiffeId:     "spiffe://example.org/test_node_3",
 						CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
 					},

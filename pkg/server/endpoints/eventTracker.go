@@ -12,7 +12,7 @@ import (
  * An event track is defined with a set of boundaries, which are indexes to
  * virtual hash tables, with the event's hash determining the position within
  * that hash table where the event will be selected to be polled.
- * For eventTRackers that lack boundaries, or polls that exist prior to
+ * For eventTrackers that lack boundaries, or polls that exist prior to
  * boundaries, the event is always polled.
  */
 type eventTracker struct {
@@ -46,11 +46,11 @@ type eventStats struct {
  * @returns One tick, or the smallest number of ticks that just exceeds the trackTime..
  */
 func PollPeriods(pollTime time.Duration, trackTime time.Duration) uint {
-	if pollTime < (time.Duration(1) * time.Second) {
-		pollTime = time.Duration(1) * time.Second
+	if pollTime < time.Second {
+		pollTime = time.Second
 	}
-	if trackTime < (time.Duration(1) * time.Second) {
-		trackTime = time.Duration(1) * time.Second
+	if trackTime < time.Second {
+		trackTime = time.Second
 	}
 	return uint(1 + (trackTime-1)/pollTime)
 }
@@ -59,7 +59,7 @@ func PollPeriods(pollTime time.Duration, trackTime time.Duration) uint {
  * The default boundary strategy.
  *
  * Poll everything at poll rate for at least one minute, then poll everything
- * twice a minute for 9 minute, then onece a minute for rest of time, with a
+ * twice a minute for 9 minute, then once a minute for rest of time, with a
  * guaranteed poll just before no longer tracking.
  *
  * This strategy is completely arbitrary.  Future boundary building approaches
@@ -71,7 +71,7 @@ func BoundaryBuilder(pollTime time.Duration, trackTime time.Duration) []uint {
 	pollPeriods := PollPeriods(pollTime, trackTime)
 
 	// number of polls in a minute
-	pollsPerMinute := uint(time.Duration(1) * time.Minute / pollTime)
+	pollsPerMinute := uint(time.Minute / pollTime)
 	// number of polls in ten minutes
 	pollsPerTenMinutes := uint(time.Duration(10) * time.Minute / pollTime)
 

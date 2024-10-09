@@ -18,14 +18,14 @@ func TestPollPeriods(t *testing.T) {
 	}{
 		{
 			name:         "polling always polls at least once, even for zero duration",
-			pollInterval: time.Duration(1) * time.Minute,
+			pollInterval: time.Minute,
 			pollDuration: time.Duration(0) * time.Minute,
 
 			expectedPollPeriods: 1,
 		},
 		{
 			name:         "polling always polls at least once, even for negative durations",
-			pollInterval: time.Duration(1) * time.Minute,
+			pollInterval: time.Minute,
 			pollDuration: time.Duration(-10) * time.Minute,
 
 			expectedPollPeriods: 1,
@@ -46,15 +46,15 @@ func TestPollPeriods(t *testing.T) {
 		},
 		{
 			name:         "polling every minute in two mintues",
-			pollInterval: time.Minute * time.Duration(1),
+			pollInterval: time.Minute,
 			pollDuration: time.Minute * time.Duration(2),
 
 			expectedPollPeriods: 2,
 		},
 		{
 			name:         "polling every minute of an hours",
-			pollInterval: time.Minute * time.Duration(1),
-			pollDuration: time.Hour * time.Duration(1),
+			pollInterval: time.Minute,
+			pollDuration: time.Hour,
 
 			expectedPollPeriods: 60,
 		},
