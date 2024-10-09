@@ -71,7 +71,7 @@ require (
 	github.com/sigstore/rekor v1.3.6
 	github.com/sigstore/sigstore v1.8.9
 	github.com/sirupsen/logrus v1.9.3
-	github.com/spiffe/go-spiffe/v2 v2.3.0
+	github.com/spiffe/go-spiffe/v2 v2.4.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20240916165922-16526993814a
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20240701180828-594312f4444d
 	github.com/stretchr/testify v1.9.0
@@ -80,7 +80,7 @@ require (
 	github.com/zeebo/errs v1.3.0
 	golang.org/x/crypto v0.28.0
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
-	golang.org/x/net v0.29.0
+	golang.org/x/net v0.30.0
 	golang.org/x/sync v0.8.0
 	golang.org/x/sys v0.26.0
 	golang.org/x/time v0.7.0
