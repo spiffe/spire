@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -48,13 +49,13 @@ func (m *manager) syncSVIDs(ctx context.Context) (err error) {
 }
 
 // processTaintedAuthorities verifies if a new authority is tainted and forces rotation in all caches if required.
-func (m *manager) processTaintedAuthorities(ctx context.Context, x509Authorities []string, jwtAuthorities []string) error {
+func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffebundle.Bundle, x509Authorities []string, jwtAuthorities []string) error {
 	newTaintedX509Authorities := getNewItems(m.processedTaintedX509Authorities, x509Authorities)
 	if len(newTaintedX509Authorities) > 0 {
 		m.c.Log.WithField(telemetry.SubjectKeyIDs, strings.Join(newTaintedX509Authorities, ",")).
 			Debug("New tainted X.509 authorities found")
 
-		taintedX509Authorities, err := bundleutil.FindX509Authorities(m.c.Bundle, newTaintedX509Authorities)
+		taintedX509Authorities, err := bundleutil.FindX509Authorities(bundle, newTaintedX509Authorities)
 		if err != nil {
 			return fmt.Errorf("failed to search X.509 authorities: %w", err)
 		}
@@ -94,7 +95,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	}
 
 	// Process all tainted authorities. The bundle is shared between both caches using regular cache data.
-	if err := m.processTaintedAuthorities(ctx, cacheUpdate.TaintedX509Authorities, cacheUpdate.TaintedJWTAuthorities); err != nil {
+	if err := m.processTaintedAuthorities(ctx, cacheUpdate.Bundles[m.c.TrustDomain], cacheUpdate.TaintedX509Authorities, cacheUpdate.TaintedJWTAuthorities); err != nil {
 		return err
 	}
 
