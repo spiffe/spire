@@ -22,11 +22,11 @@ import (
 )
 
 var (
-	NodeAliasesByEntryID  = []string{telemetry.Entry, telemetry.NodeAliasesByEntryIDCache, telemetry.Count}
-	NodeAliasesBySelector = []string{telemetry.Entry, telemetry.NodeAliasesBySelectorCache, telemetry.Count}
-	EntriesByEntryID      = []string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count}
-	EntriesByParentID     = []string{telemetry.Entry, telemetry.EntriesByParentIDCache, telemetry.Count}
-	SkippedEntryEventID   = []string{telemetry.Entry, telemetry.SkippedEntryEventIDs, telemetry.Count}
+	nodeAliasesByEntryID  = []string{telemetry.Entry, telemetry.NodeAliasesByEntryIDCache, telemetry.Count}
+	nodeAliasesBySelector = []string{telemetry.Entry, telemetry.NodeAliasesBySelectorCache, telemetry.Count}
+	entriesByEntryID      = []string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count}
+	entriesByParentID     = []string{telemetry.Entry, telemetry.EntriesByParentIDCache, telemetry.Count}
+	skippedEntryEventID   = []string{telemetry.Entry, telemetry.SkippedEntryEventIDs, telemetry.Count}
 
 	defaultRegistrationEntries = []*common.RegistrationEntry{
 		&common.RegistrationEntry{
@@ -127,11 +127,11 @@ func TestLoadEntryCache(t *testing.T) {
 				"6837984a-bc44-462b-9ca6-5cd59be35066",
 			},
 			expectedGauges: []expectedGauge{
-				expectedGauge{Key: SkippedEntryEventID, Value: 0},
-				expectedGauge{Key: NodeAliasesByEntryID, Value: 0},
-				expectedGauge{Key: NodeAliasesBySelector, Value: 0},
-				expectedGauge{Key: EntriesByEntryID, Value: 1},
-				expectedGauge{Key: EntriesByParentID, Value: 1},
+				expectedGauge{Key: skippedEntryEventID, Value: 0},
+				expectedGauge{Key: nodeAliasesByEntryID, Value: 0},
+				expectedGauge{Key: nodeAliasesBySelector, Value: 0},
+				expectedGauge{Key: entriesByEntryID, Value: 1},
+				expectedGauge{Key: entriesByParentID, Value: 1},
 			},
 		},
 		{
@@ -238,11 +238,11 @@ func TestLoadEntryCache(t *testing.T) {
 				"354c16f4-4e61-4c17-8596-7baa7744d504",
 			},
 			expectedGauges: []expectedGauge{
-				expectedGauge{Key: SkippedEntryEventID, Value: 0},
-				expectedGauge{Key: NodeAliasesByEntryID, Value: 0},
-				expectedGauge{Key: NodeAliasesBySelector, Value: 0},
-				expectedGauge{Key: EntriesByEntryID, Value: 5},
-				expectedGauge{Key: EntriesByParentID, Value: 5},
+				expectedGauge{Key: skippedEntryEventID, Value: 0},
+				expectedGauge{Key: nodeAliasesByEntryID, Value: 0},
+				expectedGauge{Key: nodeAliasesBySelector, Value: 0},
+				expectedGauge{Key: entriesByEntryID, Value: 5},
+				expectedGauge{Key: entriesByParentID, Value: 5},
 			},
 		},
 		{
@@ -300,11 +300,11 @@ func TestLoadEntryCache(t *testing.T) {
 				"354c16f4-4e61-4c17-8596-7baa7744d504",
 			},
 			expectedGauges: []expectedGauge{
-				expectedGauge{Key: SkippedEntryEventID, Value: 0},
-				expectedGauge{Key: NodeAliasesByEntryID, Value: 0},
-				expectedGauge{Key: NodeAliasesBySelector, Value: 0},
-				expectedGauge{Key: EntriesByEntryID, Value: 5},
-				expectedGauge{Key: EntriesByParentID, Value: 5},
+				expectedGauge{Key: skippedEntryEventID, Value: 0},
+				expectedGauge{Key: nodeAliasesByEntryID, Value: 0},
+				expectedGauge{Key: nodeAliasesBySelector, Value: 0},
+				expectedGauge{Key: entriesByEntryID, Value: 5},
+				expectedGauge{Key: entriesByParentID, Value: 5},
 			},
 		},
 		{
@@ -362,11 +362,11 @@ func TestLoadEntryCache(t *testing.T) {
 				"354c16f4-4e61-4c17-8596-7baa7744d504",
 			},
 			expectedGauges: []expectedGauge{
-				expectedGauge{Key: SkippedEntryEventID, Value: 0},
-				expectedGauge{Key: NodeAliasesByEntryID, Value: 0},
-				expectedGauge{Key: NodeAliasesBySelector, Value: 0},
-				expectedGauge{Key: EntriesByEntryID, Value: 5},
-				expectedGauge{Key: EntriesByParentID, Value: 5},
+				expectedGauge{Key: skippedEntryEventID, Value: 0},
+				expectedGauge{Key: nodeAliasesByEntryID, Value: 0},
+				expectedGauge{Key: nodeAliasesBySelector, Value: 0},
+				expectedGauge{Key: entriesByEntryID, Value: 5},
+				expectedGauge{Key: entriesByParentID, Value: 5},
 			},
 		},
 	} {

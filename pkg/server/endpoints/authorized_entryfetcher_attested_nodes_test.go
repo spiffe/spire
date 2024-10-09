@@ -25,9 +25,9 @@ import (
 )
 
 var (
-	CachedAgentsByID        = []string{telemetry.Node, telemetry.AgentsByIDCache, telemetry.Count}
-	CachedAgentsByExpiresAt = []string{telemetry.Node, telemetry.AgentsByExpiresAtCache, telemetry.Count}
-	SkippedNodeEventID      = []string{telemetry.Node, telemetry.SkippedNodeEventIDs, telemetry.Count}
+	cachedAgentsByID        = []string{telemetry.Node, telemetry.AgentsByIDCache, telemetry.Count}
+	cachedAgentsByExpiresAt = []string{telemetry.Node, telemetry.AgentsByExpiresAtCache, telemetry.Count}
+	skippedNodeEventID      = []string{telemetry.Node, telemetry.SkippedNodeEventIDs, telemetry.Count}
 
 	// defaults used to setup a small initial load of attested nodes and events.
 	defaultAttestedNodes = []*common.AttestedNode{
@@ -53,7 +53,7 @@ var (
 	defaultFirstNodeEvent = uint(60)
 	defaultLastNodeEvent  = uint(61)
 
-	NoNodeFetches = []string{}
+	noNodeFetches = []string{}
 )
 
 type expectedGauge struct {
@@ -94,9 +94,9 @@ func TestLoadNodeCache(t *testing.T) {
 				"spiffe://example.org/test_node_1",
 			},
 			expectedGauges: []expectedGauge{
-				expectedGauge{Key: SkippedNodeEventID, Value: 0},
-				expectedGauge{Key: CachedAgentsByID, Value: 1},
-				expectedGauge{Key: CachedAgentsByExpiresAt, Value: 1},
+				expectedGauge{Key: skippedNodeEventID, Value: 0},
+				expectedGauge{Key: cachedAgentsByID, Value: 1},
+				expectedGauge{Key: cachedAgentsByExpiresAt, Value: 1},
 			},
 		},
 		{
@@ -272,7 +272,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			},
 
 			expectedEventsBeforeFirst: []uint{},
-			expectedFetches:           NoNodeFetches,
+			expectedFetches:           noNodeFetches,
 		},
 		{
 			name: "no before first events",
