@@ -1,0 +1,68 @@
+#!/bin/bash
+
+check-logs() {
+  local component=$1
+  shift
+  for log in "$@"; do
+        check-log-line "$component" "$log"
+  done
+}
+
+# Fetch old authority ID
+old_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation root-server \
+      /opt/spire/bin/spire-server \
+      localauthority x509 show -output json | jq .old.authority_id -r) || fail-now "Failed to fetch old authority ID"
+
+# Taint the old authority
+docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation root-server \
+      /opt/spire/bin/spire-server \
+      localauthority x509 taint -authorityID "${old_authority}" || fail-now "Failed to taint old authority"
+
+# Root server logs
+check-logs root-server \
+      "X\.509 authority tainted successfully|local_authority_id=${old_authority}" \
+      "Server SVID signed using a tainted authority, forcing rotation of the Server SVID"
+
+# Root agent logs
+check-logs root-agent \
+      "New tainted X.509 authorities found|subject_key_ids=${old_authority}" \
+      "Scheduled rotation for SVID entries due to tainted X\.509 authorities|count=3" \
+      "Agent SVID is tainted by a root authority, forcing rotation"
+
+# Verify workloads are rotated
+
+# Intermediate A server and agent logs
+check-logs intermediateA-server \
+      "Current root CA is signed by a tainted upstream authority, preparing rotation" \
+      "Server SVID signed using a tainted authority, forcing rotation of the Server SVID"
+check-logs intermediateA-agent \
+      "New tainted X\.509 authorities found|subject_key_ids=${old_authority}" \
+      "Scheduled rotation for SVID entries due to tainted X.509 authorities|count=2" \
+      "Agent SVID is tainted by a root authority, forcing rotation"
+
+# Intermediate B server and agent logs
+check-logs intermediateB-server \
+      "Current root CA is signed by a tainted upstream authority, preparing rotation" \
+      "Server SVID signed using a tainted authority, forcing rotation of the Server SVID"
+check-logs intermediateB-agent \
+      "New tainted X\.509 authorities found|subject_key_ids=${old_authority}" \
+      "Scheduled rotation for SVID entries due to tainted X\.509 authorities|count=2" \
+      "Agent SVID is tainted by a root authority, forcing rotation"
+
+# Leaf A server and agent logs
+check-logs leafA-server \
+      "Current root CA is signed by a tainted upstream authority, preparing rotation" \
+      "Server SVID signed using a tainted authority, forcing rotation of the Server SVID"
+check-logs leafA-agent \
+      "New tainted X.509 authorities found|subject_key_ids=${old_authority}" \
+      "Scheduled rotation for SVID entries due to tainted X\.509 authorities|count=1" \
+      "Agent SVID is tainted by a root authority, forcing rotation"
+
+# Leaf B server and agent logs
+check-logs leafB-server \
+      "Current root CA is signed by a tainted upstream authority, preparing rotation" \
+      "Server SVID signed using a tainted authority, forcing rotation of the Server SVID"
+check-logs leafB-agent \
+      "New tainted X.509 authorities found|subject_key_ids=${old_authority}" \
+      "Scheduled rotation for SVID entries due to tainted X\.509 authorities|count=1" \
+      "Agent SVID is tainted by a root authority, forcing rotation"

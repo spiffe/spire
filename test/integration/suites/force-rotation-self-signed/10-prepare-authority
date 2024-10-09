@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Constants
+MAXCHECKS=30
+RETRY_DELAY=1
+
+# Function to check x509 authorities propagation
+check-x509-authorities() {
+    local expected_bundle=$1
+    local container_name=$2
+    local retry_count=0
+
+    while [[ $retry_count -lt $MAXCHECKS ]]; do
+        log-info "Checking for x509 authorities propagation ($retry_count of $MAXCHECKS max)..."
+
+        x509_authorities=$(docker compose exec -T ${container_name} \
+            /opt/spire/bin/spire-server bundle show -output json | jq '.x509_authorities' -c)
+
+        if diff <(echo "$expected_bundle") <(echo "$x509_authorities") &>/dev/null; then
+            break
+        else
+            retry_count=$((retry_count + 1))
+            log-debug "x509 authorities not propagated on ${container_name}, retrying in $RETRY_DELAY seconds... ($retry_count/$MAXCHECKS)"
+            sleep "${RETRY_DELAY}"
+        fi
+
+        # Fail if retries exceed the maximum
+        if [[ $retry_count -eq $MAXCHECKS ]]; then
+            fail-now "Expected bundle: $expected_bundle got: $x509_authorities"
+        fi
+    done
+}
+
+# Initial check for x509 authorities in root-server
+x509_authorities=$(docker compose exec -T root-server \
+    /opt/spire/bin/spire-server bundle show -output json | jq '.x509_authorities' -c)
+
+amount_bundles=$(echo "$x509_authorities" | jq length)
+
+# Ensure only one bundle is present at the start
+if [[ $amount_bundles -ne 1 ]]; then
+    fail-now "Only one bundle expected at start"
+fi
+
+# Check x509 authorities propagation across all servers
+for server in intermediateA-server intermediateB-server leafA-server leafB-server; do
+    check-x509-authorities "$x509_authorities" "$server"
+done
+
+# Prepare authority
+prepared_authority_id=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation root-server \
+    /opt/spire/bin/spire-server localauthority x509 prepare -output json | jq -r .prepared_authority.authority_id)
+
+# Verify that the prepared authority is logged
+searching="X509 CA prepared.|local_authority_id=${prepared_authority_id}"
+check-log-line root-server "$searching"
+
+# Check for updated x509 authorities in root-server
+x509_authorities=$(docker compose exec -T root-server \
+    /opt/spire/bin/spire-server bundle show -output json | jq '.x509_authorities' -c)
+amount_bundles=$(echo "$x509_authorities" | jq length)
+
+# Ensure two bundles are present after preparation
+if [[ $amount_bundles -ne 2 ]]; then
+    fail-now "Two bundles expected after prepare"
+fi
+
+# Check x509 authorities propagation across all servers again
+for server in intermediateA-server intermediateB-server leafA-server leafB-server; do
+    check-x509-authorities "$x509_authorities" "$server"
+done

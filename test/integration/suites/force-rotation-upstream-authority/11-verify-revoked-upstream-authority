@@ -1,0 +1,53 @@
+#!/bin/bash
+
+max_retries=10
+retry_delay=2 # seconds between retries
+
+validate-agent() {
+    local agent=$1
+    local retry_count=0
+
+    while [[ $retry_count -lt $max_retries ]]; do
+        docker compose exec -T $agent \
+            /opt/spire/bin/spire-agent api fetch x509 \
+            -write /opt/spire/conf/agent || fail-now "x509-SVID check failed for $agent"
+
+        local bundle_count=$(openssl storeutl -noout -text -certs conf/agent/bundle.0.pem | grep -c "Certificate:")
+        if [ $bundle_count -eq 1 ]; then
+            log-debug "Validation successful for $agent: There is exactly one certificate in the chain."
+            return 0
+        else
+            log-debug "Validation failed for $agent: Expected 1 certificate, but found $bundle_count. Retrying in $retry_delay seconds... ($retry_count/$max_retries)"
+        fi
+
+        retry_count=$((retry_count + 1))
+        sleep $retry_delay
+
+        if [ $retry_count -eq $max_retries ]; then
+            fail-now "Validation failed for $agent: Expected 1 certificate, but found $bundle_count."
+        fi
+    done
+}
+
+check_ski() {
+    local agent=$1
+    local old_authority=$2
+
+    local ski=$(openssl x509 -in conf/agent/bundle.0.pem -text | grep \
+	    -A 1 'Subject Key Identifier' | tail -n 1 | tr -d ' ' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+
+    if [ "$ski" == "$old_authority" ]; then
+        log-debug "Subject Key Identifier matches for $agent: $ski"
+    else
+        fail-now "Subject Key Identifier does not match for $agent. Found: $ski Expected: $old_authority"
+    fi
+}
+
+active_upstream_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+      /opt/spire/bin/spire-server \
+      localauthority x509 show -output json | jq -r .active.upstream_authority_subject_key_id) || fail-now "Failed to fetch old upstrem authority ID"
+
+log-debug "Active upstream authority: $active_upstream_authority"
+
+validate-agent spire-agent 
+check_ski spire-agent "$active_upstream_authority"

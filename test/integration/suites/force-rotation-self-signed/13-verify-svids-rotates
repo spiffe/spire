@@ -1,0 +1,71 @@
+#!/bin/bash
+
+MAX_RETRIES=10
+RETRY_DELAY=2 # seconds between retries
+
+fetch-x509-authorities() {
+    local server=$1
+    docker compose exec -T "$server" /opt/spire/bin/spire-server bundle show -output json | jq .x509_authorities
+}
+
+verify-svid() {
+    local agent=$1
+    local agent_dir=$2
+
+    docker compose exec -u 1001 -T "$agent" \
+        /opt/spire/bin/spire-agent api fetch x509 \
+        -socketPath /opt/spire/sockets/workload_api.sock \
+        -write /tmp || fail-now "x509-SVID check failed for $agent"
+
+    docker compose exec -T "$agent" \
+        openssl verify -verbose -CAfile /opt/spire/conf/agent/non-tainted.pem \
+        -untrusted /tmp/svid.0.pem /tmp/svid.0.pem
+}
+
+check-tainted-authorities() {
+    local server=$1
+    local agent=$2
+    local agent_dir=$3
+
+    log-debug "Checking tainted authorities for $server and $agent"
+    x509_authorities=$(fetch-x509-authorities "$server")
+
+    echo "$x509_authorities" | jq '.[] | select(.tainted == true)' || fail-now "Tainted authority not found"
+    non_tainted_found=$(echo "$x509_authorities" | jq '.[] | select(.tainted == false)') || fail-now "Non-tainted authority not found"
+
+    echo "$non_tainted_found" | jq -r .asn1 | base64 -d | openssl x509 -inform der > "$agent_dir/agent/non-tainted.pem"
+
+    RETRY_COUNT=0
+
+    while [[ $RETRY_COUNT -lt $MAX_RETRIES ]]; do
+        verify-svid "$agent" "$agent_dir"
+
+        if [ $? -eq 0 ]; then
+            log-info "SVID rotated"
+            break
+        else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            log-debug "Verification failed, retrying in $RETRY_DELAY seconds... ($RETRY_COUNT/$MAX_RETRIES)"
+            sleep $RETRY_DELAY
+        fi
+
+        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            fail-now "Certificate verification failed after $MAX_RETRIES attempts."
+        fi
+    done
+}
+
+# Root
+check-tainted-authorities "root-server" "root-agent" "root"
+
+# IntermediateA
+check-tainted-authorities "intermediateA-server" "intermediateA-agent" "intermediateA"
+
+# IntermediateB
+check-tainted-authorities "intermediateB-server" "intermediateB-agent" "intermediateB"
+
+# LeafA
+check-tainted-authorities "leafA-server" "leafA-agent" "leafA"
+
+# LeafB
+check-tainted-authorities "leafB-server" "leafB-agent" "leafB"
