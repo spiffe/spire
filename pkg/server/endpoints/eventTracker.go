@@ -3,6 +3,7 @@ package endpoints
 import (
 	"maps"
 	"slices"
+	"sync"
 	"time"
 )
 
@@ -24,6 +25,8 @@ type eventTracker struct {
 	events map[uint]*eventStats
 	/* The leading index of boundaries in which an event should only report once */
 	boundaries []uint
+
+	pool sync.Pool
 }
 
 /**
@@ -130,6 +133,11 @@ func NewEventTracker(pollPeriods uint, boundaries []uint) *eventTracker {
 		pollPeriods:  pollPeriods,
 		boundaries:   filteredBounds,
 		events:       make(map[uint]*eventStats),
+		pool: sync.Pool{
+			New: func() any {
+				return []uint(nil)
+			},
+		},
 	}
 }
 
@@ -193,7 +201,7 @@ func (et *eventTracker) StopTracking(event uint) {
  * the poll list.
  */
 func (et *eventTracker) SelectEvents() []uint {
-	pollList := make([]uint, 0)
+	pollList := et.pool.Get().([]uint)
 	for event, _ := range et.events {
 		if et.events[event].ticks >= et.pollPeriods {
 			et.StopTracking(event)
