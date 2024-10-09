@@ -1,0 +1,33 @@
+#!/bin/bash
+
+check-logs() {
+  local component=$1
+  shift
+  for log in "$@"; do
+        check-log-line "$component" "$log"
+  done
+}
+
+# Fetch old authority ID
+old_upstream_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+      /opt/spire/bin/spire-server \
+      localauthority x509 show -output json | jq -r .old.upstream_authority_subject_key_id) || fail-now "Failed to fetch old upstrem authority ID"
+
+log-debug "Old upstream authority: $old_upstream_authority"
+
+# Taint the old authority
+docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+      /opt/spire/bin/spire-server \
+      upstreamauthority taint -subjectKeyID "${old_upstream_authority}" || fail-now "Failed to taint old authority"
+
+# Root server logs
+check-logs spire-server \
+      "X\.509 upstream authority tainted successfully|subject_key_id=${old_upstream_authority}" \
+      "Server SVID signed using a tainted authority, forcing rotation of the Server SVID"
+
+# Root agent logs
+check-logs spire-agent \
+      "New tainted X.509 authorities found|subject_key_ids=${old_upstream_authority}" \
+      "Scheduled rotation for SVID entries due to tainted X\.509 authorities|count=1" \
+      "Agent SVID is tainted by a root authority, forcing rotation"
+

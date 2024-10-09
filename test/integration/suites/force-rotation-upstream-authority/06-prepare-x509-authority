@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Initial check for x509 authorities in spire-server
+x509_authorities=$(docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle show -output json | jq '.x509_authorities' -c)
+
+amount_bundles=$(echo "$x509_authorities" | jq length)
+
+# Ensure only one bundle is present at the start
+if [[ $amount_bundles -ne 1 ]]; then
+    fail-now "Only one bundle expected at start"
+fi
+
+# Prepare authority
+prepared_authority_id=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server localauthority x509 prepare -output json | jq -r .prepared_authority.authority_id)
+
+# Verify that the prepared authority is logged
+searching="X509 CA prepared.|local_authority_id=${prepared_authority_id}"
+check-log-line spire-server "$searching"
+
+# Check for updated x509 authorities in spire-server
+x509_authorities=$(docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle show -output json | jq '.x509_authorities' -c)
+amount_bundles=$(echo "$x509_authorities" | jq length)
+
+# Ensure two bundles are present after preparation
+if [[ $amount_bundles -ne 2 ]]; then
+    fail-now "Two bundles expected after prepare"
+fi
+
+new_dummy_ca_skid=$(openssl x509  -in conf/server/new_upstream_ca.crt -text | grep \
+    -A 1 'Subject Key Identifier' | tail -n 1 | tr -d ' ' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+
+upstream_authority_id=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server \
+    localauthority x509 show -output json | jq .prepared.upstream_authority_subject_key_id -r)
+
+if [ "$new_dummy_ca_skid" == "$upstream_authority_id" ]; then
+    log-debug "Prepared X.509 authority is using new upstream authorityh"
+else
+    fail-now "Subject Key Identifier does not match. Found: $upstream_authority_id Expected: $new_dummy_ca_skid"
+fi

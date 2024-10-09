@@ -1,0 +1,53 @@
+#!/bin/bash
+
+MAX_RETRIES=10
+RETRY_DELAY=2 # seconds between retries
+
+fetch-x509-authorities() {
+    local server=$1
+    docker compose exec -T "$server" /opt/spire/bin/spire-server bundle show -output json | jq .x509_authorities
+}
+
+verify-svid() {
+    local agent=$1
+    local agent_dir=$2
+
+    docker compose exec -T "$agent" \
+        /opt/spire/bin/spire-agent api fetch x509 \
+        -write $agent_dir || fail-now "x509-SVID check failed for $agent"
+
+    openssl verify -verbose -CAfile conf/server/new_upstream_ca.crt \
+        -untrusted ${agent_dir}/svid.0.pem ${agent_dir}/svid.0.pem
+}
+
+check-tainted-authorities() {
+    local server=$1
+    local agent=$2
+    local agent_dir=$3
+
+    x509_authorities=$(fetch-x509-authorities "$server")
+    echo "$x509_authorities" | jq '.[] | select(.tainted == true)' || fail-now "Tainted authority not found"
+
+    retry_count=0
+
+    while [[ $retry_count -lt $MAX_RETRIES ]]; do
+        verify-svid "$agent" "$agent_dir"
+
+        if [ $? -eq 0 ]; then
+            log-info "SVID rotated"
+            break
+        else
+            retry_count=$((retry_count + 1))
+	    log-debug "Verification failed, retrying in $RETRY_DELAY seconds... ($retry_count/$MAX_RETRIES)"
+            sleep $RETRY_DELAY
+        fi
+
+        if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            fail-now "Certificate verification failed after $MAX_RETRIES attempts."
+        fi
+    done
+}
+
+# Root
+check-tainted-authorities "spire-server" "spire-agent" "conf/agent"
+
