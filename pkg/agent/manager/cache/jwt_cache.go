@@ -4,14 +4,18 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"io"
 	"sort"
 	"strings"
 	"sync"
 
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/telemetry/agent"
 )
@@ -62,9 +66,14 @@ func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities 
 	var taintedKeyIDs []string
 	svidsRemoved := 0
 	for key, jwtSVID := range c.svids {
-		if _, tainted := taintedJWTAuthorities[jwtSVID.Kid]; tainted {
+		keyID, err := getKeyIDFromSVIDToken(jwtSVID.Token)
+		if err != nil {
+			c.log.Error(err)
+			continue
+		}
+		if _, tainted := taintedJWTAuthorities[keyID]; tainted {
 			delete(c.svids, key)
-			taintedKeyIDs = append(taintedKeyIDs, jwtSVID.Kid)
+			taintedKeyIDs = append(taintedKeyIDs, keyID)
 			svidsRemoved++
 		}
 		select {
@@ -81,6 +90,24 @@ func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities 
 			Info("JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority")
 	}
 	agent.AddCacheManagerTaintedJWTSVIDsSample(c.metrics, agent.CacheTypeWorkload, float32(taintedKeyIDsCount))
+}
+
+func getKeyIDFromSVIDToken(svidToken string) (string, error) {
+	token, err := jwt.ParseSigned(svidToken, jwtsvid.AllowedSignatureAlgorithms)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse JWT-SVID: %w", err)
+	}
+
+	if len(token.Headers) != 1 {
+		return "", fmt.Errorf("malformed JWT-SVID: expected a single token header; got %d", len(token.Headers))
+	}
+
+	keyID := token.Headers[0].KeyID
+	if keyID == "" {
+		return "", errors.New("missing key ID in token header of minted JWT-SVID")
+	}
+
+	return keyID, nil
 }
 
 func jwtSVIDKey(spiffeID spiffeid.ID, audience []string) string {

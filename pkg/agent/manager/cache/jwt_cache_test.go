@@ -19,7 +19,9 @@ import (
 
 func TestJWTSVIDCacheBasic(t *testing.T) {
 	now := time.Now()
-	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second), Kid: "the-kid"}
+	tok := "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRaRGZZaXcxdUd6TXdkTVlITDdGRVl5SzhIT0tLd0xYIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3MjQzNjU3MzEsImlhdCI6MTcyNDI3OTQwNywic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.dFr-oWhm5tK0bBuVXt-sGESM5l7hhoY-Gtt5DkuFoJL5Y9d4ZfmicCvUCjL4CqDB3BO_cPqmFfrO7H7pxQbGLg"
+	keyID := "dZDfYiw1uGzMwdMYHL7FEYyK8HOKKwLX"
+	expected := &client.JWTSVID{Token: tok, IssuedAt: now, ExpiresAt: now.Add(time.Second)}
 
 	fakeMetrics := fakemetrics.New()
 	log, hook := test.NewNullLogger()
@@ -40,7 +42,7 @@ func TestJWTSVIDCacheBasic(t *testing.T) {
 	assert.Equal(t, expected, actual)
 
 	// Remove tainted authority, should not be cached anymore
-	cache.TaintJWTSVIDs(context.Background(), map[string]struct{}{"the-kid": {}})
+	cache.TaintJWTSVIDs(context.Background(), map[string]struct{}{keyID: {}})
 	actual, ok = cache.GetJWTSVID(spiffeID, []string{"bar"})
 	assert.False(t, ok)
 	assert.Nil(t, actual)
@@ -52,7 +54,7 @@ func TestJWTSVIDCacheBasic(t *testing.T) {
 			Message: "JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority",
 			Data: logrus.Fields{
 				telemetry.CountJWTSVIDs:      "1",
-				telemetry.JWTAuthorityKeyIDs: "the-kid",
+				telemetry.JWTAuthorityKeyIDs: keyID,
 			},
 		},
 	}

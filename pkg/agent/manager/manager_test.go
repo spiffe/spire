@@ -1531,47 +1531,46 @@ func TestFetchJWTSVID(t *testing.T) {
 
 	now := clk.Now()
 	// fetch succeeds
-	tokA := "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRaRGZZaXcxdUd6TXdkTVlITDdGRVl5SzhIT0tLd0xYIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3MjQzNjU3MzEsImlhdCI6MTcyNDI3OTQwNywic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.dFr-oWhm5tK0bBuVXt-sGESM5l7hhoY-Gtt5DkuFoJL5Y9d4ZfmicCvUCjL4CqDB3BO_cPqmFfrO7H7pxQbGLg"
+	tokenA := "A"
 	issuedAtA := now.Unix()
 	expiresAtA := now.Add(time.Minute).Unix()
 	fetchResp.Svid = &types.JWTSVID{
-		Token:     tokA,
+		Token:     tokenA,
 		IssuedAt:  issuedAtA,
 		ExpiresAt: expiresAtA,
 	}
 	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
-	require.Equal(t, tokA, svid.Token)
+	require.Equal(t, tokenA, svid.Token)
 	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
 	require.Equal(t, expiresAtA, svid.ExpiresAt.Unix())
 
 	// assert cached JWT is returned w/o trying to fetch (since cached version does not expire soon)
-	tokB := "eyJhbGciOiJFUzI1NiIsImtpZCI6InQ4ajd4cmdtVDVGRzNkbG45ZnFYanlNQzF0emxyT1B6IiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3MjQzNjYwNDksImlhdCI6MTcyNDI3OTY1OSwic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.68FB0ubhQsirJE_K0QSQxn_b06OZaWNrgC3nJCDupHEbSftXuGiAFDqUqK_HGMoKC1Nz9bxBNNQSoL50H4C3vw"
 	fetchResp.Svid = &types.JWTSVID{
-		Token:     tokB,
+		Token:     "B",
 		IssuedAt:  now.Unix(),
 		ExpiresAt: now.Add(time.Minute).Unix(),
 	}
 	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
-	require.Equal(t, tokA, svid.Token)
+	require.Equal(t, tokenA, svid.Token)
 	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
 	require.Equal(t, expiresAtA, svid.ExpiresAt.Unix())
 
 	// expire the cached JWT soon and make sure new JWT is fetched
 	clk.Add(time.Second * 45)
 	now = clk.Now()
-	tokC := "eyJhbGciOiJFUzI1NiIsImtpZCI6InlueVV3TEg5bklOaWcyWEdRdTBkdklWbndieG5JeHlPIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3MjQzNjYwOTIsImlhdCI6MTcyNDI3OTc0Nywic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.feVAZPLmWT4ohzNKBoil90WBn64noqnCYuXXJjhItdtsOmJqMBm-blfJl4pBvbRBCWym2YaXK9gl9RoAfFG0zQ"
+	tokenC := "C"
 	issuedAtC := now.Unix()
 	expiresAtC := now.Add(time.Minute).Unix()
 	fetchResp.Svid = &types.JWTSVID{
-		Token:     tokC,
+		Token:     tokenC,
 		IssuedAt:  issuedAtC,
 		ExpiresAt: expiresAtC,
 	}
 	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
-	require.Equal(t, tokC, svid.Token)
+	require.Equal(t, tokenC, svid.Token)
 	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
 	require.Equal(t, expiresAtC, svid.ExpiresAt.Unix())
 
@@ -1580,7 +1579,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	fetchResp.Svid = nil
 	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
 	require.NoError(t, err)
-	require.Equal(t, tokC, svid.Token)
+	require.Equal(t, tokenC, svid.Token)
 	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
 	require.Equal(t, expiresAtC, svid.ExpiresAt.Unix())
 
