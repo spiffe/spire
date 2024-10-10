@@ -186,19 +186,19 @@ func TestCacheInternalStats(t *testing.T) {
 
 		cache := NewCache(clk)
 		cache.UpdateEntry(entry1)
-		require.Equal(t, cacheStats{
+		require.Equal(t, CacheStats{
 			EntriesByEntryID:  1,
 			EntriesByParentID: 1,
 		}, cache.Stats())
 
 		cache.UpdateEntry(entry2a)
-		require.Equal(t, cacheStats{
+		require.Equal(t, CacheStats{
 			EntriesByEntryID:  2,
 			EntriesByParentID: 2,
 		}, cache.Stats())
 
 		cache.UpdateEntry(entry2b)
-		require.Equal(t, cacheStats{
+		require.Equal(t, CacheStats{
 			EntriesByEntryID:  1,
 			EntriesByParentID: 1,
 			AliasesByEntryID:  2, // one for each selector
@@ -206,7 +206,7 @@ func TestCacheInternalStats(t *testing.T) {
 		}, cache.Stats())
 
 		cache.RemoveEntry(entry1.Id)
-		require.Equal(t, cacheStats{
+		require.Equal(t, CacheStats{
 			AliasesByEntryID:  2, // one for each selector
 			AliasesBySelector: 2, // one for each selector
 		}, cache.Stats())
@@ -222,25 +222,25 @@ func TestCacheInternalStats(t *testing.T) {
 	t.Run("agents", func(t *testing.T) {
 		cache := NewCache(clk)
 		cache.UpdateAgent(agent1.String(), now.Add(time.Hour), []*types.Selector{sel1})
-		require.Equal(t, cacheStats{
+		require.Equal(t, CacheStats{
 			AgentsByID:        1,
 			AgentsByExpiresAt: 1,
 		}, cache.Stats())
 
 		cache.UpdateAgent(agent2.String(), now.Add(time.Hour*2), []*types.Selector{sel2})
-		require.Equal(t, cacheStats{
+		require.Equal(t, CacheStats{
 			AgentsByID:        2,
 			AgentsByExpiresAt: 2,
 		}, cache.Stats())
 
 		cache.UpdateAgent(agent2.String(), now.Add(time.Hour*3), []*types.Selector{sel2})
-		require.Equal(t, cacheStats{
+		require.Equal(t, CacheStats{
 			AgentsByID:        2,
 			AgentsByExpiresAt: 2,
 		}, cache.Stats())
 
 		cache.RemoveAgent(agent1.String())
-		require.Equal(t, cacheStats{
+		require.Equal(t, CacheStats{
 			AgentsByID:        1,
 			AgentsByExpiresAt: 1,
 		}, cache.Stats())
