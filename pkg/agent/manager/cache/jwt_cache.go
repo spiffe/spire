@@ -1,28 +1,37 @@
 package cache
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/telemetry/agent"
 )
 
 type JWTSVIDCache struct {
-	mu    sync.Mutex
-	svids map[string]*client.JWTSVID
+	log     logrus.FieldLogger
+	metrics telemetry.Metrics
+	mu      sync.RWMutex
+	svids   map[string]*client.JWTSVID
 }
 
 func (c *JWTSVIDCache) CountJWTSVIDs() int {
 	return len(c.svids)
 }
 
-func NewJWTSVIDCache() *JWTSVIDCache {
+func NewJWTSVIDCache(log logrus.FieldLogger, metrics telemetry.Metrics) *JWTSVIDCache {
 	return &JWTSVIDCache{
-		svids: make(map[string]*client.JWTSVID),
+		metrics: metrics,
+		log:     log,
+		svids:   make(map[string]*client.JWTSVID),
 	}
 }
 
@@ -41,6 +50,37 @@ func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.svids[key] = svid
+}
+
+func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{}) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	counter := telemetry.StartCall(c.metrics, telemetry.CacheManager, agent.CacheTypeWorkload, telemetry.ProcessTaintedJWTSVIDs)
+	defer counter.Done(nil)
+
+	var taintedKeyIDs []string
+	svidsRemoved := 0
+	for key, jwtSVID := range c.svids {
+		if _, tainted := taintedJWTAuthorities[jwtSVID.Kid]; tainted {
+			delete(c.svids, key)
+			taintedKeyIDs = append(taintedKeyIDs, jwtSVID.Kid)
+			svidsRemoved++
+		}
+		select {
+		case <-ctx.Done():
+			c.log.WithError(ctx.Err()).Warn("Context cancelled, exiting process of tainting JWT-SVIDs in cache")
+			return
+		default:
+		}
+	}
+	taintedKeyIDsCount := len(taintedKeyIDs)
+	if taintedKeyIDsCount > 0 {
+		c.log.WithField(telemetry.JWTAuthorityKeyIDs, strings.Join(taintedKeyIDs, ",")).
+			WithField(telemetry.CountJWTSVIDs, svidsRemoved).
+			Info("JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority")
+	}
+	agent.AddCacheManagerTaintedJWTSVIDsSample(c.metrics, agent.CacheTypeWorkload, float32(taintedKeyIDsCount))
 }
 
 func jwtSVIDKey(spiffeID spiffeid.ID, audience []string) string {

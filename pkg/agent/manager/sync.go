@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -41,6 +42,11 @@ type SVIDCache interface {
 	// TaintX509SVIDs marks all SVIDs signed by a tainted X.509 authority as tainted
 	// to force their rotation.
 	TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x509.Certificate)
+
+	// TaintJWTSVIDs removes JWT-SVIDs with tainted authorities from the cache,
+	// forcing the server to issue a new JWT-SVID when one with a tainted
+	// authority is requested.
+	TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{})
 }
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
@@ -49,7 +55,7 @@ func (m *manager) syncSVIDs(ctx context.Context) (err error) {
 }
 
 // processTaintedAuthorities verifies if a new authority is tainted and forces rotation in all caches if required.
-func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffebundle.Bundle, x509Authorities []string, jwtAuthorities []string) error {
+func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffebundle.Bundle, x509Authorities []string, jwtAuthorities map[string]struct{}) error {
 	newTaintedX509Authorities := getNewItems(m.processedTaintedX509Authorities, x509Authorities)
 	if len(newTaintedX509Authorities) > 0 {
 		m.c.Log.WithField(telemetry.SubjectKeyIDs, strings.Join(newTaintedX509Authorities, ",")).
@@ -76,11 +82,9 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 		}
 	}
 
-	newTaintedJWTAuthorities := getNewItems(m.processedTaintedJWTAuthorities, jwtAuthorities)
-	if len(newTaintedJWTAuthorities) > 0 {
-		m.c.Log.WithField(telemetry.SubjectKeyIDs, strings.Join(newTaintedJWTAuthorities, ",")).
-			Debug("New tainted JWT authorities found")
-		// TODO: IMPLEMENT!!!
+	if len(jwtAuthorities) > 0 {
+		// Taint JWT-SVIDs in the cache
+		m.cache.TaintJWTSVIDs(ctx, jwtAuthorities)
 	}
 
 	return nil
@@ -99,11 +103,11 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := m.updateCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, "workload"), "", m.cache); err != nil {
+	if err := m.updateCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, agent.CacheTypeWorkload), "", m.cache); err != nil {
 		return err
 	}
 
-	if err := m.updateCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, "svid_store"), "svid_store", m.svidStoreCache); err != nil {
+	if err := m.updateCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, agent.CacheTypeSVIDStore), agent.CacheTypeSVIDStore, m.svidStoreCache); err != nil {
 		return err
 	}
 
@@ -307,7 +311,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 
 	// Get all Subject Key IDs and KeyIDs of tainted authorities
 	var taintedX509Authorities []string
-	var taintedJWTAuthorities []string
+	taintedJWTAuthorities := make(map[string]struct{})
 	if b, ok := update.Bundles[m.c.TrustDomain.IDString()]; ok {
 		for _, rootCA := range b.RootCas {
 			if rootCA.TaintedKey {
@@ -321,7 +325,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 		}
 		for _, jwtKey := range b.JwtSigningKeys {
 			if jwtKey.TaintedKey {
-				taintedJWTAuthorities = append(taintedJWTAuthorities, jwtKey.Kid)
+				taintedJWTAuthorities[jwtKey.Kid] = struct{}{}
 			}
 		}
 	}

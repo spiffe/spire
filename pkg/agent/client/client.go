@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -19,6 +20,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
@@ -52,6 +54,7 @@ type JWTSVID struct {
 	Token     string
 	IssuedAt  time.Time
 	ExpiresAt time.Time
+	Kid       string
 }
 
 type SyncStats struct {
@@ -332,10 +335,16 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 		return nil, errors.New("JWTSVID issued after it has expired")
 	}
 
+	keyID, err := getKeyIDFromSVIDToken(svid.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	return &JWTSVID{
 		Token:     svid.Token,
 		IssuedAt:  time.Unix(svid.IssuedAt, 0).UTC(),
 		ExpiresAt: time.Unix(svid.ExpiresAt, 0).UTC(),
+		Kid:       keyID,
 	}, nil
 }
 
@@ -725,4 +734,22 @@ func (c *client) withErrorFields(err error) logrus.FieldLogger {
 	}
 
 	return logger
+}
+
+func getKeyIDFromSVIDToken(svidToken string) (string, error) {
+	token, err := jwt.ParseSigned(svidToken, jwtsvid.AllowedSignatureAlgorithms)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse JWT-SVID: %w", err)
+	}
+
+	if len(token.Headers) != 1 {
+		return "", fmt.Errorf("malformed JWT-SVID: expected a single token header; got %d", len(token.Headers))
+	}
+
+	keyID := token.Headers[0].KeyID
+	if keyID == "" {
+		return "", errors.New("missing key ID in token header of minted JWT-SVID")
+	}
+
+	return keyID, nil
 }
