@@ -568,7 +568,7 @@ jobs:
       - name: Create Release
         env:
           # GH_REPO is required for older releases of `gh`. Until we're
-          # reasonably confident that that the gh release is new enough,
+          # reasonably confident that the gh release is new enough,
           # set GH_REPO to the repository to create the release in.
           #
           # See https://github.com/cli/cli/issues/3556

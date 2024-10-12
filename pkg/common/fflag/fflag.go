@@ -24,7 +24,7 @@ type RawConfig []string
 // false, with the only exception being flags that are in the process of being
 // deprecated.
 const (
-	// FlagForcedRotation controls whether or not the new APIs and
+	// FlagForcedRotation controls whether the new APIs and
 	// extensions related to forced rotation and revocation are
 	// enabled or not. See #1934 for more information.
 	FlagForcedRotation Flag = "forced_rotation"
@@ -104,7 +104,7 @@ func Unload() error {
 	return nil
 }
 
-// IsSet can be used to determine whether or not a particular feature flag is
+// IsSet can be used to determine whether a particular feature flag is
 // set.
 func IsSet(f Flag) bool {
 	singleton.mtx.RLock()

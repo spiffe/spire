@@ -147,7 +147,7 @@ func TestRegistrationEntriesSavesMissedStartupEvents(t *testing.T) {
 	err = registrationEntries.missedStartupEvents(ctx)
 	require.NoError(t, err)
 
-	// Make sure no dupliate calls are made
+	// Make sure no duplicate calls are made
 	ds.AppendNextError(nil)
 	ds.AppendNextError(errors.New("Duplicate call"))
 	err = registrationEntries.missedStartupEvents(ctx)

@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// apiClient is an interface representing all of the API methods the resolver
+// apiClient is an interface representing all API methods the resolver
 // needs to do its job.
 type apiClient interface {
 	SubscriptionID() string
