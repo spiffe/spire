@@ -4,16 +4,16 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
-	"fmt"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
-	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
@@ -93,9 +93,9 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 
 	newConfig := &configuration{
-		trustDomain:  coreConfig.TrustDomain,
-		trustBundle:  util.NewCertPool(trustBundles...),
-		pathTemplate: pathTemplate,
+		trustDomain:      coreConfig.TrustDomain,
+		trustBundle:      util.NewCertPool(trustBundles...),
+		pathTemplate:     pathTemplate,
 		SPIRETrustBundle: hclConfig.SPIRETrustBundle,
 	}
 
@@ -106,10 +106,10 @@ type Plugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
-	m      sync.Mutex
-	config *configuration
-        identityProvider identityproviderv1.IdentityProviderServiceClient
-	trustBundle  *x509.CertPool
+	m                sync.Mutex
+	config           *configuration
+	identityProvider identityproviderv1.IdentityProviderServiceClient
+	trustBundle      *x509.CertPool
 }
 
 func New() *Plugin {
@@ -117,10 +117,10 @@ func New() *Plugin {
 }
 
 func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
-        if !broker.BrokerClient(&p.identityProvider) {
-                return status.Errorf(codes.FailedPrecondition, "IdentityProvider host service is required")
-        }
-	 go func() {
+	if !broker.BrokerClient(&p.identityProvider) {
+		return status.Errorf(codes.FailedPrecondition, "IdentityProvider host service is required")
+	}
+	go func() {
 		ctx := context.Background()
 		sleep := 1 * time.Second
 		fmt.Printf(" Thingy init\n")
@@ -133,9 +133,7 @@ func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
 				for _, rawcert := range resp.Bundle.X509Authorities {
 					certificates, err := x509.ParseCertificates(rawcert.Asn1)
 					if err == nil {
-						for _, c := range certificates {
-							trustBundles = append(trustBundles, c)
-						}
+						trustBundles = append(trustBundles, certificates...)
 					}
 				}
 				if len(trustBundles) > 0 {
@@ -150,7 +148,7 @@ func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
 			fmt.Printf(" Thingy loop\n")
 		}
 	}()
-        return nil
+	return nil
 }
 
 func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
