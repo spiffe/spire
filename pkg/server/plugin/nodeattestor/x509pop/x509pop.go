@@ -5,11 +5,15 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"sync"
+	"time"
+	"fmt"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
@@ -35,15 +39,17 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type Config struct {
+	SPIRETrustBundle  bool     `hcl:"spire_trust_bundle"`
 	CABundlePath      string   `hcl:"ca_bundle_path"`
 	CABundlePaths     []string `hcl:"ca_bundle_paths"`
 	AgentPathTemplate string   `hcl:"agent_path_template"`
 }
 
 type configuration struct {
-	trustDomain  spiffeid.TrustDomain
-	trustBundle  *x509.CertPool
-	pathTemplate *agentpathtemplate.Template
+	SPIRETrustBundle bool
+	trustDomain      spiffeid.TrustDomain
+	trustBundle      *x509.CertPool
+	pathTemplate     *agentpathtemplate.Template
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -53,26 +59,28 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
-	var caPaths []string
-	if hclConfig.CABundlePath != "" && len(hclConfig.CABundlePaths) > 0 {
-		status.ReportError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
-	}
-	if hclConfig.CABundlePath != "" {
-		caPaths = []string{hclConfig.CABundlePath}
-	} else {
-		caPaths = hclConfig.CABundlePaths
-	}
-	if len(caPaths) == 0 {
-		status.ReportError("one of ca_bundle_path or ca_bundle_paths must be configured")
-	}
-
 	var trustBundles []*x509.Certificate
-	for _, caPath := range caPaths {
-		certs, err := util.LoadCertificates(caPath)
-		if err != nil {
-			status.ReportErrorf("unable to load trust bundle %q: %v", caPath, err)
+	if !hclConfig.SPIRETrustBundle {
+		var caPaths []string
+		if hclConfig.CABundlePath != "" && len(hclConfig.CABundlePaths) > 0 {
+			status.ReportError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
 		}
-		trustBundles = append(trustBundles, certs...)
+		if hclConfig.CABundlePath != "" {
+			caPaths = []string{hclConfig.CABundlePath}
+		} else {
+			caPaths = hclConfig.CABundlePaths
+		}
+		if len(caPaths) == 0 {
+			status.ReportError("one of ca_bundle_path or ca_bundle_paths must be configured")
+		}
+
+		for _, caPath := range caPaths {
+			certs, err := util.LoadCertificates(caPath)
+			if err != nil {
+				status.ReportErrorf("unable to load trust bundle %q: %v", caPath, err)
+			}
+			trustBundles = append(trustBundles, certs...)
+		}
 	}
 
 	pathTemplate := x509pop.DefaultAgentPathTemplate
@@ -88,6 +96,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		trustDomain:  coreConfig.TrustDomain,
 		trustBundle:  util.NewCertPool(trustBundles...),
 		pathTemplate: pathTemplate,
+		SPIRETrustBundle: hclConfig.SPIRETrustBundle,
 	}
 
 	return newConfig
@@ -99,10 +108,49 @@ type Plugin struct {
 
 	m      sync.Mutex
 	config *configuration
+        identityProvider identityproviderv1.IdentityProviderServiceClient
+	trustBundle  *x509.CertPool
 }
 
 func New() *Plugin {
 	return &Plugin{}
+}
+
+func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
+        if !broker.BrokerClient(&p.identityProvider) {
+                return status.Errorf(codes.FailedPrecondition, "IdentityProvider host service is required")
+        }
+	 go func() {
+		ctx := context.Background()
+		sleep := 1 * time.Second
+		fmt.Printf(" Thingy init\n")
+		for {
+			resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
+			if err != nil {
+				fmt.Printf(" Thingy: %s\n", err)
+			} else {
+				var trustBundles []*x509.Certificate
+				for _, rawcert := range resp.Bundle.X509Authorities {
+					certificates, err := x509.ParseCertificates(rawcert.Asn1)
+					if err == nil {
+						for _, c := range certificates {
+							trustBundles = append(trustBundles, c)
+						}
+					}
+				}
+				if len(trustBundles) > 0 {
+					fmt.Printf(" Thingy trust bundles found %d\n", len(trustBundles))
+					p.m.Lock()
+					p.trustBundle = util.NewCertPool(trustBundles...)
+					p.m.Unlock()
+					sleep = 15 * time.Second
+				}
+			}
+			time.Sleep(sleep)
+			fmt.Printf(" Thingy loop\n")
+		}
+	}()
+        return nil
 }
 
 func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
@@ -143,12 +191,21 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		intermediates.AddCert(intermediate)
 	}
 
+	trustBundle := config.trustBundle
+	if config.SPIRETrustBundle {
+		p.m.Lock()
+		trustBundle = p.trustBundle
+	}
+
 	// verify the chain of trust
 	chains, err := leaf.Verify(x509.VerifyOptions{
 		Intermediates: intermediates,
-		Roots:         config.trustBundle,
+		Roots:         trustBundle,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	})
+	if config.SPIRETrustBundle {
+		p.m.Unlock()
+	}
 	if err != nil {
 		return status.Errorf(codes.PermissionDenied, "certificate verification failed: %v", err)
 	}
