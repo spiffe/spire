@@ -1,0 +1,21 @@
+#!/bin/bash
+
+active_authority=$(docker compose exec -t -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server \
+    localauthority jwt show -output json | jq -r .active.authority_id) || fail-now "Failed to fetch active JWT authority ID"
+
+jwt_svid=$(docker compose exec spire-agent ./bin/spire-agent \
+        api fetch jwt -audience aud -output json | jq -c '.[0].svids[0].svid') || fail-now "Failed to fetch JWT SVID"
+
+oldJWT=$(cat conf/agent/jwt_svid)
+if [[ $oldJWT == $jwt_svid ]]; then
+    fail-now "JWT SVID did not rotate"
+fi
+
+# Extract key ID from JWT SVID
+skid=$(echo "$jwt_svid" | jq -r 'split(".") | .[0] | @base64d | fromjson | .kid')
+
+# Check if the key ID matches the active authority ID
+if [[ $skid != $active_authority ]]; then
+    fail-now "JWT SVID key ID does not match the active authority ID, got $skid, expected $active_authority"
+fi

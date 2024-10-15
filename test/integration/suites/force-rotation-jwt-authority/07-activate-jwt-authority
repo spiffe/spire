@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# Fetch the prepared authority ID
+prepared_authority=$(docker compose exec -t -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server \
+    localauthority jwt show -output json | jq -r .prepared.authority_id) || fail-now "Failed to fetch prepared JWT authority ID"
+
+# Activate the authority
+activated_authority=$(docker compose exec -t -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server \
+    localauthority jwt activate -authorityID "${prepared_authority}" \
+    -output json | jq -r .activated_authority.authority_id) || fail-now "Failed to activate JWT authority"
+
+log-info "Activated authority: ${activated_authority}"
+
+# Check logs for specific lines
+check-log-line spire-server "JWT key activated|local_authority_id=${prepared_authority}"
+
