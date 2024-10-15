@@ -56,7 +56,7 @@ func (m *manager) syncSVIDs(ctx context.Context) (err error) {
 
 // processTaintedAuthorities verifies if a new authority is tainted and forces rotation in all caches if required.
 func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffebundle.Bundle, x509Authorities []string, jwtAuthorities map[string]struct{}) error {
-	newTaintedX509Authorities := getNewItems(m.processedTaintedX509Authorities, x509Authorities)
+	newTaintedX509Authorities := getNewItemsFromSlice(m.processedTaintedX509Authorities, x509Authorities)
 	if len(newTaintedX509Authorities) > 0 {
 		m.c.Log.WithField(telemetry.SubjectKeyIDs, strings.Join(newTaintedX509Authorities, ",")).
 			Debug("New tainted X.509 authorities found")
@@ -82,9 +82,14 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 		}
 	}
 
-	if len(jwtAuthorities) > 0 {
+	newTaintedJWTAuthorities := getNewItemsFromMap(m.processedTaintedJWTAuthorities, jwtAuthorities)
+	if len(newTaintedJWTAuthorities) > 0 {
 		// Taint JWT-SVIDs in the cache
 		m.cache.TaintJWTSVIDs(ctx, jwtAuthorities)
+
+		for _, subjectKeyID := range newTaintedJWTAuthorities {
+			m.processedTaintedJWTAuthorities[subjectKeyID] = struct{}{}
+		}
 	}
 
 	return nil
@@ -384,9 +389,20 @@ func parseBundles(bundles map[string]*common.Bundle) (map[spiffeid.TrustDomain]*
 	return out, nil
 }
 
-func getNewItems(current map[string]struct{}, items []string) []string {
+func getNewItemsFromSlice(current map[string]struct{}, items []string) []string {
 	var newItems []string
 	for _, subjectKeyID := range items {
+		if _, ok := current[subjectKeyID]; !ok {
+			newItems = append(newItems, subjectKeyID)
+		}
+	}
+
+	return newItems
+}
+
+func getNewItemsFromMap(current map[string]struct{}, items map[string]struct{}) []string {
+	var newItems []string
+	for subjectKeyID := range items {
 		if _, ok := current[subjectKeyID]; !ok {
 			newItems = append(newItems, subjectKeyID)
 		}

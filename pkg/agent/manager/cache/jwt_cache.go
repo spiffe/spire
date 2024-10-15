@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/go-jose/go-jose/v4/jwt"
@@ -63,18 +62,18 @@ func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities 
 	counter := telemetry.StartCall(c.metrics, telemetry.CacheManager, agent.CacheTypeWorkload, telemetry.ProcessTaintedJWTSVIDs)
 	defer counter.Done(nil)
 
-	var taintedKeyIDs []string
-	svidsRemoved := 0
+	removedKeyIDs := make(map[string]int)
+	totalCount := 0
 	for key, jwtSVID := range c.svids {
 		keyID, err := getKeyIDFromSVIDToken(jwtSVID.Token)
 		if err != nil {
-			c.log.Error(err)
+			c.log.WithError(err).Error("Could not get key ID from cached JWT-SVID")
 			continue
 		}
 		if _, tainted := taintedJWTAuthorities[keyID]; tainted {
 			delete(c.svids, key)
-			taintedKeyIDs = append(taintedKeyIDs, keyID)
-			svidsRemoved++
+			removedKeyIDs[keyID]++
+			totalCount++
 		}
 		select {
 		case <-ctx.Done():
@@ -83,13 +82,12 @@ func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities 
 		default:
 		}
 	}
-	taintedKeyIDsCount := len(taintedKeyIDs)
-	if taintedKeyIDsCount > 0 {
-		c.log.WithField(telemetry.JWTAuthorityKeyIDs, strings.Join(taintedKeyIDs, ",")).
-			WithField(telemetry.CountJWTSVIDs, svidsRemoved).
+	for keyID, count := range removedKeyIDs {
+		c.log.WithField(telemetry.JWTAuthorityKeyIDs, keyID).
+			WithField(telemetry.CountJWTSVIDs, count).
 			Info("JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority")
 	}
-	agent.AddCacheManagerTaintedJWTSVIDsSample(c.metrics, agent.CacheTypeWorkload, float32(taintedKeyIDsCount))
+	agent.AddCacheManagerTaintedJWTSVIDsSample(c.metrics, agent.CacheTypeWorkload, float32(totalCount))
 }
 
 func getKeyIDFromSVIDToken(svidToken string) (string, error) {
