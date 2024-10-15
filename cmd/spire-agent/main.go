@@ -8,5 +8,6 @@ import (
 )
 
 func main() {
+	os.Setenv("$", "$") // Allow escaping $ in config files using ExpandEnv
 	os.Exit(entrypoint.NewEntryPoint(new(cli.CLI).Run).Main())
 }
