@@ -4,9 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
-	"fmt"
 	"sync"
-	"time"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -109,7 +107,6 @@ type Plugin struct {
 	m                sync.Mutex
 	config           *configuration
 	identityProvider identityproviderv1.IdentityProviderServiceClient
-	trustBundle      *x509.CertPool
 }
 
 func New() *Plugin {
@@ -120,34 +117,6 @@ func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
 	if !broker.BrokerClient(&p.identityProvider) {
 		return status.Errorf(codes.FailedPrecondition, "IdentityProvider host service is required")
 	}
-	go func() {
-		ctx := context.Background()
-		sleep := 1 * time.Second
-		fmt.Printf(" Thingy init\n")
-		for {
-			resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
-			if err != nil {
-				fmt.Printf(" Thingy: %s\n", err)
-			} else {
-				var trustBundles []*x509.Certificate
-				for _, rawcert := range resp.Bundle.X509Authorities {
-					certificates, err := x509.ParseCertificates(rawcert.Asn1)
-					if err == nil {
-						trustBundles = append(trustBundles, certificates...)
-					}
-				}
-				if len(trustBundles) > 0 {
-					fmt.Printf(" Thingy trust bundles found %d\n", len(trustBundles))
-					p.m.Lock()
-					p.trustBundle = util.NewCertPool(trustBundles...)
-					p.m.Unlock()
-					sleep = 15 * time.Second
-				}
-			}
-			time.Sleep(sleep)
-			fmt.Printf(" Thingy loop\n")
-		}
-	}()
 	return nil
 }
 
@@ -191,8 +160,10 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	trustBundle := config.trustBundle
 	if config.SPIRETrustBundle {
-		p.m.Lock()
-		trustBundle = p.trustBundle
+		trustBundle, err = p.getTrustBundle(stream.Context())
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to get trust bundle: %v", err)
+		}
 	}
 
 	// verify the chain of trust
@@ -201,9 +172,6 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		Roots:         trustBundle,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	})
-	if config.SPIRETrustBundle {
-		p.m.Unlock()
-	}
 	if err != nil {
 		return status.Errorf(codes.PermissionDenied, "certificate verification failed: %v", err)
 	}
@@ -279,6 +247,25 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 		Valid: err == nil,
 		Notes: notes,
 	}, err
+}
+
+func (p *Plugin) getTrustBundle(ctx context.Context) (*x509.CertPool, error) {
+	resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
+	if err != nil {
+		return nil, err
+	}
+	var trustBundles []*x509.Certificate
+	for _, rawcert := range resp.Bundle.X509Authorities {
+		certificates, err := x509.ParseCertificates(rawcert.Asn1)
+		if err != nil {
+			return nil, err
+		}
+		trustBundles = append(trustBundles, certificates...)
+	}
+	if len(trustBundles) > 0 {
+		return util.NewCertPool(trustBundles...), nil
+	}
+	return nil, nil
 }
 
 func (p *Plugin) getConfig() (*configuration, error) {
