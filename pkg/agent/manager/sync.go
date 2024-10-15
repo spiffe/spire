@@ -84,6 +84,9 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 
 	newTaintedJWTAuthorities := getNewItemsFromMap(m.processedTaintedJWTAuthorities, jwtAuthorities)
 	if len(newTaintedJWTAuthorities) > 0 {
+		m.c.Log.WithField(telemetry.JWTAuthorityKeyIDs, strings.Join(newTaintedJWTAuthorities, ",")).
+			Debug("New tainted JWT authorities found")
+
 		// Taint JWT-SVIDs in the cache
 		m.cache.TaintJWTSVIDs(ctx, jwtAuthorities)
 

@@ -84,7 +84,7 @@ func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities 
 	}
 	for keyID, count := range removedKeyIDs {
 		c.log.WithField(telemetry.JWTAuthorityKeyIDs, keyID).
-			WithField(telemetry.CountJWTSVIDs, count).
+			WithField(telemetry.TaintedJWTSVIDs, count).
 			Info("JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority")
 	}
 	agent.AddCacheManagerTaintedJWTSVIDsSample(c.metrics, agent.CacheTypeWorkload, float32(totalCount))

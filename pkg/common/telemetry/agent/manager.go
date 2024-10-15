@@ -64,7 +64,7 @@ func AddCacheManagerTaintedX509SVIDsSample(m telemetry.Metrics, cacheType string
 // AddCacheManagerTaintedJWTSVIDsSample count of tainted SVIDs according to
 // agent cache manager
 func AddCacheManagerTaintedJWTSVIDsSample(m telemetry.Metrics, cacheType string, count float32) {
-	key := []string{telemetry.CacheManager, telemetry.CountJWTSVIDs}
+	key := []string{telemetry.CacheManager, telemetry.TaintedJWTSVIDs}
 	if cacheType != "" {
 		key = append(key, cacheType)
 	}

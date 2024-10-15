@@ -783,8 +783,8 @@ const (
 	// RegistrationManager functionality related to a registration manager
 	RegistrationManager = "registration_manager"
 
-	// CountJWTSVIDs functionality related to counting JWT-SVIDs
-	CountJWTSVIDs = "count_jwt_svids"
+	// TaintedJWTSVIDs tags tainted JWT SVID count/list
+	TaintedJWTSVIDs = "tainted_jwt_svids"
 
 	// TaintedX509SVIDs tags tainted X.509 SVID count/list
 	TaintedX509SVIDs = "tainted_x509_svids"

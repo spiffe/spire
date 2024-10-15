@@ -64,7 +64,7 @@ func TestJWTSVIDCache(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority",
 					Data: logrus.Fields{
-						telemetry.CountJWTSVIDs:      "1",
+						telemetry.TaintedJWTSVIDs:    "1",
 						telemetry.JWTAuthorityKeyIDs: keyID1,
 					},
 				},
@@ -72,7 +72,7 @@ func TestJWTSVIDCache(t *testing.T) {
 			expectMetrics: []fakemetrics.MetricItem{
 				{
 					Type: fakemetrics.AddSampleType,
-					Key:  []string{telemetry.CacheManager, telemetry.CountJWTSVIDs, agent.CacheTypeWorkload},
+					Key:  []string{telemetry.CacheManager, telemetry.TaintedJWTSVIDs, agent.CacheTypeWorkload},
 					Val:  1,
 				},
 				{
@@ -101,7 +101,7 @@ func TestJWTSVIDCache(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority",
 					Data: logrus.Fields{
-						telemetry.CountJWTSVIDs:      "2",
+						telemetry.TaintedJWTSVIDs:    "2",
 						telemetry.JWTAuthorityKeyIDs: keyID1,
 					},
 				},
@@ -109,7 +109,7 @@ func TestJWTSVIDCache(t *testing.T) {
 			expectMetrics: []fakemetrics.MetricItem{
 				{
 					Type: fakemetrics.AddSampleType,
-					Key:  []string{telemetry.CacheManager, telemetry.CountJWTSVIDs, agent.CacheTypeWorkload},
+					Key:  []string{telemetry.CacheManager, telemetry.TaintedJWTSVIDs, agent.CacheTypeWorkload},
 					Val:  2,
 				},
 				{
@@ -139,7 +139,7 @@ func TestJWTSVIDCache(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority",
 					Data: logrus.Fields{
-						telemetry.CountJWTSVIDs:      "2",
+						telemetry.TaintedJWTSVIDs:    "2",
 						telemetry.JWTAuthorityKeyIDs: keyID1,
 					},
 				},
@@ -147,7 +147,7 @@ func TestJWTSVIDCache(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority",
 					Data: logrus.Fields{
-						telemetry.CountJWTSVIDs:      "1",
+						telemetry.TaintedJWTSVIDs:    "1",
 						telemetry.JWTAuthorityKeyIDs: keyID2,
 					},
 				},
@@ -155,7 +155,7 @@ func TestJWTSVIDCache(t *testing.T) {
 			expectMetrics: []fakemetrics.MetricItem{
 				{
 					Type: fakemetrics.AddSampleType,
-					Key:  []string{telemetry.CacheManager, telemetry.CountJWTSVIDs, agent.CacheTypeWorkload},
+					Key:  []string{telemetry.CacheManager, telemetry.TaintedJWTSVIDs, agent.CacheTypeWorkload},
 					Val:  3,
 				},
 				{
@@ -183,7 +183,7 @@ func TestJWTSVIDCache(t *testing.T) {
 			expectMetrics: []fakemetrics.MetricItem{
 				{
 					Type: fakemetrics.AddSampleType,
-					Key:  []string{telemetry.CacheManager, telemetry.CountJWTSVIDs, agent.CacheTypeWorkload},
+					Key:  []string{telemetry.CacheManager, telemetry.TaintedJWTSVIDs, agent.CacheTypeWorkload},
 					Val:  0,
 				},
 				{
