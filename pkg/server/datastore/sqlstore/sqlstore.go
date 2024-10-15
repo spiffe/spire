@@ -38,6 +38,7 @@ import (
 
 var (
 	sqlError          = errs.Class("datastore-sql")
+	validationError   = errs.Class("datastore-validation")
 	validEntryIDChars = &unicode.RangeTable{
 		R16: []unicode.Range16{
 			{0x002d, 0x002e, 1}, // - | .
@@ -473,12 +474,11 @@ func (ds *Plugin) CreateOrReturnRegistrationEntry(ctx context.Context,
 func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 	entry *common.RegistrationEntry,
 ) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
-	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
-	if err = validateRegistrationEntry(entry); err != nil {
-		return nil, false, err
-	}
-
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		if err = validateRegistrationEntry(entry); err != nil {
+			return err
+		}
+
 		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, tx, entry)
 		if err != nil {
 			return err
@@ -1015,6 +1015,10 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 	}
 
 	code := codes.Unknown
+	if validationError.Has(err) {
+		code = codes.InvalidArgument
+	}
+
 	switch {
 	case gorm.IsRecordNotFoundError(unwrapped):
 		code = codes.NotFound
@@ -3911,7 +3915,7 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 
 	// Verify that final selectors contains the same 'type' when entry is used for store SVIDs
 	if entry.StoreSvid && !equalSelectorTypes(entry.Selectors) {
-		return nil, sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+		return nil, validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 	}
 
 	if mask == nil || mask.DnsNames {
@@ -4398,11 +4402,11 @@ func modelToBundle(model *Bundle) (*common.Bundle, error) {
 
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	if entry == nil {
-		return sqlError.New("invalid request: missing registered entry")
+		return validationError.New("invalid request: missing registered entry")
 	}
 
 	if len(entry.Selectors) == 0 {
-		return sqlError.New("invalid registration entry: missing selector list")
+		return validationError.New("invalid registration entry: missing selector list")
 	}
 
 	// In case of StoreSvid is set, all entries 'must' be the same type,
@@ -4413,31 +4417,31 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		tpe := entry.Selectors[0].Type
 		for _, t := range entry.Selectors {
 			if tpe != t.Type {
-				return sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+				return validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 			}
 		}
 	}
 
 	if len(entry.EntryId) > 255 {
-		return sqlError.New("invalid registration entry: entry ID too long")
+		return validationError.New("invalid registration entry: entry ID too long")
 	}
 
 	for _, e := range entry.EntryId {
 		if !unicode.In(e, validEntryIDChars) {
-			return sqlError.New("invalid registration entry: entry ID contains invalid characters")
+			return validationError.New("invalid registration entry: entry ID contains invalid characters")
 		}
 	}
 
 	if len(entry.SpiffeId) == 0 {
-		return sqlError.New("invalid registration entry: missing SPIFFE ID")
+		return validationError.New("invalid registration entry: missing SPIFFE ID")
 	}
 
 	if entry.X509SvidTtl < 0 {
-		return sqlError.New("invalid registration entry: X509SvidTtl is not set")
+		return validationError.New("invalid registration entry: X509SvidTtl is not set")
 	}
 
 	if entry.JwtSvidTtl < 0 {
-		return sqlError.New("invalid registration entry: JwtSvidTtl is not set")
+		return validationError.New("invalid registration entry: JwtSvidTtl is not set")
 	}
 
 	return nil
@@ -4459,26 +4463,26 @@ func equalSelectorTypes(selectors []Selector) bool {
 
 func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) error {
 	if entry == nil {
-		return sqlError.New("invalid request: missing registered entry")
+		return validationError.New("invalid request: missing registered entry")
 	}
 
 	if (mask == nil || mask.Selectors) && len(entry.Selectors) == 0 {
-		return sqlError.New("invalid registration entry: missing selector list")
+		return validationError.New("invalid registration entry: missing selector list")
 	}
 
 	if (mask == nil || mask.SpiffeId) &&
 		entry.SpiffeId == "" {
-		return sqlError.New("invalid registration entry: missing SPIFFE ID")
+		return validationError.New("invalid registration entry: missing SPIFFE ID")
 	}
 
 	if (mask == nil || mask.X509SvidTtl) &&
 		(entry.X509SvidTtl < 0) {
-		return sqlError.New("invalid registration entry: X509SvidTtl is not set")
+		return validationError.New("invalid registration entry: X509SvidTtl is not set")
 	}
 
 	if (mask == nil || mask.JwtSvidTtl) &&
 		(entry.JwtSvidTtl < 0) {
-		return sqlError.New("invalid registration entry: JwtSvidTtl is not set")
+		return validationError.New("invalid registration entry: JwtSvidTtl is not set")
 	}
 
 	return nil
