@@ -163,7 +163,6 @@ func (a *attestedNodes) loadCache(ctx context.Context) error {
 // It runs once at startup.
 func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, cacheReloadInterval, sqlTransactionTimeout time.Duration) (*attestedNodes, error) {
 	pollPeriods := PollPeriods(cacheReloadInterval, sqlTransactionTimeout)
-	pollBoundaries := BoundaryBuilder(cacheReloadInterval, sqlTransactionTimeout)
 
 	attestedNodes := &attestedNodes{
 		cache:                 cache,
@@ -176,7 +175,7 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metric
 		eventsBeforeFirst: make(map[uint]struct{}),
 		fetchNodes:        make(map[string]struct{}),
 
-		eventTracker: NewEventTracker(pollPeriods, pollBoundaries),
+		eventTracker: NewEventTracker(pollPeriods),
 
 		// initialize gauges to nonsense values to force a change.
 		skippedNodeEvents: -1,

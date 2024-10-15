@@ -173,7 +173,6 @@ func (a *registrationEntries) loadCache(ctx context.Context, pageSize int32) err
 // buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
 func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, cacheReloadInterval, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
 	pollPeriods := PollPeriods(cacheReloadInterval, sqlTransactionTimeout)
-	pollBoundaries := BoundaryBuilder(cacheReloadInterval, sqlTransactionTimeout)
 
 	registrationEntries := &registrationEntries{
 		cache:                 cache,
@@ -186,7 +185,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 		eventsBeforeFirst: make(map[uint]struct{}),
 		fetchEntries:      make(map[string]struct{}),
 
-		eventTracker: NewEventTracker(pollPeriods, pollBoundaries),
+		eventTracker: NewEventTracker(pollPeriods),
 
 		skippedEntryEvents: -1,
 		lastCacheStats: authorizedentries.CacheStats{
