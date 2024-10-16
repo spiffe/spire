@@ -222,6 +222,47 @@ func TestJWTSVIDCache(t *testing.T) {
 	}
 }
 
+func TestJWTSVIDCacheSize(t *testing.T) {
+	fakeMetrics := fakemetrics.New()
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	cache := NewJWTSVIDCache(log, fakeMetrics, 2)
+
+	now := time.Now()
+	jwtSvid1 := &client.JWTSVID{Token: "1", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+	jwtSvid2 := &client.JWTSVID{Token: "3", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+	jwtSvid3 := &client.JWTSVID{Token: "3", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+
+	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
+	cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSvid1)
+	cache.SetJWTSVID(spiffeID, []string{"audience-2"}, jwtSvid2)
+	cache.SetJWTSVID(spiffeID, []string{"audience-3"}, jwtSvid3)
+
+	_, ok := cache.GetJWTSVID(spiffeID, []string{"audience-1"})
+	assert.False(t, ok)
+
+	actual, ok := cache.GetJWTSVID(spiffeID, []string{"audience-2"})
+	assert.True(t, ok)
+	assert.Equal(t, jwtSvid2, actual)
+
+	actual, ok = cache.GetJWTSVID(spiffeID, []string{"audience-3"})
+	assert.True(t, ok)
+	assert.Equal(t, jwtSvid3, actual)
+
+	// Make the second token the most recently used token
+	_, _ = cache.GetJWTSVID(spiffeID, []string{"audience-2"})
+
+	// Insert a token
+	cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSvid1)
+
+	actual, ok = cache.GetJWTSVID(spiffeID, []string{"audience-2"})
+	assert.True(t, ok)
+	assert.Equal(t, jwtSvid2, actual)
+
+	_, ok = cache.GetJWTSVID(spiffeID, []string{"audience-3"})
+	assert.False(t, ok)
+}
+
 func TestJWTSVIDCacheKeyHashing(t *testing.T) {
 	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 	now := time.Now()

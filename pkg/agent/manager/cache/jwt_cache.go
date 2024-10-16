@@ -32,6 +32,11 @@ type JWTSVIDCache struct {
 	svidCacheMaxSize int
 }
 
+type jwtSvidElement struct {
+	key  string
+	svid *client.JWTSVID
+}
+
 func (c *JWTSVIDCache) CountJWTSVIDs() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -64,7 +69,7 @@ func (c *JWTSVIDCache) GetJWTSVID(spiffeID spiffeid.ID, audience []string) (*cli
 	}
 	c.lruList.MoveToFront(svidElement)
 
-	return svidElement.Value.(*client.JWTSVID), ok
+	return svidElement.Value.(jwtSvidElement).svid, ok
 }
 
 func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid *client.JWTSVID) {
@@ -73,23 +78,26 @@ func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if len(c.svids) > c.svidCacheMaxSize {
+	if len(c.svids) >= c.svidCacheMaxSize {
 		element := c.lruList.Back()
-		keyID, err := getKeyIDFromSVIDToken(element.Value.(*client.JWTSVID).Token)
-		if err != nil {
-			c.log.WithError(err).Error("Could not get key ID from cached JWT-SVID")
-			return
-		}
-		delete(c.svids, keyID)
+		jwtSvidWithHash := element.Value.(jwtSvidElement)
+		delete(c.svids, jwtSvidWithHash.key)
+		c.log.Info("removing a svid")
 		c.lruList.Remove(element)
 	}
 
 	svidElement, ok := c.svids[key]
 	if ok {
-		svidElement.Value = svid
+		svidElement.Value = jwtSvidElement{
+			key:  key,
+			svid: svid,
+		}
 		c.lruList.MoveToFront(svidElement)
 	} else {
-		svidElement = c.lruList.PushFront(svid)
+		svidElement = c.lruList.PushFront(jwtSvidElement{
+			key:  key,
+			svid: svid,
+		})
 		c.svids[key] = svidElement
 	}
 }
@@ -104,15 +112,17 @@ func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities 
 	removedKeyIDs := make(map[string]int)
 	totalCount := 0
 	for key, element := range c.svids {
-		jwtSVID := element.Value.(*client.JWTSVID)
-		keyID, err := getKeyIDFromSVIDToken(jwtSVID.Token)
+		jwtSvidElement := element.Value.(jwtSvidElement)
+		keyID, err := getKeyIDFromSVIDToken(jwtSvidElement.svid.Token)
 		if err != nil {
 			c.log.WithError(err).Error("Could not get key ID from cached JWT-SVID")
 			continue
 		}
+
 		if _, tainted := taintedJWTAuthorities[keyID]; tainted {
 			delete(c.svids, key)
 			c.lruList.Remove(element)
+
 			removedKeyIDs[keyID]++
 			totalCount++
 		}
