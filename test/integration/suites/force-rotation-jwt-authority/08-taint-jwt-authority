@@ -20,12 +20,11 @@ docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
       /opt/spire/bin/spire-server \
       localauthority jwt taint -authorityID "${old_jwt_authority}" || fail-now "Failed to taint old authority"
 
-# Root server logs
+# check Server logs
 check-logs spire-server \
       "JWT authority tainted successfully|local_authority_id=${old_jwt_authority}"
 
-# TODO: update this error message check 
-# Root agent logs
+# Check Agent logs
 check-logs spire-agent \
       "JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority|count_jwt_svids=1|jwt_authority_key_ids=${old_jwt_authority}"
 
