@@ -68,6 +68,10 @@ func (et *eventTracker) SelectEvents() []uint {
 	return pollList
 }
 
+func (et *eventTracker) FreeEvents(events []uint) {
+	t.pool.Put(events[:0])
+}
+
 func (et *eventTracker) EventCount() uint {
 	return uint(len(et.events))
 }

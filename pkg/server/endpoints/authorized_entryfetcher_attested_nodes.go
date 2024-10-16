@@ -100,6 +100,7 @@ func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
 		a.fetchNodes[event.SpiffeID] = struct{}{}
 		a.eventTracker.StopTracking(eventID)
 	}
+	a.eventTracker.FreeEvents()
 }
 
 func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {

@@ -99,6 +99,7 @@ func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 		a.fetchEntries[event.EntryID] = struct{}{}
 		a.eventTracker.StopTracking(eventID)
 	}
+	a.eventTracker.FreeEvents()
 }
 
 func (a *registrationEntries) scanForNewEvents(ctx context.Context) error {

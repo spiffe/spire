@@ -351,8 +351,6 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 		if err != nil {
 			return err
 		}
-		// TODO: this is at the wrong level of the software stack.
-		// It should be created in the caller of the datastore interface.
 		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
 			SpiffeID: n.SpiffeId,
 		})
@@ -369,8 +367,6 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 		if err != nil {
 			return err
 		}
-		// TODO: this is at the wrong level of the software stack.
-		// It should be created in the caller of the datastore interface.
 		return createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
 			SpiffeID: spiffeID,
 		})
