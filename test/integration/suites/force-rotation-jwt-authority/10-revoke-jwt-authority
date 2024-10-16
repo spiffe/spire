@@ -1,0 +1,30 @@
+#!/bin/bash
+
+old_jwt_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+      /opt/spire/bin/spire-server \
+      localauthority jwt show -output json | jq -r .old.authority_id) || fail-now "Failed to fetch old authority ID"
+
+log-debug "Old authority: $old_jwt_authority"
+
+jwt_authorities_count=$(docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle \
+    show -output json | jq '.jwt_authorities | length')
+
+if [ $jwt_authorities_count -eq 2 ]; then
+    log-debug "Two JWT Authorities found"
+else
+    fail-now "Expected to be two JWT Authorities. Found $jwt_authorities_count."
+fi
+
+tainted_found=$(docker compose exec -T spire-server /opt/spire/bin/spire-server bundle show -output json | jq '.jwt_authorities[] | select(.tainted == true)')
+
+if [[ -z "$tainted_found" ]]; then
+    fail-now "Tainted JWT authority expected"
+fi
+
+docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server localauthority jwt \
+    revoke -authorityID $old_jwt_authority -output json || fail-now "Failed to revoke JWT authority"
+
+check-log-line spire-server "JWT authority revoked successfully|local_authority_id=$old_jwt_authority"
+

@@ -1,0 +1,28 @@
+#!/bin/bash
+
+for i in {1..20}; do
+    active_jwt_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+          /opt/spire/bin/spire-server \
+          localauthority jwt show -output json | jq -r .active.authority_id) || fail-now "Failed to fetch old jwt authority ID"
+
+    log-debug "Active old authority: $active_jwt_authority"
+
+    svid_json=$(docker compose exec spire-agent ./bin/spire-agent \
+        api fetch jwt -audience aud -output json)
+
+    keys=$(echo $svid_json | jq -c '.[1].bundles["spiffe://domain.test"] | @base64d | fromjson')
+
+    keysLen=$(echo $keys | jq -c '.keys | length')
+    if [[ $keysLen -eq 1 ]]; then
+        break
+    fi
+
+    if [[ $i -eq 20 ]]; then
+        fail-now "Expected one key in JWT SVID bundle, got $keysLen after 20 attempts"
+    fi
+
+    sleep 2s
+done
+
+echo $keys | jq --arg kid $active_jwt_authority -e '.keys[] | select(.kid == $kid)' > /dev/null || fail-now "Active authority not found in JWT SVID bundle"
+
