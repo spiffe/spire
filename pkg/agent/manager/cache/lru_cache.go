@@ -218,10 +218,7 @@ func (c *LRUCache) CountX509SVIDs() int {
 }
 
 func (c *LRUCache) CountJWTSVIDs() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return len(c.JWTSVIDCache.svids)
+	return c.JWTSVIDCache.CountJWTSVIDs()
 }
 
 func (c *LRUCache) CountRecords() int {
