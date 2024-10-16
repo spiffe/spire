@@ -12,7 +12,7 @@ if [[ $amount_authorities -ne 1 ]]; then
 fi
 
 # Prepare authority
-prepared_authority_id=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+prepared_authority_id=$(docker compose exec -T spire-server \
     /opt/spire/bin/spire-server localauthority jwt prepare -output json | jq -r .prepared_authority.authority_id)
 
 # Verify that the prepared authority is logged
