@@ -39,13 +39,16 @@ func (c *JWTSVIDCache) CountJWTSVIDs() int {
 	return len(c.svids)
 }
 
-func NewJWTSVIDCache(log logrus.FieldLogger, metrics telemetry.Metrics) *JWTSVIDCache {
+func NewJWTSVIDCache(log logrus.FieldLogger, metrics telemetry.Metrics, svidCacheMaxSize int) *JWTSVIDCache {
+	if svidCacheMaxSize <= 0 {
+		svidCacheMaxSize = DefaultSVIDCacheMaxSize
+	}
 	return &JWTSVIDCache{
 		metrics:          metrics,
 		log:              log,
 		svids:            make(map[string]*list.Element),
 		lruList:          list.New(),
-		svidCacheMaxSize: 1024, // TODO: make configurable
+		svidCacheMaxSize: svidCacheMaxSize,
 	}
 }
 
