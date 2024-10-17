@@ -84,7 +84,8 @@ func (a *attestedNodes) searchBeforeFirstEvent(ctx context.Context) error {
 
 func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
 	// check if the polled events have appeared out-of-order
-	for _, eventID := range a.eventTracker.SelectEvents() {
+	selectedEvents := a.eventTracker.SelectEvents()
+	for _, eventID := range selectedEvents {
 		log := a.log.WithField(telemetry.EventID, eventID)
 		event, err := a.ds.FetchAttestedNodeEvent(ctx, eventID)
 
@@ -100,7 +101,7 @@ func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
 		a.fetchNodes[event.SpiffeID] = struct{}{}
 		a.eventTracker.StopTracking(eventID)
 	}
-	a.eventTracker.FreeEvents()
+	a.eventTracker.FreeEvents(selectedEvents)
 }
 
 func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {

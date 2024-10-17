@@ -69,7 +69,7 @@ func (et *eventTracker) SelectEvents() []uint {
 }
 
 func (et *eventTracker) FreeEvents(events []uint) {
-	t.pool.Put(events[:0])
+	et.pool.Put(events[:0])
 }
 
 func (et *eventTracker) EventCount() uint {

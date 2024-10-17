@@ -83,7 +83,8 @@ func (a *registrationEntries) searchBeforeFirstEvent(ctx context.Context) error 
 
 func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 	// check if the polled events have appeared out-of-order
-	for _, eventID := range a.eventTracker.SelectEvents() {
+	selectedEvents := a.eventTracker.SelectEvents()
+	for _, eventID := range selectedEvents {
 		log := a.log.WithField(telemetry.EventID, eventID)
 		event, err := a.ds.FetchRegistrationEntryEvent(ctx, eventID)
 
@@ -99,7 +100,7 @@ func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 		a.fetchEntries[event.EntryID] = struct{}{}
 		a.eventTracker.StopTracking(eventID)
 	}
-	a.eventTracker.FreeEvents()
+	a.eventTracker.FreeEvents(selectedEvents)
 }
 
 func (a *registrationEntries) scanForNewEvents(ctx context.Context) error {
