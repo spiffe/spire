@@ -1870,7 +1870,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				return nil
 			},
-			expectError: "datastore-sql: invalid request: missing registered entry",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid request: missing registered entry",
 		},
 		{
 			name: "no selectors",
@@ -1878,7 +1878,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.Selectors = nil
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: missing selector list",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: missing selector list",
 		},
 		{
 			name: "no SPIFFE ID",
@@ -1886,7 +1886,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.SpiffeId = ""
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: missing SPIFFE ID",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: missing SPIFFE ID",
 		},
 		{
 			name: "negative X509 ttl",
@@ -1894,7 +1894,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.X509SvidTtl = -1
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: X509SvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: X509SvidTtl is not set",
 		},
 		{
 			name: "negative JWT ttl",
@@ -1902,7 +1902,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.JwtSvidTtl = -1
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: JwtSvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl is not set",
 		},
 		{
 			name: "create entry successfully",
@@ -1968,7 +1968,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.EntryId = strings.Repeat("e", 256)
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: entry ID too long",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: entry ID too long",
 		},
 		{
 			name: "entry ID contains invalid characters",
@@ -1976,7 +1976,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.EntryId = "éntry😊"
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: entry ID contains invalid characters",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: entry ID contains invalid characters",
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -3033,7 +3033,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithStoreSvid() {
 	}
 	resp, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.Require().Nil(resp)
-	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled")
+	s.Require().EqualError(err, "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: selector types must be the same when store SVID is enabled")
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
@@ -3208,7 +3208,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 					{Type: "Type2", Value: "Value2"},
 				}
 			},
-			err: sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
+			err: validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
 		},
 
 		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
