@@ -33,7 +33,8 @@ func NewEventTracker(pollPeriods uint) *eventTracker {
 		events:      make(map[uint]uint),
 		pool: sync.Pool{
 			New: func() any {
-				return []uint(nil)
+				// See https://staticcheck.dev/docs/checks#SA6002.
+				return new([]uint)
 			},
 		},
 	}
@@ -56,7 +57,7 @@ func (et *eventTracker) StopTracking(event uint) {
 }
 
 func (et *eventTracker) SelectEvents() []uint {
-	pollList := et.pool.Get().([]uint)
+	pollList := *et.pool.Get().(*[]uint)
 	for event, _ := range et.events {
 		if et.events[event] >= et.pollPeriods {
 			et.StopTracking(event)
@@ -69,7 +70,8 @@ func (et *eventTracker) SelectEvents() []uint {
 }
 
 func (et *eventTracker) FreeEvents(events []uint) {
-	et.pool.Put(events[:0])
+	events = events[:0]
+	et.pool.Put(&events)
 }
 
 func (et *eventTracker) EventCount() uint {
