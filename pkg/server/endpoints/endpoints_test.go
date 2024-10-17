@@ -24,7 +24,6 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
@@ -166,8 +165,6 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 }
 
 func TestListenAndServe(t *testing.T) {
-	require.NoError(t, fflag.Load(fflag.RawConfig{"forced_rotation"}))
-
 	ctx := context.Background()
 	ca := testca.New(t, testTD)
 	federatedCA := testca.New(t, foreignFederatedTD)

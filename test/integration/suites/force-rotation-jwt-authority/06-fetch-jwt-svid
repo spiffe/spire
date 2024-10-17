@@ -1,6 +1,6 @@
 #!/bin/bash
 
-prepared_authority=$(docker compose exec -t -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+prepared_authority=$(docker compose exec -t spire-server \
     /opt/spire/bin/spire-server \
     localauthority jwt show -output json | jq -r .active.authority_id) || fail-now "Failed to fetch prepared JWT authority ID"
 
