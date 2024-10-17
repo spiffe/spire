@@ -40,8 +40,8 @@ type DataStore interface {
 	UpdateRegistrationEntry(context.Context, *common.RegistrationEntry, *common.RegistrationEntryMask) (*common.RegistrationEntry, error)
 
 	// Entries Events
-	ListRegistrationEntriesEvents(ctx context.Context, req *ListRegistrationEntriesEventsRequest) (*ListRegistrationEntriesEventsResponse, error)
-	PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) error
+	ListRegistrationEntryEvents(ctx context.Context, req *ListRegistrationEntryEventsRequest) (*ListRegistrationEntryEventsResponse, error)
+	PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) error
 	FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*RegistrationEntryEvent, error)
 	CreateRegistrationEntryEventForTesting(ctx context.Context, event *RegistrationEntryEvent) error
 	DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error
@@ -55,8 +55,8 @@ type DataStore interface {
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 
 	// Nodes Events
-	ListAttestedNodesEvents(ctx context.Context, req *ListAttestedNodesEventsRequest) (*ListAttestedNodesEventsResponse, error)
-	PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) error
+	ListAttestedNodeEvents(ctx context.Context, req *ListAttestedNodeEventsRequest) (*ListAttestedNodeEventsResponse, error)
+	PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error
 	FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*AttestedNodeEvent, error)
 	CreateAttestedNodeEventForTesting(ctx context.Context, event *AttestedNodeEvent) error
 	DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error
@@ -169,7 +169,7 @@ type ListAttestedNodesResponse struct {
 	Pagination *Pagination
 }
 
-type ListAttestedNodesEventsRequest struct {
+type ListAttestedNodeEventsRequest struct {
 	GreaterThanEventID uint
 	LessThanEventID    uint
 }
@@ -179,7 +179,7 @@ type AttestedNodeEvent struct {
 	SpiffeID string
 }
 
-type ListAttestedNodesEventsResponse struct {
+type ListAttestedNodeEventsResponse struct {
 	Events []AttestedNodeEvent
 }
 
@@ -223,7 +223,7 @@ type ListRegistrationEntriesResponse struct {
 	Pagination *Pagination
 }
 
-type ListRegistrationEntriesEventsRequest struct {
+type ListRegistrationEntryEventsRequest struct {
 	GreaterThanEventID uint
 	LessThanEventID    uint
 }
@@ -233,7 +233,7 @@ type RegistrationEntryEvent struct {
 	EntryID string
 }
 
-type ListRegistrationEntriesEventsResponse struct {
+type ListRegistrationEntryEventsResponse struct {
 	Events []RegistrationEntryEvent
 }
 

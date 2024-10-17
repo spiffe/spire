@@ -9,14 +9,14 @@ check-logs() {
 }
 
 # Fetch old authority ID
-old_jwt_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+old_jwt_authority=$(docker compose exec -T spire-server \
       /opt/spire/bin/spire-server \
       localauthority jwt show -output json | jq -r .old.authority_id) || fail-now "Failed to fetch old authority ID"
 
 log-debug "Old authority: $old_jwt_authority"
 
 # Taint the old authority
-docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+docker compose exec -T spire-server \
       /opt/spire/bin/spire-server \
       localauthority jwt taint -authorityID "${old_jwt_authority}" || fail-now "Failed to taint old authority"
 

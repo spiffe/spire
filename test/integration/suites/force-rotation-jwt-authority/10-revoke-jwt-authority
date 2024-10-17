@@ -1,6 +1,6 @@
 #!/bin/bash
 
-old_jwt_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+old_jwt_authority=$(docker compose exec -T spire-server \
       /opt/spire/bin/spire-server \
       localauthority jwt show -output json | jq -r .old.authority_id) || fail-now "Failed to fetch old authority ID"
 
@@ -22,7 +22,7 @@ if [[ -z "$tainted_found" ]]; then
     fail-now "Tainted JWT authority expected"
 fi
 
-docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server localauthority jwt \
     revoke -authorityID $old_jwt_authority -output json || fail-now "Failed to revoke JWT authority"
 

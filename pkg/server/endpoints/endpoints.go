@@ -30,7 +30,6 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/pkg/common/auth"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -202,11 +201,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	svidv1.RegisterSVIDServer(udsServer, e.APIServers.SVIDServer)
 	trustdomainv1.RegisterTrustDomainServer(tcpServer, e.APIServers.TrustDomainServer)
 	trustdomainv1.RegisterTrustDomainServer(udsServer, e.APIServers.TrustDomainServer)
-
-	if fflag.IsSet(fflag.FlagForcedRotation) {
-		localauthorityv1.RegisterLocalAuthorityServer(tcpServer, e.APIServers.LocalAUthorityServer)
-		localauthorityv1.RegisterLocalAuthorityServer(udsServer, e.APIServers.LocalAUthorityServer)
-	}
+	localauthorityv1.RegisterLocalAuthorityServer(tcpServer, e.APIServers.LocalAUthorityServer)
+	localauthorityv1.RegisterLocalAuthorityServer(udsServer, e.APIServers.LocalAUthorityServer)
 
 	// UDS only
 	loggerv1.RegisterLoggerServer(udsServer, e.APIServers.LoggerServer)
