@@ -1,7 +1,7 @@
 #!/bin/bash
 
 for i in {1..20}; do
-    active_jwt_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    active_jwt_authority=$(docker compose exec -T spire-server \
           /opt/spire/bin/spire-server \
           localauthority jwt show -output json | jq -r .active.authority_id) || fail-now "Failed to fetch old jwt authority ID"
 
