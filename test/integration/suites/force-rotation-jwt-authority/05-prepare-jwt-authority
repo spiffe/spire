@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Initial check for x509 authorities in spire-server
+jwt_authorities=$(docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle show -output json | jq '.jwt_authorities' -c)
+
+amount_authorities=$(echo "$jwt_authorities" | jq length)
+
+# Ensure only one JWT authority is present at the start
+if [[ $amount_authorities -ne 1 ]]; then
+    fail-now "Only one JWT authority expected at start"
+fi
+
+# Prepare authority
+prepared_authority_id=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server localauthority jwt prepare -output json | jq -r .prepared_authority.authority_id)
+
+# Verify that the prepared authority is logged
+searching="JWT key prepared|local_authority_id=${prepared_authority_id}"
+check-log-line spire-server "$searching"
+
+# Check for updated x509 authorities in spire-server
+# Check for updated JWT authorities in spire-server
+jwt_authorities=$(docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle show -output json | jq '.jwt_authorities' -c)
+amount_authorities=$(echo "$jwt_authorities" | jq length)
+
+# Ensure two JWT authorities are present after preparation
+if [[ $amount_authorities -ne 2 ]]; then
+    fail-now "Two JWT authorities expected after prepare"
+fi
+
+# Ensure the prepared authority is present
+if ! echo "$jwt_authorities" | jq -e ".[] | select(.key_id == \"$prepared_authority_id\")" > /dev/null; then
+    fail-now "Prepared authority not found"
+fi

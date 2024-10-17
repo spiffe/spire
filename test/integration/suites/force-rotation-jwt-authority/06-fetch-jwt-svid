@@ -1,0 +1,50 @@
+#!/bin/bash
+
+prepared_authority=$(docker compose exec -t -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+    /opt/spire/bin/spire-server \
+    localauthority jwt show -output json | jq -r .active.authority_id) || fail-now "Failed to fetch prepared JWT authority ID"
+
+svid_json=$(docker compose exec spire-agent ./bin/spire-agent \
+    api fetch jwt -audience aud -output json) || fail-now "Failed to fetch JWT SVID"
+
+jwt_svid=$(echo $svid_json | jq -c '.[0].svids[0].svid') || fail-now "Failed to parse JWT SVID"
+
+# Store JWT SVID for the next steps
+echo $jwt_svid > conf/agent/jwt_svid
+
+# Extract key ID from JWT SVID
+skid=$(echo "$jwt_svid" | jq -r 'split(".") | .[0] | @base64d | fromjson | .kid')
+
+# Check if the key ID matches the prepared authority ID
+if [[ $skid != $prepared_authority ]]; then
+    fail-now "JWT SVID key ID does not match the prepared authority ID, got $skid, expected $prepared_authority"
+fi
+
+keys=$(echo $svid_json | jq -c '.[1].bundles["spiffe://domain.test"] | @base64d | fromjson')
+
+retry_count=0
+max_retries=20
+success=false
+
+while [[ $retry_count -lt $max_retries ]]; do
+    keysLen=$(echo $keys | jq -c '.keys | length')
+    if [[ $keysLen -eq 2 ]]; then
+        success=true
+        break
+    else
+        echo "Retrying... ($((retry_count+1))/$max_retries)"
+        retry_count=$((retry_count+1))
+        sleep 2
+        # Re-fetch the JWT SVID and keys
+        svid_json=$(docker compose exec spire-agent ./bin/spire-agent \
+            api fetch jwt -audience aud -output json) || fail-now "Failed to re-fetch JWT SVID"
+        jwt_svid=$(echo $svid_json | jq -c '.[0].svids[0].svid') || fail-now "Failed to parse re-fetched JWT SVID"
+        keys=$(echo $svid_json | jq -c '.[1].bundles["spiffe://domain.test"] | @base64d | fromjson')
+    fi
+done
+
+if [[ $success == false ]]; then
+    fail-now "Expected one key in JWT SVID bundle, got $keysLen after $max_retries retries"
+fi
+
+echo $keys | jq --arg kid $prepared_authority -e '.keys[] | select(.kid == $kid)' > /dev/null || fail-now "Prepared authority not found in JWT SVID bundle"

@@ -1,0 +1,30 @@
+#!/bin/bash
+
+check-logs() {
+  local component=$1
+  shift
+  for log in "$@"; do
+        check-log-line "$component" "$log"
+  done
+}
+
+# Fetch old authority ID
+old_jwt_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+      /opt/spire/bin/spire-server \
+      localauthority jwt show -output json | jq -r .old.authority_id) || fail-now "Failed to fetch old authority ID"
+
+log-debug "Old authority: $old_jwt_authority"
+
+# Taint the old authority
+docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+      /opt/spire/bin/spire-server \
+      localauthority jwt taint -authorityID "${old_jwt_authority}" || fail-now "Failed to taint old authority"
+
+# check Server logs
+check-logs spire-server \
+      "JWT authority tainted successfully|local_authority_id=${old_jwt_authority}"
+
+# Check Agent logs
+check-logs spire-agent \
+      "JWT-SVIDs were removed from the JWT cache because they were issued by a tainted authority|count_jwt_svids=1|jwt_authority_key_ids=${old_jwt_authority}"
+
