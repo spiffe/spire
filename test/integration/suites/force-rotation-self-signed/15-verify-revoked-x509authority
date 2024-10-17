@@ -4,7 +4,7 @@ MAX_RETRIES=10
 RETRY_DELAY=2 # seconds between retries
 
 fetch-active-authority() {
-    docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation root-server \
+    docker compose exec -T root-server \
         /opt/spire/bin/spire-server localauthority x509 show -output json | jq -r .active.authority_id
 }
 
