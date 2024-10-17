@@ -659,6 +659,122 @@ Mints a JWT-SVID.
 | `-ttl`        | The TTL of the JWT-SVID                                                      | First non-zero value from `Entry.jwt_svid_ttl`, `Entry.ttl`, `default_jwt_svid_ttl`, `5m` |
 | `-write`      | File to write token to instead of stdout                                     |                                                                                           |
 
+### `spire-server localauthority jwt activate`
+
+Activates a prepared JWT authority for use, which will cause it to be used for all JWT signing operations serviced by this server going forward.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-authorityID` | The authority ID of the JWT authority to activate   |                                    |
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server localauthority jwt prepare`
+
+Prepares a new JWT authority for use by generating a new key and injecting it into the bundle.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server localauthority jwt revoke`
+
+Revokes the previously active JWT authority by removing it from the bundle and propagating this update throughout the cluster.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-authorityID` | The authority ID of the JWT authority to revoke     |                                    |
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server localauthority jwt show`
+
+Shows the local JWT authorities.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server localauthority jwt taint`
+
+Marks the previously active JWT authority as being tainted.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-authorityID` | The authority ID of the JWT authority to taint      |                                    |
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server localauthority x509 activate`
+
+Activates a prepared X.509 authority for use, which will cause it to be used for all X.509 signing operations serviced by this server going forward.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-authorityID` | The authority ID of the X.509 authority to activate |                                    |
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server localauthority x509 prepare`
+
+Prepares a new X.509 authority for use by generating a new key and injecting the resulting CA certificate into the bundle.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server localauthority x509 revoke`
+
+Revokes the previously active X.509 authority by removing it from the bundle and propagating this update throughout the cluster.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-authorityID` | The authority ID of the X.509 authority to revoke   |                                    |
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server localauthority x509 show`
+
+Shows the local X.509 authorities.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server localauthority x509 taint`
+
+Marks the previously active X.509 authority as being tainted.
+
+| Command        | Action                                              | Default                            |
+|:---------------|:----------------------------------------------------|:-----------------------------------|
+| `-authorityID` | The authority ID of the X.509 authority to taint    |                                    |
+| `-output`      | Desired output format (`pretty`, `json`)            | `pretty`                           |
+| `-socketPath`  | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
+
+### `spire-server upstreamauthority revoke`
+
+Revokes the previously active X.509 upstream authority by removing it from the bundle and propagating this update throughout the cluster.
+
+| Command         | Action                                                                                                                 | Default                            |
+|:----------------|:-----------------------------------------------------------------------------------------------------------------------|:-----------------------------------|
+| `-output`       | Desired output format (`pretty`, `json`)                                                                               | `pretty`                           |
+| `-socketPath`   | Path to the SPIRE Server API socket                                                                                    | /tmp/spire-server/private/api.sock |
+| `-subjectKeyID` | The X.509 Subject Key Identifier (or SKID) of the authority's CA certificate of the X.509 upstream authority to revoke |                                    |
+
+### `spire-server upstreamauthority taint`
+
+Marks the provided X.509 upstream authority as being tainted.
+
+| Command         | Action                                                                                                                 | Default                            |
+|:----------------|:-----------------------------------------------------------------------------------------------------------------------|:-----------------------------------|
+| `-output`       | Desired output format (`pretty`, `json`)                                                                               | `pretty`                           |
+| `-socketPath`   | Path to the SPIRE Server API socket                                                                                    | /tmp/spire-server/private/api.sock |
+| `-subjectKeyID` | The X.509 Subject Key Identifier (or SKID) of the authority's CA certificate of the upstream X.509 authority to taint  |                                    |
+
 ## JSON object for `-data`
 
 A JSON object passed to `-data` for `entry create/update` expects the following form:

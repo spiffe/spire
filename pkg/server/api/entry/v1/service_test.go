@@ -2185,23 +2185,23 @@ func TestBatchCreateEntry(t *testing.T) {
 			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
 					Status: &types.Status{
-						Code:    int32(codes.Internal),
-						Message: "failed to create entry: datastore-sql: invalid registration entry: entry ID contains invalid characters",
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to create entry: datastore-validation: invalid registration entry: entry ID contains invalid characters",
 					},
 				},
 				{
 					Status: &types.Status{
-						Code:    int32(codes.Internal),
-						Message: "failed to create entry: datastore-sql: invalid registration entry: entry ID too long",
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to create entry: datastore-validation: invalid registration entry: entry ID too long",
 					},
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to create entry",
+					Message: "Invalid argument: failed to create entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "datastore-sql: invalid registration entry: entry ID contains invalid characters",
+						logrus.ErrorKey:    "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: entry ID contains invalid characters",
 						telemetry.SPIFFEID: "spiffe://example.org/bar",
 					},
 				},
@@ -2224,15 +2224,15 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
-						telemetry.StatusCode:     "Internal",
-						telemetry.StatusMessage:  "failed to create entry: datastore-sql: invalid registration entry: entry ID contains invalid characters",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to create entry: datastore-validation: invalid registration entry: entry ID contains invalid characters",
 					},
 				},
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Failed to create entry",
+					Message: "Invalid argument: failed to create entry",
 					Data: logrus.Fields{
-						logrus.ErrorKey:    "datastore-sql: invalid registration entry: entry ID too long",
+						logrus.ErrorKey:    "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: entry ID too long",
 						telemetry.SPIFFEID: "spiffe://example.org/bar",
 					},
 				},
@@ -2255,8 +2255,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
-						telemetry.StatusCode:     "Internal",
-						telemetry.StatusMessage:  "failed to create entry: datastore-sql: invalid registration entry: entry ID too long",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to create entry: datastore-validation: invalid registration entry: entry ID too long",
 					},
 				},
 			},
@@ -4130,17 +4130,17 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
-					Status: &types.Status{Code: int32(codes.Internal), Message: "failed to update entry: datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled"},
+					Status: &types.Status{Code: int32(codes.InvalidArgument), Message: "failed to update entry: datastore-validation: invalid registration entry: selector types must be the same when store SVID is enabled"},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
 					{
 						Level:   logrus.ErrorLevel,
-						Message: "Failed to update entry",
+						Message: "Invalid argument: failed to update entry",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							logrus.ErrorKey:          "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled",
+							logrus.ErrorKey:          "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: selector types must be the same when store SVID is enabled",
 						},
 					},
 					{
@@ -4148,8 +4148,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 						Message: "API accessed",
 						Data: logrus.Fields{
 							telemetry.Status:         "error",
-							telemetry.StatusCode:     "Internal",
-							telemetry.StatusMessage:  "failed to update entry: datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled",
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to update entry: datastore-validation: invalid registration entry: selector types must be the same when store SVID is enabled",
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.Selectors:      "type1:key1:value,type2:key2:value",

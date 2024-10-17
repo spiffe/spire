@@ -3,8 +3,6 @@ package cli
 import (
 	"context"
 	stdlog "log"
-	"os"
-	"strings"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
@@ -21,7 +19,6 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/upstreamauthority"
 	"github.com/spiffe/spire/cmd/spire-server/cli/validate"
 	"github.com/spiffe/spire/cmd/spire-server/cli/x509"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/version"
 )
@@ -130,75 +127,47 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		"validate": func() (cli.Command, error) {
 			return validate.NewValidateCommand(), nil
 		},
+		"localauthority x509 show": func() (cli.Command, error) {
+			return localauthority_x509.NewX509ShowCommand(), nil
+		},
+		"localauthority x509 prepare": func() (cli.Command, error) {
+			return localauthority_x509.NewX509PrepareCommand(), nil
+		},
+		"localauthority x509 activate": func() (cli.Command, error) {
+			return localauthority_x509.NewX509ActivateCommand(), nil
+		},
+		"localauthority x509 taint": func() (cli.Command, error) {
+			return localauthority_x509.NewX509TaintCommand(), nil
+		},
+		"localauthority x509 revoke": func() (cli.Command, error) {
+			return localauthority_x509.NewX509RevokeCommand(), nil
+		},
+		"localauthority jwt show": func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTShowCommand(), nil
+		},
+		"localauthority jwt prepare": func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTPrepareCommand(), nil
+		},
+		"localauthority jwt activate": func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTActivateCommand(), nil
+		},
+		"localauthority jwt taint": func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTTaintCommand(), nil
+		},
+		"localauthority jwt revoke": func() (cli.Command, error) {
+			return localauthority_jwt.NewJWTRevokeCommand(), nil
+		},
+		"upstreamauthority taint": func() (cli.Command, error) {
+			return upstreamauthority.NewTaintCommand(), nil
+		},
+		"upstreamauthority revoke": func() (cli.Command, error) {
+			return upstreamauthority.NewRevokeCommand(), nil
+		},
 	}
-
-	// TODO: Remove this when the forced_rotation feature flag is no longer
-	// needed. Refer to https://github.com/spiffe/spire/issues/5398.
-	addCommandsEnabledByFFlags(c.Commands)
 
 	exitStatus, err := c.Run()
 	if err != nil {
 		stdlog.Println(err)
 	}
 	return exitStatus
-}
-
-// addCommandsEnabledByFFlags adds commands that are currently available only
-// through a feature flag.
-// Feature flags support through the fflag package in SPIRE Server is
-// designed to work only with the run command and the config file.
-// Since feature flags are intended to be used by developers of a specific
-// feature only, exposing them through command line arguments is not
-// convenient. Instead, we use the SPIRE_SERVER_FFLAGS environment variable
-// to read the configured SPIRE Server feature flags from the environment
-// when other commands may be enabled through feature flags.
-func addCommandsEnabledByFFlags(commands map[string]cli.CommandFactory) {
-	fflagsEnv := os.Getenv("SPIRE_SERVER_FFLAGS")
-	fflags := strings.Split(fflagsEnv, " ")
-	flagForcedRotationFound := false
-	for _, ff := range fflags {
-		if ff == string(fflag.FlagForcedRotation) {
-			flagForcedRotationFound = true
-			break
-		}
-	}
-
-	if flagForcedRotationFound {
-		commands["localauthority x509 show"] = func() (cli.Command, error) {
-			return localauthority_x509.NewX509ShowCommand(), nil
-		}
-		commands["localauthority x509 prepare"] = func() (cli.Command, error) {
-			return localauthority_x509.NewX509PrepareCommand(), nil
-		}
-		commands["localauthority x509 activate"] = func() (cli.Command, error) {
-			return localauthority_x509.NewX509ActivateCommand(), nil
-		}
-		commands["localauthority x509 taint"] = func() (cli.Command, error) {
-			return localauthority_x509.NewX509TaintCommand(), nil
-		}
-		commands["localauthority x509 revoke"] = func() (cli.Command, error) {
-			return localauthority_x509.NewX509RevokeCommand(), nil
-		}
-		commands["localauthority jwt show"] = func() (cli.Command, error) {
-			return localauthority_jwt.NewJWTShowCommand(), nil
-		}
-		commands["localauthority jwt prepare"] = func() (cli.Command, error) {
-			return localauthority_jwt.NewJWTPrepareCommand(), nil
-		}
-		commands["localauthority jwt activate"] = func() (cli.Command, error) {
-			return localauthority_jwt.NewJWTActivateCommand(), nil
-		}
-		commands["localauthority jwt taint"] = func() (cli.Command, error) {
-			return localauthority_jwt.NewJWTTaintCommand(), nil
-		}
-		commands["localauthority jwt revoke"] = func() (cli.Command, error) {
-			return localauthority_jwt.NewJWTRevokeCommand(), nil
-		}
-		commands["upstreamauthority taint"] = func() (cli.Command, error) {
-			return upstreamauthority.NewTaintCommand(), nil
-		}
-		commands["upstreamauthority revoke"] = func() (cli.Command, error) {
-			return upstreamauthority.NewRevokeCommand(), nil
-		}
-	}
 }

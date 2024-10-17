@@ -8,7 +8,7 @@ get-x509-authorities-count() {
     docker compose exec -T $server /opt/spire/bin/spire-server bundle show -output json | jq '.x509_authorities | length'
 }
 
-old_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation root-server \
+old_authority=$(docker compose exec -T root-server \
     /opt/spire/bin/spire-server localauthority x509 show -output json | jq .old.authority_id -r) || fail-now "Failed to get old authority"
 
 log-debug "Old authority: $old_authority"
@@ -27,7 +27,7 @@ if [[ -z "$tainted_found" ]]; then
     fail-now "Tainted authority expected"
 fi
 
-docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation root-server \
+docker compose exec -T root-server \
     /opt/spire/bin/spire-server localauthority x509 revoke -authorityID $old_authority -output json || fail-now "Failed to revoke authority"
 
 check-log-line root-server "X\.509 authority revoked successfully|local_authority_id=$old_authority"

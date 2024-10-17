@@ -1498,7 +1498,7 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	})
 }
 
-func (s *PluginSuite) TestListAttestedNodesEvents() {
+func (s *PluginSuite) TestListAttestedNodeEvents() {
 	var expectedEvents []datastore.AttestedNodeEvent
 
 	// Create an attested node
@@ -1601,7 +1601,7 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
-			resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{
+			resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
 				GreaterThanEventID: test.greaterThanEventID,
 				LessThanEventID:    test.lessThanEventID,
 			})
@@ -1620,7 +1620,7 @@ func (s *PluginSuite) TestListAttestedNodesEvents() {
 	}
 }
 
-func (s *PluginSuite) TestPruneAttestedNodesEvents() {
+func (s *PluginSuite) TestPruneAttestedNodeEvents() {
 	node, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
@@ -1629,7 +1629,7 @@ func (s *PluginSuite) TestPruneAttestedNodesEvents() {
 	})
 	s.Require().NoError(err)
 
-	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(node.SpiffeId, resp.Events[0].SpiffeID)
 
@@ -1656,9 +1656,9 @@ func (s *PluginSuite) TestPruneAttestedNodesEvents() {
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
 			s.Require().Eventuallyf(func() bool {
-				err = s.ds.PruneAttestedNodesEvents(ctx, tt.olderThan)
+				err = s.ds.PruneAttestedNodeEvents(ctx, tt.olderThan)
 				s.Require().NoError(err)
-				resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+				resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
 				s.Require().NoError(err)
 				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
@@ -1870,7 +1870,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				return nil
 			},
-			expectError: "datastore-sql: invalid request: missing registered entry",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid request: missing registered entry",
 		},
 		{
 			name: "no selectors",
@@ -1878,7 +1878,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.Selectors = nil
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: missing selector list",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: missing selector list",
 		},
 		{
 			name: "no SPIFFE ID",
@@ -1886,7 +1886,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.SpiffeId = ""
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: missing SPIFFE ID",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: missing SPIFFE ID",
 		},
 		{
 			name: "negative X509 ttl",
@@ -1894,7 +1894,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.X509SvidTtl = -1
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: X509SvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: X509SvidTtl is not set",
 		},
 		{
 			name: "negative JWT ttl",
@@ -1902,7 +1902,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.JwtSvidTtl = -1
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: JwtSvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl is not set",
 		},
 		{
 			name: "create entry successfully",
@@ -1968,7 +1968,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.EntryId = strings.Repeat("e", 256)
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: entry ID too long",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: entry ID too long",
 		},
 		{
 			name: "entry ID contains invalid characters",
@@ -1976,7 +1976,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.EntryId = "éntry😊"
 				return e
 			},
-			expectError: "datastore-sql: invalid registration entry: entry ID contains invalid characters",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: entry ID contains invalid characters",
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -2111,7 +2111,7 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	}
 	prunedLogMessage := "Pruned an expired registration"
 
-	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(1, len(resp.Events))
 	s.Require().Equal(createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
@@ -2152,7 +2152,7 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
 			// Get latest event id
-			resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+			resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 			require.NoError(t, err)
 			require.Greater(t, len(resp.Events), 0)
 			lastEventID := resp.Events[len(resp.Events)-1].EventID
@@ -2165,7 +2165,7 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
 			// Verify pruning triggers event creation
-			resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+			resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
 				GreaterThanEventID: lastEventID,
 			})
 			require.NoError(t, err)
@@ -3033,7 +3033,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithStoreSvid() {
 	}
 	resp, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.Require().Nil(resp)
-	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled")
+	s.Require().EqualError(err, "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: selector types must be the same when store SVID is enabled")
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
@@ -3208,7 +3208,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 					{Type: "Type2", Value: "Value2"},
 				}
 			},
-			err: sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
+			err: validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
 		},
 
 		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
@@ -3977,7 +3977,7 @@ func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
 	s.Require().Empty(entry.FederatesWith)
 }
 
-func (s *PluginSuite) TestListRegistrationEntriesEvents() {
+func (s *PluginSuite) TestListRegistrationEntryEvents() {
 	var expectedEvents []datastore.RegistrationEntryEvent
 	var expectedEventID uint = 1
 
@@ -3995,7 +3995,7 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 	})
 	expectedEventID++
 
-	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(expectedEvents, resp.Events)
 
@@ -4013,7 +4013,7 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 	})
 	expectedEventID++
 
-	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(expectedEvents, resp.Events)
 
@@ -4026,7 +4026,7 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 	})
 	expectedEventID++
 
-	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(expectedEvents, resp.Events)
 
@@ -4037,7 +4037,7 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 		EntryID: entry2.EntryId,
 	})
 
-	resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(expectedEvents, resp.Events)
 
@@ -4086,7 +4086,7 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
-			resp, err = s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{
+			resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
 				GreaterThanEventID: test.greaterThanEventID,
 				LessThanEventID:    test.lessThanEventID,
 			})
@@ -4105,7 +4105,7 @@ func (s *PluginSuite) TestListRegistrationEntriesEvents() {
 	}
 }
 
-func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
+func (s *PluginSuite) TestPruneRegistrationEntryEvents() {
 	entry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
@@ -4115,7 +4115,7 @@ func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
 	}
 
 	createdRegistrationEntry := s.createRegistrationEntry(entry)
-	resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
 
@@ -4142,9 +4142,9 @@ func (s *PluginSuite) TestPruneRegistrationEntriesEvents() {
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
 			s.Require().Eventuallyf(func() bool {
-				err = s.ds.PruneRegistrationEntriesEvents(ctx, tt.olderThan)
+				err = s.ds.PruneRegistrationEntryEvents(ctx, tt.olderThan)
 				s.Require().NoError(err)
-				resp, err := s.ds.ListRegistrationEntriesEvents(ctx, &datastore.ListRegistrationEntriesEventsRequest{})
+				resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 				s.Require().NoError(err)
 				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
@@ -5287,7 +5287,7 @@ func (s *PluginSuite) checkAttestedNodeEvents(expectedEvents []datastore.Atteste
 		SpiffeID: spiffeID,
 	})
 
-	resp, err := s.ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
+	resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
 	s.Require().NoError(err)
 	s.Require().Equal(expectedEvents, resp.Events)
 

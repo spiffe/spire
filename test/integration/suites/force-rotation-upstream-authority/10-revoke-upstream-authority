@@ -4,7 +4,7 @@ get-x509-authorities-count() {
     local server=$1
 }
 
-old_upstream_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+old_upstream_authority=$(docker compose exec -T spire-server \
       /opt/spire/bin/spire-server \
       localauthority x509 show -output json | jq -r .old.upstream_authority_subject_key_id) || fail-now "Failed to fetch old upstrem authority ID"
 
@@ -27,7 +27,7 @@ if [[ -z "$tainted_found" ]]; then
     fail-now "Tainted authority expected"
 fi
 
-docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+docker compose exec -T spire-server \
     /opt/spire/bin/spire-server upstreamauthority \
     revoke -subjectKeyID $old_upstream_authority -output json || fail-now "Failed to revoke upstream authority"
 

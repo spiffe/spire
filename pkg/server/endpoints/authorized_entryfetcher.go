@@ -34,12 +34,11 @@ type AuthorizedEntryFetcherWithEventsBasedCache struct {
 
 type eventsBasedCache interface {
 	updateCache(ctx context.Context) error
-	pruneMissedEvents()
 }
 
 func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan, sqlTransactionTimeout time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
 	log.Info("Building event-based in-memory entry cache")
-	cache, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, sqlTransactionTimeout)
+	cache, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, cacheReloadInterval, sqlTransactionTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -96,13 +95,10 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) PruneEventsTask(ctx context
 }
 
 func (a *AuthorizedEntryFetcherWithEventsBasedCache) pruneEvents(ctx context.Context, olderThan time.Duration) error {
-	pruneRegistrationEntriesEventsErr := a.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
-	pruneAttestedNodesEventsErr := a.ds.PruneAttestedNodesEvents(ctx, olderThan)
+	pruneRegistrationEntryEventsErr := a.ds.PruneRegistrationEntryEvents(ctx, olderThan)
+	pruneAttestedNodeEventsErr := a.ds.PruneAttestedNodeEvents(ctx, olderThan)
 
-	a.registrationEntries.pruneMissedEvents()
-	a.attestedNodes.pruneMissedEvents()
-
-	return errors.Join(pruneRegistrationEntriesEventsErr, pruneAttestedNodesEventsErr)
+	return errors.Join(pruneRegistrationEntryEventsErr, pruneAttestedNodeEventsErr)
 }
 
 func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Context) error {
@@ -112,15 +108,15 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Con
 	return errors.Join(updateRegistrationEntriesCacheErr, updateAttestedNodesCacheErr)
 }
 
-func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, sqlTransactionTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
+func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cacheReloadInterval, sqlTransactionTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
 	cache := authorizedentries.NewCache(clk)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, buildCachePageSize, sqlTransactionTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, buildCachePageSize, cacheReloadInterval, sqlTransactionTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, sqlTransactionTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, cacheReloadInterval, sqlTransactionTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}
