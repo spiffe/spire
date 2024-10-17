@@ -53,7 +53,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 				continue
 			}
 
-			// The following checks are purely defensive but we want to ensure
+			// The following checks are purely defensive, but we want to ensure
 			// we don't try and handle an alias with a malformed shape.
 			switch {
 			case alias.AliasArn == nil:

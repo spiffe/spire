@@ -1608,7 +1608,7 @@ func TestTaintX509Authority(t *testing.T) {
 
 func TestTaintX509UpstreamAuthority(t *testing.T) {
 	getUpstreamCertAndSubjectID := func(ca *testca.CA) (*x509.Certificate, string) {
-		// Self signed CA will return itself
+		// Self-signed CA will return itself
 		cert := ca.X509Authorities()[0]
 		return cert, x509util.SubjectKeyIDToString(cert.SubjectKeyId)
 	}
@@ -2158,7 +2158,7 @@ func TestRevokeX509Authority(t *testing.T) {
 
 func TestRevokeX509UpstreamAuthority(t *testing.T) {
 	getUpstreamCertAndSubjectID := func(ca *testca.CA) (*x509.Certificate, string) {
-		// Self signed CA will return itself
+		// Self-signed CA will return itself
 		cert := ca.X509Authorities()[0]
 		return cert, x509util.SubjectKeyIDToString(cert.SubjectKeyId)
 	}

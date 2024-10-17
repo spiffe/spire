@@ -185,7 +185,7 @@ func TestConfigure(t *testing.T) {
 
 			plugintest.Load(t, builtin(p), nil, options...)
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
-			// Expect no client unsuccess calls
+			// Expect no client unsuccessful calls
 			switch tt.expectCode {
 			case codes.OK:
 				require.NotNil(t, p.smClient)
@@ -358,7 +358,7 @@ func TestPutX509SVID(t *testing.T) {
 			expectMsg:  "svidstore(aws_secretsmanager): failed to parse request: failed to parse CertChain: x509: malformed certificate",
 		},
 		{
-			name:       "unnexpected aws error when describe secret",
+			name:       "unexpected aws error when describe secret",
 			req:        successReq,
 			expectCode: codes.Internal,
 			expectMsg:  "svidstore(aws_secretsmanager): failed to describe secret: InvalidParameterException: failed to describe secret",
@@ -546,7 +546,7 @@ func TestPutX509SVID(t *testing.T) {
 			require.Equal(t, putSecretInput, sm.putSecretInput)
 
 			require.Equal(t, tt.expectDeleteSecretInput, sm.deleteSecretInput)
-			require.Equal(t, tt.expectDescribeInput, sm.drescribeSecretInput)
+			require.Equal(t, tt.expectDescribeInput, sm.describeSecretInput)
 			require.Equal(t, tt.expectRestoreSecretInput, sm.restoreSecretInput)
 		})
 	}
@@ -674,7 +674,7 @@ func TestDeleteX509SVID(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expectDeleteSecretInput, sm.deleteSecretInput)
-			require.Equal(t, tt.expectDescribeInput, sm.drescribeSecretInput)
+			require.Equal(t, tt.expectDescribeInput, sm.describeSecretInput)
 		})
 	}
 }
@@ -694,12 +694,12 @@ type smConfig struct {
 type fakeSecretsManagerClient struct {
 	t testing.TB
 
-	drescribeSecretInput *secretsmanager.DescribeSecretInput
-	createSecretInput    *secretsmanager.CreateSecretInput
-	putSecretInput       *secretsmanager.PutSecretValueInput
-	deleteSecretInput    *secretsmanager.DeleteSecretInput
-	restoreSecretInput   *secretsmanager.RestoreSecretInput
-	c                    *smConfig
+	describeSecretInput *secretsmanager.DescribeSecretInput
+	createSecretInput   *secretsmanager.CreateSecretInput
+	putSecretInput      *secretsmanager.PutSecretValueInput
+	deleteSecretInput   *secretsmanager.DeleteSecretInput
+	restoreSecretInput  *secretsmanager.RestoreSecretInput
+	c                   *smConfig
 }
 
 func (sm *fakeSecretsManagerClient) createTestClient(_ context.Context, _, _, region string) (SecretsManagerClient, error) {
@@ -729,7 +729,7 @@ func (sm *fakeSecretsManagerClient) DescribeSecret(_ context.Context, input *sec
 		resp.DeletedDate = aws.Time(time.Now())
 	}
 
-	sm.drescribeSecretInput = input
+	sm.describeSecretInput = input
 	return resp, nil
 }
 

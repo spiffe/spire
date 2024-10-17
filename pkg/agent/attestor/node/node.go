@@ -193,7 +193,7 @@ func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*spiff
 }
 
 func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byte, attestor nodeattestor.NodeAttestor) ([]*x509.Certificate, bool, error) {
-	// make sure all of the streams are cancelled if something goes awry
+	// make sure all the streams are cancelled if something goes awry
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

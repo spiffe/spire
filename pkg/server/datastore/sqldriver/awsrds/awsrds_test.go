@@ -328,7 +328,7 @@ func TestCacheToken(t *testing.T) {
 	newTime := initialTime.Add(time.Second * time.Duration(ttl))
 
 	// nowFunc will subtract the clock skew from the new time, to make sure
-	// that we get a new token even if it's not expired but it's within the
+	// that we get a new token even if it's not expired, but it's within the
 	// clock skew period.
 	nowFunc = func() time.Time { return newTime.Add(-clockSkew) }
 

@@ -153,7 +153,7 @@ func TestAttestedNodesSavesMissedStartupEvents(t *testing.T) {
 	err = attestedNodes.missedStartupEvents(ctx)
 	require.NoError(t, err)
 
-	// Make sure no dupliate calls are made
+	// Make sure no duplicate calls are made
 	ds.AppendNextError(nil)
 	ds.AppendNextError(errors.New("Duplicate call"))
 	err = attestedNodes.missedStartupEvents(ctx)

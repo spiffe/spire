@@ -45,7 +45,7 @@ toolchain and other build related files are cached under the `.build` folder
 
 ### Development in Docker
 
-You can either build SPIRE on your host or in a Ubuntu docker container. In
+You can either build SPIRE on your host or in an Ubuntu docker container. In
 both cases you will use the same Makefile commands.
 
 To build SPIRE within a container, first build the development image:
@@ -105,7 +105,7 @@ Packages should be exported through interfaces. Interaction with packages must b
 interfaces
 
 Interfaces should be defined in their own file, named (in lowercase) after the name of the
-interface. eg. `foodata.go` implements `type FooData any`
+interface. e.g. `foodata.go` implements `type FooData any`
 
 ### Metrics
 

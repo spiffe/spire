@@ -119,7 +119,7 @@ func newClient(ctx context.Context, config *SessionConfig, region string, assume
 		return nil, err
 	}
 
-	// If the orgnizationAttestation feature is enabled, use the role configured for feature.
+	// If the organizationAttestation feature is enabled, use the role configured for feature.
 	orgConf, err := newAWSConfig(ctx, config.AccessKeyID, config.SecretAccessKey, region, orgRoleArn)
 	if err != nil {
 		return nil, err

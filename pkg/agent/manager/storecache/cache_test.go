@@ -536,7 +536,7 @@ func TestUpdateEntries(t *testing.T) {
 
 			c.UpdateEntries(tt.initialUpdate, nil)
 			update := tt.setUpdate(*tt.initialUpdate)
-			// Dont care about initialization logs
+			// Don't care about initialization logs
 			hook.Reset()
 
 			// Set check SVID only in updates, creation will is tested in a different test
@@ -649,7 +649,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 		},
 	}
 
-	// Reset logs, this test dont cares about creating logs
+	// Reset logs, this test don't care about creating logs
 	hook.Reset()
 	// Update entry to remove 'bar'
 	c.UpdateEntries(update, nil)
@@ -697,7 +697,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 
 	require.Equal(t, expectedRecords, c.Records())
 
-	// Update SVIDs does not updates records that are in remove state
+	// Update SVIDs does not update records that are in remove state
 	c.UpdateSVIDs(&cache.UpdateSVIDs{
 		X509SVIDs: map[string]*cache.X509SVID{
 			"bar": {

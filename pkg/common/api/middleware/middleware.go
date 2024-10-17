@@ -25,7 +25,7 @@ type Middleware interface {
 	Postprocess(ctx context.Context, fullMethod string, handlerInvoked bool, rpcErr error)
 }
 
-// Preprocess creates a middleware from a function that does preprocessing only.
+// Preprocess creates a middleware from a function that does pre-processing only.
 func Preprocess(fn PreprocessFunc) Middleware {
 	return funcs{
 		preprocess: fn,

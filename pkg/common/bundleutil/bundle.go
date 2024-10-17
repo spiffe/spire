@@ -178,7 +178,7 @@ func MergeBundles(a, b *common.Bundle) (*common.Bundle, bool) {
 }
 
 // PruneBundle removes the bundle RootCAs and JWT keys that expired before a given time
-// It returns an error if prunning results in a bundle with no CAs or keys
+// It returns an error if pruning results in a bundle with no CAs or keys
 func PruneBundle(bundle *common.Bundle, expiration time.Time, log logrus.FieldLogger) (*common.Bundle, bool, error) {
 	if bundle == nil {
 		return nil, false, errors.New("current bundle is nil")

@@ -3410,7 +3410,7 @@ func FuzzSyncAuthorizedStreams(f *testing.F) {
 		require.False(t, resp.More)
 		actualIDs = appendEntryIDs(actualIDs, resp.Entries)
 
-		// Ensure that all of the entries were received that were requested
+		// Ensure that all the entries were received that were requested
 		sort.Strings(staleIDs)
 		require.Equal(t, staleIDs, actualIDs)
 

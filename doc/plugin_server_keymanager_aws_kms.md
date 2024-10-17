@@ -59,7 +59,7 @@ The IAM role must have an attached policy with the following permissions:
 
 ### Key policy
 
-The plugin can generate keys using a default key policy or it can load and use a user defined policy.
+The plugin can generate keys using a default key policy, or it can load and use a user defined policy.
 
 #### Default key policy
 

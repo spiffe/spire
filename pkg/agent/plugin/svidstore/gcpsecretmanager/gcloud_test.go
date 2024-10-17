@@ -871,7 +871,7 @@ func TestDeleteX509SVID(t *testing.T) {
 			err = ss.DeleteX509SVID(ctx, tt.metadata)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsgPrefix)
 
-			// Validate what is send to gcp
+			// Validate what is sent to gcp
 			spiretest.AssertProtoEqual(t, tt.expectDeleteSecretReq, client.deleteSecretReq)
 			spiretest.AssertProtoEqual(t, tt.expectGetSecretReq, client.getSecretReq)
 		})

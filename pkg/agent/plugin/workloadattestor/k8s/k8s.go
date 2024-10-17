@@ -80,7 +80,7 @@ type HCLConfig struct {
 	// SkipKubeletVerification is set. Defaults to the cluster trust bundle.
 	KubeletCAPath string `hcl:"kubelet_ca_path"`
 
-	// SkipKubeletVerification controls whether or not the plugin will
+	// SkipKubeletVerification controls whether the plugin will
 	// verify the certificate presented by the kubelet.
 	SkipKubeletVerification bool `hcl:"skip_kubelet_verification"`
 
@@ -97,7 +97,7 @@ type HCLConfig struct {
 	// authentication with the kubelet. Must be used with CertificatePath.
 	PrivateKeyPath string `hcl:"private_key_path"`
 
-	// UseAnonymousAuthentication controls whether or not communication to the
+	// UseAnonymousAuthentication controls whether communication to the
 	// kubelet over the secure port is unauthenticated. This option is mutually
 	// exclusive with other authentication configuration fields TokenPath,
 	// CertificatePath, and PrivateKeyPath.

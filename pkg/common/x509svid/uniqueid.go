@@ -14,7 +14,7 @@ var (
 	uniqueIDOID = asn1.ObjectIdentifier{2, 5, 4, 45}
 )
 
-// UniqueIDAttribute returns a X.500 Unique ID attribute (OID 2.5.4.45) for the
+// UniqueIDAttribute returns an X.500 Unique ID attribute (OID 2.5.4.45) for the
 // given SPIFFE ID for inclusion in an X509-SVID to satisfy RFC 5280
 // requirements that the subject "DN MUST be unique for each subject entity
 // certified by the one CA as defined by the issuer field" (see issue #3110 for

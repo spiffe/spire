@@ -39,7 +39,7 @@ Each cluster in the main configuration requires the following configuration:
 | `service_account_key_file`        | It is only used if `use_token_review_api_validation` is set to `false`. Path on disk to a PEM encoded file containing public keys used in validating tokens for that cluster. RSA and ECDSA keys are supported. For RSA, X509 certificates, PKCS1, and PKIX encoded public keys are accepted. For ECDSA, X509 certificates, and PKIX encoded public keys are accepted. |         |
 | `kube_config_file`                | It is only used if `use_token_review_api_validation` is set to `true`. Path to a k8s configuration file for API Server authentication. A Kubernetes configuration file must be specified if SPIRE server runs outside of the k8s cluster. If empty, SPIRE server is assumed to be running inside the cluster and in-cluster configuration is used.                     | ""      |
 
-A sample configuration for SPIRE server running inside or outside of a Kubernetes cluster and validating the service account token with a key file located at `"/run/k8s-certs/sa.pub"`:
+A sample configuration for SPIRE server running inside or outside a Kubernetes cluster and validating the service account token with a key file located at `"/run/k8s-certs/sa.pub"`:
 
 ```hcl
     NodeAttestor "k8s_sat" {

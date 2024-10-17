@@ -1,7 +1,7 @@
 # Authorization policy engine
 
 **Warning**: Use of custom authorization policies is experimental and can
-result in security degredation if not configured correctly. Please refer to
+result in security degradation if not configured correctly. Please refer to
 [this section](#extending-the-policy) for more details on extending the default
 policy.
 
@@ -325,7 +325,7 @@ this example, we will fully lock down the ability to delete entries.
 
 This can be easily done by leveraging the set of default rules. In the default
 policy data file, there are general allow restrictions for APIs. For example,
-for the batch deletion of entries, here is the exerpt:
+for the batch deletion of entries, here is the excerpt:
 
 ```rego
 {

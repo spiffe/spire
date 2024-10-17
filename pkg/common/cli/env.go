@@ -16,7 +16,7 @@ var (
 	}
 )
 
-// Env provides an pluggable environment for CLI commands that facilitates easy
+// Env provides a pluggable environment for CLI commands that facilitates easy
 // testing.
 type Env struct {
 	Stdin   io.Reader

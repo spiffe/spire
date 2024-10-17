@@ -107,7 +107,7 @@ EOF
 # name - The name of the crypto token
 # type - The type of the crypto token (e.g. SoftCryptoToken)
 # pin - The pin for the crypto token
-# autoactivate - Whether or not to autoactivate the crypto token
+# autoactivate - whether to autoactivate the crypto token
 createCryptoToken() {
     local name=$1
     local type=$2

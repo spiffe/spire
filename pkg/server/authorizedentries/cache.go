@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// We can tweak these degrees to try and get optimal L1 cache use but
+	// We can tweak these degrees to try and get optimal L1 cache use, but
 	// it's probably not worth it unless we have benchmarks showing that it
 	// is a problem at scale in production. Initial benchmarking by myself
 	// at similar scale to some of our bigger, existing deployments didn't

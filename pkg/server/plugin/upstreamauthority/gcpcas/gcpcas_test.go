@@ -103,7 +103,7 @@ func TestGcpCAS(t *testing.T) {
 		// Scenario:
 		//   We mock client's LoadCertificateAuthorities() to return in the following order:
 		//      * caZ is an intermediate CA which is signed by externalCAY
-		//      * caX is a root CA that is in GCP CAS with the second oldest expiry (T + 2)
+		//      * caX is a root CA that is in GCP CAS with the second-oldest expiry (T + 2)
 		//      * caM is a root CA that is in GCP CAS with the earliest expiry (T + 1) but it is DISABLED
 		//   Everything except caM are in ENABLED state
 		//   Also note that the above is not ordered by expiry time
@@ -185,7 +185,7 @@ func TestGcpCAS(t *testing.T) {
 }
 
 func generateCert(t *testing.T, cn string, issuer *x509.Certificate, issuerKey crypto.PrivateKey, ttlInHours int, keyfn func(testing.TB) *ecdsa.PrivateKey) (*x509.Certificate, crypto.PrivateKey, error) {
-	priv := keyfn(t)
+	keyPair := keyfn(t)
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, _ := rand.Int(rand.Reader, serialNumberLimit)
 
@@ -202,10 +202,10 @@ func generateCert(t *testing.T, cn string, issuer *x509.Certificate, issuerKey c
 	}
 	if issuer == nil {
 		issuer = template
-		issuerKey = priv
+		issuerKey = keyPair
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, template, issuer, priv.Public(), issuerKey)
+	derBytes, err := x509.CreateCertificate(rand.Reader, template, issuer, keyPair.Public(), issuerKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -214,7 +214,7 @@ func generateCert(t *testing.T, cn string, issuer *x509.Certificate, issuerKey c
 		return nil, nil, err
 	}
 
-	return cert, priv, nil
+	return cert, keyPair, nil
 }
 
 type fakeClient struct { // implements CAClient interface

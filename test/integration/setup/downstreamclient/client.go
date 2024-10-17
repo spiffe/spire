@@ -110,7 +110,7 @@ func validatePublishJWTAUthorirty(ctx context.Context, c *itclient.Client) error
 	case err != nil:
 		return fmt.Errorf("failed to publish JWT authority: %w", err)
 	case len(resp.JwtAuthorities) == 0:
-		return errors.New("no authorities ruturned")
+		return errors.New("no authorities returned")
 	}
 
 	for _, a := range resp.JwtAuthorities {

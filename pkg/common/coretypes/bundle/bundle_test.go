@@ -66,7 +66,7 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		RefreshHint:     1,
 		SequenceNumber:  2,
 	}
-	apiInvalidJWTAutorities = &apitypes.Bundle{
+	apiInvalidJWTAuthorities = &apitypes.Bundle{
 		TrustDomain:     "example.org",
 		X509Authorities: apiX509AuthoritiesGood,
 		JwtAuthorities:  apiJWTAuthoritiesBad,
@@ -132,7 +132,7 @@ MWnIPs59/JF8AiBeKSM/rkL2igQchDTvlJJWsyk9YL8UZI/XfZO7907TWA==
 		RefreshHint:     1,
 		SequenceNumber:  2,
 	}
-	pluginInvalidJWTAutorities = &plugintypes.Bundle{
+	pluginInvalidJWTAuthorities = &plugintypes.Bundle{
 		TrustDomain:     "example.org",
 		X509Authorities: pluginX509AuthoritiesGood,
 		JwtAuthorities:  pluginJWTAuthoritiesBad,
@@ -170,7 +170,7 @@ func TestToPluginFromAPIProto(t *testing.T) {
 	assertOK(t, apiGood, pluginGood)
 	assertFail(t, apiInvalidTD, "malformed trust domain:")
 	assertFail(t, apiInvalidX509Authorities, "invalid X.509 authority: failed to parse X.509 certificate data: ")
-	assertFail(t, apiInvalidJWTAutorities, "invalid JWT authority: missing key ID for JWT key")
+	assertFail(t, apiInvalidJWTAuthorities, "invalid JWT authority: missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
 
@@ -192,7 +192,7 @@ func TestToCommonFromPluginProto(t *testing.T) {
 	assertOK(t, pluginGood, commonGood)
 	assertFail(t, pluginInvalidTD, "malformed trust domain:")
 	assertFail(t, pluginInvalidX509Authorities, "invalid X.509 authority: failed to parse X.509 certificate data: ")
-	assertFail(t, pluginInvalidJWTAutorities, "invalid JWT authority: missing key ID for JWT key")
+	assertFail(t, pluginInvalidJWTAuthorities, "invalid JWT authority: missing key ID for JWT key")
 	assertOK(t, nil, nil)
 }
 

@@ -126,7 +126,7 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 		// If there is a gap in the event stream, log the missed events for later processing.
 		// For example if the current event ID is 6 and the previous one was 3, events 4 and 5
 		// were skipped over and need to be queued in case they show up later.
-		// This can happen when a long running transaction allocates an event ID but a shorter transaction
+		// This can happen when a long-running transaction allocates an event ID but a shorter transaction
 		// comes in after, allocates and commits the ID first. If a read comes in at this moment, the event id for
 		// the longer running transaction will be skipped over.
 		if !a.firstEventTime.IsZero() {
@@ -157,11 +157,11 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 		a.lastEventID = event.EventID
 	}
 
-	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
+	// These two should be the same value, but it's valuable to have them both be emitted for incident triage.
 	server_telemetry.SetNodeAliasesByEntryIDCacheCountGauge(a.metrics, a.cache.Stats().AliasesByEntryID)
 	server_telemetry.SetNodeAliasesBySelectorCacheCountGauge(a.metrics, a.cache.Stats().AliasesBySelector)
 
-	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
+	// These two should be the same value, but it's valuable to have them both be emitted for incident triage.
 	server_telemetry.SetEntriesByEntryIDCacheCountGauge(a.metrics, a.cache.Stats().EntriesByEntryID)
 	server_telemetry.SetEntriesByParentIDCacheCountGauge(a.metrics, a.cache.Stats().EntriesByParentID)
 
@@ -170,7 +170,7 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 
 // missedStartupEvents will check for any events come in with an ID less than the first event ID we receive.
 // For example if the first event ID we receive is 3, this function will check for any IDs less than that.
-// If event ID 2 comes in later on, due to a long running transaction, this function will update the cache
+// If event ID 2 comes in later on, due to a long-running transaction, this function will update the cache
 // with the information from this event. This function will run until time equal to sqlTransactionTimeout has elapsed after startup.
 func (a *registrationEntries) missedStartupEvents(ctx context.Context) error {
 	if a.firstEventTime.IsZero() || a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {

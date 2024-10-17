@@ -160,7 +160,7 @@ func mergeInputCasesOS(*testing.T) []mergeInputCase {
 			},
 		},
 		{
-			msg:       "named_pipe_name be configuable by CLI flag",
+			msg:       "named_pipe_name be configurable by CLI flag",
 			fileInput: func(c *Config) {},
 			cliFlags:  []string{"-namedPipeName=foo"},
 			test: func(t *testing.T, c *Config) {

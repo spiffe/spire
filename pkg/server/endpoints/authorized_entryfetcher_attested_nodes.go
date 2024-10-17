@@ -115,7 +115,7 @@ func (a *attestedNodes) updateCache(ctx context.Context) error {
 		// If there is a gap in the event stream, log the missed events for later processing.
 		// For example if the current event ID is 6 and the previous one was 3, events 4 and 5
 		// were skipped over and need to be queued in case they show up later.
-		// This can happen when a long running transaction allocates an event ID but a shorter transaction
+		// This can happen when a long-running transaction allocates an event ID but a shorter transaction
 		// comes in after, allocates and commits the ID first. If a read comes in at this moment, the event id for
 		// the longer running transaction will be skipped over.
 		if !a.firstEventTime.IsZero() {
@@ -146,7 +146,7 @@ func (a *attestedNodes) updateCache(ctx context.Context) error {
 		a.lastEventID = event.EventID
 	}
 
-	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
+	// These two should be the same value, but it's valuable to have them both be emitted for incident triage.
 	server_telemetry.SetAgentsByExpiresAtCacheCountGauge(a.metrics, a.cache.Stats().AgentsByExpiresAt)
 	server_telemetry.SetAgentsByIDCacheCountGauge(a.metrics, a.cache.Stats().AgentsByID)
 
@@ -155,7 +155,7 @@ func (a *attestedNodes) updateCache(ctx context.Context) error {
 
 // missedStartupEvents will check for any events that arrive with an ID less than the first event ID we receive.
 // For example if the first event ID we receive is 3, this function will check for any IDs less than that.
-// If event ID 2 comes in later on, due to a long running transaction, this function will update the cache
+// If event ID 2 comes in later on, due to a long-running transaction, this function will update the cache
 // with the information from this event. This function will run until time equal to sqlTransactionTimeout has elapsed after startup.
 func (a *attestedNodes) missedStartupEvents(ctx context.Context) error {
 	if a.firstEventTime.IsZero() || a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {

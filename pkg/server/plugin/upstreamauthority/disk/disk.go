@@ -193,7 +193,7 @@ func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Upstre
 	var trustBundle []*x509.Certificate
 	if config.BundleFilePath == "" {
 		// If there is no bundle path configured then we assume we have
-		// a self signed cert. We enforce this by requiring that there is
+		// a self-signed cert. We enforce this by requiring that there is
 		// exactly one cert. This cert is reused for the trust bundle and
 		// config.BundleFilePath is ignored
 		if len(certs) != 1 {
