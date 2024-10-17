@@ -4,15 +4,15 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
-// StartListRegistrationEntriesEventsCall return metric
+// StartListRegistrationEntryEventsCall return metric
 // for server's datastore, on listing registration entry events.
-func StartListRegistrationEntriesEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
+func StartListRegistrationEntryEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntryEvent, telemetry.List)
 }
 
-// StartPruneRegistrationEntriesEventsCall return metric
+// StartPruneRegistrationEntryEventsCall return metric
 // for server's datastore, on pruning registration entry events.
-func StartPruneRegistrationEntriesEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
+func StartPruneRegistrationEntryEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntryEvent, telemetry.Prune)
 }
 
@@ -34,15 +34,15 @@ func StartFetchRegistrationEntryEventCall(m telemetry.Metrics) *telemetry.CallCo
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.RegistrationEntryEvent, telemetry.Fetch)
 }
 
-// StartListAttestedNodesEventsCall return metric
+// StartListAttestedNodeEventsCall return metric
 // for server's datastore, on listing attested node events.
-func StartListAttestedNodesEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
+func StartListAttestedNodeEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.NodeEvent, telemetry.List)
 }
 
-// StartPruneAttestedNodesEventsCall return metric
+// StartPruneAttestedNodeEventsCall return metric
 // for server's datastore, on pruning attested node events.
-func StartPruneAttestedNodesEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
+func StartPruneAttestedNodeEventsCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.NodeEvent, telemetry.Prune)
 }
 
