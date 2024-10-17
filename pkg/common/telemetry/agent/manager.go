@@ -51,7 +51,7 @@ func AddCacheManagerOutdatedSVIDsSample(m telemetry.Metrics, cacheType string, c
 	m.AddSample(key, count)
 }
 
-// AddCacheManagerTaintedX509SVIDsSample count of tainted SVIDs according to
+// AddCacheManagerTaintedX509SVIDsSample count of tainted X509-SVIDs according to
 // agent cache manager
 func AddCacheManagerTaintedX509SVIDsSample(m telemetry.Metrics, cacheType string, count float32) {
 	key := []string{telemetry.CacheManager, telemetry.TaintedX509SVIDs}
@@ -61,7 +61,7 @@ func AddCacheManagerTaintedX509SVIDsSample(m telemetry.Metrics, cacheType string
 	m.AddSample(key, count)
 }
 
-// AddCacheManagerTaintedJWTSVIDsSample count of tainted SVIDs according to
+// AddCacheManagerTaintedJWTSVIDsSample count of tainted JWT-SVIDs according to
 // agent cache manager
 func AddCacheManagerTaintedJWTSVIDsSample(m telemetry.Metrics, cacheType string, count float32) {
 	key := []string{telemetry.CacheManager, telemetry.TaintedJWTSVIDs}
