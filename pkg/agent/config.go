@@ -66,8 +66,11 @@ type Config struct {
 	// is used to sync entries from the server.
 	UseSyncAuthorizedEntries bool
 
-	// X509SVIDCacheMaxSize is a soft limit of max number of SVIDs that would be stored in cache
+	// X509SVIDCacheMaxSize is a soft limit of max number of X509-SVIDs that would be stored in cache
 	X509SVIDCacheMaxSize int
+
+	// JWTSVIDCacheMaxSize is a soft limit of max number of JWT-SVIDs that would be stored in cache
+	JWTSVIDCacheMaxSize int
 
 	// Trust domain and associated CA bundle
 	TrustDomain spiffeid.TrustDomain
