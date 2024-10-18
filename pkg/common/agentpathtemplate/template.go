@@ -46,7 +46,7 @@ var funcList = [...]string{
 	"plural",
 	"sha1sum",
 	"sha256sum",
-	"sha512sum",
+	// "sha512sum",
 	"adler32sum",
 	"toString",
 	"seq",
