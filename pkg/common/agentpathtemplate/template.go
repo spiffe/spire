@@ -2,6 +2,7 @@ package agentpathtemplate
 
 import (
 	"bytes"
+	"fmt"
 	"text/template"
 
 	sprig "github.com/Masterminds/sprig/v3"
@@ -135,10 +136,9 @@ func init() {
 	for _, f := range funcList {
 		if fn, ok := sprigMap[f]; ok {
 			ourMap[f] = fn
-		} else {		
+		} else {
 			panic(fmt.Errorf("missing sprig function %q", f))
 		}
-		
 	}
 }
 
