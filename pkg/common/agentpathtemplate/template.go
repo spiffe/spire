@@ -7,7 +7,7 @@ import (
 	sprig "github.com/Masterminds/sprig/v3"
 )
 
-var funcList = [...]string{
+var funcList = []string{
 	"abbrev",
 	"abbrevboth",
 	"trunc",
@@ -23,12 +23,7 @@ var funcList = [...]string{
 	"trimPrefix",
 	"nospace",
 	"initials",
-	"randAlphaNum",
-	"randAlpha",
-	"randAscii",
-	"randNumeric",
 	"swapcase",
-	"shuffle",
 	"snakecase",
 	"camelcase",
 	"kebabcase",
@@ -46,7 +41,6 @@ var funcList = [...]string{
 	"plural",
 	"sha1sum",
 	"sha256sum",
-	// "sha512sum",
 	"adler32sum",
 	"toString",
 	"seq",
@@ -61,23 +55,7 @@ var funcList = [...]string{
 	"any",
 	"compact",
 	"mustCompact",
-	"fromJson",
-	"toJson",
-	"toPrettyJson",
-	"toRawJson",
-	"mustFromJson",
-	"mustToJson",
-	"mustToPrettyJson",
-	"mustToRawJson",
 	"ternary",
-	"deepCopy",
-	"mustDeepCopy",
-	"typeOf",
-	"typeIs",
-	"typeIsLike",
-	"kindOf",
-	"kindIs",
-	"deepEqual",
 	"base",
 	"dir",
 	"clean",
@@ -150,16 +128,23 @@ var funcList = [...]string{
 	"urlJoin",
 }
 
+var ourMap = make(template.FuncMap)
+
+func init() {
+	sprigMap := sprig.TxtFuncMap()
+	for _, f := range funcList {
+		if _, ok := sprigMap[f]; !ok {
+			panic("missing sprig function")
+		}
+		ourMap[f] = sprigMap[f]
+	}
+}
+
 // Parse parses an agent path template. It changes the behavior for missing
 // keys to return an error instead of the default behavior, which renders a
 // value that requires percent-encoding to include in a URI, which is against
 // the SPIFFE specification.
 func Parse(text string) (*Template, error) {
-	sprigMap := sprig.TxtFuncMap()
-	ourMap := make(template.FuncMap)
-	for _, f := range funcList {
-		ourMap[f] = sprigMap[f]
-	}
 	tmpl, err := template.New("agent-path").Option("missingkey=error").Funcs(ourMap).Parse(text)
 	if err != nil {
 		return nil, err
