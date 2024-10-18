@@ -12,7 +12,7 @@ if [[ $amount_bundles -ne 1 ]]; then
 fi
 
 # Prepare authority
-prepared_authority_id=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+prepared_authority_id=$(docker compose exec -T spire-server \
     /opt/spire/bin/spire-server localauthority x509 prepare -output json | jq -r .prepared_authority.authority_id)
 
 # Verify that the prepared authority is logged
@@ -32,7 +32,7 @@ fi
 new_dummy_ca_skid=$(openssl x509  -in conf/server/new_upstream_ca.crt -text | grep \
     -A 1 'Subject Key Identifier' | tail -n 1 | tr -d ' ' | tr -d ':' | tr '[:upper:]' '[:lower:]')
 
-upstream_authority_id=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+upstream_authority_id=$(docker compose exec -T spire-server \
     /opt/spire/bin/spire-server \
     localauthority x509 show -output json | jq .prepared.upstream_authority_subject_key_id -r)
 

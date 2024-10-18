@@ -268,6 +268,7 @@ func Fingerprint(cert *x509.Certificate) string {
 // MakeAgentID creates an agent ID from X.509 certificate data.
 func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
+		TrustDomain:     td.Name(),
 		Certificate:     cert,
 		PluginName:      PluginName,
 		SerialNumberHex: SerialNumberHex(cert.SerialNumber),

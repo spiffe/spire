@@ -31,6 +31,21 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCache(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 
+	buildMetrics := []fakemetrics.MetricItem{
+		agentsByIDMetric(0),
+		agentsByIDExpiresAtMetric(0),
+		nodeAliasesByEntryIDMetric(0),
+		nodeAliasesBySelectorMetric(0),
+		nodeSkippedEventMetric(0),
+
+		entriesByEntryIDMetric(0),
+		entriesByParentIDMetric(0),
+		entriesSkippedEventMetric(0),
+	}
+
+	assert.ElementsMatch(t, buildMetrics, metrics.AllMetrics(), "should emit metrics for node aliases, entries, and agents")
+	metrics.Reset()
+
 	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
 
 	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -106,9 +121,6 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCache(t *testing.T) {
 		nodeAliasesBySelectorMetric(1),
 		entriesByEntryIDMetric(2),
 		entriesByParentIDMetric(2),
-		// Here we have 2 skipped events, one for nodes, one for entries
-		nodeSkippedEventMetric(0),
-		entriesSkippedEventMetric(0),
 	}
 
 	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit metrics for node aliases, entries, and agents")
@@ -133,7 +145,7 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCacheErrorBuildingCache(t *test
 	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit no metrics")
 }
 
-func TestBuildCacheSavesMissedEvents(t *testing.T) {
+func TestBuildCacheSavesSkippedEvents(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
@@ -166,20 +178,30 @@ func TestBuildCacheSavesMissedEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, defaultSQLTransactionTimeout)
+	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, defaultCacheReloadInterval, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 	require.NotNil(t, attestedNodes)
 
-	assert.Contains(t, registrationEntries.missedEvents, uint(2))
-	assert.Equal(t, uint(3), registrationEntries.lastEventID)
+	assert.Contains(t, registrationEntries.eventTracker.events, uint(2))
+	assert.Equal(t, uint(3), registrationEntries.lastEvent)
 
-	assert.Contains(t, attestedNodes.missedEvents, uint(2))
-	assert.Contains(t, attestedNodes.missedEvents, uint(3))
-	assert.Equal(t, uint(4), attestedNodes.lastEventID)
+	assert.Contains(t, attestedNodes.eventTracker.events, uint(2))
+	assert.Contains(t, attestedNodes.eventTracker.events, uint(3))
+	assert.Equal(t, uint(4), attestedNodes.lastEvent)
 
-	// Assert metrics since the updateCache() method doesn't get called right at built time.
-	expectedMetrics := []fakemetrics.MetricItem{}
+	// Assert zero metrics since the updateCache() method doesn't get called right at built time.
+	expectedMetrics := []fakemetrics.MetricItem{
+		agentsByIDMetric(0),
+		agentsByIDExpiresAtMetric(0),
+		nodeAliasesByEntryIDMetric(0),
+		nodeAliasesBySelectorMetric(0),
+		nodeSkippedEventMetric(2),
+
+		entriesByEntryIDMetric(0),
+		entriesByParentIDMetric(0),
+		entriesSkippedEventMetric(1),
+	}
 	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit no metrics")
 }
 
@@ -250,7 +272,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
+func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
@@ -334,7 +356,7 @@ func TestUpdateRegistrationEntriesCacheMissedEvents(t *testing.T) {
 	require.Equal(t, 1, len(entries))
 }
 
-func TestUpdateRegistrationEntriesCacheMissedStartupEvents(t *testing.T) {
+func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
@@ -356,10 +378,15 @@ func TestUpdateRegistrationEntriesCacheMissedStartupEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Delete the event and entry for now and then add it back later to simulate out of order events
+	// Delete the create event for the first entry
 	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 1)
 	require.NoError(t, err)
+
 	_, err = ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
+	require.NoError(t, err)
+
+	// Delete the delete event for the first entry
+	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 2)
 	require.NoError(t, err)
 
 	// Create Second entry
@@ -399,6 +426,7 @@ func TestUpdateRegistrationEntriesCacheMissedStartupEvents(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+
 	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 4)
 	require.NoError(t, err)
 
@@ -406,7 +434,7 @@ func TestUpdateRegistrationEntriesCacheMissedStartupEvents(t *testing.T) {
 	err = ef.updateCache(ctx)
 	require.NoError(t, err)
 
-	// Still should be 1 entry
+	// Still should be 1 entry, no event tells us about spiffe://example.org/workload
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
@@ -441,7 +469,7 @@ func TestUpdateRegistrationEntriesCacheMissedStartupEvents(t *testing.T) {
 	require.Contains(t, spiffeIDs, entry2.SpiffeId)
 }
 
-func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
+func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
@@ -558,7 +586,7 @@ func TestUpdateAttestedNodesCacheMissedEvents(t *testing.T) {
 	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
 }
 
-func TestUpdateAttestedNodesCacheMissedStartupEvents(t *testing.T) {
+func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)

@@ -9,12 +9,12 @@ check-logs() {
 }
 
 # Fetch old authority ID
-old_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation root-server \
+old_authority=$(docker compose exec -T root-server \
       /opt/spire/bin/spire-server \
       localauthority x509 show -output json | jq .old.authority_id -r) || fail-now "Failed to fetch old authority ID"
 
 # Taint the old authority
-docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation root-server \
+docker compose exec -T root-server \
       /opt/spire/bin/spire-server \
       localauthority x509 taint -authorityID "${old_authority}" || fail-now "Failed to taint old authority"
 

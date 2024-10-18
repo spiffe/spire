@@ -291,8 +291,12 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 	regEntry, existing, err := s.ds.CreateOrReturnRegistrationEntry(ctx, cEntry)
 	switch {
 	case err != nil:
+		statusCode := status.Code(err)
+		if statusCode == codes.Unknown {
+			statusCode = codes.Internal
+		}
 		return &entryv1.BatchCreateEntryResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to create entry", err),
+			Status: api.MakeStatus(log, statusCode, "failed to create entry", err),
 		}
 	case existing:
 		resultStatus = api.CreateStatus(codes.AlreadyExists, "similar entry already exists")
@@ -660,8 +664,12 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	}
 	dsEntry, err := s.ds.UpdateRegistrationEntry(ctx, convEntry, mask)
 	if err != nil {
+		statusCode := status.Code(err)
+		if statusCode == codes.Unknown {
+			statusCode = codes.Internal
+		}
 		return &entryv1.BatchUpdateEntryResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to update entry", err),
+			Status: api.MakeStatus(log, statusCode, "failed to update entry", err),
 		}
 	}
 

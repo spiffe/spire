@@ -32,6 +32,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/config"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -301,7 +302,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 
 	// If envTemplate flag is passed, substitute $VARIABLES in configuration file
 	if expandEnv {
-		data = os.ExpandEnv(data)
+		data = config.ExpandEnv(data)
 	}
 
 	if err := hcl.Decode(&c, data); err != nil {

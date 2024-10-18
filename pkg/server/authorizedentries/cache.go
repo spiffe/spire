@@ -267,8 +267,8 @@ func (c *Cache) removeEntry(entryID string) {
 	}
 }
 
-func (c *Cache) Stats() cacheStats {
-	return cacheStats{
+func (c *Cache) Stats() CacheStats {
+	return CacheStats{
 		AgentsByID:        c.agentsByID.Len(),
 		AgentsByExpiresAt: c.agentsByExpiresAt.Len(),
 		AliasesByEntryID:  c.aliasesByEntryID.Len(),
@@ -286,7 +286,7 @@ func isNodeAlias(e *types.Entry) bool {
 	return e.ParentId.Path == idutil.ServerIDPath
 }
 
-type cacheStats struct {
+type CacheStats struct {
 	AgentsByID        int
 	AgentsByExpiresAt int
 	AliasesByEntryID  int
