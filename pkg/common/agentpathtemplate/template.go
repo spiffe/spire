@@ -7,7 +7,7 @@ import (
 	sprig "github.com/Masterminds/sprig/v3"
 )
 
-var funcList = [...]string {
+var funcList = [...]string{
 	"abbrev",
 	"abbrevboth",
 	"trunc",
