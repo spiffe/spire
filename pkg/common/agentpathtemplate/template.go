@@ -133,10 +133,12 @@ var ourMap = make(template.FuncMap)
 func init() {
 	sprigMap := sprig.TxtFuncMap()
 	for _, f := range funcList {
-		if _, ok := sprigMap[f]; !ok {
-			panic("missing sprig function")
+		if fn, ok := sprigMap[f]; ok {
+			ourMap[f] = fn
+		} else {		
+			panic(fmt.Errorf("missing sprig function %q", f))
 		}
-		ourMap[f] = sprigMap[f]
+		
 	}
 }
 
