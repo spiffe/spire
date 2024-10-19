@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -228,7 +229,7 @@ func (c *Cache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x5
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
-	counter := telemetry.StartCall(c.c.Metrics, telemetry.CacheManager, "svid_store", telemetry.ProcessTaintedSVIDs)
+	counter := telemetry.StartCall(c.c.Metrics, telemetry.CacheManager, agent.CacheTypeSVIDStore, telemetry.ProcessTaintedX509SVIDs)
 	defer counter.Done(nil)
 
 	taintedSVIDs := 0
@@ -252,8 +253,12 @@ func (c *Cache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x5
 		}
 	}
 
-	telemetry_agent.AddCacheManagerExpiredSVIDsSample(c.c.Metrics, "svid_store", float32(taintedSVIDs))
-	c.c.Log.WithField(telemetry.TaintedSVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
+	telemetry_agent.AddCacheManagerExpiredSVIDsSample(c.c.Metrics, agent.CacheTypeSVIDStore, float32(taintedSVIDs))
+	c.c.Log.WithField(telemetry.TaintedX509SVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
+}
+
+func (c *Cache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{}) {
+	// Nothing to do here
 }
 
 // GetStaleEntries obtains a list of stale entries, that needs new SVIDs

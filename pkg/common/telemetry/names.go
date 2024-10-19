@@ -356,8 +356,11 @@ const (
 	// JWTAuthorityExpiresAt tags a JWT Authority expiration
 	JWTAuthorityExpiresAt = "jwt_authority_expires_at"
 
-	// JWTAuthorityPublicKey tags a JWT authority key ID
+	// JWTAuthorityKeyID tags a JWT authority key ID
 	JWTAuthorityKeyID = "jwt_authority_key_id"
+
+	// JWTAuthorityKeyIDs tags a list of JWT authority key IDs
+	JWTAuthorityKeyIDs = "jwt_authority_key_ids"
 
 	// JWTAuthorityPublicKeySHA256 tags a JWT Authority public key
 	JWTAuthorityPublicKeySHA256 = "jwt_authority_public_key_sha256"
@@ -780,8 +783,11 @@ const (
 	// RegistrationManager functionality related to a registration manager
 	RegistrationManager = "registration_manager"
 
-	// TaintedSVIDs tags tainted SVID count/list
-	TaintedSVIDs = "tainted_svids"
+	// TaintedJWTSVIDs tags tainted JWT SVID count/list
+	TaintedJWTSVIDs = "tainted_jwt_svids"
+
+	// TaintedX509SVIDs tags tainted X.509 SVID count/list
+	TaintedX509SVIDs = "tainted_x509_svids"
 
 	// Telemetry tags a telemetry module
 	Telemetry = "telemetry"
@@ -921,8 +927,11 @@ const (
 	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
 	PushJWTKeyUpstream = "push_jwtkey_upstream"
 
-	// ProcessTaintedSVIDs functionality related to processing tainted SVIDs.
-	ProcessTaintedSVIDs = "process_tainted_svids"
+	// ProcessTaintedX509SVIDs functionality related to processing tainted X.509 SVIDs.
+	ProcessTaintedX509SVIDs = "process_tainted_x509_svids"
+
+	// ProcessTaintedJWTSVIDs functionality related to processing tainted JWT SVIDs.
+	ProcessTaintedJWTSVIDs = "process_tainted_jwt_svids"
 
 	// SDSAPI functionality related to SDS; should be used with other tags
 	// to add clarity
