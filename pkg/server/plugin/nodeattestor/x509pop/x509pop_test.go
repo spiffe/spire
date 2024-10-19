@@ -11,10 +11,12 @@ import (
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/fixture"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -159,7 +161,7 @@ func (s *Suite) TestAttestFailure() {
 	s.T().Run("not configured", func(t *testing.T) {
 		attestor := new(nodeattestor.V1)
 		plugintest.Load(t, BuiltIn(), attestor,
-			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
+			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(fakeidentityprovider.New())),
 		)
 		attestFails(t, attestor, []byte("payload"), codes.FailedPrecondition,
 			"nodeattestor(x509pop): not configured")
@@ -218,7 +220,7 @@ func (s *Suite) TestConfigure() {
 	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
 		var err error
 		plugintest.Load(t, BuiltIn(), nil,
-			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
+			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(fakeidentityprovider.New())),
 			plugintest.CaptureConfigureError(&err),
 			plugintest.CoreConfig(coreConfig),
 			plugintest.Configure(config),
@@ -274,7 +276,7 @@ func (s *Suite) TestConfigure() {
 func (s *Suite) loadPlugin(t *testing.T, config string) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(t, BuiltIn(), v1,
-		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(fakeidentityprovider.New())),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
