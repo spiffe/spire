@@ -53,7 +53,7 @@ path "pki/root/sign-intermediate" {
 | client_key_path       | string |          | Path to a client private key file. Only PEM format is supported.                                                     | `${VAULT_CLIENT_KEY}`  |
 
 ```hcl
-    UpstreamAuthority "vault" {
+    KeyManager "hashicorp_vault" {
         plugin_data {
             vault_addr = "https://vault.example.org/"
             pki_mount_point = "test-pki"
@@ -89,7 +89,7 @@ path "pki/root/sign-intermediate" {
 | token | string |          | Token string to set into "X-Vault-Token" header | `${VAULT_TOKEN}` |
 
 ```hcl
-    UpstreamAuthority "vault" {
+    KeyManager "hashicorp_vault" {
         plugin_data {
             vault_addr = "https://vault.example.org/"
             pki_mount_point = "test-pki"
@@ -112,7 +112,7 @@ path "pki/root/sign-intermediate" {
 | approle_secret_id        | string |          | A credential of AppRole                                          | `${VAULT_APPROLE_SECRET_ID}` |
 
 ```hcl
-    UpstreamAuthority "vault" {
+    KeyManager "hashicorp_vault" {
         plugin_data {
             vault_addr = "https://vault.example.org/"
             pki_mount_point = "test-pki"
@@ -142,7 +142,7 @@ path "pki/root/sign-intermediate" {
 | token_path           | string | ✔        | Path to the Kubernetes Service Account Token to use authentication with the Vault |            |
 
 ```hcl
-    UpstreamAuthority "vault" {
+    KeyManager "hashicorp_vault" {
         plugin_data {
             vault_addr = "https://vault.example.org/"
             pki_mount_point = "test-pki"
