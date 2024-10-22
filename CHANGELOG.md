@@ -4,8 +4,8 @@
 
 ### Added
 
-- Support for forced rotation and revocation (https://github.com/orgs/spiffe/projects/21)!!!
-- New EJBCA UpstreamAuthority plugin for SPIRE SErver (#5378)
+- Support for forced rotation and revocation (<https://github.com/orgs/spiffe/projects/21>)!!!
+- New EJBCA UpstreamAuthority plugin for SPIRE Server (#5378)
 - Support for variables in templates contained in the config file (#5576)
 - Support for the configuration validation RPC on all built-in plugins (#5303)
 - Improved logging when built-in plugins panic (#5476)
@@ -28,7 +28,6 @@
 
 - Missing TrustDomain field passed to x509pop path template (#5577)
 - Behavior in the experimental events-based cache causing duplicate entries/agents evaluation in the same cycle (#5509)
-
 
 ## [1.10.4] - 2024-09-12
 
