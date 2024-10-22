@@ -4,7 +4,7 @@
 
 ### Added
 
-- Support for forced rotation and revocation (<https://github.com/orgs/spiffe/projects/21>)!!!
+- Support for forced rotation and revocation (<https://github.com/orgs/spiffe/projects/21>)
 - New EJBCA UpstreamAuthority plugin for SPIRE Server (#5378)
 - Support for variables in templates contained in the config file (#5576)
 - Support for the configuration validation RPC on all built-in plugins (#5303)
@@ -16,12 +16,11 @@
 
 - SPIRE Agent LRU identity cache is now unconditionally enabled. The LRU size can be controlled via the `x509_svid_cache_max_size` configuration option. (#5383, #5531)
 - Entry API RPCs return per-entry InvalidArgument status when creating/updating malformed entries (#5506)
-- Reverted a previous change to the agent health check in 1.10.2 that broke some deployments (#5461)
 - Support for CGroups v2 in K8s and Docker workload attestors is now enabled by default (#5454)
 
 ### Removed
 
-- Deprecated -ttl flag from SPIRE Server CLI (#5483)
+- Deprecated -ttl flag from the SPIRE Server `entry create` and `entry update` commands (#5483)
 - Official support for MySQL 5.X. While SPIRE may continue to work with this version, no explicit testing will be performed by the project (#5487)
 
 ### Fixed
