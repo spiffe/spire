@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.11.0] - 2024-10-24
+
+### Added
+
+- Support for forced rotation and revocation (<https://github.com/orgs/spiffe/projects/21>)
+- New EJBCA UpstreamAuthority plugin for SPIRE Server (#5378)
+- Support for variables in templates contained in the config file (#5576)
+- Support for the configuration validation RPC on all built-in plugins (#5303)
+- Improved logging when built-in plugins panic (#5476)
+- Improved CPU and memory resource usage for concurrent Kubernetes Workload attestation (#5408)
+- Documentation additions and improvements (#5589, #5588, #5499, #5433, #5430, #5269)
+
+### Changed
+
+- SPIRE Agent LRU identity cache is now unconditionally enabled. The LRU size can be controlled via the `x509_svid_cache_max_size` configuration option. (#5383, #5531)
+- Entry API RPCs return per-entry InvalidArgument status when creating/updating malformed entries (#5506)
+- Support for CGroups v2 in K8s and Docker workload attestors is now enabled by default (#5454)
+
+### Removed
+
+- Deprecated -ttl flag from the SPIRE Server `entry create` and `entry update` commands (#5483)
+- Official support for MySQL 5.X. While SPIRE may continue to work with this version, no explicit testing will be performed by the project (#5487)
+
+### Fixed
+
+- Missing TrustDomain field passed to x509pop path template (#5577)
+- Behavior in the experimental events-based cache causing duplicate entries/agents evaluation in the same cycle (#5509)
+
 ## [1.10.4] - 2024-09-12
 
 ### Fixed
