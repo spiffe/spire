@@ -106,14 +106,13 @@ func TestNewServer(t *testing.T) {
 		{
 			desc: "success",
 			configString: fmt.Sprintf(`cert_authorities = [%q]
-									   canonical_domain = "local"
-									   agent_path_template = "/{{ .PluginName}}/{{ .Fingerprint }}"`, testCertAuthority),
+									   canonical_domain = "local"`, testCertAuthority),
 			trustDomain: "foo.test",
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
 				require.Equal(t, "foo.test", s.trustDomain.Name())
 				require.Equal(t, "local", s.canonicalDomain)
-				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
+				require.Same(t, DefaultAgentPathTemplate, s.agentPathTemplate)
 				pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(testCertAuthority))
 				require.NoError(t, err)
 				require.True(t, s.certChecker.IsHostAuthority(pubkey, ""))
@@ -128,7 +127,7 @@ func TestNewServer(t *testing.T) {
 			requireServer: func(t *testing.T, s *Server) {
 				require.NotNil(t, s)
 				require.Equal(t, "foo.test", s.trustDomain.Name())
-				require.Equal(t, DefaultAgentPathTemplate, s.agentPathTemplate)
+				require.NotSame(t, DefaultAgentPathTemplate, s.agentPathTemplate)
 				pubkey := requireParsePubkey(t, testCertAuthority)
 				pubkey2 := requireParsePubkey(t, testCertAuthority2)
 				pubkey3 := requireParsePubkey(t, testCertAuthority3)
