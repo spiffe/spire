@@ -96,9 +96,9 @@ The plugin produces the following selectors.
 | Virtual Machine Name   | `vm-name:frontend:blog`                                | The name of the virtual machine (e.g. `blog`) qualified by the resource group (e.g. `frontend`)              |
 | Network Security Group | `network-security-group:frontend:webservers`           | The name of the network security group (e.g. `webservers`) qualified by the resource group (e.g. `frontend`) |
 | Virtual Network        | `virtual-network:frontend:vnet`                        | The name of the virtual network (e.g. `vnet`) qualified by the resource group (e.g. `frontend`)              |
-| Virtual Network Subnet | `virtual-network-subnet:frontend:vnet:default`         | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group   |
+| Virtual Network Subnet | `virtual-network-subnet:frontend:vnet:default`         | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group  |
 
-All of the selectors have the type `azure_msi`.
+All the selectors have the type `azure_msi`.
 
 ## Agent Path Template
 

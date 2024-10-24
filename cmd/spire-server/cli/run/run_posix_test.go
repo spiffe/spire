@@ -236,7 +236,7 @@ func mergeInputCasesOS(*testing.T) []mergeInputCase {
 			},
 		},
 		{
-			msg:       "socket_path should be configuable by CLI flag",
+			msg:       "socket_path should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
 			cliFlags:  []string{"-socketPath=foo"},
 			test: func(t *testing.T, c *Config) {

@@ -76,7 +76,7 @@ func (s *Service) GetInfo(ctx context.Context, _ *debugv1.GetInfoRequest) (*debu
 	s.getInfoResp.mtx.Lock()
 	defer s.getInfoResp.mtx.Unlock()
 
-	// Update cache when expired or does not exists
+	// Update cache when expired or does not exist
 	if s.getInfoResp.ts.IsZero() || s.clock.Now().Sub(s.getInfoResp.ts) >= cacheExpiry {
 		nodes, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 		if err != nil {

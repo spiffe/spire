@@ -51,7 +51,7 @@ func parseBlock(pemBytes []byte, expectedTypes ...string) (*Block, error) {
 }
 
 func parseBlocks(pemBytes []byte, expectedCount int, expectedTypes ...string) (blocks []Block, err error) {
-	for blockno := 1; ; blockno++ {
+	for blockNumber := 1; ; blockNumber++ {
 		var pemBlock *pem.Block
 		pemBlock, pemBytes = pem.Decode(pemBytes)
 		if pemBlock == nil {
@@ -101,7 +101,7 @@ func parseBlocks(pemBytes []byte, expectedCount int, expectedTypes ...string) (b
 			block.Object, err = x509.ParsePKIXPublicKey(pemBlock.Bytes)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse %q PEM block %d: %w", pemBlock.Type, blockno, err)
+			return nil, fmt.Errorf("unable to parse %q PEM block %d: %w", pemBlock.Type, blockNumber, err)
 		}
 
 		blocks = append(blocks, block)

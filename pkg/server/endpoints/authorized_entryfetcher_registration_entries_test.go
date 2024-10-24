@@ -1304,7 +1304,7 @@ func TestUpdateRegistrationEntriesCache(t *testing.T) {
 		name                      string
 		setup                     *entryScenarioSetup
 		createRegistrationEntries []*common.RegistrationEntry // Entries created after setup
-		deleteRegistrationEntries []string                    // Entries delted after setup
+		deleteRegistrationEntries []string                    // Entries deleted after setup
 		fetchEntries              []string
 
 		expectedAuthorizedEntries []string
@@ -1817,8 +1817,8 @@ func TestUpdateRegistrationEntriesCache(t *testing.T) {
 			cacheStats := registeredEntries.cache.Stats()
 			require.Equal(t, len(tt.expectedAuthorizedEntries), cacheStats.EntriesByEntryID, "wrong number of registered entries by ID")
 
-			// for now, the only way to ensure the desired agent ids are prsent is
-			// to remove the desired ids and check the count it zero.
+			// for now, the only way to ensure the desired agent ids are present is
+			// to remove the desired ids and check that the count is zero.
 			for _, expectedAuthorizedId := range tt.expectedAuthorizedEntries {
 				registeredEntries.cache.RemoveEntry(expectedAuthorizedId)
 			}

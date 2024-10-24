@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestJoinTokenNodeAttestorCannotBeOverriden(t *testing.T) {
+func TestJoinTokenNodeAttestorCannotBeOverridden(t *testing.T) {
 	dir := t.TempDir()
 	log, _ := test.NewNullLogger()
 

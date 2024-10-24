@@ -68,7 +68,7 @@ func TestNewBuilderSetsDefaults(t *testing.T) {
 
 	// Assert that the Clock and NewSerialNumber are not nil and then set them
 	// to nil before comparing the whole config. Checking the whole config in a
-	// single equality check is more future proof but the defaults for these
+	// single equality check is more future-proof but the defaults for these
 	// fields are hard to compare.
 	assert.NotNil(t, config.Clock)
 	config.Clock = nil
@@ -105,7 +105,7 @@ func TestNewBuilderAllowsConfigOverrides(t *testing.T) {
 
 	// Assert that the Clock and NewSerialNumber are not nil and then set them
 	// to nil before comparing the whole config. Checking the whole config in a
-	// single equality check is more future proof but the defaults for these
+	// single equality check is more future-proof but the defaults for these
 	// fields are hard to compare.
 	assert.NotNil(t, configOut.Clock)
 	configOut.Clock = nil

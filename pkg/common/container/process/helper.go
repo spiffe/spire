@@ -193,7 +193,7 @@ func (h *helper) getJobName(handle SystemHandleInformationExItem, currentProcess
 		return "", fmt.Errorf("failed to get object name: %w", err)
 	}
 
-	// Jobs created on windows environments start with "\Container_"
+	// Jobs created on Windows environments start with "\Container_"
 	if !strings.HasPrefix(objectName, containerPrefix) {
 		return "", nil
 	}

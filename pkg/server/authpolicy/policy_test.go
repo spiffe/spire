@@ -418,7 +418,7 @@ func TestNewEngineFromRego(t *testing.T) {
 			// We can't test for Eval failure because NewEngine is designed to
 			// validate the policy so that it will not fail later on during
 			// Eval, so failures of Eval will be purely system exceptions.
-			// Instead we test the cases that would fail Eval by testing the
+			// Instead, we test the cases that would fail Eval by testing the
 			// creation of the new engine.
 			name:    "test validation of SPIRE required fields",
 			rego:    badEvalPolicy,

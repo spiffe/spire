@@ -26,7 +26,7 @@ type V1 struct {
 func (v1 *V1) MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Duration) (_ []*x509.Certificate, _ []*x509certificate.X509Authority, _ UpstreamX509AuthorityStream, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
-		// Only cancel the context if the function fails. Otherwise the
+		// Only cancel the context if the function fails. Otherwise, the
 		// returned stream will be in charge of cancellation.
 		if err != nil {
 			defer cancel()
@@ -60,7 +60,7 @@ func (v1 *V1) MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Dura
 func (v1 *V1) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (_ []*common.PublicKey, _ UpstreamJWTAuthorityStream, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
-		// Only cancel the context if the function fails. Otherwise the
+		// Only cancel the context if the function fails. Otherwise, the
 		// returned stream will be in charge of cancellation.
 		if err != nil {
 			defer cancel()

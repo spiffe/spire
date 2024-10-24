@@ -130,7 +130,7 @@ func (f *containerIDFinders) FindContainerID(cgroup string) (string, bool) {
 // is done as follows:
 //
 // 1. If the number of path components in two patterns differ, they cannot match identical inputs.
-// This assertions follows from the path focused grammar and the fact that the regex
+// This assertion follows from the path focused grammar and the fact that the regex
 // wildcards (regexpWildcard and regexpContainerID) cannot match "/".
 // 2. If the number of path components in two patterns are the same, we test "component
 // equivalence" at each index. wildcardToken and containerIDToken are equivalent to

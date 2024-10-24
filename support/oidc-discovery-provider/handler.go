@@ -137,7 +137,7 @@ func (h *Handler) verifyHost(host string) error {
 	// ProxyHeaders middleware). The value may be in host or host:port form.
 	domain, _, err := net.SplitHostPort(host)
 	if err != nil {
-		// `Host` was not in the host:port form form.
+		// `Host` was not in the host:port form.
 		domain = host
 	}
 	return h.domainPolicy(domain)

@@ -38,7 +38,7 @@ func TestCheckerListeners(t *testing.T) {
 
 	servableChecker := NewChecker(config, log)
 
-	fooCheker := &fakeCheckable{
+	fooChecker := &fakeCheckable{
 		state: State{
 			Live:         true,
 			Ready:        true,
@@ -46,7 +46,7 @@ func TestCheckerListeners(t *testing.T) {
 			LiveDetails:  healthDetails{},
 		},
 	}
-	err := servableChecker.AddCheck("foo", fooCheker)
+	err := servableChecker.AddCheck("foo", fooChecker)
 	require.NoError(t, err)
 
 	barChecker := &fakeCheckable{
@@ -106,8 +106,8 @@ func TestCheckerListeners(t *testing.T) {
 		require.JSONEq(t, "{\"bar\":{},\"foo\":{}}\n", string(actual))
 	})
 
-	fooCheker.state.Live = false
-	fooCheker.state.LiveDetails = healthDetails{Err: "live fails"}
+	fooChecker.state.Live = false
+	fooChecker.state.LiveDetails = healthDetails{Err: "live fails"}
 
 	barChecker.state.Ready = false
 	barChecker.state.ReadyDetails = healthDetails{Err: "ready fails"}

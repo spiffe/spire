@@ -224,7 +224,7 @@ func mergeInputCasesOS() []mergeInputCase {
 			},
 		},
 		{
-			msg:       "named_pipe_name should be configuable by CLI flag",
+			msg:       "named_pipe_name should be configurable by CLI flag",
 			fileInput: func(c *Config) {},
 			cliInput: func(c *agentConfig) {
 				c.Experimental.NamedPipeName = "foo"

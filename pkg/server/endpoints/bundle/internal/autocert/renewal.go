@@ -26,7 +26,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-//nolint // forked code
+//nolint //forked code
 package autocert
 
 import (
@@ -65,6 +65,7 @@ func (dr *domainRenewal) start(exp time.Time) {
 
 // stop stops the cert renewal timer.
 // If the timer is already stopped, calling stop is a noop.
+//
 //nolint:unused
 func (dr *domainRenewal) stop() {
 	dr.timerMu.Lock()
@@ -106,7 +107,7 @@ func (dr *domainRenewal) updateState(state *certState) {
 	dr.m.state[dr.ck] = state
 }
 
-// do is similar to Manager.createCert but it doesn't lock a Manager.state item.
+// do is similar to Manager.createCert, but it doesn't lock a Manager.state item.
 // Instead, it requests a new certificate independently and, upon success,
 // replaces dr.m.state item with a new one and updates cache for the given domain.
 //

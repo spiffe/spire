@@ -8,12 +8,12 @@ in a trust anchor, keeping it updated.
 
 The plugin accepts the following configuration options:
 
-| Configuration     | Description                                                                                                                                                                    | Required                                                                  | Default                                              |
-|-------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|------------------------------------------------------|
-| access_key_id     | AWS access key id.                                                                                                                                                             | Required only if AWS credentials aren't otherwise set in the environment. | Value of AWS_ACCESS_KEY_ID environment variable.     |
-| secret_access_key | AWS secret access key.                                                                                                                                                         | Required only if AWS credentials aren't otherwise set in the environment. | Value of AWS_SECRET_ACCESS_KEY environment variable. |
-| region            | AWS region to store the trust bundle.                                                                                                                                          | Yes.                                                                      |                                                      |
-| trust_anchor_id | The AWS IAM Roles Anywhere trust anchor id of the trust anchor to which to put the trust bundle.                                                                                 | Yes.                                                                      |                                                      |
+| Configuration     | Description                                                                                      | Required                                                                  | Default                                              |
+|-------------------|--------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------|------------------------------------------------------|
+| access_key_id     | AWS access key id.                                                                               | Required only if AWS credentials aren't otherwise set in the environment. | Value of AWS_ACCESS_KEY_ID environment variable.     |
+| secret_access_key | AWS secret access key.                                                                           | Required only if AWS credentials aren't otherwise set in the environment. | Value of AWS_SECRET_ACCESS_KEY environment variable. |
+| region            | AWS region to store the trust bundle.                                                            | Yes.                                                                      |                                                      |
+| trust_anchor_id   | The AWS IAM Roles Anywhere trust anchor id of the trust anchor to which to put the trust bundle. | Yes.                                                                      |                                                      |
 
 ## AWS IAM Permissions
 

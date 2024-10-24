@@ -35,7 +35,7 @@ func TestGetLogger(t *testing.T) {
 				CurrentLevel: apitype.LogLevel_PANIC,
 				LaunchLevel:  apitype.LogLevel_PANIC,
 			},
-			// no outputted log messages, as the are at INFO level
+			// no outputted log messages, as they are at INFO level
 			expectedLogs: nil,
 		},
 		{
@@ -46,7 +46,7 @@ func TestGetLogger(t *testing.T) {
 				CurrentLevel: apitype.LogLevel_FATAL,
 				LaunchLevel:  apitype.LogLevel_FATAL,
 			},
-			// no outputted log messages, as the are at INFO level
+			// no outputted log messages, as they are at INFO level
 			expectedLogs: nil,
 		},
 		{
@@ -57,7 +57,7 @@ func TestGetLogger(t *testing.T) {
 				CurrentLevel: apitype.LogLevel_ERROR,
 				LaunchLevel:  apitype.LogLevel_ERROR,
 			},
-			// no outputted log messages, as the are at INFO level
+			// no outputted log messages, as they are at INFO level
 			expectedLogs: nil,
 		},
 		{
@@ -68,7 +68,7 @@ func TestGetLogger(t *testing.T) {
 				CurrentLevel: apitype.LogLevel_WARN,
 				LaunchLevel:  apitype.LogLevel_WARN,
 			},
-			// no outputted log messages, as the are at INFO level
+			// no outputted log messages, as they are at INFO level
 			expectedLogs: nil,
 		},
 		{

@@ -1693,7 +1693,7 @@ func TestHasCompatibleTTLs(t *testing.T) {
 			msg:                      "default_jwt_svid_ttl is small enough for the configured CA TTL but larger than the max",
 			caTTL:                    time.Hour * 24 * 7 * 4 * 6, // Six months
 			x509SvidTTL:              0,
-			jwtSvidTTL:               time.Hour * 24 * 7 * 2, // Two weeks,,
+			jwtSvidTTL:               time.Hour * 24 * 7 * 2, // Two weeks
 			hasCompatibleSvidTTL:     true,
 			hasCompatibleX509SvidTTL: true,
 			hasCompatibleJwtSvidTTL:  false,

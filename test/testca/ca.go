@@ -234,8 +234,8 @@ func CreateX509SVID(tb testing.TB, parent *x509.Certificate, parentKey crypto.Si
 	return CreateX509Certificate(tb, parent, parentKey, options...)
 }
 
-func CreateCertificate(tb testing.TB, tmpl, parent *x509.Certificate, pub, priv any) *x509.Certificate {
-	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, parent, pub, priv)
+func CreateCertificate(tb testing.TB, tmpl, parent *x509.Certificate, publicKey, privateKey any) *x509.Certificate {
+	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, parent, publicKey, privateKey)
 	require.NoError(tb, err)
 	cert, err := x509.ParseCertificate(certDER)
 	require.NoError(tb, err)

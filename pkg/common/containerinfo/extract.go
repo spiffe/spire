@@ -225,7 +225,7 @@ func (e *extractor) extract(cgroupPathOrMountRoot string) (types.UID, string) {
 	// The container ID is typically in the last segment but in some cases
 	// there can other path segments that come after. Further, some
 	// combinations of kubernetes/cgroups driver/cgroups version/container
-	// runtime, etc, use colon separators between the pod UID and containerID,
+	// runtime, etc., use colon separators between the pod UID and containerID,
 	// which means they can end up in the same segment together.
 	//
 	// The basic algorithm is to walk backwards through the path segments until
@@ -265,7 +265,7 @@ func (e *extractor) extract(cgroupPathOrMountRoot string) (types.UID, string) {
 	}
 
 	// If the container ID occupied the beginning of the last segment, then
-	// that segment is consumed and we should grab the next one.
+	// that segment is consumed, and we should grab the next one.
 	if segment == "" {
 		rest, segment = stripSegment(rest)
 	}

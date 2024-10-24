@@ -31,9 +31,9 @@ This section of the document can and should be updated as the above consideratio
 
 ### Changes in Maintainership
 
-SPIRE maintainers are appointed according to the [process described in the governance document][2]. Maintainers may voluntarily step down at any time. Unseating a maintainer against their will requires a unanimous vote with the exception of the unseated.
+SPIRE maintainers are appointed according to the [process described in the governance document][2]. Maintainers may voluntarily step down at any time. Unseating a maintainer against their will requires a unanimous vote except the unseated.
 
-Unseating a maintainer is an extraordinary circumstance. A process to do so is necessary, but its use is not intended. Careful consideration should be made when voting in a new maintainer, particularly in validating that they pledge to uphold the terms of this document. To ensure that these decisions are not taken lightly, and to maintain long term project stability and foresight, no more than one maintainer can be involuntarily unseated in any given nine month period.
+Unseating a maintainer is an extraordinary circumstance. A process to do so is necessary, but its use is not intended. Careful consideration should be made when voting in a new maintainer, particularly in validating that they pledge to uphold the terms of this document. To ensure that these decisions are not taken lightly, and to maintain long term project stability and foresight, no more than one maintainer can be involuntarily unseated in any given nine-month period.
 
 The CNCF MUST be notified of any changes in maintainership via the CNCF Service Desk.
 
@@ -103,7 +103,7 @@ This is a very important aspect of SPIRE maintainership. Adoption and contributi
 
 ## Product Management and Roadmap Curation
 
-In addition to the maintainer seats, the SPIRE project designates one product manager seat. While maintainers strive to ensure that project development and direction is a function of community needs, and interact with end users and contributors on a daily basis, the product manager works to clarify user needs by gathering additional information and context. This includes, but is not limited to, conducting user research and field testing to better inform maintainers, and communicating project development information to the community.
+In addition to the maintainer seats, the SPIRE project designates one product manager seat. While maintainers strive to ensure that project development and direction is a function of community needs, and interact with end users and contributors on a daily basis, the product manager works to clarify user needs by gathering additional information and context. This includes, but is not limited to, conducting user research and field-testing to better inform maintainers, and communicating project development information to the community.
 
 Maintainers are expected to have heavy participation in the community, but it may be impractical to dedicate themselves to gathering and analyzing community feedback and end-user pain points. Based on data collection, the role of the product manager is intended to aid maintainers to validate the desirability, feasibility, and viability of efforts to help drive project direction and priorities in long term planning.
 

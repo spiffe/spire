@@ -134,7 +134,7 @@ func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*journal.X509
 		}
 
 		// Unable to load slot
-		// TODO: the previous implementation analized only the last two entries,
+		// TODO: the previous implementation analyzed only the last two entries,
 		// and if those slots were empty, we created new slots.
 		// Now we iterate through all the file, to try to get a useful slot.
 		// Maybe there is room for improvement here, by just verifying if the
@@ -207,7 +207,7 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 		}
 
 		// Unable to load slot
-		// TODO: the previous implementation analized only the last two entries,
+		// TODO: the previous implementation analyzed only the last two entries,
 		// and if those slots were empty, we created new slots.
 		// Now we iterate through all the file, to try to get a useful slot.
 		// Maybe there is room for improvement here, by just verifying if the

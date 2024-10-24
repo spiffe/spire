@@ -37,7 +37,7 @@ func LoadCertificates(path string) ([]*x509.Certificate, error) {
 	}
 
 	var certs []*x509.Certificate
-	for blockno := 0; ; blockno++ {
+	for blockNumber := 0; ; blockNumber++ {
 		var block *pem.Block
 		block, rest = pem.Decode(rest)
 		if block == nil {
@@ -49,7 +49,7 @@ func LoadCertificates(path string) ([]*x509.Certificate, error) {
 
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse certificate in block %d: %w", blockno, err)
+			return nil, fmt.Errorf("unable to parse certificate in block %d: %w", blockNumber, err)
 		}
 		certs = append(certs, cert)
 	}

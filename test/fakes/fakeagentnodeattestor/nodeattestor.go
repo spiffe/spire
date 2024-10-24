@@ -13,10 +13,10 @@ import (
 )
 
 type Config struct {
-	// Fail indicates whether or not fetching attestation data should fail.
+	// Fail indicates whether fetching attestation data should fail.
 	Fail bool
 
-	// Responses is list of echo responses. The response to each challenge is
+	// Responses are a list of echo responses. The response to each challenge is
 	// expected to match the challenge value.
 	Responses []string
 }

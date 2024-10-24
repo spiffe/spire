@@ -2299,7 +2299,7 @@ func setNodeSelectors(tx *gorm.DB, spiffeID string, selectors []*common.Selector
 	// deadlocks when SetNodeSelectors was being called concurrently. Changing
 	// the transaction isolation level fixed the deadlocks but only when there
 	// were no existing rows; the deadlocks still occurred when existing rows
-	// existed (i.e. re-attestation). Instead, gather all of the IDs to be
+	// existed (i.e. re-attestation). Instead, gather all the IDs to be
 	// deleted and delete them from separate queries, which does not trigger
 	// gap locks on the index.
 	var ids []int64
@@ -4610,7 +4610,7 @@ func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
 		return nil, err
 	}
 
-	// make sure all of the ids were found
+	// make sure all the ids were found
 	idset := make(map[string]bool)
 	for _, bundle := range bundles {
 		idset[bundle.TrustDomain] = true

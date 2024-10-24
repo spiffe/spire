@@ -100,11 +100,11 @@ will terminate if another domain is requested.
 
 #### Server API Section
 
-| Key             | Type     | Required? | Description                                                                                                                                                    | Default |
-|-----------------|----------|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| Key             | Type     | Required? | Description                                                                                                                                                      | Default |
+|-----------------|----------|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | `address`       | string   | required  | SPIRE Server API gRPC target address. Only the unix name system is supported. See <https://github.com/grpc/grpc/blob/master/doc/naming.md>. Unix platforms only. |         |
-| `experimental`  | section  | optional  | The experimental options that are subject to change or removal.                                                                                                |         |
-| `poll_interval` | duration | optional  | How often to poll for changes to the public key material.                                                                                                      | `"10s"` |
+| `experimental`  | section  | optional  | The experimental options that are subject to change or removal.                                                                                                  |         |
+| `poll_interval` | duration | optional  | How often to poll for changes to the public key material.                                                                                                        | `"10s"` |
 
 | experimental      | Type   | Required? | Description                                                 | Default |
 |:------------------|--------|-----------|-------------------------------------------------------------|---------|

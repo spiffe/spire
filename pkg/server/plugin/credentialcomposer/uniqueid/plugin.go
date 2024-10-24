@@ -63,7 +63,7 @@ func (p *Plugin) ComposeWorkloadX509SVID(_ context.Context, req *credentialcompo
 		attributes.Subject = &credentialcomposerv1.DistinguishedName{}
 	}
 
-	// Add the attribute if does not already exist. Otherwise replace the old value.
+	// Add the attribute if it does not already exist. Otherwise, replace the old value.
 	found := false
 	for i := 0; i < len(attributes.Subject.ExtraNames); i++ {
 		if attributes.Subject.ExtraNames[i].Oid == uniqueID.Oid {

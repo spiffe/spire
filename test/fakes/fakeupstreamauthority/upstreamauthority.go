@@ -321,8 +321,8 @@ func createCATemplate(now time.Time, cn string, sn int64, keyUsage x509.KeyUsage
 	}
 }
 
-func createCertificate(t *testing.T, template, parent *x509.Certificate, pub crypto.PublicKey, priv crypto.PrivateKey) *x509.Certificate {
-	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, priv)
+func createCertificate(t *testing.T, template, parent *x509.Certificate, publicKey crypto.PublicKey, privateKey crypto.PrivateKey) *x509.Certificate {
+	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, publicKey, privateKey)
 	require.NoError(t, err, "unable to sign certificate")
 
 	cert, err := x509.ParseCertificate(certDER)

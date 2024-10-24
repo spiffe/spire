@@ -81,7 +81,7 @@ func New(config *Config) *Cache {
 // record's revision number is incremented on each record based on:
 // - Knowledge or when the SVID for that entry changes
 // - Knowledge when the bundle changes
-// - Knowledge when a federated bundle related to an storable entry changes
+// - Knowledge when a federated bundle related to a storable entry changes
 func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
