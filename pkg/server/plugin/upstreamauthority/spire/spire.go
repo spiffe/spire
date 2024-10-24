@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -51,6 +52,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 type experimentalConfig struct {
 	WorkloadAPINamedPipeName string `hcl:"workload_api_named_pipe_name" json:"workload_api_named_pipe_name"`
+	RequirePQKEM             bool   `hcl:"require_pq_kem" json:"require_pq_kem"`
 }
 
 func BuiltIn() catalog.BuiltIn {
@@ -119,7 +121,13 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, status.Errorf(codes.Internal, "unable to build server ID: %v", err)
 	}
 
-	p.serverClient = newServerClient(serverID, serverAddr, workloadAPIAddr, p.log)
+	tlsPolicy := tlspolicy.Policy{
+		RequirePQKEM: p.config.Experimental.RequirePQKEM,
+	}
+
+	tlspolicy.LogPolicy(tlsPolicy, p.log)
+
+	p.serverClient = newServerClient(serverID, serverAddr, workloadAPIAddr, p.log, tlsPolicy)
 
 	return &configv1.ConfigureResponse{}, nil
 }

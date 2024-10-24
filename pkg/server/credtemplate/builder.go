@@ -15,6 +15,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
@@ -111,6 +112,7 @@ type Config struct {
 	CredentialComposers          []credentialcomposer.CredentialComposer
 	NewSerialNumber              func() (*big.Int, error)
 	UseLegacyDownstreamX509CATTL bool
+	TLSPolicy                    tlspolicy.Policy
 }
 
 type Builder struct {
