@@ -32,6 +32,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
@@ -84,6 +85,7 @@ type Endpoints struct {
 	AuditLogEnabled              bool
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
+	TLSPolicy                    tlspolicy.Policy
 }
 
 type APIServers struct {
@@ -176,6 +178,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AuditLogEnabled:              c.AuditLogEnabled,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
+		TLSPolicy:                    c.TLSPolicy,
 	}, nil
 }
 
@@ -358,6 +361,11 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 		spiffeTLSConfig.MinVersion = tls.VersionTLS12
 		spiffeTLSConfig.NextProtos = []string{http2.NextProtoTLS}
 		spiffeTLSConfig.VerifyPeerCertificate = e.serverSpiffeVerificationFunc(bundleSrc)
+
+		err := tlspolicy.ApplyPolicy(spiffeTLSConfig, e.TLSPolicy)
+		if err != nil {
+			return nil, err
+		}
 
 		return spiffeTLSConfig, nil
 	}

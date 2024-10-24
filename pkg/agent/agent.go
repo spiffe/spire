@@ -256,6 +256,7 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
 		ServerAddress:     a.c.ServerAddress,
 		NodeAttestor:      na,
+		TLSPolicy:         a.c.TLSPolicy,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
@@ -279,6 +280,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		SVIDStoreCache:           cache,
 		NodeAttestor:             na,
 		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
+		TLSPolicy:                a.c.TLSPolicy,
 	}
 
 	mgr := manager.New(config)
