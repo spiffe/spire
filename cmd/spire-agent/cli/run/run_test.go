@@ -615,6 +615,16 @@ func TestMergeInput(t *testing.T) {
 				require.Equal(t, "bar", c.Agent.TrustDomain)
 			},
 		},
+		{
+			msg: "require_pq_kem should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.Experimental.RequirePQKEM = true
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.Experimental.RequirePQKEM)
+			},
+		},
 	}
 	cases = append(cases, mergeInputCasesOS()...)
 
@@ -1010,6 +1020,23 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
+			},
+		},
+
+		{
+			msg:   "require PQ KEM is disabled (default)",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, false, c.TLSPolicy.RequirePQKEM)
+			},
+		},
+		{
+			msg: "require PQ KEM is enabled",
+			input: func(c *Config) {
+				c.Agent.Experimental.RequirePQKEM = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
 			},
 		},
 	}
