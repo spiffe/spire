@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server/api"
 	agentv1 "github.com/spiffe/spire/pkg/server/api/agent/v1"
 	bundlev1 "github.com/spiffe/spire/pkg/server/api/bundle/v1"
@@ -107,6 +108,10 @@ type Config struct {
 	// calculation (prefer the TTL passed by the downstream caller, then fall
 	// back to the default X509 CA TTL).
 	UseLegacyDownstreamX509CATTL bool
+
+	// TLSPolicy determines the post-quantum-safe policy used for all TLS
+	// connections.
+	TLSPolicy tlspolicy.Policy
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) error) {

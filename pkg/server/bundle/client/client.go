@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/zeebo/errs"
 )
 
@@ -37,6 +38,10 @@ type ClientConfig struct { //revive:disable-line:exported name stutter is intent
 	// using SPIFFE authentication. If unset, it is assumed that the endpoint
 	// is authenticated via Web PKI.
 	SPIFFEAuth *SPIFFEAuthConfig
+
+	// TLSPolicy specifies the post-quantum-security policy used for TLS
+	// connections.
+	TLSPolicy tlspolicy.Policy
 
 	// mutateTransportHook is a hook to influence the transport used during
 	// tests.
@@ -66,6 +71,11 @@ func NewClient(config ClientConfig) (Client, error) {
 		authorizer := tlsconfig.AuthorizeID(endpointID)
 
 		transport.TLSClientConfig = tlsconfig.TLSClientConfig(bundle, authorizer)
+
+		err := tlspolicy.ApplyPolicy(transport.TLSClientConfig, config.TLSPolicy)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if config.mutateTransportHook != nil {
 		config.mutateTransportHook(transport)

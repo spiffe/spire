@@ -36,6 +36,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -109,6 +110,7 @@ type experimentalConfig struct {
 	EventsBasedCache      bool                        `hcl:"events_based_cache"`
 	PruneEventsOlderThan  string                      `hcl:"prune_events_older_than"`
 	SQLTransactionTimeout string                      `hcl:"sql_transaction_timeout"`
+	RequirePQKEM          bool                        `hcl:"require_pq_kem"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -508,6 +510,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.ProfilingPort = c.Server.ProfilingPort
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
+
+	sc.TLSPolicy = tlspolicy.Policy{
+		RequirePQKEM: c.Server.Experimental.RequirePQKEM,
+	}
+
+	tlspolicy.LogPolicy(sc.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
 
 	for _, adminID := range c.Server.AdminIDs {
 		id, err := spiffeid.FromString(adminID)
