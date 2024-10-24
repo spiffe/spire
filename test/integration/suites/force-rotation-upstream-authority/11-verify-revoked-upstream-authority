@@ -43,7 +43,7 @@ check_ski() {
     fi
 }
 
-active_upstream_authority=$(docker compose exec -T -e SPIRE_SERVER_FFLAGS=forced_rotation spire-server \
+active_upstream_authority=$(docker compose exec -T spire-server \
       /opt/spire/bin/spire-server \
       localauthority x509 show -output json | jq -r .active.upstream_authority_subject_key_id) || fail-now "Failed to fetch old upstrem authority ID"
 

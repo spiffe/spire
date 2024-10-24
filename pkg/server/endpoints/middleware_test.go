@@ -227,7 +227,6 @@ func TestAgentAuthorizer(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			ds := fakedatastore.New(t)
