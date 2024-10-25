@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"strings"
 	"sync"
 
 	"github.com/hashicorp/hcl"
@@ -38,6 +39,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 type Config struct {
 	SPIRETrustBundle  bool     `hcl:"spire_trust_bundle"`
+	SPIFFEPrefix      *string  `hcl:"spiffe_prefix"`
 	CABundlePath      string   `hcl:"ca_bundle_path"`
 	CABundlePaths     []string `hcl:"ca_bundle_paths"`
 	AgentPathTemplate string   `hcl:"agent_path_template"`
@@ -45,6 +47,7 @@ type Config struct {
 
 type configuration struct {
 	SPIRETrustBundle bool
+	SPIFFEPrefix     string
 	trustDomain      spiffeid.TrustDomain
 	trustBundle      *x509.CertPool
 	pathTemplate     *agentpathtemplate.Template
@@ -93,11 +96,22 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		pathTemplate = tmpl
 	}
 
+	var SPIFFEPrefix string
+	if hclConfig.SPIFFEPrefix == nil {
+		SPIFFEPrefix = "/spire-exchange/"
+	} else {
+		SPIFFEPrefix = *hclConfig.SPIFFEPrefix
+		if !strings.HasSuffix(SPIFFEPrefix, "/") {
+			SPIFFEPrefix += "/"
+		}
+	}
+
 	newConfig := &configuration{
 		trustDomain:      coreConfig.TrustDomain,
 		trustBundle:      util.NewCertPool(trustBundles...),
 		pathTemplate:     pathTemplate,
 		SPIRETrustBundle: hclConfig.SPIRETrustBundle,
+		SPIFFEPrefix:     SPIFFEPrefix,
 	}
 
 	return newConfig
@@ -214,7 +228,21 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf)
+
+	SVIDPath := ""
+	if config.SPIRETrustBundle {
+		if len(leaf.URIs) >= 1 {
+			SVIDPath = leaf.URIs[0].EscapedPath()
+			if !strings.HasPrefix(SVIDPath, config.SPIFFEPrefix) {
+				return status.Errorf(codes.PermissionDenied, "x509 cert doesnt match SPIFFE prefix")
+			}
+		} else {
+			return status.Errorf(codes.PermissionDenied, "valid SVID x509 cert not found")
+		}
+
+	}
+
+	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf, SVIDPath)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}

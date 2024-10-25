@@ -27,13 +27,7 @@ const (
 
 // DefaultAgentPathTemplate is the default template
 var DefaultAgentPathTemplateCN = agentpathtemplate.MustParse("/{{ .PluginName }}/{{ .Fingerprint }}")
-var DefaultAgentPathTemplateSVID = agentpathtemplate.MustParse(`
-{{- $p := printf "spiffe://%s/spire-exchange/" .TrustDomain }}
-{{- if hasPrefix $p .FromSVID }}
-{{-   printf "/spire/agent/x509pop/%s" (trimPrefix $p .FromSVID) }}
-{{- else }}
-{{-   fail "Invalid SVID" }}
-{{- end }}`)
+var DefaultAgentPathTemplateSVID = agentpathtemplate.MustParse("/{{ .PluginName }}/{{ .SVIDPath }}")
 
 type agentPathTemplateData struct {
 	*x509.Certificate
@@ -41,7 +35,7 @@ type agentPathTemplateData struct {
 	Fingerprint     string
 	PluginName      string
 	TrustDomain     string
-	FromSVID        string
+	SVIDPath        string
 }
 
 type AttestationData struct {
@@ -274,18 +268,14 @@ func Fingerprint(cert *x509.Certificate) string {
 }
 
 // MakeAgentID creates an agent ID from X.509 certificate data.
-func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate) (spiffeid.ID, error) {
-	FromSVID := ""
-	if len(cert.URIs) >= 1 {
-		FromSVID = cert.URIs[0].String()
-	}
+func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate, SVIDPath string) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
 		TrustDomain:     td.Name(),
 		Certificate:     cert,
 		PluginName:      PluginName,
 		SerialNumberHex: SerialNumberHex(cert.SerialNumber),
 		Fingerprint:     Fingerprint(cert),
-		FromSVID:        FromSVID,
+		SVIDPath:        SVIDPath,
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
