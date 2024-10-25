@@ -21,7 +21,7 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `spire_trust_bundle`     | If true, use the spire servers own trust bundle to use for validation.                                                                                                                                                                      |                                         |
 | `ca_bundle_path`      | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. |                                         |
 | `ca_bundle_paths`     | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification.                                                                             |                                         |
-| `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                              | `"{{ .PluginName}}/{{ .Fingerprint }}"` |
+| `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                              | `See Agent Path Template for details`   |
 
 A sample configuration:
 
@@ -47,6 +47,20 @@ A sample configuration:
 ## Agent Path Template
 
 The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
+
+If using ca_bundle_path(s), the default is:
+"{{ .PluginName}}/{{ .Fingerprint }}"
+
+If using spire_trust_bundle, the default exchanges an SVID under /spire-exchange/* for /spire/agent/x509pop/*, via:
+```
+{{- $p := printf "spiffe://%s/spire-exchange/" .TrustDomain }}
+{{- if hasPrefix $p .FromSVID }}
+{{-   printf "/spire/agent/x509pop/%s" (trimPrefix $p .FromSVID) }}
+{{- else }}
+{{-   fail "Invalid SVID" }}
+{{- end }}
+```
+
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
 
 Some useful values are:
@@ -58,3 +72,4 @@ Some useful values are:
 | .TrustDomain          | The configured trust domain                                                                  |
 | .Subject.CommonName   | The common name field of the agent's x509 certificate                                        |
 | .SerialNumberHex      | The serial number field of the agent's x509 certificate represented as lowercase hexadecimal |
+| .FromSVID             | The SVID of the first cert if there is one                                                   |

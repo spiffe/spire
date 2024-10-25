@@ -81,7 +81,10 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		}
 	}
 
-	pathTemplate := x509pop.DefaultAgentPathTemplate
+	pathTemplate := x509pop.DefaultAgentPathTemplateCN
+	if hclConfig.SPIRETrustBundle {
+		pathTemplate = x509pop.DefaultAgentPathTemplateSVID
+	}
 	if len(hclConfig.AgentPathTemplate) > 0 {
 		tmpl, err := agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
