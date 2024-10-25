@@ -17,6 +17,7 @@ import (
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
@@ -293,6 +294,14 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 	})
 }
 
+func (s *Server) validateCatalog(ctx context.Context, status *pluginconf.Status) (*catalog.Repository, error) {
+	return catalog.Validate(ctx, catalog.Config{
+		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+		TrustDomain:   s.config.TrustDomain,
+		PluginConfigs: s.config.PluginConfigs,
+	}, status)
+}
+
 func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, error) {
 	return credtemplate.NewBuilder(credtemplate.Config{
 		TrustDomain:                  s.config.TrustDomain,
@@ -530,6 +539,22 @@ func (s *Server) tryGetBundle() error {
 	if _, err := bundleClient.GetBundle(context.Background(), &bundlev1.GetBundleRequest{}); err != nil {
 		return errors.New("unable to fetch bundle")
 	}
+	return nil
+}
+
+func (s *Server) Validate(ctx context.Context, status *pluginconf.Status) error {
+	status.ReportInfo("entering server.Validate")
+
+	s.config.Log.WithFields(logrus.Fields{
+		telemetry.SubsystemName: "server",
+	}).Info("Validating plugin configuration")
+	s.config.Log.Infof("s.config is %+v", s.config)
+
+	repo, _ := s.validateCatalog(ctx, status)
+	s.config.Log.Infof("repo is %+v", repo)
+
+	time.Sleep(time.Duration(20) * time.Second)
+
 	return nil
 }
 

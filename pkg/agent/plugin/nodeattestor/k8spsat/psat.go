@@ -10,6 +10,7 @@ import (
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/zeebo/errs"
@@ -55,7 +56,7 @@ type AttestorConfig struct {
 	TokenPath string `hcl:"token_path"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *attestorConfig {
+func buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *attestorConfig {
 	hclConfig := new(AttestorConfig)
 	if err := hcl.Decode(hclConfig, hclText); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)

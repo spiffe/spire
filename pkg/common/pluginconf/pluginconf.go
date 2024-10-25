@@ -5,7 +5,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -34,14 +34,26 @@ func (s *Status) ReportErrorf(format string, args ...any) {
 	s.ReportError(fmt.Sprintf(format, args...))
 }
 
+func (s *Status) HasError() bool {
+	return s.err != nil
+}
+
+func (s *Status) Error() error {
+	return s.err
+}
+
 type Request interface {
 	GetCoreConfiguration() *configv1.CoreConfiguration
 	GetHclConfiguration() string
 }
 
-func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, hclText string, s *Status) *C) (*C, []string, error) {
+type CoreConfig interface {
+	GetTrustDomain()
+}
+
+func Build[C any](req Request, build func(coreConfig coreconfig.CoreConfig, hclText string, s *Status) *C) (*C, []string, error) {
 	var s Status
-	var coreConfig catalog.CoreConfig
+	var coreConfig coreconfig.CoreConfig
 
 	requestCoreConfig := req.GetCoreConfiguration()
 

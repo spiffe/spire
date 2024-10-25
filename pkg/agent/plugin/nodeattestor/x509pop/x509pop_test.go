@@ -11,7 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/test/fixture"
@@ -94,7 +94,7 @@ func (s *Suite) TestConfigure() {
 
 	// missing private_key_path
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(`
@@ -105,7 +105,7 @@ func (s *Suite) TestConfigure() {
 
 	// missing certificate_path
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(`
@@ -116,7 +116,7 @@ func (s *Suite) TestConfigure() {
 
 	// cannot load keypair
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(`
@@ -128,7 +128,7 @@ func (s *Suite) TestConfigure() {
 
 	// cannot load intermediates
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configuref(`
@@ -154,7 +154,7 @@ func (s *Suite) loadAndConfigurePlugin(withIntermediate bool) nodeattestor.NodeA
 			intermediates_path = %q`, intermediatePath)
 	}
 	return s.loadPlugin(
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
 		}),
 		plugintest.Configure(config),

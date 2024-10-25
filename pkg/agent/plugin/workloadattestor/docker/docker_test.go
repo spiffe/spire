@@ -15,7 +15,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -215,7 +215,7 @@ invalid2 = "/no/"`,
 
 			var err error
 			plugintest.Load(t, builtin(p), new(workloadattestor.V1),
-				plugintest.CoreConfig(catalog.CoreConfig{
+				plugintest.CoreConfig(coreconfig.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
 				}),
 				plugintest.Configure(tt.config),
@@ -359,7 +359,7 @@ func doAttestWithContext(ctx context.Context, t *testing.T, p *Plugin) ([]string
 func doConfigure(t *testing.T, p *Plugin, trustDomain string, cfg string) error {
 	var err error
 	plugintest.Load(t, builtin(p), new(workloadattestor.V1),
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
 		}),
 		plugintest.Configure(cfg),

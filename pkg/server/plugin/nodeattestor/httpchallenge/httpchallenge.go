@@ -14,6 +14,7 @@ import (
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
@@ -55,7 +56,7 @@ type configuration struct {
 	tofu              bool
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+func buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
 	hclConfig := new(Config)
 	if err := hcl.Decode(hclConfig, hclText); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)

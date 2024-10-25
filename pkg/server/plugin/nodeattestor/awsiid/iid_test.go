@@ -29,7 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -507,7 +507,7 @@ func TestAttest(t *testing.T) {
 				opts = append(opts,
 					plugintest.Configure(tt.config),
 					plugintest.CaptureConfigureError(&configureErr),
-					plugintest.CoreConfig(catalog.CoreConfig{
+					plugintest.CoreConfig(coreconfig.CoreConfig{
 						TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 					}),
 				)
@@ -556,7 +556,7 @@ func TestAttest(t *testing.T) {
 func TestConfigure(t *testing.T) {
 	env := map[string]string{}
 
-	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
+	doConfig := func(t *testing.T, coreConfig coreconfig.CoreConfig, config string) error {
 		var err error
 		attestor := New()
 		attestor.hooks.getenv = func(s string) string {
@@ -571,7 +571,7 @@ func TestConfigure(t *testing.T) {
 		return err
 	}
 
-	coreConfig := catalog.CoreConfig{
+	coreConfig := coreconfig.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}
 
@@ -581,7 +581,7 @@ func TestConfigure(t *testing.T) {
 	})
 
 	t.Run("missing trust domain", func(t *testing.T) {
-		err := doConfig(t, catalog.CoreConfig{}, ``)
+		err := doConfig(t, coreconfig.CoreConfig{}, ``)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 	})
 

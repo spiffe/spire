@@ -13,7 +13,7 @@ import (
 
 	"cloud.google.com/go/security/privateca/apiv1/privatecapb"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -138,7 +138,7 @@ func TestGcpCAS(t *testing.T) {
 	}
 
 	upplugin := new(upstreamauthority.V1)
-	plugintest.Load(t, builtin(p), upplugin, plugintest.CoreConfig(catalog.CoreConfig{
+	plugintest.Load(t, builtin(p), upplugin, plugintest.CoreConfig(coreconfig.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}),
 		plugintest.Configure(`

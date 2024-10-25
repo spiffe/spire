@@ -22,7 +22,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -287,7 +287,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 }
 
 func (s *AttestorSuite) TestConfigure() {
-	doConfig := func(coreConfig catalog.CoreConfig, config string) error {
+	doConfig := func(coreConfig coreconfig.CoreConfig, config string) error {
 		var err error
 		plugintest.Load(s.T(), BuiltIn(), nil,
 			plugintest.CaptureConfigureError(&err),
@@ -298,7 +298,7 @@ func (s *AttestorSuite) TestConfigure() {
 		return err
 	}
 
-	coreConfig := catalog.CoreConfig{
+	coreConfig := coreconfig.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}
 
@@ -307,7 +307,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireErrorContains(err, "unable to decode configuration")
 
 	// missing trust domain
-	err = doConfig(catalog.CoreConfig{}, "")
+	err = doConfig(coreconfig.CoreConfig{}, "")
 	s.RequireGRPCStatus(err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 
 	// missing clusters
@@ -382,7 +382,7 @@ func (s *AttestorSuite) TestServiceAccountKeyFileAlternateEncodings() {
 
 	plugintest.Load(s.T(), BuiltIn(), nil,
 		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configuref(`clusters = {
@@ -443,7 +443,7 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(s.T(), builtin(attestor), v1,
 		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configuref(`

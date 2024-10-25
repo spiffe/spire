@@ -13,7 +13,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	common_httpchallenge "github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/stretchr/testify/require"
@@ -215,7 +215,7 @@ func TestAidAttestationSucceeds(t *testing.T) {
 }
 
 func loadAndConfigurePlugin(t *testing.T, trustDomain string, config string) nodeattestor.NodeAttestor {
-	return loadPlugin(t, plugintest.CoreConfig(catalog.CoreConfig{
+	return loadPlugin(t, plugintest.CoreConfig(coreconfig.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
 	}),
 		plugintest.Configure(config))

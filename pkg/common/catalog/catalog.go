@@ -8,6 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
 )
@@ -106,7 +108,7 @@ type Config struct {
 	HostServices []pluginsdk.ServiceServer
 
 	// CoreConfig is the core configuration provided to each plugin.
-	CoreConfig CoreConfig
+	CoreConfig coreconfig.CoreConfig
 }
 
 type Catalog struct {
@@ -213,6 +215,32 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 		closers:       closers,
 		reconfigurers: reconfigurers,
 	}, nil
+}
+
+func Validate(ctx context.Context, config Config, repo Repository, status *pluginconf.Status) error {
+	status.ReportInfo("validating common catalog items")
+	pluginRepos, err := makeBindablePluginRepos(repo.Plugins())
+	if err != nil {
+		return err
+	}
+	config.Log.Infof("common catalog(catalog.go): bindablePluginRepos made: %+v", pluginRepos)
+
+	serviceRepos, err := makeBindableServiceRepos(repo.Services())
+	if err != nil {
+		return err
+	}
+	config.Log.Info("common catalog(catalog.go): bindableServiceRepos made: %+v", serviceRepos)
+
+	pluginCounts := make(map[string]int)
+
+	// Make sure all of the plugin constraints are satisfied
+	for pluginType, pluginRepo := range pluginRepos {
+		if err := pluginRepo.Constraints().Check(pluginCounts[pluginType]); err != nil {
+			return fmt.Errorf("plugin type %q constraint not satisfied: %w", pluginType, err)
+		}
+	}
+
+	return nil
 }
 
 func makePluginLog(log logrus.FieldLogger, pluginConfig PluginConfig) logrus.FieldLogger {

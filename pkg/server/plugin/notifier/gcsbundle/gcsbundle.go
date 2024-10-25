@@ -17,6 +17,7 @@ import (
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/api/googleapi"
@@ -48,7 +49,7 @@ type configuration struct {
 	ServiceAccountFile string `hcl:"service_account_file"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+func buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
 	newConfig := new(configuration)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("plugin configuration is malformed: %s", err)

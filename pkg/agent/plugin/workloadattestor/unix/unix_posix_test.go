@@ -16,7 +16,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -270,7 +270,7 @@ func (s *Suite) loadPlugin(t *testing.T, trustDomain string, config string) work
 	v1 := new(workloadattestor.V1)
 	plugintest.Load(t, builtin(p), v1,
 		plugintest.Log(s.log),
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
 		}),
 		plugintest.Configure(config))

@@ -18,7 +18,7 @@ import (
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -1047,7 +1047,7 @@ func setupTest(t *testing.T, options ...testOption) *test {
 			builtIn(raw),
 			notifier,
 			plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
-			plugintest.CoreConfig(catalog.CoreConfig{
+			plugintest.CoreConfig(coreconfig.CoreConfig{
 				TrustDomain: args.trustDomain,
 			}),
 			plugintest.Configure(args.plainConfig),

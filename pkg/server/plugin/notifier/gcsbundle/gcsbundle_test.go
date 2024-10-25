@@ -11,7 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
@@ -91,7 +91,7 @@ func TestConfigure(t *testing.T) {
 
 			var err error
 			plugintest.Load(t, BuiltIn(), nil,
-				plugintest.CoreConfig(catalog.CoreConfig{
+				plugintest.CoreConfig(coreconfig.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
 				}),
 				plugintest.Configure(tt.config),
@@ -231,7 +231,7 @@ func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) 
 				plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(idp)),
 			}
 			if !tt.skipConfigure {
-				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
+				options = append(options, plugintest.CoreConfig(coreconfig.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}))
 				options = append(options, plugintest.Configure(`

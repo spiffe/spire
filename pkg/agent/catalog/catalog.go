@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	km_telemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/keymanager"
@@ -93,7 +94,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	}
 	repo.catalog, err = catalog.Load(ctx, catalog.Config{
 		Log: config.Log,
-		CoreConfig: catalog.CoreConfig{
+		CoreConfig: coreconfig.CoreConfig{
 			TrustDomain: config.TrustDomain,
 		},
 		PluginConfigs: config.PluginConfigs,

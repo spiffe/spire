@@ -17,7 +17,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -682,7 +682,7 @@ func TestAttestSucceeds(t *testing.T) {
 func loadPlugin(t *testing.T, config string) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(t, tpmdevid.BuiltIn(), v1,
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(config),

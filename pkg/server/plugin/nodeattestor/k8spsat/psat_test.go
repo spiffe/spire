@@ -21,7 +21,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -352,7 +352,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 }
 
 func (s *AttestorSuite) TestConfigure() {
-	doConfig := func(coreConfig catalog.CoreConfig, config string) error {
+	doConfig := func(coreConfig coreconfig.CoreConfig, config string) error {
 		var err error
 		plugintest.Load(s.T(), BuiltIn(), nil,
 			plugintest.CaptureConfigureError(&err),
@@ -362,7 +362,7 @@ func (s *AttestorSuite) TestConfigure() {
 		return err
 	}
 
-	coreConfig := catalog.CoreConfig{
+	coreConfig := coreconfig.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}
 
@@ -371,7 +371,7 @@ func (s *AttestorSuite) TestConfigure() {
 	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "plugin configuration is malformed")
 
 	// missing trust domain
-	err = doConfig(catalog.CoreConfig{}, "")
+	err = doConfig(coreconfig.CoreConfig{}, "")
 	s.RequireGRPCStatus(err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 
 	// missing clusters
@@ -432,7 +432,7 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 				audience = ["AUDIENCE"]
 			}
 		}
-	`), plugintest.CoreConfig(catalog.CoreConfig{
+	`), plugintest.CoreConfig(coreconfig.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}))
 

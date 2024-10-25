@@ -24,6 +24,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -164,7 +165,7 @@ type k8sConfig struct {
 	LastReload time.Time
 }
 
-func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *k8sConfig {
+func (p *Plugin) buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *k8sConfig {
 	// Parse HCL config payload into config struct
 	newConfig := new(HCLConfig)
 	if err := hcl.Decode(newConfig, hclText); err != nil {

@@ -15,7 +15,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -188,7 +188,7 @@ func TestConfigure(t *testing.T) {
 			plugintest.Load(t, builtin(p), nil,
 				plugintest.CaptureConfigureError(&err),
 				plugintest.Configure(plainConfig),
-				plugintest.CoreConfig(catalog.CoreConfig{
+				plugintest.CoreConfig(coreconfig.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
 				}),
 			)
@@ -680,7 +680,7 @@ func TestMintX509CA(t *testing.T) {
 			p := New()
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
+				plugintest.CoreConfig(coreconfig.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
 			}
 			if tt.config != nil {
 				tt.config.VaultAddr = fmt.Sprintf("https://%s", addr)
@@ -748,7 +748,7 @@ func TestMintX509CA_InvalidCSR(t *testing.T) {
 				Token: "test-token",
 			},
 		}),
-		plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
+		plugintest.CoreConfig(coreconfig.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
 	)
 
 	csr := []byte("invalid-csr")
@@ -780,7 +780,7 @@ func TestPublishJWTKey(t *testing.T) {
 				Token: "test-token",
 			},
 		}),
-		plugintest.CoreConfig(catalog.CoreConfig{
+		plugintest.CoreConfig(coreconfig.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 	)

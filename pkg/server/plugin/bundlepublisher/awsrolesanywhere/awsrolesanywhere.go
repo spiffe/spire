@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -44,7 +45,7 @@ type Config struct {
 	TrustAnchorID   string `hcl:"trust_anchor_id" json:"trust_anchor_id"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)

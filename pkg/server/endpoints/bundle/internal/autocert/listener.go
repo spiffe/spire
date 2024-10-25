@@ -26,7 +26,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-//nolint // forked code
+// nolint // forked code
 package autocert
 
 import (
@@ -45,7 +45,7 @@ import (
 //
 // It enables one-line HTTPS servers:
 //
-//     log.Fatal(http.Serve(autocert.NewListener("example.com"), handler))
+//	log.Fatal(http.Serve(autocert.NewListener("example.com"), handler))
 //
 // NewListener is a convenience function for a common configuration.
 // More complex or custom configurations can use the autocert.Manager

@@ -21,7 +21,7 @@ import (
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	server_devid "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/tpmdevid"
 	"github.com/spiffe/spire/test/plugintest"
@@ -616,7 +616,7 @@ func loadAndConfigurePlugin(t *testing.T, passwords tpmutil.TPMPasswords) nodeat
 		passwords.EndorsementHierarchy,
 	)
 
-	return loadPlugin(t, plugintest.CoreConfig(catalog.CoreConfig{
+	return loadPlugin(t, plugintest.CoreConfig(coreconfig.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
 	}),
 		plugintest.Configure(config),

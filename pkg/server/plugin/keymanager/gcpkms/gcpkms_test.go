@@ -19,7 +19,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/clock"
@@ -986,7 +986,7 @@ func TestGenerateKey(t *testing.T) {
 				configureReq = configureRequestWithDefaults(t)
 			}
 
-			coreConfig := catalog.CoreConfig{
+			coreConfig := coreconfig.CoreConfig{
 				TrustDomain: spiffeid.RequireTrustDomainFromString("test.example.org"),
 			}
 			km := new(keymanager.V1)
@@ -1358,7 +1358,7 @@ func TestKeyManagerContract(t *testing.T) {
 		km := new(keymanager.V1)
 		keyIdentifierFile := filepath.ToSlash(filepath.Join(dir, "key_identifier.json"))
 		plugintest.Load(t, builtin(p), km,
-			plugintest.CoreConfig(catalog.CoreConfig{
+			plugintest.CoreConfig(coreconfig.CoreConfig{
 				TrustDomain: spiffeid.RequireTrustDomainFromString("test.example.org"),
 			}),
 			plugintest.Configuref(`

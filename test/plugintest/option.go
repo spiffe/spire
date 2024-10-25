@@ -6,6 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 )
 
 // Option is plugin test option
@@ -42,7 +43,7 @@ func HostServices(hostServices ...pluginsdk.ServiceServer) Option {
 
 // CoreConfig provides the core configuration passed to the plugin when
 // configured.
-func CoreConfig(coreConfig catalog.CoreConfig) Option {
+func CoreConfig(coreConfig coreconfig.CoreConfig) Option {
 	return optionFunc(func(conf *config) {
 		conf.doConfigure = true
 		conf.coreConfig = coreConfig

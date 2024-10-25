@@ -24,6 +24,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
@@ -100,7 +101,7 @@ type msiAttestorConfig struct {
 	idPathTemplate *agentpathtemplate.Template
 }
 
-func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *msiAttestorConfig {
+func (p *MSIAttestorPlugin) buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *msiAttestorConfig {
 	newConfig := new(MSIAttestorConfig)
 
 	if err := hcl.Decode(newConfig, hclText); err != nil {

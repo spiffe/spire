@@ -41,7 +41,7 @@
 //   key match when the key a crypto.Signer and not a concrete RSA/ECDSA private
 //   key type.
 
-//nolint // forked code
+// nolint // forked code
 package autocert
 
 import (
