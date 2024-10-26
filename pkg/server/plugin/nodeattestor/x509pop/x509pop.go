@@ -228,7 +228,6 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-
 	SVIDPath := ""
 	if config.SPIRETrustBundle {
 		if len(leaf.URIs) >= 1 {
