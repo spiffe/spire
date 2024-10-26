@@ -63,7 +63,7 @@ The agent path template is a way of customizing the format of generated SPIFFE I
 If using ca_bundle_path(s), the default is:
 "{{ .PluginName}}/{{ .Fingerprint }}"
 
-If using spire_trust_bundle, the default exchanges an SVID under /spire-exchange/* for /spire/agent/x509pop/*, via:
+If using spire_trust_bundle, the default exchanges an SVID under `/spire-exchange/*` for `/spire/agent/x509pop/*`, via:
 "{{ .PluginName}}/{{ .SVIDPath }}"
 
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
