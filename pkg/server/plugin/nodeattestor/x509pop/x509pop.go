@@ -238,7 +238,6 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		} else {
 			return status.Errorf(codes.PermissionDenied, "valid SVID x509 cert not found")
 		}
-
 	}
 
 	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf, SVIDPath)
