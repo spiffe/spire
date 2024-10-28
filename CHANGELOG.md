@@ -28,7 +28,6 @@
 - Missing TrustDomain field passed to x509pop path template (#5577)
 - Behavior in the experimental events-based cache causing duplicate entries/agents evaluation in the same cycle (#5509)
 
-
 ## [1.10.4] - 2024-09-12
 
 ### Fixed
