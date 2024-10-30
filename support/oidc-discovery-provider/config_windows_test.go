@@ -577,5 +577,87 @@ func parseConfigCasesOS() []parseConfigCase {
 			`,
 			err: "trust_domain must be configured in the workload_api configuration section",
 		},
+		{
+			name: "with JWT issuer",
+			in: `
+				domains = ["domain.test"]
+				jwt_issuer = "https://domain.test/some/issuer/path/issuer1/"
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			out: &Config{
+				LogLevel:  defaultLogLevel,
+				Domains:   []string{"domain.test"},
+				JWTIssuer: "https://domain.test/some/issuer/path/issuer1/",
+				ServingCertFile: &ServingCertFileConfig{
+					CertFilePath:     "test",
+					KeyFilePath:      "test",
+					FileSyncInterval: time.Minute,
+					Addr: &net.TCPAddr{
+						IP:   nil,
+						Port: 443,
+					},
+					RawAddr: ":443",
+				},
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+				HealthChecks: nil,
+			},
+		},
+		{
+			name: "JWT issuer with missing scheme",
+			in: `
+				domains = ["domain.test"]
+				jwt_issuer = "domain.test/some/issuer/path/issuer1/"
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			err: "the jwt_issuer url could not be parsed",
+		},
+		{
+			name: "JWT issuer is empty",
+			in: `
+				domains = ["domain.test"]
+				jwt_issuer = ""
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			out: &Config{
+				LogLevel: defaultLogLevel,
+				Domains:  []string{"domain.test"},
+				ServingCertFile: &ServingCertFileConfig{
+					CertFilePath:     "test",
+					KeyFilePath:      "test",
+					FileSyncInterval: time.Minute,
+					Addr: &net.TCPAddr{
+						IP:   nil,
+						Port: 443,
+					},
+					RawAddr: ":443",
+				},
+				ServerAPI: &ServerAPIConfig{
+					Address:      "unix:///some/socket/path",
+					PollInterval: defaultPollInterval,
+				},
+				HealthChecks: nil,
+			},
+		},
 	}
 }
