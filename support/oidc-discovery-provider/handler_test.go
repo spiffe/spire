@@ -674,6 +674,27 @@ func TestHandlerJWTIssuer(t *testing.T) {
   ]
 }`,
 		},
+		{
+			name:      "GET well-known JWT Issuer without a path",
+			jwtIssuer: "http://domain.test",
+			method:    "GET",
+			path:      "/.well-known/openid-configuration",
+			code:      http.StatusOK,
+			body: `{
+  "issuer": "http://domain.test",
+  "jwks_uri": "http://domain.test/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
 	}
 	for _, testCase := range testCases {
 		testCase := testCase
