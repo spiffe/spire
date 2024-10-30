@@ -690,6 +690,36 @@ func parseConfigCasesOS() []parseConfigCase {
 			err: "the jwt_issuer url could not be parsed",
 		},
 		{
+			name: "JWT issuer with missing host",
+			in: `
+				domains = ["domain.test"]
+				jwt_issuer = "https:///path"
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			err: "the jwt_issuer url could not be parsed",
+		},
+		{
+			name: "JWT issuer is invalid",
+			in: `
+				domains = ["domain.test"]
+				jwt_issuer = "http://domain.test:someportnumber/some/path"
+				serving_cert_file {
+					cert_file_path = "test"
+					key_file_path = "test"
+				}
+				server_api {
+					address = "unix:///some/socket/path"
+				}
+			`,
+			err: "the jwt_issuer url could not be parsed",
+		},
+		{
 			name: "JWT issuer is empty",
 			in: `
 				domains = ["domain.test"]

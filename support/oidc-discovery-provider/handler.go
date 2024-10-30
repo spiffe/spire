@@ -69,6 +69,11 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if err := h.verifyHost(host); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	issuerURL := url.URL{
 		Scheme: urlScheme,
 		Host:   host,
@@ -82,10 +87,6 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		Path:   jwksURIPath,
 	}
 
-	if err := h.verifyHost(host); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
 	doc := struct {
 		Issuer  string `json:"issuer"`
 		JWKSURI string `json:"jwks_uri"`
