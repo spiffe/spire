@@ -553,8 +553,6 @@ func (s *Server) Validate(ctx context.Context, status *pluginconf.Status) error 
 	repo, _ := s.validateCatalog(ctx, status)
 	s.config.Log.Infof("repo is %+v", repo)
 
-	time.Sleep(time.Duration(20) * time.Second)
-
 	return nil
 }
 

@@ -15,6 +15,16 @@ type Status struct {
 	err   error
 }
 
+func (s *Status) Append(other *Status) {
+	if other == nil {
+		return
+	}
+	s.notes = append(s.notes, other.notes...)
+	if s.err == nil {
+		s.err = other.err
+	}
+}
+
 func (s *Status) ReportInfo(message string) {
 	s.notes = append(s.notes, message)
 }
