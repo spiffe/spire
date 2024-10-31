@@ -235,6 +235,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 			if !strings.HasPrefix(SVIDPath, config.SPIFFEPrefix) {
 				return status.Errorf(codes.PermissionDenied, "x509 cert doesnt match SPIFFE prefix")
 			}
+			SVIDPath = strings.TrimPrefix(SVIDPath, config.SPIFFEPrefix)
 		} else {
 			return status.Errorf(codes.PermissionDenied, "valid SVID x509 cert not found")
 		}
