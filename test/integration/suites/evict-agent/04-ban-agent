@@ -12,7 +12,7 @@ for ((i=1;i<=MAXCHECKS;i++)); do
     # It is possible that the agent is not yet registered, so we need to retry
     if docker compose exec -T spire-server \
         /opt/spire/bin/spire-server agent ban \
-        -spiffeID "${spiffe_id}; then
+        -spiffeID "${spiffe_id}"; then
         docker compose logs spire-server
         if docker compose logs spire-server | grep "Agent banned"; then
             exit 0
