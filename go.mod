@@ -61,7 +61,7 @@ require (
 	github.com/imkira/go-observer v1.0.3
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jinzhu/gorm v1.9.16
-	github.com/lestrrat-go/jwx/v2 v2.1.1
+	github.com/lestrrat-go/jwx/v2 v2.1.2
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/mitchellh/cli v1.1.5
@@ -89,11 +89,11 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241015192408-796eee8c2d53
 	google.golang.org/grpc v1.67.1
 	google.golang.org/protobuf v1.35.1
-	k8s.io/api v0.31.1
-	k8s.io/apimachinery v0.31.1
-	k8s.io/client-go v0.31.1
-	k8s.io/kube-aggregator v0.31.1
-	k8s.io/mount-utils v0.31.1
+	k8s.io/api v0.31.2
+	k8s.io/apimachinery v0.31.2
+	k8s.io/client-go v0.31.2
+	k8s.io/kube-aggregator v0.31.2
+	k8s.io/mount-utils v0.31.2
 	sigs.k8s.io/controller-runtime v0.19.0
 )
 
