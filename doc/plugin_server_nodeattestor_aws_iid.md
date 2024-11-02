@@ -32,7 +32,7 @@ Sample configuration:
     }
 ```
 
-If `assume_role` is set, the SPIRE server will assume the role as specified by the template `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}` where `Partition` comes from the AWS NodeAttestor plugin configuration if specified otherwise set to 'aws', `AccountID` is taken from the AWS IID document sent by the SPIRE agent to the SPIRE server and `AssumeRole` comes from the AWS NodeAttestor plugin configuration.
+If `assume_role` is set, the SPIRE server will assume the role as specified by the template `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}` where `Partition` comes from the AWS NodeAttestor plugin configuration if specified otherwise set to 'aws', `AccountID` is taken from the AWS IID document sent by the SPIRE agent to the SPIRE server and `AssumeRole` comes from the AWS NodeAttestor plugin configuration. Details about the template engine are available [here](template_engine.md).
 
 In the following configuration,
 
