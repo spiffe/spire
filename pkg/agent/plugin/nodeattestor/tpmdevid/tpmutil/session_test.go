@@ -628,7 +628,7 @@ func (f keyCloser) Close() error {
 	return nil
 }
 
-// createTPMKey creates a key on the simulated TPM. It returns a io.Closer to
+// createTPMKey creates a key on the simulated TPM. It returns an io.Closer to
 // flush the key once it is no more required.
 // This function is used to out-of-memory the TPM in unit tests.
 func createTPMKey(t *testing.T, sim *tpmsimulator.TPMSimulator) io.Closer {

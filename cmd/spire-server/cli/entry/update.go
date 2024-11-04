@@ -41,7 +41,7 @@ type updateCommand struct {
 	// Workload spiffeID
 	spiffeID string
 
-	// Whether or not the entry is for a downstream SPIRE server
+	// whether the entry is for a downstream SPIRE server
 	downstream bool
 
 	// TTL for x509 SVIDs issued to this workload
@@ -53,7 +53,7 @@ type updateCommand struct {
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
 	federatesWith StringsFlag
 
-	// Whether or not the registration entry is for an "admin" workload
+	// whether the registration entry is for an "admin" workload
 	admin bool
 
 	// Expiry of entry

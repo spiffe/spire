@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// RunTasks executes all of the provided functions concurrently and waits for
+// RunTasks executes all the provided functions concurrently and waits for
 // them all to complete. If a function returns an error, all other functions
 // are canceled (i.e. the context they are passed is canceled) and the error is
 // returned. If all functions finish to completion successfully, RunTasks
@@ -58,7 +58,7 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 	return nil
 }
 
-// SerialRun executes all of the provided functions serially.
+// SerialRun executes all the provided functions serially.
 // If all functions finish to completion successfully, SerialRun
 // returns nil. If the context passed to SerialRun is canceled
 // then each function is canceled and SerialRun returns ctx.Err().

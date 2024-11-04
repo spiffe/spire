@@ -67,7 +67,7 @@ type Manager interface {
 	// SetRotationFinishedHook sets a hook that will be called when a rotation finished
 	SetRotationFinishedHook(func())
 
-	// MatchingRegistrationEntries returns all of the cached registration entries whose
+	// MatchingRegistrationEntries returns all the cached registration entries whose
 	// selectors are a subset of the passed selectors.
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 

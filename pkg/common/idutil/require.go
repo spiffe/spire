@@ -6,7 +6,7 @@ import (
 )
 
 // RequireIDProtoString constructs a SPIFFE ID string for the given ID proto.
-// It panics if the proto is not well formed.
+// It panics if the proto is not well-formed.
 func RequireIDProtoString(id *types.SPIFFEID) string {
 	out, err := IDProtoString(id)
 	panicOnErr(err)
@@ -14,7 +14,7 @@ func RequireIDProtoString(id *types.SPIFFEID) string {
 }
 
 // RequireIDFromProto returns a SPIFFE ID from the proto representation. It
-// panics if the proto is not well formed.
+// panics if the proto is not well-formed.
 func RequireIDFromProto(id *types.SPIFFEID) spiffeid.ID {
 	out, err := IDFromProto(id)
 	panicOnErr(err)

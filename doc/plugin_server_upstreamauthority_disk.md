@@ -10,7 +10,7 @@ credentials cannot be loaded, then the previously loaded credentials will be
 used.  This provides two things: first, it ensures that the spire-server
 process does not need to be restarted to load a new UpstreamAuthority from
 disk, providing a seamless rotation; second, it ensures that a failed disk does
-not effect a running spire-server until the loaded UpstreamAuthority expires.
+not affect a running spire-server until the loaded UpstreamAuthority expires.
 
 The plugin accepts the following configuration options:
 

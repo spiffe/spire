@@ -19,7 +19,7 @@ spiffe://<trust_domain>/spire/agent/http_challenge/<hostname>
 | `port`            | The port to listen on. If unspecified, a random value will be used.                                                                              | random    |
 | `advertised_port` | The port to tell the server to call back on.                                                                                                     | $port     |
 
-If `advertised_port` != `port`, you will need to setup an http proxy between the two ports. This is useful if you already run a webserver on port 80.
+If `advertised_port` != `port`, you will need to set up an http proxy between the two ports. This is useful if you already run a webserver on port 80.
 
 A sample configuration:
 
