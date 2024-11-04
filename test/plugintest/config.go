@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +17,7 @@ type config struct {
 
 	doConfigure  bool
 	configureErr *error
-	coreConfig   coreconfig.CoreConfig
+	coreConfig   catalog.CoreConfig
 	plainConfig  *string
 	jsonConfig   any
 }

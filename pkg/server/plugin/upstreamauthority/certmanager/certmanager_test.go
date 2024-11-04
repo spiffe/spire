@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
@@ -156,7 +156,7 @@ func Test_MintX509CA(t *testing.T) {
 			ua := new(upstreamauthority.V1)
 			plugintest.Load(t, builtin(p), ua,
 				plugintest.ConfigureJSON(config),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: trustDomain,
 				}),
 			)
@@ -212,7 +212,7 @@ func Test_Configure(t *testing.T) {
 		expectMsgPrefix    string
 		expectConfig       *Configuration
 		expectConfigFile   string
-		overrideCoreConfig *coreconfig.CoreConfig
+		overrideCoreConfig *catalog.CoreConfig
 		newClientErr       error
 	}{
 		"if config is malformed, expect error": {
@@ -280,7 +280,7 @@ func Test_Configure(t *testing.T) {
 		namespace = "my-namespace"
 		kube_config_file = "/path/to/config"
 		`,
-			overrideCoreConfig: &coreconfig.CoreConfig{},
+			overrideCoreConfig: &catalog.CoreConfig{},
 			expectCode:         codes.InvalidArgument,
 			expectMsgPrefix:    "server core configuration must contain trust_domain",
 		},
@@ -309,7 +309,7 @@ func Test_Configure(t *testing.T) {
 			if test.overrideCoreConfig != nil {
 				options = append(options, plugintest.CoreConfig(*test.overrideCoreConfig))
 			} else {
-				options = append(options, plugintest.CoreConfig(coreconfig.CoreConfig{
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
 				}))
 			}
@@ -359,7 +359,7 @@ func TestPublishJWTKey(t *testing.T) {
 	ua := new(upstreamauthority.V1)
 	plugintest.Load(t, builtin(p), ua,
 		plugintest.ConfigureJSON(config),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.com"),
 		}),
 	)

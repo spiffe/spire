@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
@@ -39,7 +39,7 @@ type configureCase struct {
 	serverPort               string
 	workloadAPISocket        string
 	workloadAPINamedPipeName string
-	overrideCoreConfig       *coreconfig.CoreConfig
+	overrideCoreConfig       *catalog.CoreConfig
 	overrideConfig           string
 	expectCode               codes.Code
 	expectMsgPrefix          string
@@ -73,7 +73,7 @@ func TestConfigure(t *testing.T) {
 			serverAddr:         "localhost",
 			serverPort:         "8081",
 			workloadAPISocket:  "socketPath",
-			overrideCoreConfig: &coreconfig.CoreConfig{},
+			overrideCoreConfig: &catalog.CoreConfig{},
 			expectCode:         codes.InvalidArgument,
 			expectMsgPrefix:    "server core configuration must contain trust_domain",
 		},
@@ -91,7 +91,7 @@ func TestConfigure(t *testing.T) {
 			if tt.overrideCoreConfig != nil {
 				options = append(options, plugintest.CoreConfig(*tt.overrideCoreConfig))
 			} else {
-				options = append(options, plugintest.CoreConfig(coreconfig.CoreConfig{
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: trustDomain,
 				}))
 			}
@@ -427,7 +427,7 @@ func newWithDefault(t *testing.T, mockClock *clock.Mock, serverAddr string, work
 
 	ua := new(upstreamauthority.V1)
 	plugintest.Load(t, builtin(p), ua,
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: trustDomain,
 		}),
 		plugintest.ConfigureJSON(config),

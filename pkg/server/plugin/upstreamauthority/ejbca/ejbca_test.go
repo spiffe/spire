@@ -23,7 +23,7 @@ import (
 	ejbcaclient "github.com/Keyfactor/ejbca-go-client-sdk/api/ejbca"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	commonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/test/plugintest"
@@ -375,7 +375,7 @@ func TestConfigure(t *testing.T) {
 
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: trustDomain,
 				}),
 				plugintest.Configure(tt.config),
@@ -540,7 +540,7 @@ func TestMintX509CAAndSubscribe(t *testing.T) {
 
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: trustDomain,
 				}),
 				plugintest.ConfigureJSON(config),

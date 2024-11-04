@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -130,7 +130,7 @@ func TestMintX509CA(t *testing.T) {
 			ua := new(upstreamauthority.V1)
 			plugintest.Load(t, builtin(p), ua,
 				plugintest.ConfigureJSON(tt.configuration),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
 			)
@@ -182,7 +182,7 @@ func TestPublishJWTKey(t *testing.T) {
 			CertFilePath: testData.ECRootCert,
 			KeyFilePath:  testData.ECRootKey,
 		}),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 	)
@@ -203,7 +203,7 @@ func TestConfigure(t *testing.T) {
 		certFilePath       string
 		keyFilePath        string
 		bundleFilePath     string
-		overrideCoreConfig *coreconfig.CoreConfig
+		overrideCoreConfig *catalog.CoreConfig
 		overrideConfig     string
 		expectCode         codes.Code
 		expectMsgPrefix    string
@@ -302,7 +302,7 @@ func TestConfigure(t *testing.T) {
 			test:               "missing trust domain",
 			certFilePath:       testData.ECRootCert,
 			keyFilePath:        testData.ECRootKey,
-			overrideCoreConfig: &coreconfig.CoreConfig{},
+			overrideCoreConfig: &catalog.CoreConfig{},
 			expectCode:         codes.InvalidArgument,
 			expectMsgPrefix:    "server core configuration must contain trust_domain",
 		},
@@ -318,7 +318,7 @@ func TestConfigure(t *testing.T) {
 			if tt.overrideCoreConfig != nil {
 				options = append(options, plugintest.CoreConfig(*tt.overrideCoreConfig))
 			} else {
-				options = append(options, plugintest.CoreConfig(coreconfig.CoreConfig{
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
 				}))
 			}
