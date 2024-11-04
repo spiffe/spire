@@ -99,7 +99,7 @@ func (p *pluginImpl) initFacade(facade Facade) any {
 	return facade.InitClient(p.conn)
 }
 
-func (p *pluginImpl) bindRepos(pluginRepo bindablePluginRepo, serviceRepos []bindableServiceRepo) (Configurer, Validater, error) {
+func (p *pluginImpl) bindRepos(pluginRepo bindablePluginRepo, serviceRepos []bindableServiceRepo) (Configurer, error) {
 	grpcServiceNames := grpcServiceNameSet(p.grpcServiceNames)
 	p.log.Infof("plugin %q binding repos", p.info.Name())
 
@@ -111,24 +111,19 @@ func (p *pluginImpl) bindRepos(pluginRepo bindablePluginRepo, serviceRepos []bin
 
 	configurer, err := p.makeConfigurer(grpcServiceNames)
 	if err != nil {
-		return nil, nil, err
-	}
-
-	validater, err := p.makeValidater(grpcServiceNames)
-	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	switch {
 	case impl == nil:
-		return nil, nil, fmt.Errorf("no supported plugin interface found in: %q", p.grpcServiceNames)
+		return nil, fmt.Errorf("no supported plugin interface found in: %q", p.grpcServiceNames)
 	case len(grpcServiceNames) > 0:
 		for _, grpcServiceName := range sortStringSet(grpcServiceNames) {
 			p.log.WithField(telemetry.PluginService, grpcServiceName).Warn("Unsupported plugin service found")
 		}
 	}
 
-	return configurer, validater, nil
+	return configurer, nil
 }
 
 func (p *pluginImpl) makeConfigurer(grpcServiceNames map[string]struct{}) (Configurer, error) {
@@ -140,17 +135,6 @@ func (p *pluginImpl) makeConfigurer(grpcServiceNames map[string]struct{}) (Confi
 	}
 	p.bindRepo(bindable, grpcServiceNames)
 	return repo.configurer, nil
-}
-
-func (p *pluginImpl) makeValidater(grpcServiceNames map[string]struct{}) (Validater, error) {
-	p.log.Info("making validator")
-	repo := new(validaterRepo)
-	bindable, err := makeBindableServiceRepo(repo)
-	if err != nil {
-		return nil, err
-	}
-	p.bindRepo(bindable, grpcServiceNames)
-	return repo.validater, nil
 }
 
 func (p *pluginImpl) bindRepo(repo bindableServiceRepo, grpcServiceNames map[string]struct{}) any {

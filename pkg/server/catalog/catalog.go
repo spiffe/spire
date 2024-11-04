@@ -180,6 +180,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	return repo, nil
 }
 
+// TODO: roll this into Load() above
 func Validate(ctx context.Context, config Config, status *pluginconf.Status) (_ *Repository, err error) {
 	config.Log.Info("Validating catalog configuration")
 	status.ReportInfo("validating from server catalog")
@@ -217,7 +218,7 @@ func Validate(ctx context.Context, config Config, status *pluginconf.Status) (_ 
 		TrustDomain: config.TrustDomain,
 	}
 
-	_ = catalog.Validate(ctx, catalog.Config{
+	_ = catalog.Load(ctx, catalog.Config{
 		Log:           config.Log,
 		CoreConfig:    coreConfig,
 		PluginConfigs: pluginConfigs,

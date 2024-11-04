@@ -9,7 +9,6 @@ import (
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
-	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
 )
@@ -109,11 +108,15 @@ type Config struct {
 
 	// CoreConfig is the core configuration provided to each plugin.
 	CoreConfig coreconfig.CoreConfig
+
+	// Validate plugins only
+	ValidateOnly bool
 }
 
 type Catalog struct {
-	closers       io.Closer
-	reconfigurers Reconfigurers
+	closers         io.Closer
+	reconfigurers   Reconfigurers
+	validateResults map[string]*validateResult
 }
 
 func (c *Catalog) Reconfigure(ctx context.Context) {
@@ -132,6 +135,8 @@ func (c *Catalog) Close() error {
 // configure, all plugins are unloaded, the catalog is cleared, and the
 // function returns an error.
 func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err error) {
+	validations := make(map[string]*validateResult)
+	validations["catalog"] = NewValidateResult()
 	closers := make(closerGroup, 0)
 	defer func() {
 		// If loading fails, clear out the catalog and close down all plugins
@@ -147,36 +152,56 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 		}
 	}()
 
+	validations["catalog"].ReportInfo("validating common catalog items")
+	log := config.Log.WithFields(logrus.Fields{
+		telemetry.SubsystemName: "common_catalog",
+	})
+
 	pluginRepos, err := makeBindablePluginRepos(repo.Plugins())
 	if err != nil {
 		return nil, err
 	}
+	log.Infof("bindablePluginRepos: %+v", pluginRepos)
+
 	serviceRepos, err := makeBindableServiceRepos(repo.Services())
 	if err != nil {
 		return nil, err
 	}
+	log.Infof("bindableServiceRepos: %+v", serviceRepos)
 
 	pluginCounts := make(map[string]int)
 	var reconfigurers Reconfigurers
 
 	for _, pluginConfig := range config.PluginConfigs {
+		validations["catalog"].ReportInfof("processing %s", pluginConfig.Name)
+		log.Infof("plugin(%s): processing", pluginConfig.Name)
+
 		pluginLog := makePluginLog(config.Log, pluginConfig)
 
 		pluginRepo, ok := pluginRepos[pluginConfig.Type]
 		if !ok {
-			pluginLog.Error("Unsupported plugin type")
-			return nil, fmt.Errorf("unsupported plugin type %q", pluginConfig.Type)
+			validations["catalog"].ReportErrorf("plugin(%s): Unsupported plugin type %s", pluginConfig.Name, pluginConfig.Type)
+			if !config.ValidateOnly {
+				return nil, fmt.Errorf("unsupported plugin type %q", pluginConfig.Type)
+			}
+			continue
 		}
+		log.Infof("plugin(%s): supported", pluginConfig.Name)
 
 		if pluginConfig.Disabled {
+			validations["catalog"].ReportErrorf("plugin(%s): Disabled", pluginConfig.Name)
 			pluginLog.Debug("Not loading plugin; disabled")
 			continue
 		}
 
 		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, pluginLog, config.HostServices)
 		if err != nil {
+			validations["catalog"].ReportErrorf("plugin(%s): Failed to load plugin", pluginConfig.Name)
 			pluginLog.WithError(err).Error("Failed to load plugin")
-			return nil, fmt.Errorf("failed to load plugin %q: %w", pluginConfig.Name, err)
+			if !config.ValidateOnly {
+				return nil, fmt.Errorf("failed to load plugin %q: %w", pluginConfig.Name, err)
+			}
+			continue
 		}
 
 		// Add the plugin to the closers even though it has not been completely
@@ -184,20 +209,37 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 		// panic, etc.) we want the defer above to close the plugin. Failure to
 		// do so can orphan external plugin processes.
 		closers = append(closers, pluginCloser{plugin: plugin, log: pluginLog})
+		log.Infof("plugin(%s): loaded", pluginConfig.Name)
 
-		configurer, _, err := plugin.bindRepos(pluginRepo, serviceRepos)
+		configurer, err := plugin.bindRepos(pluginRepo, serviceRepos)
 		if err != nil {
+			validations["catalog"].ReportErrorf("plugin(%s): Failed to bind plugin", pluginConfig.Name)
 			pluginLog.WithError(err).Error("Failed to bind plugin")
-			return nil, fmt.Errorf("failed to bind plugin %q: %w", pluginConfig.Name, err)
+			if !config.ValidateOnly {
+				return nil, fmt.Errorf("failed to bind plugin %q: %w", pluginConfig.Name, err)
+			}
 		}
+		log.Infof("plugin(%s): bound, configurer %+v", pluginConfig.Name, configurer)
 
-		reconfigurer, err := configurePlugin(ctx, pluginLog, config.CoreConfig, configurer, pluginConfig.DataSource)
-		if err != nil {
-			pluginLog.WithError(err).Error("Failed to configure plugin")
-			return nil, fmt.Errorf("failed to configure plugin %q: %w", pluginConfig.Name, err)
-		}
-		if reconfigurer != nil {
-			reconfigurers = append(reconfigurers, reconfigurer)
+		if !config.ValidateOnly {
+			reconfigurer, err := configurePlugin(ctx, pluginLog, config.CoreConfig, configurer, pluginConfig.DataSource)
+			if err != nil {
+				pluginLog.WithError(err).Error("Failed to configure plugin")
+				return nil, fmt.Errorf("failed to configure plugin %q: %w", pluginConfig.Name, err)
+			}
+			if reconfigurer != nil {
+				reconfigurers = append(reconfigurers, reconfigurer)
+			}
+		} else {
+			result, err := validatePlugin(ctx, pluginLog, config.CoreConfig, configurer, pluginConfig.DataSource)
+			if err != nil {
+				result.Valid = false
+				result.Notes = []string{fmt.Sprintf("error validating plugin %s", err)}
+			}
+			log.Infof("plugin(%s): validated", pluginConfig.Name)
+			log.Infof("plugin(%s): return data %+v", pluginConfig.Name, result)
+			log.Infof("plugin(%s): return err %s", pluginConfig.Name, err)
+			validations[pluginConfig.Name] = result
 		}
 
 		pluginLog.Info("Plugin loaded")
@@ -207,82 +249,19 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 	// Make sure all of the plugin constraints are satisfied
 	for pluginType, pluginRepo := range pluginRepos {
 		if err := pluginRepo.Constraints().Check(pluginCounts[pluginType]); err != nil {
-			return nil, fmt.Errorf("plugin type %q constraint not satisfied: %w", pluginType, err)
+			validations["catalog"].ReportErrorf("plugin type (%q): Constraint violated: %w", pluginType, err)
+			if !config.ValidateOnly {
+				return nil, fmt.Errorf("plugin type %q constraint not satisfied: %w", pluginType, err)
+			}
+			continue
 		}
 	}
 
 	return &Catalog{
-		closers:       closers,
-		reconfigurers: reconfigurers,
+		closers:         closers,
+		reconfigurers:   reconfigurers,
+		validateResults: validations,
 	}, nil
-}
-
-func Validate(ctx context.Context, config Config, repo Repository, status *pluginconf.Status) error {
-	closers := make(closerGroup, 0)
-	defer closers.Close()
-	log := config.Log.WithFields(logrus.Fields{
-		telemetry.SubsystemName: "common_catalog",
-	})
-
-	status.ReportInfo("validating common catalog items")
-	pluginRepos, err := makeBindablePluginRepos(repo.Plugins())
-	if err != nil {
-		return err
-	}
-	log.Infof("bindablePluginRepos: %+v", pluginRepos)
-
-	serviceRepos, err := makeBindableServiceRepos(repo.Services())
-	if err != nil {
-		return err
-	}
-	log.Infof("bindableServiceRepos: %+v", serviceRepos)
-
-	pluginCounts := make(map[string]int)
-	for _, pluginConfig := range config.PluginConfigs {
-		status.ReportInfof("plugin(%s): processing", pluginConfig.Name)
-		log.Infof("plugin(%s): processing", pluginConfig.Name)
-
-		pluginRepo, ok := pluginRepos[pluginConfig.Type]
-		if !ok {
-			status.ReportErrorf("plugin(%s): Unsupported plugin type %s", pluginConfig.Name, pluginConfig.Type)
-			continue
-		}
-		log.Infof("plugin(%s): supported", pluginConfig.Name)
-
-		pluginLog := makePluginLog(config.Log, pluginConfig)
-		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, pluginLog, config.HostServices)
-		if err != nil {
-			status.ReportErrorf("plugin(%s): Failed to load plugin", pluginConfig.Name)
-			continue
-		}
-		// add the closer even before using the plugin, to prevent orphan plugins
-		closers = append(closers, pluginCloser{plugin: plugin, log: pluginLog})
-
-		log.Infof("plugin(%s): loaded", pluginConfig.Name)
-
-		_, validater, err := plugin.bindRepos(pluginRepo, serviceRepos)
-		if err != nil {
-			status.ReportErrorf("plugin(%s): Failed to bind plugin", pluginConfig.Name)
-			continue
-		}
-		log.Infof("plugin(%s): bound, validater %+v", pluginConfig.Name, validater)
-
-		pluginStatus, err := validatePlugin(ctx, pluginLog, config.CoreConfig, validater, pluginConfig.DataSource)
-		log.Infof("plugin(%s): validated", pluginConfig.Name)
-		log.Infof("plugin(%s): return data %+v", pluginConfig.Name, pluginStatus)
-		log.Infof("plugin(%s): return err %s", pluginConfig.Name, err)
-
-		status.Append(pluginStatus)
-	}
-
-	// Make sure all of the plugin constraints are satisfied
-	for pluginType, pluginRepo := range pluginRepos {
-		if err := pluginRepo.Constraints().Check(pluginCounts[pluginType]); err != nil {
-			return fmt.Errorf("plugin type %q constraint not satisfied: %w", pluginType, err)
-		}
-	}
-
-	return nil
 }
 
 func makePluginLog(log logrus.FieldLogger, pluginConfig PluginConfig) logrus.FieldLogger {
