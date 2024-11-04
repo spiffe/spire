@@ -65,7 +65,7 @@ type Version interface {
 	// by the plugin.
 	New() Facade
 
-	// Deprecated returns whether or not the version is deprecated.
+	// Deprecated returns whether the version is deprecated.
 	Deprecated() bool
 }
 
@@ -202,7 +202,7 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 		pluginCounts[pluginConfig.Type]++
 	}
 
-	// Make sure all of the plugin constraints are satisfied
+	// Make sure all plugin constraints are satisfied
 	for pluginType, pluginRepo := range pluginRepos {
 		if err := pluginRepo.Constraints().Check(pluginCounts[pluginType]); err != nil {
 			return nil, fmt.Errorf("plugin type %q constraint not satisfied: %w", pluginType, err)

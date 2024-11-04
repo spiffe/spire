@@ -72,7 +72,7 @@ func (s *Service) GetInfo(context.Context, *debugv1.GetInfoRequest) (*debugv1.Ge
 	s.getInfoResp.mtx.Lock()
 	defer s.getInfoResp.mtx.Unlock()
 
-	// Update cache when expired or does not exists
+	// Update cache when expired or does not exist
 	if s.getInfoResp.ts.IsZero() || s.clock.Now().Sub(s.getInfoResp.ts) >= cacheExpiry {
 		state := s.m.GetCurrentCredentials()
 		// Get current agent's credential SVID

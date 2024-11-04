@@ -129,7 +129,7 @@ func TestPerIPLimitGC(t *testing.T) {
 	require.NoError(t, m.RateLimit(tcpCallerContext("4.4.4.4"), 1))
 	require.Equal(t, 4, limiters.Count)
 
-	// Use all of the limiters but 2.2.2.2 and make sure the limiter count is stable.
+	// Use all the limiters but 2.2.2.2 and make sure the limiter count is stable.
 	require.NoError(t, m.RateLimit(tcpCallerContext("1.1.1.1"), 1))
 	require.NoError(t, m.RateLimit(tcpCallerContext("3.3.3.3"), 1))
 	require.NoError(t, m.RateLimit(tcpCallerContext("4.4.4.4"), 1))

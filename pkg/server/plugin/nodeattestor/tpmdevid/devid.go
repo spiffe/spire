@@ -264,10 +264,10 @@ func verifyDevIDSignature(cert *x509.Certificate, intermediates *x509.CertPool, 
 	return chains, nil
 }
 
-// verifyDevIDResidency verifies that the DevID resides on the same TPM than EK.
+// verifyDevIDResidency verifies that the DevID resides on the same TPM as EK.
 // This is done in two steps:
-// (1) Verify that the DevID resides in the same TPM than the AK
-// (2) Verify that the AK is in the same TPM than the EK.
+// (1) Verify that the DevID resides in the same TPM as the AK
+// (2) Verify that the AK is in the same TPM as the EK.
 // The verification is complete once the agent solves the challenge that this
 // function generates.
 func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x509.CertPool) (*common_devid.CredActivation, []byte, error) {
@@ -299,7 +299,7 @@ func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x50
 	}
 
 	// Verify the public part of the EK generated from the template is the same
-	// than the one in the EK certificate.
+	// as the one in the EK certificate.
 	err = verifyEKsMatch(ekCert, ekPub)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.InvalidArgument, "public key in EK certificate differs from public key created via EK template: %v", err)
@@ -317,7 +317,7 @@ func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x50
 		return nil, nil, status.Errorf(codes.InvalidArgument, "cannot verify that DevID is in the same TPM than AK: %v", err)
 	}
 
-	// Issue a credential activation challenge (to verify AK is in the same TPM than EK)
+	// Issue a credential activation challenge (to verify AK is in the same TPM as EK)
 	challenge, nonce, err := NewCredActivationChallenge(akPub, ekPub)
 	if err != nil {
 		return nil, nil, status.Errorf(codes.Internal, "cannot generate credential activation challenge: %v", err)
