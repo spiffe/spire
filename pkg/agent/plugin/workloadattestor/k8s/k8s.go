@@ -274,30 +274,16 @@ type Plugin struct {
 	containerHelper  ContainerHelper
 	sigstoreVerifier sigstore.Verifier
 
-	cachedPodList map[string]*fastjson.Value
-	singleflight  singleflight.Group
-
-	shutdownCtx       context.Context
-	shutdownCtxCancel context.CancelFunc
-	shutdownWG        sync.WaitGroup
+	cachedPodList           map[string]*fastjson.Value
+	cachedPodListValidUntil time.Time
+	singleflight            singleflight.Group
 }
 
 func New() *Plugin {
-	ctx, cancel := context.WithCancel(context.Background())
-
 	return &Plugin{
-		clock:             clock.New(),
-		getenv:            os.Getenv,
-		shutdownCtx:       ctx,
-		shutdownCtxCancel: cancel,
+		clock:  clock.New(),
+		getenv: os.Getenv,
 	}
-}
-
-func (p *Plugin) Close() error {
-	p.shutdownCtxCancel()
-	p.shutdownWG.Wait()
-
-	return nil
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -332,7 +318,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	for attempt := 1; ; attempt++ {
 		log = log.With(telemetry.Attempt, attempt)
 
-		podList, err := p.getPodList(ctx, config.Client)
+		podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
 		if err != nil {
 			return nil, err
 		}
@@ -465,30 +451,21 @@ func (p *Plugin) getConfig() (*k8sConfig, ContainerHelper, sigstore.Verifier, er
 	return p.config, p.containerHelper, p.sigstoreVerifier, nil
 }
 
-func (p *Plugin) setPodListCache(podList map[string]*fastjson.Value, expires time.Duration) {
+func (p *Plugin) setPodListCache(podList map[string]*fastjson.Value, cacheFor time.Duration) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	p.cachedPodList = podList
-
-	p.shutdownWG.Add(1)
-	go func() {
-		defer p.shutdownWG.Done()
-
-		select {
-		case <-p.clock.After(expires):
-		case <-p.shutdownCtx.Done():
-		}
-
-		p.mu.Lock()
-		defer p.mu.Unlock()
-		p.cachedPodList = nil
-	}()
+	p.cachedPodListValidUntil = p.clock.Now().Add(cacheFor)
 }
 
 func (p *Plugin) getPodListCache() map[string]*fastjson.Value {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+
+	if p.clock.Now().Sub(p.cachedPodListValidUntil) >= 0 {
+		return nil
+	}
 
 	return p.cachedPodList
 }
@@ -668,7 +645,7 @@ func (p *Plugin) getNodeName(name string, env string) string {
 	}
 }
 
-func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient) (map[string]*fastjson.Value, error) {
+func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient, cacheFor time.Duration) (map[string]*fastjson.Value, error) {
 	result := p.getPodListCache()
 	if result != nil {
 		return result, nil
@@ -705,7 +682,7 @@ func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient) (map[str
 			result[uid] = podValue
 		}
 
-		p.setPodListCache(result, p.config.PollRetryInterval/2)
+		p.setPodListCache(result, cacheFor)
 
 		return result, nil
 	})

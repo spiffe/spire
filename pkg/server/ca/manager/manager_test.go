@@ -393,14 +393,10 @@ func TestUpstreamProcessTaintedAuthority(t *testing.T) {
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
 	require.True(t, test.m.IsUpstreamAuthority())
 
-	// Prepared must be tainted too
-	err := test.m.PrepareX509CA(ctx)
-	require.NoError(t, err)
-
 	go test.m.ProcessBundleUpdates(ctx)
 
 	// Taint first root
-	err = fakeUA.TaintAuthority(0)
+	err := fakeUA.TaintAuthority(0)
 	require.NoError(t, err)
 
 	// Get the roots again and verify that the first X.509 authority is tainted
