@@ -3,7 +3,6 @@ package endpoints
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -24,227 +23,235 @@ type attestedNodes struct {
 	ds      datastore.DataStore
 	log     logrus.FieldLogger
 	metrics telemetry.Metrics
-	mu      sync.RWMutex
 
-	firstEventID            uint
-	firstEventTime          time.Time
-	lastEventID             uint
-	missedEvents            map[uint]time.Time
-	seenMissedStartupEvents map[uint]struct{}
-	sqlTransactionTimeout   time.Duration
+	eventsBeforeFirst map[uint]struct{}
+
+	firstEvent     uint
+	firstEventTime time.Time
+	lastEvent      uint
+
+	eventTracker          *eventTracker
+	sqlTransactionTimeout time.Duration
+
+	fetchNodes map[string]struct{}
+
+	// metrics change detection
+	skippedNodeEvents int
+	lastCacheStats    authorizedentries.CacheStats
 }
 
-// buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
-// It runs once at startup.
-func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, sqlTransactionTimeout time.Duration) (*attestedNodes, error) {
-	resp, err := ds.ListAttestedNodesEvents(ctx, &datastore.ListAttestedNodesEventsRequest{})
-	if err != nil {
-		return nil, err
-	}
+func (a *attestedNodes) captureChangedNodes(ctx context.Context) error {
+	// first, reset what we might fetch
+	a.fetchNodes = make(map[string]struct{})
 
-	// Gather any events that may have been skipped during restart
-	var firstEventID uint
-	var firstEventTime time.Time
-	var lastEventID uint
-	missedEvents := make(map[uint]time.Time)
-	for _, event := range resp.Events {
-		now := clk.Now()
-		if firstEventTime.IsZero() {
-			firstEventID = event.EventID
-			firstEventTime = now
-		} else {
-			// After getting the first event, search for any gaps in the event stream, from the first event to the last event.
-			// During each cache refresh cycle, we will check if any of these missed events get populated.
-			for i := lastEventID + 1; i < event.EventID; i++ {
-				missedEvents[i] = now
-			}
-		}
-		lastEventID = event.EventID
-	}
-
-	// Build the cache
-	nodesResp, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
-		FetchSelectors: true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list attested nodes: %w", err)
-	}
-
-	for _, node := range nodesResp.Nodes {
-		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
-		if agentExpiresAt.Before(clk.Now()) {
-			continue
-		}
-		cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
-	}
-
-	return &attestedNodes{
-		cache:                   cache,
-		clk:                     clk,
-		ds:                      ds,
-		firstEventID:            firstEventID,
-		firstEventTime:          firstEventTime,
-		log:                     log,
-		metrics:                 metrics,
-		lastEventID:             lastEventID,
-		missedEvents:            missedEvents,
-		seenMissedStartupEvents: make(map[uint]struct{}),
-		sqlTransactionTimeout:   sqlTransactionTimeout,
-	}, nil
-}
-
-// updateCache Fetches all the events since the last time this function was running and updates
-// the cache with all the changes.
-func (a *attestedNodes) updateCache(ctx context.Context) error {
-	// Process events skipped over previously
-	if err := a.missedStartupEvents(ctx); err != nil {
-		a.log.WithError(err).Error("Unable to process missed startup events")
-	}
-	a.replayMissedEvents(ctx)
-
-	req := &datastore.ListAttestedNodesEventsRequest{
-		GreaterThanEventID: a.lastEventID,
-	}
-	resp, err := a.ds.ListAttestedNodesEvents(ctx, req)
-	if err != nil {
+	if err := a.searchBeforeFirstEvent(ctx); err != nil {
 		return err
 	}
-
-	seenMap := map[string]struct{}{}
-	for _, event := range resp.Events {
-		// If there is a gap in the event stream, log the missed events for later processing.
-		// For example if the current event ID is 6 and the previous one was 3, events 4 and 5
-		// were skipped over and need to be queued in case they show up later.
-		// This can happen when a long running transaction allocates an event ID but a shorter transaction
-		// comes in after, allocates and commits the ID first. If a read comes in at this moment, the event id for
-		// the longer running transaction will be skipped over.
-		if !a.firstEventTime.IsZero() {
-			for i := a.lastEventID + 1; i < event.EventID; i++ {
-				a.log.WithField(telemetry.EventID, i).Info("Detected skipped attested node event")
-				a.mu.Lock()
-				a.missedEvents[i] = a.clk.Now()
-				a.mu.Unlock()
-			}
-		}
-
-		// Skip fetching entries we've already fetched this call
-		if _, seen := seenMap[event.SpiffeID]; seen {
-			a.lastEventID = event.EventID
-			continue
-		}
-		seenMap[event.SpiffeID] = struct{}{}
-
-		// Update the cache
-		if err := a.updateCacheEntry(ctx, event.SpiffeID); err != nil {
-			return err
-		}
-
-		if a.firstEventTime.IsZero() {
-			a.firstEventID = event.EventID
-			a.firstEventTime = a.clk.Now()
-		}
-		a.lastEventID = event.EventID
+	a.selectPolledEvents(ctx)
+	if err := a.scanForNewEvents(ctx); err != nil {
+		return err
 	}
-
-	// These two should be the same value but it's valuable to have them both be emitted for incident triage.
-	server_telemetry.SetAgentsByExpiresAtCacheCountGauge(a.metrics, a.cache.Stats().AgentsByExpiresAt)
-	server_telemetry.SetAgentsByIDCacheCountGauge(a.metrics, a.cache.Stats().AgentsByID)
 
 	return nil
 }
 
-// missedStartupEvents will check for any events that arrive with an ID less than the first event ID we receive.
-// For example if the first event ID we receive is 3, this function will check for any IDs less than that.
-// If event ID 2 comes in later on, due to a long running transaction, this function will update the cache
-// with the information from this event. This function will run until time equal to sqlTransactionTimeout has elapsed after startup.
-func (a *attestedNodes) missedStartupEvents(ctx context.Context) error {
-	if a.firstEventTime.IsZero() || a.clk.Now().Sub(a.firstEventTime) > a.sqlTransactionTimeout {
+func (a *attestedNodes) searchBeforeFirstEvent(ctx context.Context) error {
+	// First event detected, and startup was less than a transaction timout away.
+	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.sqlTransactionTimeout {
+		resp, err := a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
+			LessThanEventID: a.firstEvent,
+		})
+		if err != nil {
+			return err
+		}
+		for _, event := range resp.Events {
+			// if we have seen it before, don't reload it.
+			if _, seen := a.eventsBeforeFirst[event.EventID]; !seen {
+				a.fetchNodes[event.SpiffeID] = struct{}{}
+				a.eventsBeforeFirst[event.EventID] = struct{}{}
+			}
+		}
 		return nil
 	}
 
-	req := &datastore.ListAttestedNodesEventsRequest{
-		LessThanEventID: a.firstEventID,
-	}
-	resp, err := a.ds.ListAttestedNodesEvents(ctx, req)
-	if err != nil {
-		return err
-	}
-
-	for _, event := range resp.Events {
-		if _, seen := a.seenMissedStartupEvents[event.EventID]; !seen {
-			if err := a.updateCacheEntry(ctx, event.SpiffeID); err != nil {
-				a.log.WithError(err).Error("Failed to process missed startup event")
-				continue
-			}
-			a.seenMissedStartupEvents[event.EventID] = struct{}{}
-		}
+	// zero out unused event tracker
+	if len(a.eventsBeforeFirst) != 0 {
+		a.eventsBeforeFirst = make(map[uint]struct{})
 	}
 
 	return nil
 }
 
-// replayMissedEvents Processes events that have been skipped over. Events can come out of order from
-// SQL. This function processes events that came in later than expected.
-func (a *attestedNodes) replayMissedEvents(ctx context.Context) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	for eventID := range a.missedEvents {
+func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
+	// check if the polled events have appeared out-of-order
+	selectedEvents := a.eventTracker.SelectEvents()
+	for _, eventID := range selectedEvents {
 		log := a.log.WithField(telemetry.EventID, eventID)
-
 		event, err := a.ds.FetchAttestedNodeEvent(ctx, eventID)
+
 		switch status.Code(err) {
 		case codes.OK:
 		case codes.NotFound:
 			continue
 		default:
-			log.WithError(err).Error("Failed to fetch info about missed Attested Node event")
+			log.WithError(err).Errorf("Failed to fetch info about skipped node event %d", eventID)
 			continue
 		}
 
-		if err := a.updateCacheEntry(ctx, event.SpiffeID); err != nil {
-			log.WithError(err).Error("Failed to process missed Attested Node event")
-			continue
-		}
-
-		delete(a.missedEvents, eventID)
+		a.fetchNodes[event.SpiffeID] = struct{}{}
+		a.eventTracker.StopTracking(eventID)
 	}
-	server_telemetry.SetSkippedNodeEventIDsCacheCountGauge(a.metrics, len(a.missedEvents))
+	a.eventTracker.FreeEvents(selectedEvents)
 }
 
-// updatedCacheEntry update/deletes/creates an individual attested node in the cache.
-func (a *attestedNodes) updateCacheEntry(ctx context.Context, spiffeID string) error {
-	node, err := a.ds.FetchAttestedNode(ctx, spiffeID)
+func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {
+	// If we haven't seen an event, scan for all events; otherwise, scan from the last event.
+	var resp *datastore.ListAttestedNodeEventsResponse
+	var err error
+	if a.firstEventTime.IsZero() {
+		resp, err = a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
+	} else {
+		resp, err = a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
+			GreaterThanEventID: a.lastEvent,
+		})
+	}
 	if err != nil {
 		return err
 	}
 
-	// Node was deleted
-	if node == nil {
-		a.cache.RemoveAgent(spiffeID)
-		return nil
-	}
+	for _, event := range resp.Events {
+		// event time determines if we have seen the first event.
+		if a.firstEventTime.IsZero() {
+			a.firstEvent = event.EventID
+			a.lastEvent = event.EventID
+			a.fetchNodes[event.SpiffeID] = struct{}{}
+			a.firstEventTime = a.clk.Now()
+			continue
+		}
 
-	selectors, err := a.ds.GetNodeSelectors(ctx, spiffeID, datastore.RequireCurrent)
+		// track any skipped event ids, should they appear later.
+		for skipped := a.lastEvent + 1; skipped < event.EventID; skipped++ {
+			a.eventTracker.StartTracking(skipped)
+		}
+
+		// every event adds its entry to the entry fetch list.
+		a.fetchNodes[event.SpiffeID] = struct{}{}
+		a.lastEvent = event.EventID
+	}
+	return nil
+}
+
+func (a *attestedNodes) loadCache(ctx context.Context) error {
+	// TODO: determine if this needs paging
+	nodesResp, err := a.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
+		FetchSelectors: true,
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to list attested nodes: %w", err)
 	}
-	node.Selectors = selectors
 
-	agentExpiresAt := time.Unix(node.CertNotAfter, 0)
-	a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+	for _, node := range nodesResp.Nodes {
+		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
+		if agentExpiresAt.Before(a.clk.Now()) {
+			continue
+		}
+		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+	}
 
 	return nil
 }
 
-// prunedMissedEvents delete missed events that are older than the configured SQL transaction timeout time.
-func (a *attestedNodes) pruneMissedEvents() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
+// buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
+// It runs once at startup.
+func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, cacheReloadInterval, sqlTransactionTimeout time.Duration) (*attestedNodes, error) {
+	pollPeriods := PollPeriods(cacheReloadInterval, sqlTransactionTimeout)
 
-	for eventID, eventTime := range a.missedEvents {
-		if a.clk.Now().Sub(eventTime) > a.sqlTransactionTimeout {
-			delete(a.missedEvents, eventID)
+	attestedNodes := &attestedNodes{
+		cache:                 cache,
+		clk:                   clk,
+		ds:                    ds,
+		log:                   log,
+		metrics:               metrics,
+		sqlTransactionTimeout: sqlTransactionTimeout,
+
+		eventsBeforeFirst: make(map[uint]struct{}),
+		fetchNodes:        make(map[string]struct{}),
+
+		eventTracker: NewEventTracker(pollPeriods),
+
+		// initialize gauges to nonsense values to force a change.
+		skippedNodeEvents: -1,
+		lastCacheStats: authorizedentries.CacheStats{
+			AgentsByID:        -1,
+			AgentsByExpiresAt: -1,
+		},
+	}
+
+	if err := attestedNodes.loadCache(ctx); err != nil {
+		return nil, err
+	}
+	if err := attestedNodes.updateCache(ctx); err != nil {
+		return nil, err
+	}
+
+	return attestedNodes, nil
+}
+
+// updateCache Fetches all the events since the last time this function was running and updates
+// the cache with all the changes.
+func (a *attestedNodes) updateCache(ctx context.Context) error {
+	if err := a.captureChangedNodes(ctx); err != nil {
+		return err
+	}
+	if err := a.updateCachedNodes(ctx); err != nil {
+		return err
+	}
+	a.emitMetrics()
+
+	return nil
+}
+
+func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
+	for spiffeId, _ := range a.fetchNodes {
+		node, err := a.ds.FetchAttestedNode(ctx, spiffeId)
+		if err != nil {
+			return err
 		}
+
+		// Node was deleted
+		if node == nil {
+			a.cache.RemoveAgent(spiffeId)
+			delete(a.fetchNodes, spiffeId)
+			continue
+		}
+
+		selectors, err := a.ds.GetNodeSelectors(ctx, spiffeId, datastore.RequireCurrent)
+		if err != nil {
+			return err
+		}
+		node.Selectors = selectors
+
+		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
+		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+		delete(a.fetchNodes, spiffeId)
+	}
+	return nil
+}
+
+func (a *attestedNodes) emitMetrics() {
+	if a.skippedNodeEvents != int(a.eventTracker.EventCount()) {
+		a.skippedNodeEvents = int(a.eventTracker.EventCount())
+		server_telemetry.SetSkippedNodeEventIDsCacheCountGauge(a.metrics, a.skippedNodeEvents)
+	}
+
+	cacheStats := a.cache.Stats()
+	// AgentsByID and AgentsByExpiresAt should be the same.
+	if a.lastCacheStats.AgentsByID != cacheStats.AgentsByID {
+		a.lastCacheStats.AgentsByID = cacheStats.AgentsByID
+		server_telemetry.SetAgentsByIDCacheCountGauge(a.metrics, a.lastCacheStats.AgentsByID)
+	}
+	if a.lastCacheStats.AgentsByExpiresAt != cacheStats.AgentsByExpiresAt {
+		a.lastCacheStats.AgentsByExpiresAt = cacheStats.AgentsByExpiresAt
+		server_telemetry.SetAgentsByExpiresAtCacheCountGauge(a.metrics, a.lastCacheStats.AgentsByExpiresAt)
 	}
 }

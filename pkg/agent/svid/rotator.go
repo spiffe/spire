@@ -268,7 +268,7 @@ func (r *rotator) reattest(ctx context.Context) (err error) {
 	r.state.Update(s)
 	r.tainted = false
 
-	// We must release the client because its underlaying connection is tied to an
+	// We must release the client because its underlying connection is tied to an
 	// expired SVID, so next time the client is used, it will get a new connection with
 	// the most up-to-date SVID.
 	r.client.Release()
@@ -316,7 +316,7 @@ func (r *rotator) rotateSVID(ctx context.Context) (err error) {
 	r.state.Update(s)
 	r.tainted = false
 
-	// We must release the client because its underlaying connection is tied to an
+	// We must release the client because its underlying connection is tied to an
 	// expired SVID, so next time the client is used, it will get a new connection with
 	// the most up-to-date SVID.
 	r.client.Release()

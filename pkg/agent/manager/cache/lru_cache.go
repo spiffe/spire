@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/telemetry/agent"
 	agentmetrics "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -42,7 +43,7 @@ type UpdateEntries struct {
 	TaintedX509Authorities []string
 
 	// TaintedJWTAuthorities is a set of all tainted JWT authorities notified by the server.
-	TaintedJWTAuthorities []string
+	TaintedJWTAuthorities map[string]struct{}
 
 	// RegistrationEntries is a set of all registration entries available to the
 	// agent, keyed by registration entry id.
@@ -72,7 +73,7 @@ type StaleEntry struct {
 // related identities and trust bundles.
 //
 // The cache does this efficiently by building an index for each unique
-// selector it encounters. Each selector index tracks the subscribers (i.e
+// selector it encounters. Each selector index tracks the subscribers (i.e.
 // workloads) and registration entries that have that selector.
 //
 // The LRU-like SVID cache has a size limit and expiry period.
@@ -156,7 +157,7 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 
 	return &LRUCache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
-		JWTSVIDCache: NewJWTSVIDCache(),
+		JWTSVIDCache: NewJWTSVIDCache(log, metrics),
 
 		log:          log,
 		metrics:      metrics,
@@ -635,7 +636,7 @@ func (c *LRUCache) notifyTaintedBatchProcessed() {
 
 // processTaintedSVIDs identifies and removes tainted SVIDs from the cache that have been signed by the given tainted authorities.
 func (c *LRUCache) processTaintedSVIDs(entryIDs []string, taintedX509Authorities []*x509.Certificate) {
-	counter := telemetry.StartCall(c.metrics, telemetry.CacheManager, "", telemetry.ProcessTaintedSVIDs)
+	counter := telemetry.StartCall(c.metrics, telemetry.CacheManager, agent.CacheTypeWorkload, telemetry.ProcessTaintedX509SVIDs)
 	defer counter.Done(nil)
 
 	taintedSVIDs := 0
@@ -664,8 +665,8 @@ func (c *LRUCache) processTaintedSVIDs(entryIDs []string, taintedX509Authorities
 		}
 	}
 
-	agentmetrics.AddCacheManagerTaintedSVIDsSample(c.metrics, "", float32(taintedSVIDs))
-	c.log.WithField(telemetry.TaintedSVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
+	agentmetrics.AddCacheManagerTaintedX509SVIDsSample(c.metrics, agentmetrics.CacheTypeWorkload, float32(taintedSVIDs))
+	c.log.WithField(telemetry.TaintedX509SVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
 }
 
 // Notify subscriber of selector set only if all SVIDs for corresponding selector set are cached
@@ -868,7 +869,7 @@ func (c *LRUCache) delSelectorIndicesRecord(selectors selectorSet, record *lruCa
 }
 
 // delSelectorIndexRecord removes the record from the selector index. If
-// the selector index is empty afterwards, it is also removed.
+// the selector index is empty afterward, it is also removed.
 func (c *LRUCache) delSelectorIndexRecord(s selector, record *lruCacheRecord) {
 	index, ok := c.selectors[s]
 	if ok {
@@ -885,7 +886,7 @@ func (c *LRUCache) addSelectorIndexSub(s selector, sub *lruCacheSubscriber) {
 }
 
 // delSelectorIndexSub removes the subscription from the selector index. If
-// the selector index is empty afterwards, it is also removed.
+// the selector index is empty afterward, it is also removed.
 func (c *LRUCache) delSelectorIndexSub(s selector, sub *lruCacheSubscriber) {
 	index, ok := c.selectors[s]
 	if ok {
@@ -1029,7 +1030,7 @@ func (c *LRUCache) buildWorkloadUpdate(set selectorSet) *WorkloadUpdate {
 
 func (c *LRUCache) getRecordsForSelectors(set selectorSet) (lruCacheRecordSet, func()) {
 	// Build and dedup a list of candidate entries. Don't check for selector set inclusion yet, since
-	// that is a more expensive operation and we could easily have duplicate
+	// that is a more expensive operation, and we could easily have duplicate
 	// entries to check.
 	records, recordsDone := allocLRUCacheRecordSet()
 	for selector := range set {

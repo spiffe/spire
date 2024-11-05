@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
@@ -535,7 +536,7 @@ func TestUpdateEntries(t *testing.T) {
 
 			c.UpdateEntries(tt.initialUpdate, nil)
 			update := tt.setUpdate(*tt.initialUpdate)
-			// Dont care about initialization logs
+			// Don't care about initialization logs
 			hook.Reset()
 
 			// Set check SVID only in updates, creation will is tested in a different test
@@ -648,7 +649,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 		},
 	}
 
-	// Reset logs, this test dont cares about creating logs
+	// Reset logs, this test don't care about creating logs
 	hook.Reset()
 	// Update entry to remove 'bar'
 	c.UpdateEntries(update, nil)
@@ -696,7 +697,7 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 
 	require.Equal(t, expectedRecords, c.Records())
 
-	// Update SVIDs does not updates records that are in remove state
+	// Update SVIDs does not update records that are in remove state
 	c.UpdateSVIDs(&cache.UpdateSVIDs{
 		X509SVIDs: map[string]*cache.X509SVID{
 			"bar": {
@@ -971,25 +972,25 @@ func TestTaintX509SVIDs(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "Tainted X.509 SVIDs",
 					Data: logrus.Fields{
-						telemetry.TaintedSVIDs: "3",
+						telemetry.TaintedX509SVIDs: "3",
 					},
 				},
 			},
 			expectMetrics: []fakemetrics.MetricItem{
 				{
 					Type: fakemetrics.AddSampleType,
-					Key:  []string{"cache_manager", "svid_store", "expiring_svids", "svid_store"},
+					Key:  []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
 					Val:  3,
 				},
 				{
 					Type:   fakemetrics.IncrCounterWithLabelsType,
-					Key:    []string{"cache_manager", "svid_store", "process_tainted_svids"},
+					Key:    []string{telemetry.CacheManager, agent.CacheTypeSVIDStore, telemetry.ProcessTaintedX509SVIDs},
 					Val:    1,
 					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
 				},
 				{
 					Type:   fakemetrics.MeasureSinceWithLabelsType,
-					Key:    []string{"cache_manager", "svid_store", "process_tainted_svids", "elapsed_time"},
+					Key:    []string{telemetry.CacheManager, agent.CacheTypeSVIDStore, telemetry.ProcessTaintedX509SVIDs, telemetry.ElapsedTime},
 					Val:    0,
 					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
 				},
@@ -1010,25 +1011,25 @@ func TestTaintX509SVIDs(t *testing.T) {
 					Level:   logrus.InfoLevel,
 					Message: "Tainted X.509 SVIDs",
 					Data: logrus.Fields{
-						telemetry.TaintedSVIDs: "0",
+						telemetry.TaintedX509SVIDs: "0",
 					},
 				},
 			},
 			expectMetrics: []fakemetrics.MetricItem{
 				{
 					Type: fakemetrics.AddSampleType,
-					Key:  []string{"cache_manager", "svid_store", "expiring_svids", "svid_store"},
+					Key:  []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
 					Val:  0,
 				},
 				{
 					Type:   fakemetrics.IncrCounterWithLabelsType,
-					Key:    []string{"cache_manager", "svid_store", "process_tainted_svids"},
+					Key:    []string{telemetry.CacheManager, agent.CacheTypeSVIDStore, telemetry.ProcessTaintedX509SVIDs},
 					Val:    1,
 					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
 				},
 				{
 					Type:   fakemetrics.MeasureSinceWithLabelsType,
-					Key:    []string{"cache_manager", "svid_store", "process_tainted_svids", "elapsed_time"},
+					Key:    []string{telemetry.CacheManager, agent.CacheTypeSVIDStore, telemetry.ProcessTaintedX509SVIDs, telemetry.ElapsedTime},
 					Val:    0,
 					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
 				},

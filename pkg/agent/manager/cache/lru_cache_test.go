@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
@@ -315,7 +316,7 @@ func TestLRUCacheSubscriberIsNotNotifiedIfNothingChanges(t *testing.T) {
 	assertAnyWorkloadUpdate(t, sub)
 
 	// Second update is the same (other than X509SVIDs, which, when set,
-	// always constitute a "change" for the impacted registration entries.
+	// always constitute a "change" for the impacted registration entries).
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
@@ -559,7 +560,7 @@ func TestLRUCacheGetStaleEntries(t *testing.T) {
 	bar := makeRegistrationEntryWithTTL("BAR", 130, 140, "B")
 
 	// Create entry but don't mark it stale from checkSVID method;
-	// it will be marked stale cause it does not have SVID cached
+	// it will be marked stale because it does not have SVID cached
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(bar),
@@ -1033,7 +1034,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 	expectElapsedTimeMetric := []fakemetrics.MetricItem{
 		{
 			Type: fakemetrics.IncrCounterWithLabelsType,
-			Key:  []string{"cache_manager", "", "process_tainted_svids"},
+			Key:  []string{telemetry.CacheManager, agent.CacheTypeWorkload, telemetry.ProcessTaintedX509SVIDs},
 			Val:  1,
 			Labels: []telemetry.Label{
 				{
@@ -1044,7 +1045,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 		},
 		{
 			Type: fakemetrics.MeasureSinceWithLabelsType,
-			Key:  []string{"cache_manager", "", "process_tainted_svids", "elapsed_time"},
+			Key:  []string{telemetry.CacheManager, agent.CacheTypeWorkload, telemetry.ProcessTaintedX509SVIDs, telemetry.ElapsedTime},
 			Val:  0,
 			Labels: []telemetry.Label{
 				{
@@ -1070,7 +1071,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 		{
 			Level:   logrus.InfoLevel,
 			Message: "Tainted X.509 SVIDs",
-			Data:    logrus.Fields{telemetry.TaintedSVIDs: "3"},
+			Data:    logrus.Fields{telemetry.TaintedX509SVIDs: "3"},
 		},
 		{
 			Level:   logrus.InfoLevel,
@@ -1079,7 +1080,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 		},
 	}
 	expectMetrics := append([]fakemetrics.MetricItem{
-		{Type: fakemetrics.AddSampleType, Key: []string{telemetry.CacheManager, "", telemetry.TaintedSVIDs}, Val: 3}},
+		{Type: fakemetrics.AddSampleType, Key: []string{telemetry.CacheManager, telemetry.TaintedX509SVIDs, agent.CacheTypeWorkload}, Val: 3}},
 		expectElapsedTimeMetric...)
 	assertBatchProcess(expectLog, expectMetrics, "e3", "e4", "e5", "e6", "e7", "e8", "e9")
 
@@ -1091,7 +1092,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 		{
 			Level:   logrus.InfoLevel,
 			Message: "Tainted X.509 SVIDs",
-			Data:    logrus.Fields{telemetry.TaintedSVIDs: "3"},
+			Data:    logrus.Fields{telemetry.TaintedX509SVIDs: "3"},
 		},
 		{
 			Level:   logrus.InfoLevel,
@@ -1100,7 +1101,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 		},
 	}
 	expectMetrics = append([]fakemetrics.MetricItem{
-		{Type: fakemetrics.AddSampleType, Key: []string{telemetry.CacheManager, "", telemetry.TaintedSVIDs}, Val: 3}},
+		{Type: fakemetrics.AddSampleType, Key: []string{telemetry.CacheManager, telemetry.TaintedX509SVIDs, agent.CacheTypeWorkload}, Val: 3}},
 		expectElapsedTimeMetric...)
 	assertBatchProcess(expectLog, expectMetrics, "e3", "e4", "e8", "e9")
 
@@ -1112,7 +1113,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 		{
 			Level:   logrus.InfoLevel,
 			Message: "Tainted X.509 SVIDs",
-			Data:    logrus.Fields{telemetry.TaintedSVIDs: "2"},
+			Data:    logrus.Fields{telemetry.TaintedX509SVIDs: "2"},
 		},
 		{
 			Level:   logrus.InfoLevel,
@@ -1120,7 +1121,7 @@ func TestTaintX509SVIDs(t *testing.T) {
 		},
 	}
 	expectMetrics = append([]fakemetrics.MetricItem{
-		{Type: fakemetrics.AddSampleType, Key: []string{telemetry.CacheManager, "", telemetry.TaintedSVIDs}, Val: 2}},
+		{Type: fakemetrics.AddSampleType, Key: []string{telemetry.CacheManager, telemetry.TaintedX509SVIDs, agent.CacheTypeWorkload}, Val: 2}},
 		expectElapsedTimeMetric...)
 	assertBatchProcess(expectLog, expectMetrics, "e3", "e4")
 }
@@ -1142,7 +1143,7 @@ func TestTaintX509SVIDsNoSVIDs(t *testing.T) {
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(entries...),
 	}
-	// All entries has no chain...
+	// All entries have no chain...
 	cache.svids = makeX509SVIDs(entries...)
 
 	// Add entries to cache

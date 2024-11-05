@@ -316,9 +316,9 @@ func (p *Plugin) informerCallback(client kubeClient, obj runtime.Object) {
 	case err == nil:
 		p.log.Debug("Set bundle for object", "name", objectMeta.GetName())
 	case status.Code(err) == codes.FailedPrecondition:
-		// Ignore FailPrecondition errors for when SPIRE is booting and we receive an event prior to
+		// Ignore FailPrecondition errors for when SPIRE is booting, and we receive an event prior to
 		// IdentityProvider being initialized. In this case the BundleLoaded event will come
-		// to populate the caBundle, so its safe to ignore this error.
+		// to populate the caBundle, so it's safe to ignore this error.
 	case status.Code(err) == codes.AlreadyExists:
 		// Updating the bundle from an ADD event triggers a subsequent MODIFIED event. updateBundle will
 		// return AlreadyExists since nothing needs to be updated.

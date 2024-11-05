@@ -38,6 +38,7 @@ import (
 
 var (
 	sqlError          = errs.Class("datastore-sql")
+	validationError   = errs.Class("datastore-validation")
 	validEntryIDChars = &unicode.RangeTable{
 		R16: []unicode.Range16{
 			{0x002d, 0x002e, 1}, // - | .
@@ -376,10 +377,10 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 	return attestedNode, nil
 }
 
-// ListAttestedNodesEvents lists all attested node events
-func (ds *Plugin) ListAttestedNodesEvents(ctx context.Context, req *datastore.ListAttestedNodesEventsRequest) (resp *datastore.ListAttestedNodesEventsResponse, err error) {
+// ListAttestedNodeEvents lists all attested node events
+func (ds *Plugin) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (resp *datastore.ListAttestedNodeEventsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listAttestedNodesEvents(tx, req)
+		resp, err = listAttestedNodeEvents(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -387,10 +388,10 @@ func (ds *Plugin) ListAttestedNodesEvents(ctx context.Context, req *datastore.Li
 	return resp, nil
 }
 
-// PruneAttestedNodesEvents deletes all attested node events older than a specified duration (i.e. more than 24 hours old)
-func (ds *Plugin) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) (err error) {
+// PruneAttestedNodeEvents deletes all attested node events older than a specified duration (i.e. more than 24 hours old)
+func (ds *Plugin) PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneAttestedNodesEvents(tx, olderThan)
+		err = pruneAttestedNodeEvents(tx, olderThan)
 		return err
 	})
 }
@@ -473,12 +474,11 @@ func (ds *Plugin) CreateOrReturnRegistrationEntry(ctx context.Context,
 func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 	entry *common.RegistrationEntry,
 ) (registrationEntry *common.RegistrationEntry, existing bool, err error) {
-	// TODO: Validations should be done in the ProtoBuf level [https://github.com/spiffe/spire/issues/44]
-	if err = validateRegistrationEntry(entry); err != nil {
-		return nil, false, err
-	}
-
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		if err = validateRegistrationEntry(entry); err != nil {
+			return err
+		}
+
 		registrationEntry, err = lookupSimilarEntry(ctx, ds.db, tx, entry)
 		if err != nil {
 			return err
@@ -574,10 +574,10 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore ti
 	})
 }
 
-// ListRegistrationEntriesEvents lists all registration entry events
-func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (resp *datastore.ListRegistrationEntriesEventsResponse, err error) {
+// ListRegistrationEntryEvents lists all registration entry events
+func (ds *Plugin) ListRegistrationEntryEvents(ctx context.Context, req *datastore.ListRegistrationEntryEventsRequest) (resp *datastore.ListRegistrationEntryEventsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listRegistrationEntriesEvents(tx, req)
+		resp, err = listRegistrationEntryEvents(tx, req)
 		return err
 	}); err != nil {
 		return nil, err
@@ -585,10 +585,10 @@ func (ds *Plugin) ListRegistrationEntriesEvents(ctx context.Context, req *datast
 	return resp, nil
 }
 
-// PruneRegistrationEntriesEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
-func (ds *Plugin) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) (err error) {
+// PruneRegistrationEntryEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
+func (ds *Plugin) PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneRegistrationEntriesEvents(tx, olderThan)
+		err = pruneRegistrationEntryEvents(tx, olderThan)
 		return err
 	})
 }
@@ -1009,12 +1009,22 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 // if the error is a gorm error type with a known mapping to a GRPC status,
 // that code will be set, otherwise the code will be set to Unknown.
 func (ds *Plugin) gormToGRPCStatus(err error) error {
-	unwrapped := errs.Unwrap(err)
-	if _, ok := status.FromError(unwrapped); ok {
-		return unwrapped
+	type grpcStatusError interface {
+		error
+		GRPCStatus() *status.Status
+	}
+
+	var statusError grpcStatusError
+	if errors.As(err, &statusError) {
+		return statusError
 	}
 
 	code := codes.Unknown
+	if validationError.Has(err) {
+		code = codes.InvalidArgument
+	}
+
+	unwrapped := errors.Unwrap(err)
 	switch {
 	case gorm.IsRecordNotFoundError(unwrapped):
 		code = codes.NotFound
@@ -1701,7 +1711,7 @@ func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) er
 	return nil
 }
 
-func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEventsRequest) (*datastore.ListAttestedNodesEventsResponse, error) {
+func listAttestedNodeEvents(tx *gorm.DB, req *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
 	var events []AttestedNodeEvent
 
 	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
@@ -1719,7 +1729,7 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 		}
 	}
 
-	resp := &datastore.ListAttestedNodesEventsResponse{
+	resp := &datastore.ListAttestedNodeEventsResponse{
 		Events: make([]datastore.AttestedNodeEvent, len(events)),
 	}
 	for i, event := range events {
@@ -1730,7 +1740,7 @@ func listAttestedNodesEvents(tx *gorm.DB, req *datastore.ListAttestedNodesEvents
 	return resp, nil
 }
 
-func pruneAttestedNodesEvents(tx *gorm.DB, olderThan time.Duration) error {
+func pruneAttestedNodeEvents(tx *gorm.DB, olderThan time.Duration) error {
 	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&AttestedNodeEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -2295,7 +2305,7 @@ func setNodeSelectors(tx *gorm.DB, spiffeID string, selectors []*common.Selector
 	// deadlocks when SetNodeSelectors was being called concurrently. Changing
 	// the transaction isolation level fixed the deadlocks but only when there
 	// were no existing rows; the deadlocks still occurred when existing rows
-	// existed (i.e. re-attestation). Instead, gather all of the IDs to be
+	// existed (i.e. re-attestation). Instead, gather all the IDs to be
 	// deleted and delete them from separate queries, which does not trigger
 	// gap locks on the index.
 	var ids []int64
@@ -3911,7 +3921,7 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 
 	// Verify that final selectors contains the same 'type' when entry is used for store SVIDs
 	if entry.StoreSvid && !equalSelectorTypes(entry.Selectors) {
-		return nil, sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+		return nil, validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 	}
 
 	if mask == nil || mask.DnsNames {
@@ -4086,7 +4096,7 @@ func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
 	return nil
 }
 
-func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+func listRegistrationEntryEvents(tx *gorm.DB, req *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
 	var events []RegisteredEntryEvent
 
 	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
@@ -4104,7 +4114,7 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 		}
 	}
 
-	resp := &datastore.ListRegistrationEntriesEventsResponse{
+	resp := &datastore.ListRegistrationEntryEventsResponse{
 		Events: make([]datastore.RegistrationEntryEvent, len(events)),
 	}
 	for i, event := range events {
@@ -4115,7 +4125,7 @@ func listRegistrationEntriesEvents(tx *gorm.DB, req *datastore.ListRegistrationE
 	return resp, nil
 }
 
-func pruneRegistrationEntriesEvents(tx *gorm.DB, olderThan time.Duration) error {
+func pruneRegistrationEntryEvents(tx *gorm.DB, olderThan time.Duration) error {
 	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlError.Wrap(err)
 	}
@@ -4398,11 +4408,11 @@ func modelToBundle(model *Bundle) (*common.Bundle, error) {
 
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	if entry == nil {
-		return sqlError.New("invalid request: missing registered entry")
+		return validationError.New("invalid request: missing registered entry")
 	}
 
 	if len(entry.Selectors) == 0 {
-		return sqlError.New("invalid registration entry: missing selector list")
+		return validationError.New("invalid registration entry: missing selector list")
 	}
 
 	// In case of StoreSvid is set, all entries 'must' be the same type,
@@ -4413,31 +4423,31 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		tpe := entry.Selectors[0].Type
 		for _, t := range entry.Selectors {
 			if tpe != t.Type {
-				return sqlError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+				return validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 			}
 		}
 	}
 
 	if len(entry.EntryId) > 255 {
-		return sqlError.New("invalid registration entry: entry ID too long")
+		return validationError.New("invalid registration entry: entry ID too long")
 	}
 
 	for _, e := range entry.EntryId {
 		if !unicode.In(e, validEntryIDChars) {
-			return sqlError.New("invalid registration entry: entry ID contains invalid characters")
+			return validationError.New("invalid registration entry: entry ID contains invalid characters")
 		}
 	}
 
 	if len(entry.SpiffeId) == 0 {
-		return sqlError.New("invalid registration entry: missing SPIFFE ID")
+		return validationError.New("invalid registration entry: missing SPIFFE ID")
 	}
 
 	if entry.X509SvidTtl < 0 {
-		return sqlError.New("invalid registration entry: X509SvidTtl is not set")
+		return validationError.New("invalid registration entry: X509SvidTtl is not set")
 	}
 
 	if entry.JwtSvidTtl < 0 {
-		return sqlError.New("invalid registration entry: JwtSvidTtl is not set")
+		return validationError.New("invalid registration entry: JwtSvidTtl is not set")
 	}
 
 	return nil
@@ -4459,26 +4469,26 @@ func equalSelectorTypes(selectors []Selector) bool {
 
 func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) error {
 	if entry == nil {
-		return sqlError.New("invalid request: missing registered entry")
+		return validationError.New("invalid request: missing registered entry")
 	}
 
 	if (mask == nil || mask.Selectors) && len(entry.Selectors) == 0 {
-		return sqlError.New("invalid registration entry: missing selector list")
+		return validationError.New("invalid registration entry: missing selector list")
 	}
 
 	if (mask == nil || mask.SpiffeId) &&
 		entry.SpiffeId == "" {
-		return sqlError.New("invalid registration entry: missing SPIFFE ID")
+		return validationError.New("invalid registration entry: missing SPIFFE ID")
 	}
 
 	if (mask == nil || mask.X509SvidTtl) &&
 		(entry.X509SvidTtl < 0) {
-		return sqlError.New("invalid registration entry: X509SvidTtl is not set")
+		return validationError.New("invalid registration entry: X509SvidTtl is not set")
 	}
 
 	if (mask == nil || mask.JwtSvidTtl) &&
 		(entry.JwtSvidTtl < 0) {
-		return sqlError.New("invalid registration entry: JwtSvidTtl is not set")
+		return validationError.New("invalid registration entry: JwtSvidTtl is not set")
 	}
 
 	return nil
@@ -4606,7 +4616,7 @@ func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
 		return nil, err
 	}
 
-	// make sure all of the ids were found
+	// make sure all the ids were found
 	idset := make(map[string]bool)
 	for _, bundle := range bundles {
 		idset[bundle.TrustDomain] = true

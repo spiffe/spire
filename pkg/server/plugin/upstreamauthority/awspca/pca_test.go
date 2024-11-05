@@ -272,7 +272,7 @@ func TestMintX509CA(t *testing.T) {
 		return csr
 	}
 
-	endcodeCSR := func(csr []byte) *bytes.Buffer {
+	encodeCSR := func(csr []byte) *bytes.Buffer {
 		encodedCsr := new(bytes.Buffer)
 		err := pem.Encode(encodedCsr, &pem.Block{
 			Type:  csrRequestType,
@@ -434,7 +434,7 @@ func TestMintX509CA(t *testing.T) {
 
 			var expectPem []byte
 			if len(tt.csr) > 0 {
-				expectPem = endcodeCSR(tt.csr).Bytes()
+				expectPem = encodeCSR(tt.csr).Bytes()
 			}
 
 			// Setup expected responses and verify parameters to AWS client

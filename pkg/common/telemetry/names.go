@@ -269,10 +269,10 @@ const (
 	// ElapsedTime tags some duration of time.
 	ElapsedTime = "elapsed_time"
 
-	// EntryAdded is the counter key for when a entry is added to LRU cache
+	// EntryAdded is the counter key for when an entry is added to LRU cache
 	EntryAdded = "lru_cache_entry_add"
 
-	// EntryRemoved is the counter key for when a entry is removed from LRU cache
+	// EntryRemoved is the counter key for when an entry is removed from LRU cache
 	EntryRemoved = "lru_cache_entry_remove"
 
 	// EntryUpdated is the counter key for when an LRU cache entry is updated
@@ -356,8 +356,11 @@ const (
 	// JWTAuthorityExpiresAt tags a JWT Authority expiration
 	JWTAuthorityExpiresAt = "jwt_authority_expires_at"
 
-	// JWTAuthorityPublicKey tags a JWT authority key ID
+	// JWTAuthorityKeyID tags a JWT authority key ID
 	JWTAuthorityKeyID = "jwt_authority_key_id"
+
+	// JWTAuthorityKeyIDs tags a list of JWT authority key IDs
+	JWTAuthorityKeyIDs = "jwt_authority_key_ids"
 
 	// JWTAuthorityPublicKeySHA256 tags a JWT Authority public key
 	JWTAuthorityPublicKeySHA256 = "jwt_authority_public_key_sha256"
@@ -460,7 +463,7 @@ const (
 	// RecordMapSize is the gauge key to hold the size of the LRU cache entries map
 	RecordMapSize = "lru_cache_record_map_size"
 
-	// Reconfigurable tags whether or not something is reconfigurable.
+	// Reconfigurable tags whether something is reconfigurable.
 	Reconfigurable = "reconfigurable"
 
 	// RefreshHint tags a bundle refresh hint
@@ -476,7 +479,7 @@ const (
 	// RegistrationEntry tags a registration entry
 	RegistrationEntry = "registration_entry"
 
-	// RegistrationEntryEvent is a notice a registration entry has been create, modified, or deleted
+	// RegistrationEntryEvent is a notice a registration entry has been created, modified, or deleted
 	RegistrationEntryEvent = "registration_entry_event"
 
 	// RequestID tags a request identifier
@@ -513,7 +516,7 @@ const (
 	// SelectorsRemoved labels some count of selectors that have been removed from an entity
 	SelectorsRemoved = "selectors_removed"
 
-	// SelfSigned tags whether or not some entity is self-signed
+	// SelfSigned tags whether some entity is self-signed
 	SelfSigned = "self_signed"
 
 	// SendJWTBundleLatency tags latency for sending JWT bundle
@@ -780,8 +783,11 @@ const (
 	// RegistrationManager functionality related to a registration manager
 	RegistrationManager = "registration_manager"
 
-	// TaintedSVIDs tags tainted SVID count/list
-	TaintedSVIDs = "tainted_svids"
+	// TaintedJWTSVIDs tags tainted JWT SVID count/list
+	TaintedJWTSVIDs = "tainted_jwt_svids"
+
+	// TaintedX509SVIDs tags tainted X.509 SVID count/list
+	TaintedX509SVIDs = "tainted_x509_svids"
 
 	// Telemetry tags a telemetry module
 	Telemetry = "telemetry"
@@ -921,8 +927,11 @@ const (
 	// PushJWTKeyUpstream functionality related to pushing a public JWT Key to an upstream server.
 	PushJWTKeyUpstream = "push_jwtkey_upstream"
 
-	// ProcessTaintedSVIDs functionality related to processing tainted SVIDs.
-	ProcessTaintedSVIDs = "process_tainted_svids"
+	// ProcessTaintedX509SVIDs functionality related to processing tainted X.509 SVIDs.
+	ProcessTaintedX509SVIDs = "process_tainted_x509_svids"
+
+	// ProcessTaintedJWTSVIDs functionality related to processing tainted JWT SVIDs.
+	ProcessTaintedJWTSVIDs = "process_tainted_jwt_svids"
 
 	// SDSAPI functionality related to SDS; should be used with other tags
 	// to add clarity

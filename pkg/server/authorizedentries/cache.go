@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// We can tweak these degrees to try and get optimal L1 cache use but
+	// We can tweak these degrees to try and get optimal L1 cache use, but
 	// it's probably not worth it unless we have benchmarks showing that it
 	// is a problem at scale in production. Initial benchmarking by myself
 	// at similar scale to some of our bigger, existing deployments didn't
@@ -267,8 +267,8 @@ func (c *Cache) removeEntry(entryID string) {
 	}
 }
 
-func (c *Cache) Stats() cacheStats {
-	return cacheStats{
+func (c *Cache) Stats() CacheStats {
+	return CacheStats{
 		AgentsByID:        c.agentsByID.Len(),
 		AgentsByExpiresAt: c.agentsByExpiresAt.Len(),
 		AliasesByEntryID:  c.aliasesByEntryID.Len(),
@@ -286,7 +286,7 @@ func isNodeAlias(e *types.Entry) bool {
 	return e.ParentId.Path == idutil.ServerIDPath
 }
 
-type cacheStats struct {
+type CacheStats struct {
 	AgentsByID        int
 	AgentsByExpiresAt int
 	AliasesByEntryID  int

@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.11.0] - 2024-10-24
+
+### Added
+
+- Support for forced rotation and revocation (<https://github.com/orgs/spiffe/projects/21>)
+- New EJBCA UpstreamAuthority plugin for SPIRE Server (#5378)
+- Support for variables in templates contained in the config file (#5576)
+- Support for the configuration validation RPC on all built-in plugins (#5303)
+- Improved logging when built-in plugins panic (#5476)
+- Improved CPU and memory resource usage for concurrent Kubernetes Workload attestation (#5408)
+- Documentation additions and improvements (#5589, #5588, #5499, #5433, #5430, #5269)
+
+### Changed
+
+- SPIRE Agent LRU identity cache is now unconditionally enabled. The LRU size can be controlled via the `x509_svid_cache_max_size` configuration option. (#5383, #5531)
+- Entry API RPCs return per-entry InvalidArgument status when creating/updating malformed entries (#5506)
+- Support for CGroups v2 in K8s and Docker workload attestors is now enabled by default (#5454)
+
+### Removed
+
+- Deprecated -ttl flag from the SPIRE Server `entry create` and `entry update` commands (#5483)
+- Official support for MySQL 5.X. While SPIRE may continue to work with this version, no explicit testing will be performed by the project (#5487)
+
+### Fixed
+
+- Missing TrustDomain field passed to x509pop path template (#5577)
+- Behavior in the experimental events-based cache causing duplicate entries/agents evaluation in the same cycle (#5509)
+
 ## [1.10.4] - 2024-09-12
 
 ### Fixed
@@ -58,7 +86,7 @@
 
 ### Changed
 
-- SPIRE Server and OIDC provider images to use non root users (#4967, #5227)
+- SPIRE Server and OIDC provider images to use non-root users (#4967, #5227)
 - `k8s_psat` NodeAttestor attestor to no longer fail when a cluster is not configured (#5216)
 - Agents are required to renew SVIDs through re-attestation when using a supporting Node Attestor (#5204)
 - Small documentation improvements (#5181, #5189)
@@ -66,7 +94,7 @@
 
 ### Fixed
 
-- PSAT node attestor to cross check the audience fields (#5142)
+- PSAT node attestor to cross-check the audience fields (#5142)
 - Events-based cache to handle out of order events (#5071)
 
 ### Deprecated
@@ -1047,7 +1075,7 @@
 - Regression preventing agent selectors from showing in `spire-server agent show` command (#2133)
 - Issue in the token authentication method of the Vault Upstream Authority plugin (#2110)
 - Reporting of errors in server entry cache telemetry (#2091)
-- Agent logs an error and automatically shuts down when its SVID has expired and it requires re-attestation (#2065)
+- Agent logs an error and automatically shuts down when its SVID has expired, and it requires re-attestation (#2065)
 
 ## [0.12.1] - 2021-03-04
 
@@ -1133,7 +1161,7 @@
 
 - Fixed Kubernetes Workload Registrar issues (#1814, #1818, #1823)
 - Fixed BatchCreateEntry return value to match docs, returning the contents of an entry if it already exists (#1824)
-- Fixed issue preventing brand new deployments from downgrading successfully (#1829)
+- Fixed issue preventing brand-new deployments from downgrading successfully (#1829)
 - Fixed a regression introduced in 0.11.0 that caused external node attestor plugins that rely on binary data to fail (#1863)
 
 ## [0.11.0] - 2020-08-28
@@ -1237,7 +1265,7 @@
 
 ## [0.9.0] - 2019-11-14
 
-- Users can now opt-out of workload executable hashing when enabling the workload path as a selector (#1078)
+- Users can now opt out of workload executable hashing when enabling the workload path as a selector (#1078)
 - Added M3 support to telemetry and other telemetry and logging improvements (#1059, #1085, #1086, #1094, #1102, #1122,#1138,#1160,#1186,#1208)
 - SQL auto-migration can be disabled (#1089)
 - SQL schema compatibility checks are aligned with upgrade compatibility guarantees (#1089)

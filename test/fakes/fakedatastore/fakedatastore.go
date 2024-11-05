@@ -162,18 +162,18 @@ func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*c
 	return s.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
-func (s *DataStore) ListAttestedNodesEvents(ctx context.Context, req *datastore.ListAttestedNodesEventsRequest) (*datastore.ListAttestedNodesEventsResponse, error) {
+func (s *DataStore) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.ListAttestedNodesEvents(ctx, req)
+	return s.ds.ListAttestedNodeEvents(ctx, req)
 }
 
-func (s *DataStore) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) error {
+func (s *DataStore) PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.PruneAttestedNodesEvents(ctx, olderThan)
+	return s.ds.PruneAttestedNodeEvents(ctx, olderThan)
 }
 
 func (s *DataStore) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
@@ -312,18 +312,18 @@ func (s *DataStore) PruneRegistrationEntries(ctx context.Context, expiresBefore 
 	return s.ds.PruneRegistrationEntries(ctx, expiresBefore)
 }
 
-func (s *DataStore) ListRegistrationEntriesEvents(ctx context.Context, req *datastore.ListRegistrationEntriesEventsRequest) (*datastore.ListRegistrationEntriesEventsResponse, error) {
+func (s *DataStore) ListRegistrationEntryEvents(ctx context.Context, req *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.ListRegistrationEntriesEvents(ctx, req)
+	return s.ds.ListRegistrationEntryEvents(ctx, req)
 }
 
-func (s *DataStore) PruneRegistrationEntriesEvents(ctx context.Context, olderThan time.Duration) error {
+func (s *DataStore) PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.PruneRegistrationEntriesEvents(ctx, olderThan)
+	return s.ds.PruneRegistrationEntryEvents(ctx, olderThan)
 }
 
 func (s *DataStore) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) error {

@@ -246,6 +246,8 @@ import (
 // | v1.10.3 |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.10.4 |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v1.11.0 |        |                                                                           |
 // ================================================================================================
 
 const (
@@ -363,7 +365,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 }
 
 func isDisabledMigrationAllowed(thisCodeVersion, dbCodeVersion semver.Version) error {
-	// If auto-migrate is disabled and we are running a compatible version (+/- 1
+	// If auto-migrate is disabled, and we are running a compatible version (+/- 1
 	// minor from the stored code version) then we are done here
 	if !isCompatibleCodeVersion(thisCodeVersion, dbCodeVersion) {
 		return errors.New("auto-migration must be enabled for current DB")
