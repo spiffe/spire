@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/acmpca"
 	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -214,7 +214,7 @@ badjson
 			}
 
 			if tt.trustDomain != "" {
-				options = append(options, plugintest.CoreConfig(coreconfig.CoreConfig{
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
 				}))
 			}
@@ -426,7 +426,7 @@ func TestMintX509CA(t *testing.T) {
 
 			ua := new(upstreamauthority.V1)
 			plugintest.Load(t, builtin(p), ua,
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
 				}),
 				plugintest.ConfigureJSON(tt.config),
@@ -477,7 +477,7 @@ func TestPublishJWTKey(t *testing.T) {
 	var err error
 	plugintest.Load(t, builtin(p), ua,
 		plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.ConfigureJSON(&Configuration{

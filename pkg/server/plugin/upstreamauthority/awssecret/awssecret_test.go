@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509svid"
@@ -30,7 +30,7 @@ func TestConfigure(t *testing.T) {
 	_, fakeStorageClientCreator := generateTestData(t, clk)
 	for _, tt := range []struct {
 		test               string
-		overrideCoreConfig *coreconfig.CoreConfig
+		overrideCoreConfig *catalog.CoreConfig
 		overrideConfig     string
 		expectCode         codes.Code
 		expectMsgPrefix    string
@@ -63,7 +63,7 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			test:               "no trust domain",
-			overrideCoreConfig: &coreconfig.CoreConfig{},
+			overrideCoreConfig: &catalog.CoreConfig{},
 			expectCode:         codes.InvalidArgument,
 			expectMsgPrefix:    "server core configuration must contain trust_domain",
 		},
@@ -208,7 +208,7 @@ func TestConfigure(t *testing.T) {
 			if tt.overrideCoreConfig != nil {
 				options = append(options, plugintest.CoreConfig(*tt.overrideCoreConfig))
 			} else {
-				options = append(options, plugintest.CoreConfig(coreconfig.CoreConfig{
+				options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost"),
 				}))
 			}
@@ -340,7 +340,7 @@ func TestMintX509CA(t *testing.T) {
 			var err error
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
 			}
@@ -411,7 +411,7 @@ func TestPublishJWTKey(t *testing.T) {
 			SecurityToken:   "security_token",
 			AssumeRoleARN:   "assume_role_arn",
 		}),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 	)

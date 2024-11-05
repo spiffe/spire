@@ -17,7 +17,6 @@ import (
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
@@ -53,7 +52,7 @@ type config struct {
 	ekRoots    *x509.CertPool
 }
 
-func buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *config {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *config {
 	hclConfig := new(Config)
 	if err := hcl.Decode(hclConfig, hclText); err != nil {
 		status.ReportError("plugin configuration is malformed")
