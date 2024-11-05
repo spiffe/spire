@@ -19,7 +19,7 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | Configuration         | Description                                                                                                                                                                                                                                    | Default                                 |
 |-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
 | `spire_trust_bundle`     | If true, use the spire servers own trust bundle to use for validation.                                                                                                                                                                      |                                         |
-| `svid_prefix`            | The prefix of the SVID to use for matching vaid SVIDS and exchanging them for Node SVIDs                                                                                                                                                    | /spire-exchange                         |
+| `svid_prefix`            | The prefix of the SVID to use for matching valid SVIDS and exchanging them for Node SVIDs                                                                                                                                                    | /spire-exchange                         |
 | `ca_bundle_path`      | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. |                                         |
 | `ca_bundle_paths`     | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification.                                                                             |                                         |
 | `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                              | `See Agent Path Template for details`   |
@@ -45,7 +45,7 @@ A sample configuration:
 | SHA1 Fingerprint | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf. |
 | SerialNumber     | `x509pop:serialnumber:0a1b2c3d4e5f`                               | The leaf certificate serial number as a lowercase hexadecimal string                     |
 
-## SVID Prefix
+## SVID Path Prefix
 
 When spire_trust_bundle is used, the SPIFFE ID being exchanged must be prefixed by the specified svid_prefix. The prefix will be removed from the .SVIDPath before sending to the
 agent path template.
