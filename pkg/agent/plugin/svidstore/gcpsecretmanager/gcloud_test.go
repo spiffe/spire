@@ -16,7 +16,7 @@ import (
 	gax "github.com/googleapis/gax-go/v2"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -140,7 +140,7 @@ invalid2 = "another"
 			var err error
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: tt.trustDomain,
 				}),
 			}
@@ -710,7 +710,7 @@ func TestPutX509SVID(t *testing.T) {
 			var err error
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: trustDomain,
 				}),
 				plugintest.ConfigureJSON(&Configuration{}),
@@ -855,7 +855,7 @@ func TestDeleteX509SVID(t *testing.T) {
 			var err error
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
 				plugintest.ConfigureJSON(&Configuration{}),

@@ -21,7 +21,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -577,7 +577,7 @@ func (s *Suite) TestConfigure() {
 
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString(testCase.trustDomain),
 				}),
 				plugintest.Configure(testCase.hcl),
@@ -679,7 +679,7 @@ func (s *Suite) TestConfigureWithSigstore() {
 
 			var err error
 			plugintest.Load(s.T(), builtin(p), nil,
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString(tc.trustDomain),
 				}),
 				plugintest.Configure(tc.hcl),
@@ -745,7 +745,7 @@ func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttest
 	p := s.newPlugin()
 
 	plugintest.Load(s.T(), builtin(p), v1,
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(configuration),

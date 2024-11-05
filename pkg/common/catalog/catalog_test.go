@@ -21,7 +21,6 @@ import (
 	"github.com/spiffe/spire-plugin-sdk/private/proto/test"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/catalog/testplugin"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +28,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var coreConfig = coreconfig.CoreConfig{
+var coreConfig = catalog.CoreConfig{
 	TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 }
 

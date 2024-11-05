@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -52,7 +52,7 @@ func (s *MSIAttestorSuite) TestAidAttestationFailedToObtainToken() {
 	s.tokenErr = errors.New("FAILED")
 
 	attestor := s.loadAttestor(
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(""),
@@ -67,7 +67,7 @@ func (s *MSIAttestorSuite) TestAidAttestationSuccess() {
 	expectPayload := []byte(fmt.Sprintf(`{"token":%q}`, s.token))
 
 	attestor := s.loadAttestor(
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(""),
@@ -81,7 +81,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	var err error
 	s.loadAttestor(
 		plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure("blah"),
@@ -91,7 +91,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	// success
 	s.loadAttestor(
 		plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(""),
@@ -101,7 +101,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	// success with resource_id
 	s.loadAttestor(
 		plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(`resource_id = "foo"`),

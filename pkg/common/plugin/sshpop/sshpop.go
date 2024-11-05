@@ -11,7 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"golang.org/x/crypto/ssh"
 )
@@ -101,7 +101,7 @@ type ServerConfig struct {
 	trustDomain       spiffeid.TrustDomain
 }
 
-func BuildServerConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *ServerConfig {
+func BuildServerConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *ServerConfig {
 	newConfig := new(ServerConfig)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("failed to decode configuration: %v", err)
@@ -153,7 +153,7 @@ func (sc *ServerConfig) NewServer() *Server {
 	}
 }
 
-func BuildClientConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *ClientConfig {
+func BuildClientConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *ClientConfig {
 	newConfig := new(ClientConfig)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("failed to decode configuration: %v", err)

@@ -14,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager/types"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -148,7 +148,7 @@ func TestConfigure(t *testing.T) {
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
 			}
-			options = append(options, plugintest.CoreConfig(coreconfig.CoreConfig{
+			options = append(options, plugintest.CoreConfig(catalog.CoreConfig{
 				TrustDomain: spiffeid.RequireTrustDomainFromString(tt.trustDomain),
 			}))
 
@@ -513,7 +513,7 @@ func TestPutX509SVID(t *testing.T) {
 			var err error
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
 				plugintest.ConfigureJSON(&Configuration{Region: "r1"}),
@@ -654,7 +654,7 @@ func TestDeleteX509SVID(t *testing.T) {
 			var err error
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.CoreConfig(coreconfig.CoreConfig{
+				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
 				plugintest.ConfigureJSON(&Configuration{Region: "r1"}),

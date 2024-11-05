@@ -19,7 +19,6 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -56,7 +55,7 @@ type Configuration struct {
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" json:",omitempty"`
 }
 
-func buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
 	newConfig := &Configuration{}
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)

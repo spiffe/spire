@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
 )
@@ -107,7 +106,7 @@ type Config struct {
 	HostServices []pluginsdk.ServiceServer
 
 	// CoreConfig is the core configuration provided to each plugin.
-	CoreConfig coreconfig.CoreConfig
+	CoreConfig CoreConfig
 
 	// Validate plugins only
 	ValidateOnly bool

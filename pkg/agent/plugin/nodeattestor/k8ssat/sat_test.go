@@ -9,7 +9,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
@@ -63,7 +63,7 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// malformed configuration
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure("malformed"),
@@ -72,7 +72,7 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// missing cluster
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(""),
@@ -81,7 +81,7 @@ func (s *AttestorSuite) TestConfigure() {
 
 	// success
 	s.loadPlugin(plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(`cluster = "production"`),
@@ -91,7 +91,7 @@ func (s *AttestorSuite) TestConfigure() {
 
 func (s *AttestorSuite) loadPluginWithTokenPath(trustDomain string, tokenPath string) nodeattestor.NodeAttestor {
 	return s.loadPlugin(
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
 		}),
 		plugintest.Configuref(`

@@ -17,7 +17,6 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
@@ -87,7 +86,7 @@ type experimentalConfig struct {
 	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
 }
 
-func (p *Plugin) buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *dockerPluginConfig {
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *dockerPluginConfig {
 	var err error
 	newConfig := &dockerPluginConfig{}
 	if err = hcl.Decode(newConfig, hclText); err != nil {
