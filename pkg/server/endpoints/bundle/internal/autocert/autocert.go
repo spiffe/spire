@@ -41,7 +41,7 @@
 //   key match when the key a crypto.Signer and not a concrete RSA/ECDSA private
 //   key type.
 
-//nolint // forked code
+//nolint //forked code
 package autocert
 
 import (
@@ -131,7 +131,7 @@ func defaultHostPolicy(context.Context, string) error {
 //
 // You must specify a cache implementation, such as DirCache,
 // to reuse obtained certificates across program restarts.
-// Otherwise your server is very likely to exceed the certificate
+// Otherwise, your server is very likely to exceed the certificate
 // issuer's request rate limits.
 type Manager struct {
 	// Prompt specifies a callback function to conditionally accept a CA's Terms of Service (TOS).
@@ -523,28 +523,28 @@ func (m *Manager) cacheGet(ctx context.Context, ck certKey) (*tls.Certificate, e
 		return nil, ErrCacheMiss
 	}
 
-	privKey, err := m.KeyStore.GetPrivateKey(ctx, ck.String())
+	privateKey, err := m.KeyStore.GetPrivateKey(ctx, ck.String())
 	if err != nil {
 		// No such private key. Corrupt. Ignore.
 		return nil, ErrCacheMiss
 	}
 
 	// verify and create TLS cert
-	leaf, err := validCert(ck, pubDER, privKey, m.now())
+	leaf, err := validCert(ck, pubDER, privateKey, m.now())
 	if err != nil {
 		return nil, ErrCacheMiss
 	}
 
 	tlscert := &tls.Certificate{
 		Certificate: pubDER,
-		PrivateKey:  privKey,
+		PrivateKey:  privateKey,
 		Leaf:        leaf,
 		// Limit the supported signature algorithms to those that use SHA256
 		// to align with a minimum set supported by known key managers.
 		// See issue #2302.
 		// TODO: Query the key manager for supported algorithms to determine
 		// this set dynamically.
-		SupportedSignatureAlgorithms: supportedSignatureAlgorithms(privKey),
+		SupportedSignatureAlgorithms: supportedSignatureAlgorithms(privateKey),
 	}
 	return tlscert, nil
 }
@@ -588,7 +588,7 @@ func (m *Manager) createCert(ctx context.Context, ck certKey) (*tls.Certificate,
 	}
 
 	// We are the first; state is locked.
-	// Unblock the readers when domain ownership is verified
+	// Unblock the readers when domain ownership is verified,
 	// and we got the cert or the process failed.
 	defer state.Unlock()
 	state.locked = false
@@ -773,7 +773,7 @@ func (m *Manager) verify(ctx context.Context, client *acme.Client, domain string
 func (m *Manager) verifyRFC(ctx context.Context, client *acme.Client, domain string) (*acme.Order, error) {
 	// Try each supported challenge type starting with a new order each time.
 	// The nextTyp index of the next challenge type to try is shared across
-	// all order authorizations: if we've tried a challenge type once and it didn't work,
+	// all order authorizations: if we've tried a challenge type once, and it didn't work,
 	// it will most likely not work on another order's authorization either.
 	challengeTypes := m.supportedChallengeTypes()
 	nextTyp := 0 // challengeTypes index
@@ -945,7 +945,7 @@ func (m *Manager) httpToken(ctx context.Context, tokenPath string) ([]byte, erro
 	return m.Cache.Get(ctx, httpTokenCacheKey(tokenPath))
 }
 
-// putHTTPToken stores an http-01 token value using tokenPath as key
+// putHTTPToken stores a http-01 token value using tokenPath as key
 // in both in-memory map and the optional Cache.
 //
 // It ignores any error returned from Cache.Put.
@@ -962,7 +962,7 @@ func (m *Manager) putHTTPToken(ctx context.Context, tokenPath, val string) {
 	}
 }
 
-// deleteHTTPToken removes an http-01 token value from both in-memory map
+// deleteHTTPToken removes a http-01 token value from both in-memory map
 // and the optional Cache, ignoring any error returned from the latter.
 //
 // If m.Cache is non-nil, it blocks until Cache.Delete returns without a timeout.
@@ -975,7 +975,7 @@ func (m *Manager) deleteHTTPToken(tokenPath string) {
 	}
 }
 
-// httpTokenCacheKey returns a key at which an http-01 token value may be stored
+// httpTokenCacheKey returns a key at which a http-01 token value may be stored
 // in the Manager's optional Cache.
 func httpTokenCacheKey(tokenPath string) string {
 	return path.Base(tokenPath) + "+http-01"

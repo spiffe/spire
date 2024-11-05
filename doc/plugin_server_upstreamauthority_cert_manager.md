@@ -1,7 +1,7 @@
 # Server plugin: UpstreamAuthority "cert-manager"
 
 The `cert-manager` plugin uses an instance of
-[cert-manager](https://cert-manager.io) running in Kubernetes to to request
+[cert-manager](https://cert-manager.io) running in Kubernetes to request
 intermediate signing certificates for SPIRE Server.
 
 This plugin will request a signing certificate from cert-manager via a

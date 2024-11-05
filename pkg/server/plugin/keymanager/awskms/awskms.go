@@ -223,7 +223,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
 
-	// cancels previous tasks in case of re configure
+	// cancels previous tasks in case of re-configure
 	if p.cancelTasks != nil {
 		p.cancelTasks()
 	}
@@ -442,7 +442,7 @@ func (p *Plugin) setCache(keyEntries []*keyEntry) {
 	}
 }
 
-// scheduleDeleteTask ia a long running task that deletes keys that were rotated
+// scheduleDeleteTask ia a long-running task that deletes keys that were rotated
 func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 	backoffMin := 1 * time.Second
 	backoffMax := 60 * time.Second
@@ -994,7 +994,7 @@ func makeFingerprint(pkixData []byte) string {
 }
 
 // encodeKeyID maps "." and "+" characters to the asciihex value using "_" as
-// escape character. Currently KMS does not support those characters to be used
+// escape character. Currently, KMS does not support those characters to be used
 // as alias name.
 func encodeKeyID(keyID string) string {
 	keyID = strings.ReplaceAll(keyID, ".", "_2e")

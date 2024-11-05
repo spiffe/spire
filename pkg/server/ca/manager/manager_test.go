@@ -592,7 +592,7 @@ func TestUpstreamIntermediateSigned(t *testing.T) {
 	// The trust bundle should contain the upstream root
 	test.requireBundleRootCAs(ctx, t, fakeUA.X509Root())
 
-	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
+	// We expect this warning because the UpstreamAuthority doesn't implement PublishJWTKey
 	assert.Equal(t,
 		1,
 		test.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+

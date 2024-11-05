@@ -481,7 +481,7 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	ts.plugin.hooks.disposeCryptoKeysSignal = make(chan error)
 	ts.plugin.hooks.scheduleDestroySignal = make(chan error)
 	ts.plugin.hooks.setInactiveSignal = make(chan error)
-	// Set up an unbuffered channel for the keepActiveCryptoKeys task so that it gets blocked and we can simulate a key getting stale.
+	// Set up an unbuffered channel for the keepActiveCryptoKeys task so that it gets blocked, and we can simulate a key getting stale.
 	ts.plugin.hooks.keepActiveCryptoKeysSignal = make(chan error)
 
 	_, err := ts.plugin.Configure(ctx, configureRequest)

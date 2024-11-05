@@ -38,7 +38,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				},
 				FederatesWith: []string{
 					"spiffe://domain1.com",
-					// common registration entries use the trust domain ID but
+					// common registration entries use the trust domain ID, but
 					// we should assert that they are normalized to trust
 					// domain name either way.
 					"domain2.com",
@@ -136,7 +136,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				},
 				FederatesWith: []string{
 					"domain1.com",
-					// types entries use the trust domain name but we should
+					// types entries use the trust domain name, but we should
 					// assert that they are normalized to trust domain ID
 					// either way.
 					"spiffe://domain2.com",
@@ -205,7 +205,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				},
 				FederatesWith: []string{
 					"domain1.com",
-					// types entries use the trust domain name but we should
+					// types entries use the trust domain name, but we should
 					// assert that they are normalized to trust domain ID
 					// either way.
 					"spiffe://domain2.com",
@@ -255,7 +255,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				},
 				FederatesWith: []string{
 					"domain1.com",
-					// types entries use the trust domain name but we should
+					// types entries use the trust domain name, but we should
 					// assert that they are normalized to trust domain ID
 					// either way.
 					"spiffe://domain2.com",
@@ -305,7 +305,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				},
 				FederatesWith: []string{
 					"domain1.com",
-					// types entries use the trust domain name but we should
+					// types entries use the trust domain name, but we should
 					// assert that they are normalized to trust domain ID
 					// either way.
 					"spiffe://domain2.com",
@@ -398,7 +398,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				Selectors:   []*types.Selector{},
 				FederatesWith: []string{
 					"domain1.com",
-					// types entries use the trust domain name but we should
+					// types entries use the trust domain name, but we should
 					// assert that they are normalized to trust domain ID
 					// either way.
 					"spiffe://domain2.com",
@@ -448,7 +448,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				},
 				FederatesWith: []string{
 					"domain1.com",
-					// types entries use the trust domain name but we should
+					// types entries use the trust domain name, but we should
 					// assert that they are normalized to trust domain ID
 					// either way.
 					"spiffe://domain2.com",
@@ -504,7 +504,7 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 				},
 				FederatesWith: []string{
 					"domain1.com",
-					// types entries use the trust domain name but we should
+					// types entries use the trust domain name, but we should
 					// assert that they are normalized to trust domain ID
 					// either way.
 					"spiffe://domain2.com",

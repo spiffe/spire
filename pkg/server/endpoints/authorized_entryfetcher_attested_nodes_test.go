@@ -29,7 +29,7 @@ var (
 	cachedAgentsByExpiresAt = []string{telemetry.Node, telemetry.AgentsByExpiresAtCache, telemetry.Count}
 	skippedNodeEventID      = []string{telemetry.Node, telemetry.SkippedNodeEventIDs, telemetry.Count}
 
-	// defaults used to setup a small initial load of attested nodes and events.
+	// defaults used to set up a small initial load of attested nodes and events.
 	defaultAttestedNodes = []*common.AttestedNode{
 		{
 			SpiffeId:     "spiffe://example.org/test_node_2",
@@ -1090,7 +1090,7 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 		name                string
 		setup               *nodeScenarioSetup
 		createAttestedNodes []*common.AttestedNode // Nodes created after setup
-		deleteAttestedNodes []string               // Nodes delted after setup
+		deleteAttestedNodes []string               // Nodes deleted after setup
 		fetchNodes          []string
 
 		expectedAuthorizedEntries []string
@@ -1462,8 +1462,8 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			cacheStats := attestedNodes.cache.Stats()
 			require.Equal(t, len(tt.expectedAuthorizedEntries), cacheStats.AgentsByID, "wrong number of agents by ID")
 
-			// for now, the only way to ensure the desired agent ids are prsent is
-			// to remove the desired ids and check the count it zero.
+			// for now, the only way to ensure the desired agent ids are present is
+			// to remove the desired ids and check that the count is zero.
 			for _, expectedAuthorizedId := range tt.expectedAuthorizedEntries {
 				attestedNodes.cache.RemoveAgent(expectedAuthorizedId)
 			}

@@ -67,7 +67,7 @@ func fieldsFromStatus(s *types.Status) logrus.Fields {
 
 func fieldsFromError(err error) logrus.Fields {
 	fields := logrus.Fields{}
-	// Unknown status is returned for non proto status
+	// Unknown status is returned for non-proto status
 	statusErr, _ := status.FromError(err)
 	switch {
 	case statusErr.Code() == codes.OK:

@@ -85,7 +85,7 @@ func (o *orgValidator) configure(config *orgValidationConfig) error {
 
 	o.orgConfig = config
 
-	// While doing configuration invalidate the map so we dont keep using old one.
+	// While doing configuration invalidate the map so we don't keep using old one.
 	o.orgAccountList = make(map[string]any)
 	o.retries = orgAccountRetries
 
@@ -103,10 +103,10 @@ func (o *orgValidator) setLogger(log hclog.Logger) {
 	o.log = log
 }
 
-// IsMemberAccount method checks if the Account ID attached on the node is part of the organisation.
-// If it part of the organisation then validation should be succesfull if not attestation should fail, on enabling this verification method.
+// IsMemberAccount method checks if the Account ID attached on the node is part of the organization.
+// If it is part of the organization then validation should be successful if not attestation should fail, on enabling this verification method.
 // This could be alternative for not explicitly maintaining allowed list of account ids.
-// Method pulls the list of accounts from organization and caches it for certain time, cache time can be configured.
+// Method pulls the list of accounts from the organization and caches it for certain time, cache time can be configured.
 func (o *orgValidator) IsMemberAccount(ctx context.Context, orgClient organizations.ListAccountsAPIClient, accountIDOfNode string) (bool, error) {
 	reValidatedCache, err := o.validateCache(ctx, orgClient)
 	if err != nil {
@@ -142,19 +142,19 @@ func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.
 	orgAccountList := o.orgAccountList
 	o.mutex.RUnlock()
 
-	_, accoutIsmemberOfOrg := orgAccountList[accountIDOfNode]
+	_, accountIsmemberOfOrg := orgAccountList[accountIDOfNode]
 
 	// Retry if it doesn't exist in cache and cache was not revalidated
-	if !accoutIsmemberOfOrg && !reValidatedCache {
+	if !accountIsmemberOfOrg && !reValidatedCache {
 		orgAccountList, err := o.refreshCache(ctx, orgClient)
 		if err != nil {
-			o.log.Error("Failed to refesh cache, while validating account id: %v", accountIDOfNode, "error", err.Error())
+			o.log.Error("Failed to refresh cache, while validating account id: %v", accountIDOfNode, "error", err.Error())
 			return false, err
 		}
-		_, accoutIsmemberOfOrg = orgAccountList[accountIDOfNode]
+		_, accountIsmemberOfOrg = orgAccountList[accountIDOfNode]
 	}
 
-	return accoutIsmemberOfOrg, nil
+	return accountIsmemberOfOrg, nil
 }
 
 // refreshCache refreshes list with new cache if cache miss happens and check if element exist

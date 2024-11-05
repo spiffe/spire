@@ -9,12 +9,14 @@ spiffe_id="spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/age
 for ((i=1;i<=MAXCHECKS;i++)); do
     log-info "attempting to ban agent ${spiffe_id} ($i of $MAXCHECKS max)..."
 
-    docker compose exec -T spire-server \
+    # It is possible that the agent is not yet registered, so we need to retry
+    if docker compose exec -T spire-server \
         /opt/spire/bin/spire-server agent ban \
-        -spiffeID "${spiffe_id}"
-    docker compose logs spire-server
-    if docker compose logs spire-server | grep "Agent banned"; then
-	exit 0
+        -spiffeID "${spiffe_id}"; then
+        docker compose logs spire-server
+        if docker compose logs spire-server | grep "Agent banned"; then
+            exit 0
+        fi
     fi
     sleep "${CHECKINTERVAL}"
 done
