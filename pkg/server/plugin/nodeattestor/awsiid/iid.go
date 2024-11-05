@@ -35,7 +35,6 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
@@ -129,7 +128,7 @@ type IIDAttestorConfig struct {
 	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
 }
 
-func (p *IIDAttestorPlugin) buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *IIDAttestorConfig {
+func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IIDAttestorConfig {
 	newConfig := new(IIDAttestorConfig)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)

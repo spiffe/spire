@@ -20,7 +20,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -405,7 +405,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		fetchCredential func(string) (azcore.TokenCredential, error)
 	}
 
-	doConfig := func(t *testing.T, coreConfig coreconfig.CoreConfig, config string, opt *testOpts) error {
+	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string, opt *testOpts) error {
 		// reset the clients list and log entries
 		clients = nil
 		logEntries = nil
@@ -445,7 +445,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 
 	_ = logEntries // silence unused warning, future tests asserting on logs will use this
 
-	coreConfig := coreconfig.CoreConfig{
+	coreConfig := catalog.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}
 
@@ -455,7 +455,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("missing trust domain", func(t *testing.T) {
-		err := doConfig(t, coreconfig.CoreConfig{}, "", nil)
+		err := doConfig(t, catalog.CoreConfig{}, "", nil)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 	})
 
@@ -669,7 +669,7 @@ func (s *MSIAttestorSuite) loadPluginWithConfig(config string, options ...plugin
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(s.T(), builtin(attestor), v1, append([]plugintest.Option{
 		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(config),

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/test/fixture"
@@ -46,7 +46,7 @@ func (s *Suite) loadPlugin(t *testing.T) nodeattestor.NodeAttestor {
 	serverConfig := fmt.Sprintf(`cert_authorities = [%q]`, certAuthority)
 
 	plugintest.Load(s.T(), BuiltIn(), v1,
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(serverConfig),

@@ -14,7 +14,6 @@ import (
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
@@ -140,7 +139,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 		}
 	}()
 
-	coreConfig := coreconfig.CoreConfig{
+	coreConfig := catalog.CoreConfig{
 		TrustDomain: config.TrustDomain,
 	}
 
@@ -214,20 +213,20 @@ func Validate(ctx context.Context, config Config, status *pluginconf.Status) (_ 
 		}
 	}()
 
-	coreConfig := coreconfig.CoreConfig{
+	coreConfig := catalog.CoreConfig{
 		TrustDomain: config.TrustDomain,
 	}
 
-	_ = catalog.Load(ctx, catalog.Config{
+	_, err = catalog.Load(ctx, catalog.Config{
 		Log:           config.Log,
 		CoreConfig:    coreConfig,
 		PluginConfigs: pluginConfigs,
-	}, repo, status)
+	}, repo)
 
 	return repo, nil
 }
 
-func loadSQLDataStore(ctx context.Context, config Config, coreConfig coreconfig.CoreConfig, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
+func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.CoreConfig, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
 	switch {
 	case len(datastoreConfigs) == 0:
 		return nil, errors.New("expecting a DataStore plugin")
@@ -249,11 +248,11 @@ func loadSQLDataStore(ctx context.Context, config Config, coreConfig coreconfig.
 
 	dsLog := config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name)
 	ds := ds_sql.New(dsLog)
-	configurer := catalog.ConfigurerFunc(func(ctx context.Context, _ coreconfig.CoreConfig, configuration string) error {
+	configurer := func(ctx context.Context, _ catalog.CoreConfig, configuration string) error {
 		return ds.Configure(ctx, configuration)
-	})
+	}
 
-	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, configurer, sqlConfig.DataSource, ""); err != nil {
+	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, ds, sqlConfig.DataSource, ""); err != nil {
 		return nil, err
 	}
 

@@ -15,7 +15,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -258,7 +258,7 @@ agent_path_template = "/{{ .InstanceID }}"
 }
 
 func (s *IITAttestorSuite) TestConfigure() {
-	doConfig := func(t *testing.T, coreConfig coreconfig.CoreConfig, config string) error {
+	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string) error {
 		t.Logf("core config: %+v, config: %s\n", coreConfig, config)
 		var err error
 		plugintest.Load(t, BuiltIn(), nil,
@@ -270,7 +270,7 @@ func (s *IITAttestorSuite) TestConfigure() {
 		return err
 	}
 
-	coreConfig := coreconfig.CoreConfig{
+	coreConfig := catalog.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}
 
@@ -280,7 +280,7 @@ func (s *IITAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("missing trust domain", func(t *testing.T) {
-		err := doConfig(t, coreconfig.CoreConfig{}, `
+		err := doConfig(t, catalog.CoreConfig{}, `
 projectid_allow_list = ["bar"]
 		`)
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "server core configuration must contain trust_domain")
@@ -323,7 +323,7 @@ func (s *IITAttestorSuite) loadPluginWithConfig(config string) nodeattestor.Node
 
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(s.T(), builtin(p), v1,
-		plugintest.CoreConfig(coreconfig.CoreConfig{
+		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),

@@ -11,7 +11,6 @@ import (
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	catalog "github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	keymanagerbase "github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
@@ -39,7 +38,7 @@ type configuration struct {
 	KeysPath string `hcl:"keys_path"`
 }
 
-func buildConfig(coreConfig coreconfig.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
 	newConfig := new(configuration)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
