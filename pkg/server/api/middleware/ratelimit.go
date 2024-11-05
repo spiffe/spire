@@ -128,10 +128,10 @@ type perIPLimiter struct {
 
 	mtx sync.RWMutex
 
-	// previous holds all of the limiters that were current at the GC
+	// previous holds all the limiters that were current at the GC
 	previous map[string]rawRateLimiter
 
-	// current holds all of the limiters that have been created or moved
+	// current holds all the limiters that have been created or moved
 	// from the previous limiters since the last GC.
 	current map[string]rawRateLimiter
 
@@ -242,7 +242,7 @@ func logLimiterMisuse(ctx context.Context, rateLimiter api.RateLimiter, used boo
 	case noLimit:
 		// RPC should not invoke the rate limiter, since that would imply a
 		// misconfiguration. Either the RPC is wrong, or the middleware is
-		// wrong as to whether or not the RPC should rate limit.
+		// wrong as to whether the RPC should rate limit.
 		if used {
 			middleware.LogMisconfiguration(ctx, "Rate limiter used unexpectedly; this is a bug")
 		}

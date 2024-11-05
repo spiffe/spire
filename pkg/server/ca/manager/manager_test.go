@@ -393,14 +393,10 @@ func TestUpstreamProcessTaintedAuthority(t *testing.T) {
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
 	require.True(t, test.m.IsUpstreamAuthority())
 
-	// Prepared must be tainted too
-	err := test.m.PrepareX509CA(ctx)
-	require.NoError(t, err)
-
 	go test.m.ProcessBundleUpdates(ctx)
 
 	// Taint first root
-	err = fakeUA.TaintAuthority(0)
+	err := fakeUA.TaintAuthority(0)
 	require.NoError(t, err)
 
 	// Get the roots again and verify that the first X.509 authority is tainted
@@ -596,7 +592,7 @@ func TestUpstreamIntermediateSigned(t *testing.T) {
 	// The trust bundle should contain the upstream root
 	test.requireBundleRootCAs(ctx, t, fakeUA.X509Root())
 
-	// We expect this warning because the UpstreamAuthority doesn't implements PublishJWTKey
+	// We expect this warning because the UpstreamAuthority doesn't implement PublishJWTKey
 	assert.Equal(t,
 		1,
 		test.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support JWT-SVIDs. Workloads managed "+

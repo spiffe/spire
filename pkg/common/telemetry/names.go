@@ -269,10 +269,10 @@ const (
 	// ElapsedTime tags some duration of time.
 	ElapsedTime = "elapsed_time"
 
-	// EntryAdded is the counter key for when a entry is added to LRU cache
+	// EntryAdded is the counter key for when an entry is added to LRU cache
 	EntryAdded = "lru_cache_entry_add"
 
-	// EntryRemoved is the counter key for when a entry is removed from LRU cache
+	// EntryRemoved is the counter key for when an entry is removed from LRU cache
 	EntryRemoved = "lru_cache_entry_remove"
 
 	// EntryUpdated is the counter key for when an LRU cache entry is updated
@@ -463,7 +463,7 @@ const (
 	// RecordMapSize is the gauge key to hold the size of the LRU cache entries map
 	RecordMapSize = "lru_cache_record_map_size"
 
-	// Reconfigurable tags whether or not something is reconfigurable.
+	// Reconfigurable tags whether something is reconfigurable.
 	Reconfigurable = "reconfigurable"
 
 	// RefreshHint tags a bundle refresh hint
@@ -479,7 +479,7 @@ const (
 	// RegistrationEntry tags a registration entry
 	RegistrationEntry = "registration_entry"
 
-	// RegistrationEntryEvent is a notice a registration entry has been create, modified, or deleted
+	// RegistrationEntryEvent is a notice a registration entry has been created, modified, or deleted
 	RegistrationEntryEvent = "registration_entry_event"
 
 	// RequestID tags a request identifier
@@ -516,7 +516,7 @@ const (
 	// SelectorsRemoved labels some count of selectors that have been removed from an entity
 	SelectorsRemoved = "selectors_removed"
 
-	// SelfSigned tags whether or not some entity is self-signed
+	// SelfSigned tags whether some entity is self-signed
 	SelfSigned = "self_signed"
 
 	// SendJWTBundleLatency tags latency for sending JWT bundle

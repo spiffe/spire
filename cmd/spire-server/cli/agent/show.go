@@ -17,7 +17,7 @@ import (
 
 type showCommand struct {
 	env *commoncli.Env
-	// SPIFFE ID of the agent being showed
+	// SPIFFE ID of the agent being shown
 	spiffeID string
 	printer  cliprinter.Printer
 }
