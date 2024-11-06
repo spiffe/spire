@@ -39,15 +39,15 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 type Config struct {
 	SPIRETrustBundle  bool     `hcl:"spire_trust_bundle"`
-	SPIFFEPrefix      *string  `hcl:"spiffe_prefix"`
+	SVIDPrefix        *string  `hcl:"spiffe_prefix"`
 	CABundlePath      string   `hcl:"ca_bundle_path"`
 	CABundlePaths     []string `hcl:"ca_bundle_paths"`
 	AgentPathTemplate string   `hcl:"agent_path_template"`
 }
 
 type configuration struct {
-	SPIRETrustBundle bool
-	SPIFFEPrefix     string
+	spireTrustBundle bool
+	svidPrefix       string
 	trustDomain      spiffeid.TrustDomain
 	trustBundle      *x509.CertPool
 	pathTemplate     *agentpathtemplate.Template
@@ -84,6 +84,10 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		}
 	}
 
+	if hclConfig.SPIRETrustBundle && (hclConfig.CABundlePath != "" || len(hclConfig.CABundlePaths) > 0) {
+		status.ReportError("you can not use spire_trust_bundle along with either ca_bundle_path or ca_bundle_paths")
+	}
+
 	pathTemplate := x509pop.DefaultAgentPathTemplateCN
 	if hclConfig.SPIRETrustBundle {
 		pathTemplate = x509pop.DefaultAgentPathTemplateSVID
@@ -110,8 +114,8 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		trustDomain:      coreConfig.TrustDomain,
 		trustBundle:      util.NewCertPool(trustBundles...),
 		pathTemplate:     pathTemplate,
-		SPIRETrustBundle: hclConfig.SPIRETrustBundle,
-		SPIFFEPrefix:     SPIFFEPrefix,
+		spireTrustBundle: hclConfig.SPIRETrustBundle,
+		svidPrefix:       SVIDPrefix,
 	}
 
 	return newConfig
@@ -176,7 +180,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	trustBundle := config.trustBundle
-	if config.SPIRETrustBundle {
+	if config.spireTrustBundle {
 		trustBundle, err = p.getTrustBundle(stream.Context())
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to get trust bundle: %v", err)
@@ -228,20 +232,19 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-	SVIDPath := ""
-	if config.SPIRETrustBundle {
-		if len(leaf.URIs) >= 1 {
-			SVIDPath = leaf.URIs[0].EscapedPath()
-			if !strings.HasPrefix(SVIDPath, config.SPIFFEPrefix) {
-				return status.Errorf(codes.PermissionDenied, "x509 cert doesnt match SPIFFE prefix")
-			}
-			SVIDPath = strings.TrimPrefix(SVIDPath, config.SPIFFEPrefix)
-		} else {
+	svidPath := ""
+	if config.spireTrustBundle {
+		if len(leaf.URIs) == 0 {
 			return status.Errorf(codes.PermissionDenied, "valid SVID x509 cert not found")
 		}
+		svidPath = leaf.URIs[0].EscapedPath()
+		if !strings.HasPrefix(svidPath, config.SPIFFEPrefix) {
+			return status.Errorf(codes.PermissionDenied, "x509 cert doesnt match SPIFFE prefix")
+		}
+		svidPath = strings.TrimPrefix(svidPath, config.SPIFFEPrefix)
 	}
 
-	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf, SVIDPath)
+	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf, svidPath)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}

@@ -48,9 +48,9 @@ A sample configuration:
 ## SVID Prefix
 
 When spire_trust_bundle is used, the SPIFFE ID being exchanged must be prefixed by the specified svid_prefix. The prefix will be removed from the .SVIDPath before sending to the
-agent path template.
+agent path template. If set to "", all prefixes are allowed and you will want to do limiting logic in in the agent_path_template.
 
-For example, if your trust domain is example.com and svid_prefix = the default of /spire-exchange, and agent path template is the default,
+Example: if your trust domain is example.com and svid_prefix = the default of /spire-exchange, and agent path template is the default,
 
 spiffe://example.com/spire-exchange/testhost will render out to spiffe://example.com/spire/agent/x509pop/testhost
 
@@ -64,7 +64,7 @@ If using ca_bundle_path(s), the default is:
 "{{ .PluginName}}/{{ .Fingerprint }}"
 
 If using spire_trust_bundle, the default exchanges an SVID under `/spire-exchange/*` for `/spire/agent/x509pop/*`, via:
-"{{ .PluginName}}/{{ .SVIDPath }}"
+"{{ .PluginName}}/{{ .SVIDPathTrimmed }}"
 
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
 
@@ -77,4 +77,4 @@ Some useful values are:
 | .TrustDomain          | The configured trust domain                                                                  |
 | .Subject.CommonName   | The common name field of the agent's x509 certificate                                        |
 | .SerialNumberHex      | The serial number field of the agent's x509 certificate represented as lowercase hexadecimal |
-| .SVIDPath             | The SVID Path after removing the SVID Prefix                                                 |
+| .SVIDPathTrimmed      | The SVID Path after trimming off the SVID prefix                                             |
