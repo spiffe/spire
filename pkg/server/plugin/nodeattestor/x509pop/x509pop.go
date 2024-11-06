@@ -100,11 +100,11 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		pathTemplate = tmpl
 	}
 
-	var spiffePrefix string
+	var svidPrefix string
 	if hclConfig.SVIDPrefix == nil {
 		svidPrefix = "/spire-exchange/"
 	} else {
-		svidPrefix = *hclConfig.svidPrefix
+		svidPrefix = *hclConfig.SVIDPrefix
 		if !strings.HasSuffix(svidPrefix, "/") {
 			svidPrefix += "/"
 		}
@@ -238,10 +238,10 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 			return status.Errorf(codes.PermissionDenied, "valid SVID x509 cert not found")
 		}
 		svidPath = leaf.URIs[0].EscapedPath()
-		if !strings.HasPrefix(svidPath, config.SPIFFEPrefix) {
-			return status.Errorf(codes.PermissionDenied, "x509 cert doesnt match SPIFFE prefix")
+		if !strings.HasPrefix(svidPath, config.svidPrefix) {
+			return status.Errorf(codes.PermissionDenied, "x509 cert doesnt match SVID prefix")
 		}
-		svidPath = strings.TrimPrefix(svidPath, config.SPIFFEPrefix)
+		svidPath = strings.TrimPrefix(svidPath, config.svidPrefix)
 	}
 
 	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf, svidPath)
