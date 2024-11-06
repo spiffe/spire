@@ -17,11 +17,11 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 ```
 
 | Configuration         | Description                                                                                                                                                                                                                                    | Default                                 |
-|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
-| `spire_trust_bundle`     | If true, use the spire servers own trust bundle to use for validation.                                                                                                                                                                      |                                         |
-| `svid_prefix`            | The prefix of the SVID to use for matching valid SVIDS and exchanging them for Node SVIDs                                                                                                                                                    | /spire-exchange                         |
-| `ca_bundle_path`      | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. |                                         |
-| `ca_bundle_paths`     | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification.                                                                             |                                         |
+|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| `mode`                | If `spiffe`, use the spire servers own trust bundle to use for validation. If `external_pki`, use the specified CA(s).                                                                                                                         | external_pki                                                    |
+| `svid_prefix`            | The prefix of the SVID to use for matching valid SVIDS and exchanging them for Node SVIDs                                                                                                                                                   | /spire-exchange                                                 |
+| `ca_bundle_path`      | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. |                                                                 |
+| `ca_bundle_paths`     | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification.                                                                             |                                                                 |
 | `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                              | `See [Agent Path Template](#agent-path-template) for details`   |
 
 A sample configuration:
@@ -47,7 +47,7 @@ A sample configuration:
 
 ## SVID Path Prefix
 
-When spire_trust_bundle is used, the SPIFFE ID being exchanged must be prefixed by the specified svid_prefix. The prefix will be removed from the .SVIDPath before sending to the
+When mode="spiffe", the SPIFFE ID being exchanged must be prefixed by the specified svid_prefix. The prefix will be removed from the .SVIDPathTrimmed property before sending to the
 agent path template. If set to "", all prefixes are allowed and you will want to do limiting logic in in the agent_path_template.
 
 Example: if your trust domain is example.com and svid_prefix = the default of /spire-exchange, and agent path template is the default,

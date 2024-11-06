@@ -38,7 +38,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type Config struct {
-	SPIRETrustBundle  bool     `hcl:"spire_trust_bundle"`
+	Mode              string   `hcl:"mode"`
 	SVIDPrefix        *string  `hcl:"spiffe_prefix"`
 	CABundlePath      string   `hcl:"ca_bundle_path"`
 	CABundlePaths     []string `hcl:"ca_bundle_paths"`
@@ -46,7 +46,7 @@ type Config struct {
 }
 
 type configuration struct {
-	spireTrustBundle bool
+	mode             string
 	svidPrefix       string
 	trustDomain      spiffeid.TrustDomain
 	trustBundle      *x509.CertPool
@@ -60,8 +60,14 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
+	if hclConfig.Mode == "" {
+		hclConfig.Mode = "external_pki"
+	}
+	if hclConfig.Mode != "external_pki" && hclConfig.Mode != "spiffe" {
+		status.ReportError("mode can only be either spiffe or external_pki")
+	}
 	var trustBundles []*x509.Certificate
-	if !hclConfig.SPIRETrustBundle {
+	if hclConfig.Mode == "external_pki" {
 		var caPaths []string
 		if hclConfig.CABundlePath != "" && len(hclConfig.CABundlePaths) > 0 {
 			status.ReportError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
@@ -84,12 +90,12 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		}
 	}
 
-	if hclConfig.SPIRETrustBundle && (hclConfig.CABundlePath != "" || len(hclConfig.CABundlePaths) > 0) {
-		status.ReportError("you can not use spire_trust_bundle along with either ca_bundle_path or ca_bundle_paths")
+	if hclConfig.Mode == "spiffe" && (hclConfig.CABundlePath != "" || len(hclConfig.CABundlePaths) > 0) {
+		status.ReportError("you can not use ca_bundle_path or ca_bundle_paths in spiffe mode")
 	}
 
 	pathTemplate := x509pop.DefaultAgentPathTemplateCN
-	if hclConfig.SPIRETrustBundle {
+	if hclConfig.Mode == "spiffe" {
 		pathTemplate = x509pop.DefaultAgentPathTemplateSVID
 	}
 	if len(hclConfig.AgentPathTemplate) > 0 {
@@ -114,7 +120,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		trustDomain:      coreConfig.TrustDomain,
 		trustBundle:      util.NewCertPool(trustBundles...),
 		pathTemplate:     pathTemplate,
-		spireTrustBundle: hclConfig.SPIRETrustBundle,
+		mode:             hclConfig.Mode,
 		svidPrefix:       svidPrefix,
 	}
 
@@ -180,7 +186,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	trustBundle := config.trustBundle
-	if config.spireTrustBundle {
+	if config.mode == "spiffe" {
 		trustBundle, err = p.getTrustBundle(stream.Context())
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to get trust bundle: %v", err)
@@ -233,7 +239,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	svidPath := ""
-	if config.spireTrustBundle {
+	if config.mode == "spiffe" {
 		if len(leaf.URIs) == 0 {
 			return status.Errorf(codes.PermissionDenied, "valid SVID x509 cert not found")
 		}
