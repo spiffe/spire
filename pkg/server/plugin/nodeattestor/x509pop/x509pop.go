@@ -100,13 +100,13 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		pathTemplate = tmpl
 	}
 
-	var SPIFFEPrefix string
-	if hclConfig.SPIFFEPrefix == nil {
-		SPIFFEPrefix = "/spire-exchange/"
+	var spiffePrefix string
+	if hclConfig.SVIDPrefix == nil {
+		svidPrefix = "/spire-exchange/"
 	} else {
-		SPIFFEPrefix = *hclConfig.SPIFFEPrefix
-		if !strings.HasSuffix(SPIFFEPrefix, "/") {
-			SPIFFEPrefix += "/"
+		svidPrefix = *hclConfig.svidPrefix
+		if !strings.HasSuffix(svidPrefix, "/") {
+			svidPrefix += "/"
 		}
 	}
 
@@ -115,7 +115,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		trustBundle:      util.NewCertPool(trustBundles...),
 		pathTemplate:     pathTemplate,
 		spireTrustBundle: hclConfig.SPIRETrustBundle,
-		svidPrefix:       SVIDPrefix,
+		svidPrefix:       svidPrefix,
 	}
 
 	return newConfig
