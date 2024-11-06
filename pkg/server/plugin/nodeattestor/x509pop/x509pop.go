@@ -46,11 +46,11 @@ type Config struct {
 }
 
 type configuration struct {
-	mode             string
-	svidPrefix       string
-	trustDomain      spiffeid.TrustDomain
-	trustBundle      *x509.CertPool
-	pathTemplate     *agentpathtemplate.Template
+	mode         string
+	svidPrefix   string
+	trustDomain  spiffeid.TrustDomain
+	trustBundle  *x509.CertPool
+	pathTemplate *agentpathtemplate.Template
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -117,11 +117,11 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 
 	newConfig := &configuration{
-		trustDomain:      coreConfig.TrustDomain,
-		trustBundle:      util.NewCertPool(trustBundles...),
-		pathTemplate:     pathTemplate,
-		mode:             hclConfig.Mode,
-		svidPrefix:       svidPrefix,
+		trustDomain:  coreConfig.TrustDomain,
+		trustBundle:  util.NewCertPool(trustBundles...),
+		pathTemplate: pathTemplate,
+		mode:         hclConfig.Mode,
+		svidPrefix:   svidPrefix,
 	}
 
 	return newConfig
