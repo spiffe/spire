@@ -1009,9 +1009,14 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 // if the error is a gorm error type with a known mapping to a GRPC status,
 // that code will be set, otherwise the code will be set to Unknown.
 func (ds *Plugin) gormToGRPCStatus(err error) error {
-	unwrapped := errs.Unwrap(err)
-	if _, ok := status.FromError(unwrapped); ok {
-		return unwrapped
+	type grpcStatusError interface {
+		error
+		GRPCStatus() *status.Status
+	}
+
+	var statusError grpcStatusError
+	if errors.As(err, &statusError) {
+		return statusError
 	}
 
 	code := codes.Unknown
@@ -1019,6 +1024,7 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 		code = codes.InvalidArgument
 	}
 
+	unwrapped := errors.Unwrap(err)
 	switch {
 	case gorm.IsRecordNotFoundError(unwrapped):
 		code = codes.NotFound
