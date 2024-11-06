@@ -225,7 +225,7 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 		return nil, status.Errorf(codes.InvalidArgument, "no certificate authorities found with label pair %q:%q", rootSpec.LabelKey, rootSpec.LabelValue)
 	}
 
-	// We dont want to use revoked, disabled or pending deletion CAs
+	// We don't want to use revoked, disabled or pending deletion CAs
 	// In short, we only need CAs that are in enabled state
 	allCertRoots = filterOutNonEnabledCAs(allCertRoots)
 	// we want the CA that is expiring the earliest
@@ -239,7 +239,7 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 
 	chosenCA := allCertRoots[0]
 
-	// All of the CAs that are eligible for signing are still trusted
+	// All the CAs that are eligible for signing are still trusted
 	var trustBundle []*privatecapb.CertificateAuthority
 	if len(allCertRoots) > 1 {
 		trustBundle = append(trustBundle, allCertRoots[1:]...)
@@ -429,7 +429,7 @@ func (client *gcpCAClient) LoadCertificateAuthorities(ctx context.Context, spec 
 		certIt := client.pcaClient.ListCertificateAuthorities(ctx, &privatecapb.ListCertificateAuthoritiesRequest{
 			Parent: pool,
 			Filter: fmt.Sprintf("labels.%s:%s", spec.LabelKey, spec.LabelValue),
-			// There is "OrderBy" option but it seems to work only for the name field
+			// There is "OrderBy" option, but it seems to work only for the name field
 			// So we will have to sort it by expiry timestamp at our end
 		})
 

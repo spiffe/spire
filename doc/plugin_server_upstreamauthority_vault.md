@@ -22,7 +22,7 @@ The plugin accepts the following configuration options:
 The plugin supports **Client Certificate**, **Token** and **AppRole** authentication methods.
 
 - **Client Certificate** method authenticates to Vault using a TLS client certificate.
-- **Token** method authenticates to Vault using the token in a HTTP Request header.
+- **Token** method authenticates to Vault using the token in an HTTP Request header.
 - **AppRole** method authenticates to Vault using a RoleID and SecretID that are issued from Vault.
 
 The [`ca_ttl` SPIRE Server configurable](https://github.com/spiffe/spire/blob/main/doc/spire_server.md#server-configuration-file) should be less than or equal to the Vault's PKI secret engine TTL.

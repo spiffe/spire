@@ -98,7 +98,7 @@ func Unload() error {
 	return nil
 }
 
-// IsSet can be used to determine whether or not a particular feature flag is
+// IsSet can be used to determine whether a particular feature flag is
 // set.
 func IsSet(f Flag) bool {
 	singleton.mtx.RLock()

@@ -350,7 +350,7 @@ type RegistrationEntry struct {
 	FederatesWith []string `protobuf:"bytes,5,rep,name=federates_with,json=federatesWith,proto3" json:"federates_with,omitempty"`
 	// * Entry ID
 	EntryId string `protobuf:"bytes,6,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
-	// * Whether or not the workload is an admin workload. Admin workloads
+	// * whether the workload is an admin workload. Admin workloads
 	// can use their SVID's to authenticate with the Server APIs, for
 	// example.
 	Admin bool `protobuf:"varint,7,opt,name=admin,proto3" json:"admin,omitempty"`
@@ -763,7 +763,7 @@ type PublicKey struct {
 	Kid string `protobuf:"bytes,2,opt,name=kid,proto3" json:"kid,omitempty"`
 	// * not after (seconds since unix epoch, 0 means "never expires")
 	NotAfter int64 `protobuf:"varint,3,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
-	// * Whether or not the key is tainted
+	// * whether the key is tainted
 	TaintedKey bool `protobuf:"varint,4,opt,name=tainted_key,json=taintedKey,proto3" json:"tainted_key,omitempty"`
 }
 

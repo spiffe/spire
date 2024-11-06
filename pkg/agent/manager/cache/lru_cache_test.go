@@ -316,7 +316,7 @@ func TestLRUCacheSubscriberIsNotNotifiedIfNothingChanges(t *testing.T) {
 	assertAnyWorkloadUpdate(t, sub)
 
 	// Second update is the same (other than X509SVIDs, which, when set,
-	// always constitute a "change" for the impacted registration entries.
+	// always constitute a "change" for the impacted registration entries).
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(foo),
@@ -560,7 +560,7 @@ func TestLRUCacheGetStaleEntries(t *testing.T) {
 	bar := makeRegistrationEntryWithTTL("BAR", 130, 140, "B")
 
 	// Create entry but don't mark it stale from checkSVID method;
-	// it will be marked stale cause it does not have SVID cached
+	// it will be marked stale because it does not have SVID cached
 	cache.UpdateEntries(&UpdateEntries{
 		Bundles:             makeBundles(bundleV2),
 		RegistrationEntries: makeRegistrationEntries(bar),
@@ -1143,7 +1143,7 @@ func TestTaintX509SVIDsNoSVIDs(t *testing.T) {
 		Bundles:             makeBundles(bundleV1),
 		RegistrationEntries: makeRegistrationEntries(entries...),
 	}
-	// All entries has no chain...
+	// All entries have no chain...
 	cache.svids = makeX509SVIDs(entries...)
 
 	// Add entries to cache

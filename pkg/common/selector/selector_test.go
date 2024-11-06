@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestValiate(t *testing.T) {
+func TestValidate(t *testing.T) {
 	tests := []struct {
 		name         string
 		selectorType string
