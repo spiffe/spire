@@ -3,7 +3,7 @@
 ## Description
 
 This suite validates that we can run both spire agent and spire server natively on Windows OS, asserting that spire components
-can run as a [windows service application](https://learn.microsoft.com/en-us/dotnet/framework/windows-services/introduction-to-windows-service-applications#service-applications-vs-other-visual-studio-applications),
+can run as a [Windows service application](https://learn.microsoft.com/en-us/dotnet/framework/windows-services/introduction-to-windows-service-applications#service-applications-vs-other-visual-studio-applications),
 and perform [service state transitions](https://learn.microsoft.com/en-us/windows/win32/services/service-status-transitions).
 
 The suite steps are structured as follows:

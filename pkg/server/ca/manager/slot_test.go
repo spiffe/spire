@@ -580,7 +580,7 @@ func TestJournalLoad(t *testing.T) {
 			name: "There are another entries before Active entry",
 			entries: &journal.Entries{
 				X509CAs: []*journal.X509CAEntry{
-					// This can happens when force rotation is executed
+					// This can happen when force rotation is executed
 					{
 						SlotId:      "A",
 						IssuedAt:    firstIssuedAtUnix,
@@ -604,7 +604,7 @@ func TestJournalLoad(t *testing.T) {
 					},
 				},
 				JwtKeys: []*journal.JWTKeyEntry{
-					// This can happens when force rotation is executed
+					// This can happen when force rotation is executed
 					{
 						SlotId:      "A",
 						IssuedAt:    firstIssuedAtUnix,

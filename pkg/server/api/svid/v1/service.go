@@ -449,7 +449,7 @@ func (s Service) fieldsFromJWTSvidParams(ctx context.Context, protoID *types.SPI
 		telemetry.TTL: ttl,
 	}
 	if protoID != nil {
-		// Dont care about parsing error
+		// Don't care about parsing error
 		id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
 		if err == nil {
 			fields[telemetry.SPIFFEID] = id.String()

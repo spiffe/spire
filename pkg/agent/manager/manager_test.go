@@ -1405,7 +1405,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	// ensure 2 SVIDs corresponding to selectors are cached.
 	assert.Equal(t, 2, m.cache.CountX509SVIDs())
 
-	// cancel the ctx to stop go routines
+	// cancel the ctx to stop Go routines
 	cancel()
 
 	syncErr := <-syncErrCh

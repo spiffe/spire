@@ -55,7 +55,7 @@ var (
 	}
 
 	defaultPartition = "aws"
-	// No constant was found in the sdk, using the list of paritions defined on
+	// No constant was found in the sdk, using the list of partitions defined on
 	// the page https://docs.aws.amazon.com/IAM/latest/UserGuide/reference-arns.html
 	partitions = []string{
 		defaultPartition,
@@ -256,7 +256,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	// e.g. do it after the call to `p.AssessTOFU`, however, we may need
 	// the instance to construct tags used in the agent ID.
 	//
-	// This overhead will only effect agents attempting to re-attest which
+	// This overhead will only affect agents attempting to re-attest which
 	// should be a very small portion of the overall server workload. This
 	// is a potential DoS vector.
 	shouldCheckBlockDevice := !inTrustAcctList && !c.SkipBlockDevice

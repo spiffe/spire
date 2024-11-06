@@ -75,7 +75,7 @@ message RegistrationEntry {
     repeated string federates_with = 5;
     /** Entry ID */
     string entry_id = 6;
-    /** Whether or not the workload is an admin workload. Admin workloads
+    /** whether the workload is an admin workload. Admin workloads
     can use their SVID's to authenticate with the Server APIs, for
     example. */
     bool admin = 7;
@@ -139,7 +139,7 @@ message PublicKey {
     /** not after (seconds since unix epoch, 0 means "never expires") */
     int64 not_after = 3;
 
-    /** Whether or not the key is tainted */
+    /** whether the key is tainted */
     bool tainted_key = 4;
 }
 
