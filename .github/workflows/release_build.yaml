@@ -486,12 +486,8 @@ jobs:
       - name: Download archived artifacts
         uses: actions/download-artifact@v4
         with:
-          name: binaries
-          path: ./artifacts/
-      - name: Download archived artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: binaries-windows
+          pattern: binaries*
+          merge-multiple: true
           path: ./artifacts/
       - name: Create Release
         env:
