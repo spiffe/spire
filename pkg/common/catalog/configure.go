@@ -21,6 +21,12 @@ type CoreConfig struct {
 	TrustDomain spiffeid.TrustDomain
 }
 
+func (c CoreConfig) v1() *configv1.CoreConfiguration {
+	return &configv1.CoreConfiguration{
+		TrustDomain: c.TrustDomain.Name(),
+	}
+}
+
 type Configurer interface {
 	Configure(ctx context.Context, coreConfig CoreConfig, configuration string) error
 	Validate(ctx context.Context, coreConfig CoreConfig, configuration string) (*validateResult, error)
@@ -213,7 +219,7 @@ func (v1 *configurerV1) InitInfo(PluginInfo) {
 
 func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) error {
 	_, err := v1.ConfigServiceClient.Configure(ctx, &configv1.ConfigureRequest{
-		CoreConfiguration: coreConfig.V1(),
+		CoreConfiguration: coreConfig.v1(),
 		HclConfiguration:  hclConfiguration,
 	})
 	return err
@@ -221,7 +227,7 @@ func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, hc
 
 func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) (*validateResult, error) {
 	response, err := v1.ConfigServiceClient.Validate(ctx, &configv1.ValidateRequest{
-		CoreConfiguration: coreConfig.V1(),
+		CoreConfiguration: coreConfig.v1(),
 		HclConfiguration:  hclConfiguration,
 	})
 	if err != nil {
