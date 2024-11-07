@@ -515,7 +515,7 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 		}
 
 		// Sort the requested IDs for efficient lookups into the sorted entry
-		// list. Agents SHOULD already send the list sorted but we need to
+		// list. Agents SHOULD already send the list sorted, but we need to
 		// make sure they are sorted for correctness of the search loop below.
 		// The go stdlib sorting algorithm performs well on pre-sorted data.
 		slices.Sort(req.Ids)

@@ -289,7 +289,7 @@ func (b *Builder) BuildWorkloadX509SVIDTemplate(ctx context.Context, params Work
 	// The first DNS name is also added as the CN by default. This happens
 	// even if the subject is provided explicitly in the params for backwards
 	// compatibility. Ideally we wouldn't do override the subject in this
-	// case. It is still overridable via the credential composers however.
+	// case. It is still overridable via the credential composers, however.
 	if len(params.DNSNames) > 0 {
 		tmpl.Subject.CommonName = params.DNSNames[0]
 		tmpl.DNSNames = params.DNSNames

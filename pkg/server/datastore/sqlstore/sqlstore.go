@@ -1009,9 +1009,14 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 // if the error is a gorm error type with a known mapping to a GRPC status,
 // that code will be set, otherwise the code will be set to Unknown.
 func (ds *Plugin) gormToGRPCStatus(err error) error {
-	unwrapped := errs.Unwrap(err)
-	if _, ok := status.FromError(unwrapped); ok {
-		return unwrapped
+	type grpcStatusError interface {
+		error
+		GRPCStatus() *status.Status
+	}
+
+	var statusError grpcStatusError
+	if errors.As(err, &statusError) {
+		return statusError
 	}
 
 	code := codes.Unknown
@@ -1019,6 +1024,7 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 		code = codes.InvalidArgument
 	}
 
+	unwrapped := errors.Unwrap(err)
 	switch {
 	case gorm.IsRecordNotFoundError(unwrapped):
 		code = codes.NotFound
@@ -2299,7 +2305,7 @@ func setNodeSelectors(tx *gorm.DB, spiffeID string, selectors []*common.Selector
 	// deadlocks when SetNodeSelectors was being called concurrently. Changing
 	// the transaction isolation level fixed the deadlocks but only when there
 	// were no existing rows; the deadlocks still occurred when existing rows
-	// existed (i.e. re-attestation). Instead, gather all of the IDs to be
+	// existed (i.e. re-attestation). Instead, gather all the IDs to be
 	// deleted and delete them from separate queries, which does not trigger
 	// gap locks on the index.
 	var ids []int64
@@ -4610,7 +4616,7 @@ func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
 		return nil, err
 	}
 
-	// make sure all of the ids were found
+	// make sure all the ids were found
 	idset := make(map[string]bool)
 	for _, bundle := range bundles {
 		idset[bundle.TrustDomain] = true

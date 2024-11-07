@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
 	ds_pubmanager "github.com/spiffe/spire/pkg/server/bundle/datastore"
@@ -74,6 +75,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		telemetry.AdminIDs:       s.config.AdminIDs,
 		telemetry.DataDir:        s.config.DataDir,
 		telemetry.LaunchLogLevel: s.config.Log.GetLevel(),
+		telemetry.Version:        version.Version(),
 	}).Info("Configured")
 
 	// create the data directory if needed
