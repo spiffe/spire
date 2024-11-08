@@ -40,35 +40,15 @@ func (ds *DataStore) CountRegistrationEntries(ctx context.Context, req *datastor
 }
 
 func (ds *DataStore) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	if err := validateRegistrationEntry(entry); err != nil {
-		return nil, err
-	}
-
-	return ds.createRegistrationEntry(ctx, entry)
-}
-
-func (ds *DataStore) createRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	entryID, err := createOrReturnEntryID(entry)
-	if err != nil {
-		return nil, err
-	}
-
-	entry.EntryId = entryID
-
-	if err := ds.entries.Create(ctx, entryObject{Entry: entry}); err != nil {
-		return nil, dsErr(err, "failed to create entry")
-	}
-
-	if err = ds.createRegistrationEntryEvent(ctx, &datastore.RegistrationEntryEvent{
-		EntryID: entry.EntryId,
-	}); err != nil {
-		return nil, err
-	}
-
-	return entry, nil
+	out, _, err := ds.createOrReturnRegistrationEntry(ctx, entry)
+	return out, err
 }
 
 func (ds *DataStore) CreateOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
+	return ds.createOrReturnRegistrationEntry(ctx, entry)
+}
+
+func (ds *DataStore) createOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
 	if err := validateRegistrationEntry(entry); err != nil {
 		return nil, false, err
 	}
@@ -81,18 +61,34 @@ func (ds *DataStore) CreateOrReturnRegistrationEntry(ctx context.Context, entry 
 				Match:     datastore.Exact,
 				Selectors: entry.Selectors,
 			},
+			Pagination: &datastore.Pagination{
+				PageSize: int32(1),
+			},
 		},
 	})
 
-	if err != nil && len(records) > 0 {
+	if len(records) > 0 {
 		return records[0].Object.Entry, true, nil
 	}
 
-	newEntry, err := ds.createRegistrationEntry(ctx, entry)
+	entryID, err := createOrReturnEntryID(entry)
 	if err != nil {
 		return nil, false, err
 	}
-	return newEntry, false, err
+
+	entry.EntryId = entryID
+
+	if err := ds.entries.Create(ctx, entryObject{Entry: entry}); err != nil {
+		return nil, false, dsErr(err, "failed to create entry")
+	}
+
+	if err = ds.createRegistrationEntryEvent(ctx, &datastore.RegistrationEntryEvent{
+		EntryID: entry.EntryId,
+	}); err != nil {
+		return nil, false, err
+	}
+
+	return entry, false, nil
 }
 
 func (ds *DataStore) DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
@@ -137,10 +133,12 @@ func (ds *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore
 	resp := &datastore.ListRegistrationEntriesResponse{
 		Pagination: newPagination(req.Pagination, cursor),
 	}
+
 	resp.Entries = make([]*common.RegistrationEntry, 0, len(records))
 	for _, record := range records {
 		resp.Entries = append(resp.Entries, record.Object.Entry)
 	}
+
 	return resp, nil
 }
 

@@ -2,8 +2,8 @@ package record
 
 import (
 	"context"
+	"fmt"
 	"sync"
-	//"fmt"
 
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/keyvalue"
 )
@@ -33,6 +33,7 @@ func (c *Cache[C, I, O, L]) Kind() string {
 }
 
 func (c *Cache[C, I, O, L]) Count() int {
+	fmt.Printf("Count for %s not implemented\n", c.Kind)
 	//return len(c.List)
 	// TO-DO
 	return 1
@@ -81,6 +82,11 @@ func (c *Cache[C, I, O, L]) List(ctx context.Context, opts L) ([]*Record[O], str
 		}
 
 		rs = append(rs, r)
+	}
+
+	if filters.Limit > 0 && len(rs) > filters.Limit {
+		rs = rs[:filters.Limit]
+		nextCursor = rs[len(rs)-1].Object.Key()
 	}
 
 	return rs, nextCursor, nil

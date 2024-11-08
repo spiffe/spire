@@ -217,7 +217,7 @@ func (s *Store) Get(ctx context.Context, kind string, key string) (keyvalue.Reco
 	return record, nil
 }
 
-func (s *Store) Create(ctx context.Context, kind string, key string, value interface{}, byteValue []byte) error {
+func (s *Store) Create(ctx context.Context, kind string, key string, object interface{}, byteValue []byte) error {
 	//fmt.Printf("Dynamo Create %s %s\n", kind, key)
 
 	now := s.now().UTC()
@@ -228,7 +228,7 @@ func (s *Store) Create(ctx context.Context, kind string, key string, value inter
 			UpdatedAt: now,
 			Revision:  1,
 		},
-		Value:     value,
+		Object:    object,
 		ByteValue: byteValue,
 	}
 	record.Key = key
@@ -277,7 +277,7 @@ func (s *Store) Update(ctx context.Context, kind string, key string, value inter
 		"Kind": &types.AttributeValueMemberS{Value: kind},
 	}
 
-	updateExpr := expression.Set(expression.Name("Value"), expression.Value(value)).
+	updateExpr := expression.Set(expression.Name("Object"), expression.Value(value)).
 		Set(expression.Name("ByteValue"), expression.Value(byteValue)).
 		Set(expression.Name("UpdatedAt"), expression.Value(s.now().UTC())).
 		Add(expression.Name("Revision"), expression.Value(1))
@@ -321,7 +321,7 @@ func (s *Store) Replace(ctx context.Context, kind string, key string, value inte
 		"Kind": &types.AttributeValueMemberS{Value: kind},
 	}
 
-	updateExpr := expression.Set(expression.Name("Value"), expression.Value(value)).
+	updateExpr := expression.Set(expression.Name("Object"), expression.Value(value)).
 		Set(expression.Name("ByteValue"), expression.Value(byteValue)).
 		Set(expression.Name("UpdatedAt"), expression.Value(s.now().UTC())).
 		Add(expression.Name("Revision"), expression.Value(1))
@@ -434,7 +434,6 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 	var projection []string //TO-DO
 	var nextCursor string
 
-	//fmt.Printf("%s %+v ", kind, listObject)
 	keyCondition := expression.Key("Kind").Equal(expression.Value(kind))
 	filterExpression := expression.ConditionBuilder{}
 
@@ -443,23 +442,20 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 		var exp expression.ConditionBuilder
 
 		switch filter.Op {
-
 		case keyvalue.EqualTo:
 			exp = field.Equal(expression.Value(filter.Value))
 		case keyvalue.LessThan:
 			exp = field.LessThan(expression.Value(filter.Value))
 		case keyvalue.GreaterThan:
 			exp = field.GreaterThan(expression.Value(filter.Value))
-
 		case keyvalue.MatchAny:
 			switch values := filter.Value.(type) {
 			case []*common.Selector:
 				exp = listMatchAny[*common.Selector](field, values)
 			case []string:
 				exp = listMatchAny[string](field, values)
-
 			default:
-				return nil, "", fmt.Errorf("unknow value type for filter")
+				return nil, "", fmt.Errorf("unknown value type for filter")
 			}
 		case keyvalue.MatchExact:
 			switch values := filter.Value.(type) {
@@ -467,9 +463,8 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 				exp = listMatchExact[*common.Selector](field, values)
 			case []string:
 				exp = listMatchExact[string](field, values)
-
 			default:
-				return nil, "", fmt.Errorf("unknow value type for filter")
+				return nil, "", fmt.Errorf("unknown value type for filter")
 			}
 		case keyvalue.MatchSuperset:
 			switch values := filter.Value.(type) {
@@ -477,12 +472,15 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 				exp = listMatchSuperset[*common.Selector](field, values)
 			case []string:
 				exp = listMatchSuperset[string](field, values)
-
 			default:
-				return nil, "", fmt.Errorf("unknow value type for filter")
+				return nil, "", fmt.Errorf("unknown value type for filter")
 			}
-		case keyvalue.MatchSubset: //TO-DO
-			exp = expression.Contains(field, filter.Value.(string))
+		case keyvalue.MatchSubset:
+			if value, ok := filter.Value.(string); ok {
+				exp = expression.Contains(field, value)
+			} else {
+				return nil, "", fmt.Errorf("invalid value type for MatchSubset filter")
+			}
 		}
 
 		if idx == 0 {
@@ -516,7 +514,7 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 		ExpressionAttributeNames:  expr.Names(),
 		ExpressionAttributeValues: expr.Values(),
 		KeyConditionExpression:    expr.KeyCondition(),
-		//ProjectionExpression:      expr.Projection(),
+		ProjectionExpression:      expr.Projection(),
 	}
 
 	if len(listObject.Filters) != 0 {
@@ -529,14 +527,17 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 		}
 	}
 
+	var limit int
 	if listObject != nil && listObject.Limit > 0 {
-		limit := int32(listObject.Limit)
-		input.Limit = &limit
+		limit = listObject.Limit
+
+		input.Limit = new(int32)
+		*input.Limit = int32(listObject.Limit)
 	}
 
 	queryPaginator := dynamodb.NewQueryPaginator(s.awsTable.DynamoDbClient, input)
 
-	for queryPaginator.HasMorePages() {
+	for queryPaginator.HasMorePages() && (limit <= 0 || len(results) < limit) {
 		page, err := queryPaginator.NextPage(ctx)
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to fetch records: %w", err)
@@ -551,11 +552,10 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 
 		if page.LastEvaluatedKey != nil {
 			nextCursor = page.LastEvaluatedKey["Key"].(*types.AttributeValueMemberS).Value
-			break
+		} else {
+			nextCursor = ""
 		}
 	}
-
-	//fmt.Printf("%+v\n", results)
 
 	return results, nextCursor, nil
 }

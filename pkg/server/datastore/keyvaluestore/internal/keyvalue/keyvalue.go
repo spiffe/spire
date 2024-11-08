@@ -47,7 +47,7 @@ type Record struct {
 	Metadata
 	Kind      string
 	Key       string
-	Value     interface{}
+	Object    interface{}
 	ByteValue []byte
 }
 

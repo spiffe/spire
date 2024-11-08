@@ -163,7 +163,7 @@ type nodeEventIndex struct {
 
 func (idx *nodeEventIndex) SetUp() {
 	idx.eventID.SetQuerry("Object.NodeEvent.EventID")
-	idx.createdAt.SetQuerry("Metadata.CreatedAt")
+	idx.createdAt.SetQuerry("CreatedAt")
 }
 
 func (idx *nodeEventIndex) List(req *listAttestedNodeEventsRequest) (*keyvalue.ListObject, error) {
