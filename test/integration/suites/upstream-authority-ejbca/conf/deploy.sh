@@ -15,8 +15,8 @@ EJBCA_SUB_CA_NAME="Sub-CA"
 
 # Verify that required tools are installed
 verifySupported() {
-    HAS_HELM="$(type "helm" &>/dev/null && echo true || echo false)"
-    HAS_KUBECTL="$(type "kubectl" &>/dev/null && echo true || echo false)"
+    HAS_HELM="$(type "../bin/helm" &>/dev/null && echo true || echo false)"
+    HAS_KUBECTL="$(type "../bin/kubectl" &>/dev/null && echo true || echo false)"
     HAS_JQ="$(type "jq" &>/dev/null && echo true || echo false)"
     HAS_CURL="$(type "curl" &>/dev/null && echo true || echo false)"
     HAS_OPENSSL="$(type "openssl" &>/dev/null && echo true || echo false)"
@@ -56,9 +56,9 @@ createConfigmapFromFile() {
     local configmap_name=$2
     local filepath=$3
 
-    if [ $(kubectl get configmap -n "$cluster_namespace" -o json | jq -c ".items | any(.[] | .metadata; .name == \"$configmap_name\")") == "false" ]; then
+    if [ $(../bin/kubectl get configmap -n "$cluster_namespace" -o json | jq -c ".items | any(.[] | .metadata; .name == \"$configmap_name\")") == "false" ]; then
         echo "Creating "$configmap_name" configmap"
-        kubectl create configmap -n "$cluster_namespace" "$configmap_name" --from-file="$filepath"
+        ../bin/kubectl create configmap -n "$cluster_namespace" "$configmap_name" --from-file="$filepath"
     else
         echo "$configmap_name exists"
     fi
@@ -67,22 +67,22 @@ createConfigmapFromFile() {
 # Figure out if the cluster is already initialized for EJBCA
 isEjbcaAlreadyDeployed() {
     deployed=false
-    if [ ! "$(kubectl --namespace "$EJBCA_NAMESPACE" get pods -l app.kubernetes.io/name=ejbca -o json | jq '.items[] | select(.metadata.labels."app.kubernetes.io/name" == "ejbca") | .metadata.name' | tr -d '"')" != "" ]; then
+    if [ ! "$(../bin/kubectl --namespace "$EJBCA_NAMESPACE" get pods -l app.kubernetes.io/name=ejbca -o json | jq '.items[] | select(.metadata.labels."app.kubernetes.io/name" == "ejbca") | .metadata.name' | tr -d '"')" != "" ]; then
         echo "EJBCA is not deployed - EJBCA pod is not present"
         return 1
     fi
     
-    if [[ ! $(kubectl get secret --namespace "$EJBCA_NAMESPACE" -o json | jq --arg "name" "$EJBCA_SUPERADMIN_SECRET_NAME" -e '.items[] | select(.metadata.name == $name)') ]]; then
+    if [[ ! $(../bin/kubectl get secret --namespace "$EJBCA_NAMESPACE" -o json | jq --arg "name" "$EJBCA_SUPERADMIN_SECRET_NAME" -e '.items[] | select(.metadata.name == $name)') ]]; then
         echo "EJBCA is not deployed - SuperAdmin secret is not present"
         return 1
     fi
 
-    if [[ ! $(kubectl get secret --namespace "$EJBCA_NAMESPACE" -o json | jq --arg "name" "$EJBCA_SUPERADMIN_SECRET_NAME" -e '.items[] | select(.metadata.name == $name)') ]]; then
+    if [[ ! $(../bin/kubectl get secret --namespace "$EJBCA_NAMESPACE" -o json | jq --arg "name" "$EJBCA_SUPERADMIN_SECRET_NAME" -e '.items[] | select(.metadata.name == $name)') ]]; then
         echo "EJBCA is not deployed - ManagementCA secret is not present"
         return 1
     fi
 
-    if [[ ! $(kubectl get secret --namespace "$EJBCA_NAMESPACE" -o json | jq --arg "name" "$EJBCA_SUPERADMIN_SECRET_NAME" -e '.items[] | select(.metadata.name == $name)') ]]; then
+    if [[ ! $(../bin/kubectl get secret --namespace "$EJBCA_NAMESPACE" -o json | jq --arg "name" "$EJBCA_SUPERADMIN_SECRET_NAME" -e '.items[] | select(.metadata.name == $name)') ]]; then
         echo "EJBCA is not deployed - SubCA secret is not present"
         return 1
     fi
@@ -91,7 +91,7 @@ isEjbcaAlreadyDeployed() {
 }
 
 certificate_exists() {
-    if [[ $(kubectl get certificate -o json | jq -r '.items.[] | select(.metadata.name == "ejbca-certificate")') == "" ]]; then
+    if [[ $(../bin/kubectl get certificate -o json | jq -r '.items.[] | select(.metadata.name == "ejbca-certificate")') == "" ]]; then
         return 1
     else
         return 0
@@ -106,7 +106,7 @@ waitForEJBCANode() {
     local ejbca_pod_name=$2
 
     echo "Waiting for EJBCA node to be ready"
-    until ! kubectl -n "$cluster_namespace" exec "$ejbca_pod_name" -- /opt/keyfactor/bin/ejbca.sh 2>&1 | grep -q "could not contact EJBCA"; do
+    until ! ../bin/kubectl -n "$cluster_namespace" exec "$ejbca_pod_name" -- /opt/keyfactor/bin/ejbca.sh 2>&1 | grep -q "could not contact EJBCA"; do
         echo "EJBCA node not ready yet, retrying in 5 seconds..."
         sleep 5
     done
@@ -121,8 +121,8 @@ configmapNameFromFilename() {
 # Initialize the cluster for EJBCA
 initClusterForEJBCA() {
     # Create the EJBCA namespace if it doesn't already exist
-    if [ "$(kubectl get namespace -o json | jq -e '.items[] | select(.metadata.name == "'"$EJBCA_NAMESPACE"'") | .metadata.name')" == "" ]; then
-        kubectl create namespace "$EJBCA_NAMESPACE"
+    if [ "$(../bin/kubectl get namespace -o json | jq -e '.items[] | select(.metadata.name == "'"$EJBCA_NAMESPACE"'") | .metadata.name')" == "" ]; then
+        ../bin/kubectl create namespace "$EJBCA_NAMESPACE"
     fi
 
     # Mount the staged EEPs & CPs to Kubernetes with ConfigMaps
@@ -139,7 +139,7 @@ initClusterForEJBCA() {
 cleanupEJBCAConfigMaps() {
     for file in $(find ./ejbca/staging -maxdepth 1 -mindepth 1); do
         configMapName="$(configmapNameFromFilename "$file")"
-        kubectl delete configmap --namespace "$EJBCA_NAMESPACE" "$configMapName"
+        ../bin/kubectl delete configmap --namespace "$EJBCA_NAMESPACE" "$configMapName"
     done
 }
 
@@ -202,24 +202,24 @@ initEJBCADatabase() {
         helm_install_args+=("--set" "ejbca.image.pullSecrets[0].name=$IMAGE_PULL_SECRET_NAME")
     fi
 
-    if ! helm "${helm_install_args[@]}" ; then
+    if ! ../bin/helm "${helm_install_args[@]}" ; then
         echo "Failed to install EJBCA"
-        kubectl delete namespace "$EJBCA_NAMESPACE"
+        ../bin/kubectl delete namespace "$EJBCA_NAMESPACE"
         exit 1
     fi
 
     # Wait for the EJBCA Pod to be ready
     echo "Waiting for EJBCA Pod to be ready"
-    kubectl --namespace "$EJBCA_NAMESPACE" wait --for=condition=Available deployment -l app.kubernetes.io/name=ejbca --timeout=300s
-    kubectl --namespace "$EJBCA_NAMESPACE" wait --for=condition=Ready pod -l app.kubernetes.io/name=ejbca --timeout=300s
+    ../bin/kubectl --namespace "$EJBCA_NAMESPACE" wait --for=condition=Available deployment -l app.kubernetes.io/name=ejbca --timeout=300s
+    ../bin/kubectl --namespace "$EJBCA_NAMESPACE" wait --for=condition=Ready pod -l app.kubernetes.io/name=ejbca --timeout=300s
 
     # Get the name of the EJBCA Pod
     local ejbca_pod_name
-    ejbca_pod_name=$(kubectl --namespace "$EJBCA_NAMESPACE" get pods -l app.kubernetes.io/name=ejbca -o json | jq '.items[] | select(.metadata.labels."app.kubernetes.io/name" == "ejbca") | .metadata.name' | tr -d '"')
+    ejbca_pod_name=$(../bin/kubectl --namespace "$EJBCA_NAMESPACE" get pods -l app.kubernetes.io/name=ejbca -o json | jq '.items[] | select(.metadata.labels."app.kubernetes.io/name" == "ejbca") | .metadata.name' | tr -d '"')
 
     if [ "$ejbca_pod_name" == "" ]; then
         echo "Failed to get the name of the EJBCA Pod"
-        kubectl delete ns "$EJBCA_NAMESPACE"
+        ../bin/kubectl delete ns "$EJBCA_NAMESPACE"
         exit 1
     fi
 
@@ -231,14 +231,14 @@ initEJBCADatabase() {
         --namespace "$EJBCA_NAMESPACE" exec "$ejbca_pod_name" --
         bash -c 'cp /tmp/ejbca-init.sh /opt/keyfactor/bin/ejbca-init.sh && chmod +x /opt/keyfactor/bin/ejbca-init.sh && /opt/keyfactor/bin/ejbca-init.sh'
     )
-    if ! kubectl "${args[@]}" ; then
+    if ! ../bin/kubectl "${args[@]}" ; then
         echo "Failed to execute the EJBCA init script"
-        kubectl delete ns "$EJBCA_NAMESPACE"
+        ../bin/kubectl delete ns "$EJBCA_NAMESPACE"
         exit 1
     fi
 
     # Uninstall the EJBCA helm chart - database is peristent
-    helm --namespace "$EJBCA_NAMESPACE" uninstall ejbca-test
+    ../bin/helm --namespace "$EJBCA_NAMESPACE" uninstall ejbca-test
     cleanupEJBCAConfigMaps
 }
 
@@ -262,7 +262,7 @@ deployEJBCA() {
         helm_install_args+=("--set" "ejbca.image.pullSecrets[0].name=$IMAGE_PULL_SECRET_NAME")
     fi
 
-    if ! helm "${helm_install_args[@]}" ; then
+    if ! ../bin/helm "${helm_install_args[@]}" ; then
         echo "Failed to install EJBCA"
         exit 1
     fi
@@ -271,11 +271,11 @@ deployEJBCA() {
     
     # Wait for the EJBCA Pod to be ready
     echo "Waiting for EJBCA Pod to be ready"
-    kubectl --namespace "$EJBCA_NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/instance=ejbca-test --timeout=300s
+    ../bin/kubectl --namespace "$EJBCA_NAMESPACE" wait --for=condition=ready pod -l app.kubernetes.io/instance=ejbca-test --timeout=300s
 
     # Get the name of the EJBCA Pod
     local ejbca_pod_name
-    ejbca_pod_name=$(kubectl --namespace "$EJBCA_NAMESPACE" get pods -l app.kubernetes.io/name=ejbca -o json | jq '.items[] | select(.metadata.labels."app.kubernetes.io/name" == "ejbca") | .metadata.name' | tr -d '"')
+    ejbca_pod_name=$(../bin/kubectl --namespace "$EJBCA_NAMESPACE" get pods -l app.kubernetes.io/name=ejbca -o json | jq '.items[] | select(.metadata.labels."app.kubernetes.io/name" == "ejbca") | .metadata.name' | tr -d '"')
 
     # Wait for the EJBCA node to be ready
     waitForEJBCANode "$EJBCA_NAMESPACE" "$ejbca_pod_name"
@@ -289,9 +289,9 @@ uninstallEJBCA() {
         return 1
     fi
 
-    helm --namespace "$EJBCA_NAMESPACE" uninstall ejbca-test
+    ../bin/helm --namespace "$EJBCA_NAMESPACE" uninstall ejbca-test
 
-    kubectl delete namespace "$EJBCA_NAMESPACE"
+    ../bin/kubectl delete namespace "$EJBCA_NAMESPACE"
 }
 
 ###############################################
@@ -301,7 +301,7 @@ uninstallEJBCA() {
 mariadbPvcExists() {
     local namespace=$1
 
-    if [ "$(kubectl --namespace "$namespace" get pvc -l app.kubernetes.io/name=mariadb -o json | jq '.items[] | select(.metadata.labels."app.kubernetes.io/name" == "mariadb") | .metadata.name' | tr -d '"')" != "" ]; then
+    if [ "$(../bin/kubectl --namespace "$namespace" get pvc -l app.kubernetes.io/name=mariadb -o json | jq '.items[] | select(.metadata.labels."app.kubernetes.io/name" == "mariadb") | .metadata.name' | tr -d '"')" != "" ]; then
         return 0
     else
         return 1
