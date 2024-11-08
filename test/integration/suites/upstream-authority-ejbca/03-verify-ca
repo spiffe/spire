@@ -27,7 +27,7 @@ while read -r line; do
     elif [[ $in_cert -eq 1 ]]; then
         cert+="$line"$'\n'
     fi
-done < <(kubectl --namespace "$EJBCA_NAMESPACE" get secret "$EJBCA_SUBCA_SECRET_NAME" -o jsonpath='{.data.ca\.crt}' | base64 -d)
+done < <(./bin/kubectl --namespace "$EJBCA_NAMESPACE" get secret "$EJBCA_SUBCA_SECRET_NAME" -o jsonpath='{.data.ca\.crt}' | base64 -d)
 
 log-debug "the issuing ca in EJBCA has a chain length of ${#chain[@]} certificates (including the root)"
 
