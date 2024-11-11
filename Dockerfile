@@ -2,7 +2,6 @@
 
 # Build stage
 ARG goversion
-# Use alpine3.18 until go-sqlite works in 3.19
 FROM --platform=${BUILDPLATFORM} golang:${goversion}-alpine3.20 as base
 WORKDIR /spire
 RUN apk --no-cache --update add file bash clang lld pkgconfig git make

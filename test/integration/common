@@ -291,7 +291,7 @@ download-kubectl() {
         ARCH=arm64
     fi
 
-    KUBECTLURL="https://storage.googleapis.com/kubernetes-release/release/$WANTVERSION/bin/$UNAME/$ARCH/kubectl"
+    KUBECTLURL="https://dl.k8s.io/release/$WANTVERSION/bin/$UNAME/$ARCH/kubectl"
 
     HAVEVERSION=""
     if [ -x "${KUBECTLPATH}" ]; then
