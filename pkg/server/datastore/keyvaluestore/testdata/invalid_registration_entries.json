@@ -1,0 +1,67 @@
+[
+  {
+    "selectors": [
+      {
+        "type": "Type",
+        "value": "Value"
+      }
+    ]
+  },
+  {
+    "selectors": [
+      {
+        "type": "Type",
+        "value": "Value"
+      }
+    ],
+    "spiffe_id": "SpiffeId",
+    "x509_svid_ttl": -5
+  },
+  {
+    "spiffe_id": "SpiffeId"
+  },
+  {
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value1"
+      },
+      {
+        "type": "Type2",
+        "value": "Value2"
+      }
+    ],
+    "spiffe_id": "SpiffeId3",
+    "x509_svid_ttl": 2,
+    "store_svid": true
+  },
+  {
+    "entry_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeentry",
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value1"
+      },
+      {
+        "type": "Type2",
+        "value": "Value2"
+      }
+    ],
+    "spiffe_id": "SpiffeId4"
+  },
+  {
+    "entry_id": "entry四",
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value1"
+      },
+      {
+        "type": "Type2",
+        "value": "Value2"
+      }
+    ],
+    "spiffe_id": "SpiffeId5"
+  },
+  null
+]

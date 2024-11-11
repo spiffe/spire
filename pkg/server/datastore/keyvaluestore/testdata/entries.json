@@ -1,0 +1,94 @@
+[
+    {
+        "selectors": [
+            {
+                "type": "a",
+                "value": "1"
+            },
+            {
+                "type": "b",
+                "value": "2"
+            },
+            {
+                "type": "c",
+                "value": "3"
+            }
+        ],
+        "spiffe_id": "spiffe://id1",
+        "parent_id": "spiffe://parent",
+        "ttl": 200,
+        "dns_names": ["a", "b"]
+    },
+    {
+        "selectors": [
+            {
+                "type": "a",
+                "value": "1"
+            },
+            {
+                "type": "b",
+                "value": "2"
+            }
+        ],
+        "spiffe_id": "spiffe://id2",
+        "parent_id": "spiffe://parent",
+        "ttl": 200
+    },
+    {
+        "selectors": [
+            {
+                "type": "b",
+                "value": "2"
+            },
+            {
+                "type": "c",
+                "value": "3"
+            }
+        ],
+        "spiffe_id": "spiffe://id3",
+        "parent_id": "spiffe://parent2",
+        "ttl": 200
+    },
+    {
+        "selectors": [
+            {
+                "type": "a",
+                "value": "1"
+            },
+            {
+                "type": "b",
+                "value": "2"
+            },
+            {
+                "type": "c",
+                "value": "3"
+            },
+            {
+                "type": "d",
+                "value": "4"
+            }
+        ],
+        "spiffe_id": "spiffe://id4",
+        "parent_id": "spiffe://parent2",
+        "ttl": 200
+    },
+    {
+        "selectors": [
+            {
+                "type": "b",
+                "value": "2"
+            },
+            {
+                "type": "c",
+                "value": "3"
+            },
+            {
+                "type": "d",
+                "value": "4"
+            }
+        ],
+        "spiffe_id": "spiffe://id5",
+        "parent_id": "spiffe://parent2",
+        "ttl": 200
+    }
+]

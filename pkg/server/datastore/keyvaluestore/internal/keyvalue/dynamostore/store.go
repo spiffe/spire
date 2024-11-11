@@ -109,7 +109,7 @@ func buildCreateTableInput(tableName string) *dynamodb.CreateTableInput {
 func tableExists(ctx context.Context, client *dynamodb.Client, name string) bool {
 	tables, err := client.ListTables(ctx, &dynamodb.ListTablesInput{})
 	if err != nil {
-		fmt.Printf("Dynamo list tables error %+v\n", err)
+		//fmt.Printf("Dynamo list tables error %+v\n", err)
 		return false
 	}
 	for _, n := range tables.TableNames {
@@ -130,11 +130,11 @@ func checkTable(ctx context.Context, client *dynamodb.Client, name string) error
 		}
 
 		if describeTableOutput.Table.TableStatus == types.TableStatusActive {
-			fmt.Printf("DynamoDB table %s is now ready.\n", name)
+			//fmt.Printf("DynamoDB table %s is now ready.\n", name)
 			return nil
 		}
 
-		fmt.Printf("Waiting for table %s to be created...\n", name)
+		//fmt.Printf("Waiting for table %s to be created...\n", name)
 		time.Sleep(5 * time.Second)
 	}
 
@@ -157,20 +157,22 @@ func Open(ctx context.Context, config Config) (*Store, error) {
 	}
 
 	if tableExists(ctx, dynamoClient, config.TableName) {
-		fmt.Printf("Dynamo table Spire exist\n")
+		//fmt.Printf("Dynamo table Spire exist\n")
 	} else {
-		fmt.Printf("Dynamo table Spire not exist, creating...\n")
+		//fmt.Printf("Dynamo table Spire not exist, creating...\n")
 		_, err := dynamoClient.CreateTable(ctx, buildCreateTableInput(config.TableName))
 		if err != nil {
-			fmt.Printf("CreateTable failed", err)
+			//fmt.Printf("CreateTable failed", err)
+			return nil, err
 		}
 	}
 
 	err = checkTable(ctx, dynamoClient, config.TableName)
 	if err != nil {
-		fmt.Printf("Error checking table: %v\n", err)
+		//fmt.Printf("Error checking table: %v\n", err)
+		return nil, err
 	} else {
-		fmt.Println("Table check completed successfully.")
+		//fmt.Printf("Table check completed successfully.\n")
 	}
 
 	return &Store{
@@ -201,7 +203,7 @@ func (s *Store) Get(ctx context.Context, kind string, key string) (keyvalue.Reco
 
 	result, err := s.awsTable.DynamoDbClient.GetItem(ctx, input)
 	if err != nil {
-		fmt.Printf("Dynamo Failed to read item: %v\n", err)
+		//fmt.Printf("Dynamo Failed to read item: %v\n", err)
 		return keyvalue.Record{}, err // Return an empty record
 	}
 
@@ -254,12 +256,12 @@ func (s *Store) Create(ctx context.Context, kind string, key string, object inte
 	_, err = s.awsTable.DynamoDbClient.PutItem(ctx, input)
 
 	if err != nil {
-		fmt.Printf("Dynamo Failed to write item: %v\n", err)
+		//fmt.Printf("Dynamo Failed to write item: %v\n", err)
 
 		var conditionalCheckErr *types.ConditionalCheckFailedException
 		if errors.As(err, &conditionalCheckErr) {
-			fmt.Printf("Create failed because entry exists, %v",
-				conditionalCheckErr.ErrorMessage())
+			//fmt.Printf("Create failed because entry exists, %v",
+			//	conditionalCheckErr.ErrorMessage())
 			return keyvalue.ErrExists
 		}
 
@@ -285,7 +287,7 @@ func (s *Store) Update(ctx context.Context, kind string, key string, value inter
 	expr, err := atModRevision(revision).WithUpdate(updateExpr).Build()
 
 	if err != nil {
-		fmt.Printf("Couldn't build expression for update. Here's why: %v\n", err)
+		//fmt.Printf("Couldn't build expression for update. Here's why: %v\n", err)
 		return err
 	}
 
@@ -300,11 +302,11 @@ func (s *Store) Update(ctx context.Context, kind string, key string, value inter
 	})
 
 	if err != nil {
-		fmt.Printf("Couldn't update %s %s. Here's why: %v\n", key, kind, err)
+		//fmt.Printf("Couldn't update %s %s. Here's why: %v\n", key, kind, err)
 		var conditionalCheckErr *types.ConditionalCheckFailedException
 		if errors.As(err, &conditionalCheckErr) {
-			fmt.Printf("update failed because condition failed, %v",
-				conditionalCheckErr.ErrorMessage())
+			//fmt.Printf("update failed because condition failed, %v",
+			//	conditionalCheckErr.ErrorMessage())
 			return keyvalue.ErrConflict
 		}
 	}
@@ -329,7 +331,7 @@ func (s *Store) Replace(ctx context.Context, kind string, key string, value inte
 	expr, err := expression.NewBuilder().WithUpdate(updateExpr).Build()
 
 	if err != nil {
-		fmt.Printf("Couldn't build expression for update. Here's why: %v\n", err)
+		//fmt.Printf("Couldn't build expression for update. Here's why: %v\n", err)
 		return err
 	}
 
@@ -343,10 +345,16 @@ func (s *Store) Replace(ctx context.Context, kind string, key string, value inte
 	})
 
 	if err != nil {
-		fmt.Printf("Couldn't replace %s %s. Here's why: %v\n", key, kind, err)
+		//fmt.Printf("Couldn't replace %s %s. Here's why: %v\n", key, kind, err)
+		var conditionalCheckErr *types.ConditionalCheckFailedException
+		if errors.As(err, &conditionalCheckErr) {
+			//fmt.Printf("replace failed because condition failed, %v",
+			//	conditionalCheckErr.ErrorMessage())
+			return keyvalue.ErrConflict
+		}
 	}
 
-	return nil
+	return err
 }
 
 func (s *Store) Delete(ctx context.Context, kind string, key string) error {
@@ -369,11 +377,11 @@ func (s *Store) Delete(ctx context.Context, kind string, key string) error {
 		ConditionExpression:      condition.Condition(),
 	})
 	if err != nil {
-		fmt.Printf("Couldn't delete %v from the table. Here's why: %v\n", key, err)
+		//fmt.Printf("Couldn't delete %v from the table. Here's why: %v\n", key, err)
 		var conditionalCheckErr *types.ConditionalCheckFailedException
 		if errors.As(err, &conditionalCheckErr) {
-			fmt.Printf("update failed because condition failed, %v",
-				conditionalCheckErr.ErrorMessage())
+			//fmt.Printf("update failed because condition failed, %v",
+			//	conditionalCheckErr.ErrorMessage())
 			return keyvalue.ErrNotFound
 		}
 	}
@@ -400,7 +408,7 @@ func (s *Store) AtomicCounter(ctx context.Context, kind string) (uint, error) {
 	expr, err := expression.NewBuilder().WithUpdate(updateExpr).Build()
 
 	if err != nil {
-		fmt.Printf("Couldn't build expression for update. Here's why: %v\n", err)
+		//fmt.Printf("Couldn't build expression for update. Here's why: %v\n", err)
 		return 0, err
 	}
 
@@ -414,14 +422,14 @@ func (s *Store) AtomicCounter(ctx context.Context, kind string) (uint, error) {
 	})
 
 	if err != nil {
-		fmt.Printf("Couldn't update AtomicCounter %s. Here's why: %v\n", kind, err)
+		//fmt.Printf("Couldn't update AtomicCounter %s. Here's why: %v\n", kind, err)
 		return 0, err
 	}
 
 	var newValue uint
 	err = attributevalue.Unmarshal(response.Attributes["Count"], &newValue)
 	if err != nil {
-		fmt.Printf("Couldn't unmarshal AtomicCounter. Here's why: %v\n", err)
+		//fmt.Printf("Couldn't unmarshal AtomicCounter. Here's why: %v\n", err)
 		return 0, err
 	}
 

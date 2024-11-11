@@ -1,16 +1,17 @@
-package datastoretest
+package keyvaluestore
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
+	//"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -18,15 +19,18 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/datastore"
-	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/record"
+	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	testutil "github.com/spiffe/spire/test/util"
@@ -35,231 +39,273 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsConfigTest "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	dynamoTypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 var (
 	ctx = context.Background()
 
-	expiredNotAfter        = time.Date(2018, 01, 10, 01, 34, 00, 00, time.UTC)
-	validNotAfter          = time.Date(2018, 01, 10, 01, 36, 00, 00, time.UTC)
-	betweenExpiredAndValid = time.Date(2018, 01, 10, 01, 35, 00, 00, time.UTC)
-
-	key         = testkey.MustEC256()
-	validRoot   *x509.Certificate
-	expiredRoot *x509.Certificate
+	TestReadOnlyDelay string
 )
 
-func init() {
-	selfSign := func(tmpl *x509.Certificate) *x509.Certificate {
-		certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, key.Public(), key)
-		if err != nil {
-			panic(err)
-		}
-		cert, err := x509.ParseCertificate(certDER)
-		if err != nil {
-			panic(err)
-		}
-		return cert
-	}
+const (
+	_ttl                   = time.Hour
+	_expiredNotAfterString = "2018-01-10T01:34:00+00:00"
+	_validNotAfterString   = "2018-01-10T01:36:00+00:00"
+	_middleTimeString      = "2018-01-10T01:35:00+00:00"
+	_notFoundErrMsg        = "datastore-keyvalue: record not found"
+	//_notFoundErrMsg_update        = "failed to update bundle: record not found"
+	//_notFoundErrMsg_delete        = "failed to delete bundle: record not found"
 
-	validRoot = selfSign(&x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		NotAfter:     validNotAfter,
-		NotBefore:    validNotAfter.Add(-time.Hour),
-	})
+	// Defaults used for testing
+	validAccessKeyID     = "dummy"
+	validSecretAccessKey = "dummy"
+	validRegion          = "us-west-1"
+	validEndpoint        = "http://localhost:8000"
+	validTableName       = "Spire"
+	validStreamEnable    = false
 
-	expiredRoot = selfSign(&x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		NotAfter:     expiredNotAfter,
-		NotBefore:    expiredNotAfter.Add(-time.Hour),
-	})
+	// Defaults used for testing
+
+	//invalidRegion          = "us-west-2"
+
+)
+
+func TestPlugin(t *testing.T) {
+	spiretest.Run(t, new(PluginSuite))
 }
 
-func Test(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	run := func(name string, test func(*testing.T, func(*testing.T) datastore.DataStore)) {
-		t.Run(name, func(t *testing.T) {
-			test(t, newDS)
-		})
-	}
+type PluginSuite struct {
+	spiretest.Suite
 
-	run("BundleCRUD", testBundleCRUD)
-	run("ListBundlesWithPagination", testListBundlesWithPagination)
-	run("CountBundles", testCountBundles)
-	run("CountAttestedNodes", testCountAttestedNodes)
-	run("CountRegistrationEntries", testCountRegistrationEntries)
-	run("SetBundle", testSetBundle)
-	run("BundlePrune", testBundlePrune)
-	run("CreateAttestedNode", testCreateAttestedNode)
-	run("FetchAttestedNodeMissing", testFetchAttestedNodeMissing)
-	run("ListAttestedNodes", testListAttestedNodes)
-	run("UpdateAttestedNode", testUpdateAttestedNode)
-	run("DeleteAttestedNode", testDeleteAttestedNode)
-	run("NodeSelectors", testNodeSelectors)
-	run("ListNodeSelectors", testListNodeSelectors)
-	run("SetNodeSelectorsUnderLoad", testSetNodeSelectorsUnderLoad)
-	run("CreateRegistrationEntry", testCreateRegistrationEntry)
-	run("CreateInvalidRegistrationEntry", testCreateInvalidRegistrationEntry)
-	run("FetchRegistrationEntry", testFetchRegistrationEntry)
-	run("PruneRegistrationEntries", testPruneRegistrationEntries)
-	run("FetchInexistentRegistrationEntry", testFetchInexistentRegistrationEntry)
-	run("ListRegistrationEntries", testListRegistrationEntries)
-	run("UpdateRegistrationEntry", testUpdateRegistrationEntry)
-	run("UpdateRegistrationEntryWithStoreSvid", testUpdateRegistrationEntryWithStoreSvid)
-	run("UpdateRegistrationEntryWithMask", testUpdateRegistrationEntryWithMask)
-	run("DeleteRegistrationEntry", testDeleteRegistrationEntry)
-	run("ListParentIDEntries", testListParentIDEntries)
-	run("ListSelectorEntries", testListSelectorEntries)
-	run("ListEntriesBySelectorSubset", testListEntriesBySelectorSubset)
-	run("ListSelectorEntriesSuperset", testListSelectorEntriesSuperset)
-	run("ListEntriesBySelectorMatchAny", testListEntriesBySelectorMatchAny)
-	run("ListEntriesByFederatesWithExact", testListEntriesByFederatesWithExact)
-	run("ListEntriesByFederatesWithSubset", testListEntriesByFederatesWithSubset)
-	run("ListEntriesByFederatesWithMatchAny", testListEntriesByFederatesWithMatchAny)
-	run("ListEntriesByFederatesWithSuperset", testListEntriesByFederatesWithSuperset)
-	run("RegistrationEntriesFederatesWithSuccess", testRegistrationEntriesFederatesWithSuccess)
-	run("CreateJoinToken", testCreateJoinToken)
-	run("CreateAndFetchJoinToken", testCreateAndFetchJoinToken)
-	run("DeleteJoinToken", testDeleteJoinToken)
-	run("PruneJoinTokens", testPruneJoinTokens)
-	run("DeleteFederationRelationship", testDeleteFederationRelationship)
-	run("FetchFederationRelationship", testFetchFederationRelationship)
-	run("CreateFederationRelationship", testCreateFederationRelationship)
-	run("ListFederationRelationships", testListFederationRelationships)
-	run("UpdateFederationRelationship", testUpdateFederationRelationship)
-	run("Race", testRace)
+	cert   *x509.Certificate
+	cacert *x509.Certificate
+
+	dir    string
+	nextID int
+	ds     *DataStore
+	hook   *test.Hook
+
+	readOnlyDelay time.Duration
 }
 
-func testBundleCRUD(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
+func (s *PluginSuite) SetupSuite() {
+	clk := clock.NewMock(s.T())
 
-	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", validRoot)
+	expiredNotAfterTime, err := time.Parse(time.RFC3339, _expiredNotAfterString)
+	s.Require().NoError(err)
+	validNotAfterTime, err := time.Parse(time.RFC3339, _validNotAfterString)
+	s.Require().NoError(err)
+
+	caTemplate, err := testutil.NewCATemplate(clk, spiffeid.RequireTrustDomainFromString("foo"))
+	s.Require().NoError(err)
+
+	caTemplate.NotAfter = expiredNotAfterTime
+	caTemplate.NotBefore = expiredNotAfterTime.Add(-_ttl)
+
+	cacert, cakey, err := testutil.SelfSign(caTemplate)
+	s.Require().NoError(err)
+
+	svidTemplate, err := testutil.NewSVIDTemplate(clk, "spiffe://foo/id1")
+	s.Require().NoError(err)
+
+	svidTemplate.NotAfter = validNotAfterTime
+	svidTemplate.NotBefore = validNotAfterTime.Add(-_ttl)
+
+	cert, _, err := testutil.Sign(svidTemplate, cacert, cakey)
+	s.Require().NoError(err)
+
+	s.cacert = cacert
+	s.cert = cert
+
+	if TestReadOnlyDelay != "" {
+		delay, err := time.ParseDuration(TestReadOnlyDelay)
+		s.Require().NoError(err, "failed to parse read-only delay")
+		s.readOnlyDelay = delay
+	}
+}
+
+func (s *PluginSuite) SetupTest() {
+	s.ds = s.newPlugin()
+}
+
+func (s *PluginSuite) TearDownTest() {
+	if s.ds != nil {
+		s.ds.Close()
+	}
+}
+
+func (s *PluginSuite) newPlugin() *DataStore {
+	log, hook := test.NewNullLogger()
+	ds := New(log)
+	s.hook = hook
+	c := Configuration{
+		AccessKeyID:     validAccessKeyID,
+		SecretAccessKey: validSecretAccessKey,
+		Region:          validRegion,
+		Endpoint:        validEndpoint,
+		TableName:       validTableName,
+	}
+	wipeDynamo(s.T(), c)
+	hclConfiguration := fmt.Sprintf(`
+	access_key = "%s"
+	secret_key = "%s"
+	region     = "%s"
+	endpoint   = "%s"
+	table_name = "%s"
+	`, validAccessKeyID, validSecretAccessKey, validRegion, validEndpoint, validTableName)
+
+	err := ds.Configure(ctx, hclConfiguration)
+	s.Require().NoError(err)
+
+	return ds
+
+}
+
+func (s *PluginSuite) TestBundleCRUD() {
+	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
 
 	// fetch non-existent
-	fb, err := ds.FetchBundle(ctx, "spiffe://foo")
-	require.NoError(t, err)
-	require.Nil(t, fb)
+	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+	s.Require().NoError(err)
+	s.Require().Nil(fb)
 
 	// update non-existent
-	_, err = ds.UpdateBundle(ctx, bundle, nil)
-	spiretest.AssertGRPCStatus(t, err, codes.NotFound, "failed to update bundle: record not found")
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// delete non-existent
-	err = ds.DeleteBundle(ctx, "spiffe://foo", datastore.Restrict)
-	spiretest.AssertGRPCCode(t, err, codes.NotFound)
+	err = s.ds.DeleteBundle(ctx, "spiffe://foo", datastore.Restrict)
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
 	// create
-	_, err = ds.CreateBundle(ctx, bundle)
-	require.NoError(t, err)
+	_, err = s.ds.CreateBundle(ctx, bundle)
+	s.Require().NoError(err)
 
 	// create again (constraint violation)
-	_, err = ds.CreateBundle(ctx, bundle)
-	spiretest.AssertGRPCCode(t, err, codes.AlreadyExists)
+	_, err = s.ds.CreateBundle(ctx, bundle)
+	s.Equal(status.Code(err), codes.AlreadyExists)
 
 	// fetch
-	fb, err = ds.FetchBundle(ctx, "spiffe://foo")
-	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, bundle, fb)
+	fb, err = s.ds.FetchBundle(ctx, "spiffe://foo")
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, fb)
 
 	// list
-	lresp, err := ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	require.NoError(t, err)
-	assert.Equal(t, 1, len(lresp.Bundles))
-	spiretest.AssertProtoEqual(t, bundle, lresp.Bundles[0])
+	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	s.Equal(1, len(lresp.Bundles))
+	s.AssertProtoEqual(bundle, lresp.Bundles[0])
 
-	bundle2 := bundleutil.BundleProtoFromRootCA(bundle.TrustDomainId, expiredRoot)
+	bundle2 := bundleutil.BundleProtoFromRootCA(bundle.TrustDomainId, s.cacert)
 	appendedBundle := bundleutil.BundleProtoFromRootCAs(bundle.TrustDomainId,
-		[]*x509.Certificate{validRoot, expiredRoot})
+		[]*x509.Certificate{s.cert, s.cacert})
+	appendedBundle.SequenceNumber++
 
 	// append
-	ab, err := ds.AppendBundle(ctx, bundle2)
-	require.NoError(t, err)
-	require.NotNil(t, ab)
-	spiretest.AssertProtoEqual(t, appendedBundle, ab)
+	ab, err := s.ds.AppendBundle(ctx, bundle2)
+	s.Require().NoError(err)
+	s.Require().NotNil(ab)
+	s.AssertProtoEqual(appendedBundle, ab)
+	// stored bundle was updated
+	bundle.SequenceNumber = appendedBundle.SequenceNumber
 
 	// append identical
-	ab, err = ds.AppendBundle(ctx, bundle2)
-	require.NoError(t, err)
-	require.NotNil(t, ab)
-	spiretest.AssertProtoEqual(t, appendedBundle, ab)
+	ab, err = s.ds.AppendBundle(ctx, bundle2)
+	s.Require().NoError(err)
+	s.Require().NotNil(ab)
+	s.AssertProtoEqual(appendedBundle, ab)
 
 	// append on a new bundle
-	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", expiredRoot)
-	ab, err = ds.AppendBundle(ctx, bundle3)
-	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, bundle3, ab)
+	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cacert)
+	ab, err = s.ds.AppendBundle(ctx, bundle3)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle3, ab)
 
 	// update with mask: RootCas
-	updatedBundle, err := ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+	updatedBundle, err := s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
 		RootCas: true,
 	})
-	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, bundle, updatedBundle)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, updatedBundle)
 
-	lresp, err = ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	require.NoError(t, err)
-	assertBundlesEqual(t, []*common.Bundle{bundle, bundle3}, lresp.Bundles)
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
 
 	// update with mask: RefreshHint
 	bundle.RefreshHint = 60
-	updatedBundle, err = ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
 		RefreshHint: true,
 	})
-	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, bundle, updatedBundle)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, updatedBundle)
 
-	lresp, err = ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	require.NoError(t, err)
-	assertBundlesEqual(t, []*common.Bundle{bundle, bundle3}, lresp.Bundles)
+	// update with mask: SequenceNumber
+	bundle.SequenceNumber = 100
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+		SequenceNumber: true,
+	})
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, updatedBundle)
+	assert.Equal(s.T(), bundle.SequenceNumber, updatedBundle.SequenceNumber)
+
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
 
 	// update with mask: JwtSingingKeys
 	bundle.JwtSigningKeys = []*common.PublicKey{{Kid: "jwt-key-1"}}
-	updatedBundle, err = ds.UpdateBundle(ctx, bundle, &common.BundleMask{
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle, &common.BundleMask{
 		JwtSigningKeys: true,
 	})
-	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, bundle, updatedBundle)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle, updatedBundle)
 
-	lresp, err = ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	require.NoError(t, err)
-	assertBundlesEqual(t, []*common.Bundle{bundle, bundle3}, lresp.Bundles)
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle, bundle3}, lresp.Bundles)
 
 	// update without mask
-	updatedBundle, err = ds.UpdateBundle(ctx, bundle2, nil)
-	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, bundle2, updatedBundle)
+	updatedBundle, err = s.ds.UpdateBundle(ctx, bundle2, nil)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(bundle2, updatedBundle)
 
-	lresp, err = ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	require.NoError(t, err)
-	assertBundlesEqual(t, []*common.Bundle{bundle2, bundle3}, lresp.Bundles)
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	assertBundlesEqual(s.T(), []*common.Bundle{bundle2, bundle3}, lresp.Bundles)
 
 	// delete
-	err = ds.DeleteBundle(ctx, bundle.TrustDomainId, datastore.Restrict)
-	require.NoError(t, err)
+	err = s.ds.DeleteBundle(ctx, bundle.TrustDomainId, datastore.Restrict)
+	s.Require().NoError(err)
 
-	lresp, err = ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
-	require.NoError(t, err)
-	assert.Equal(t, 1, len(lresp.Bundles))
-	spiretest.AssertProtoEqual(t, bundle3, lresp.Bundles[0])
+	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
+	s.Require().NoError(err)
+	s.Equal(1, len(lresp.Bundles))
+	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
 }
 
-func testListBundlesWithPagination(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
+func (s *PluginSuite) TestListBundlesWithPagination() {
+	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
+	_, err := s.ds.CreateBundle(ctx, bundle1)
+	s.Require().NoError(err)
 
-	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://aye", validRoot)
-	_, err := ds.CreateBundle(ctx, bundle1)
-	require.NoError(t, err)
+	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
+	_, err = s.ds.CreateBundle(ctx, bundle2)
+	s.Require().NoError(err)
 
-	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://bee", expiredRoot)
-	_, err = ds.CreateBundle(ctx, bundle2)
-	require.NoError(t, err)
+	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
+	_, err = s.ds.CreateBundle(ctx, bundle3)
+	s.Require().NoError(err)
 
-	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://cee", validRoot)
-	_, err = ds.CreateBundle(ctx, bundle3)
-	require.NoError(t, err)
-
-	bundle4 := bundleutil.BundleProtoFromRootCA("spiffe://dee", validRoot)
-	_, err = ds.CreateBundle(ctx, bundle4)
-	require.NoError(t, err)
+	bundle4 := bundleutil.BundleProtoFromRootCA("spiffe://baz", s.cert)
+	_, err = s.ds.CreateBundle(ctx, bundle4)
+	s.Require().NoError(err)
 
 	tests := []struct {
 		name               string
@@ -279,7 +325,7 @@ func testListBundlesWithPagination(t *testing.T, newDS func(t *testing.T) datast
 			},
 			expectedList: []*common.Bundle{bundle1, bundle2, bundle3, bundle4},
 			expectedPagination: &datastore.Pagination{
-				Token:    "spiffe://dee",
+				Token:    "4",
 				PageSize: 5,
 			},
 		},
@@ -325,11 +371,23 @@ func testListBundlesWithPagination(t *testing.T, newDS func(t *testing.T) datast
 				PageSize: 2,
 			},
 		},
+		{
+			name:         "invalid token",
+			expectedList: []*common.Bundle{},
+			expectedErr:  "rpc error: code = InvalidArgument desc = could not parse token 'invalid token'",
+			pagination: &datastore.Pagination{
+				Token:    "invalid token",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+			},
+		},
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			resp, err := ds.ListBundles(ctx, &datastore.ListBundlesRequest{
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{
 				Pagination: test.pagination,
 			})
 			if test.expectedErr != "" {
@@ -345,40 +403,36 @@ func testListBundlesWithPagination(t *testing.T, newDS func(t *testing.T) datast
 	}
 }
 
-func testCountBundles(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestCountBundles() {
 	// Count empty bundles
-	count, err := ds.CountBundles(ctx)
-	require.NoError(t, err)
-	require.Equal(t, int32(0), count)
+	count, err := s.ds.CountBundles(ctx)
+	s.Require().NoError(err)
+	s.Require().Equal(int32(0), count)
 
 	// Create bundles
-	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", validRoot)
-	_, err = ds.CreateBundle(ctx, bundle1)
-	require.NoError(t, err)
+	bundle1 := bundleutil.BundleProtoFromRootCA("spiffe://example.org", s.cert)
+	_, err = s.ds.CreateBundle(ctx, bundle1)
+	s.Require().NoError(err)
 
-	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", expiredRoot)
-	_, err = ds.CreateBundle(ctx, bundle2)
-	require.NoError(t, err)
+	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
+	_, err = s.ds.CreateBundle(ctx, bundle2)
+	s.Require().NoError(err)
 
-	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", validRoot)
-	_, err = ds.CreateBundle(ctx, bundle3)
-	require.NoError(t, err)
+	bundle3 := bundleutil.BundleProtoFromRootCA("spiffe://bar", s.cert)
+	_, err = s.ds.CreateBundle(ctx, bundle3)
+	s.Require().NoError(err)
 
 	// Count all
-	count, err = ds.CountBundles(ctx)
-	require.NoError(t, err)
-	require.Equal(t, int32(3), count)
+	count, err = s.ds.CountBundles(ctx)
+	s.Require().NoError(err)
+	s.Require().Equal(int32(3), count)
 }
 
-func testCountAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestCountAttestedNodes() {
 	// Count empty attested nodes
-	count, err := ds.CountAttestedNodes(ctx)
-	require.NoError(t, err)
-	require.Equal(t, int32(0), count)
+	count, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(int32(0), count)
 
 	// Create attested nodes
 	node := &common.AttestedNode{
@@ -387,8 +441,8 @@ func testCountAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Dat
 		CertSerialNumber:    "1234",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
-	_, err = ds.CreateAttestedNode(ctx, node)
-	require.NoError(t, err)
+	_, err = s.ds.CreateAttestedNode(ctx, node)
+	s.Require().NoError(err)
 
 	node2 := &common.AttestedNode{
 		SpiffeId:            "spiffe://example.org/bar",
@@ -396,22 +450,20 @@ func testCountAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Dat
 		CertSerialNumber:    "5678",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
-	_, err = ds.CreateAttestedNode(ctx, node2)
-	require.NoError(t, err)
+	_, err = s.ds.CreateAttestedNode(ctx, node2)
+	s.Require().NoError(err)
 
 	// Count all
-	count, err = ds.CountAttestedNodes(ctx)
-	require.NoError(t, err)
-	require.Equal(t, int32(2), count)
+	count, err = s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(int32(2), count)
 }
 
-func testCountRegistrationEntries(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestCountRegistrationEntries() {
 	// Count empty registration entries
-	count, err := ds.CountRegistrationEntries(ctx)
-	require.NoError(t, err)
-	require.Equal(t, int32(0), count)
+	count, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(int32(0), count)
 
 	// Create attested nodes
 	entry := &common.RegistrationEntry{
@@ -419,90 +471,385 @@ func testCountRegistrationEntries(t *testing.T, newDS func(t *testing.T) datasto
 		SpiffeId:  "spiffe://example.org/foo",
 		Selectors: []*common.Selector{{Type: "a", Value: "1"}},
 	}
-	_, err = ds.CreateRegistrationEntry(ctx, entry)
-	require.NoError(t, err)
+	_, err = s.ds.CreateRegistrationEntry(ctx, entry)
+	s.Require().NoError(err)
 
 	entry2 := &common.RegistrationEntry{
 		ParentId:  "spiffe://example.org/agent",
 		SpiffeId:  "spiffe://example.org/bar",
 		Selectors: []*common.Selector{{Type: "a", Value: "2"}},
 	}
-	_, err = ds.CreateRegistrationEntry(ctx, entry2)
-	require.NoError(t, err)
+	_, err = s.ds.CreateRegistrationEntry(ctx, entry2)
+	s.Require().NoError(err)
 
 	// Count all
-	count, err = ds.CountRegistrationEntries(ctx)
-	require.NoError(t, err)
-	require.Equal(t, int32(2), count)
+	count, err = s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(int32(2), count)
 }
 
-func testSetBundle(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestSetBundle() {
 	// create a couple of bundles for tests. the contents don't really matter
 	// as long as they are for the same trust domain but have different contents.
-	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", validRoot)
-	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", expiredRoot)
+	bundle := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cert)
+	bundle2 := bundleutil.BundleProtoFromRootCA("spiffe://foo", s.cacert)
 
 	// ensure the bundle does not exist (it shouldn't)
-	require.Nil(t, fetchBundle(t, ds, "spiffe://foo"))
+	s.Require().Nil(s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is created
-	_, err := ds.SetBundle(ctx, bundle)
-	require.NoError(t, err)
-	spiretest.RequireProtoEqual(t, bundle, fetchBundle(t, ds, "spiffe://foo"))
+	_, err := s.ds.SetBundle(ctx, bundle)
+	s.Require().NoError(err)
+	s.RequireProtoEqual(bundle, s.fetchBundle("spiffe://foo"))
 
 	// set the bundle and make sure it is updated
-	_, err = ds.SetBundle(ctx, bundle2)
-	require.NoError(t, err)
-	spiretest.RequireProtoEqual(t, bundle2, fetchBundle(t, ds, "spiffe://foo"))
+	_, err = s.ds.SetBundle(ctx, bundle2)
+	s.Require().NoError(err)
+	s.RequireProtoEqual(bundle2, s.fetchBundle("spiffe://foo"))
 }
 
-func testBundlePrune(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestBundlePrune() {
 	// Setup
 	// Create new bundle with two cert (one valid and one expired)
-	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{validRoot, expiredRoot})
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert})
+	bundle.SequenceNumber = 42
+
+	// Add two JWT signing keys (one valid and one expired)
+	expiredKeyTime, err := time.Parse(time.RFC3339, _expiredNotAfterString)
+
+	expiredKeyTime = expiredKeyTime.UTC()
+
+	s.Require().NoError(err)
+
+	nonExpiredKeyTime, err := time.Parse(time.RFC3339, _validNotAfterString)
+
+	nonExpiredKeyTime = nonExpiredKeyTime.UTC()
+
+	s.Require().NoError(err)
+
+	// middleTime is a point between the two certs expiration time
+	middleTime, err := time.Parse(time.RFC3339, _middleTimeString)
+
+	middleTime = middleTime.UTC()
+
+	s.Require().NoError(err)
 
 	bundle.JwtSigningKeys = []*common.PublicKey{
-		{NotAfter: expiredNotAfter.Unix()},
-		{NotAfter: validNotAfter.Unix()},
+		{NotAfter: expiredKeyTime.Unix()},
+		{NotAfter: nonExpiredKeyTime.Unix()},
 	}
 
 	// Store bundle in datastore
-	_, err := ds.CreateBundle(ctx, bundle)
-	require.NoError(t, err)
+	_, err = s.ds.CreateBundle(ctx, bundle)
+	s.Require().NoError(err)
 
 	// Prune
 	// prune non existent bundle should not return error, no bundle to prune
-	expiration := time.Now()
-	changed, err := ds.PruneBundle(ctx, "spiffe://notexistent", expiration)
-	assert.NoError(t, err)
-	assert.False(t, changed)
+	expiration := time.Now().UTC()
+	changed, err := s.ds.PruneBundle(ctx, "spiffe://notexistent", expiration)
+	s.NoError(err)
+	s.False(changed)
 
 	// prune fails if internal prune bundle fails. For instance, if all certs are expired
-	expiration = time.Now()
-	changed, err = ds.PruneBundle(ctx, bundle.TrustDomainId, expiration)
-	spiretest.AssertGRPCStatus(t, err, codes.Unknown, "prune failed: would prune all certificates")
-	assert.False(t, changed)
+	expiration = time.Now().UTC()
+	changed, err = s.ds.PruneBundle(ctx, bundle.TrustDomainId, expiration)
+	s.AssertGRPCStatus(err, codes.Unknown, "prune failed: would prune all certificates")
+	s.False(changed)
 
 	// prune should remove expired certs
-	changed, err = ds.PruneBundle(ctx, bundle.TrustDomainId, betweenExpiredAndValid)
-	assert.NoError(t, err)
-	assert.True(t, changed)
+	changed, err = s.ds.PruneBundle(ctx, bundle.TrustDomainId, middleTime)
+	s.NoError(err)
+	s.True(changed)
 
 	// Fetch and verify pruned bundle is the expected
-	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{validRoot})
-	expectedPrunedBundle.JwtSigningKeys = []*common.PublicKey{{NotAfter: validNotAfter.Unix()}}
-	fb, err := ds.FetchBundle(ctx, "spiffe://foo")
-	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, expectedPrunedBundle, fb)
+	expectedPrunedBundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert})
+	expectedPrunedBundle.JwtSigningKeys = []*common.PublicKey{{NotAfter: nonExpiredKeyTime.Unix()}}
+	expectedPrunedBundle.SequenceNumber = 43
+	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+	s.Require().NoError(err)
+	s.AssertProtoEqual(expectedPrunedBundle, fb)
 }
 
-func testCreateAttestedNode(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
+func (s *PluginSuite) TestTaintX509CA() {
+	t := s.T()
 
+	// Tainted public key on raw format
+	skID := x509util.SubjectKeyIDToString(s.cert.SubjectKeyId)
+
+	t.Run("bundle not found", func(t *testing.T) {
+		err := s.ds.TaintX509CA(ctx, "spiffe://foo", "foo")
+		spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
+	})
+
+	// Create Malformed CA
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{{Raw: []byte("bar")}})
+	_, err := s.ds.CreateBundle(ctx, bundle)
+	require.NoError(t, err)
+
+	t.Run("bundle not found", func(t *testing.T) {
+		err := s.ds.TaintX509CA(ctx, "spiffe://foo", "foo")
+		spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to parse rootCA: x509: malformed certificate")
+	})
+
+	validateBundle := func(expectSequenceNumber uint64) {
+		expectedRootCAs := []*common.Certificate{
+			{DerBytes: s.cert.Raw, TaintedKey: true},
+			{DerBytes: s.cacert.Raw},
+		}
+
+		fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+		require.NoError(t, err)
+		require.Equal(t, expectedRootCAs, fetchedBundle.RootCas)
+		require.Equal(t, expectSequenceNumber, fetchedBundle.SequenceNumber)
+	}
+
+	// Update bundle
+	bundle = bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert})
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	t.Run("taint successfully", func(t *testing.T) {
+		err := s.ds.TaintX509CA(ctx, "spiffe://foo", skID)
+		require.NoError(t, err)
+
+		validateBundle(1)
+	})
+
+	t.Run("no bundle with provided skID", func(t *testing.T) {
+		// Not able to taint a tainted CA
+		err := s.ds.TaintX509CA(ctx, "spiffe://foo", "foo")
+		spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no ca found with provided subject key ID")
+
+		// Validate than sequence number is not incremented
+		validateBundle(1)
+	})
+
+	t.Run("failed to taint already tainted ca", func(t *testing.T) {
+		// Not able to taint a tainted CA
+		err := s.ds.TaintX509CA(ctx, "spiffe://foo", skID)
+		spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "root CA is already tainted")
+
+		// Validate than sequence number is not incremented
+		validateBundle(1)
+	})
+}
+
+func (s *PluginSuite) TestRevokeX509CA() {
+	t := s.T()
+
+	// SubjectKeyID
+	certID := x509util.SubjectKeyIDToString(s.cert.SubjectKeyId)
+
+	// Bundle not found
+	t.Run("bundle not found", func(t *testing.T) {
+		err := s.ds.RevokeX509CA(ctx, "spiffe://foo", "foo")
+		spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
+	})
+
+	// Create new bundle with two cert (one valid and one expired)
+	keyForMalformedCert := testkey.NewEC256(t)
+	malformedX509 := &x509.Certificate{
+		PublicKey: keyForMalformedCert.PublicKey,
+		Raw:       []byte("no a certificate"),
+	}
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert, malformedX509})
+	_, err := s.ds.CreateBundle(ctx, bundle)
+	require.NoError(t, err)
+
+	t.Run("Bundle contains a malformed certificate", func(t *testing.T) {
+		err := s.ds.RevokeX509CA(ctx, "spiffe://foo", "foo")
+		spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to parse root CA: x509: malformed certificate")
+	})
+
+	// Remove malformed certificate
+	bundle = bundleutil.BundleProtoFromRootCAs("spiffe://foo", []*x509.Certificate{s.cert, s.cacert})
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	originalBundles := []*common.Certificate{
+		{DerBytes: s.cert.Raw},
+		{DerBytes: s.cacert.Raw},
+	}
+
+	validateBundle := func(expectedRootCAs []*common.Certificate, expectSequenceNumber uint64) {
+		fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+		require.NoError(t, err)
+		require.Equal(t, expectedRootCAs, fetchedBundle.RootCas)
+		require.Equal(t, expectSequenceNumber, fetchedBundle.SequenceNumber)
+	}
+
+	t.Run("No root CA is using provided skID", func(t *testing.T) {
+		err := s.ds.RevokeX509CA(ctx, "spiffe://foo", "foo")
+		spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no root CA found with provided subject key ID")
+
+		validateBundle(originalBundles, 0)
+	})
+
+	t.Run("Unable to revoke untainted bundles", func(t *testing.T) {
+		err := s.ds.RevokeX509CA(ctx, "spiffe://foo", certID)
+		spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "it is not possible to revoke an untainted root CA")
+
+		validateBundle(originalBundles, 0)
+	})
+
+	// Mark cert as tainted
+	err = s.ds.TaintX509CA(ctx, "spiffe://foo", certID)
+	require.NoError(t, err)
+
+	t.Run("Revoke successfully", func(t *testing.T) {
+		taintedBundles := []*common.Certificate{
+			{DerBytes: s.cert.Raw, TaintedKey: true},
+			{DerBytes: s.cacert.Raw},
+		}
+		// Validating precondition, with 2 bundles and sequence
+		validateBundle(taintedBundles, 1)
+
+		// Revoke
+		err = s.ds.RevokeX509CA(ctx, "spiffe://foo", certID)
+		require.NoError(t, err)
+
+		// CA is removed and sequence incremented
+		expectedRootCAs := []*common.Certificate{
+			{DerBytes: s.cacert.Raw},
+		}
+		validateBundle(expectedRootCAs, 2)
+	})
+}
+
+func (s *PluginSuite) TestTaintJWTKey() {
+	t := s.T()
+	// Setup
+	// Create new bundle with two JWT Keys
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", nil)
+	originalKeys := []*common.PublicKey{
+		{Kid: "key1"},
+		{Kid: "key2"},
+		{Kid: "key2"},
+	}
+	bundle.JwtSigningKeys = originalKeys
+
+	// Bundle not found
+	publicKey, err := s.ds.TaintJWTKey(ctx, "spiffe://foo", "key1")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
+	require.Nil(t, publicKey)
+
+	_, err = s.ds.CreateBundle(ctx, bundle)
+	require.NoError(t, err)
+
+	// Bundle contains repeated key
+	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "key2")
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "another JWT Key found with the same KeyID")
+	require.Nil(t, publicKey)
+
+	// Key not found
+	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "no id")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided key ID")
+	require.Nil(t, publicKey)
+
+	validateBundle := func(expectedKeys []*common.PublicKey, expectSequenceNumber uint64) {
+		fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+		require.NoError(t, err)
+
+		spiretest.RequireProtoListEqual(t, expectedKeys, fetchedBundle.JwtSigningKeys)
+		require.Equal(t, expectSequenceNumber, fetchedBundle.SequenceNumber)
+	}
+
+	// Validate no changes
+	validateBundle(originalKeys, 0)
+
+	// Taint successfully
+	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "key1")
+	require.NoError(t, err)
+	require.NotNil(t, publicKey)
+
+	taintedKey := []*common.PublicKey{
+		{Kid: "key1", TaintedKey: true},
+		{Kid: "key2"},
+		{Kid: "key2"},
+	}
+	// Validate expected response
+	validateBundle(taintedKey, 1)
+
+	// No able to taint Key again
+	publicKey, err = s.ds.TaintJWTKey(ctx, "spiffe://foo", "key1")
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "key is already tainted")
+	require.Nil(t, publicKey)
+
+	// No changes
+	validateBundle(taintedKey, 1)
+}
+
+func (s *PluginSuite) TestRevokeJWTKey() {
+	t := s.T()
+	// Setup
+	// Create new bundle with two JWT Keys
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", nil)
+	bundle.JwtSigningKeys = []*common.PublicKey{
+		{Kid: "key1"},
+		{Kid: "key2"},
+	}
+
+	// Bundle not found
+	publicKey, err := s.ds.RevokeJWTKey(ctx, "spiffe://foo", "key1")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, _notFoundErrMsg)
+	require.Nil(t, publicKey)
+
+	_, err = s.ds.CreateBundle(ctx, bundle)
+	require.NoError(t, err)
+
+	// Key not found
+	publicKey, err = s.ds.RevokeJWTKey(ctx, "spiffe://foo", "no id")
+	spiretest.RequireGRPCStatus(t, err, codes.NotFound, "no JWT Key found with provided key ID")
+	require.Nil(t, publicKey)
+
+	// No allow to revoke untainted key
+	publicKey, err = s.ds.RevokeJWTKey(ctx, "spiffe://foo", "key1")
+	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "it is not possible to revoke an untainted key")
+	require.Nil(t, publicKey)
+
+	// Add a duplicated key and taint it
+	bundle.JwtSigningKeys = []*common.PublicKey{
+		{Kid: "key1"},
+		{Kid: "key2", TaintedKey: true},
+		{Kid: "key2", TaintedKey: true},
+	}
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	// No allow to revoke because a duplicated key is found
+	publicKey, err = s.ds.RevokeJWTKey(ctx, "spiffe://foo", "key2")
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "another key found with the same KeyID")
+	require.Nil(t, publicKey)
+
+	// Remove duplicated key
+	originalKeys := []*common.PublicKey{
+		{Kid: "key1"},
+		{Kid: "key2", TaintedKey: true},
+	}
+	bundle.JwtSigningKeys = originalKeys
+	_, err = s.ds.UpdateBundle(ctx, bundle, nil)
+	require.NoError(t, err)
+
+	validateBundle := func(expectedKeys []*common.PublicKey, expectSequenceNumber uint64) {
+		fetchedBundle, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+		require.NoError(t, err)
+
+		spiretest.RequireProtoListEqual(t, expectedKeys, fetchedBundle.JwtSigningKeys)
+		require.Equal(t, expectSequenceNumber, fetchedBundle.SequenceNumber)
+	}
+
+	validateBundle(originalKeys, 0)
+
+	// Revoke successfully
+	publicKey, err = s.ds.RevokeJWTKey(ctx, "spiffe://foo", "key2")
+	require.NoError(t, err)
+	require.Equal(t, &common.PublicKey{Kid: "key2", TaintedKey: true}, publicKey)
+
+	expectedJWTKeys := []*common.PublicKey{{Kid: "key1"}}
+	validateBundle(expectedJWTKeys, 1)
+}
+
+func (s *PluginSuite) TestCreateAttestedNode() {
 	node := &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
@@ -510,34 +857,36 @@ func testCreateAttestedNode(t *testing.T, newDS func(t *testing.T) datastore.Dat
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
 
-	attestedNode, err := ds.CreateAttestedNode(ctx, node)
-	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, node, attestedNode)
+	attestedNode, err := s.ds.CreateAttestedNode(ctx, node)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(node, attestedNode)
 
-	attestedNode, err = ds.FetchAttestedNode(ctx, node.SpiffeId)
-	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, node, attestedNode)
+	attestedNode, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
+	s.Require().NoError(err)
+	s.AssertProtoEqual(node, attestedNode)
 }
 
-func testFetchAttestedNodeMissing(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
-	attestedNode, err := ds.FetchAttestedNode(ctx, "missing")
-	require.NoError(t, err)
-	require.Nil(t, attestedNode)
+func (s *PluginSuite) TestFetchAttestedNodeMissing() {
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, "missing")
+	s.Require().NoError(err)
+	s.Require().Nil(attestedNode)
 }
 
-func testListAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListAttestedNodes() {
+	// Connection is never used, each test creates a connection to a different database
+	s.ds.Close()
+
 	now := time.Now()
 	expired := now.Add(-time.Hour)
 	unexpired := now.Add(time.Hour)
 
-	makeAttestedNode := func(spiffeIDSuffix, attestationType string, notAfter time.Time, sn string, selectors ...string) *common.AttestedNode {
+	makeAttestedNode := func(spiffeIDSuffix, attestationType string, notAfter time.Time, sn string, canReattest bool, selectors ...string) *common.AttestedNode {
 		return &common.AttestedNode{
 			SpiffeId:            makeID(spiffeIDSuffix),
 			AttestationDataType: attestationType,
 			CertSerialNumber:    sn,
 			CertNotAfter:        notAfter.Unix(),
+			CanReattest:         canReattest,
 			Selectors:           makeSelectors(selectors...),
 		}
 	}
@@ -547,14 +896,18 @@ func testListAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Data
 	bannedTrue := true
 	unbanned := "IRRELEVANT"
 
-	nodeA := makeAttestedNode("A", "T1", expired, unbanned, "S1")
-	nodeB := makeAttestedNode("B", "T2", expired, unbanned, "S1")
-	nodeC := makeAttestedNode("C", "T1", expired, unbanned, "S2")
-	nodeD := makeAttestedNode("D", "T2", expired, unbanned, "S2")
-	nodeE := makeAttestedNode("E", "T1", unexpired, banned, "S1", "S2")
-	nodeF := makeAttestedNode("F", "T2", unexpired, banned, "S1", "S3")
-	nodeG := makeAttestedNode("G", "T1", unexpired, banned, "S2", "S3")
-	nodeH := makeAttestedNode("H", "T2", unexpired, banned, "S2", "S3")
+	canReattestFalse := false
+	canReattestTrue := true
+
+	nodeA := makeAttestedNode("A", "T1", expired, unbanned, false, "S1")
+	nodeB := makeAttestedNode("B", "T2", expired, unbanned, false, "S1")
+	nodeC := makeAttestedNode("C", "T1", expired, unbanned, false, "S2")
+	nodeD := makeAttestedNode("D", "T2", expired, unbanned, false, "S2")
+	nodeE := makeAttestedNode("E", "T1", unexpired, banned, false, "S1", "S2")
+	nodeF := makeAttestedNode("F", "T2", unexpired, banned, false, "S1", "S3")
+	nodeG := makeAttestedNode("G", "T1", unexpired, banned, false, "S2", "S3")
+	nodeH := makeAttestedNode("H", "T2", unexpired, banned, false, "S2", "S3")
+	nodeI := makeAttestedNode("I", "T1", unexpired, unbanned, true, "S1")
 
 	for _, tt := range []struct {
 		test                string
@@ -564,6 +917,7 @@ func testListAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Data
 		byAttestationType   string
 		bySelectors         *datastore.BySelectors
 		byBanned            *bool
+		byCanReattest       *bool
 		expectNodesOut      []*common.AttestedNode
 		expectPagedTokensIn []string
 		expectPagedNodesOut [][]*common.AttestedNode
@@ -709,6 +1063,28 @@ func testListAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Data
 			expectPagedTokensIn: []string{"", "5"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeE}, {}},
 		},
+		// By CanReattest=true
+		{
+			test:                "by CanReattest=true",
+			nodes:               []*common.AttestedNode{nodeA, nodeI},
+			byAttestationType:   "T1",
+			bySelectors:         nil,
+			byCanReattest:       &canReattestTrue,
+			expectNodesOut:      []*common.AttestedNode{nodeI},
+			expectPagedTokensIn: []string{"", "2"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeI}, {}},
+		},
+		// By CanReattest=false
+		{
+			test:                "by CanReattest=false",
+			nodes:               []*common.AttestedNode{nodeA, nodeI},
+			byAttestationType:   "T1",
+			bySelectors:         nil,
+			byCanReattest:       &canReattestFalse,
+			expectNodesOut:      []*common.AttestedNode{nodeA},
+			expectPagedTokensIn: []string{"", "1"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
+		},
 		// By attestation type and selector subset. This is to exercise some
 		// of the logic that combines these parts of the queries together to
 		// make sure they glom well.
@@ -732,6 +1108,7 @@ func testListAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Data
 			expectNodesOut:      []*common.AttestedNode{nodeA},
 			expectPagedTokensIn: []string{"", "1"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {}},
+			byCanReattest:       &canReattestFalse,
 		},
 	} {
 		tt := tt
@@ -748,17 +1125,18 @@ func testListAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Data
 				} else {
 					name += " without pagination"
 				}
-				t.Run(name, func(t *testing.T) {
-					ds := newDS(t)
+				s.T().Run(name, func(t *testing.T) {
+					s.ds = s.newPlugin()
+					defer s.ds.Close()
 
 					// Create entries for the test. For convenience, map the actual
 					// entry ID to the "test" entry ID, so we can easily pinpoint
 					// which entries were unexpectedly missing or included in the
 					// listing.
 					for _, node := range tt.nodes {
-						_, err := ds.CreateAttestedNode(ctx, node)
+						_, err := s.ds.CreateAttestedNode(ctx, node)
 						require.NoError(t, err)
-						err = ds.SetNodeSelectors(ctx, node.SpiffeId, node.Selectors)
+						err = s.ds.SetNodeSelectors(ctx, node.SpiffeId, node.Selectors)
 						require.NoError(t, err)
 					}
 
@@ -781,6 +1159,7 @@ func testListAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Data
 						ByAttestationType: tt.byAttestationType,
 						BySelectorMatch:   tt.bySelectors,
 						ByBanned:          tt.byBanned,
+						ByCanReattest:     tt.byCanReattest,
 						FetchSelectors:    withSelectors,
 					}
 
@@ -792,7 +1171,7 @@ func testListAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Data
 						if req.Pagination != nil {
 							tokensIn = append(tokensIn, req.Pagination.Token)
 						}
-						resp, err := ds.ListAttestedNodes(ctx, req)
+						resp, err := s.ds.ListAttestedNodes(ctx, req)
 						require.NoError(t, err)
 						require.NotNil(t, resp)
 						if withPagination {
@@ -846,7 +1225,7 @@ func testListAttestedNodes(t *testing.T, newDS func(t *testing.T) datastore.Data
 	}
 }
 
-func testUpdateAttestedNode(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestUpdateAttestedNode() {
 	// Current nodes values
 	nodeID := "spiffe-id"
 	attestationType := "attestation-data-type"
@@ -861,12 +1240,16 @@ func testUpdateAttestedNode(t *testing.T, newDS func(t *testing.T) datastore.Dat
 	updatedNewSerial := ""
 	updatedNewExpires := int64(0)
 
+	// This connection is never used, each plugin is creating a connection to a new database
+	s.ds.Close()
+
 	for _, tt := range []struct {
 		name           string
 		updateNode     *common.AttestedNode
 		updateNodeMask *common.AttestedNodeMask
 		expUpdatedNode *common.AttestedNode
-		expErr         error
+		expCode        codes.Code
+		expMsg         string
 	}{
 		{
 			name: "update non-existing attested node",
@@ -875,7 +1258,8 @@ func testUpdateAttestedNode(t *testing.T, newDS func(t *testing.T) datastore.Dat
 				CertSerialNumber: updatedSerial,
 				CertNotAfter:     updatedExpires,
 			},
-			expErr: record.ErrNotFound,
+			expCode: codes.NotFound,
+			expMsg:  _notFoundErrMsg,
 		},
 		{
 			name: "update attested node with all false mask",
@@ -938,10 +1322,11 @@ func testUpdateAttestedNode(t *testing.T, newDS func(t *testing.T) datastore.Dat
 		},
 	} {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(tt.name, func(t *testing.T) {
+			s.ds = s.newPlugin()
+			defer s.ds.Close()
 
-			_, err := ds.CreateAttestedNode(ctx, &common.AttestedNode{
+			_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 				SpiffeId:            nodeID,
 				AttestationDataType: attestationType,
 				CertSerialNumber:    serial,
@@ -949,56 +1334,270 @@ func testUpdateAttestedNode(t *testing.T, newDS func(t *testing.T) datastore.Dat
 				NewCertNotAfter:     newExpires,
 				NewCertSerialNumber: newSerial,
 			})
-			require.NoError(t, err)
+			s.Require().NoError(err)
 
 			// Update attested node
-			updatedNode, err := ds.UpdateAttestedNode(ctx, tt.updateNode, tt.updateNodeMask)
-			if tt.expErr != nil {
-				require.True(t, errors.Is(err, tt.expErr), "expected error %v; got %v", tt.expErr, err)
-				require.Nil(t, updatedNode)
+			updatedNode, err := s.ds.UpdateAttestedNode(ctx, tt.updateNode, tt.updateNodeMask)
+			s.RequireGRPCStatus(err, tt.expCode, tt.expMsg)
+			if tt.expCode != codes.OK {
+				s.Require().Nil(updatedNode)
 				return
 			}
-			require.NoError(t, err)
-			require.NotNil(t, updatedNode)
-			spiretest.RequireProtoEqual(t, tt.expUpdatedNode, updatedNode)
+			s.Require().NoError(err)
+			s.Require().NotNil(updatedNode)
+			s.RequireProtoEqual(tt.expUpdatedNode, updatedNode)
 
 			// Check a fresh fetch shows the updated attested node
-			attestedNode, err := ds.FetchAttestedNode(ctx, tt.updateNode.SpiffeId)
-			require.NoError(t, err)
-			require.NotNil(t, attestedNode)
-			spiretest.RequireProtoEqual(t, tt.expUpdatedNode, attestedNode)
+			attestedNode, err := s.ds.FetchAttestedNode(ctx, tt.updateNode.SpiffeId)
+			s.Require().NoError(err)
+			s.Require().NotNil(attestedNode)
+			s.RequireProtoEqual(tt.expUpdatedNode, attestedNode)
 		})
 	}
 }
 
-func testDeleteAttestedNode(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
-	entry := &common.AttestedNode{
+func (s *PluginSuite) TestDeleteAttestedNode() {
+	entryFoo := &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	}
+	entryBar := &common.AttestedNode{
+		SpiffeId:            "bar",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	}
 
-	// delete it before it exists
-	err := ds.DeleteAttestedNode(ctx, entry.SpiffeId)
-	assert.True(t, errors.Is(err, record.ErrNotFound), "expected not found; got %v", err)
+	s.Run("delete non-existing attested node", func() {
+		_, err := s.ds.DeleteAttestedNode(ctx, entryFoo.SpiffeId)
+		s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
+	})
 
-	_, err = ds.CreateAttestedNode(ctx, entry)
-	require.NoError(t, err)
+	s.Run("delete attested node that don't have selectors associated", func() {
+		_, err := s.ds.CreateAttestedNode(ctx, entryFoo)
+		s.Require().NoError(err)
 
-	err = ds.DeleteAttestedNode(ctx, entry.SpiffeId)
-	require.NoError(t, err)
+		deletedNode, err := s.ds.DeleteAttestedNode(ctx, entryFoo.SpiffeId)
+		s.Require().NoError(err)
+		s.AssertProtoEqual(entryFoo, deletedNode)
 
-	attestedNode, err := ds.FetchAttestedNode(ctx, entry.SpiffeId)
-	require.NoError(t, err)
-	assert.Nil(t, attestedNode)
+		attestedNode, err := s.ds.FetchAttestedNode(ctx, entryFoo.SpiffeId)
+		s.Require().NoError(err)
+		s.Nil(attestedNode)
+	})
+
+	s.Run("delete attested node with associated selectors", func() {
+		selectors := []*common.Selector{
+			{Type: "TYPE1", Value: "VALUE1"},
+			{Type: "TYPE2", Value: "VALUE2"},
+			{Type: "TYPE3", Value: "VALUE3"},
+			{Type: "TYPE4", Value: "VALUE4"},
+		}
+
+		_, err := s.ds.CreateAttestedNode(ctx, entryFoo)
+		s.Require().NoError(err)
+		// create selectors for entryFoo
+		err = s.ds.SetNodeSelectors(ctx, entryFoo.SpiffeId, selectors)
+		s.Require().NoError(err)
+		// create selectors for entryBar
+		err = s.ds.SetNodeSelectors(ctx, entryBar.SpiffeId, selectors)
+		s.Require().NoError(err)
+
+		nodeSelectors, err := s.ds.GetNodeSelectors(ctx, entryFoo.SpiffeId, datastore.RequireCurrent)
+		s.Require().NoError(err)
+		s.Equal(selectors, nodeSelectors)
+
+		deletedNode, err := s.ds.DeleteAttestedNode(ctx, entryFoo.SpiffeId)
+		s.Require().NoError(err)
+		s.AssertProtoEqual(entryFoo, deletedNode)
+
+		attestedNode, err := s.ds.FetchAttestedNode(ctx, deletedNode.SpiffeId)
+		s.Require().NoError(err)
+		s.Nil(attestedNode)
+
+		// check that selectors for deleted node are gone
+		deletedSelectors, err := s.ds.GetNodeSelectors(ctx, deletedNode.SpiffeId, datastore.RequireCurrent)
+		s.Require().NoError(err)
+		s.Nil(deletedSelectors)
+
+		// check that selectors for entryBar are still there
+		nodeSelectors, err = s.ds.GetNodeSelectors(ctx, entryBar.SpiffeId, datastore.RequireCurrent)
+		s.Require().NoError(err)
+		s.Equal(selectors, nodeSelectors)
+	})
 }
 
-func testNodeSelectors(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
+func (s *PluginSuite) TestListAttestedNodeEvents() {
+	var expectedEvents []datastore.AttestedNodeEvent
 
+	// Create an attested node
+	node1, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node1.SpiffeId)
+
+	// Create selectors for attested node
+	selectors1 := []*common.Selector{
+		{Type: "FOO1", Value: "1"},
+	}
+	s.setNodeSelectors(node1.SpiffeId, selectors1)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node1.SpiffeId)
+
+	// Create second attested node
+	node2, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            "bar",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node2.SpiffeId)
+
+	// Create selectors for second attested node
+	selectors2 := []*common.Selector{
+		{Type: "BAR1", Value: "1"},
+	}
+	s.setNodeSelectors(node2.SpiffeId, selectors2)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node2.SpiffeId)
+
+	// Update first attested node
+	updatedNode, err := s.ds.UpdateAttestedNode(ctx, node1, nil)
+	s.Require().NoError(err)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, updatedNode.SpiffeId)
+
+	// Update selectors for first attested node
+	updatedSelectors := []*common.Selector{
+		{Type: "FOO2", Value: "2"},
+	}
+	s.setNodeSelectors(updatedNode.SpiffeId, updatedSelectors)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, updatedNode.SpiffeId)
+
+	// Delete second atttested node
+	deletedNode, err := s.ds.DeleteAttestedNode(ctx, node2.SpiffeId)
+	s.Require().NoError(err)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, deletedNode.SpiffeId)
+
+	// Delete selectors for second attested node
+	s.setNodeSelectors(deletedNode.SpiffeId, nil)
+	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, deletedNode.SpiffeId)
+
+	// Check filtering events by id
+	tests := []struct {
+		name                 string
+		greaterThanEventID   uint
+		lessThanEventID      uint
+		expectedEvents       []datastore.AttestedNodeEvent
+		expectedFirstEventID uint
+		expectedLastEventID  uint
+		expectedErr          string
+	}{
+		{
+			name:                 "All Events",
+			greaterThanEventID:   0,
+			expectedFirstEventID: 1,
+			expectedLastEventID:  uint(len(expectedEvents)),
+			expectedEvents:       expectedEvents,
+		},
+		{
+			name:                 "Greater than half of the Events",
+			greaterThanEventID:   uint(len(expectedEvents) / 2),
+			expectedFirstEventID: uint(len(expectedEvents)/2) + 1,
+			expectedLastEventID:  uint(len(expectedEvents)),
+			expectedEvents:       expectedEvents[len(expectedEvents)/2:],
+		},
+		{
+			name:                 "Less than half of the Events",
+			lessThanEventID:      uint(len(expectedEvents) / 2),
+			expectedFirstEventID: 1,
+			expectedLastEventID:  uint(len(expectedEvents)/2) - 1,
+			expectedEvents:       expectedEvents[:len(expectedEvents)/2-1],
+		},
+		{
+			name:               "Greater than largest Event ID",
+			greaterThanEventID: uint(len(expectedEvents)),
+			expectedEvents:     []datastore.AttestedNodeEvent{},
+		},
+		{
+			name:               "Setting both greater and less than",
+			greaterThanEventID: 1,
+			lessThanEventID:    1,
+			expectedErr:        "rpc error: code = Unknown desc = datastore-keyvalue: can't set both greater and less than event id",
+		},
+	}
+	for _, test := range tests {
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
+				GreaterThanEventID: test.greaterThanEventID,
+				LessThanEventID:    test.lessThanEventID,
+			})
+			if test.expectedErr != "" {
+				require.EqualError(t, err, test.expectedErr)
+				return
+			}
+			s.Require().NoError(err)
+
+			s.Require().Equal(test.expectedEvents, resp.Events)
+			if len(resp.Events) > 0 {
+				s.Require().Equal(test.expectedFirstEventID, resp.Events[0].EventID)
+				s.Require().Equal(test.expectedLastEventID, resp.Events[len(resp.Events)-1].EventID)
+			}
+		})
+	}
+}
+
+func (s *PluginSuite) TestPruneAttestedNodeEvents() {
+	node, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            "foo",
+		AttestationDataType: "aws-tag",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+
+	resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(node.SpiffeId, resp.Events[0].SpiffeID)
+
+	for _, tt := range []struct {
+		name           string
+		olderThan      time.Duration
+		expectedEvents []datastore.AttestedNodeEvent
+	}{
+		{
+			name:      "Don't prune valid events",
+			olderThan: 1 * time.Hour,
+			expectedEvents: []datastore.AttestedNodeEvent{
+				{
+					EventID:  1,
+					SpiffeID: node.SpiffeId,
+				},
+			},
+		},
+		{
+			name:           "Prune old events",
+			olderThan:      0 * time.Second,
+			expectedEvents: []datastore.AttestedNodeEvent{},
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			s.Require().Eventuallyf(func() bool {
+				err = s.ds.PruneAttestedNodeEvents(ctx, tt.olderThan)
+				s.Require().NoError(err)
+				resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
+				s.Require().NoError(err)
+				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
+			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
+		})
+	}
+}
+
+func (s *PluginSuite) TestNodeSelectors() {
 	foo1 := []*common.Selector{
 		{Type: "FOO1", Value: "1"},
 	}
@@ -1010,49 +1609,47 @@ func testNodeSelectors(t *testing.T, newDS func(t *testing.T) datastore.DataStor
 	}
 
 	// assert there are no selectors for foo
-	selectors := getNodeSelectors(t, ds, "foo", datastore.TolerateStale)
-	require.Empty(t, selectors)
-	selectors = getNodeSelectors(t, ds, "foo", datastore.RequireCurrent)
-	require.Empty(t, selectors)
+	selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
+	s.Require().Empty(selectors)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	s.Require().Empty(selectors)
 
 	// set selectors on foo and bar
-	setNodeSelectors(t, ds, "foo", foo1)
-	setNodeSelectors(t, ds, "bar", bar)
+	s.setNodeSelectors("foo", foo1)
+	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = getNodeSelectors(t, ds, "foo", datastore.TolerateStale)
-	spiretest.RequireProtoListEqual(t, foo1, selectors)
-	selectors = getNodeSelectors(t, ds, "foo", datastore.RequireCurrent)
-	spiretest.RequireProtoListEqual(t, foo1, selectors)
+	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
+	s.RequireProtoListEqual(foo1, selectors)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	s.RequireProtoListEqual(foo1, selectors)
 
 	// replace foo selectors
-	setNodeSelectors(t, ds, "foo", foo2)
-	selectors = getNodeSelectors(t, ds, "foo", datastore.TolerateStale)
-	spiretest.RequireProtoListEqual(t, foo2, selectors)
-	selectors = getNodeSelectors(t, ds, "foo", datastore.RequireCurrent)
-	spiretest.RequireProtoListEqual(t, foo2, selectors)
+	s.setNodeSelectors("foo", foo2)
+	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
+	s.RequireProtoListEqual(foo2, selectors)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	s.RequireProtoListEqual(foo2, selectors)
 
 	// delete foo selectors
-	setNodeSelectors(t, ds, "foo", []*common.Selector{})
-	selectors = getNodeSelectors(t, ds, "foo", datastore.TolerateStale)
-	require.Empty(t, selectors)
-	selectors = getNodeSelectors(t, ds, "foo", datastore.RequireCurrent)
-	require.Empty(t, selectors)
+	s.setNodeSelectors("foo", []*common.Selector{})
+	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
+	s.Require().Empty(selectors)
+	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	s.Require().Empty(selectors)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = getNodeSelectors(t, ds, "bar", datastore.TolerateStale)
-	spiretest.RequireProtoListEqual(t, bar, selectors)
+	selectors = s.getNodeSelectors("bar", datastore.TolerateStale)
+	s.RequireProtoListEqual(bar, selectors)
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = getNodeSelectors(t, ds, "bar", datastore.RequireCurrent)
-	spiretest.RequireProtoListEqual(t, bar, selectors)
+	selectors = s.getNodeSelectors("bar", datastore.RequireCurrent)
+	s.RequireProtoListEqual(bar, selectors)
 }
 
-func testListNodeSelectors(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
-	t.Run("no selectors exist", func(t *testing.T) {
+func (s *PluginSuite) TestListNodeSelectors() {
+	s.T().Run("no selectors exist", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{}
-		resp := listNodeSelectors(t, ds, req)
+		resp := s.listNodeSelectors(req)
 		assertSelectorsEqual(t, nil, resp.Selectors)
 	})
 
@@ -1089,8 +1686,8 @@ func testListNodeSelectors(t *testing.T, newDS func(t *testing.T) datastore.Data
 	allAttNodesToCreate = append(allAttNodesToCreate, expiredAttNodes...)
 	selectorMap := make(map[string][]*common.Selector)
 	for i, n := range allAttNodesToCreate {
-		_, err := ds.CreateAttestedNode(ctx, n)
-		require.NoError(t, err)
+		_, err := s.ds.CreateAttestedNode(ctx, n)
+		s.Require().NoError(err)
 
 		selectors := []*common.Selector{
 			{
@@ -1099,7 +1696,7 @@ func testListNodeSelectors(t *testing.T, newDS func(t *testing.T) datastore.Data
 			},
 		}
 
-		setNodeSelectors(t, ds, n.SpiffeId, selectors)
+		s.setNodeSelectors(n.SpiffeId, selectors)
 		selectorMap[n.SpiffeId] = selectors
 	}
 
@@ -1109,24 +1706,47 @@ func testListNodeSelectors(t *testing.T, newDS func(t *testing.T) datastore.Data
 		nonExpiredSelectorsMap[spiffeID] = selectorMap[spiffeID]
 	}
 
-	t.Run("list all", func(t *testing.T) {
+	s.T().Run("list all", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{}
-		resp := listNodeSelectors(t, ds, req)
+		resp := s.listNodeSelectors(req)
 		assertSelectorsEqual(t, selectorMap, resp.Selectors)
 	})
 
-	t.Run("list unexpired", func(t *testing.T) {
+	s.T().Run("list unexpired", func(t *testing.T) {
 		req := &datastore.ListNodeSelectorsRequest{
 			ValidAt: now,
 		}
-		resp := listNodeSelectors(t, ds, req)
+		resp := s.listNodeSelectors(req)
 		assertSelectorsEqual(t, nonExpiredSelectorsMap, resp.Selectors)
 	})
 }
 
-func testSetNodeSelectorsUnderLoad(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
+/*
+	func (s *PluginSuite) TestListNodeSelectorsGroupsBySpiffeID() {
+		insertSelector := func(id int, spiffeID, selectorType, selectorValue string) {
+			query := maybeRebind(s.ds.db.databaseType, "INSERT INTO node_resolver_map_entries(id, spiffe_id, type, value) VALUES (?, ?, ?, ?)")
+			_, err := s.ds.db.raw.Exec(query, id, spiffeID, selectorType, selectorValue)
+			s.Require().NoError(err)
+		}
 
+		// Insert selectors out of order in respect to the SPIFFE ID so
+		// that we can assert that the datastore aggregates the results correctly.
+		insertSelector(1, "spiffe://example.org/node3", "A", "a")
+		insertSelector(2, "spiffe://example.org/node2", "B", "b")
+		insertSelector(3, "spiffe://example.org/node3", "C", "c")
+		insertSelector(4, "spiffe://example.org/node1", "D", "d")
+		insertSelector(5, "spiffe://example.org/node2", "E", "e")
+		insertSelector(6, "spiffe://example.org/node3", "F", "f")
+
+		resp := s.listNodeSelectors(&datastore.ListNodeSelectorsRequest{})
+		assertSelectorsEqual(s.T(), map[string][]*common.Selector{
+			"spiffe://example.org/node1": {{Type: "D", Value: "d"}},
+			"spiffe://example.org/node2": {{Type: "B", Value: "b"}, {Type: "E", Value: "e"}},
+			"spiffe://example.org/node3": {{Type: "A", Value: "a"}, {Type: "C", Value: "c"}, {Type: "F", Value: "f"}},
+		}, resp.Selectors)
+	}
+*/
+func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
 	selectors := []*common.Selector{
 		{Type: "TYPE", Value: "VALUE"},
 	}
@@ -1140,7 +1760,7 @@ func testSetNodeSelectorsUnderLoad(t *testing.T, newDS func(t *testing.T) datast
 		go func() {
 			id := fmt.Sprintf("ID%d", atomic.AddInt32(&nextID, 1))
 			for j := 0; j < 10; j++ {
-				err := ds.SetNodeSelectors(ctx, id, selectors)
+				err := s.ds.SetNodeSelectors(ctx, id, selectors)
 				if err != nil {
 					resultCh <- err
 				}
@@ -1150,44 +1770,198 @@ func testSetNodeSelectorsUnderLoad(t *testing.T, newDS func(t *testing.T) datast
 	}
 
 	for i := 0; i < numWorkers; i++ {
-		require.NoError(t, <-resultCh)
+		s.Require().NoError(<-resultCh)
 	}
 }
 
-func testCreateRegistrationEntry(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestCreateRegistrationEntry() {
+	now := time.Now().Unix()
 	var validRegistrationEntries []*common.RegistrationEntry
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
-		registrationEntry, err := ds.CreateRegistrationEntry(ctx, validRegistrationEntry)
-		require.NoError(t, err)
-		require.NotNil(t, registrationEntry)
-		assert.NotEmpty(t, registrationEntry.EntryId)
-		registrationEntry.EntryId = ""
-		spiretest.RequireProtoEqual(t, registrationEntry, validRegistrationEntry)
+		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, validRegistrationEntry)
+		s.Require().NoError(err)
+		s.Require().NotNil(registrationEntry)
+		s.assertEntryEqual(s.T(), validRegistrationEntry, registrationEntry, now)
 	}
 }
 
-func testCreateInvalidRegistrationEntry(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
+func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
+	now := time.Now().Unix()
 
+	for _, tt := range []struct {
+		name          string
+		modifyEntry   func(*common.RegistrationEntry) *common.RegistrationEntry
+		expectError   string
+		expectSimilar bool
+		matchEntryID  bool
+	}{
+		{
+			name: "no entry provided",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				return nil
+			},
+			expectError: "datastore-keyvalue: invalid request: missing registered entry",
+		},
+		{
+			name: "no selectors",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.Selectors = nil
+				return e
+			},
+			expectError: "datastore-keyvalue: invalid registration entry: missing selector list",
+		},
+		{
+			name: "no SPIFFE ID",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.SpiffeId = ""
+				return e
+			},
+			expectError: "datastore-keyvalue: invalid registration entry: missing SPIFFE ID",
+		},
+		{
+			name: "negative X509 ttl",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.X509SvidTtl = -1
+				return e
+			},
+			expectError: "datastore-keyvalue: invalid registration entry: X509SvidTtl is not set",
+		},
+		{
+			name: "negative JWT ttl",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.JwtSvidTtl = -1
+				return e
+			},
+			expectError: "datastore-keyvalue: invalid registration entry: JwtSvidTtl is not set",
+		},
+		{
+			name: "create entry successfully",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				return e
+			},
+		},
+		{
+			name: "subset selectors",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.Selectors = []*common.Selector{
+					{Type: "a", Value: "1"},
+				}
+				return e
+			},
+		},
+		{
+			name: "with superset selectors",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.Selectors = []*common.Selector{
+					{Type: "a", Value: "1"},
+					{Type: "b", Value: "2"},
+					{Type: "c", Value: "3"},
+				}
+				return e
+			},
+		},
+		{
+			name: "same selectors but different SPIFFE IDs",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.SpiffeId = "spiffe://example.org/baz"
+				return e
+			},
+		},
+		{
+			name: "with custom entry ID",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.EntryId = "some_ID_1"
+				// need to change at least one of (parentID, spiffeID, selector)
+				e.SpiffeId = "spiffe://example.org/bar"
+				return e
+			},
+			matchEntryID: true,
+		},
+		{
+			name: "failed to create similar entry",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				return e
+			},
+			expectSimilar: true,
+		},
+		{
+			name: "failed to create similar entry with different entry ID",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.EntryId = "some_ID_2"
+				return e
+			},
+			expectSimilar: true,
+		},
+		{
+			name: "entry ID too long",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.EntryId = strings.Repeat("e", 256)
+				return e
+			},
+			expectError: "datastore-keyvalue: invalid registration entry: entry ID too long",
+		},
+		{
+			name: "entry ID contains invalid characters",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.EntryId = "éntry😊"
+				return e
+			},
+			expectError: "datastore-keyvalue: invalid registration entry: entry ID contains invalid characters",
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			entry := &common.RegistrationEntry{
+				SpiffeId: "spiffe://example.org/foo",
+				ParentId: "spiffe://example.org/bar",
+				Selectors: []*common.Selector{
+					{Type: "a", Value: "1"},
+					{Type: "b", Value: "2"},
+				},
+				X509SvidTtl: 1,
+				JwtSvidTtl:  1,
+				DnsNames: []string{
+					"abcd.efg",
+					"somehost",
+				},
+			}
+			entry = tt.modifyEntry(entry)
+
+			createdEntry, alreadyExists, err := s.ds.CreateOrReturnRegistrationEntry(ctx, entry)
+
+			require.Equal(t, tt.expectSimilar, alreadyExists)
+			if tt.expectError != "" {
+				require.EqualError(t, err, tt.expectError)
+				require.Nil(t, createdEntry)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, createdEntry)
+			if tt.matchEntryID {
+				require.Equal(t, entry.EntryId, createdEntry.EntryId)
+			} else {
+				require.NotEqual(t, entry.EntryId, createdEntry.EntryId)
+			}
+			s.assertEntryEqual(t, entry, createdEntry, now)
+		})
+	}
+}
+
+func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 	var invalidRegistrationEntries []*common.RegistrationEntry
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
 
 	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
-		registrationEntry, err := ds.CreateRegistrationEntry(ctx, invalidRegistrationEntry)
-		require.Error(t, err)
-		require.Nil(t, registrationEntry)
+		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, invalidRegistrationEntry)
+		s.Require().Error(err)
+		s.Require().Nil(registrationEntry)
 	}
 
 	// TODO: Check that no entries have been created
 }
 
-func testFetchRegistrationEntry(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestFetchRegistrationEntry() {
 	for _, tt := range []struct {
 		name  string
 		entry *common.RegistrationEntry
@@ -1200,9 +1974,9 @@ func testFetchRegistrationEntry(t *testing.T, newDS func(t *testing.T) datastore
 					{Type: "Type2", Value: "Value2"},
 					{Type: "Type3", Value: "Value3"},
 				},
-				SpiffeId: "SpiffeId",
-				ParentId: "ParentId",
-				Ttl:      1,
+				SpiffeId:    "SpiffeId",
+				ParentId:    "ParentId",
+				X509SvidTtl: 1,
 				DnsNames: []string{
 					"abcd.efg",
 					"somehost",
@@ -1215,29 +1989,39 @@ func testFetchRegistrationEntry(t *testing.T, newDS func(t *testing.T) datastore
 				Selectors: []*common.Selector{
 					{Type: "Type1", Value: "Value1"},
 				},
-				SpiffeId:  "SpiffeId",
-				ParentId:  "ParentId",
-				Ttl:       1,
-				StoreSvid: true,
+				SpiffeId:    "SpiffeId",
+				ParentId:    "ParentId",
+				X509SvidTtl: 1,
+				StoreSvid:   true,
+			},
+		},
+		{
+			name: "entry with hint",
+			entry: &common.RegistrationEntry{
+				Selectors: []*common.Selector{
+					{Type: "Type1", Value: "Value1"},
+				},
+				SpiffeId:    "SpiffeId",
+				ParentId:    "ParentId",
+				X509SvidTtl: 1,
+				Hint:        "external",
 			},
 		},
 	} {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			createdEntry, err := ds.CreateRegistrationEntry(ctx, tt.entry)
-			require.NoError(t, err)
-			require.NotNil(t, createdEntry)
+		s.T().Run(tt.name, func(t *testing.T) {
+			createdEntry, err := s.ds.CreateRegistrationEntry(ctx, tt.entry)
+			s.Require().NoError(err)
+			s.Require().NotNil(createdEntry)
 
-			fetchRegistrationEntry, err := ds.FetchRegistrationEntry(ctx, createdEntry.EntryId)
-			require.NoError(t, err)
-			spiretest.RequireProtoEqual(t, createdEntry, fetchRegistrationEntry)
+			fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdEntry.EntryId)
+			s.Require().NoError(err)
+			s.RequireProtoEqual(createdEntry, fetchRegistrationEntry)
 		})
 	}
 }
 
-func testPruneRegistrationEntries(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestPruneRegistrationEntries() {
 	now := time.Now()
 	entry := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
@@ -1247,17 +2031,22 @@ func testPruneRegistrationEntries(t *testing.T, newDS func(t *testing.T) datasto
 		},
 		SpiffeId:    "SpiffeId",
 		ParentId:    "ParentId",
-		Ttl:         1,
+		X509SvidTtl: 1,
 		EntryExpiry: now.Unix(),
 	}
 
-	createdRegistrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
-	require.NoError(t, err)
+	createdRegistrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
+	s.Require().NoError(err)
 	fetchedRegistrationEntry := &common.RegistrationEntry{}
 	defaultLastLog := spiretest.LogEntry{
 		Message: "Connected to SQL database",
 	}
 	prunedLogMessage := "Pruned an expired registration"
+
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(1, len(resp.Events))
+	s.Require().Equal(createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
 
 	for _, tt := range []struct {
 		name                      string
@@ -1293,61 +2082,79 @@ func testPruneRegistrationEntries(t *testing.T, newDS func(t *testing.T) datasto
 		},
 	} {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			err = ds.PruneRegistrationEntries(ctx, tt.time)
+		s.T().Run(tt.name, func(t *testing.T) {
+			// Get latest event id
+			resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 			require.NoError(t, err)
-			fetchedRegistrationEntry, err = ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
+			require.Greater(t, len(resp.Events), 0)
+			lastEventID := resp.Events[len(resp.Events)-1].EventID
+
+			// Prune events
+			err = s.ds.PruneRegistrationEntries(ctx, tt.time)
+			require.NoError(t, err)
+			fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
-			//			if tt.expectedLastLog.Message == prunedLogMessage {
-			//				spiretest.AssertLastLogs(t, s.hook.AllEntries(), []spiretest.LogEntry{tt.expectedLastLog})
-			//			} else {
-			//				assert.Equal(t, s.hook.LastEntry().Message, tt.expectedLastLog.Message)
-			//			}
+			// Verify pruning triggers event creation
+			resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+				GreaterThanEventID: lastEventID,
+			})
+			require.NoError(t, err)
+			if tt.expectedRegistrationEntry != nil {
+				require.Equal(t, 0, len(resp.Events))
+			} else {
+				require.Equal(t, 1, len(resp.Events))
+				require.Equal(t, createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
+			}
+
+			if tt.expectedLastLog.Message == prunedLogMessage {
+				spiretest.AssertLastLogs(t, s.hook.AllEntries(), []spiretest.LogEntry{tt.expectedLastLog})
+			} else {
+				assert.Equal(t, s.hook.LastEntry().Message, tt.expectedLastLog.Message)
+			}
 		})
 	}
 }
 
-func testFetchInexistentRegistrationEntry(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
-	fetchedRegistrationEntry, err := ds.FetchRegistrationEntry(ctx, "INEXISTENT")
-	require.NoError(t, err)
-	require.Nil(t, fetchedRegistrationEntry)
+func (s *PluginSuite) TestFetchInexistentRegistrationEntry() {
+	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "INEXISTENT")
+	s.Require().NoError(err)
+	s.Require().Nil(fetchedRegistrationEntry)
 }
 
-func testListRegistrationEntries(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	testListRegistrationEntriesWithConsistency(t, newDS, datastore.RequireCurrent)
-	testListRegistrationEntriesWithConsistency(t, newDS, datastore.TolerateStale)
+func (s *PluginSuite) TestListRegistrationEntries() {
+	// Connection is never used, each test creates new connection to a different database
+	s.ds.Close()
 
-	ds := newDS(t)
+	s.testListRegistrationEntries(datastore.RequireCurrent)
+	s.testListRegistrationEntries(datastore.TolerateStale)
 
-	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		Pagination: &datastore.Pagination{
 			PageSize: 0,
 		},
 	})
-	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "cannot paginate with pagesize = 0")
-	require.Nil(t, resp)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "cannot paginate with pagesize = 0")
+	s.Require().Nil(resp)
 
-	resp, err = ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+	resp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		Pagination: &datastore.Pagination{
 			Token:    "invalid int",
 			PageSize: 10,
 		},
 	})
-	require.Error(t, err, "could not parse token 'invalid int'")
-	require.Nil(t, resp)
+	s.Require().Error(err, "could not parse token 'invalid int'")
+	s.Require().Nil(resp)
 
-	resp, err = ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
+	resp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{
 		BySelectors: &datastore.BySelectors{},
 	})
-	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "cannot list by empty selector set")
-	require.Nil(t, resp)
+	s.RequireGRPCStatus(err, codes.InvalidArgument, "cannot list by empty selector set")
+	s.Require().Nil(resp)
 }
 
-func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *testing.T) datastore.DataStore, dataConsistency datastore.DataConsistency) {
+func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.DataConsistency) {
 	byFederatesWith := func(match datastore.MatchBehavior, trustDomainIDs ...string) *datastore.ByFederatesWith {
 		return &datastore.ByFederatesWith{
 			TrustDomains: trustDomainIDs,
@@ -1355,47 +2162,48 @@ func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *test
 		}
 	}
 
-	makeEntry := func(parentIDSuffix, spiffeIDSuffix string, selectors ...string) *common.RegistrationEntry {
+	makeEntry := func(parentIDSuffix, spiffeIDSuffix, hint string, selectors ...string) *common.RegistrationEntry {
 		return &common.RegistrationEntry{
 			EntryId:   fmt.Sprintf("%s%s%s", parentIDSuffix, spiffeIDSuffix, strings.Join(selectors, "")),
 			ParentId:  makeID(parentIDSuffix),
 			SpiffeId:  makeID(spiffeIDSuffix),
 			Selectors: makeSelectors(selectors...),
+			Hint:      hint,
 		}
 	}
 
-	foobarAB1 := makeEntry("foo", "bar", "A", "B")
+	foobarAB1 := makeEntry("foo", "bar", "external", "A", "B")
 	foobarAB1.FederatesWith = []string{"spiffe://federated1.test"}
-	foobarAD12 := makeEntry("foo", "bar", "A", "D")
+	foobarAD12 := makeEntry("foo", "bar", "", "A", "D")
 	foobarAD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	foobarCB2 := makeEntry("foo", "bar", "C", "B")
+	foobarCB2 := makeEntry("foo", "bar", "internal", "C", "B")
 	foobarCB2.FederatesWith = []string{"spiffe://federated2.test"}
-	foobarCD12 := makeEntry("foo", "bar", "C", "D")
+	foobarCD12 := makeEntry("foo", "bar", "", "C", "D")
 	foobarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
 
-	foobarB := makeEntry("foo", "bar", "B")
+	foobarB := makeEntry("foo", "bar", "", "B")
 
-	foobuzAD1 := makeEntry("foo", "buz", "A", "D")
+	foobuzAD1 := makeEntry("foo", "buz", "", "A", "D")
 	foobuzAD1.FederatesWith = []string{"spiffe://federated1.test"}
-	foobuzCD := makeEntry("foo", "buz", "C", "D")
+	foobuzCD := makeEntry("foo", "buz", "", "C", "D")
 
-	bazbarAB1 := makeEntry("baz", "bar", "A", "B")
+	bazbarAB1 := makeEntry("baz", "bar", "", "A", "B")
 	bazbarAB1.FederatesWith = []string{"spiffe://federated1.test"}
-	bazbarAD12 := makeEntry("baz", "bar", "A", "D")
+	bazbarAD12 := makeEntry("baz", "bar", "external", "A", "D")
 	bazbarAD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	bazbarCB2 := makeEntry("baz", "bar", "C", "B")
+	bazbarCB2 := makeEntry("baz", "bar", "", "C", "B")
 	bazbarCB2.FederatesWith = []string{"spiffe://federated2.test"}
-	bazbarCD12 := makeEntry("baz", "bar", "C", "D")
+	bazbarCD12 := makeEntry("baz", "bar", "", "C", "D")
 	bazbarCD12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	bazbarAE3 := makeEntry("baz", "bar", "A", "E")
+	bazbarAE3 := makeEntry("baz", "bar", "", "A", "E")
 	bazbarAE3.FederatesWith = []string{"spiffe://federated3.test"}
 
-	bazbuzAB12 := makeEntry("baz", "buz", "A", "B")
+	bazbuzAB12 := makeEntry("baz", "buz", "", "A", "B")
 	bazbuzAB12.FederatesWith = []string{"spiffe://federated1.test", "spiffe://federated2.test"}
-	bazbuzB := makeEntry("baz", "buz", "B")
-	bazbuzCD := makeEntry("baz", "buz", "C", "D")
+	bazbuzB := makeEntry("baz", "buz", "", "B")
+	bazbuzCD := makeEntry("baz", "buz", "", "C", "D")
 
-	zizzazX := makeEntry("ziz", "zaz", "X")
+	zizzazX := makeEntry("ziz", "zaz", "", "X")
 
 	for _, tt := range []struct {
 		test                  string
@@ -1403,6 +2211,7 @@ func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *test
 		pageSize              int32
 		byParentID            string
 		bySpiffeID            string
+		byHint                string
 		bySelectors           *datastore.BySelectors
 		byFederatesWith       *datastore.ByFederatesWith
 		expectEntriesOut      []*common.RegistrationEntry
@@ -1456,6 +2265,23 @@ func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *test
 			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, foobarCB2},
 			expectPagedTokensIn:   []string{"", "1", "3"},
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {foobarCB2}, {}},
+		},
+		// by Hint
+		{
+			test:                  "by Hint, two matches",
+			entries:               []*common.RegistrationEntry{foobarAB1, bazbarAD12, foobarCB2, bazbarCD12},
+			byHint:                "external",
+			expectEntriesOut:      []*common.RegistrationEntry{foobarAB1, bazbarAD12},
+			expectPagedTokensIn:   []string{"", "1", "2"},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAB1}, {bazbarAD12}, {}},
+		},
+		{
+			test:                  "by Hint, no match",
+			entries:               []*common.RegistrationEntry{foobarAB1, bazbarAD12, foobarCB2, bazbarCD12},
+			byHint:                "none",
+			expectEntriesOut:      []*common.RegistrationEntry{},
+			expectPagedTokensIn:   []string{""},
+			expectPagedEntriesOut: [][]*common.RegistrationEntry{{}},
 		},
 		// by federates with
 		{
@@ -1929,12 +2755,13 @@ func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *test
 			if dataConsistency == datastore.TolerateStale {
 				name += " read-only"
 			}
-			t.Run(name, func(t *testing.T) {
-				ds := newDS(t)
+			s.T().Run(name, func(t *testing.T) {
+				s.ds = s.newPlugin()
+				defer s.ds.Close()
 
-				createBundle(t, ds, "spiffe://federated1.test")
-				createBundle(t, ds, "spiffe://federated2.test")
-				createBundle(t, ds, "spiffe://federated3.test")
+				s.createBundle("spiffe://federated1.test")
+				s.createBundle("spiffe://federated2.test")
+				s.createBundle("spiffe://federated3.test")
 
 				// Create entries for the test. For convenience, map the actual
 				// entry ID to the "test" entry ID, so we can easily pinpoint
@@ -1942,8 +2769,14 @@ func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *test
 				// listing.
 				entryIDMap := map[string]string{}
 				for _, entryIn := range tt.entries {
-					entryOut := createRegistrationEntry(t, ds, entryIn)
+					entryOut := s.createRegistrationEntry(entryIn)
 					entryIDMap[entryOut.EntryId] = entryIn.EntryId
+				}
+
+				// Optionally sleep to give time for the entries to propagate to
+				// the replicas.
+				if dataConsistency == datastore.TolerateStale && s.readOnlyDelay > 0 {
+					time.Sleep(s.readOnlyDelay)
 				}
 
 				var pagination *datastore.Pagination
@@ -1957,24 +2790,26 @@ func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *test
 				}
 
 				var tokensIn []string
-				var actualIDsOut [][]string
+				var actualEntriesOut = make(map[string]*common.RegistrationEntry)
+				var expectedEntriesOut = make(map[string]*common.RegistrationEntry)
 				req := &datastore.ListRegistrationEntriesRequest{
 					Pagination:      pagination,
 					ByParentID:      tt.byParentID,
 					BySpiffeID:      tt.bySpiffeID,
 					BySelectors:     tt.bySelectors,
 					ByFederatesWith: tt.byFederatesWith,
+					ByHint:          tt.byHint,
 				}
 
 				for i := 0; ; i++ {
 					// Don't loop forever if there is a bug
 					if i > len(tt.entries) {
-						require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
+						require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualEntriesOut)
 					}
 					if req.Pagination != nil {
 						tokensIn = append(tokensIn, req.Pagination.Token)
 					}
-					resp, err := ds.ListRegistrationEntries(ctx, req)
+					resp, err := s.ds.ListRegistrationEntries(ctx, req)
 					require.NoError(t, err)
 					require.NotNil(t, resp)
 					if withPagination {
@@ -1984,13 +2819,12 @@ func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *test
 						assert.Nil(t, resp.Pagination, "response has pagination")
 					}
 
-					var idSet []string
 					for _, entry := range resp.Entries {
 						entryID, ok := entryIDMap[entry.EntryId]
 						require.True(t, ok, "entry with id %q was not created by this test", entry.EntryId)
-						idSet = append(idSet, entryID)
+						entry.EntryId = entryID
+						actualEntriesOut[entryID] = entry
 					}
-					actualIDsOut = append(actualIDsOut, idSet)
 
 					if resp.Pagination == nil || resp.Pagination.Token == "" {
 						break
@@ -2003,13 +2837,10 @@ func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *test
 					expectEntriesOut = [][]*common.RegistrationEntry{tt.expectEntriesOut}
 				}
 
-				var expectIDsOut [][]string
 				for _, entrySet := range expectEntriesOut {
-					var idSet []string
 					for _, entry := range entrySet {
-						idSet = append(idSet, entry.EntryId)
+						expectedEntriesOut[entry.EntryId] = entry
 					}
-					expectIDsOut = append(expectIDsOut, idSet)
 				}
 
 				if withPagination {
@@ -2017,72 +2848,116 @@ func testListRegistrationEntriesWithConsistency(t *testing.T, newDS func(t *test
 				} else {
 					assert.Empty(t, tokensIn, "unexpected request tokens")
 				}
-				assert.Equal(t, expectIDsOut, actualIDsOut, "unexpected response entries")
+
+				assert.Len(t, actualEntriesOut, len(expectedEntriesOut), "unexpected number of entries returned")
+				for id, expectedEntry := range expectedEntriesOut {
+					if _, ok := actualEntriesOut[id]; !ok {
+						t.Errorf("Expected entry %q not found", id)
+						continue
+					}
+					// Some databases are not returning federated IDs in the same order (e.g. mysql)
+					sort.Strings(actualEntriesOut[id].FederatesWith)
+					s.assertCreatedAtField(actualEntriesOut[id], expectedEntry.CreatedAt)
+					spiretest.AssertProtoEqual(t, expectedEntry, actualEntriesOut[id])
+				}
 			})
 		}
 	}
 }
 
-func testUpdateRegistrationEntry(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
+/*
+func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
+	_, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "TYPE", Value: "VALUE"},
+		},
+		SpiffeId: "SpiffeId",
+		ParentId: "ParentId",
+		DnsNames: []string{
+			"abcd.efg",
+			"somehost",
+		},
+	})
+	s.Require().NoError(err)
 
-	entry := createRegistrationEntry(t, ds, &common.RegistrationEntry{
+	// This is gross. Since the bug that left selectors around has been fixed
+	// (#1191), I'm not sure how else to test this other than just sneaking in
+	// there and removing the registered_entries row.
+	res, err := s.ds.db.raw.Exec("DELETE FROM registered_entries")
+	s.Require().NoError(err)
+	rowsAffected, err := res.RowsAffected()
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), rowsAffected)
+
+	// Assert that no rows are returned.
+	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	s.Require().Empty(resp.Entries)
+}
+*/
+
+func (s *PluginSuite) TestUpdateRegistrationEntry() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
 			{Type: "Type3", Value: "Value3"},
 		},
-		SpiffeId: "spiffe://example.org/foo",
-		ParentId: "spiffe://example.org/bar",
-		Ttl:      1,
+		SpiffeId:    "spiffe://example.org/foo",
+		ParentId:    "spiffe://example.org/bar",
+		X509SvidTtl: 1,
+		JwtSvidTtl:  20,
 	})
 
-	entry.Ttl = 2
+	entry.X509SvidTtl = 11
+	entry.JwtSvidTtl = 21
 	entry.Admin = true
 	entry.Downstream = true
+	entry.Hint = "internal"
 
-	updatedRegistrationEntry, err := ds.UpdateRegistrationEntry(ctx, entry, nil)
-	require.NoError(t, err)
+	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+	s.Require().NoError(err)
 	// Verify output has expected values
-	require.Equal(t, int32(2), entry.Ttl)
-	require.True(t, entry.Admin)
-	require.True(t, entry.Downstream)
+	s.Require().Equal(int32(11), updatedRegistrationEntry.X509SvidTtl)
+	s.Require().Equal(int32(21), updatedRegistrationEntry.JwtSvidTtl)
+	s.Require().True(updatedRegistrationEntry.Admin)
+	s.Require().True(updatedRegistrationEntry.Downstream)
+	s.Require().Equal("internal", updatedRegistrationEntry.Hint)
+	s.Require().Equal(entry.CreatedAt, updatedRegistrationEntry.CreatedAt)
 
-	registrationEntry, err := ds.FetchRegistrationEntry(ctx, entry.EntryId)
-	require.NoError(t, err)
-	require.NotNil(t, registrationEntry)
-	spiretest.RequireProtoEqual(t, updatedRegistrationEntry, registrationEntry)
+	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	s.Require().NoError(err)
+	s.Require().NotNil(registrationEntry)
+	s.RequireProtoEqual(updatedRegistrationEntry, registrationEntry)
 
 	entry.EntryId = "badid"
-	_, err = ds.UpdateRegistrationEntry(ctx, entry, nil)
-	assert.True(t, errors.Is(err, record.ErrNotFound), "expected not found; got %v", err)
+	_, err = s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 }
 
-func testUpdateRegistrationEntryWithStoreSvid(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
-	entry := createRegistrationEntry(t, ds, &common.RegistrationEntry{
+func (s *PluginSuite) TestUpdateRegistrationEntryWithStoreSvid() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type1", Value: "Value2"},
 			{Type: "Type1", Value: "Value3"},
 		},
-		SpiffeId: "spiffe://example.org/foo",
-		ParentId: "spiffe://example.org/bar",
-		Ttl:      1,
+		SpiffeId:    "spiffe://example.org/foo",
+		ParentId:    "spiffe://example.org/bar",
+		X509SvidTtl: 1,
 	})
 
 	entry.StoreSvid = true
 
-	updateRegistrationEntry, err := ds.UpdateRegistrationEntry(ctx, entry, nil)
-	require.NoError(t, err)
-	require.NotNil(t, updateRegistrationEntry)
+	updateRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+	s.Require().NoError(err)
+	s.Require().NotNil(updateRegistrationEntry)
 	// Verify output has expected values
-	require.True(t, entry.StoreSvid)
+	s.Require().True(entry.StoreSvid)
 
-	fetchRegistrationEntry, err := ds.FetchRegistrationEntry(ctx, entry.EntryId)
-	require.NoError(t, err)
-	spiretest.RequireProtoEqual(t, updateRegistrationEntry, fetchRegistrationEntry)
+	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	s.Require().NoError(err)
+	s.RequireProtoEqual(updateRegistrationEntry, fetchRegistrationEntry)
 
 	// Update with invalid selectors
 	entry.Selectors = []*common.Selector{
@@ -2090,61 +2965,61 @@ func testUpdateRegistrationEntryWithStoreSvid(t *testing.T, newDS func(t *testin
 		{Type: "Type1", Value: "Value2"},
 		{Type: "Type2", Value: "Value3"},
 	}
-	resp, err := ds.UpdateRegistrationEntry(ctx, entry, nil)
-	require.Nil(t, resp)
-	require.EqualError(t, err, "rpc error: code = Unknown desc = datastore-sql: invalid registration entry: selector types must be the same when store SVID is enabled")
+	resp, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+	s.Require().Nil(resp)
+	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-keyvalue: invalid registration entry: selector types must be the same when store SVID is enabled")
 }
 
-func testUpdateRegistrationEntryWithMask(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
-	// There are 9 fields in a registration entry. Of these, 3 have some validation in the SQL
-	// layer. In this test, we update each of the 9 fields and make sure update works, and also check
-	// with the mask value false to make sure nothing changes. For the 3 fields that have validation
+func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
+	// There are 11 fields in a registration entry. Of these, 5 have some validation in the SQL
+	// layer. In this test, we update each of the 11 fields and make sure update works, and also check
+	// with the mask value false to make sure nothing changes. For the 5 fields that have validation
 	// we try with good data, bad data, and with or without a mask (so 4 cases each.)
 
 	// Note that most of the input validation is done in the API layer and has more extensive tests there.
+	now := time.Now().Unix()
 	oldEntry := &common.RegistrationEntry{
-		ParentId:       "spiffe://example.org/oldParentId",
-		SpiffeId:       "spiffe://example.org/oldSpiffeId",
-		Ttl:            1000,
-		Selectors:      []*common.Selector{{Type: "Type1", Value: "Value1"}},
-		FederatesWith:  []string{"spiffe://dom1.org"},
-		Admin:          false,
-		EntryExpiry:    1000,
-		DnsNames:       []string{"dns1"},
-		Downstream:     false,
-		StoreSvid:      false,
-		RevisionNumber: 1,
+		ParentId:      "spiffe://example.org/oldParentId",
+		SpiffeId:      "spiffe://example.org/oldSpiffeId",
+		X509SvidTtl:   1000,
+		JwtSvidTtl:    3000,
+		Selectors:     []*common.Selector{{Type: "Type1", Value: "Value1"}},
+		FederatesWith: []string{"spiffe://dom1.org"},
+		Admin:         false,
+		EntryExpiry:   1000,
+		DnsNames:      []string{"dns1"},
+		Downstream:    false,
+		StoreSvid:     false,
 	}
 	newEntry := &common.RegistrationEntry{
-		ParentId:       "spiffe://example.org/oldParentId",
-		SpiffeId:       "spiffe://example.org/newSpiffeId",
-		Ttl:            1000,
-		Selectors:      []*common.Selector{{Type: "Type2", Value: "Value2"}},
-		FederatesWith:  []string{"spiffe://dom2.org"},
-		Admin:          false,
-		EntryExpiry:    1000,
-		DnsNames:       []string{"dns2"},
-		Downstream:     false,
-		StoreSvid:      false,
-		RevisionNumber: 1,
+		ParentId:      "spiffe://example.org/oldParentId",
+		SpiffeId:      "spiffe://example.org/newSpiffeId",
+		X509SvidTtl:   4000,
+		JwtSvidTtl:    6000,
+		Selectors:     []*common.Selector{{Type: "Type2", Value: "Value2"}},
+		FederatesWith: []string{"spiffe://dom2.org"},
+		Admin:         false,
+		EntryExpiry:   1000,
+		DnsNames:      []string{"dns2"},
+		Downstream:    false,
+		StoreSvid:     true,
+		Hint:          "internal",
 	}
 	badEntry := &common.RegistrationEntry{
-		ParentId:       "not a good parent id",
-		SpiffeId:       "",
-		Ttl:            -1000,
-		Selectors:      []*common.Selector{},
-		FederatesWith:  []string{"invalid federated bundle"},
-		Admin:          false,
-		EntryExpiry:    -2000,
-		DnsNames:       []string{"this is a bad domain name "},
-		Downstream:     false,
-		RevisionNumber: 1,
+		ParentId:      "not a good parent id",
+		SpiffeId:      "",
+		X509SvidTtl:   -1000,
+		JwtSvidTtl:    -3000,
+		Selectors:     []*common.Selector{},
+		FederatesWith: []string{"invalid federated bundle"},
+		Admin:         false,
+		EntryExpiry:   -2000,
+		DnsNames:      []string{"this is a bad domain name "},
+		Downstream:    false,
 	}
 	// Needed for the FederatesWith field to work
-	createBundle(t, ds, "spiffe://dom1.org")
-	createBundle(t, ds, "spiffe://dom2.org")
+	s.createBundle("spiffe://dom1.org")
+	s.createBundle("spiffe://dom2.org")
 
 	var id string
 	for _, testcase := range []struct {
@@ -2152,7 +3027,7 @@ func testUpdateRegistrationEntryWithMask(t *testing.T, newDS func(t *testing.T) 
 		mask   *common.RegistrationEntryMask
 		update func(*common.RegistrationEntry)
 		result func(*common.RegistrationEntry)
-		err    string
+		err    error
 	}{ // SPIFFE ID FIELD -- this field is validated so we check with good and bad data
 		{name: "Update Spiffe ID, Good Data, Mask True",
 			mask:   &common.RegistrationEntryMask{SpiffeId: true},
@@ -2165,7 +3040,7 @@ func testUpdateRegistrationEntryWithMask(t *testing.T, newDS func(t *testing.T) 
 		{name: "Update Spiffe ID, Bad Data, Mask True",
 			mask:   &common.RegistrationEntryMask{SpiffeId: true},
 			update: func(e *common.RegistrationEntry) { e.SpiffeId = badEntry.SpiffeId },
-			err:    "invalid registration entry: missing SPIFFE ID"},
+			err:    errors.New("invalid registration entry: missing SPIFFE ID")},
 		{name: "Update Spiffe ID, Bad Data, Mask False",
 			mask:   &common.RegistrationEntryMask{SpiffeId: false},
 			update: func(e *common.RegistrationEntry) { e.SpiffeId = badEntry.SpiffeId },
@@ -2179,22 +3054,39 @@ func testUpdateRegistrationEntryWithMask(t *testing.T, newDS func(t *testing.T) 
 			mask:   &common.RegistrationEntryMask{ParentId: false},
 			update: func(e *common.RegistrationEntry) { e.ParentId = newEntry.ParentId },
 			result: func(e *common.RegistrationEntry) {}},
-		// TTL FIELD -- This field is validated so we check with good and bad data
-		{name: "Update TTL, Good Data, Mask True",
-			mask:   &common.RegistrationEntryMask{Ttl: true},
-			update: func(e *common.RegistrationEntry) { e.Ttl = newEntry.Ttl },
-			result: func(e *common.RegistrationEntry) { e.Ttl = newEntry.Ttl }},
-		{name: "Update TTL, Good Data, Mask False",
-			mask:   &common.RegistrationEntryMask{Ttl: false},
-			update: func(e *common.RegistrationEntry) { e.Ttl = badEntry.Ttl },
+		// X509 SVID TTL FIELD -- This field is validated so we check with good and bad data
+		{name: "Update X509 SVID TTL, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{X509SvidTtl: true},
+			update: func(e *common.RegistrationEntry) { e.X509SvidTtl = newEntry.X509SvidTtl },
+			result: func(e *common.RegistrationEntry) { e.X509SvidTtl = newEntry.X509SvidTtl }},
+		{name: "Update X509 SVID TTL, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{X509SvidTtl: false},
+			update: func(e *common.RegistrationEntry) { e.X509SvidTtl = badEntry.X509SvidTtl },
 			result: func(e *common.RegistrationEntry) {}},
-		{name: "Update TTL, Bad Data, Mask True",
-			mask:   &common.RegistrationEntryMask{Ttl: true},
-			update: func(e *common.RegistrationEntry) { e.Ttl = badEntry.Ttl },
-			err:    "invalid registration entry: TTL is not set"},
-		{name: "Update TTL, Bad Data, Mask False",
-			mask:   &common.RegistrationEntryMask{Ttl: false},
-			update: func(e *common.RegistrationEntry) { e.Ttl = badEntry.Ttl },
+		{name: "Update X509 SVID TTL, Bad Data, Mask True",
+			mask:   &common.RegistrationEntryMask{X509SvidTtl: true},
+			update: func(e *common.RegistrationEntry) { e.X509SvidTtl = badEntry.X509SvidTtl },
+			err:    errors.New("invalid registration entry: X509SvidTtl is not set")},
+		{name: "Update X509 SVID TTL, Bad Data, Mask False",
+			mask:   &common.RegistrationEntryMask{X509SvidTtl: false},
+			update: func(e *common.RegistrationEntry) { e.X509SvidTtl = badEntry.X509SvidTtl },
+			result: func(e *common.RegistrationEntry) {}},
+		// JWT SVID TTL FIELD -- This field is validated so we check with good and bad data
+		{name: "Update JWT SVID TTL, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{JwtSvidTtl: true},
+			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = newEntry.JwtSvidTtl },
+			result: func(e *common.RegistrationEntry) { e.JwtSvidTtl = newEntry.JwtSvidTtl }},
+		{name: "Update JWT SVID TTL, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{JwtSvidTtl: false},
+			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
+			result: func(e *common.RegistrationEntry) {}},
+		{name: "Update JWT SVID TTL, Bad Data, Mask True",
+			mask:   &common.RegistrationEntryMask{JwtSvidTtl: true},
+			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
+			err:    errors.New("invalid registration entry: JwtSvidTtl is not set")},
+		{name: "Update JWT SVID TTL, Bad Data, Mask False",
+			mask:   &common.RegistrationEntryMask{JwtSvidTtl: false},
+			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
 			result: func(e *common.RegistrationEntry) {}},
 		// SELECTORS FIELD -- This field is validated so we check with good and bad data
 		{name: "Update Selectors, Good Data, Mask True",
@@ -2206,9 +3098,9 @@ func testUpdateRegistrationEntryWithMask(t *testing.T, newDS func(t *testing.T) 
 			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
 			result: func(e *common.RegistrationEntry) {}},
 		{name: "Update Selectors, Bad Data, Mask True",
-			mask:   &common.RegistrationEntryMask{Selectors: false},
+			mask:   &common.RegistrationEntryMask{Selectors: true},
 			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
-			err:    "invalid registration entry: missing selector list"},
+			err:    errors.New("invalid registration entry: missing selector list")},
 		{name: "Update Selectors, Bad Data, Mask False",
 			mask:   &common.RegistrationEntryMask{Selectors: false},
 			update: func(e *common.RegistrationEntry) { e.Selectors = badEntry.Selectors },
@@ -2250,7 +3142,7 @@ func testUpdateRegistrationEntryWithMask(t *testing.T, newDS func(t *testing.T) 
 					{Type: "Type2", Value: "Value2"},
 				}
 			},
-			err: "invalid registration entry: selector types must be the same when store SVID is enabled",
+			err: kvError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
 		},
 
 		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
@@ -2280,6 +3172,15 @@ func testUpdateRegistrationEntryWithMask(t *testing.T, newDS func(t *testing.T) 
 			mask:   &common.RegistrationEntryMask{Downstream: false},
 			update: func(e *common.RegistrationEntry) { e.Downstream = newEntry.Downstream },
 			result: func(e *common.RegistrationEntry) {}},
+		// HINT -- This field isn't validated so we just check with good data
+		{name: "Update Hint, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{Hint: true},
+			update: func(e *common.RegistrationEntry) { e.Hint = newEntry.Hint },
+			result: func(e *common.RegistrationEntry) { e.Hint = newEntry.Hint }},
+		{name: "Update Hint, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{Hint: false},
+			update: func(e *common.RegistrationEntry) { e.Hint = newEntry.Hint },
+			result: func(e *common.RegistrationEntry) {}},
 		// This should update all fields
 		{name: "Test With Nil Mask",
 			mask:   nil,
@@ -2287,91 +3188,95 @@ func testUpdateRegistrationEntryWithMask(t *testing.T, newDS func(t *testing.T) 
 			result: func(e *common.RegistrationEntry) {}},
 	} {
 		tt := testcase
-		t.Run(tt.name, func(t *testing.T) {
+		s.Run(tt.name, func() {
 			if id != "" {
-				deleteRegistrationEntry(t, ds, id)
+				s.deleteRegistrationEntry(id)
 			}
-			registrationEntry := createRegistrationEntry(t, ds, oldEntry)
+			registrationEntry := s.createRegistrationEntry(oldEntry)
 			id = registrationEntry.EntryId
 
 			updateEntry := &common.RegistrationEntry{}
 			tt.update(updateEntry)
 			updateEntry.EntryId = id
-			updatedRegistrationEntry, err := ds.UpdateRegistrationEntry(ctx, updateEntry, tt.mask)
+			updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, updateEntry, tt.mask)
 
-			if tt.err != "" {
-				require.EqualError(t, err, tt.err)
+			if tt.err != nil {
+				s.Require().ErrorContains(err, tt.err.Error())
 				return
 			}
 
-			require.NoError(t, err)
+			s.Require().NoError(err)
 			expectedResult := proto.Clone(oldEntry).(*common.RegistrationEntry)
 			tt.result(expectedResult)
 			expectedResult.EntryId = id
 			expectedResult.RevisionNumber++
-			spiretest.RequireProtoEqual(t, expectedResult, updatedRegistrationEntry)
+			s.assertCreatedAtField(updatedRegistrationEntry, now)
+			s.RequireProtoEqual(expectedResult, updatedRegistrationEntry)
 
 			// Fetch and check the results match expectations
-			registrationEntry, err = ds.FetchRegistrationEntry(ctx, id)
-			require.NoError(t, err)
-			require.NotNil(t, registrationEntry)
+			registrationEntry, err = s.ds.FetchRegistrationEntry(ctx, id)
+			s.Require().NoError(err)
+			s.Require().NotNil(registrationEntry)
 
-			spiretest.RequireProtoEqual(t, expectedResult, registrationEntry)
+			s.assertCreatedAtField(registrationEntry, now)
+
+			s.RequireProtoEqual(expectedResult, registrationEntry)
 		})
 	}
 }
 
-func testDeleteRegistrationEntry(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestDeleteRegistrationEntry() {
 	// delete non-existing
-	err := ds.DeleteRegistrationEntry(ctx, "badid")
-	assert.True(t, errors.Is(err, record.ErrNotFound), "expected not found; got %v", err)
+	_, err := s.ds.DeleteRegistrationEntry(ctx, "badid")
+	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
 
-	entry1 := createRegistrationEntry(t, ds, &common.RegistrationEntry{
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 			{Type: "Type2", Value: "Value2"},
 			{Type: "Type3", Value: "Value3"},
 		},
-		SpiffeId: "spiffe://example.org/foo",
-		ParentId: "spiffe://example.org/bar",
-		Ttl:      1,
+		SpiffeId:    "spiffe://example.org/foo",
+		ParentId:    "spiffe://example.org/bar",
+		X509SvidTtl: 1,
 	})
 
-	entry2 := createRegistrationEntry(t, ds, &common.RegistrationEntry{
+	s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type3", Value: "Value3"},
 			{Type: "Type4", Value: "Value4"},
 			{Type: "Type5", Value: "Value5"},
 		},
-		SpiffeId: "spiffe://example.org/baz",
-		ParentId: "spiffe://example.org/bat",
-		Ttl:      2,
+		SpiffeId:    "spiffe://example.org/baz",
+		ParentId:    "spiffe://example.org/bat",
+		X509SvidTtl: 2,
 	})
 
 	// We have two registration entries
-	entriesResp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-	require.NoError(t, err)
-	require.Len(t, entriesResp.Entries, 2)
+	entriesResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	s.Require().Len(entriesResp.Entries, 2)
 
-	// Delete again must fails with Not Found
-	err = ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
-	require.NoError(t, err)
+	// Make sure we deleted the right one
+	deletedEntry, err := s.ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
+	s.Require().NoError(err)
+	s.Require().Equal(entry1, deletedEntry)
 
 	// Make sure we have now only one registration entry
-	entriesResp, err = ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-	require.NoError(t, err)
-	spiretest.RequireProtoListEqual(t, []*common.RegistrationEntry{entry2}, entriesResp.Entries)
+	entriesResp, err = s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	s.Require().NoError(err)
+	s.Require().Len(entriesResp.Entries, 1)
 
 	// Delete again must fails with Not Found
-	err = ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
-	require.True(t, errors.Is(err, record.ErrNotFound), "expected not found; got %v", err)
+	deletedEntry, err = s.ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
+	s.Require().EqualError(err, "rpc error: code = NotFound desc = datastore-keyvalue: record not found")
+	s.Require().Nil(deletedEntry)
 }
 
-func testListParentIDEntries(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListParentIDEntries() {
+	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -2394,8 +3299,9 @@ func testListParentIDEntries(t *testing.T, newDS func(t *testing.T) datastore.Da
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2406,14 +3312,16 @@ func testListParentIDEntries(t *testing.T, newDS func(t *testing.T) datastore.Da
 				ByParentID: test.parentID,
 			})
 			require.NoError(t, err)
+			s.assertCreatedAtFields(result, now)
 			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
 
-func testListSelectorEntries(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListSelectorEntries() {
+	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -2441,8 +3349,9 @@ func testListSelectorEntries(t *testing.T, newDS func(t *testing.T) datastore.Da
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2456,14 +3365,16 @@ func testListSelectorEntries(t *testing.T, newDS func(t *testing.T) datastore.Da
 				},
 			})
 			require.NoError(t, err)
+			s.assertCreatedAtFields(result, now)
 			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
 
-func testListEntriesBySelectorSubset(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListEntriesBySelectorSubset() {
+	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -2495,8 +3406,9 @@ func testListEntriesBySelectorSubset(t *testing.T, newDS func(t *testing.T) data
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2512,14 +3424,16 @@ func testListEntriesBySelectorSubset(t *testing.T, newDS func(t *testing.T) data
 			require.NoError(t, err)
 			util.SortRegistrationEntries(test.expectedList)
 			util.SortRegistrationEntries(result.Entries)
-			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
+			s.assertCreatedAtFields(result, now)
+			s.RequireProtoListEqual(test.expectedList, result.Entries)
 		})
 	}
 }
 
-func testListSelectorEntriesSuperset(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListSelectorEntriesSuperset() {
+	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -2549,8 +3463,9 @@ func testListSelectorEntriesSuperset(t *testing.T, newDS func(t *testing.T) data
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2564,14 +3479,16 @@ func testListSelectorEntriesSuperset(t *testing.T, newDS func(t *testing.T) data
 				},
 			})
 			require.NoError(t, err)
+			s.assertCreatedAtFields(result, now)
 			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
 
-func testListEntriesBySelectorMatchAny(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListEntriesBySelectorMatchAny() {
+	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -2614,8 +3531,9 @@ func testListEntriesBySelectorMatchAny(t *testing.T, newDS func(t *testing.T) da
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.Close()
 			for _, entry := range test.registrationEntries {
 				registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
 				require.NoError(t, err)
@@ -2631,14 +3549,16 @@ func testListEntriesBySelectorMatchAny(t *testing.T, newDS func(t *testing.T) da
 			require.NoError(t, err)
 			util.SortRegistrationEntries(test.expectedList)
 			util.SortRegistrationEntries(result.Entries)
-			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
+			s.assertCreatedAtFields(result, now)
+			s.RequireProtoListEqual(test.expectedList, result.Entries)
 		})
 	}
 }
 
-func testListEntriesByFederatesWithExact(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListEntriesByFederatesWithExact() {
+	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -2679,8 +3599,9 @@ func testListEntriesByFederatesWithExact(t *testing.T, newDS func(t *testing.T) 
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.Close()
 			createBundles(t, ds, []string{
 				"spiffe://td1.org",
 				"spiffe://td2.org",
@@ -2703,14 +3624,18 @@ func testListEntriesByFederatesWithExact(t *testing.T, newDS func(t *testing.T) 
 			require.NoError(t, err)
 			util.SortRegistrationEntries(test.expectedList)
 			util.SortRegistrationEntries(result.Entries)
+
+			s.assertCreatedAtFields(result, now)
+
 			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
 
-func testListEntriesByFederatesWithSubset(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListEntriesByFederatesWithSubset() {
+	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -2742,8 +3667,9 @@ func testListEntriesByFederatesWithSubset(t *testing.T, newDS func(t *testing.T)
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.Close()
 			createBundles(t, ds, []string{
 				"spiffe://td1.org",
 				"spiffe://td2.org",
@@ -2766,14 +3692,16 @@ func testListEntriesByFederatesWithSubset(t *testing.T, newDS func(t *testing.T)
 			require.NoError(t, err)
 			util.SortRegistrationEntries(test.expectedList)
 			util.SortRegistrationEntries(result.Entries)
+			s.assertCreatedAtFields(result, now)
 			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
 
-func testListEntriesByFederatesWithMatchAny(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListEntriesByFederatesWithMatchAny() {
+	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -2812,8 +3740,9 @@ func testListEntriesByFederatesWithMatchAny(t *testing.T, newDS func(t *testing.
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.Close()
 			createBundles(t, ds, []string{
 				"spiffe://td1.org",
 				"spiffe://td2.org",
@@ -2836,14 +3765,16 @@ func testListEntriesByFederatesWithMatchAny(t *testing.T, newDS func(t *testing.
 			require.NoError(t, err)
 			util.SortRegistrationEntries(test.expectedList)
 			util.SortRegistrationEntries(result.Entries)
+			s.assertCreatedAtFields(result, now)
 			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
 
-func testListEntriesByFederatesWithSuperset(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
+func (s *PluginSuite) TestListEntriesByFederatesWithSuperset() {
+	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	getTestDataFromJSONFile(t, filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -2881,8 +3812,9 @@ func testListEntriesByFederatesWithSuperset(t *testing.T, newDS func(t *testing.
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			ds := newDS(t)
+		s.T().Run(test.name, func(t *testing.T) {
+			ds := s.newPlugin()
+			defer ds.Close()
 			createBundles(t, ds, []string{
 				"spiffe://td1.org",
 				"spiffe://td2.org",
@@ -2905,186 +3837,404 @@ func testListEntriesByFederatesWithSuperset(t *testing.T, newDS func(t *testing.
 			require.NoError(t, err)
 			util.SortRegistrationEntries(test.expectedList)
 			util.SortRegistrationEntries(result.Entries)
+			s.assertCreatedAtFields(result, now)
 			spiretest.RequireProtoListEqual(t, test.expectedList, result.Entries)
 		})
 	}
 }
 
-func testRegistrationEntriesFederatesWithSuccess(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
+func (s *PluginSuite) TestRegistrationEntriesFederatesWithAgainstMissingBundle() {
+	// cannot federate with a trust bundle that does not exist
+	_, err := s.ds.CreateRegistrationEntry(ctx, makeFederatedRegistrationEntry())
+	s.RequireErrorContains(err, `unable to find federated bundle "spiffe://otherdomain.org"`)
+}
 
+func (s *PluginSuite) TestRegistrationEntriesFederatesWithSuccess() {
 	// create two bundles but only federate with one. having a second bundle
 	// has the side effect of asserting that only the code only associates
 	// the entry with the exact bundle referenced during creation.
-	createBundle(t, ds, "spiffe://otherdomain.org")
-	createBundle(t, ds, "spiffe://otherdomain2.org")
+	s.createBundle("spiffe://otherdomain.org")
+	s.createBundle("spiffe://otherdomain2.org")
 
-	expected := createRegistrationEntry(t, ds, makeFederatedRegistrationEntry())
+	expected := s.createRegistrationEntry(makeFederatedRegistrationEntry())
 	// fetch the entry and make sure the federated trust ids come back
-	actual := fetchRegistrationEntry(t, ds, expected.EntryId)
-	spiretest.RequireProtoEqual(t, expected, actual)
+	actual := s.fetchRegistrationEntry(expected.EntryId)
+	s.RequireProtoEqual(expected, actual)
 }
 
-func testCreateJoinToken(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
+func (s *PluginSuite) TestDeleteBundleRestrictedByRegistrationEntries() {
+	// create the bundle and associated entry
+	s.createBundle("spiffe://otherdomain.org")
+	s.createRegistrationEntry(makeFederatedRegistrationEntry())
 
+	// delete the bundle in RESTRICTED mode
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Restrict)
+	s.RequireErrorContains(err, "datastore-keyvalue: cannot delete bundle; federated with 1 registration entries")
+}
+
+func (s *PluginSuite) TestDeleteBundleDeleteRegistrationEntries() {
+	// create an unrelated registration entry to make sure the delete
+	// operation only deletes associated registration entries.
+	unrelated := s.createRegistrationEntry(&common.RegistrationEntry{
+		SpiffeId:  "spiffe://example.org/foo",
+		Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
+	})
+
+	// create the bundle and associated entry
+	s.createBundle("spiffe://otherdomain.org")
+	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
+
+	// delete the bundle in Delete mode
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Delete)
+	s.Require().NoError(err)
+
+	// verify that the registration entry has been deleted
+	registrationEntry, err := s.ds.FetchRegistrationEntry(context.Background(), entry.EntryId)
+	s.Require().NoError(err)
+	s.Require().Nil(registrationEntry)
+
+	// make sure the unrelated entry still exists
+	s.fetchRegistrationEntry(unrelated.EntryId)
+}
+
+func (s *PluginSuite) TestDeleteBundleDissociateRegistrationEntries() {
+	// create the bundle and associated entry
+	s.createBundle("spiffe://otherdomain.org")
+	entry := s.createRegistrationEntry(makeFederatedRegistrationEntry())
+
+	// delete the bundle in DISSOCIATE mode
+	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Dissociate)
+	s.Require().NoError(err)
+
+	// make sure the entry still exists, albeit without an associated bundle
+	entry = s.fetchRegistrationEntry(entry.EntryId)
+	s.Require().Empty(entry.FederatesWith)
+}
+
+func (s *PluginSuite) TestListRegistrationEntryEvents() {
+	var expectedEvents []datastore.RegistrationEntryEvent
+	var expectedEventID uint = 1
+
+	// Create an entry
+	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+		},
+		SpiffeId: "spiffe://example.org/foo1",
+		ParentId: "spiffe://example.org/bar",
+	})
+	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
+		EventID: expectedEventID,
+		EntryID: entry1.EntryId,
+	})
+	expectedEventID++
+
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEvents, resp.Events)
+
+	// Create second entry
+	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type2", Value: "Value2"},
+		},
+		SpiffeId: "spiffe://example.org/foo2",
+		ParentId: "spiffe://example.org/bar",
+	})
+	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
+		EventID: expectedEventID,
+		EntryID: entry2.EntryId,
+	})
+	expectedEventID++
+
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEvents, resp.Events)
+
+	// Update first entry
+	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry1, nil)
+	s.Require().NoError(err)
+	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
+		EventID: expectedEventID,
+		EntryID: updatedRegistrationEntry.EntryId,
+	})
+	expectedEventID++
+
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEvents, resp.Events)
+
+	// Delete second entry
+	s.deleteRegistrationEntry(entry2.EntryId)
+	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
+		EventID: expectedEventID,
+		EntryID: entry2.EntryId,
+	})
+
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEvents, resp.Events)
+
+	// Check filtering events by id
+	tests := []struct {
+		name                 string
+		greaterThanEventID   uint
+		lessThanEventID      uint
+		expectedEvents       []datastore.RegistrationEntryEvent
+		expectedFirstEventID uint
+		expectedLastEventID  uint
+		expectedErr          string
+	}{
+		{
+			name:                 "All Events",
+			greaterThanEventID:   0,
+			expectedFirstEventID: 1,
+			expectedLastEventID:  uint(len(expectedEvents)),
+			expectedEvents:       expectedEvents,
+		},
+		{
+			name:                 "Greater than half of the Events",
+			greaterThanEventID:   uint(len(expectedEvents) / 2),
+			expectedFirstEventID: uint(len(expectedEvents)/2) + 1,
+			expectedLastEventID:  uint(len(expectedEvents)),
+			expectedEvents:       expectedEvents[len(expectedEvents)/2:],
+		},
+		{
+			name:                 "Less than half of the Events",
+			lessThanEventID:      uint(len(expectedEvents) / 2),
+			expectedFirstEventID: 1,
+			expectedLastEventID:  uint(len(expectedEvents)/2) - 1,
+			expectedEvents:       expectedEvents[:len(expectedEvents)/2-1],
+		},
+		{
+			name:               "Greater than largest Event ID",
+			greaterThanEventID: 4,
+			expectedEvents:     []datastore.RegistrationEntryEvent{},
+		},
+		{
+			name:               "Setting both greater and less than",
+			greaterThanEventID: 1,
+			lessThanEventID:    1,
+			expectedErr:        "rpc error: code = Unknown desc = datastore-keyvalue: can't set both greater and less than event id",
+		},
+	}
+	for _, test := range tests {
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+				GreaterThanEventID: test.greaterThanEventID,
+				LessThanEventID:    test.lessThanEventID,
+			})
+			if test.expectedErr != "" {
+				require.EqualError(t, err, test.expectedErr)
+				return
+			}
+			s.Require().NoError(err)
+
+			s.Require().Equal(test.expectedEvents, resp.Events)
+			if len(resp.Events) > 0 {
+				s.Require().Equal(test.expectedFirstEventID, resp.Events[0].EventID)
+				s.Require().Equal(test.expectedLastEventID, resp.Events[len(resp.Events)-1].EventID)
+			}
+		})
+	}
+}
+
+func (s *PluginSuite) TestPruneRegistrationEntryEvents() {
+	entry := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+		},
+		SpiffeId: "SpiffeId",
+		ParentId: "ParentId",
+	}
+
+	createdRegistrationEntry := s.createRegistrationEntry(entry)
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
+
+	for _, tt := range []struct {
+		name           string
+		olderThan      time.Duration
+		expectedEvents []datastore.RegistrationEntryEvent
+	}{
+		{
+			name:      "Don't prune valid events",
+			olderThan: 1 * time.Hour,
+			expectedEvents: []datastore.RegistrationEntryEvent{
+				{
+					EventID: 1,
+					EntryID: createdRegistrationEntry.EntryId,
+				},
+			},
+		},
+		{
+			name:           "Prune old events",
+			olderThan:      0 * time.Second,
+			expectedEvents: []datastore.RegistrationEntryEvent{},
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			s.Require().Eventuallyf(func() bool {
+				err = s.ds.PruneRegistrationEntryEvents(ctx, tt.olderThan)
+				s.Require().NoError(err)
+				resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+				s.Require().NoError(err)
+				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
+			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
+		})
+	}
+}
+
+func (s *PluginSuite) TestCreateJoinToken() {
 	req := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: time.Now().Truncate(time.Second),
 	}
-	err := ds.CreateJoinToken(ctx, req)
-	require.NoError(t, err)
+	err := s.ds.CreateJoinToken(ctx, req)
+	s.Require().NoError(err)
 
 	// Make sure we can't re-register
-	err = ds.CreateJoinToken(ctx, req)
-	assert.NotNil(t, err)
+	err = s.ds.CreateJoinToken(ctx, req)
+	s.NotNil(err)
 }
 
-func testCreateAndFetchJoinToken(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestCreateAndFetchJoinToken() {
 	now := time.Now().Truncate(time.Second)
 	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
 
-	err := ds.CreateJoinToken(ctx, joinToken)
-	require.NoError(t, err)
+	err := s.ds.CreateJoinToken(ctx, joinToken)
+	s.Require().NoError(err)
 
-	res, err := ds.FetchJoinToken(ctx, joinToken.Token)
-	require.NoError(t, err)
-	assert.Equal(t, "foobar", res.Token)
-	assert.Equal(t, now, res.Expiry)
+	res, err := s.ds.FetchJoinToken(ctx, joinToken.Token)
+	s.Require().NoError(err)
+	s.Equal("foobar", res.Token)
+	s.Equal(now, res.Expiry)
 }
 
-func testDeleteJoinToken(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestDeleteJoinToken() {
 	now := time.Now().Truncate(time.Second)
 	joinToken1 := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
 
-	err := ds.CreateJoinToken(ctx, joinToken1)
-	require.NoError(t, err)
+	err := s.ds.CreateJoinToken(ctx, joinToken1)
+	s.Require().NoError(err)
 
 	joinToken2 := &datastore.JoinToken{
 		Token:  "batbaz",
 		Expiry: now,
 	}
 
-	err = ds.CreateJoinToken(ctx, joinToken2)
-	require.NoError(t, err)
+	err = s.ds.CreateJoinToken(ctx, joinToken2)
+	s.Require().NoError(err)
 
-	err = ds.DeleteJoinToken(ctx, joinToken1.Token)
-	require.NoError(t, err)
+	err = s.ds.DeleteJoinToken(ctx, joinToken1.Token)
+	s.Require().NoError(err)
 
 	// Should not be able to fetch after delete
-	resp, err := ds.FetchJoinToken(ctx, joinToken1.Token)
-	require.NoError(t, err)
-	assert.Nil(t, resp)
+	resp, err := s.ds.FetchJoinToken(ctx, joinToken1.Token)
+	s.Require().NoError(err)
+	s.Nil(resp)
 
 	// Second token should still be present
-	resp, err = ds.FetchJoinToken(ctx, joinToken2.Token)
-	require.NoError(t, err)
-	assert.Equal(t, joinToken2, resp)
+	resp, err = s.ds.FetchJoinToken(ctx, joinToken2.Token)
+	s.Require().NoError(err)
+	s.Equal(joinToken2, resp)
 }
 
-func testPruneJoinTokens(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestPruneJoinTokens() {
 	now := time.Now().Truncate(time.Second)
 	joinToken := &datastore.JoinToken{
 		Token:  "foobar",
 		Expiry: now,
 	}
 
-	err := ds.CreateJoinToken(ctx, joinToken)
-	require.NoError(t, err)
+	err := s.ds.CreateJoinToken(ctx, joinToken)
+	s.Require().NoError(err)
 
 	// Ensure we don't prune valid tokens, wind clock back 10s
-	err = ds.PruneJoinTokens(ctx, now.Add(-time.Second*10))
-	require.NoError(t, err)
+	err = s.ds.PruneJoinTokens(ctx, now.Add(-time.Second*10))
+	s.Require().NoError(err)
 
-	resp, err := ds.FetchJoinToken(ctx, joinToken.Token)
-	require.NoError(t, err)
-	assert.Equal(t, "foobar", resp.Token)
+	resp, err := s.ds.FetchJoinToken(ctx, joinToken.Token)
+	s.Require().NoError(err)
+	s.Equal("foobar", resp.Token)
 
 	// Ensure we don't prune on the exact ExpiresBefore
-	err = ds.PruneJoinTokens(ctx, now)
-	require.NoError(t, err)
+	err = s.ds.PruneJoinTokens(ctx, now)
+	s.Require().NoError(err)
 
-	resp, err = ds.FetchJoinToken(ctx, joinToken.Token)
-	require.NoError(t, err)
-	require.NotNil(t, resp, "token was unexpectedly pruned")
-	assert.Equal(t, "foobar", resp.Token)
+	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp, "token was unexpectedly pruned")
+	s.Equal("foobar", resp.Token)
 
 	// Ensure we prune old tokens
-	err = ds.PruneJoinTokens(ctx, now.Add(time.Second*10))
-	require.NoError(t, err)
+	err = s.ds.PruneJoinTokens(ctx, now.Add(time.Second*10))
+	s.Require().NoError(err)
 
-	resp, err = ds.FetchJoinToken(ctx, joinToken.Token)
-	require.NoError(t, err)
-	assert.Nil(t, resp)
+	resp, err = s.ds.FetchJoinToken(ctx, joinToken.Token)
+	s.Require().NoError(err)
+	s.Nil(resp)
 }
 
-func testDeleteFederationRelationship(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestDeleteFederationRelationship() {
 	testCases := []struct {
 		name        string
 		trustDomain spiffeid.TrustDomain
-		expectCode  codes.Code
+		expErr      string
 		setupFn     func()
 	}{
 		{
 			name:        "deleting an existent federation relationship succeeds",
 			trustDomain: spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
 			setupFn: func() {
-				_, err := ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+				_, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
 					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
-					BundleEndpointURL:     requireURLFromString(t, "federated-td-web.org/bundleendpoint"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
 					BundleEndpointProfile: datastore.BundleEndpointWeb,
 				})
-				require.NoError(t, err)
+				s.Require().NoError(err)
 			},
 		},
 		{
 			name:        "deleting an unexistent federation relationship returns not found",
 			trustDomain: spiffeid.RequireTrustDomainFromString("non-existent-td.org"),
-			expectCode:  codes.NotFound,
+			expErr:      "rpc error: code = NotFound desc = datastore-keyvalue: record not found",
 		},
 		{
-			name:       "deleting a federation relationship using an empty trust domain fails nicely",
-			expectCode: codes.InvalidArgument,
+			name:   "deleting a federation relationship using an empty trust domain fails nicely",
+			expErr: "rpc error: code = InvalidArgument desc = trust domain is required",
 		},
 	}
 
 	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
+		s.T().Run(tt.name, func(t *testing.T) {
 			if tt.setupFn != nil {
 				tt.setupFn()
 			}
 
-			err := ds.DeleteFederationRelationship(ctx, tt.trustDomain)
-			if tt.expectCode != codes.OK {
-				require.Equal(t, tt.expectCode, status.Code(err))
+			err := s.ds.DeleteFederationRelationship(ctx, tt.trustDomain)
+			if tt.expErr != "" {
+				s.Require().EqualError(err, tt.expErr)
 				return
 			}
-			require.NoError(t, err)
+			s.Require().NoError(err)
 
-			fr, err := ds.FetchFederationRelationship(ctx, tt.trustDomain)
-			require.NoError(t, err)
-			require.Nil(t, fr)
+			fr, err := s.ds.FetchFederationRelationship(ctx, tt.trustDomain)
+			s.Require().NoError(err)
+			s.Require().Nil(fr)
 		})
 	}
 }
 
-func testFetchFederationRelationship(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+/*
+func (s *PluginSuite) TestFetchFederationRelationship() {
 	testCases := []struct {
 		name        string
 		trustDomain spiffeid.TrustDomain
@@ -3095,12 +4245,12 @@ func testFetchFederationRelationship(t *testing.T, newDS func(t *testing.T) data
 			name:        "fetching an existent federation relationship succeeds for web profile",
 			trustDomain: spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
 			expFR: func() *datastore.FederationRelationship {
-				fr, err := ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+				fr, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
 					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
-					BundleEndpointURL:     requireURLFromString(t, "federated-td-web.org/bundleendpoint"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
 					BundleEndpointProfile: datastore.BundleEndpointWeb,
 				})
-				require.NoError(t, err)
+				s.Require().NoError(err)
 				return fr
 			}(),
 		},
@@ -3108,15 +4258,15 @@ func testFetchFederationRelationship(t *testing.T, newDS func(t *testing.T) data
 			name:        "fetching an existent federation relationship succeeds for spiffe profile",
 			trustDomain: spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
 			expFR: func() *datastore.FederationRelationship {
-				trustDomainBundle := createBundle(t, ds, "spiffe://federated-td-spiffe.org")
-				fr, err := ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+				trustDomainBundle := s.createBundle("spiffe://federated-td-spiffe.org")
+				fr, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
 					TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
-					BundleEndpointURL:     requireURLFromString(t, "federated-td-spiffe.org/bundleendpoint"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe.org/bundleendpoint"),
 					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe.org/federated-server"),
 					TrustDomainBundle:     trustDomainBundle,
 				})
-				require.NoError(t, err)
+				s.Require().NoError(err)
 				return fr
 			}(),
 		},
@@ -3124,72 +4274,72 @@ func testFetchFederationRelationship(t *testing.T, newDS func(t *testing.T) data
 			name:        "fetching an existent federation relationship succeeds for profile without bundle",
 			trustDomain: spiffeid.RequireTrustDomainFromString("domain.test"),
 			expFR: func() *datastore.FederationRelationship {
-				fr, err := ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+				fr, err := s.ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
 					TrustDomain:           spiffeid.RequireTrustDomainFromString("domain.test"),
-					BundleEndpointURL:     requireURLFromString(t, "https://domain.test/bundleendpoint"),
+					BundleEndpointURL:     requireURLFromString(s.T(), "https://domain.test/bundleendpoint"),
 					BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 					EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://domain.test/federated-server"),
 				})
-				require.NoError(t, err)
+				s.Require().NoError(err)
 				return fr
 			}(),
 		},
 		{
-			name:        "fetching an unexistent federation relationship returns nil",
+			name:        "fetching a non-existent federation relationship returns nil",
 			trustDomain: spiffeid.RequireTrustDomainFromString("non-existent-td.org"),
 		},
 		{
 			name:   "fetching en empty trust domain fails nicely",
 			expErr: "rpc error: code = InvalidArgument desc = trust domain is required",
 		},
-		//		{
-		//			name:        "fetching a federation relationship with corrupted bundle endpoint URL fails nicely",
-		//			expErr:      "rpc error: code = Unknown desc = unable to parse URL: parse \"not-valid-endpoint-url%\": invalid URL escape \"%\"",
-		//			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-url.org"),
-		//			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
-		//				model := FederatedTrustDomain{
-		//					TrustDomain:           "corrupted-bundle-endpoint-url.org",
-		//					BundleEndpointURL:     "not-valid-endpoint-url%",
-		//					BundleEndpointProfile: string(datastore.BundleEndpointWeb),
-		//				}
-		//				require.NoError(t, ds.db.Create(&model).Error)
-		//				return nil
-		//			}(),
-		//		},
-		//		{
-		//			name:        "fetching a federation relationship with corrupted bundle endpoint SPIFFE ID fails nicely",
-		//			expErr:      "rpc error: code = Unknown desc = unable to parse bundle endpoint SPIFFE ID: scheme is missing or invalid",
-		//			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-id.org"),
-		//			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
-		//				model := FederatedTrustDomain{
-		//					TrustDomain:           "corrupted-bundle-endpoint-id.org",
-		//					BundleEndpointURL:     "corrupted-bundle-endpoint-id.org/bundleendpoint",
-		//					BundleEndpointProfile: string(datastore.BundleEndpointSPIFFE),
-		//					EndpointSPIFFEID:      "invalid-id",
-		//				}
-		//				require.NoError(t, ds.db.Create(&model).Error)
-		//				return nil
-		//			}(),
-		//		},
-		//		{
-		//			name:        "fetching a federation relationship with corrupted type fails nicely",
-		//			expErr:      "rpc error: code = Unknown desc = unknown bundle endpoint profile type: \"other\"",
-		//			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-endpoint-profile.org"),
-		//			expFR: func() *datastore.FederationRelationship { // nolint // returns nil on purpose
-		//				model := FederatedTrustDomain{
-		//					TrustDomain:           "corrupted-endpoint-profile.org",
-		//					BundleEndpointURL:     "corrupted-endpoint-profile.org/bundleendpoint",
-		//					BundleEndpointProfile: "other",
-		//				}
-		//				require.NoError(t, ds.db.Create(&model).Error)
-		//				return nil
-		//			}(),
-		//		},
+		{
+			name:        "fetching a federation relationship with corrupted bundle endpoint URL fails nicely",
+			expErr:      "rpc error: code = Unknown desc = unable to parse URL: parse \"not-valid-endpoint-url%\": invalid URL escape \"%\"",
+			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-url.org"),
+			expFR: func() *datastore.FederationRelationship { //nolint // returns nil on purpose
+				model := FederatedTrustDomain{
+					TrustDomain:           "corrupted-bundle-endpoint-url.org",
+					BundleEndpointURL:     "not-valid-endpoint-url%",
+					BundleEndpointProfile: string(datastore.BundleEndpointWeb),
+				}
+				s.Require().NoError(s.ds.db.Create(&model).Error)
+				return nil
+			}(),
+		},
+		{
+			name:        "fetching a federation relationship with corrupted bundle endpoint SPIFFE ID fails nicely",
+			expErr:      "rpc error: code = Unknown desc = unable to parse bundle endpoint SPIFFE ID: scheme is missing or invalid",
+			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-bundle-endpoint-id.org"),
+			expFR: func() *datastore.FederationRelationship { //nolint // returns nil on purpose
+				model := FederatedTrustDomain{
+					TrustDomain:           "corrupted-bundle-endpoint-id.org",
+					BundleEndpointURL:     "corrupted-bundle-endpoint-id.org/bundleendpoint",
+					BundleEndpointProfile: string(datastore.BundleEndpointSPIFFE),
+					EndpointSPIFFEID:      "invalid-id",
+				}
+				s.Require().NoError(s.ds.db.Create(&model).Error)
+				return nil
+			}(),
+		},
+		{
+			name:        "fetching a federation relationship with corrupted type fails nicely",
+			expErr:      "rpc error: code = Unknown desc = unknown bundle endpoint profile type: \"other\"",
+			trustDomain: spiffeid.RequireTrustDomainFromString("corrupted-endpoint-profile.org"),
+			expFR: func() *datastore.FederationRelationship { //nolint // returns nil on purpose
+				model := FederatedTrustDomain{
+					TrustDomain:           "corrupted-endpoint-profile.org",
+					BundleEndpointURL:     "corrupted-endpoint-profile.org/bundleendpoint",
+					BundleEndpointProfile: "other",
+				}
+				s.Require().NoError(s.ds.db.Create(&model).Error)
+				return nil
+			}(),
+		},
 	}
 
 	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			fr, err := ds.FetchFederationRelationship(ctx, tt.trustDomain)
+		s.T().Run(tt.name, func(t *testing.T) {
+			fr, err := s.ds.FetchFederationRelationship(ctx, tt.trustDomain)
 			if tt.expErr != "" {
 				require.EqualError(t, err, tt.expErr)
 				require.Nil(t, fr)
@@ -3201,12 +4351,11 @@ func testFetchFederationRelationship(t *testing.T, newDS func(t *testing.T) data
 		})
 	}
 }
+*/
 
-func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
-	createBundle(t, ds, "spiffe://federated-td-spiffe.org")
-	createBundle(t, ds, "spiffe://federated-td-spiffe-with-bundle.org")
+func (s *PluginSuite) TestCreateFederationRelationship() {
+	s.createBundle("spiffe://federated-td-spiffe.org")
+	s.createBundle("spiffe://federated-td-spiffe-with-bundle.org")
 
 	testCases := []struct {
 		name       string
@@ -3218,7 +4367,7 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			name: "creating a new federation relationship succeeds for web profile",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web.org"),
-				BundleEndpointURL:     requireURLFromString(t, "federated-td-web.org/bundleendpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointWeb,
 			},
 		},
@@ -3226,7 +4375,7 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			name: "creating a new federation relationship succeeds for spiffe profile",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
-				BundleEndpointURL:     requireURLFromString(t, "federated-td-spiffe.org/bundleendpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe.org/bundleendpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe.org/federated-server"),
 			},
@@ -3235,10 +4384,10 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			name: "creating a new federation relationship succeeds for web profile and new bundle",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-web-with-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "federated-td-web-with-bundle.org/bundleendpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web-with-bundle.org/bundleendpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointWeb,
 				TrustDomainBundle: func() *common.Bundle {
-					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://federated-td-web-with-bundle.org", validRoot)
+					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://federated-td-web-with-bundle.org", s.cert)
 					newBundle.RefreshHint = int64(10) // modify bundle to assert it was updated
 					return newBundle
 				}(),
@@ -3248,11 +4397,11 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			name: "creating a new federation relationship succeeds for spiffe profile and new bundle",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe-with-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "federated-td-spiffe-with-bundle.org/bundleendpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe-with-bundle.org/bundleendpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://federated-td-spiffe-with-bundle.org/federated-server"),
 				TrustDomainBundle: func() *common.Bundle {
-					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://federated-td-spiffe-with-bundle.org", validRoot)
+					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://federated-td-spiffe-with-bundle.org", s.cert)
 					newBundle.RefreshHint = int64(10) // modify bundle to assert it was updated
 					return newBundle
 				}(),
@@ -3268,7 +4417,7 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "trust domain is required",
 			fr: &datastore.FederationRelationship{
-				BundleEndpointURL:     requireURLFromString(t, "federated-td-web.org/bundleendpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-web.org/bundleendpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointWeb,
 			},
 		},
@@ -3288,7 +4437,7 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			expectMsg:  "bundle endpoint SPIFFE ID is required",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("federated-td-spiffe.org"),
-				BundleEndpointURL:     requireURLFromString(t, "federated-td-spiffe.org/bundleendpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "federated-td-spiffe.org/bundleendpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 			},
 		},
@@ -3297,7 +4446,7 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			expectCode: codes.OK,
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("no-initial-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "no-initial-bundle.org/bundleendpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "no-initial-bundle.org/bundleendpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://no-initial-bundle.org/federated-server"),
 			},
@@ -3308,15 +4457,15 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			expectMsg:  "unknown bundle endpoint profile type: \"wrong-type\"",
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("no-initial-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "no-initial-bundle.org/bundleendpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "no-initial-bundle.org/bundleendpoint"),
 				BundleEndpointProfile: "wrong-type",
 			},
 		},
 	}
 
 	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
-			fr, err := ds.CreateFederationRelationship(ctx, tt.fr)
+		s.T().Run(tt.name, func(t *testing.T) {
+			fr, err := s.ds.CreateFederationRelationship(ctx, tt.fr)
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
 			if tt.expectCode != codes.OK {
 				require.Nil(t, fr)
@@ -3333,7 +4482,7 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 
 			if fr.TrustDomainBundle != nil {
 				// Assert bundle is updated
-				bundle, err := ds.FetchBundle(ctx, fr.TrustDomain.IDString())
+				bundle, err := s.ds.FetchBundle(ctx, fr.TrustDomain.IDString())
 				require.NoError(t, err)
 				spiretest.RequireProtoEqual(t, bundle, fr.TrustDomainBundle)
 			}
@@ -3341,41 +4490,42 @@ func testCreateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 	}
 }
 
-func testListFederationRelationships(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
-	trustDomainBundle := createBundle(t, ds, "spiffe://example-2.org")
-
-	fr1, err := ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
-		TrustDomain:           spiffeid.RequireTrustDomainFromString("example-1.org"),
-		BundleEndpointURL:     requireURLFromString(t, "https://example-1-web.org/bundleendpoint"),
+func (s *PluginSuite) TestListFederationRelationships() {
+	fr1 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-1.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-1-web.org/bundleendpoint"),
 		BundleEndpointProfile: datastore.BundleEndpointWeb,
-	})
-	require.NoError(t, err)
+	}
+	_, err := s.ds.CreateFederationRelationship(ctx, fr1)
+	s.Require().NoError(err)
 
-	fr2, err := ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
-		TrustDomain:           spiffeid.RequireTrustDomainFromString("example-2.org"),
-		BundleEndpointURL:     requireURLFromString(t, "https://example-2-web.org/bundleendpoint"),
+	trustDomainBundle := s.createBundle("spiffe://example-2.org")
+	fr2 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-2.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-2-web.org/bundleendpoint"),
 		BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 		EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://example-2.org/test"),
 		TrustDomainBundle:     trustDomainBundle,
-	})
-	require.NoError(t, err)
+	}
+	_, err = s.ds.CreateFederationRelationship(ctx, fr2)
+	s.Require().NoError(err)
 
-	fr3, err := ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
-		TrustDomain:           spiffeid.RequireTrustDomainFromString("example-3.org"),
-		BundleEndpointURL:     requireURLFromString(t, "https://example-3-web.org/bundleendpoint"),
+	fr3 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-3.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-3-web.org/bundleendpoint"),
 		BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 		EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://example-2.org/test"),
-	})
-	require.NoError(t, err)
+	}
+	_, err = s.ds.CreateFederationRelationship(ctx, fr3)
+	s.Require().NoError(err)
 
-	fr4, err := ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
-		TrustDomain:           spiffeid.RequireTrustDomainFromString("example-4.org"),
-		BundleEndpointURL:     requireURLFromString(t, "https://example-4-web.org/bundleendpoint"),
+	fr4 := &datastore.FederationRelationship{
+		TrustDomain:           spiffeid.RequireTrustDomainFromString("spiffe://example-4.org"),
+		BundleEndpointURL:     requireURLFromString(s.T(), "https://example-4-web.org/bundleendpoint"),
 		BundleEndpointProfile: datastore.BundleEndpointWeb,
-	})
-	require.NoError(t, err)
+	}
+	_, err = s.ds.CreateFederationRelationship(ctx, fr4)
+	s.Require().NoError(err)
 
 	tests := []struct {
 		name               string
@@ -3395,58 +4545,69 @@ func testListFederationRelationships(t *testing.T, newDS func(t *testing.T) data
 			},
 			expectedList: []*datastore.FederationRelationship{fr1, fr2, fr3, fr4},
 			expectedPagination: &datastore.Pagination{
-				Token:    "example-4.org",
+				Token:    "4",
 				PageSize: 5,
 			},
 		},
 		{
-			name: "page size is zero",
+			name: "pagination page size is zero",
 			pagination: &datastore.Pagination{
 				PageSize: 0,
 			},
 			expectedErr: "rpc error: code = InvalidArgument desc = cannot paginate with pagesize = 0",
 		},
 		{
-			name: "first page",
+			name: "bundles first page",
 			pagination: &datastore.Pagination{
-				Token:    "",
+				Token:    "0",
 				PageSize: 2,
 			},
 			expectedList: []*datastore.FederationRelationship{fr1, fr2},
-			expectedPagination: &datastore.Pagination{
-				Token:    "example-2.org",
+			expectedPagination: &datastore.Pagination{Token: "2",
 				PageSize: 2,
 			},
 		},
 		{
-			name: "second page",
+			name: "federation relationships second page",
 			pagination: &datastore.Pagination{
-				Token:    "example-2.org",
+				Token:    "2",
 				PageSize: 2,
 			},
 			expectedList: []*datastore.FederationRelationship{fr3, fr4},
 			expectedPagination: &datastore.Pagination{
-				Token:    "example-4.org",
+				Token:    "4",
 				PageSize: 2,
 			},
 		},
 		{
-			name:         "third page",
+			name:         "federation relationships third page",
 			expectedList: []*datastore.FederationRelationship{},
 			pagination: &datastore.Pagination{
-				Token:    "example-4.org",
+				Token:    "4",
 				PageSize: 2,
 			},
 			expectedPagination: &datastore.Pagination{
 				Token:    "",
+				PageSize: 2,
+			},
+		},
+		{
+			name:         "invalid token",
+			expectedList: []*datastore.FederationRelationship{},
+			expectedErr:  "rpc error: code = InvalidArgument desc = could not parse token 'invalid token'",
+			pagination: &datastore.Pagination{
+				Token:    "invalid token",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
 				PageSize: 2,
 			},
 		},
 	}
 	for _, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
-			resp, err := ds.ListFederationRelationships(ctx, &datastore.ListFederationRelationshipsRequest{
+		s.T().Run(test.name, func(t *testing.T) {
+			resp, err := s.ds.ListFederationRelationships(ctx, &datastore.ListFederationRelationshipsRequest{
 				Pagination: test.pagination,
 			})
 			if test.expectedErr != "" {
@@ -3466,10 +4627,8 @@ func testListFederationRelationships(t *testing.T, newDS func(t *testing.T) data
 	}
 }
 
-func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
-	createBundle(t, ds, "spiffe://td-with-bundle.org")
+func (s *PluginSuite) TestUpdateFederationRelationship() {
+	s.createBundle("spiffe://td-with-bundle.org")
 
 	testCases := []struct {
 		name      string
@@ -3483,17 +4642,17 @@ func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			name: "updating bundle endpoint URL succeeds",
 			initialFR: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td.org/bundle-endpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointWeb,
 			},
 			fr: &datastore.FederationRelationship{
 				TrustDomain:       spiffeid.RequireTrustDomainFromString("td.org"),
-				BundleEndpointURL: requireURLFromString(t, "td.org/other-bundle-endpoint"),
+				BundleEndpointURL: requireURLFromString(s.T(), "td.org/other-bundle-endpoint"),
 			},
 			mask: &types.FederationRelationshipMask{BundleEndpointUrl: true},
 			expFR: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td.org/other-bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td.org/other-bundle-endpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointWeb,
 			},
 		},
@@ -3501,7 +4660,7 @@ func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			name: "updating bundle endpoint profile with pre-existent bundle and no input bundle succeeds",
 			initialFR: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td-with-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td-with-bundle.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td-with-bundle.org/bundle-endpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointWeb,
 			},
 			fr: &datastore.FederationRelationship{
@@ -3512,17 +4671,17 @@ func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			mask: &types.FederationRelationshipMask{BundleEndpointProfile: true},
 			expFR: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td-with-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td-with-bundle.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td-with-bundle.org/bundle-endpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://td-with-bundle.org/federated-server"),
-				TrustDomainBundle:     bundleutil.BundleProtoFromRootCA("spiffe://td-with-bundle.org", validRoot),
+				TrustDomainBundle:     bundleutil.BundleProtoFromRootCA("spiffe://td-with-bundle.org", s.cert),
 			},
 		},
 		{
 			name: "updating bundle endpoint profile with pre-existent bundle and input bundle succeeds",
 			initialFR: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td-with-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td-with-bundle.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td-with-bundle.org/bundle-endpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointWeb,
 			},
 			fr: &datastore.FederationRelationship{
@@ -3530,7 +4689,7 @@ func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://td-with-bundle.org/federated-server"),
 				TrustDomainBundle: func() *common.Bundle {
-					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://td-with-bundle.org", validRoot)
+					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://td-with-bundle.org", s.cert)
 					newBundle.RefreshHint = int64(10) // modify bundle to assert it was updated
 					return newBundle
 				}(),
@@ -3538,11 +4697,11 @@ func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			mask: &types.FederationRelationshipMask{BundleEndpointProfile: true},
 			expFR: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td-with-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td-with-bundle.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td-with-bundle.org/bundle-endpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://td-with-bundle.org/federated-server"),
 				TrustDomainBundle: func() *common.Bundle {
-					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://td-with-bundle.org", validRoot)
+					newBundle := bundleutil.BundleProtoFromRootCA("spiffe://td-with-bundle.org", s.cert)
 					newBundle.RefreshHint = int64(10)
 					return newBundle
 				}(),
@@ -3552,29 +4711,29 @@ func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			name: "updating bundle endpoint profile to SPIFFE without pre-existent bundle succeeds",
 			initialFR: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td-without-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td-without-bundle.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td-without-bundle.org/bundle-endpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointWeb,
 			},
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td-without-bundle.org"),
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://td-without-bundle.org/federated-server"),
-				TrustDomainBundle:     bundleutil.BundleProtoFromRootCA("spiffe://td-without-bundle.org", validRoot),
+				TrustDomainBundle:     bundleutil.BundleProtoFromRootCA("spiffe://td-without-bundle.org", s.cert),
 			},
 			mask: &types.FederationRelationshipMask{BundleEndpointProfile: true},
 			expFR: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td-without-bundle.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td-without-bundle.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td-without-bundle.org/bundle-endpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://td-without-bundle.org/federated-server"),
-				TrustDomainBundle:     bundleutil.BundleProtoFromRootCA("spiffe://td-without-bundle.org", validRoot),
+				TrustDomainBundle:     bundleutil.BundleProtoFromRootCA("spiffe://td-without-bundle.org", s.cert),
 			},
 		},
 		{
 			name: "updating bundle endpoint profile to without pre-existent bundle and no input bundle pass",
 			initialFR: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td.org/bundle-endpoint"),
 				BundleEndpointProfile: datastore.BundleEndpointWeb,
 			},
 			fr: &datastore.FederationRelationship{
@@ -3586,7 +4745,7 @@ func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td.org"),
 				BundleEndpointProfile: datastore.BundleEndpointSPIFFE,
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://td.org/federated-server"),
-				BundleEndpointURL:     requireURLFromString(t, "td.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td.org/bundle-endpoint"),
 			},
 			mask: &types.FederationRelationshipMask{BundleEndpointProfile: true},
 		},
@@ -3598,7 +4757,7 @@ func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 				EndpointSPIFFEID:      spiffeid.RequireFromString("spiffe://td.org/federated-server"),
 			},
 			mask:   &types.FederationRelationshipMask{BundleEndpointProfile: true},
-			expErr: "rpc error: code = NotFound desc = failed to update federation relationship: record not found",
+			expErr: "rpc error: code = NotFound desc = unable to fetch federation relationship: record not found",
 		},
 		{
 			name:   "updatinga nil federation relationship fails nicely ",
@@ -3625,56 +4784,54 @@ func testUpdateFederationRelationship(t *testing.T, newDS func(t *testing.T) dat
 			mask:   protoutil.AllTrueFederationRelationshipMask,
 			fr: &datastore.FederationRelationship{
 				TrustDomain:           spiffeid.RequireTrustDomainFromString("td.org"),
-				BundleEndpointURL:     requireURLFromString(t, "td.org/bundle-endpoint"),
+				BundleEndpointURL:     requireURLFromString(s.T(), "td.org/bundle-endpoint"),
 				BundleEndpointProfile: "wrong-type",
 			},
 		},
 	}
 
 	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) {
+		s.T().Run(tt.name, func(t *testing.T) {
 			if tt.initialFR != nil {
-				_, err := ds.CreateFederationRelationship(ctx, tt.initialFR)
-				require.NoError(t, err)
-				defer func() { require.NoError(t, ds.DeleteFederationRelationship(ctx, tt.initialFR.TrustDomain)) }()
+				_, err := s.ds.CreateFederationRelationship(ctx, tt.initialFR)
+				s.Require().NoError(err)
+				defer func() { s.Require().NoError(s.ds.DeleteFederationRelationship(ctx, tt.initialFR.TrustDomain)) }()
 			}
 
-			updatedFR, err := ds.UpdateFederationRelationship(ctx, tt.fr, tt.mask)
+			updatedFR, err := s.ds.UpdateFederationRelationship(ctx, tt.fr, tt.mask)
 			if tt.expErr != "" {
-				require.EqualError(t, err, tt.expErr)
-				require.Nil(t, updatedFR)
+				s.Require().EqualError(err, tt.expErr)
+				s.Require().Nil(updatedFR)
 				return
 			}
-			require.NoError(t, err)
-			require.NotNil(t, updatedFR)
+			s.Require().NoError(err)
+			s.Require().NotNil(updatedFR)
 
 			switch tt.expFR.BundleEndpointProfile {
 			case datastore.BundleEndpointWeb:
 			case datastore.BundleEndpointSPIFFE:
 				// Assert bundle is updated
-				bundle, err := ds.FetchBundle(ctx, tt.expFR.TrustDomain.IDString())
-				require.NoError(t, err)
-				spiretest.RequireProtoEqual(t, bundle, updatedFR.TrustDomainBundle)
+				bundle, err := s.ds.FetchBundle(ctx, tt.expFR.TrustDomain.IDString())
+				s.Require().NoError(err)
+				s.RequireProtoEqual(bundle, updatedFR.TrustDomainBundle)
 
 				// Now that bundles were asserted, set them to nil to be able to compare other fields using Require().Equal
 				tt.expFR.TrustDomainBundle = nil
 				updatedFR.TrustDomainBundle = nil
 			default:
-				require.FailNowf(t, "unexpected bundle endpoint profile type: %q", string(tt.expFR.BundleEndpointProfile))
+				s.Require().FailNowf("unexpected bundle endpoint profile type: %q", string(tt.expFR.BundleEndpointProfile))
 			}
 
-			require.Equal(t, tt.expFR, updatedFR)
+			s.Require().Equal(tt.expFR, updatedFR)
 		})
 	}
 }
 
-func testRace(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
-	ds := newDS(t)
-
+func (s *PluginSuite) TestRace() {
 	next := int64(0)
 	exp := time.Now().Add(time.Hour).Unix()
 
-	testutil.RaceTest(t, func(t *testing.T) {
+	testutil.RaceTest(s.T(), func(t *testing.T) {
 		node := &common.AttestedNode{
 			SpiffeId:            fmt.Sprintf("foo%d", atomic.AddInt64(&next, 1)),
 			AttestationDataType: "aws-tag",
@@ -3682,49 +4839,198 @@ func testRace(t *testing.T, newDS func(t *testing.T) datastore.DataStore) {
 			CertNotAfter:        exp,
 		}
 
-		_, err := ds.CreateAttestedNode(ctx, node)
+		_, err := s.ds.CreateAttestedNode(ctx, node)
 		require.NoError(t, err)
-		_, err = ds.FetchAttestedNode(ctx, node.SpiffeId)
+		_, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
 		require.NoError(t, err)
 	})
 }
 
-func getTestDataFromJSONFile(t *testing.T, filePath string, jsonValue interface{}) {
+/*
+func (s *PluginSuite) TestBindVar() {
+	fn := func(n int) string {
+		return fmt.Sprintf("$%d", n)
+	}
+	bound := bindVarsFn(fn, "SELECT whatever FROM foo WHERE x = ? AND y = ?")
+	s.Require().Equal("SELECT whatever FROM foo WHERE x = $1 AND y = $2", bound)
+}
+*/
+
+func (s *PluginSuite) TestSetCAJournal() {
+	testCases := []struct {
+		name      string
+		code      codes.Code
+		msg       string
+		caJournal *datastore.CAJournal
+	}{
+		{
+			name: "creating a new CA journal succeeds",
+			caJournal: &datastore.CAJournal{
+				Data:                  []byte("test data"),
+				ActiveX509AuthorityID: "x509-authority-id",
+			},
+		},
+		{
+			name: "nil CA journal",
+			code: codes.InvalidArgument,
+			msg:  "ca journal is required",
+		},
+		{
+			name: "try to update a non existing CA journal",
+			code: codes.NotFound,
+			msg:  "datastore-keyvalue: record not found",
+			caJournal: &datastore.CAJournal{
+				ID:                    999,
+				Data:                  []byte("test data"),
+				ActiveX509AuthorityID: "x509-authority-id",
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			caJournal, err := s.ds.SetCAJournal(ctx, tt.caJournal)
+			spiretest.RequireGRPCStatus(t, err, tt.code, tt.msg)
+			if tt.code != codes.OK {
+				require.Nil(t, caJournal)
+				return
+			}
+
+			assertCAJournal(t, tt.caJournal, caJournal)
+		})
+	}
+}
+
+func (s *PluginSuite) TestFetchCAJournal() {
+	testCases := []struct {
+		name                  string
+		activeX509AuthorityID string
+		code                  codes.Code
+		msg                   string
+		caJournal             *datastore.CAJournal
+	}{
+		{
+			name:                  "fetching an existent CA journal",
+			activeX509AuthorityID: "x509-authority-id",
+			caJournal: func() *datastore.CAJournal {
+				caJournal, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+					ActiveX509AuthorityID: "x509-authority-id",
+					Data:                  []byte("test data"),
+				})
+				s.Require().NoError(err)
+				return caJournal
+			}(),
+		},
+		{
+			name:                  "non-existent X509 authority ID returns nil",
+			activeX509AuthorityID: "non-existent-x509-authority-id",
+		},
+		{
+			name: "fetching without specifying an active authority ID fails",
+			code: codes.InvalidArgument,
+			msg:  "active X509 authority ID is required",
+		},
+	}
+
+	for _, tt := range testCases {
+		s.T().Run(tt.name, func(t *testing.T) {
+			caJournal, err := s.ds.FetchCAJournal(ctx, tt.activeX509AuthorityID)
+			spiretest.RequireGRPCStatus(t, err, tt.code, tt.msg)
+			if tt.code != codes.OK {
+				require.Nil(t, caJournal)
+				return
+			}
+
+			assert.Equal(t, tt.caJournal, caJournal)
+		})
+	}
+}
+
+func (s *PluginSuite) TestPruneCAJournal() {
+	now := time.Now()
+	t := now.Add(time.Hour)
+	entries := &journal.Entries{
+		X509CAs: []*journal.X509CAEntry{
+			{
+				NotAfter: t.Add(-time.Hour * 6).Unix(),
+			},
+		},
+		JwtKeys: []*journal.JWTKeyEntry{
+			{
+				NotAfter: t.Add(time.Hour * 6).Unix(),
+			},
+		},
+	}
+
+	entriesBytes, err := proto.Marshal(entries)
+	s.Require().NoError(err)
+
+	// Store CA journal in datastore
+	caJournal, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		ActiveX509AuthorityID: "x509-authority-1",
+		Data:                  entriesBytes,
+	})
+	s.Require().NoError(err)
+
+	// Run a PruneCAJournals operation specifying a time that is before the
+	// expiration of all the authorities. The CA journal should not be pruned.
+	s.Require().NoError(s.ds.PruneCAJournals(ctx, t.Add(-time.Hour*12).Unix()))
+	caj, err := s.ds.FetchCAJournal(ctx, "x509-authority-1")
+	s.Require().NoError(err)
+	s.Require().Equal(caJournal, caj)
+
+	// Run a PruneCAJournals operation specifying a time that is before the
+	// expiration of one of the authorities, but not all the authorities.
+	// The CA journal should not be pruned.
+	s.Require().NoError(s.ds.PruneCAJournals(ctx, t.Unix()))
+	caj, err = s.ds.FetchCAJournal(ctx, "x509-authority-1")
+	s.Require().NoError(err)
+	s.Require().Equal(caJournal, caj)
+
+	// Run a PruneCAJournals operation specifying a time that is after the
+	// expiration of all the authorities. The CA journal should be pruned.
+	s.Require().NoError(s.ds.PruneCAJournals(ctx, t.Add(time.Hour*12).Unix()))
+	caj, err = s.ds.FetchCAJournal(ctx, "x509-authority-1")
+	s.Require().NoError(err)
+	s.Require().Nil(caj)
+}
+
+func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue any) {
 	entriesJSON, err := os.ReadFile(filePath)
-	require.NoError(t, err)
+	s.Require().NoError(err)
 
 	err = json.Unmarshal(entriesJSON, &jsonValue)
-	require.NoError(t, err)
+	s.Require().NoError(err)
 }
 
-func fetchBundle(t *testing.T, ds datastore.DataStore, trustDomainID string) *common.Bundle {
-	bundle, err := ds.FetchBundle(ctx, trustDomainID)
-	require.NoError(t, err)
+func (s *PluginSuite) fetchBundle(trustDomainID string) *common.Bundle {
+	bundle, err := s.ds.FetchBundle(ctx, trustDomainID)
+	s.Require().NoError(err)
 	return bundle
 }
 
-func createBundle(t *testing.T, ds datastore.DataStore, trustDomainID string) *common.Bundle {
-	bundle, err := ds.CreateBundle(ctx, bundleutil.BundleProtoFromRootCA(trustDomainID, validRoot))
-	require.NoError(t, err)
+func (s *PluginSuite) createBundle(trustDomainID string) *common.Bundle {
+	bundle, err := s.ds.CreateBundle(ctx, bundleutil.BundleProtoFromRootCA(trustDomainID, s.cert))
+	s.Require().NoError(err)
 	return bundle
 }
 
-func createRegistrationEntry(t *testing.T, ds datastore.DataStore, entry *common.RegistrationEntry) *common.RegistrationEntry {
-	registrationEntry, err := ds.CreateRegistrationEntry(ctx, entry)
-	require.NoError(t, err)
-	require.NotNil(t, registrationEntry)
+func (s *PluginSuite) createRegistrationEntry(entry *common.RegistrationEntry) *common.RegistrationEntry {
+	registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, entry)
+	s.Require().NoError(err)
+	s.Require().NotNil(registrationEntry)
 	return registrationEntry
 }
 
-func deleteRegistrationEntry(t *testing.T, ds datastore.DataStore, entryID string) {
-	err := ds.DeleteRegistrationEntry(ctx, entryID)
-	require.NoError(t, err)
+func (s *PluginSuite) deleteRegistrationEntry(entryID string) {
+	_, err := s.ds.DeleteRegistrationEntry(ctx, entryID)
+	s.Require().NoError(err)
 }
 
-func fetchRegistrationEntry(t *testing.T, ds datastore.DataStore, entryID string) *common.RegistrationEntry {
-	registrationEntry, err := ds.FetchRegistrationEntry(ctx, entryID)
-	require.NoError(t, err)
-	require.NotNil(t, registrationEntry)
+func (s *PluginSuite) fetchRegistrationEntry(entryID string) *common.RegistrationEntry {
+	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entryID)
+	s.Require().NoError(err)
+	s.Require().NotNil(registrationEntry)
 	return registrationEntry
 }
 
@@ -3738,22 +5044,132 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func getNodeSelectors(t *testing.T, ds datastore.DataStore, spiffeID string, dataConsistency datastore.DataConsistency) []*common.Selector {
-	selectors, err := ds.GetNodeSelectors(ctx, spiffeID, dataConsistency)
-	require.NoError(t, err)
+func (s *PluginSuite) getNodeSelectors(spiffeID string, dataConsistency datastore.DataConsistency) []*common.Selector {
+	if dataConsistency == datastore.TolerateStale && TestReadOnlyDelay != "" {
+		time.Sleep(s.readOnlyDelay)
+	}
+	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dataConsistency)
+	s.Require().NoError(err)
 	return selectors
 }
 
-func listNodeSelectors(t *testing.T, ds datastore.DataStore, req *datastore.ListNodeSelectorsRequest) *datastore.ListNodeSelectorsResponse {
-	resp, err := ds.ListNodeSelectors(ctx, req)
-	require.NoError(t, err)
-	require.NotNil(t, resp)
+func (s *PluginSuite) listNodeSelectors(req *datastore.ListNodeSelectorsRequest) *datastore.ListNodeSelectorsResponse {
+	resp, err := s.ds.ListNodeSelectors(ctx, req)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
 	return resp
 }
 
-func setNodeSelectors(t *testing.T, ds datastore.DataStore, spiffeID string, selectors []*common.Selector) {
-	err := ds.SetNodeSelectors(ctx, spiffeID, selectors)
-	require.NoError(t, err)
+func (s *PluginSuite) setNodeSelectors(spiffeID string, selectors []*common.Selector) {
+	err := s.ds.SetNodeSelectors(ctx, spiffeID, selectors)
+	s.Require().NoError(err)
+}
+
+/*
+func (s *PluginSuite) TestConfigure() {
+	tests := []struct {
+		desc               string
+		giveDBConfig       string
+		expectMaxOpenConns int
+		expectIdle         int
+	}{
+		{
+			desc:               "defaults",
+			expectMaxOpenConns: 100,
+			// defined in database/sql
+			expectIdle: 2,
+		},
+		{
+			desc: "zero values",
+			giveDBConfig: `
+			max_open_conns = 0
+			max_idle_conns = 0
+			`,
+			expectMaxOpenConns: 0,
+			expectIdle:         0,
+		},
+		{
+			desc: "custom values",
+			giveDBConfig: `
+			max_open_conns = 1000
+			max_idle_conns = 50
+			conn_max_lifetime = "10s"
+			`,
+			expectMaxOpenConns: 1000,
+			expectIdle:         50,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		s.T().Run(tt.desc, func(t *testing.T) {
+			dbPath := filepath.ToSlash(filepath.Join(s.dir, "test-datastore-configure.sqlite3"))
+
+			log, _ := test.NewNullLogger()
+			p := New(log)
+			err := p.Configure(ctx, fmt.Sprintf(`
+				database_type = "sqlite3"
+				log_sql = true
+				connection_string = "%s"
+				%s
+			`, dbPath, tt.giveDBConfig))
+			require.NoError(t, err)
+			defer p.Close()
+
+			db := p.db.DB.DB()
+			require.Equal(t, tt.expectMaxOpenConns, db.Stats().MaxOpenConnections)
+
+			// begin many queries simultaneously
+			numQueries := 100
+			var rowsList []*sql.Rows
+			for i := 0; i < numQueries; i++ {
+				rows, err := db.Query("SELECT * FROM bundles")
+				require.NoError(t, err)
+				rowsList = append(rowsList, rows)
+			}
+
+			// close all open queries, which results in idle connections
+			for _, rows := range rowsList {
+				require.NoError(t, rows.Close())
+			}
+			require.Equal(t, tt.expectIdle, db.Stats().Idle)
+		})
+	}
+}
+*/
+
+func (s *PluginSuite) assertEntryEqual(t *testing.T, expectEntry, createdEntry *common.RegistrationEntry, now int64) {
+	require.NotEmpty(t, createdEntry.EntryId)
+	expectEntry.EntryId = ""
+	createdEntry.EntryId = ""
+	s.assertCreatedAtField(createdEntry, now)
+	createdEntry.CreatedAt = expectEntry.CreatedAt
+	spiretest.RequireProtoEqual(t, createdEntry, expectEntry)
+}
+
+func (s *PluginSuite) assertCreatedAtFields(result *datastore.ListRegistrationEntriesResponse, now int64) {
+	for _, entry := range result.Entries {
+		s.assertCreatedAtField(entry, now)
+	}
+}
+
+func (s *PluginSuite) assertCreatedAtField(entry *common.RegistrationEntry, now int64) {
+	// We can't compare the exact time because we don't have control over the clock used by the database.
+	s.Assert().GreaterOrEqual(entry.CreatedAt, now)
+	entry.CreatedAt = 0
+}
+
+func (s *PluginSuite) checkAttestedNodeEvents(expectedEvents []datastore.AttestedNodeEvent, spiffeID string) []datastore.AttestedNodeEvent {
+	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
+		EventID:  uint(len(expectedEvents) + 1),
+		SpiffeID: spiffeID,
+	})
+
+	resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedEvents, resp.Events)
+
+	return expectedEvents
 }
 
 // assertBundlesEqual asserts that the two bundle lists are equal independent
@@ -3791,7 +5207,7 @@ func assertBundlesEqual(t *testing.T, expected, actual []*common.Bundle) {
 // TODO: replace this with calls to Equal when we replace common.Selector with
 // a normal struct that doesn't require special comparison (i.e. not a
 // protobuf)
-func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Selector, msgAndArgs ...interface{}) {
+func assertSelectorsEqual(t *testing.T, expected, actual map[string][]*common.Selector, msgAndArgs ...any) {
 	type selector struct {
 		Type  string
 		Value string
@@ -3827,7 +5243,7 @@ func makeID(suffix string) string {
 	return "spiffe://example.org/" + suffix
 }
 
-func createBundles(t *testing.T, ds datastore.DataStore, trustDomains []string) {
+func createBundles(t *testing.T, ds *DataStore, trustDomains []string) {
 	for _, td := range trustDomains {
 		_, err := ds.CreateBundle(ctx, &common.Bundle{
 			TrustDomainId: td,
@@ -3859,4 +5275,71 @@ func assertFederationRelationship(t *testing.T, exp, actual *datastore.Federatio
 	assert.Equal(t, exp.EndpointSPIFFEID, actual.EndpointSPIFFEID)
 	assert.Equal(t, exp.TrustDomain, actual.TrustDomain)
 	spiretest.AssertProtoEqual(t, exp.TrustDomainBundle, actual.TrustDomainBundle)
+}
+
+func assertCAJournal(t *testing.T, exp, actual *datastore.CAJournal) {
+	if exp == nil {
+		assert.Nil(t, actual)
+		return
+	}
+	assert.Equal(t, exp.ActiveX509AuthorityID, actual.ActiveX509AuthorityID)
+	assert.Equal(t, exp.Data, actual.Data)
+}
+
+func wipeDynamo(t *testing.T, c Configuration) {
+
+	cfg, err := AWSConfig(ctx, &c)
+	require.NoError(t, err)
+
+	//dynamoClient := dynamodb.NewFromConfig(cfg)
+
+	dynamoClient := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+		if c.Endpoint != "" {
+			o.BaseEndpoint = aws.String(c.Endpoint) // usa o endpoint fornecido
+		}
+	})
+
+	_, err = dynamoClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+		TableName: aws.String(c.TableName),
+	})
+
+	if err == nil {
+		// Excluir a tabela
+		_, err = dynamoClient.DeleteTable(ctx, &dynamodb.DeleteTableInput{
+			TableName: aws.String(c.TableName),
+		})
+		require.NoError(t, err) // Usando require.NoError para tratar o erro
+
+		maxRetries := 5
+		for i := 0; i < maxRetries; i++ {
+			_, err = dynamoClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+				TableName: aws.String(c.TableName),
+			})
+
+			if err != nil {
+				if temp := new(dynamoTypes.ResourceNotFoundException); errors.As(err, &temp) {
+					// Se err for nil, significa que a tabela não existe
+					//fmt.Println("Table deleted successfully.")
+					break
+				}
+			}
+
+			time.Sleep(5 * time.Second) // Espera um segundo antes de verificar novamente
+		}
+	}
+}
+
+func AWSConfig(ctx context.Context, c *Configuration) (aws.Config, error) {
+	cfg, err := awsConfigTest.LoadDefaultConfig(ctx,
+		awsConfigTest.WithRegion(c.Region),
+	)
+	if err != nil {
+		return aws.Config{}, err
+	}
+
+	if c.SecretAccessKey != "" && c.AccessKeyID != "" {
+		cfg.Credentials = credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, "")
+	}
+
+	return cfg, nil
 }
