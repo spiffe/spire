@@ -102,7 +102,7 @@ type joinTokenIndex struct {
 }
 
 func (c *joinTokenIndex) SetUp() {
-	c.expiresAt.SetQuerry("Object.JoinToken.Expiry")
+	c.expiresAt.SetQuery("Object.JoinToken.Expiry")
 }
 
 func (c *joinTokenIndex) List(opts *listJoinTokens) (*keyvalue.ListObject, error) {

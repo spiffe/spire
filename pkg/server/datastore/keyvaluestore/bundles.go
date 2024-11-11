@@ -41,8 +41,16 @@ func (ds *DataStore) AppendBundle(ctx context.Context, appends *common.Bundle) (
 	}
 }
 
-func (ds *DataStore) CountBundles(context.Context) (int32, error) {
-	return int32(ds.bundles.Count()), nil
+func (ds *DataStore) CountBundles(ctx context.Context) (int32, error) {
+	// TO-DO
+	// return int32(ds.bundles.Count()), nil
+	records, _, err := ds.bundles.List(ctx, &datastore.ListBundlesRequest{})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return int32(len(records)), nil
 }
 
 func (ds *DataStore) CreateBundle(ctx context.Context, in *common.Bundle) (*common.Bundle, error) {

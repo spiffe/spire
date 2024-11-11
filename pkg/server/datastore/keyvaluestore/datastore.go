@@ -46,14 +46,14 @@ type DataStore struct {
 
 	log                     logrus.FieldLogger
 	store                   keyvalue.Store
-	agents                  *record.Cache[agentCodec, *agentIndex, agentObject, *listAttestedNodes]
-	bundles                 *record.Cache[bundleCodec, *bundleIndex, bundleObject, *datastore.ListBundlesRequest]
-	entries                 *record.Cache[entryCodec, *entryIndex, entryObject, *listRegistrationEntries]
-	joinTokens              *record.Cache[joinTokenCodec, *joinTokenIndex, joinTokenObject, *listJoinTokens]
-	federationRelationships *record.Cache[federationRelationshipCodec, *federationRelationshipIndex, federationRelationshipObject, *datastore.ListFederationRelationshipsRequest]
-	entriesEvents           *record.Cache[entryEventCodec, *entryEventIndex, entryEventObject, *listRegistrationEntryEventsRequest]
-	nodeEvents              *record.Cache[nodeEventCodec, *nodeEventIndex, nodeEventObject, *listAttestedNodeEventsRequest]
-	caJournal               *record.Cache[caJournalCodec, *caJournalIndex, caJournalObject, *listCaJournals]
+	agents                  *record.Wrapper[agentCodec, *agentIndex, agentObject, *listAttestedNodes]
+	bundles                 *record.Wrapper[bundleCodec, *bundleIndex, bundleObject, *datastore.ListBundlesRequest]
+	entries                 *record.Wrapper[entryCodec, *entryIndex, entryObject, *listRegistrationEntries]
+	joinTokens              *record.Wrapper[joinTokenCodec, *joinTokenIndex, joinTokenObject, *listJoinTokens]
+	federationRelationships *record.Wrapper[federationRelationshipCodec, *federationRelationshipIndex, federationRelationshipObject, *datastore.ListFederationRelationshipsRequest]
+	entriesEvents           *record.Wrapper[entryEventCodec, *entryEventIndex, entryEventObject, *listRegistrationEntryEventsRequest]
+	nodeEvents              *record.Wrapper[nodeEventCodec, *nodeEventIndex, nodeEventObject, *listAttestedNodeEventsRequest]
+	caJournal               *record.Wrapper[caJournalCodec, *caJournalIndex, caJournalObject, *listCaJournals]
 }
 
 func New(log logrus.FieldLogger) *DataStore {
@@ -81,14 +81,14 @@ func (ds *DataStore) Configure(ctx context.Context, hclConfiguration string) err
 	}
 
 	ds.store = store
-	ds.agents = record.NewCache[agentCodec, *agentIndex, agentObject, *listAttestedNodes](store, "agent", new(agentIndex))
-	ds.bundles = record.NewCache[bundleCodec, *bundleIndex, bundleObject, *datastore.ListBundlesRequest](store, "bundle", new(bundleIndex))
-	ds.entries = record.NewCache[entryCodec, *entryIndex, entryObject, *listRegistrationEntries](store, "entry", new(entryIndex))
-	ds.joinTokens = record.NewCache[joinTokenCodec, *joinTokenIndex, joinTokenObject, *listJoinTokens](store, "joinToken", new(joinTokenIndex))
-	ds.federationRelationships = record.NewCache[federationRelationshipCodec, *federationRelationshipIndex, federationRelationshipObject, *datastore.ListFederationRelationshipsRequest](store, "federationRelationship", new(federationRelationshipIndex))
-	ds.entriesEvents = record.NewCache[entryEventCodec, *entryEventIndex, entryEventObject, *listRegistrationEntryEventsRequest](store, "entriesEvents", new(entryEventIndex))
-	ds.nodeEvents = record.NewCache[nodeEventCodec, *nodeEventIndex, nodeEventObject, *listAttestedNodeEventsRequest](store, "nodeEvents", new(nodeEventIndex))
-	ds.caJournal = record.NewCache[caJournalCodec, *caJournalIndex, caJournalObject, *listCaJournals](store, "caJournal", new(caJournalIndex))
+	ds.agents = record.NewWrapper[agentCodec, *agentIndex, agentObject, *listAttestedNodes](store, "agent", new(agentIndex))
+	ds.bundles = record.NewWrapper[bundleCodec, *bundleIndex, bundleObject, *datastore.ListBundlesRequest](store, "bundle", new(bundleIndex))
+	ds.entries = record.NewWrapper[entryCodec, *entryIndex, entryObject, *listRegistrationEntries](store, "entry", new(entryIndex))
+	ds.joinTokens = record.NewWrapper[joinTokenCodec, *joinTokenIndex, joinTokenObject, *listJoinTokens](store, "joinToken", new(joinTokenIndex))
+	ds.federationRelationships = record.NewWrapper[federationRelationshipCodec, *federationRelationshipIndex, federationRelationshipObject, *datastore.ListFederationRelationshipsRequest](store, "federationRelationship", new(federationRelationshipIndex))
+	ds.entriesEvents = record.NewWrapper[entryEventCodec, *entryEventIndex, entryEventObject, *listRegistrationEntryEventsRequest](store, "entriesEvents", new(entryEventIndex))
+	ds.nodeEvents = record.NewWrapper[nodeEventCodec, *nodeEventIndex, nodeEventObject, *listAttestedNodeEventsRequest](store, "nodeEvents", new(nodeEventIndex))
+	ds.caJournal = record.NewWrapper[caJournalCodec, *caJournalIndex, caJournalObject, *listCaJournals](store, "caJournal", new(caJournalIndex))
 
 	return err
 }

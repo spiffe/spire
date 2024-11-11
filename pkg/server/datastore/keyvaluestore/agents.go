@@ -16,10 +16,6 @@ import (
 )
 
 func (ds *DataStore) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (int32, error) {
-	if req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) == 0 {
-		return -1, status.Error(codes.InvalidArgument, "cannot list by empty selectors set")
-	}
-
 	listReq := &listAttestedNodes{
 		ListAttestedNodesRequest: datastore.ListAttestedNodesRequest{
 			ByAttestationType: req.ByAttestationType,
@@ -236,11 +232,11 @@ type agentIndex struct {
 }
 
 func (idx *agentIndex) SetUp() {
-	idx.attestationType.SetQuerry("Object.AttestationDataType")
-	idx.banned.SetQuerry("Object.Banned")
-	idx.expiresAt.SetQuerry("Object.CertNotAfter")
-	idx.selectors.SetQuerry("Object.Selectors")
-	idx.canReattest.SetQuerry("Object.CanReattest")
+	idx.attestationType.SetQuery("Object.AttestationDataType")
+	idx.banned.SetQuery("Object.Banned")
+	idx.expiresAt.SetQuery("Object.CertNotAfter")
+	idx.selectors.SetQuery("Object.Selectors")
+	idx.canReattest.SetQuery("Object.CanReattest")
 }
 
 func (idx *agentIndex) List(req *listAttestedNodes) (*keyvalue.ListObject, error) {

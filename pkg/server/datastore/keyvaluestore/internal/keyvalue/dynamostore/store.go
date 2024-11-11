@@ -448,6 +448,7 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 			exp = field.LessThan(expression.Value(filter.Value))
 		case keyvalue.GreaterThan:
 			exp = field.GreaterThan(expression.Value(filter.Value))
+
 		case keyvalue.MatchAny:
 			switch values := filter.Value.(type) {
 			case []*common.Selector:
@@ -476,11 +477,16 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 				return nil, "", fmt.Errorf("unknown value type for filter")
 			}
 		case keyvalue.MatchSubset:
-			if value, ok := filter.Value.(string); ok {
-				exp = expression.Contains(field, value)
-			} else {
-				return nil, "", fmt.Errorf("invalid value type for MatchSubset filter")
+			switch values := filter.Value.(type) {
+			case []*common.Selector:
+				exp = listMatchSubset[*common.Selector](field, values)
+			case []string:
+				exp = listMatchSubset[string](field, values)
+			default:
+				return nil, "", fmt.Errorf("unknown value type for filter")
 			}
+		default:
+			return nil, "", fmt.Errorf("unknown value type for filter")
 		}
 
 		if idx == 0 {
@@ -573,19 +579,52 @@ func listMatchAny[T any](field expression.NameBuilder, values []T) expression.Co
 func listMatchExact[T any](field expression.NameBuilder, values []T) expression.ConditionBuilder {
 	exp := expression.Equal(expression.Size(field), expression.Value(len(values)))
 
-	exp = exp.And(expression.In(field, expression.Value(values)))
-
-	return exp
+	return exp.And(expression.In(field, expression.Value(values)))
 }
 
 func listMatchSuperset[T any](field expression.NameBuilder, values []T) expression.ConditionBuilder {
 	exp := expression.Contains(field, values[0])
 
 	for _, selector := range values[1:] {
-		exp = exp.Or(expression.Contains(field, selector))
+		exp = exp.And(expression.Contains(field, selector))
 	}
 
 	return exp
+}
+
+/*
+MORE TESTS NEED TO BE PERFORMED
+*/
+func listMatchSubset[T any](field expression.NameBuilder, values []T) expression.ConditionBuilder {
+	exp := expression.LessThanEqual(expression.Size(field), expression.Value(len(values)))
+
+	var subExp expression.ConditionBuilder
+
+	var currentSubset []T
+	var backtrack func(int)
+	backtrack = func(start int) {
+		if len(currentSubset) > 0 {
+			destination := make([]T, len(currentSubset))
+
+			copy(destination, currentSubset)
+			if start == 1 {
+				subExp = listMatchExact[T](field, destination)
+			} else {
+				subExp = subExp.Or(listMatchExact[T](field, destination))
+			}
+		}
+
+		// Generate the next subsets by including new elements
+		for i := start; i < len(values); i++ {
+			currentSubset = append(currentSubset, values[i])     // Include the new element
+			backtrack(i + 1)                                     // Recurse with the new subset
+			currentSubset = currentSubset[:len(currentSubset)-1] // Backtrack to explore other combinations
+		}
+	}
+
+	backtrack(0)
+
+	return exp.And(subExp)
 }
 
 func notExist() expression.Builder {

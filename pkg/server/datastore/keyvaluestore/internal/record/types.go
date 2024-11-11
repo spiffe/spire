@@ -25,13 +25,6 @@ type Index[O Object, L any] interface {
 	SetUp()
 }
 
-type Iterator[O any] interface {
-	First() bool
-	Next() bool
-	Record() *Record[O]
-	Release()
-}
-
 type Codec[O any] interface {
 	Marshal(o *O) (string, []byte, error)
 	Unmarshal(in []byte, out *O) error

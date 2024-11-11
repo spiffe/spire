@@ -19,10 +19,6 @@ import (
 )
 
 func (ds *DataStore) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
-	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
-		return 0, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
-	}
-
 	listReq := &listRegistrationEntries{
 		ListRegistrationEntriesRequest: datastore.ListRegistrationEntriesRequest{
 			DataConsistency: req.DataConsistency,
@@ -387,19 +383,23 @@ type entryIndex struct {
 func (c *entryIndex) SetUp() {
 	/*r.Object.Entry.RevisionNumber = r.Metadata.Revision*/
 
-	c.parentID.SetQuerry("Object.Entry.ParentId")
-	c.spiffeID.SetQuerry("Object.Entry.SpiffeId")
-	c.selectors.SetQuerry("Object.Entry.Selectors")
-	c.federatesWith.SetQuerry("Object.Entry.FederatesWith")
-	c.expiresAt.SetQuerry("Object.Entry.EntryExpiry")
-	c.hint.SetQuerry("Object.Entry.Hint")
-	c.downstream.SetQuerry("Object.Entry.Downstream")
+	c.parentID.SetQuery("Object.Entry.ParentId")
+	c.spiffeID.SetQuery("Object.Entry.SpiffeId")
+	c.selectors.SetQuery("Object.Entry.Selectors")
+	c.federatesWith.SetQuery("Object.Entry.FederatesWith")
+	c.expiresAt.SetQuery("Object.Entry.EntryExpiry")
+	c.hint.SetQuery("Object.Entry.Hint")
+	c.downstream.SetQuery("Object.Entry.Downstream")
 }
 
 func (c *entryIndex) List(req *listRegistrationEntries) (*keyvalue.ListObject, error) {
 	cursor, limit, err := getPaginationParams(req.Pagination)
 	if err != nil {
 		return nil, err
+	}
+
+	if req.BySelectors != nil && len(req.BySelectors.Selectors) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "cannot list by empty selector set")
 	}
 
 	list := new(keyvalue.ListObject)
@@ -425,7 +425,6 @@ func (c *entryIndex) List(req *listRegistrationEntries) (*keyvalue.ListObject, e
 	if req.ByDownstream != nil {
 		list.Filters = append(list.Filters, c.downstream.EqualTo(*req.ByDownstream))
 	}
-
 	if !req.ByExpiresBefore.IsZero() {
 		list.Filters = append(list.Filters, c.expiresAt.LessThan(req.ByExpiresBefore.Unix()))
 	}

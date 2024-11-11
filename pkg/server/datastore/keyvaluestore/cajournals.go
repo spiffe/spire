@@ -203,7 +203,7 @@ type caJournalIndex struct {
 }
 
 func (c *caJournalIndex) SetUp() {
-	c.x509AuthorityID.SetQuerry("Object.CAJournal.ActiveX509AuthorityID")
+	c.x509AuthorityID.SetQuery("Object.CAJournal.ActiveX509AuthorityID")
 }
 
 func (c *caJournalIndex) List(req *listCaJournals) (*keyvalue.ListObject, error) {

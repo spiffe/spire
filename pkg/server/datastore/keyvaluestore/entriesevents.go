@@ -163,8 +163,8 @@ type entryEventIndex struct {
 }
 
 func (idx *entryEventIndex) SetUp() {
-	idx.eventID.SetQuerry("Object.EntryEvent.EventID")
-	idx.createdAt.SetQuerry("CreatedAt")
+	idx.eventID.SetQuery("Object.EntryEvent.EventID")
+	idx.createdAt.SetQuery("CreatedAt")
 }
 
 func (idx *entryEventIndex) List(req *listRegistrationEntryEventsRequest) (*keyvalue.ListObject, error) {
