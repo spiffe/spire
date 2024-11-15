@@ -42,6 +42,8 @@ func (c *Wrapper[C, I, O, L]) Get(ctx context.Context, key string) (*Record[O], 
 	if err := c.codec.Unmarshal(kv.ByteValue, &r.Object); err != nil {
 		return nil, err
 	}
+
+	c.index.Get(r)
 	return r, nil
 }
 
@@ -110,7 +112,7 @@ func (c *Wrapper[C, I, O, L]) List(ctx context.Context, opts L) ([]*Record[O], s
 		if err := c.codec.Unmarshal(kv.ByteValue, &r.Object); err != nil {
 			return nil, "", err
 		}
-
+		c.index.Get(r)
 		rs = append(rs, r)
 	}
 

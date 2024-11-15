@@ -22,6 +22,7 @@ type Record[O any] struct {
 
 type Index[O Object, L any] interface {
 	List(L) (*keyvalue.ListObject, error)
+	Get(*Record[O])
 	SetUp()
 }
 

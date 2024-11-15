@@ -41,7 +41,7 @@ func (ds *DataStore) PruneRegistrationEntryEvents(ctx context.Context, olderThan
 	var errCount int
 	var firstErr error
 	for _, record := range records {
-		if err := ds.entriesEvents.Delete(ctx, record.Object.contentKey); err != nil {
+		if err := ds.entriesEvents.Delete(ctx, record.Object.ContentKey); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -114,7 +114,7 @@ func (entryEventCodec) Marshal(in *entryEventObject) (string, []byte, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	return in.contentKey, out, nil
+	return in.ContentKey, out, nil
 }
 
 func (entryEventCodec) Unmarshal(in []byte, out *entryEventObject) error {
@@ -130,23 +130,23 @@ func (entryEventCodec) Unmarshal(in []byte, out *entryEventObject) error {
 		EntryID: wrappedEntry.EntryID,
 	}
 
-	out.contentKey = entryEventContentKey(out.EntryEvent.EventID)
+	out.ContentKey = entryEventContentKey(out.EntryEvent.EventID)
 	return nil
 }
 
 type entryEventObject struct {
-	contentKey string
+	ContentKey string
 	EntryEvent *datastore.RegistrationEntryEvent
 }
 
 func makeEntryEventObject(entry *datastore.RegistrationEntryEvent) entryEventObject {
 	return entryEventObject{
-		contentKey: entryEventContentKey(entry.EventID),
+		ContentKey: entryEventContentKey(entry.EventID),
 		EntryEvent: entry,
 	}
 }
 
-func (r entryEventObject) Key() string { return r.contentKey }
+func (r entryEventObject) Key() string { return r.ContentKey }
 
 type listRegistrationEntryEventsRequest struct {
 	datastore.ListRegistrationEntryEventsRequest
@@ -159,7 +159,7 @@ func entryEventContentKey(eventID uint) string {
 
 type entryEventIndex struct {
 	eventID   record.UnaryIndex[uint]
-	createdAt record.UnaryIndex[int64]
+	createdAt record.UnaryIndex[time.Time]
 }
 
 func (idx *entryEventIndex) SetUp() {
@@ -167,11 +167,16 @@ func (idx *entryEventIndex) SetUp() {
 	idx.createdAt.SetQuery("CreatedAt")
 }
 
-func (idx *entryEventIndex) List(req *listRegistrationEntryEventsRequest) (*keyvalue.ListObject, error) {
-	list := new(keyvalue.ListObject)
+func (c *entryEventIndex) Get(obj *record.Record[entryEventObject]) {
 
-	list.Cursor = ""
-	list.Limit = -1
+}
+
+func (idx *entryEventIndex) List(req *listRegistrationEntryEventsRequest) (*keyvalue.ListObject, error) {
+	if req.GreaterThanEventID != 0 && req.LessThanEventID != 0 {
+		return nil, errors.New("can't set both greater and less than event id")
+	}
+
+	list := new(keyvalue.ListObject)
 
 	if req.LessThanEventID != 0 {
 		list.Filters = append(list.Filters, idx.eventID.LessThan(req.LessThanEventID))
@@ -182,7 +187,7 @@ func (idx *entryEventIndex) List(req *listRegistrationEntryEventsRequest) (*keyv
 	}
 
 	if !req.ByCreatedBefore.IsZero() {
-		list.Filters = append(list.Filters, idx.createdAt.LessThan(req.ByCreatedBefore.Unix()))
+		list.Filters = append(list.Filters, idx.createdAt.LessThan(req.ByCreatedBefore.UTC()))
 	}
 
 	return list, nil

@@ -6,6 +6,7 @@ import (
 	"unicode"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/keyvalue"
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/keyvalue/dynamostore"
@@ -21,6 +22,7 @@ const (
 
 var (
 	kvError           = errs.Class("datastore-keyvalue")
+	validationError   = errs.Class("datastore-validation")
 	validEntryIDChars = &unicode.RangeTable{
 		R16: []unicode.Range16{
 			{0x002d, 0x002e, 1}, // - | .
@@ -90,7 +92,13 @@ func (ds *DataStore) Configure(ctx context.Context, hclConfiguration string) err
 	ds.nodeEvents = record.NewWrapper[nodeEventCodec, *nodeEventIndex, nodeEventObject, *listAttestedNodeEventsRequest](store, "nodeEvents", new(nodeEventIndex))
 	ds.caJournal = record.NewWrapper[caJournalCodec, *caJournalIndex, caJournalObject, *listCaJournals](store, "caJournal", new(caJournalIndex))
 
-	return err
+	ds.log.WithFields(logrus.Fields{
+		telemetry.Type:     "DynamoDB",
+		telemetry.Version:  1,
+		telemetry.ReadOnly: false,
+	}).Info("Connected to KeyValue database")
+
+	return nil
 }
 
 func (ds *DataStore) Close() error {

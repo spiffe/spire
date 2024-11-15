@@ -36,7 +36,7 @@ func (ds *DataStore) CreateAttestedNode(ctx context.Context, in *common.Attested
 		return nil, kvError.New("invalid request: missing attested node")
 	}
 
-	if err := ds.agents.Create(ctx, agentObject{AttestedNode: in, Banned: in.CertSerialNumber == "" && in.NewCertSerialNumber == ""}); err != nil {
+	if err := ds.agents.Create(ctx, agentObject{Node: in, Banned: in.CertSerialNumber == "" && in.NewCertSerialNumber == ""}); err != nil {
 		return nil, dsErr(err, "failed to create agent")
 	}
 
@@ -66,14 +66,15 @@ func (ds *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*
 		return nil, err
 	}
 
-	return r.Object.AttestedNode, nil
+	r.Object.Node.Selectors = nil
+	return r.Object.Node, nil
 }
 
 func (ds *DataStore) FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
 	r, err := ds.agents.Get(ctx, spiffeID)
 	switch {
 	case err == nil:
-		return r.Object.AttestedNode, nil
+		return r.Object.Node, nil
 	case errors.Is(err, record.ErrNotFound):
 		return nil, nil
 	default:
@@ -93,7 +94,7 @@ func (ds *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListA
 	}
 	resp.Nodes = make([]*common.AttestedNode, 0, len(records))
 	for _, record := range records {
-		resp.Nodes = append(resp.Nodes, record.Object.AttestedNode)
+		resp.Nodes = append(resp.Nodes, record.Object.Node)
 	}
 	return resp, nil
 }
@@ -110,25 +111,25 @@ func (ds *DataStore) UpdateAttestedNode(ctx context.Context, newAgent *common.At
 	}
 
 	if mask.CertNotAfter {
-		existing.CertNotAfter = newAgent.CertNotAfter
+		existing.Node.CertNotAfter = newAgent.CertNotAfter
 	}
 	if mask.CertSerialNumber {
-		existing.CertSerialNumber = newAgent.CertSerialNumber
+		existing.Node.CertSerialNumber = newAgent.CertSerialNumber
 	}
 	if mask.NewCertNotAfter {
-		existing.NewCertNotAfter = newAgent.NewCertNotAfter
+		existing.Node.NewCertNotAfter = newAgent.NewCertNotAfter
 	}
 	if mask.NewCertSerialNumber {
-		existing.NewCertSerialNumber = newAgent.NewCertSerialNumber
+		existing.Node.NewCertSerialNumber = newAgent.NewCertSerialNumber
 	}
 	if mask.CanReattest {
-		existing.CanReattest = newAgent.CanReattest
+		existing.Node.CanReattest = newAgent.CanReattest
 	}
 	/*if mask.AttestationDataType {
 		existing.AttestationDataType = newAgent.AttestationDataType
 	}*/
 
-	existing.Banned = existing.CertSerialNumber == "" && existing.NewCertSerialNumber == ""
+	existing.Banned = existing.Node.CertSerialNumber == "" && existing.Node.NewCertSerialNumber == ""
 
 	if err := ds.agents.Update(ctx, existing, record.Metadata.Revision); err != nil {
 		return nil, dsErr(err, "failed to update agent")
@@ -140,15 +141,19 @@ func (ds *DataStore) UpdateAttestedNode(ctx context.Context, newAgent *common.At
 		return nil, err
 	}
 
-	return existing.AttestedNode, nil
+	return existing.Node, nil
 }
 
 func (ds *DataStore) GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) ([]*common.Selector, error) {
-	record, err := ds.agents.Get(ctx, spiffeID)
-	if err != nil {
+	r, err := ds.agents.Get(ctx, spiffeID)
+	switch {
+	case errors.Is(err, record.ErrNotFound):
+		return nil, nil
+	case err != nil:
 		return nil, dsErr(err, "failed to get agent selectors")
+	default:
+		return r.Object.Node.Selectors, nil
 	}
-	return record.Object.Selectors, nil
 }
 
 func (ds *DataStore) ListNodeSelectors(ctx context.Context, req *datastore.ListNodeSelectorsRequest) (*datastore.ListNodeSelectorsResponse, error) {
@@ -162,7 +167,7 @@ func (ds *DataStore) ListNodeSelectors(ctx context.Context, req *datastore.ListN
 		Selectors: map[string][]*common.Selector{},
 	}
 	for _, record := range records {
-		resp.Selectors[record.Object.SpiffeId] = record.Object.Selectors
+		resp.Selectors[record.Object.Node.SpiffeId] = record.Object.Node.Selectors
 	}
 	return resp, nil
 }
@@ -170,14 +175,14 @@ func (ds *DataStore) ListNodeSelectors(ctx context.Context, req *datastore.ListN
 func (ds *DataStore) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) error {
 	agent, err := ds.agents.Get(ctx, spiffeID)
 	switch {
-	case err != nil:
-		return err
-	case agent == nil:
+	case errors.Is(err, record.ErrNotFound):
 		_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{SpiffeId: spiffeID, Selectors: selectors})
+		return err
+	case err != nil:
 		return err
 	default:
 		existing := agent.Object
-		existing.Selectors = selectors
+		existing.Node.Selectors = selectors
 
 		if err := ds.agents.Update(ctx, existing, agent.Metadata.Revision); err != nil {
 			return dsErr(err, "failed to update agent")
@@ -195,11 +200,11 @@ func (ds *DataStore) SetNodeSelectors(ctx context.Context, spiffeID string, sele
 type agentCodec struct{}
 
 func (agentCodec) Marshal(in *agentObject) (string, []byte, error) {
-	out, err := proto.Marshal(in.AttestedNode)
+	out, err := proto.Marshal(in.Node)
 	if err != nil {
 		return "", nil, err
 	}
-	return in.AttestedNode.SpiffeId, out, nil
+	return in.Node.SpiffeId, out, nil
 }
 
 func (agentCodec) Unmarshal(in []byte, out *agentObject) error {
@@ -207,16 +212,17 @@ func (agentCodec) Unmarshal(in []byte, out *agentObject) error {
 	if err := proto.Unmarshal(in, attestedNode); err != nil {
 		return err
 	}
-	out.AttestedNode = attestedNode
+	out.Node = attestedNode
+	out.Banned = attestedNode.CertSerialNumber == "" && attestedNode.NewCertSerialNumber == ""
 	return nil
 }
 
 type agentObject struct {
-	*common.AttestedNode
+	Node   *common.AttestedNode
 	Banned bool
 }
 
-func (r agentObject) Key() string { return r.AttestedNode.SpiffeId }
+func (r agentObject) Key() string { return r.Node.SpiffeId }
 
 type listAttestedNodes struct {
 	datastore.ListAttestedNodesRequest
@@ -226,17 +232,21 @@ type listAttestedNodes struct {
 type agentIndex struct {
 	attestationType record.UnaryIndex[string]
 	banned          record.UnaryIndex[bool]
-	expiresAt       record.UnaryIndex[int64]
+	expiresAt       record.UnaryIndex[time.Time]
 	selectors       record.MultiIndex[*common.Selector]
 	canReattest     record.UnaryIndex[bool]
 }
 
 func (idx *agentIndex) SetUp() {
-	idx.attestationType.SetQuery("Object.AttestationDataType")
+	idx.attestationType.SetQuery("Object.Node.AttestationDataType")
 	idx.banned.SetQuery("Object.Banned")
-	idx.expiresAt.SetQuery("Object.CertNotAfter")
-	idx.selectors.SetQuery("Object.Selectors")
-	idx.canReattest.SetQuery("Object.CanReattest")
+	idx.expiresAt.SetQuery("Object.Node.CertNotAfter")
+	idx.selectors.SetQuery("Object.Node.Selectors")
+	idx.canReattest.SetQuery("Object.Node.CanReattest")
+}
+
+func (c *agentIndex) Get(obj *record.Record[agentObject]) {
+
 }
 
 func (idx *agentIndex) List(req *listAttestedNodes) (*keyvalue.ListObject, error) {
@@ -261,10 +271,10 @@ func (idx *agentIndex) List(req *listAttestedNodes) (*keyvalue.ListObject, error
 		list.Filters = append(list.Filters, idx.banned.EqualTo(*req.ByBanned))
 	}
 	if !req.ByExpiresBefore.IsZero() {
-		list.Filters = append(list.Filters, idx.expiresAt.LessThan(req.ByExpiresBefore.Unix()))
+		list.Filters = append(list.Filters, idx.expiresAt.LessThan(req.ByExpiresBefore))
 	}
 	if !req.ByExpiresAfter.IsZero() {
-		list.Filters = append(list.Filters, idx.expiresAt.GreaterThan(req.ByExpiresAfter.Unix()))
+		list.Filters = append(list.Filters, idx.expiresAt.GreaterThan(req.ByExpiresAfter))
 	}
 	if req.BySelectorMatch != nil {
 		list.Filters = append(list.Filters, idx.selectors.Matching(req.BySelectorMatch.Selectors, matchBehavior(req.BySelectorMatch.Match)))

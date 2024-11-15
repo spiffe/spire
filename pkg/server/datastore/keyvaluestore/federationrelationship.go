@@ -130,6 +130,34 @@ func (ds *DataStore) makeFederationRelationship(ctx context.Context, in *datasto
 	return &fr
 }
 
+func validateFederationRelationship(fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) error {
+	if fr == nil {
+		return status.Error(codes.InvalidArgument, "federation relationship is nil")
+	}
+
+	if fr.TrustDomain.IsZero() {
+		return status.Error(codes.InvalidArgument, "trust domain is required")
+	}
+
+	if mask.BundleEndpointUrl && fr.BundleEndpointURL == nil {
+		return status.Error(codes.InvalidArgument, "bundle endpoint URL is required")
+	}
+
+	if mask.BundleEndpointProfile {
+		switch fr.BundleEndpointProfile {
+		case datastore.BundleEndpointWeb:
+		case datastore.BundleEndpointSPIFFE:
+			if fr.EndpointSPIFFEID.IsZero() {
+				return status.Error(codes.InvalidArgument, "bundle endpoint SPIFFE ID is required")
+			}
+		default:
+			return status.Errorf(codes.InvalidArgument, "unknown bundle endpoint profile type: %q", fr.BundleEndpointProfile)
+		}
+	}
+
+	return nil
+}
+
 type federationRelationshipObject struct {
 	FederationRelationship *datastore.FederationRelationship
 }
@@ -205,6 +233,10 @@ type federationRelationshipIndex struct {
 func (c *federationRelationshipIndex) SetUp() {
 }
 
+func (c *federationRelationshipIndex) Get(obj *record.Record[federationRelationshipObject]) {
+
+}
+
 func (c *federationRelationshipIndex) List(req *datastore.ListFederationRelationshipsRequest) (*keyvalue.ListObject, error) {
 	cursor, limit, err := getPaginationParams(req.Pagination)
 	if err != nil {
@@ -219,30 +251,3 @@ func (c *federationRelationshipIndex) List(req *datastore.ListFederationRelation
 	return list, nil
 }
 
-func validateFederationRelationship(fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) error {
-	if fr == nil {
-		return status.Error(codes.InvalidArgument, "federation relationship is nil")
-	}
-
-	if fr.TrustDomain.IsZero() {
-		return status.Error(codes.InvalidArgument, "trust domain is required")
-	}
-
-	if mask.BundleEndpointUrl && fr.BundleEndpointURL == nil {
-		return status.Error(codes.InvalidArgument, "bundle endpoint URL is required")
-	}
-
-	if mask.BundleEndpointProfile {
-		switch fr.BundleEndpointProfile {
-		case datastore.BundleEndpointWeb:
-		case datastore.BundleEndpointSPIFFE:
-			if fr.EndpointSPIFFEID.IsZero() {
-				return status.Error(codes.InvalidArgument, "bundle endpoint SPIFFE ID is required")
-			}
-		default:
-			return status.Errorf(codes.InvalidArgument, "unknown bundle endpoint profile type: %q", fr.BundleEndpointProfile)
-		}
-	}
-
-	return nil
-}

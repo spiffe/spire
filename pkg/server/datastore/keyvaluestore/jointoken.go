@@ -89,6 +89,7 @@ func (joinTokenCodec) Unmarshal(in []byte, out *joinTokenObject) error {
 	if err := json.Unmarshal(in, joinToken); err != nil {
 		return err
 	}
+	joinToken.Expiry = joinToken.Expiry.In(time.Local)
 	out.JoinToken = joinToken
 	return nil
 }
@@ -98,21 +99,22 @@ type listJoinTokens struct {
 }
 
 type joinTokenIndex struct {
-	expiresAt record.UnaryIndex[int64]
+	expiresAt record.UnaryIndex[time.Time]
 }
 
 func (c *joinTokenIndex) SetUp() {
 	c.expiresAt.SetQuery("Object.JoinToken.Expiry")
 }
 
+func (c *joinTokenIndex) Get(obj *record.Record[joinTokenObject]) {
+
+}
+
 func (c *joinTokenIndex) List(opts *listJoinTokens) (*keyvalue.ListObject, error) {
 	list := new(keyvalue.ListObject)
 
-	list.Cursor = ""
-	list.Limit = -1
-
 	if !opts.ByExpiresBefore.IsZero() {
-		list.Filters = append(list.Filters, c.expiresAt.LessThan(opts.ByExpiresBefore.Unix()))
+		list.Filters = append(list.Filters, c.expiresAt.LessThan(opts.ByExpiresBefore))
 	}
 
 	return list, nil

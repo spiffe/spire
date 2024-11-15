@@ -537,7 +537,8 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 
 	if listObject != nil && listObject.Cursor != "" {
 		input.ExclusiveStartKey = map[string]types.AttributeValue{
-			"Key": &types.AttributeValueMemberS{Value: listObject.Cursor},
+			"Kind": &types.AttributeValueMemberS{Value: kind},
+			"Key":  &types.AttributeValueMemberS{Value: listObject.Cursor},
 		}
 	}
 

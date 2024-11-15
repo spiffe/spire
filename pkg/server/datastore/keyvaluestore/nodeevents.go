@@ -30,7 +30,7 @@ func (ds *DataStore) ListAttestedNodeEvents(ctx context.Context, req *datastore.
 	return resp, nil
 }
 
-func (ds *DataStore) PruneAttestedNodesEvents(ctx context.Context, olderThan time.Duration) error {
+func (ds *DataStore) PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error {
 	records, _, err := ds.nodeEvents.List(ctx, &listAttestedNodeEventsRequest{
 		ByCreatedBefore: time.Now().Add(-olderThan),
 	})
@@ -41,7 +41,7 @@ func (ds *DataStore) PruneAttestedNodesEvents(ctx context.Context, olderThan tim
 	var errCount int
 	var firstErr error
 	for _, record := range records {
-		if err := ds.nodeEvents.Delete(ctx, record.Object.contentKey); err != nil {
+		if err := ds.nodeEvents.Delete(ctx, record.Object.ContentKey); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
@@ -114,7 +114,7 @@ func (nodeEventCodec) Marshal(in *nodeEventObject) (string, []byte, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	return in.contentKey, out, nil
+	return in.ContentKey, out, nil
 }
 
 func (nodeEventCodec) Unmarshal(in []byte, out *nodeEventObject) error {
@@ -129,23 +129,23 @@ func (nodeEventCodec) Unmarshal(in []byte, out *nodeEventObject) error {
 		SpiffeID: wrappedNode.SpiffeID,
 	}
 
-	out.contentKey = eventIDtoKey(out.NodeEvent.EventID)
+	out.ContentKey = eventIDtoKey(out.NodeEvent.EventID)
 	return nil
 }
 
 type nodeEventObject struct {
-	contentKey string
+	ContentKey string
 	NodeEvent  *datastore.AttestedNodeEvent
 }
 
 func makeNodeEventObject(event *datastore.AttestedNodeEvent) nodeEventObject {
 	return nodeEventObject{
-		contentKey: eventIDtoKey(event.EventID),
+		ContentKey: eventIDtoKey(event.EventID),
 		NodeEvent:  event,
 	}
 }
 
-func (r nodeEventObject) Key() string { return r.contentKey }
+func (r nodeEventObject) Key() string { return r.ContentKey }
 
 func eventIDtoKey(eventID uint) string {
 	return strconv.FormatUint(uint64(eventID), 10)
@@ -158,7 +158,7 @@ type listAttestedNodeEventsRequest struct {
 
 type nodeEventIndex struct {
 	eventID   record.UnaryIndex[uint]
-	createdAt record.UnaryIndex[int64]
+	createdAt record.UnaryIndex[time.Time]
 }
 
 func (idx *nodeEventIndex) SetUp() {
@@ -166,11 +166,16 @@ func (idx *nodeEventIndex) SetUp() {
 	idx.createdAt.SetQuery("CreatedAt")
 }
 
-func (idx *nodeEventIndex) List(req *listAttestedNodeEventsRequest) (*keyvalue.ListObject, error) {
-	list := new(keyvalue.ListObject)
+func (c *nodeEventIndex) Get(obj *record.Record[nodeEventObject]) {
 
-	list.Cursor = ""
-	list.Limit = -1
+}
+
+func (idx *nodeEventIndex) List(req *listAttestedNodeEventsRequest) (*keyvalue.ListObject, error) {
+	if req.GreaterThanEventID != 0 && req.LessThanEventID != 0 {
+		return nil, errors.New("can't set both greater and less than event id")
+	}
+
+	list := new(keyvalue.ListObject)
 
 	if req.LessThanEventID != 0 {
 		list.Filters = append(list.Filters, idx.eventID.LessThan(req.LessThanEventID))
@@ -181,7 +186,7 @@ func (idx *nodeEventIndex) List(req *listAttestedNodeEventsRequest) (*keyvalue.L
 	}
 
 	if !req.ByCreatedBefore.IsZero() {
-		list.Filters = append(list.Filters, idx.createdAt.LessThan(req.ByCreatedBefore.Unix()))
+		list.Filters = append(list.Filters, idx.createdAt.LessThan(req.ByCreatedBefore.UTC()))
 	}
 
 	return list, nil

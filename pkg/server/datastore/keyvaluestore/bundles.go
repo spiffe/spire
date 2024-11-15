@@ -11,6 +11,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/keyvalue"
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/record"
 	"github.com/spiffe/spire/proto/spire/common"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -23,6 +25,7 @@ func (ds *DataStore) AppendBundle(ctx context.Context, appends *common.Bundle) (
 	switch {
 	case err == nil:
 		if merged, changed := bundleutil.MergeBundles(existing.Object.Bundle, appends); changed {
+			merged.SequenceNumber++
 			if err := ds.bundles.Update(ctx, bundleObject{Bundle: merged}, existing.Metadata.Revision); err != nil {
 				return nil, dsErr(err, "failed to update existing bundle on append")
 			}
@@ -61,10 +64,85 @@ func (ds *DataStore) CreateBundle(ctx context.Context, in *common.Bundle) (*comm
 }
 
 func (ds *DataStore) DeleteBundle(ctx context.Context, trustDomainID string, mode datastore.DeleteMode) error {
-	if err := ds.bundles.Delete(ctx, trustDomainID); err != nil {
-		return dsErr(err, "failed to delete bundle")
+	_, err := ds.FetchBundle(ctx, trustDomainID)
+	if err != nil {
+		return kvError.Wrap(err)
 	}
+
+	entriesAssociation, _, err := ds.entries.List(ctx, &listRegistrationEntries{
+		ListRegistrationEntriesRequest: datastore.ListRegistrationEntriesRequest{
+			ByFederatesWith: &datastore.ByFederatesWith{
+				TrustDomains: []string{trustDomainID},
+				Match:        datastore.MatchAny,
+			},
+		},
+	})
+
+	if err != nil {
+		return kvError.Wrap(err)
+	}
+	entriesCount := len(entriesAssociation)
+
+	var errCount int
+	var firstErr error
+
+	if entriesCount > 0 {
+		switch mode {
+		case datastore.Delete:
+			if err := ds.bundles.Delete(ctx, trustDomainID); err != nil {
+				return dsErr(err, "failed to delete bundle")
+			}
+
+			// TODO: Should be done using batch.
+
+			for _, record := range entriesAssociation {
+				entry := record.Object.Entry
+				if err := ds.entries.Delete(ctx, entry.EntryId); err != nil {
+					if firstErr == nil {
+						firstErr = err
+					}
+					errCount++
+				}
+			}
+		case datastore.Dissociate:
+			if err := ds.bundles.Delete(ctx, trustDomainID); err != nil {
+				return dsErr(err, "failed to delete bundle")
+			}
+
+			// TODO: Should be done using batch.
+
+			for _, record := range entriesAssociation {
+				record.Object.Entry.FederatesWith = removeFirstOccurrence(record.Object.Entry.FederatesWith, trustDomainID)
+				if err := ds.entries.Update(ctx, record.Object, record.Metadata.Revision); err != nil {
+					if firstErr == nil {
+						firstErr = err
+					}
+					errCount++
+				}
+			}
+		default:
+			return status.Newf(codes.FailedPrecondition, "datastore-sql: cannot delete bundle; federated with %d registration entries", entriesCount).Err()
+		}
+	} else {
+		if err := ds.bundles.Delete(ctx, trustDomainID); err != nil {
+			return dsErr(err, "failed to delete bundle")
+		}
+	}
+
+	if firstErr != nil {
+		return dsErr(firstErr, "failed to delete %d of %d bundle associated entries: first error:", errCount, entriesCount)
+	}
+
 	return nil
+}
+
+func removeFirstOccurrence(slice []string, element string) []string {
+	for i, v := range slice {
+		if v == element {
+			return append(slice[:i], slice[i+1:]...)
+		}
+	}
+	return slice
 }
 
 func (ds *DataStore) FetchBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
@@ -104,6 +182,7 @@ func (ds *DataStore) PruneBundle(ctx context.Context, trustDomainID string, expi
 		case err != nil:
 			return false, dsErr(err, "failed to prune bundle")
 		case changed:
+			pruned.SequenceNumber++
 			// TODO: retry on conflict
 			if err := ds.bundles.Update(ctx, bundleObject{Bundle: pruned}, r.Metadata.Revision); err != nil {
 				return false, dsErr(err, "failed to update existing bundle on prune")
@@ -157,6 +236,9 @@ func (ds *DataStore) UpdateBundle(ctx context.Context, newBundle *common.Bundle,
 	if mask.JwtSigningKeys {
 		updated.Bundle.JwtSigningKeys = newBundle.JwtSigningKeys
 	}
+	if mask.SequenceNumber {
+		updated.Bundle.SequenceNumber = newBundle.SequenceNumber
+	}
 
 	if err := ds.bundles.Update(ctx, updated, existing.Metadata.Revision); err != nil {
 		return nil, dsErr(err, "failed to update bundle")
@@ -198,6 +280,10 @@ type bundleIndex struct {
 }
 
 func (c *bundleIndex) SetUp() {
+}
+
+func (c *bundleIndex) Get(obj *record.Record[bundleObject]) {
+
 }
 
 func (c *bundleIndex) List(req *datastore.ListBundlesRequest) (*keyvalue.ListObject, error) {

@@ -59,8 +59,6 @@ const (
 	_validNotAfterString   = "2018-01-10T01:36:00+00:00"
 	_middleTimeString      = "2018-01-10T01:35:00+00:00"
 	_notFoundErrMsg        = "datastore-keyvalue: record not found"
-	//_notFoundErrMsg_update        = "failed to update bundle: record not found"
-	//_notFoundErrMsg_delete        = "failed to delete bundle: record not found"
 
 	// Defaults used for testing
 	validAccessKeyID     = "dummy"
@@ -68,12 +66,6 @@ const (
 	validRegion          = "us-west-1"
 	validEndpoint        = "http://localhost:8000"
 	validTableName       = "Spire"
-	validStreamEnable    = false
-
-	// Defaults used for testing
-
-	//invalidRegion          = "us-west-2"
-
 )
 
 func TestPlugin(t *testing.T) {
@@ -131,6 +123,7 @@ func (s *PluginSuite) SetupSuite() {
 }
 
 func (s *PluginSuite) SetupTest() {
+	s.dir = s.TempDir()
 	s.ds = s.newPlugin()
 }
 
@@ -516,22 +509,13 @@ func (s *PluginSuite) TestBundlePrune() {
 
 	// Add two JWT signing keys (one valid and one expired)
 	expiredKeyTime, err := time.Parse(time.RFC3339, _expiredNotAfterString)
-
-	expiredKeyTime = expiredKeyTime.UTC()
-
 	s.Require().NoError(err)
 
 	nonExpiredKeyTime, err := time.Parse(time.RFC3339, _validNotAfterString)
-
-	nonExpiredKeyTime = nonExpiredKeyTime.UTC()
-
 	s.Require().NoError(err)
 
 	// middleTime is a point between the two certs expiration time
 	middleTime, err := time.Parse(time.RFC3339, _middleTimeString)
-
-	middleTime = middleTime.UTC()
-
 	s.Require().NoError(err)
 
 	bundle.JwtSigningKeys = []*common.PublicKey{
@@ -545,13 +529,13 @@ func (s *PluginSuite) TestBundlePrune() {
 
 	// Prune
 	// prune non existent bundle should not return error, no bundle to prune
-	expiration := time.Now().UTC()
+	expiration := time.Now()
 	changed, err := s.ds.PruneBundle(ctx, "spiffe://notexistent", expiration)
 	s.NoError(err)
 	s.False(changed)
 
 	// prune fails if internal prune bundle fails. For instance, if all certs are expired
-	expiration = time.Now().UTC()
+	expiration = time.Now()
 	changed, err = s.ds.PruneBundle(ctx, bundle.TrustDomainId, expiration)
 	s.AssertGRPCStatus(err, codes.Unknown, "prune failed: would prune all certificates")
 	s.False(changed)
@@ -1163,13 +1147,25 @@ func (s *PluginSuite) TestListAttestedNodes() {
 						FetchSelectors:    withSelectors,
 					}
 
+					myMap := map[string]string{
+						"spiffe://example.org/A": "1",
+						"spiffe://example.org/B": "2",
+						"spiffe://example.org/C": "3",
+						"spiffe://example.org/D": "4",
+						"spiffe://example.org/E": "5",
+						"spiffe://example.org/F": "6",
+					}
 					for i := 0; ; i++ {
 						// Don't loop forever if there is a bug
 						if i > len(tt.nodes) {
 							require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualIDsOut)
 						}
 						if req.Pagination != nil {
-							tokensIn = append(tokensIn, req.Pagination.Token)
+							if value, ok := myMap[req.Pagination.Token]; ok {
+								tokensIn = append(tokensIn, value)
+							} else {
+								tokensIn = append(tokensIn, req.Pagination.Token)
+							}
 						}
 						resp, err := s.ds.ListAttestedNodes(ctx, req)
 						require.NoError(t, err)
@@ -1722,30 +1718,31 @@ func (s *PluginSuite) TestListNodeSelectors() {
 }
 
 /*
-	func (s *PluginSuite) TestListNodeSelectorsGroupsBySpiffeID() {
-		insertSelector := func(id int, spiffeID, selectorType, selectorValue string) {
-			query := maybeRebind(s.ds.db.databaseType, "INSERT INTO node_resolver_map_entries(id, spiffe_id, type, value) VALUES (?, ?, ?, ?)")
-			_, err := s.ds.db.raw.Exec(query, id, spiffeID, selectorType, selectorValue)
-			s.Require().NoError(err)
-		}
-
-		// Insert selectors out of order in respect to the SPIFFE ID so
-		// that we can assert that the datastore aggregates the results correctly.
-		insertSelector(1, "spiffe://example.org/node3", "A", "a")
-		insertSelector(2, "spiffe://example.org/node2", "B", "b")
-		insertSelector(3, "spiffe://example.org/node3", "C", "c")
-		insertSelector(4, "spiffe://example.org/node1", "D", "d")
-		insertSelector(5, "spiffe://example.org/node2", "E", "e")
-		insertSelector(6, "spiffe://example.org/node3", "F", "f")
-
-		resp := s.listNodeSelectors(&datastore.ListNodeSelectorsRequest{})
-		assertSelectorsEqual(s.T(), map[string][]*common.Selector{
-			"spiffe://example.org/node1": {{Type: "D", Value: "d"}},
-			"spiffe://example.org/node2": {{Type: "B", Value: "b"}, {Type: "E", Value: "e"}},
-			"spiffe://example.org/node3": {{Type: "A", Value: "a"}, {Type: "C", Value: "c"}, {Type: "F", Value: "f"}},
-		}, resp.Selectors)
+func (s *PluginSuite) TestListNodeSelectorsGroupsBySpiffeID() {
+	insertSelector := func(id int, spiffeID, selectorType, selectorValue string) {
+		query := maybeRebind(s.ds.db.databaseType, "INSERT INTO node_resolver_map_entries(id, spiffe_id, type, value) VALUES (?, ?, ?, ?)")
+		_, err := s.ds.db.raw.Exec(query, id, spiffeID, selectorType, selectorValue)
+		s.Require().NoError(err)
 	}
+
+	// Insert selectors out of order in respect to the SPIFFE ID so
+	// that we can assert that the datastore aggregates the results correctly.
+	insertSelector(1, "spiffe://example.org/node3", "A", "a")
+	insertSelector(2, "spiffe://example.org/node2", "B", "b")
+	insertSelector(3, "spiffe://example.org/node3", "C", "c")
+	insertSelector(4, "spiffe://example.org/node1", "D", "d")
+	insertSelector(5, "spiffe://example.org/node2", "E", "e")
+	insertSelector(6, "spiffe://example.org/node3", "F", "f")
+
+	resp := s.listNodeSelectors(&datastore.ListNodeSelectorsRequest{})
+	assertSelectorsEqual(s.T(), map[string][]*common.Selector{
+		"spiffe://example.org/node1": {{Type: "D", Value: "d"}},
+		"spiffe://example.org/node2": {{Type: "B", Value: "b"}, {Type: "E", Value: "e"}},
+		"spiffe://example.org/node3": {{Type: "A", Value: "a"}, {Type: "C", Value: "c"}, {Type: "F", Value: "f"}},
+	}, resp.Selectors)
+}
 */
+
 func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
 	selectors := []*common.Selector{
 		{Type: "TYPE", Value: "VALUE"},
@@ -1802,7 +1799,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				return nil
 			},
-			expectError: "datastore-keyvalue: invalid request: missing registered entry",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid request: missing registered entry",
 		},
 		{
 			name: "no selectors",
@@ -1810,7 +1807,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.Selectors = nil
 				return e
 			},
-			expectError: "datastore-keyvalue: invalid registration entry: missing selector list",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: missing selector list",
 		},
 		{
 			name: "no SPIFFE ID",
@@ -1818,7 +1815,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.SpiffeId = ""
 				return e
 			},
-			expectError: "datastore-keyvalue: invalid registration entry: missing SPIFFE ID",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: missing SPIFFE ID",
 		},
 		{
 			name: "negative X509 ttl",
@@ -1826,7 +1823,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.X509SvidTtl = -1
 				return e
 			},
-			expectError: "datastore-keyvalue: invalid registration entry: X509SvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: X509SvidTtl is not set",
 		},
 		{
 			name: "negative JWT ttl",
@@ -1834,7 +1831,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.JwtSvidTtl = -1
 				return e
 			},
-			expectError: "datastore-keyvalue: invalid registration entry: JwtSvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl is not set",
 		},
 		{
 			name: "create entry successfully",
@@ -1900,7 +1897,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.EntryId = strings.Repeat("e", 256)
 				return e
 			},
-			expectError: "datastore-keyvalue: invalid registration entry: entry ID too long",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: entry ID too long",
 		},
 		{
 			name: "entry ID contains invalid characters",
@@ -1908,7 +1905,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 				e.EntryId = "éntry😊"
 				return e
 			},
-			expectError: "datastore-keyvalue: invalid registration entry: entry ID contains invalid characters",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: entry ID contains invalid characters",
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
@@ -2039,7 +2036,7 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 	s.Require().NoError(err)
 	fetchedRegistrationEntry := &common.RegistrationEntry{}
 	defaultLastLog := spiretest.LogEntry{
-		Message: "Connected to SQL database",
+		Message: "Connected to KeyValue database",
 	}
 	prunedLogMessage := "Pruned an expired registration"
 
@@ -2801,13 +2798,28 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 					ByHint:          tt.byHint,
 				}
 
+				myMap := map[string]string{
+					"bazbarAB": "1",
+					"bazbarAD": "2",
+					"bazbarCB": "3",
+					"bazbarCD": "4",
+					"foobarAB": "6",
+					"foobarAD": "7",
+					"foobarCB": "8",
+					"foobarCD": "9",
+				}
+
 				for i := 0; ; i++ {
 					// Don't loop forever if there is a bug
 					if i > len(tt.entries) {
 						require.FailNowf(t, "Exhausted paging limit in test", "tokens=%q spiffeids=%q", tokensIn, actualEntriesOut)
 					}
 					if req.Pagination != nil {
-						tokensIn = append(tokensIn, req.Pagination.Token)
+						if value, ok := myMap[req.Pagination.Token]; ok {
+							tokensIn = append(tokensIn, value)
+						} else {
+							tokensIn = append(tokensIn, req.Pagination.Token)
+						}
 					}
 					resp, err := s.ds.ListRegistrationEntries(ctx, req)
 					require.NoError(t, err)
@@ -2866,75 +2878,74 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 }
 
 /*
-func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
-	_, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "TYPE", Value: "VALUE"},
-		},
-		SpiffeId: "SpiffeId",
-		ParentId: "ParentId",
-		DnsNames: []string{
-			"abcd.efg",
-			"somehost",
-		},
-	})
-	s.Require().NoError(err)
+	func (s *PluginSuite) TestListRegistrationEntriesWhenCruftRowsExist() {
+		_, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+			Selectors: []*common.Selector{
+				{Type: "TYPE", Value: "VALUE"},
+			},
+			SpiffeId: "SpiffeId",
+			ParentId: "ParentId",
+			DnsNames: []string{
+				"abcd.efg",
+				"somehost",
+			},
+		})
+		s.Require().NoError(err)
 
-	// This is gross. Since the bug that left selectors around has been fixed
-	// (#1191), I'm not sure how else to test this other than just sneaking in
-	// there and removing the registered_entries row.
-	res, err := s.ds.db.raw.Exec("DELETE FROM registered_entries")
-	s.Require().NoError(err)
-	rowsAffected, err := res.RowsAffected()
-	s.Require().NoError(err)
-	s.Require().Equal(int64(1), rowsAffected)
+		// This is gross. Since the bug that left selectors around has been fixed
+		// (#1191), I'm not sure how else to test this other than just sneaking in
+		// there and removing the registered_entries row.
+		res, err := s.ds.db.raw.Exec("DELETE FROM registered_entries")
+		s.Require().NoError(err)
+		rowsAffected, err := res.RowsAffected()
+		s.Require().NoError(err)
+		s.Require().Equal(int64(1), rowsAffected)
 
-	// Assert that no rows are returned.
-	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-	s.Require().NoError(err)
-	s.Require().Empty(resp.Entries)
-}
+		// Assert that no rows are returned.
+		resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+		s.Require().NoError(err)
+		s.Require().Empty(resp.Entries)
+	}
+
+	func (s *PluginSuite) TestUpdateRegistrationEntry() {
+		entry := s.createRegistrationEntry(&common.RegistrationEntry{
+			Selectors: []*common.Selector{
+				{Type: "Type1", Value: "Value1"},
+				{Type: "Type2", Value: "Value2"},
+				{Type: "Type3", Value: "Value3"},
+			},
+			SpiffeId:    "spiffe://example.org/foo",
+			ParentId:    "spiffe://example.org/bar",
+			X509SvidTtl: 1,
+			JwtSvidTtl:  20,
+		})
+
+		entry.X509SvidTtl = 11
+		entry.JwtSvidTtl = 21
+		entry.Admin = true
+		entry.Downstream = true
+		entry.Hint = "internal"
+
+		updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+		s.Require().NoError(err)
+		// Verify output has expected values
+		s.Require().Equal(int32(11), updatedRegistrationEntry.X509SvidTtl)
+		s.Require().Equal(int32(21), updatedRegistrationEntry.JwtSvidTtl)
+		s.Require().True(updatedRegistrationEntry.Admin)
+		s.Require().True(updatedRegistrationEntry.Downstream)
+		s.Require().Equal("internal", updatedRegistrationEntry.Hint)
+		s.Require().Equal(entry.CreatedAt, updatedRegistrationEntry.CreatedAt)
+
+		registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+		s.Require().NoError(err)
+		s.Require().NotNil(registrationEntry)
+		s.RequireProtoEqual(updatedRegistrationEntry, registrationEntry)
+
+		entry.EntryId = "badid"
+		_, err = s.ds.UpdateRegistrationEntry(ctx, entry, nil)
+		s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
+	}
 */
-
-func (s *PluginSuite) TestUpdateRegistrationEntry() {
-	entry := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-			{Type: "Type2", Value: "Value2"},
-			{Type: "Type3", Value: "Value3"},
-		},
-		SpiffeId:    "spiffe://example.org/foo",
-		ParentId:    "spiffe://example.org/bar",
-		X509SvidTtl: 1,
-		JwtSvidTtl:  20,
-	})
-
-	entry.X509SvidTtl = 11
-	entry.JwtSvidTtl = 21
-	entry.Admin = true
-	entry.Downstream = true
-	entry.Hint = "internal"
-
-	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
-	s.Require().NoError(err)
-	// Verify output has expected values
-	s.Require().Equal(int32(11), updatedRegistrationEntry.X509SvidTtl)
-	s.Require().Equal(int32(21), updatedRegistrationEntry.JwtSvidTtl)
-	s.Require().True(updatedRegistrationEntry.Admin)
-	s.Require().True(updatedRegistrationEntry.Downstream)
-	s.Require().Equal("internal", updatedRegistrationEntry.Hint)
-	s.Require().Equal(entry.CreatedAt, updatedRegistrationEntry.CreatedAt)
-
-	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
-	s.Require().NoError(err)
-	s.Require().NotNil(registrationEntry)
-	s.RequireProtoEqual(updatedRegistrationEntry, registrationEntry)
-
-	entry.EntryId = "badid"
-	_, err = s.ds.UpdateRegistrationEntry(ctx, entry, nil)
-	s.RequireGRPCStatus(err, codes.NotFound, _notFoundErrMsg)
-}
-
 func (s *PluginSuite) TestUpdateRegistrationEntryWithStoreSvid() {
 	entry := s.createRegistrationEntry(&common.RegistrationEntry{
 		Selectors: []*common.Selector{
@@ -2967,7 +2978,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithStoreSvid() {
 	}
 	resp, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.Require().Nil(resp)
-	s.Require().EqualError(err, "rpc error: code = Unknown desc = datastore-keyvalue: invalid registration entry: selector types must be the same when store SVID is enabled")
+	s.Require().EqualError(err, "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: selector types must be the same when store SVID is enabled")
 }
 
 func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
@@ -3142,7 +3153,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 					{Type: "Type2", Value: "Value2"},
 				}
 			},
-			err: kvError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
+			err: validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled"),
 		},
 
 		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
@@ -4233,8 +4244,7 @@ func (s *PluginSuite) TestDeleteFederationRelationship() {
 	}
 }
 
-/*
-func (s *PluginSuite) TestFetchFederationRelationship() {
+/*func (s *PluginSuite) TestFetchFederationRelationship() {
 	testCases := []struct {
 		name        string
 		trustDomain spiffeid.TrustDomain
@@ -4350,8 +4360,7 @@ func (s *PluginSuite) TestFetchFederationRelationship() {
 			assertFederationRelationship(t, tt.expFR, fr)
 		})
 	}
-}
-*/
+}*/
 
 func (s *PluginSuite) TestCreateFederationRelationship() {
 	s.createBundle("spiffe://federated-td-spiffe.org")
@@ -4827,6 +4836,69 @@ func (s *PluginSuite) TestUpdateFederationRelationship() {
 	}
 }
 
+/*
+	func (s *PluginSuite) TestMigration() {
+		for schemaVersion := 0; schemaVersion < latestSchemaVersion; schemaVersion++ {
+			s.T().Run(fmt.Sprintf("migration_from_schema_version_%d", schemaVersion), func(t *testing.T) {
+				require := require.New(t)
+				dbName := fmt.Sprintf("v%d.sqlite3", schemaVersion)
+				dbPath := filepath.ToSlash(filepath.Join(s.dir, "migration-"+dbName))
+				if runtime.GOOS == "windows" {
+					dbPath = "/" + dbPath
+				}
+				dbURI := fmt.Sprintf("file://%s", dbPath)
+
+				minimalDB := func() string {
+					previousMinor := codeVersion
+					if codeVersion.Minor == 0 {
+						previousMinor.Major--
+					} else {
+						previousMinor.Minor--
+					}
+					return fmt.Sprintf(`
+						CREATE TABLE "migrations" ("id" integer primary key autoincrement, "version" integer,"code_version" varchar(255) );
+						INSERT INTO migrations("version", "code_version") VALUES (%d,%q);
+					`, schemaVersion, previousMinor)
+				}
+
+				prepareDB := func(migrationSupported bool) {
+					dump := migrationDumps[schemaVersion]
+					if migrationSupported {
+						require.NotEmpty(dump, "no migration dump set up for schema version")
+					} else {
+						require.Empty(dump, "migration dump exists for unsupported schema version")
+						dump = minimalDB()
+					}
+					dumpDB(t, dbPath, dump)
+					err := s.ds.Configure(ctx, fmt.Sprintf(`
+						database_type = "sqlite3"
+						connection_string = %q
+					`, dbURI))
+					if migrationSupported {
+						require.NoError(err)
+					} else {
+						require.EqualError(err, fmt.Sprintf("datastore-keyvalue: migrating from schema version %d requires a previous SPIRE release; please follow the upgrade strategy at doc/upgrading.md", schemaVersion))
+					}
+				}
+				switch schemaVersion {
+				// All of these schema versions were migrated by previous versions
+				// of SPIRE server and no longer have migration code.
+				case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22:
+					prepareDB(false)
+				default:
+					t.Fatalf("no migration test added for schema version %d", schemaVersion)
+				}
+			})
+		}
+	}
+
+	func (s *PluginSuite) TestPristineDatabaseMigrationValues() {
+		var m Migration
+		s.Require().NoError(s.ds.db.First(&m).Error)
+		s.Equal(latestSchemaVersion, m.Version)
+		s.Equal(codeVersion.String(), m.CodeVersion)
+	}
+*/
 func (s *PluginSuite) TestRace() {
 	next := int64(0)
 	exp := time.Now().Add(time.Hour).Unix()
@@ -5203,6 +5275,109 @@ func assertBundlesEqual(t *testing.T, expected, actual []*common.Bundle) {
 	}
 }
 
+/*
+func wipePostgres(t *testing.T, connString string) {
+	db, err := sql.Open("postgres", connString)
+	require.NoError(t, err)
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT tablename FROM pg_tables WHERE schemaname = 'public';`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	dropTables(t, db, scanTableNames(t, rows))
+}
+
+func wipeMySQL(t *testing.T, connString string) {
+	db, err := sql.Open("mysql", connString)
+	require.NoError(t, err)
+	defer db.Close()
+
+	rows, err := db.Query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'spire';`)
+	require.NoError(t, err)
+	defer rows.Close()
+
+	dropTables(t, db, scanTableNames(t, rows))
+}
+
+func scanTableNames(t *testing.T, rows *sql.Rows) []string {
+	var tableNames []string
+	for rows.Next() {
+		var tableName string
+		err := rows.Scan(&tableName)
+		require.NoError(t, err)
+		tableNames = append(tableNames, tableName)
+	}
+	require.NoError(t, rows.Err())
+	return tableNames
+}
+
+func dropTables(t *testing.T, db *sql.DB, tableNames []string) {
+	for _, tableName := range tableNames {
+		_, err := db.Exec("DROP TABLE IF EXISTS " + tableName + " CASCADE")
+		require.NoError(t, err)
+	}
+}
+*/
+
+func wipeDynamo(t *testing.T, c Configuration) {
+
+	cfg, err := AWSConfig(ctx, &c)
+	require.NoError(t, err)
+
+	//dynamoClient := dynamodb.NewFromConfig(cfg)
+
+	dynamoClient := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
+		if c.Endpoint != "" {
+			o.BaseEndpoint = aws.String(c.Endpoint) // usa o endpoint fornecido
+		}
+	})
+
+	_, err = dynamoClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+		TableName: aws.String(c.TableName),
+	})
+
+	if err == nil {
+		// Excluir a tabela
+		_, err = dynamoClient.DeleteTable(ctx, &dynamodb.DeleteTableInput{
+			TableName: aws.String(c.TableName),
+		})
+		require.NoError(t, err) // Usando require.NoError para tratar o erro
+
+		maxRetries := 5
+		for i := 0; i < maxRetries; i++ {
+			_, err = dynamoClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
+				TableName: aws.String(c.TableName),
+			})
+
+			if err != nil {
+				if temp := new(dynamoTypes.ResourceNotFoundException); errors.As(err, &temp) {
+					// Se err for nil, significa que a tabela não existe
+					//fmt.Println("Table deleted successfully.")
+					break
+				}
+			}
+
+			time.Sleep(5 * time.Second) // Espera um segundo antes de verificar novamente
+		}
+	}
+}
+
+func AWSConfig(ctx context.Context, c *Configuration) (aws.Config, error) {
+	cfg, err := awsConfigTest.LoadDefaultConfig(ctx,
+		awsConfigTest.WithRegion(c.Region),
+	)
+	if err != nil {
+		return aws.Config{}, err
+	}
+
+	if c.SecretAccessKey != "" && c.AccessKeyID != "" {
+		cfg.Credentials = credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, "")
+	}
+
+	return cfg, nil
+}
+
 // assertSelectorsEqual compares two selector maps for equality
 // TODO: replace this with calls to Equal when we replace common.Selector with
 // a normal struct that doesn't require special comparison (i.e. not a
@@ -5284,62 +5459,4 @@ func assertCAJournal(t *testing.T, exp, actual *datastore.CAJournal) {
 	}
 	assert.Equal(t, exp.ActiveX509AuthorityID, actual.ActiveX509AuthorityID)
 	assert.Equal(t, exp.Data, actual.Data)
-}
-
-func wipeDynamo(t *testing.T, c Configuration) {
-
-	cfg, err := AWSConfig(ctx, &c)
-	require.NoError(t, err)
-
-	//dynamoClient := dynamodb.NewFromConfig(cfg)
-
-	dynamoClient := dynamodb.NewFromConfig(cfg, func(o *dynamodb.Options) {
-		if c.Endpoint != "" {
-			o.BaseEndpoint = aws.String(c.Endpoint) // usa o endpoint fornecido
-		}
-	})
-
-	_, err = dynamoClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
-		TableName: aws.String(c.TableName),
-	})
-
-	if err == nil {
-		// Excluir a tabela
-		_, err = dynamoClient.DeleteTable(ctx, &dynamodb.DeleteTableInput{
-			TableName: aws.String(c.TableName),
-		})
-		require.NoError(t, err) // Usando require.NoError para tratar o erro
-
-		maxRetries := 5
-		for i := 0; i < maxRetries; i++ {
-			_, err = dynamoClient.DescribeTable(ctx, &dynamodb.DescribeTableInput{
-				TableName: aws.String(c.TableName),
-			})
-
-			if err != nil {
-				if temp := new(dynamoTypes.ResourceNotFoundException); errors.As(err, &temp) {
-					// Se err for nil, significa que a tabela não existe
-					//fmt.Println("Table deleted successfully.")
-					break
-				}
-			}
-
-			time.Sleep(5 * time.Second) // Espera um segundo antes de verificar novamente
-		}
-	}
-}
-
-func AWSConfig(ctx context.Context, c *Configuration) (aws.Config, error) {
-	cfg, err := awsConfigTest.LoadDefaultConfig(ctx,
-		awsConfigTest.WithRegion(c.Region),
-	)
-	if err != nil {
-		return aws.Config{}, err
-	}
-
-	if c.SecretAccessKey != "" && c.AccessKeyID != "" {
-		cfg.Credentials = credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, "")
-	}
-
-	return cfg, nil
 }

@@ -3,6 +3,7 @@ package keyvaluestore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 	"unicode"
 
@@ -67,24 +68,29 @@ func (ds *DataStore) createOrReturnRegistrationEntry(ctx context.Context, entry 
 		return records[0].Object.Entry, true, nil
 	}
 
+	if err = ds.validateFederatesWith(ctx, entry.FederatesWith); err != nil {
+		return nil, false, err
+	}
+
 	entryID, err := createOrReturnEntryID(entry)
 	if err != nil {
 		return nil, false, err
 	}
+	entryWithID := *entry
+	entryWithID.EntryId = entryID
 
-	entry.EntryId = entryID
-
-	if err := ds.entries.Create(ctx, entryObject{Entry: entry}); err != nil {
+	if err := ds.entries.Create(ctx, entryObject{Entry: &entryWithID}); err != nil {
 		return nil, false, dsErr(err, "failed to create entry")
 	}
 
 	if err = ds.createRegistrationEntryEvent(ctx, &datastore.RegistrationEntryEvent{
-		EntryID: entry.EntryId,
+		EntryID: entryID,
 	}); err != nil {
 		return nil, false, err
 	}
 
-	return entry, false, nil
+	ret, err := ds.FetchRegistrationEntry(ctx, entryID)
+	return ret, false, err
 }
 
 func (ds *DataStore) DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
@@ -211,6 +217,10 @@ func (ds *DataStore) UpdateRegistrationEntry(ctx context.Context, newEntry *comm
 		updated.Entry.Selectors = newEntry.Selectors
 	}
 
+	if updated.Entry.StoreSvid && !equalSelectorTypes(updated.Entry.Selectors) {
+		return nil, validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+	}
+
 	if mask == nil || mask.DnsNames {
 		updated.Entry.DnsNames = newEntry.DnsNames
 	}
@@ -249,7 +259,11 @@ func (ds *DataStore) UpdateRegistrationEntry(ctx context.Context, newEntry *comm
 
 	if mask == nil || mask.FederatesWith {
 		updated.Entry.FederatesWith = newEntry.FederatesWith
+		if err = ds.validateFederatesWith(ctx, updated.Entry.FederatesWith); err != nil {
+			return nil, err
+		}
 	}
+	updated.Entry.RevisionNumber++
 
 	if err := ds.entries.Update(ctx, updated, existing.Metadata.Revision); err != nil {
 		return nil, dsErr(err, "failed to update entry")
@@ -266,11 +280,11 @@ func (ds *DataStore) UpdateRegistrationEntry(ctx context.Context, newEntry *comm
 
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	if entry == nil {
-		return kvError.New("invalid request: missing registered entry")
+		return validationError.New("invalid request: missing registered entry")
 	}
 
 	if len(entry.Selectors) == 0 {
-		return kvError.New("invalid registration entry: missing selector list")
+		return validationError.New("invalid registration entry: missing selector list")
 	}
 
 	// In case of StoreSvid is set, all entries 'must' be the same type,
@@ -281,31 +295,65 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		tpe := entry.Selectors[0].Type
 		for _, t := range entry.Selectors {
 			if tpe != t.Type {
-				return kvError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+				return validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
 			}
 		}
 	}
 
 	if len(entry.EntryId) > 255 {
-		return kvError.New("invalid registration entry: entry ID too long")
+		return validationError.New("invalid registration entry: entry ID too long")
 	}
 
 	for _, e := range entry.EntryId {
 		if !unicode.In(e, validEntryIDChars) {
-			return kvError.New("invalid registration entry: entry ID contains invalid characters")
+			return validationError.New("invalid registration entry: entry ID contains invalid characters")
 		}
 	}
 
 	if len(entry.SpiffeId) == 0 {
-		return kvError.New("invalid registration entry: missing SPIFFE ID")
+		return validationError.New("invalid registration entry: missing SPIFFE ID")
 	}
 
 	if entry.X509SvidTtl < 0 {
-		return kvError.New("invalid registration entry: X509SvidTtl is not set")
+		return validationError.New("invalid registration entry: X509SvidTtl is not set")
 	}
 
 	if entry.JwtSvidTtl < 0 {
-		return kvError.New("invalid registration entry: JwtSvidTtl is not set")
+		return validationError.New("invalid registration entry: JwtSvidTtl is not set")
+	}
+
+	return nil
+}
+
+func equalSelectorTypes(selectors []*common.Selector) bool {
+	typ := ""
+	for _, t := range selectors {
+		switch {
+		case typ == "":
+			typ = t.Type
+		case typ != t.Type:
+			return false
+		}
+	}
+	return true
+}
+
+func (ds *DataStore) validateFederatesWith(ctx context.Context, ids []string) error {
+	bundles, _, err := ds.bundles.List(ctx, &datastore.ListBundlesRequest{})
+	if err != nil {
+		return err
+	}
+
+	// make sure all the ids were found
+	idset := make(map[string]bool)
+	for _, r := range bundles {
+		idset[r.Object.Bundle.TrustDomainId] = true
+	}
+
+	for _, id := range ids {
+		if !idset[id] {
+			return fmt.Errorf("unable to find federated bundle %q", id)
+		}
 	}
 
 	return nil
@@ -313,26 +361,26 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 
 func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *common.RegistrationEntryMask) error {
 	if entry == nil {
-		return kvError.New("invalid request: missing registered entry")
+		return validationError.New("invalid request: missing registered entry")
 	}
 
 	if (mask == nil || mask.Selectors) && len(entry.Selectors) == 0 {
-		return kvError.New("invalid registration entry: missing selector list")
+		return validationError.New("invalid registration entry: missing selector list")
 	}
 
 	if (mask == nil || mask.SpiffeId) &&
 		entry.SpiffeId == "" {
-		return kvError.New("invalid registration entry: missing SPIFFE ID")
+		return validationError.New("invalid registration entry: missing SPIFFE ID")
 	}
 
 	if (mask == nil || mask.X509SvidTtl) &&
 		(entry.X509SvidTtl < 0) {
-		return kvError.New("invalid registration entry: X509SvidTtl is not set")
+		return validationError.New("invalid registration entry: X509SvidTtl is not set")
 	}
 
 	if (mask == nil || mask.JwtSvidTtl) &&
 		(entry.JwtSvidTtl < 0) {
-		return kvError.New("invalid registration entry: JwtSvidTtl is not set")
+		return validationError.New("invalid registration entry: JwtSvidTtl is not set")
 	}
 
 	return nil
@@ -381,8 +429,6 @@ type entryIndex struct {
 }
 
 func (c *entryIndex) SetUp() {
-	/*r.Object.Entry.RevisionNumber = r.Metadata.Revision*/
-
 	c.parentID.SetQuery("Object.Entry.ParentId")
 	c.spiffeID.SetQuery("Object.Entry.SpiffeId")
 	c.selectors.SetQuery("Object.Entry.Selectors")
@@ -390,6 +436,14 @@ func (c *entryIndex) SetUp() {
 	c.expiresAt.SetQuery("Object.Entry.EntryExpiry")
 	c.hint.SetQuery("Object.Entry.Hint")
 	c.downstream.SetQuery("Object.Entry.Downstream")
+}
+
+func (c *entryIndex) Get(obj *record.Record[entryObject]) {
+	obj.Object.Entry.CreatedAt = roundedInSecondsUnix(obj.Metadata.CreatedAt)
+}
+
+func roundedInSecondsUnix(t time.Time) int64 {
+	return t.Round(time.Second).Unix()
 }
 
 func (c *entryIndex) List(req *listRegistrationEntries) (*keyvalue.ListObject, error) {

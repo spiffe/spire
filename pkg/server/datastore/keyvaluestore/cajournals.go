@@ -28,13 +28,20 @@ func (ds *DataStore) SetCAJournal(ctx context.Context, caJournal *datastore.CAJo
 }
 
 func (ds *DataStore) FetchCAJournal(ctx context.Context, activeX509AuthorityID string) (*datastore.CAJournal, error) {
-	records, _, err := ds.caJournal.List(ctx, &listCaJournals{ActiveX509AuthorityID: activeX509AuthorityID})
+	if activeX509AuthorityID == "" {
+		return nil, status.Error(codes.InvalidArgument, "active X509 authority ID is required")
+	}
+
+	records, _, err := ds.caJournal.List(ctx, &listCaJournals{
+		ActiveX509AuthorityID: activeX509AuthorityID,
+		Limit:                 1,
+	})
 	if err != nil {
 		return nil, dsErr(err, "failed to fetch CA journal")
 	}
 
 	if len(records) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "CA journal not found")
+		return nil, nil
 	}
 
 	return records[0].Object.CAJournal, nil
@@ -151,6 +158,7 @@ func makeCAJournalObject(caJournal *datastore.CAJournal) caJournalObject {
 type listCaJournals struct {
 	ActiveX509AuthorityID string
 	AllCAsExpireBefore    int64 // TO-DO
+	Limit                 int
 }
 
 func (r caJournalObject) Key() string { return r.contentKey }
@@ -206,11 +214,15 @@ func (c *caJournalIndex) SetUp() {
 	c.x509AuthorityID.SetQuery("Object.CAJournal.ActiveX509AuthorityID")
 }
 
+func (c *caJournalIndex) Get(obj *record.Record[caJournalObject]) {
+
+}
+
 func (c *caJournalIndex) List(req *listCaJournals) (*keyvalue.ListObject, error) {
 	list := new(keyvalue.ListObject)
 
 	list.Cursor = ""
-	list.Limit = -1
+	list.Limit = req.Limit
 
 	if req.ActiveX509AuthorityID != "" {
 		list.Filters = append(list.Filters, c.x509AuthorityID.EqualTo(req.ActiveX509AuthorityID))
