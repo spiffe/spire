@@ -94,6 +94,9 @@ func (ds *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListA
 	}
 	resp.Nodes = make([]*common.AttestedNode, 0, len(records))
 	for _, record := range records {
+		if !req.FetchSelectors {
+			record.Object.Node.Selectors = []*common.Selector{}
+		}
 		resp.Nodes = append(resp.Nodes, record.Object.Node)
 	}
 	return resp, nil
@@ -128,8 +131,6 @@ func (ds *DataStore) UpdateAttestedNode(ctx context.Context, newAgent *common.At
 	/*if mask.AttestationDataType {
 		existing.AttestationDataType = newAgent.AttestationDataType
 	}*/
-
-	existing.Banned = existing.Node.CertSerialNumber == "" && existing.Node.NewCertSerialNumber == ""
 
 	if err := ds.agents.Update(ctx, existing, record.Metadata.Revision); err != nil {
 		return nil, dsErr(err, "failed to update agent")
@@ -176,13 +177,13 @@ func (ds *DataStore) SetNodeSelectors(ctx context.Context, spiffeID string, sele
 	agent, err := ds.agents.Get(ctx, spiffeID)
 	switch {
 	case errors.Is(err, record.ErrNotFound):
-		_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{SpiffeId: spiffeID, Selectors: selectors})
+		_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{SpiffeId: spiffeID, Selectors: copySelectors(selectors)})
 		return err
 	case err != nil:
 		return err
 	default:
 		existing := agent.Object
-		existing.Node.Selectors = selectors
+		existing.Node.Selectors = copySelectors(selectors)
 
 		if err := ds.agents.Update(ctx, existing, agent.Metadata.Revision); err != nil {
 			return dsErr(err, "failed to update agent")
@@ -195,6 +196,18 @@ func (ds *DataStore) SetNodeSelectors(ctx context.Context, spiffeID string, sele
 		}
 		return err
 	}
+}
+
+// Helper function to copy the selectors
+func copySelectors(selectors []*common.Selector) []*common.Selector {
+	copiedSelectors := make([]*common.Selector, len(selectors))
+	for i, selector := range selectors {
+		copiedSelectors[i] = &common.Selector{
+			Type:  selector.Type,
+			Value: selector.Value,
+		}
+	}
+	return copiedSelectors
 }
 
 type agentCodec struct{}
@@ -232,7 +245,7 @@ type listAttestedNodes struct {
 type agentIndex struct {
 	attestationType record.UnaryIndex[string]
 	banned          record.UnaryIndex[bool]
-	expiresAt       record.UnaryIndex[time.Time]
+	expiresAt       record.UnaryIndex[int64]
 	selectors       record.MultiIndex[*common.Selector]
 	canReattest     record.UnaryIndex[bool]
 }
@@ -246,7 +259,6 @@ func (idx *agentIndex) SetUp() {
 }
 
 func (c *agentIndex) Get(obj *record.Record[agentObject]) {
-
 }
 
 func (idx *agentIndex) List(req *listAttestedNodes) (*keyvalue.ListObject, error) {
@@ -271,10 +283,10 @@ func (idx *agentIndex) List(req *listAttestedNodes) (*keyvalue.ListObject, error
 		list.Filters = append(list.Filters, idx.banned.EqualTo(*req.ByBanned))
 	}
 	if !req.ByExpiresBefore.IsZero() {
-		list.Filters = append(list.Filters, idx.expiresAt.LessThan(req.ByExpiresBefore))
+		list.Filters = append(list.Filters, idx.expiresAt.LessThan(req.ByExpiresBefore.Unix()))
 	}
 	if !req.ByExpiresAfter.IsZero() {
-		list.Filters = append(list.Filters, idx.expiresAt.GreaterThan(req.ByExpiresAfter))
+		list.Filters = append(list.Filters, idx.expiresAt.GreaterThan(req.ByExpiresAfter.Unix()))
 	}
 	if req.BySelectorMatch != nil {
 		list.Filters = append(list.Filters, idx.selectors.Matching(req.BySelectorMatch.Selectors, matchBehavior(req.BySelectorMatch.Match)))

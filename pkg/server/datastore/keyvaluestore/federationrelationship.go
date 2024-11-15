@@ -124,7 +124,7 @@ func (ds *DataStore) UpdateFederationRelationship(ctx context.Context, fr *datas
 
 func (ds *DataStore) makeFederationRelationship(ctx context.Context, in *datastore.FederationRelationship) *datastore.FederationRelationship {
 	fr := *in
-	if bundleRecord, err := ds.bundles.Get(ctx, in.TrustDomain.Name()); err == nil {
+	if bundleRecord, err := ds.bundles.Get(ctx, in.TrustDomain.IDString()); err == nil {
 		fr.TrustDomainBundle = bundleRecord.Object.Bundle
 	}
 	return &fr
@@ -250,4 +250,3 @@ func (c *federationRelationshipIndex) List(req *datastore.ListFederationRelation
 
 	return list, nil
 }
-

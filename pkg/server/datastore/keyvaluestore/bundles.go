@@ -182,7 +182,7 @@ func (ds *DataStore) PruneBundle(ctx context.Context, trustDomainID string, expi
 		case err != nil:
 			return false, dsErr(err, "failed to prune bundle")
 		case changed:
-			pruned.SequenceNumber++
+			pruned.SequenceNumber = r.Object.Bundle.SequenceNumber + 1
 			// TODO: retry on conflict
 			if err := ds.bundles.Update(ctx, bundleObject{Bundle: pruned}, r.Metadata.Revision); err != nil {
 				return false, dsErr(err, "failed to update existing bundle on prune")
