@@ -5,7 +5,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
-	"github.com/spiffe/spire/pkg/common/coretypes/coreconfig"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -57,13 +57,9 @@ type Request interface {
 	GetHclConfiguration() string
 }
 
-type CoreConfig interface {
-	GetTrustDomain()
-}
-
-func Build[C any](req Request, build func(coreConfig coreconfig.CoreConfig, hclText string, s *Status) *C) (*C, []string, error) {
+func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, hclText string, s *Status) *C) (*C, []string, error) {
 	var s Status
-	var coreConfig coreconfig.CoreConfig
+	var coreConfig catalog.CoreConfig
 
 	requestCoreConfig := req.GetCoreConfiguration()
 

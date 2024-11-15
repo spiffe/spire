@@ -8,7 +8,6 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/server"
 )
 
@@ -42,13 +41,12 @@ func (c *validateCommand) Synopsis() string {
 }
 
 func (c *validateCommand) Run(args []string) int {
-	status := new(pluginconf.Status)
-
 	config, err := run.LoadConfig(commandName, args, c.logOptions, c.env.Stderr, false)
 	if err != nil {
 		_, _ = fmt.Fprintln(c.env.Stderr, err)
 		return 1
 	}
+	config.ValidateOnly = true
 
 	// Set umask before starting up the server
 	commoncli.SetUmask(config.Log)
@@ -60,13 +58,14 @@ func (c *validateCommand) Run(args []string) int {
 		ctx = context.Background()
 	}
 
-	err = s.Validate(ctx, status)
+	err = s.Run(ctx)
 	if err != nil {
 		config.Log.WithError(err).Error("Validation failed: validation server crashed")
 		return 1
 	}
 
-	fmt.Printf("status: %+v\n", status)
+	fmt.Printf("status: %+v\n", config.ValidationNotes)
+	fmt.Printf("error: %+v\n", config.ValidationInError)
 
 	config.Log.Info("Validation server stopped gracefully")
 	return 0

@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -87,6 +88,9 @@ type configuration struct {
 	databaseTypeConfig *dbTypeConfig
 	// Undocumented flags
 	LogSQL bool `hcl:"log_sql" json:"log_sql"`
+}
+
+type PluginAdapater struct {
 }
 
 type dbTypeConfig struct {
@@ -834,7 +838,7 @@ checkAuthorities:
 
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
 // prunes all orphaned records
-func (ds *Plugin) Configure(_ context.Context, hclConfiguration string) error {
+func (ds *Plugin) Configure(_ context.Context, _ catalog.CoreConfig, hclConfiguration string) error {
 	config := &configuration{}
 	if err := hcl.Decode(config, hclConfiguration); err != nil {
 		return err
@@ -852,6 +856,10 @@ func (ds *Plugin) Configure(_ context.Context, hclConfiguration string) error {
 	}
 
 	return ds.openConnections(config)
+}
+
+func (ds *Plugin) Validate(_ context.Context, _ catalog.CoreConfig, hclConfiguration string) (*catalog.ValidateResult, error) {
+	return nil, nil
 }
 
 func (ds *Plugin) openConnections(config *configuration) error {

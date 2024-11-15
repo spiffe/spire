@@ -115,7 +115,7 @@ type Config struct {
 type Catalog struct {
 	closers         io.Closer
 	reconfigurers   Reconfigurers
-	validateResults map[string]*validateResult
+	validateResults map[string]*ValidateResult
 }
 
 func (c *Catalog) Reconfigure(ctx context.Context) {
@@ -134,7 +134,7 @@ func (c *Catalog) Close() error {
 // configure, all plugins are unloaded, the catalog is cleared, and the
 // function returns an error.
 func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err error) {
-	validations := make(map[string]*validateResult)
+	validations := make(map[string]*ValidateResult)
 	validations["catalog"] = NewValidateResult()
 	closers := make(closerGroup, 0)
 	defer func() {

@@ -120,6 +120,15 @@ type Config struct {
 	// calculation (prefer the TTL passed by the downstream caller, then fall
 	// back to the default X509 CA TTL).
 	UseLegacyDownstreamX509CATTL bool
+
+	// load this server, validate configurations, and then shutdown
+	ValidateOnly bool
+
+	// notes about the configuration
+	ValidationNotes []string
+
+	// if the configuration is usable
+	ValidationInError bool
 }
 
 type ExperimentalConfig struct {

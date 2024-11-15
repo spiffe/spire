@@ -29,36 +29,36 @@ func (c CoreConfig) v1() *configv1.CoreConfiguration {
 
 type Configurer interface {
 	Configure(ctx context.Context, coreConfig CoreConfig, configuration string) error
-	Validate(ctx context.Context, coreConfig CoreConfig, configuration string) (*validateResult, error)
+	Validate(ctx context.Context, coreConfig CoreConfig, configuration string) (*ValidateResult, error)
 }
 
-type validateResult struct {
+type ValidateResult struct {
 	Valid bool
 	Notes []string
 }
 
-func NewValidateResult() *validateResult {
-	return &validateResult{
+func NewValidateResult() *ValidateResult {
+	return &ValidateResult{
 		Valid: true,
 		Notes: nil,
 	}
 }
 
-func (vr *validateResult) ReportError(message string) {
+func (vr *ValidateResult) ReportError(message string) {
 	vr.Valid = false
 	vr.Notes = append(vr.Notes, message)
 }
 
-func (vr *validateResult) ReportErrorf(format string, parameters ...any) {
+func (vr *ValidateResult) ReportErrorf(format string, parameters ...any) {
 	vr.Valid = false
 	vr.Notes = append(vr.Notes, fmt.Sprintf(format, parameters...))
 }
 
-func (vr *validateResult) ReportInfo(message string) {
+func (vr *ValidateResult) ReportInfo(message string) {
 	vr.Notes = append(vr.Notes, message)
 }
 
-func (vr *validateResult) ReportInfof(format string, parameters ...any) {
+func (vr *ValidateResult) ReportInfof(format string, parameters ...any) {
 	vr.Notes = append(vr.Notes, fmt.Sprintf(format, parameters...))
 }
 
@@ -77,7 +77,7 @@ func ConfigurePlugin(ctx context.Context, coreConfig CoreConfig, configurer Conf
 	return dataHash, nil
 }
 
-func ValidatePlugin(ctx context.Context, coreConfig CoreConfig, configurer Configurer, dataSource DataSource) (*validateResult, error) {
+func ValidatePlugin(ctx context.Context, coreConfig CoreConfig, configurer Configurer, dataSource DataSource) (*ValidateResult, error) {
 	status := NewValidateResult()
 	data, err := dataSource.Load()
 	if err != nil {
@@ -161,7 +161,7 @@ func configurePlugin(ctx context.Context, pluginLog logrus.FieldLogger, coreConf
 	}, nil
 }
 
-func validatePlugin(ctx context.Context, pluginLog logrus.FieldLogger, coreConfig CoreConfig, configurer Configurer, dataSource DataSource) (*validateResult, error) {
+func validatePlugin(ctx context.Context, pluginLog logrus.FieldLogger, coreConfig CoreConfig, configurer Configurer, dataSource DataSource) (*ValidateResult, error) {
 	pluginLog.Info("validating plugin")
 	switch {
 	case configurer == nil && dataSource == nil:
@@ -225,7 +225,7 @@ func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, hc
 	return err
 }
 
-func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) (*validateResult, error) {
+func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) (*ValidateResult, error) {
 	response, err := v1.ConfigServiceClient.Validate(ctx, &configv1.ValidateRequest{
 		CoreConfiguration: coreConfig.v1(),
 		HclConfiguration:  hclConfiguration,
@@ -249,7 +249,7 @@ func (c configurerUnsupported) Configure(context.Context, CoreConfig, string) er
 	return status.Error(codes.FailedPrecondition, "plugin does not support a configuration interface")
 }
 
-func (c configurerUnsupported) Validate(context.Context, CoreConfig, string) (*validateResult, error) {
+func (c configurerUnsupported) Validate(context.Context, CoreConfig, string) (*ValidateResult, error) {
 	result := NewValidateResult()
 	result.ReportInfo("plugin does not support a validation interface")
 	return result, status.Error(codes.FailedPrecondition, "plugin does not support a validation interface")

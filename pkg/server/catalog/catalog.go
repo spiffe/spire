@@ -67,6 +67,8 @@ type Config struct {
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
 	HealthChecker    health.Checker
+
+	ValidateOnly bool
 }
 
 type datastoreRepository struct{ datastore.Repository }
@@ -146,7 +148,12 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
 	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
-	sqlDataStore, err := loadSQLDataStore(ctx, config, coreConfig, dataStoreConfigs)
+	if err := validateSQLConfig(dataStoreConfigs); err != nil {
+		return nil, err
+	}
+	dataStoreConfig := dataStoreConfigs[0]
+
+	sqlDataStore, err := loadSQLDataStore(ctx, config, coreConfig, dataStoreConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -226,32 +233,31 @@ func Validate(ctx context.Context, config Config, status *pluginconf.Status) (_ 
 	return repo, nil
 }
 
-func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.CoreConfig, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
+func validateSQLConfig(datastoreConfigs catalog.PluginConfigs) error {
 	switch {
 	case len(datastoreConfigs) == 0:
-		return nil, errors.New("expecting a DataStore plugin")
+		return errors.New("expecting a DataStore plugin")
 	case len(datastoreConfigs) > 1:
-		return nil, errors.New("only one DataStore plugin is allowed")
+		return errors.New("only one DataStore plugin is allowed")
 	}
 
-	sqlConfig := datastoreConfigs[0]
+	if datastoreConfigs[0].Name != ds_sql.PluginName {
+		return fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
+	}
+	if datastoreConfigs[0].IsExternal() {
+		return fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
+	}
 
-	if sqlConfig.Name != ds_sql.PluginName {
-		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
-	}
-	if sqlConfig.IsExternal() {
-		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
-	}
+	return nil
+}
+
+func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.CoreConfig, sqlConfig catalog.PluginConfig) (*ds_sql.Plugin, error) {
 	if sqlConfig.DataSource == nil {
 		sqlConfig.DataSource = catalog.FixedData("")
 	}
 
 	dsLog := config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name)
 	ds := ds_sql.New(dsLog)
-	configurer := func(ctx context.Context, _ catalog.CoreConfig, configuration string) error {
-		return ds.Configure(ctx, configuration)
-	}
-
 	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, ds, sqlConfig.DataSource, ""); err != nil {
 		return nil, err
 	}
