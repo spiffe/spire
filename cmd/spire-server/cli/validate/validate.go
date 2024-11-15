@@ -51,7 +51,7 @@ func (c *validateCommand) Run(args []string) int {
 	// Set umask before starting up the server
 	commoncli.SetUmask(config.Log)
 
-	s := server.New(*config)
+	s := server.New(config)
 
 	ctx := c.ctx
 	if ctx == nil {

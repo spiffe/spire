@@ -266,7 +266,7 @@ func (cmd *Command) Run(args []string) int {
 	// Set umask before starting up the server
 	common_cli.SetUmask(c.Log)
 
-	s := server.New(*c)
+	s := server.New(c)
 
 	ctx := cmd.ctx
 	if ctx == nil {
