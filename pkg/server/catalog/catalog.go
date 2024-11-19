@@ -16,7 +16,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
-	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	km_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
@@ -183,53 +182,6 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 
 	repo.SetDataStore(dataStore)
 	repo.SetKeyManager(km_telemetry.WithMetrics(repo.GetKeyManager(), config.Metrics))
-	return repo, nil
-}
-
-// TODO: roll this into Load() above
-func Validate(ctx context.Context, config Config, status *pluginconf.Status) (_ *Repository, err error) {
-	config.Log.Info("Validating catalog configuration")
-	status.ReportInfo("validating from server catalog")
-
-	nodeAttestor, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName)
-	if ok && nodeAttestor.IsEnabled() && nodeAttestor.IsExternal() {
-		status.ReportError("the built-in join_token node attestor cannot be overridden by an external plugin")
-	}
-
-	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
-	switch {
-	case len(dataStoreConfigs) == 0:
-		status.ReportError("Required DataStore plugin is missing")
-	case len(dataStoreConfigs) > 1:
-		status.ReportError("Only one DataStore plugin is allowed")
-	}
-
-	for _, dataStoreConfig := range dataStoreConfigs {
-		if dataStoreConfig.IsEnabled() && dataStoreConfig.IsExternal() {
-			status.ReportErrorf("datastore plugin %s cannot be external, grpc limits would be violated", dataStoreConfig.Name)
-		}
-		status.ReportInfof("skipping validation of dataStore %q", dataStoreConfig.Name)
-	}
-
-	repo := &Repository{
-		log: config.Log,
-	}
-	defer func() {
-		if err != nil {
-			repo.Close()
-		}
-	}()
-
-	coreConfig := catalog.CoreConfig{
-		TrustDomain: config.TrustDomain,
-	}
-
-	_, err = catalog.Load(ctx, catalog.Config{
-		Log:           config.Log,
-		CoreConfig:    coreConfig,
-		PluginConfigs: pluginConfigs,
-	}, repo)
-
 	return repo, nil
 }
 
