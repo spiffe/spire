@@ -104,6 +104,7 @@ All the selectors have the type `azure_msi`.
 
 The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [MSI access token](https://learn.microsoft.com/en-us/azure/active-directory/develop/access-tokens#payload-claims).
+Details about the template engine are available [here](template_engine.md).
 
 Some useful values are:
 
