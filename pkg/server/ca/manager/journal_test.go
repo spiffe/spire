@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -32,9 +33,10 @@ var (
 		{Raw: []byte("C")},
 	}
 
-	km        keymanager.KeyManager
-	kmKeys    = map[string]keymanager.Key{}
-	rootCerts = map[string]*x509.Certificate{}
+	km                     keymanager.KeyManager
+	kmKeys                 = map[string]keymanager.Key{}
+	rootCerts              = map[string]*x509.Certificate{}
+	nonExistingAuthorityID = "non-existing-authority-id"
 )
 
 func setupJournalTest(t *testing.T) *journalTest {
@@ -118,7 +120,8 @@ func TestJournalPersistence(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, j.UpdateX509CAStatus(ctx, now, journal.Status_ACTIVE))
+	authorityIDA := x509util.SubjectKeyIDToString(rootCerts["X509-Root-A"].SubjectKeyId)
+	require.NoError(t, j.UpdateX509CAStatus(ctx, authorityIDA, journal.Status_ACTIVE))
 
 	// Check that the CA journal was properly stored in the datastore.
 	journalDS := test.loadJournal(t)
@@ -134,7 +137,7 @@ func TestJournalPersistence(t *testing.T) {
 		UpstreamChain: testChain,
 	})
 	require.NoError(t, err)
-	require.NoError(t, j.UpdateX509CAStatus(ctx, now, journal.Status_ACTIVE))
+	require.NoError(t, j.UpdateX509CAStatus(ctx, authorityIDA, journal.Status_ACTIVE))
 
 	journalDS = test.loadJournal(t)
 	require.NotNil(t, journalDS)
@@ -237,7 +240,8 @@ func TestUpdateX509CAStatus(t *testing.T) {
 		require.Equal(t, journal.Status_PREPARED, ca.Status)
 	}
 
-	err = testJournal.UpdateX509CAStatus(ctx, secondIssuedAt, journal.Status_ACTIVE)
+	authorityIDB := x509util.SubjectKeyIDToString(rootCerts["X509-Root-B"].SubjectKeyId)
+	err = testJournal.UpdateX509CAStatus(ctx, authorityIDB, journal.Status_ACTIVE)
 	require.NoError(t, err)
 
 	for _, ca := range testJournal.getEntries().X509CAs {
@@ -249,9 +253,8 @@ func TestUpdateX509CAStatus(t *testing.T) {
 		require.Equal(t, expectedStatus, ca.Status)
 	}
 
-	unusedTime := test.now().Add(time.Hour)
-	err = testJournal.UpdateX509CAStatus(ctx, unusedTime, journal.Status_OLD)
-	require.ErrorContains(t, err, "no journal entry found issued at:")
+	err = testJournal.UpdateX509CAStatus(ctx, nonExistingAuthorityID, journal.Status_OLD)
+	require.ErrorContains(t, err, fmt.Sprintf("no journal entry found with authority ID %q", nonExistingAuthorityID))
 }
 
 func TestUpdateJWTKeyStatus(t *testing.T) {
@@ -287,7 +290,7 @@ func TestUpdateJWTKeyStatus(t *testing.T) {
 		require.Equal(t, journal.Status_PREPARED, key.Status)
 	}
 
-	err = testJournal.UpdateJWTKeyStatus(ctx, secondIssuedAt, journal.Status_ACTIVE)
+	err = testJournal.UpdateJWTKeyStatus(ctx, "kid2", journal.Status_ACTIVE)
 	require.NoError(t, err)
 
 	for _, key := range testJournal.getEntries().JwtKeys {
@@ -299,9 +302,8 @@ func TestUpdateJWTKeyStatus(t *testing.T) {
 		require.Equal(t, expectedStatus, key.Status)
 	}
 
-	unusedTime := test.now().Add(time.Hour)
-	err = testJournal.UpdateJWTKeyStatus(ctx, unusedTime, journal.Status_OLD)
-	require.ErrorContains(t, err, "no journal entry found issued at:")
+	err = testJournal.UpdateJWTKeyStatus(ctx, nonExistingAuthorityID, journal.Status_OLD)
+	require.ErrorContains(t, err, fmt.Sprintf("no journal entry found with authority ID %q", nonExistingAuthorityID))
 }
 
 func TestJWTKeyOverflow(t *testing.T) {

@@ -30,7 +30,7 @@ type journalConfig struct {
 }
 
 // Journal stores X509 CAs and JWT keys on disk as they are rotated by the
-// manager. The data format on disk is a PEM encoded protocol buffer.
+// manager. The data format is a PEM encoded protocol buffer.
 type Journal struct {
 	config *journalConfig
 
@@ -87,21 +87,17 @@ func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time
 	return nil
 }
 
-// UpdateX509CAStatus updates a stored X509CA entry to have the given status, updating the journal file.
-func (j *Journal) UpdateX509CAStatus(ctx context.Context, issuedAt time.Time, status journal.Status) error {
+// UpdateX509CAStatus updates a stored X509CA entry to have the given status,
+// updating the CA journal.
+func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
 	backup := j.entries.X509CAs
-
-	// Once we have the authorityID, we can use it to search for an entry,
-	// but for now, we depend on issuedAt.
-	issuedAtUnix := issuedAt.Unix()
-
 	var found bool
 	for i := len(j.entries.X509CAs) - 1; i >= 0; i-- {
 		entry := j.entries.X509CAs[i]
-		if issuedAtUnix == entry.IssuedAt {
+		if authorityID == entry.AuthorityId {
 			found = true
 			entry.Status = status
 			if status == journal.Status_ACTIVE {
@@ -112,7 +108,7 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, issuedAt time.Time, st
 	}
 
 	if !found {
-		return fmt.Errorf("no journal entry found issued at: %v", issuedAtUnix)
+		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
 	}
 
 	if err := j.save(ctx); err != nil {
@@ -159,21 +155,18 @@ func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time
 	return nil
 }
 
-// UpdateJWTKeyStatus updates a stored JWTKey entry to have the given status, updating the journal file.
-func (j *Journal) UpdateJWTKeyStatus(ctx context.Context, issuedAt time.Time, status journal.Status) error {
+// UpdateJWTKeyStatus updates a stored JWTKey entry to have the given status,
+// updating the CA journal.
+func (j *Journal) UpdateJWTKeyStatus(ctx context.Context, authorityID string, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
 	backup := j.entries.JwtKeys
 
-	// Once we have the authorityID, we can use it to search for an entry,
-	// but for now we depend on issuedAt.
-	issuedAtUnix := issuedAt.Unix()
-
 	var found bool
 	for i := len(j.entries.JwtKeys) - 1; i >= 0; i-- {
 		entry := j.entries.JwtKeys[i]
-		if issuedAtUnix == entry.IssuedAt {
+		if authorityID == entry.AuthorityId {
 			found = true
 			entry.Status = status
 			break
@@ -181,7 +174,7 @@ func (j *Journal) UpdateJWTKeyStatus(ctx context.Context, issuedAt time.Time, st
 	}
 
 	if !found {
-		return fmt.Errorf("no journal entry found issued at: %v", issuedAtUnix)
+		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
 	}
 
 	if err := j.save(ctx); err != nil {
