@@ -71,7 +71,7 @@ func (ds *DataStore) DeleteFederationRelationship(ctx context.Context, td spiffe
 	}
 
 	if err := ds.federationRelationships.Delete(ctx, td.Name()); err != nil {
-		return dsErr(err, "failed to delete federation relationship")
+		return dsErr(err, "datastore-keyvalue")
 	}
 	return nil
 }

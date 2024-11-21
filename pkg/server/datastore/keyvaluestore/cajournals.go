@@ -108,7 +108,7 @@ func (ds *DataStore) ListCAJournalsForTesting(ctx context.Context) ([]*datastore
 
 func validateCAJournal(caJournal *datastore.CAJournal) error {
 	if caJournal == nil {
-		return status.Error(codes.InvalidArgument, "CA journal is required")
+		return status.Error(codes.InvalidArgument, "ca journal is required")
 	}
 	return nil
 }
@@ -130,7 +130,7 @@ func (ds *DataStore) createCAJournal(ctx context.Context, caJournal *datastore.C
 func (ds *DataStore) updateCAJournal(ctx context.Context, caJournal *datastore.CAJournal) (*datastore.CAJournal, error) {
 	existing, err := ds.caJournal.Get(ctx, idToKey(caJournal.ID))
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, "CA journal not found")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 
 	existing.Object.CAJournal.ActiveX509AuthorityID = caJournal.ActiveX509AuthorityID

@@ -13,7 +13,7 @@ import (
 func (ds *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToTaint string) error {
 	existing, err := ds.bundles.Get(ctx, trustDomainID)
 	if err != nil {
-		return dsErr(err, "TaintX509CA failed to fetch bundle")
+		return dsErr(err, "datastore-keyvalue")
 	}
 	updated := existing.Object
 
@@ -54,7 +54,7 @@ func (ds *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, subj
 func (ds *DataStore) RevokeX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToRevoke string) error {
 	existing, err := ds.bundles.Get(ctx, trustDomainID)
 	if err != nil {
-		return dsErr(err, "RevokeX509CA failed to fetch bundle")
+		return dsErr(err, "datastore-keyvalue")
 	}
 	updated := existing.Object
 
@@ -96,7 +96,7 @@ func (ds *DataStore) RevokeX509CA(ctx context.Context, trustDomainID string, sub
 func (ds *DataStore) TaintJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	existing, err := ds.bundles.Get(ctx, trustDomainID)
 	if err != nil {
-		return nil, dsErr(err, "TaintJWTKey failed to fetch bundle")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 	updated := existing.Object
 
@@ -137,7 +137,7 @@ func (ds *DataStore) TaintJWTKey(ctx context.Context, trustDomainID string, auth
 func (ds *DataStore) RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	existing, err := ds.bundles.Get(ctx, trustDomainID)
 	if err != nil {
-		return nil, dsErr(err, "failed to fetch existing bundle")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 	updated := existing.Object
 

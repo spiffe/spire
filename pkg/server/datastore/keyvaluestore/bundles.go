@@ -90,7 +90,7 @@ func (ds *DataStore) DeleteBundle(ctx context.Context, trustDomainID string, mod
 		switch mode {
 		case datastore.Delete:
 			if err := ds.bundles.Delete(ctx, trustDomainID); err != nil {
-				return dsErr(err, "failed to delete bundle")
+				return dsErr(err, "datastore-keyvalue")
 			}
 
 			// TODO: Should be done using batch.
@@ -106,7 +106,7 @@ func (ds *DataStore) DeleteBundle(ctx context.Context, trustDomainID string, mod
 			}
 		case datastore.Dissociate:
 			if err := ds.bundles.Delete(ctx, trustDomainID); err != nil {
-				return dsErr(err, "failed to delete bundle")
+				return dsErr(err, "datastore-keyvalue")
 			}
 
 			// TODO: Should be done using batch.
@@ -121,11 +121,12 @@ func (ds *DataStore) DeleteBundle(ctx context.Context, trustDomainID string, mod
 				}
 			}
 		default:
-			return status.Newf(codes.FailedPrecondition, "datastore-sql: cannot delete bundle; federated with %d registration entries", entriesCount).Err()
+			dsError := dsErr(err, "failed to delete bundle")
+			return status.Newf(codes.FailedPrecondition, "datastore-keyvalue: cannot delete bundle; federated with %d registration entries: %v", entriesCount, dsError).Err()
 		}
 	} else {
 		if err := ds.bundles.Delete(ctx, trustDomainID); err != nil {
-			return dsErr(err, "failed to delete bundle")
+			return dsErr(err, "datastore-keyvalue")
 		}
 	}
 
@@ -180,7 +181,7 @@ func (ds *DataStore) PruneBundle(ctx context.Context, trustDomainID string, expi
 		pruned, changed, err := bundleutil.PruneBundle(r.Object.Bundle, expiresBefore, ds.log)
 		switch {
 		case err != nil:
-			return false, dsErr(err, "failed to prune bundle")
+			return false, status.Errorf(codes.Unknown, "prune failed: %v", err)
 		case changed:
 			pruned.SequenceNumber = r.Object.Bundle.SequenceNumber + 1
 			// TODO: retry on conflict
@@ -219,7 +220,7 @@ func (ds *DataStore) SetBundle(ctx context.Context, in *common.Bundle) (*common.
 func (ds *DataStore) UpdateBundle(ctx context.Context, newBundle *common.Bundle, mask *common.BundleMask) (*common.Bundle, error) {
 	existing, err := ds.bundles.Get(ctx, newBundle.TrustDomainId)
 	if err != nil {
-		return nil, dsErr(err, "failed to update bundle")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 
 	updated := existing.Object
@@ -241,7 +242,7 @@ func (ds *DataStore) UpdateBundle(ctx context.Context, newBundle *common.Bundle,
 	}
 
 	if err := ds.bundles.Update(ctx, updated, existing.Metadata.Revision); err != nil {
-		return nil, dsErr(err, "failed to update bundle")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 	return updated.Bundle, nil
 }

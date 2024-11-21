@@ -53,11 +53,11 @@ func (ds *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*
 	r, err := ds.agents.Get(ctx, spiffeID)
 
 	if err != nil {
-		return nil, dsErr(err, "failed to delete agent")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 
 	if err := ds.agents.Delete(ctx, spiffeID); err != nil {
-		return nil, dsErr(err, "failed to delete agent")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 
 	if err = ds.createAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
@@ -105,7 +105,7 @@ func (ds *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListA
 func (ds *DataStore) UpdateAttestedNode(ctx context.Context, newAgent *common.AttestedNode, mask *common.AttestedNodeMask) (*common.AttestedNode, error) {
 	record, err := ds.agents.Get(ctx, newAgent.SpiffeId)
 	if err != nil {
-		return nil, dsErr(err, "failed to update agent")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 	existing := record.Object
 
@@ -133,7 +133,7 @@ func (ds *DataStore) UpdateAttestedNode(ctx context.Context, newAgent *common.At
 	}*/
 
 	if err := ds.agents.Update(ctx, existing, record.Metadata.Revision); err != nil {
-		return nil, dsErr(err, "failed to update agent")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 
 	if err = ds.createAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{

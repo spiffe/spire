@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"encoding/json"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/keyvalue"
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/record"
@@ -172,7 +174,7 @@ func (c *nodeEventIndex) Get(obj *record.Record[nodeEventObject]) {
 
 func (idx *nodeEventIndex) List(req *listAttestedNodeEventsRequest) (*keyvalue.ListObject, error) {
 	if req.GreaterThanEventID != 0 && req.LessThanEventID != 0 {
-		return nil, errors.New("can't set both greater and less than event id")
+		return nil, status.Errorf(codes.Unknown, "datastore-keyvalue: can't set both greater and less than event id")
 	}
 
 	list := new(keyvalue.ListObject)

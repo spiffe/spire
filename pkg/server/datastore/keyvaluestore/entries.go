@@ -95,13 +95,12 @@ func (ds *DataStore) createOrReturnRegistrationEntry(ctx context.Context, entry 
 
 func (ds *DataStore) DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
 	r, err := ds.entries.Get(ctx, entryID)
-
 	if err != nil {
-		return nil, dsErr(err, "failed to delete entry")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 
 	if err := ds.entries.Delete(ctx, entryID); err != nil {
-		return nil, dsErr(err, "failed to delete entry")
+		return nil, dsErr(err, "datastore-keyvalue")
 	}
 
 	if ds.createRegistrationEntryEvent(ctx, &datastore.RegistrationEntryEvent{
@@ -218,7 +217,8 @@ func (ds *DataStore) UpdateRegistrationEntry(ctx context.Context, newEntry *comm
 	}
 
 	if updated.Entry.StoreSvid && !equalSelectorTypes(updated.Entry.Selectors) {
-		return nil, validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+		err := validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+		return nil, status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}
 
 	if mask == nil || mask.DnsNames {
@@ -280,11 +280,13 @@ func (ds *DataStore) UpdateRegistrationEntry(ctx context.Context, newEntry *comm
 
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	if entry == nil {
-		return validationError.New("invalid request: missing registered entry")
+		err := validationError.New("invalid request: missing registered entry")
+		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}
 
 	if len(entry.Selectors) == 0 {
-		return validationError.New("invalid registration entry: missing selector list")
+		err := validationError.New("invalid registration entry: missing selector list")
+		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}
 
 	// In case of StoreSvid is set, all entries 'must' be the same type,
@@ -295,31 +297,37 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 		tpe := entry.Selectors[0].Type
 		for _, t := range entry.Selectors {
 			if tpe != t.Type {
-				return validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+				err := validationError.New("invalid registration entry: selector types must be the same when store SVID is enabled")
+				return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 			}
 		}
 	}
 
 	if len(entry.EntryId) > 255 {
-		return validationError.New("invalid registration entry: entry ID too long")
+		err := validationError.New("invalid registration entry: entry ID too long")
+		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}
 
 	for _, e := range entry.EntryId {
 		if !unicode.In(e, validEntryIDChars) {
-			return validationError.New("invalid registration entry: entry ID contains invalid characters")
+			err := validationError.New("invalid registration entry: entry ID contains invalid characters")
+			return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 		}
 	}
 
 	if len(entry.SpiffeId) == 0 {
-		return validationError.New("invalid registration entry: missing SPIFFE ID")
+		err := validationError.New("invalid registration entry: missing SPIFFE ID")
+		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}
 
 	if entry.X509SvidTtl < 0 {
-		return validationError.New("invalid registration entry: X509SvidTtl is not set")
+		err := validationError.New("invalid registration entry: X509SvidTtl is not set")
+		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}
 
 	if entry.JwtSvidTtl < 0 {
-		return validationError.New("invalid registration entry: JwtSvidTtl is not set")
+		err := validationError.New("invalid registration entry: JwtSvidTtl is not set")
+		return status.Errorf(codes.InvalidArgument, "%s", err.Error())
 	}
 
 	return nil
