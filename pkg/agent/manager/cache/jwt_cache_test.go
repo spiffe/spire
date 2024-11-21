@@ -21,9 +21,8 @@ func TestJWTSVIDCache(t *testing.T) {
 	now := time.Now()
 	tok1 := "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRaRGZZaXcxdUd6TXdkTVlITDdGRVl5SzhIT0tLd0xYIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3MjQzNjU3MzEsImlhdCI6MTcyNDI3OTQwNywic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.dFr-oWhm5tK0bBuVXt-sGESM5l7hhoY-Gtt5DkuFoJL5Y9d4ZfmicCvUCjL4CqDB3BO_cPqmFfrO7H7pxQbGLg"
 	tok2 := "eyJhbGciOiJFUzI1NiIsImtpZCI6ImNKMXI5TVY4OTZTWXBMY0RMUjN3Q29QRHprTXpkN25tIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3Mjg1NzEwMjUsImlhdCI6MTcyODU3MDcyNSwic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.1YnDj7nknwIHEuNKEN0cNypXKS4SUeILXlNOsOs2XElHzfKhhDcl0sYKYtQc1Itf6cygz9C16VOQ_Yjoos2Qfg"
-	jwtSVID1 := &client.JWTSVID{Token: tok1, IssuedAt: now, ExpiresAt: now.Add(time.Second)}
-	jwtSVID2 := &client.JWTSVID{Token: tok2, IssuedAt: now, ExpiresAt: now.Add(time.Second)}
-	//jwtSVID3 := &client.JWTSVID{Token: tok2, IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+	jwtSVID1 := &client.JWTSVID{Token: tok1, IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
+	jwtSVID2 := &client.JWTSVID{Token: tok2, IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
 
 	fakeMetrics := fakemetrics.New()
 	log, logHook := test.NewNullLogger()
@@ -229,15 +228,16 @@ func TestJWTSVIDCacheSize(t *testing.T) {
 	cache := NewJWTSVIDCache(log, fakeMetrics, 2)
 
 	now := time.Now()
-	jwtSvid1 := &client.JWTSVID{Token: "1", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
-	jwtSvid2 := &client.JWTSVID{Token: "3", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
-	jwtSvid3 := &client.JWTSVID{Token: "3", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+	jwtSvid1 := &client.JWTSVID{Token: "1", IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
+	jwtSvid2 := &client.JWTSVID{Token: "2", IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
+	jwtSvid3 := &client.JWTSVID{Token: "3", IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
 
 	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 	cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSvid1)
 	cache.SetJWTSVID(spiffeID, []string{"audience-2"}, jwtSvid2)
 	cache.SetJWTSVID(spiffeID, []string{"audience-3"}, jwtSvid3)
 
+	// The first SVID that was inserted into the cache should have been evicted.
 	_, ok := cache.GetJWTSVID(spiffeID, []string{"audience-1"})
 	assert.False(t, ok)
 
@@ -266,7 +266,7 @@ func TestJWTSVIDCacheSize(t *testing.T) {
 func TestJWTSVIDCacheKeyHashing(t *testing.T) {
 	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 	now := time.Now()
-	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
 
 	fakeMetrics := fakemetrics.New()
 	log, _ := test.NewNullLogger()

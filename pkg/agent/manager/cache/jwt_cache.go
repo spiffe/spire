@@ -82,7 +82,6 @@ func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid 
 		element := c.lruList.Back()
 		jwtSvidWithHash := element.Value.(jwtSvidElement)
 		delete(c.svids, jwtSvidWithHash.key)
-		c.log.Info("removing a svid")
 		c.lruList.Remove(element)
 	}
 
