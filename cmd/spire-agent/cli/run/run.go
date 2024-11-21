@@ -92,6 +92,7 @@ type agentConfig struct {
 	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
 	AvailabilityTarget            string    `hcl:"availability_target"`
 	X509SVIDCacheMaxSize          int       `hcl:"x509_svid_cache_max_size"`
+	JWTSVIDCacheMaxSize           int       `hcl:"jwt_svid_cache_max_size"`
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
@@ -500,6 +501,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		return nil, errors.New("x509_svid_cache_max_size should not be negative")
 	}
 	ac.X509SVIDCacheMaxSize = c.Agent.X509SVIDCacheMaxSize
+
+	if c.Agent.JWTSVIDCacheMaxSize < 0 {
+		return nil, errors.New("jwt_svid_cache_max_size should not be negative")
+	}
+	ac.JWTSVIDCacheMaxSize = c.Agent.JWTSVIDCacheMaxSize
 
 	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
 	if err != nil {
