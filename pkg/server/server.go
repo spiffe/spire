@@ -54,7 +54,7 @@ const (
 )
 
 type Server struct {
-	config Config
+	config *Config
 }
 
 // Run the server
@@ -116,6 +116,10 @@ func (s *Server) run(ctx context.Context) (err error) {
 	catalogConfig := s.newCatalogConfig(metrics, identityProvider, agentStore, healthChecker)
 	catalogConfig.ValidateOnly = s.config.ValidateOnly
 	cat, err := catalog.Load(ctx, catalogConfig)
+	s.config.ValidationNotes = append(s.config.ValidationNotes, catalogConfig.ValidationNotes...)
+	if s.config.ValidationError != "" {
+		s.config.ValidationError = catalogConfig.ValidationError
+	}
 	if err != nil || s.config.ValidateOnly == true {
 		return err
 	}
@@ -282,8 +286,8 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) newCatalogConfig(metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore, healthChecker health.Checker) catalog.Config {
-	return catalog.Config{
+func (s *Server) newCatalogConfig(metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore, healthChecker health.Checker) *catalog.Config {
+	return &catalog.Config{
 		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		TrustDomain:   s.config.TrustDomain,
 		PluginConfigs: s.config.PluginConfigs,

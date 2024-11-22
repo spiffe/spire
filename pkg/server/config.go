@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/x509/pkix"
+	"fmt"
 	"net"
 	"time"
 
@@ -127,8 +128,8 @@ type Config struct {
 	// notes about the configuration
 	ValidationNotes []string
 
-	// if the configuration is usable
-	ValidationInError bool
+	// the first validation error message
+	ValidationError string
 }
 
 type ExperimentalConfig struct {
@@ -146,4 +147,23 @@ func New(config *Config) *Server {
 	return &Server{
 		config: config,
 	}
+}
+
+func (c *Config) ReportInfo(message string) {
+	c.ValidationNotes = append(c.ValidationNotes, message)
+}
+
+func (c *Config) ReportInfof(format string, args ...any) {
+	c.ReportInfo(fmt.Sprintf(format, args...))
+}
+
+func (c *Config) ReportError(message string) {
+	if c.ValidationError == "" {
+		c.ValidationError = message
+	}
+	c.ValidationNotes = append(c.ValidationNotes, message)
+}
+
+func (c *Config) ReportErrorf(format string, args ...any) {
+	c.ReportError(fmt.Sprintf(format, args...))
 }
