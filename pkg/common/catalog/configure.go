@@ -33,25 +33,26 @@ type Configurer interface {
 }
 
 type ValidateResult struct {
-	Valid bool
 	Notes []string
+	Error string
 }
 
 func NewValidateResult() *ValidateResult {
 	return &ValidateResult{
-		Valid: true,
 		Notes: nil,
+		Error: "",
 	}
 }
 
 func (vr *ValidateResult) ReportError(message string) {
-	vr.Valid = false
+	if vr.Error == "" {
+		vr.Error = message
+	}
 	vr.Notes = append(vr.Notes, message)
 }
 
 func (vr *ValidateResult) ReportErrorf(format string, parameters ...any) {
-	vr.Valid = false
-	vr.Notes = append(vr.Notes, fmt.Sprintf(format, parameters...))
+	vr.ReportError(fmt.Sprintf(format, parameters...))
 }
 
 func (vr *ValidateResult) ReportInfo(message string) {
@@ -59,7 +60,7 @@ func (vr *ValidateResult) ReportInfo(message string) {
 }
 
 func (vr *ValidateResult) ReportInfof(format string, parameters ...any) {
-	vr.Notes = append(vr.Notes, fmt.Sprintf(format, parameters...))
+	vr.ReportInfo(fmt.Sprintf(format, parameters...))
 }
 
 func ConfigurePlugin(ctx context.Context, coreConfig CoreConfig, configurer Configurer, dataSource DataSource, lastHash string) (string, error) {
@@ -230,13 +231,14 @@ func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hcl
 		CoreConfiguration: coreConfig.v1(),
 		HclConfiguration:  hclConfiguration,
 	})
-	if err != nil {
-		return NewValidateResult(), err
-	}
-
 	result := NewValidateResult()
-	result.Valid = response.GetValid()
+	// TODO: The GRPC default behavior is to not return a *ValidateResponse when there is an error, and that destroys many
+	//       of the validation messages, except for the error message.  We may wish to not consider validation errors
+	//       as errors going forward.
 	result.Notes = response.GetNotes()
+	if !response.GetValid() {
+		result.ReportErrorf("invalid configuration: %s", err.Error())
+	}
 	return result, err
 }
 

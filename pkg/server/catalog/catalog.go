@@ -150,7 +150,6 @@ func (repo *Repository) Close() {
 }
 
 func Load(ctx context.Context, config *Config) (_ *Repository, err error) {
-	config.ReportInfo("server config: starting")
 	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
 		config.ReportError("the built-in join_token node attestor cannot be overridden by an external plugin")
 		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
@@ -176,7 +175,7 @@ func Load(ctx context.Context, config *Config) (_ *Repository, err error) {
 	}
 	repo.dsCloser = sqlDataStore
 
-	repo.catalog, err = catalog.Load(ctx, catalog.Config{
+	commonConfig := &catalog.Config{
 		Log:           config.Log,
 		CoreConfig:    coreConfig,
 		PluginConfigs: pluginConfigs,
@@ -185,9 +184,15 @@ func Load(ctx context.Context, config *Config) (_ *Repository, err error) {
 			agentstorev1.AgentStoreServiceServer(config.AgentStore.V1()),
 			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
 		},
-	}, repo)
+		ValidateOnly: config.ValidateOnly,
+	}
+	repo.catalog, err = catalog.Load(ctx, commonConfig, repo)
 	if err != nil {
 		return nil, err
+	}
+	config.ValidationNotes = append(config.ValidationNotes, commonConfig.ValidationNotes...)
+	if config.ValidationError == "" {
+		config.ValidationError = commonConfig.ValidationError
 	}
 
 	var dataStore datastore.DataStore = sqlDataStore

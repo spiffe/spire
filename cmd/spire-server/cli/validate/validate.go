@@ -64,9 +64,15 @@ func (c *validateCommand) Run(args []string) int {
 		return 1
 	}
 
-	fmt.Printf("status: %+v\n", config.ValidationNotes)
-	fmt.Printf("error: %+v\n", config.ValidationInError)
-
+	for _, line := range config.ValidationNotes {
+		fmt.Println(line)
+	}
 	config.Log.Info("Validation server stopped gracefully")
+
+	if config.ValidationError != "" {
+		fmt.Printf("first error: %+v\n", config.ValidationError)
+		return 2
+	}
+
 	return 0
 }

@@ -117,7 +117,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	catalogConfig.ValidateOnly = s.config.ValidateOnly
 	cat, err := catalog.Load(ctx, catalogConfig)
 	s.config.ValidationNotes = append(s.config.ValidationNotes, catalogConfig.ValidationNotes...)
-	if s.config.ValidationError != "" {
+	if s.config.ValidationError == "" {
 		s.config.ValidationError = catalogConfig.ValidationError
 	}
 	if err != nil || s.config.ValidateOnly == true {
