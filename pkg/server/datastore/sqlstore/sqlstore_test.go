@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -140,7 +141,9 @@ func (s *PluginSuite) newPlugin() *Plugin {
 	case "":
 		s.nextID++
 		dbPath := filepath.ToSlash(filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID)))
-		err := ds.Configure(ctx, fmt.Sprintf(`
+		err := ds.Configure(ctx, catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}, fmt.Sprintf(`
 			database_type = "sqlite3"
 			log_sql = true
 			connection_string = "%s"
@@ -164,7 +167,9 @@ func (s *PluginSuite) newPlugin() *Plugin {
 		s.T().Logf("CONN STRING: %q", TestConnString)
 		s.Require().NotEmpty(TestConnString, "connection string must be set")
 		wipeMySQL(s.T(), TestConnString)
-		err := ds.Configure(ctx, fmt.Sprintf(`
+		err := ds.Configure(ctx, catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}, fmt.Sprintf(`
 			database_type = "mysql"
 			log_sql = true
 			connection_string = "%s"
@@ -175,7 +180,9 @@ func (s *PluginSuite) newPlugin() *Plugin {
 		s.T().Logf("CONN STRING: %q", TestConnString)
 		s.Require().NotEmpty(TestConnString, "connection string must be set")
 		wipePostgres(s.T(), TestConnString)
-		err := ds.Configure(ctx, fmt.Sprintf(`
+		err := ds.Configure(ctx, catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}, fmt.Sprintf(`
 			database_type = "postgres"
 			log_sql = true
 			connection_string = "%s"
@@ -190,7 +197,9 @@ func (s *PluginSuite) newPlugin() *Plugin {
 }
 
 func (s *PluginSuite) TestInvalidPluginConfiguration() {
-	err := s.ds.Configure(ctx, `
+	err := s.ds.Configure(ctx, catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}, `
 		database_type = "wrong"
 		connection_string = "bad"
 	`)
@@ -220,26 +229,34 @@ func (s *PluginSuite) TestInvalidAWSConfiguration() {
 	}
 	for _, testCase := range testCases {
 		s.T().Run(testCase.name, func(t *testing.T) {
-			err := s.ds.Configure(ctx, testCase.config)
+			err := s.ds.Configure(ctx, catalog.CoreConfig{
+				TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+			}, testCase.config)
 			s.RequireErrorContains(err, testCase.expectedErr)
 		})
 	}
 }
 
 func (s *PluginSuite) TestInvalidMySQLConfiguration() {
-	err := s.ds.Configure(ctx, `
+	err := s.ds.Configure(ctx, catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}, `
 		database_type = "mysql"
 		connection_string = "username:@tcp(127.0.0.1)/spire_test"
 	`)
 	s.RequireErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
 
-	err = s.ds.Configure(ctx, `
+	err = s.ds.Configure(ctx, catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}, `
 		database_type = "mysql"
 		ro_connection_string = "username:@tcp(127.0.0.1)/spire_test"
 	`)
 	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
 
-	err = s.ds.Configure(ctx, `
+	err = s.ds.Configure(ctx, catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}, `
 		database_type = "mysql"
 	`)
 	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
@@ -4924,7 +4941,9 @@ func (s *PluginSuite) TestMigration() {
 					dump = minimalDB()
 				}
 				dumpDB(t, dbPath, dump)
-				err := s.ds.Configure(ctx, fmt.Sprintf(`
+				err := s.ds.Configure(ctx, catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}, fmt.Sprintf(`
 					database_type = "sqlite3"
 					connection_string = %q
 				`, dbURI))
@@ -5230,7 +5249,9 @@ func (s *PluginSuite) TestConfigure() {
 
 			log, _ := test.NewNullLogger()
 			p := New(log)
-			err := p.Configure(ctx, fmt.Sprintf(`
+			err := p.Configure(ctx, catalog.CoreConfig{
+				TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+			}, fmt.Sprintf(`
 				database_type = "sqlite3"
 				log_sql = true
 				connection_string = "%s"
