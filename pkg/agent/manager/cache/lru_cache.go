@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	// DefaultSVIDCacheMaxSize is set when svidCacheMaxSize is not provided
+	// DefaultSVIDCacheMaxSize is set when x509SvidCacheMaxSize is not provided
 	DefaultSVIDCacheMaxSize = 1000
 	// SVIDSyncInterval is the interval at which SVIDs are synced with subscribers
 	SVIDSyncInterval = 500 * time.Millisecond
@@ -141,7 +141,7 @@ type LRUCache struct {
 	svids map[string]*X509SVID
 
 	// svidCacheMaxSize is a soft limit of max number of SVIDs that would be stored in cache
-	svidCacheMaxSize int
+	x509SvidCacheMaxSize int
 
 	subscribeBackoffFn func() backoff.BackOff
 
@@ -150,14 +150,14 @@ type LRUCache struct {
 	taintedBatchProcessedCh chan struct{}
 }
 
-func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics, svidCacheMaxSize int, clk clock.Clock) *LRUCache {
-	if svidCacheMaxSize <= 0 {
-		svidCacheMaxSize = DefaultSVIDCacheMaxSize
+func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundle *Bundle, metrics telemetry.Metrics, x509SvidCacheMaxSize int, jwtSvidCacheMaxSize int, clk clock.Clock) *LRUCache {
+	if x509SvidCacheMaxSize <= 0 {
+		x509SvidCacheMaxSize = DefaultSVIDCacheMaxSize
 	}
 
 	return &LRUCache{
 		BundleCache:  NewBundleCache(trustDomain, bundle),
-		JWTSVIDCache: NewJWTSVIDCache(log, metrics),
+		JWTSVIDCache: NewJWTSVIDCache(log, metrics, jwtSvidCacheMaxSize),
 
 		log:          log,
 		metrics:      metrics,
@@ -168,9 +168,9 @@ func NewLRUCache(log logrus.FieldLogger, trustDomain spiffeid.TrustDomain, bundl
 		bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			trustDomain: bundle,
 		},
-		svids:            make(map[string]*X509SVID),
-		svidCacheMaxSize: svidCacheMaxSize,
-		clk:              clk,
+		svids:                make(map[string]*X509SVID),
+		x509SvidCacheMaxSize: x509SvidCacheMaxSize,
+		clk:                  clk,
 		subscribeBackoffFn: func() backoff.BackOff {
 			return backoff.NewBackoff(clk, SVIDSyncInterval)
 		},
@@ -218,10 +218,7 @@ func (c *LRUCache) CountX509SVIDs() int {
 }
 
 func (c *LRUCache) CountJWTSVIDs() int {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return len(c.JWTSVIDCache.svids)
+	return c.JWTSVIDCache.CountJWTSVIDs()
 }
 
 func (c *LRUCache) CountRecords() int {
@@ -442,7 +439,7 @@ func (c *LRUCache) UpdateEntries(update *UpdateEntries, checkSVID func(*common.R
 	// entries with active subscribers which are not cached will be put in staleEntries map;
 	// irrespective of what svid cache size as we cannot deny identity to a subscriber
 	activeSubsByEntryID, recordsWithLastAccessTime := c.syncSVIDsWithSubscribers()
-	extraSize := len(c.svids) - c.svidCacheMaxSize
+	extraSize := len(c.svids) - c.x509SvidCacheMaxSize
 
 	// delete svids without subscribers and which have not been accessed since svidCacheExpiryTime
 	if extraSize > 0 {
@@ -781,7 +778,7 @@ func (c *LRUCache) syncSVIDsWithSubscribers() (map[string]struct{}, []recordAcce
 		lastAccessTimestamps = append(lastAccessTimestamps, newRecordAccessEvent(record.lastAccessTimestamp, id))
 	}
 
-	remainderSize := c.svidCacheMaxSize - len(c.svids)
+	remainderSize := c.x509SvidCacheMaxSize - len(c.svids)
 	// add records which are not cached for remainder of cache size
 	for id := range c.records {
 		if len(c.staleEntries) >= remainderSize {

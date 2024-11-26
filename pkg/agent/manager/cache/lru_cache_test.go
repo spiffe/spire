@@ -1284,12 +1284,12 @@ func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
 func newTestLRUCache(t testing.TB) *LRUCache {
 	log, _ := test.NewNullLogger()
 	return NewLRUCache(log, spiffeid.RequireTrustDomainFromString("domain.test"), bundleV1,
-		telemetry.Blackhole{}, 0, clock.NewMock(t))
+		telemetry.Blackhole{}, 0, 0, clock.NewMock(t))
 }
 
 func newTestLRUCacheWithConfig(svidCacheMaxSize int, clk clock.Clock) *LRUCache {
 	log, _ := test.NewNullLogger()
-	return NewLRUCache(log, trustDomain1, bundleV1, telemetry.Blackhole{}, svidCacheMaxSize, clk)
+	return NewLRUCache(log, trustDomain1, bundleV1, telemetry.Blackhole{}, svidCacheMaxSize, svidCacheMaxSize, clk)
 }
 
 // numEntries should not be more than 12 digits

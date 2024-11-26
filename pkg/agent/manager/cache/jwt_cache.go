@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"container/list"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -23,18 +24,36 @@ type JWTSVIDCache struct {
 	log     logrus.FieldLogger
 	metrics telemetry.Metrics
 	mu      sync.RWMutex
-	svids   map[string]*client.JWTSVID
+
+	svids   map[string]*list.Element
+	lruList *list.List
+
+	// svidCacheMaxSize is a hard limit of max number of SVIDs that would be stored in cache
+	svidCacheMaxSize int
+}
+
+type jwtSvidElement struct {
+	key  string
+	svid *client.JWTSVID
 }
 
 func (c *JWTSVIDCache) CountJWTSVIDs() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	return len(c.svids)
 }
 
-func NewJWTSVIDCache(log logrus.FieldLogger, metrics telemetry.Metrics) *JWTSVIDCache {
+func NewJWTSVIDCache(log logrus.FieldLogger, metrics telemetry.Metrics, svidCacheMaxSize int) *JWTSVIDCache {
+	if svidCacheMaxSize <= 0 {
+		svidCacheMaxSize = DefaultSVIDCacheMaxSize
+	}
 	return &JWTSVIDCache{
-		metrics: metrics,
-		log:     log,
-		svids:   make(map[string]*client.JWTSVID),
+		metrics:          metrics,
+		log:              log,
+		svids:            make(map[string]*list.Element),
+		lruList:          list.New(),
+		svidCacheMaxSize: svidCacheMaxSize,
 	}
 }
 
@@ -43,8 +62,14 @@ func (c *JWTSVIDCache) GetJWTSVID(spiffeID spiffeid.ID, audience []string) (*cli
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	svid, ok := c.svids[key]
-	return svid, ok
+
+	svidElement, ok := c.svids[key]
+	if !ok {
+		return nil, ok
+	}
+	c.lruList.MoveToFront(svidElement)
+
+	return svidElement.Value.(jwtSvidElement).svid, ok
 }
 
 func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid *client.JWTSVID) {
@@ -52,7 +77,28 @@ func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid 
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.svids[key] = svid
+
+	if len(c.svids) >= c.svidCacheMaxSize {
+		element := c.lruList.Back()
+		jwtSvidWithHash := element.Value.(jwtSvidElement)
+		delete(c.svids, jwtSvidWithHash.key)
+		c.lruList.Remove(element)
+	}
+
+	svidElement, ok := c.svids[key]
+	if ok {
+		svidElement.Value = jwtSvidElement{
+			key:  key,
+			svid: svid,
+		}
+		c.lruList.MoveToFront(svidElement)
+	} else {
+		svidElement = c.lruList.PushFront(jwtSvidElement{
+			key:  key,
+			svid: svid,
+		})
+		c.svids[key] = svidElement
+	}
 }
 
 func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{}) {
@@ -64,14 +110,18 @@ func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities 
 
 	removedKeyIDs := make(map[string]int)
 	totalCount := 0
-	for key, jwtSVID := range c.svids {
-		keyID, err := getKeyIDFromSVIDToken(jwtSVID.Token)
+	for key, element := range c.svids {
+		jwtSvidElement := element.Value.(jwtSvidElement)
+		keyID, err := getKeyIDFromSVIDToken(jwtSvidElement.svid.Token)
 		if err != nil {
 			c.log.WithError(err).Error("Could not get key ID from cached JWT-SVID")
 			continue
 		}
+
 		if _, tainted := taintedJWTAuthorities[keyID]; tainted {
 			delete(c.svids, key)
+			c.lruList.Remove(element)
+
 			removedKeyIDs[keyID]++
 			totalCount++
 		}
