@@ -17,8 +17,8 @@ secrets=(
 for secret in "${secrets[@]}"; do
     ./bin/kubectl --namespace "$EJBCA_NAMESPACE" get secret "$secret" -o yaml \
         | sed 's/namespace: .*/namespace: spire/' \
-        | kubectl apply -f -
+        | ./bin/kubectl apply -f -
 done
 
-kubectl -n spire apply -k conf/server
+./bin/kubectl -n spire apply -k conf/server
 ./bin/kubectl wait pods -n spire -l app=spire-server --for condition=Ready --timeout=60s

@@ -61,9 +61,13 @@ type rotator struct {
 	// Mutex used to prevent rotations when a new connection is being created
 	rotMtx *sync.RWMutex
 
-	// Hook that will be called when the SVID rotation finishes
-	rotationFinishedHook func()
+	hooks struct {
+		// Hook that will be called when the SVID rotation finishes
+		rotationFinishedHook func()
 
+		// Hook that is called when the rotator starts running
+		runRotatorSignal chan struct{}
+	}
 	tainted bool
 }
 
@@ -83,6 +87,10 @@ func (r *rotator) Run(ctx context.Context) error {
 }
 
 func (r *rotator) runRotation(ctx context.Context) error {
+	if r.hooks.runRotatorSignal != nil {
+		r.hooks.runRotatorSignal <- struct{}{}
+	}
+
 	for {
 		err := r.rotateSVIDIfNeeded(ctx)
 		state, ok := r.state.Value().(State)
@@ -179,7 +187,7 @@ func (r *rotator) GetRotationMtx() *sync.RWMutex {
 }
 
 func (r *rotator) SetRotationFinishedHook(f func()) {
-	r.rotationFinishedHook = f
+	r.hooks.rotationFinishedHook = f
 }
 
 func (r *rotator) Reattest(ctx context.Context) error {
@@ -193,8 +201,8 @@ func (r *rotator) Reattest(ctx context.Context) error {
 	}
 
 	err := r.reattest(ctx)
-	if err == nil && r.rotationFinishedHook != nil {
-		r.rotationFinishedHook()
+	if err == nil && r.hooks.rotationFinishedHook != nil {
+		r.hooks.rotationFinishedHook()
 	}
 
 	return err
@@ -213,8 +221,8 @@ func (r *rotator) rotateSVIDIfNeeded(ctx context.Context) (err error) {
 			err = r.rotateSVID(ctx)
 		}
 
-		if err == nil && r.rotationFinishedHook != nil {
-			r.rotationFinishedHook()
+		if err == nil && r.hooks.rotationFinishedHook != nil {
+			r.hooks.rotationFinishedHook()
 		}
 	}
 

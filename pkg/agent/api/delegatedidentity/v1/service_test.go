@@ -996,7 +996,7 @@ func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
 
 func newTestCache() *cache.LRUCache {
 	log, _ := test.NewNullLogger()
-	return cache.NewLRUCache(log, trustDomain1, bundle1, telemetry.Blackhole{}, cache.DefaultSVIDCacheMaxSize, clock.New())
+	return cache.NewLRUCache(log, trustDomain1, bundle1, telemetry.Blackhole{}, cache.DefaultSVIDCacheMaxSize, cache.DefaultSVIDCacheMaxSize, clock.New())
 }
 
 func generateSubscribeToX509SVIDMetrics() []fakemetrics.MetricItem {

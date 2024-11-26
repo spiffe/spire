@@ -21,13 +21,13 @@ func TestJWTSVIDCache(t *testing.T) {
 	now := time.Now()
 	tok1 := "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRaRGZZaXcxdUd6TXdkTVlITDdGRVl5SzhIT0tLd0xYIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3MjQzNjU3MzEsImlhdCI6MTcyNDI3OTQwNywic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.dFr-oWhm5tK0bBuVXt-sGESM5l7hhoY-Gtt5DkuFoJL5Y9d4ZfmicCvUCjL4CqDB3BO_cPqmFfrO7H7pxQbGLg"
 	tok2 := "eyJhbGciOiJFUzI1NiIsImtpZCI6ImNKMXI5TVY4OTZTWXBMY0RMUjN3Q29QRHprTXpkN25tIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3Mjg1NzEwMjUsImlhdCI6MTcyODU3MDcyNSwic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.1YnDj7nknwIHEuNKEN0cNypXKS4SUeILXlNOsOs2XElHzfKhhDcl0sYKYtQc1Itf6cygz9C16VOQ_Yjoos2Qfg"
-	jwtSVID := &client.JWTSVID{Token: tok1, IssuedAt: now, ExpiresAt: now.Add(time.Second)}
-	jwtSVID2 := &client.JWTSVID{Token: tok2, IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+	jwtSVID1 := &client.JWTSVID{Token: tok1, IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
+	jwtSVID2 := &client.JWTSVID{Token: tok2, IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
 
 	fakeMetrics := fakemetrics.New()
 	log, logHook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
-	cache := NewJWTSVIDCache(log, fakeMetrics)
+	cache := NewJWTSVIDCache(log, fakeMetrics, 8)
 
 	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 
@@ -37,10 +37,10 @@ func TestJWTSVIDCache(t *testing.T) {
 	assert.Nil(t, actual)
 
 	// JWT is cached
-	cache.SetJWTSVID(spiffeID, []string{"bar"}, jwtSVID)
+	cache.SetJWTSVID(spiffeID, []string{"bar"}, jwtSVID1)
 	actual, ok = cache.GetJWTSVID(spiffeID, []string{"bar"})
 	assert.True(t, ok)
-	assert.Equal(t, jwtSVID, actual)
+	assert.Equal(t, jwtSVID1, actual)
 
 	// Test tainting of JWt-SVIDs
 	ctx := context.Background()
@@ -57,7 +57,7 @@ func TestJWTSVIDCache(t *testing.T) {
 			name:          "one authority tainted, one JWT-SVID",
 			taintedKeyIDs: map[string]struct{}{keyID1: {}},
 			setJWTSVIDsCached: func(cache *JWTSVIDCache) {
-				cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSVID)
+				cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSVID1)
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -93,8 +93,8 @@ func TestJWTSVIDCache(t *testing.T) {
 			name:          "one authority tainted, multiple JWT-SVIDs",
 			taintedKeyIDs: map[string]struct{}{keyID1: {}},
 			setJWTSVIDsCached: func(cache *JWTSVIDCache) {
-				cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSVID)
-				cache.SetJWTSVID(spiffeID, []string{"audience-2"}, jwtSVID)
+				cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSVID1)
+				cache.SetJWTSVID(spiffeID, []string{"audience-2"}, jwtSVID1)
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -130,8 +130,8 @@ func TestJWTSVIDCache(t *testing.T) {
 			name:          "multiple authorities tainted, multiple JWT-SVIDs",
 			taintedKeyIDs: map[string]struct{}{keyID1: {}, keyID2: {}},
 			setJWTSVIDsCached: func(cache *JWTSVIDCache) {
-				cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSVID)
-				cache.SetJWTSVID(spiffeID, []string{"audience-2"}, jwtSVID)
+				cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSVID1)
+				cache.SetJWTSVID(spiffeID, []string{"audience-2"}, jwtSVID1)
 				cache.SetJWTSVID(spiffeID, []string{"audience-3"}, jwtSVID2)
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -176,8 +176,8 @@ func TestJWTSVIDCache(t *testing.T) {
 			name:          "none of the authorities tainted is in cache",
 			taintedKeyIDs: map[string]struct{}{"not-cached-1": {}, "not-cached-2": {}},
 			setJWTSVIDsCached: func(cache *JWTSVIDCache) {
-				cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSVID)
-				cache.SetJWTSVID(spiffeID, []string{"audience-2"}, jwtSVID)
+				cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSVID1)
+				cache.SetJWTSVID(spiffeID, []string{"audience-2"}, jwtSVID1)
 				cache.SetJWTSVID(spiffeID, []string{"audience-3"}, jwtSVID2)
 			},
 			expectMetrics: []fakemetrics.MetricItem{
@@ -203,7 +203,7 @@ func TestJWTSVIDCache(t *testing.T) {
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			cache := NewJWTSVIDCache(log, fakeMetrics)
+			cache := NewJWTSVIDCache(log, fakeMetrics, 8)
 			if tt.setJWTSVIDsCached != nil {
 				tt.setJWTSVIDsCached(cache)
 			}
@@ -221,15 +221,57 @@ func TestJWTSVIDCache(t *testing.T) {
 	}
 }
 
+func TestJWTSVIDCacheSize(t *testing.T) {
+	fakeMetrics := fakemetrics.New()
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	cache := NewJWTSVIDCache(log, fakeMetrics, 2)
+
+	now := time.Now()
+	jwtSvid1 := &client.JWTSVID{Token: "1", IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
+	jwtSvid2 := &client.JWTSVID{Token: "2", IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
+	jwtSvid3 := &client.JWTSVID{Token: "3", IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
+
+	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
+	cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSvid1)
+	cache.SetJWTSVID(spiffeID, []string{"audience-2"}, jwtSvid2)
+	cache.SetJWTSVID(spiffeID, []string{"audience-3"}, jwtSvid3)
+
+	// The first SVID that was inserted into the cache should have been evicted.
+	_, ok := cache.GetJWTSVID(spiffeID, []string{"audience-1"})
+	assert.False(t, ok)
+
+	actual, ok := cache.GetJWTSVID(spiffeID, []string{"audience-2"})
+	assert.True(t, ok)
+	assert.Equal(t, jwtSvid2, actual)
+
+	actual, ok = cache.GetJWTSVID(spiffeID, []string{"audience-3"})
+	assert.True(t, ok)
+	assert.Equal(t, jwtSvid3, actual)
+
+	// Make the second token the most recently used token
+	_, _ = cache.GetJWTSVID(spiffeID, []string{"audience-2"})
+
+	// Insert a token
+	cache.SetJWTSVID(spiffeID, []string{"audience-1"}, jwtSvid1)
+
+	actual, ok = cache.GetJWTSVID(spiffeID, []string{"audience-2"})
+	assert.True(t, ok)
+	assert.Equal(t, jwtSvid2, actual)
+
+	_, ok = cache.GetJWTSVID(spiffeID, []string{"audience-3"})
+	assert.False(t, ok)
+}
+
 func TestJWTSVIDCacheKeyHashing(t *testing.T) {
 	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 	now := time.Now()
-	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Second)}
+	expected := &client.JWTSVID{Token: "X", IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
 
 	fakeMetrics := fakemetrics.New()
 	log, _ := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
-	cache := NewJWTSVIDCache(log, fakeMetrics)
+	cache := NewJWTSVIDCache(log, fakeMetrics, 8)
 	cache.SetJWTSVID(spiffeID, []string{"ab", "cd"}, expected)
 
 	// JWT is cached
