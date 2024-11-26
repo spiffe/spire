@@ -38,7 +38,7 @@ func (f *fakePeer) killGrandchild() {
 	}
 
 	// Wait for the process to exit, so we are sure that we can
-	// cleanup the directory containing the executable
+	// clean up the directory containing the executable
 	if _, err := process.Wait(); err != nil {
 		f.t.Fatalf("wait failed: %v", err)
 	}

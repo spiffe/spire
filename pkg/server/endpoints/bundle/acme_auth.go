@@ -38,14 +38,14 @@ type ACMEConfig struct {
 	// Email is the email address of the account to register with ACME
 	Email string
 
-	// ToSAccepted is whether or not the terms of service have been accepted. If
+	// ToSAccepted is whether the terms of service have been accepted. If
 	// not true, and the provider requires acceptance, then certificate
 	// retrieval will fail.
 	ToSAccepted bool
 }
 
 func ACMEAuth(log logrus.FieldLogger, km keymanager.KeyManager, config ACMEConfig) ServerAuth {
-	// The acme client already defaulting to Let's Encrypt if the URL is unset
+	// The acme client already defaulting to Let's Encrypt if the URL is unset,
 	// but we want it populated for logging purposes.
 	if config.DirectoryURL == "" {
 		config.DirectoryURL = acme.LetsEncryptURL

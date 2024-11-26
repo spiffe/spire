@@ -7,16 +7,16 @@ the ServerCA plugin.
 
 The plugin accepts the following configuration options:
 
-| Configuration     | Description                                           |
-|-------------------|-------------------------------------------------------|
-| region            | AWS Region that the AWS Secrets Manager is running in |
-| cert_file_arn     | ARN of the "upstream" CA certificate that will be used for signing. If more than one certificate is present, they will be added to the chain in order of appearance, where the first certificate will be the one used for signing.                 |
-| key_file_arn      | ARN of the "upstream" CA key file                     |
-| bundle_file_arn   | ARN of roots to include in the trust bundle. If `cert_file_arn` contains a self-signed root CA certificate this field can be left unset. Otherwise, `bundle_file_arn` must include one or more root CA certificates |
-| access_key_id     | AWS access key ID                                     |
-| secret_access_key | AWS secret access key                                 |
-| secret_token      | AWS secret token                                      |
-| assume_role_arn   | ARN of role to assume                                 |
+| Configuration     | Description                                                                                                                                                                                                                        |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| region            | AWS Region that the AWS Secrets Manager is running in                                                                                                                                                                              |
+| cert_file_arn     | ARN of the "upstream" CA certificate that will be used for signing. If more than one certificate is present, they will be added to the chain in order of appearance, where the first certificate will be the one used for signing. |
+| key_file_arn      | ARN of the "upstream" CA key file                                                                                                                                                                                                  |
+| bundle_file_arn   | ARN of roots to include in the trust bundle. If `cert_file_arn` contains a self-signed root CA certificate this field can be left unset. Otherwise, `bundle_file_arn` must include one or more root CA certificates                |
+| access_key_id     | AWS access key ID                                                                                                                                                                                                                  |
+| secret_access_key | AWS secret access key                                                                                                                                                                                                              |
+| secret_token      | AWS secret token                                                                                                                                                                                                                   |
+| assume_role_arn   | ARN of role to assume                                                                                                                                                                                                              |
 
 Only the region, cert_file_arn, and key_file_arn must be configured. You optionally configure the remaining fields depending on how you choose to give SPIRE Server access to the ARNs.
 

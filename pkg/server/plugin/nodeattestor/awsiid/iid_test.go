@@ -747,7 +747,7 @@ func (c *fakeClient) GetInstanceProfile(_ context.Context, input *iam.GetInstanc
 }
 
 func (c *fakeClient) ListAccounts(_ context.Context, input *organizations.ListAccountsInput, _ ...func(*organizations.Options)) (*organizations.ListAccountsOutput, error) {
-	// Only modify the output if its not being mutated in test for : mutateListAccountOutput.
+	// Only modify the output if it's not being mutated in test for : mutateListAccountOutput.
 	if c.ListAccountOutput.Accounts == nil {
 		c.ListAccountOutput = &organizations.ListAccountsOutput{
 			Accounts: []types.Account{{

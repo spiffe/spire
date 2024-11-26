@@ -83,7 +83,7 @@ func TestAppendFlag(t *testing.T) {
 					t.Fatalf("got unexpected error: %v", err)
 				}
 
-				// If we received an error and we expected it, then we're
+				// If we received an error, and we expected it, then we're
 				// done with this test case
 				return
 			}
