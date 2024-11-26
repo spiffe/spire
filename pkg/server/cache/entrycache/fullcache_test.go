@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	sqlds "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
@@ -789,7 +790,9 @@ func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.DataStore {
 		require.FailNowf(tb, "Unsupported external test dialect %q", TestDialect)
 	}
 
-	err := p.Configure(ctx, cfg)
+	err := p.Configure(ctx, catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}, cfg)
 	require.NoError(tb, err)
 
 	return p

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -38,7 +39,9 @@ func New(tb testing.TB) *DataStore {
 	ds := sql.New(log)
 	ds.SetUseServerTimestamps(true)
 
-	err := ds.Configure(ctx, fmt.Sprintf(`
+	err := ds.Configure(ctx, catalog.CoreConfig{
+		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+	}, fmt.Sprintf(`
 		database_type = "sqlite3"
 		connection_string = "file:memdb%d?mode=memory&cache=shared"
 	`, atomic.AddUint32(&nextID, 1)))

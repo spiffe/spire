@@ -32,7 +32,7 @@ func (suite *ServerTestSuite) SetupTest() {
 	logger.Out = suite.stdout
 	logger.Level = logrusLevel
 
-	suite.server = New(Config{
+	suite.server = New(&Config{
 		Log:         logger,
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	})
