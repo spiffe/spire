@@ -107,6 +107,34 @@ type Config struct {
 
 	// CoreConfig is the core configuration provided to each plugin.
 	CoreConfig CoreConfig
+
+	// Validate plugins only
+	ValidateOnly bool
+
+	// Validation findings
+	ValidationNotes []string
+
+	// First validation error
+	ValidationError string
+}
+
+func (c *Config) ReportInfo(message string) {
+	c.ValidationNotes = append(c.ValidationNotes, message)
+}
+
+func (c *Config) ReportInfof(message string, args ...any) {
+	c.ReportInfo(fmt.Sprintf(message, args...))
+}
+
+func (c *Config) ReportError(message string) {
+	if c.ValidationError == "" {
+		c.ValidationError = message
+	}
+	c.ValidationNotes = append(c.ValidationNotes, message)
+}
+
+func (c *Config) ReportErrorf(message string, args ...any) {
+	c.ReportError(fmt.Sprintf(message, args...))
 }
 
 type Catalog struct {
@@ -129,7 +157,7 @@ func (c *Catalog) Close() error {
 // given catalog are considered invalidated. If any plugin fails to load or
 // configure, all plugins are unloaded, the catalog is cleared, and the
 // function returns an error.
-func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err error) {
+func Load(ctx context.Context, config *Config, repo Repository) (_ *Catalog, err error) {
 	closers := make(closerGroup, 0)
 	defer func() {
 		// If loading fails, clear out the catalog and close down all plugins
@@ -145,26 +173,39 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 		}
 	}()
 
+	log := config.Log.WithFields(logrus.Fields{
+		telemetry.SubsystemName: "common_catalog",
+	})
+
 	pluginRepos, err := makeBindablePluginRepos(repo.Plugins())
 	if err != nil {
 		return nil, err
 	}
+	log.Infof("bindablePluginRepos: %+v", pluginRepos)
+
 	serviceRepos, err := makeBindableServiceRepos(repo.Services())
 	if err != nil {
 		return nil, err
 	}
+	log.Infof("bindableServiceRepos: %+v", serviceRepos)
 
 	pluginCounts := make(map[string]int)
 	var reconfigurers Reconfigurers
 
 	for _, pluginConfig := range config.PluginConfigs {
+		log.Infof("plugin(%s): processing", pluginConfig.Name)
+
 		pluginLog := makePluginLog(config.Log, pluginConfig)
 
 		pluginRepo, ok := pluginRepos[pluginConfig.Type]
 		if !ok {
-			pluginLog.Error("Unsupported plugin type")
-			return nil, fmt.Errorf("unsupported plugin type %q", pluginConfig.Type)
+			config.ReportErrorf("common catalog: Unsupported plugin %q of type %q", pluginConfig.Name, pluginConfig.Type)
+			if !config.ValidateOnly {
+				return nil, fmt.Errorf("unsupported plugin type %q", pluginConfig.Type)
+			}
+			continue
 		}
+		log.Infof("plugin(%s): supported", pluginConfig.Name)
 
 		if pluginConfig.Disabled {
 			pluginLog.Debug("Not loading plugin; disabled")
@@ -173,8 +214,12 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 
 		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, pluginLog, config.HostServices)
 		if err != nil {
+			config.ReportErrorf("commmon catalog: plugin %q failed to load", pluginConfig.Name)
 			pluginLog.WithError(err).Error("Failed to load plugin")
-			return nil, fmt.Errorf("failed to load plugin %q: %w", pluginConfig.Name, err)
+			if !config.ValidateOnly {
+				return nil, fmt.Errorf("failed to load plugin %q: %w", pluginConfig.Name, err)
+			}
+			continue
 		}
 
 		// Add the plugin to the closers even though it has not been completely
@@ -182,20 +227,36 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 		// panic, etc.) we want the defer above to close the plugin. Failure to
 		// do so can orphan external plugin processes.
 		closers = append(closers, pluginCloser{plugin: plugin, log: pluginLog})
+		log.Infof("plugin(%s): loaded", pluginConfig.Name)
 
 		configurer, err := plugin.bindRepos(pluginRepo, serviceRepos)
 		if err != nil {
+			config.ReportErrorf("commmon catalog: failed to bind plugin %q", pluginConfig.Name)
 			pluginLog.WithError(err).Error("Failed to bind plugin")
-			return nil, fmt.Errorf("failed to bind plugin %q: %w", pluginConfig.Name, err)
+			if !config.ValidateOnly {
+				return nil, fmt.Errorf("failed to bind plugin %q: %w", pluginConfig.Name, err)
+			}
 		}
+		log.Infof("plugin(%s): bound, configurer %+v", pluginConfig.Name, configurer)
 
-		reconfigurer, err := configurePlugin(ctx, pluginLog, config.CoreConfig, configurer, pluginConfig.DataSource)
-		if err != nil {
-			pluginLog.WithError(err).Error("Failed to configure plugin")
-			return nil, fmt.Errorf("failed to configure plugin %q: %w", pluginConfig.Name, err)
-		}
-		if reconfigurer != nil {
-			reconfigurers = append(reconfigurers, reconfigurer)
+		if !config.ValidateOnly {
+			reconfigurer, err := configurePlugin(ctx, pluginLog, config.CoreConfig, configurer, pluginConfig.DataSource)
+			if err != nil {
+				pluginLog.WithError(err).Error("Failed to configure plugin")
+				return nil, fmt.Errorf("failed to configure plugin %q: %w", pluginConfig.Name, err)
+			}
+			if reconfigurer != nil {
+				reconfigurers = append(reconfigurers, reconfigurer)
+			}
+		} else {
+			result, _ := validatePlugin(ctx, pluginLog, config.CoreConfig, configurer, pluginConfig.DataSource)
+			for _, note := range result.Notes {
+				if note == result.Error {
+					config.ReportErrorf("plugin %s(%q): %s", pluginConfig.Type, pluginConfig.Name, note)
+				} else {
+					config.ReportInfof("plugin %s(%q): %s", pluginConfig.Type, pluginConfig.Name, note)
+				}
+			}
 		}
 
 		pluginLog.Info("Plugin loaded")
@@ -205,7 +266,11 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 	// Make sure all plugin constraints are satisfied
 	for pluginType, pluginRepo := range pluginRepos {
 		if err := pluginRepo.Constraints().Check(pluginCounts[pluginType]); err != nil {
-			return nil, fmt.Errorf("plugin type %q constraint not satisfied: %w", pluginType, err)
+			config.ReportErrorf("commmon catalog: plugin type %q constraint violation: %s", pluginType, err.Error())
+			if !config.ValidateOnly {
+				return nil, fmt.Errorf("plugin type %q constraint not satisfied: %w", pluginType, err)
+			}
+			continue
 		}
 	}
 

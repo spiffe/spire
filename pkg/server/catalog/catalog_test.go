@@ -73,7 +73,7 @@ func Test(t *testing.T) {
 			if tt.prepareConfig != nil {
 				tt.prepareConfig(dir, &config)
 			}
-			repo, err := catalog.Load(context.Background(), config)
+			repo, err := catalog.Load(context.Background(), &config)
 			if repo != nil {
 				repo.Close()
 			}

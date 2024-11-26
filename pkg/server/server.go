@@ -55,7 +55,7 @@ const (
 )
 
 type Server struct {
-	config Config
+	config *Config
 }
 
 // Run the server
@@ -115,8 +115,14 @@ func (s *Server) run(ctx context.Context) (err error) {
 	// until the call to SetDeps() below.
 	agentStore := agentstore.New()
 
-	cat, err := s.loadCatalog(ctx, metrics, identityProvider, agentStore, healthChecker)
-	if err != nil {
+	catalogConfig := s.newCatalogConfig(metrics, identityProvider, agentStore, healthChecker)
+	catalogConfig.ValidateOnly = s.config.ValidateOnly
+	cat, err := catalog.Load(ctx, catalogConfig)
+	s.config.ValidationNotes = append(s.config.ValidationNotes, catalogConfig.ValidationNotes...)
+	if s.config.ValidationError == "" {
+		s.config.ValidationError = catalogConfig.ValidationError
+	}
+	if err != nil || s.config.ValidateOnly == true {
 		return err
 	}
 	defer cat.Close()
@@ -282,17 +288,17 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore,
-	healthChecker health.Checker) (*catalog.Repository, error) {
-	return catalog.Load(ctx, catalog.Config{
-		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+func (s *Server) newCatalogConfig(metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore, healthChecker health.Checker) *catalog.Config {
+	return &catalog.Config{
+		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+		TrustDomain:   s.config.TrustDomain,
+		PluginConfigs: s.config.PluginConfigs,
+
 		Metrics:          metrics,
-		TrustDomain:      s.config.TrustDomain,
-		PluginConfigs:    s.config.PluginConfigs,
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
 		HealthChecker:    healthChecker,
-	})
+	}
 }
 
 func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, error) {

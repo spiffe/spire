@@ -222,16 +222,16 @@ func (cmd *Command) Help() string {
 
 // Help is a standalone function that prints a help message to writer.
 // It is used by both the run and validate commands, so they can share flag usage messages.
-func Help(name string, writer io.Writer) string {
-	_, err := parseFlags(name, []string{"-h"}, writer)
+func Help(name string, writer io.Writer, options ...func(fs *flag.FlagSet)) string {
+	_, err := parseFlags(name, []string{"-h"}, writer, options...)
 	// Error is always present because -h is passed
 	return err.Error()
 }
 
-func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig bool) (*server.Config, error) {
+func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig bool, options ...func(*flag.FlagSet)) (*server.Config, error) {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
-	cliInput, err := parseFlags(name, args, output)
+	cliInput, err := parseFlags(name, args, output, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (cmd *Command) Run(args []string) int {
 	// Set umask before starting up the server
 	common_cli.SetUmask(c.Log)
 
-	s := server.New(*c)
+	s := server.New(c)
 
 	ctx := cmd.ctx
 	if ctx == nil {
@@ -327,7 +327,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	return c, nil
 }
 
-func parseFlags(name string, args []string, output io.Writer) (*serverConfig, error) {
+func parseFlags(name string, args []string, output io.Writer, options ...func(*flag.FlagSet)) (*serverConfig, error) {
 	flags := flag.NewFlagSet(name, flag.ContinueOnError)
 	flags.SetOutput(output)
 	c := &serverConfig{}
@@ -342,6 +342,9 @@ func parseFlags(name string, args []string, output io.Writer) (*serverConfig, er
 	flags.StringVar(&c.LogLevel, "logLevel", "", "'debug', 'info', 'warn', or 'error'")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this server belongs to")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
+	for _, option := range options {
+		option(flags)
+	}
 	c.addOSFlags(flags)
 
 	err := flags.Parse(args)

@@ -66,6 +66,30 @@ type Config struct {
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
 	HealthChecker    health.Checker
+
+	ValidateOnly bool
+
+	ValidationNotes []string
+	ValidationError string
+}
+
+func (c *Config) ReportInfo(message string) {
+	c.ValidationNotes = append(c.ValidationNotes, message)
+}
+
+func (c *Config) ReportInfof(format string, args ...any) {
+	c.ReportInfo(fmt.Sprintf(format, args...))
+}
+
+func (c *Config) ReportError(message string) {
+	if c.ValidationError == "" {
+		c.ValidationError = message
+	}
+	c.ValidationNotes = append(c.ValidationNotes, message)
+}
+
+func (c *Config) ReportErrorf(format string, args ...any) {
+	c.ReportError(fmt.Sprintf(format, args...))
 }
 
 type datastoreRepository struct{ datastore.Repository }
@@ -125,11 +149,11 @@ func (repo *Repository) Close() {
 	}
 }
 
-func Load(ctx context.Context, config Config) (_ *Repository, err error) {
+func Load(ctx context.Context, config *Config) (_ *Repository, err error) {
 	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
+		config.ReportError("the built-in join_token node attestor cannot be overridden by an external plugin")
 		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
 	}
-
 	repo := &Repository{
 		log: config.Log,
 	}
@@ -145,14 +169,13 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
-	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
-	sqlDataStore, err := loadSQLDataStore(ctx, config, coreConfig, dataStoreConfigs)
+	sqlDataStore, pluginConfigs, err := loadSQLDataStore(ctx, config, coreConfig)
 	if err != nil {
 		return nil, err
 	}
 	repo.dsCloser = sqlDataStore
 
-	repo.catalog, err = catalog.Load(ctx, catalog.Config{
+	commonConfig := &catalog.Config{
 		Log:           config.Log,
 		CoreConfig:    coreConfig,
 		PluginConfigs: pluginConfigs,
@@ -161,9 +184,15 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 			agentstorev1.AgentStoreServiceServer(config.AgentStore.V1()),
 			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
 		},
-	}, repo)
+		ValidateOnly: config.ValidateOnly,
+	}
+	repo.catalog, err = catalog.Load(ctx, commonConfig, repo)
 	if err != nil {
 		return nil, err
+	}
+	config.ValidationNotes = append(config.ValidationNotes, commonConfig.ValidationNotes...)
+	if config.ValidationError == "" {
+		config.ValidationError = commonConfig.ValidationError
 	}
 
 	var dataStore datastore.DataStore = sqlDataStore
@@ -176,44 +205,52 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 
 	repo.SetDataStore(dataStore)
 	repo.SetKeyManager(km_telemetry.WithMetrics(repo.GetKeyManager(), config.Metrics))
-
 	return repo, nil
 }
 
-func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.CoreConfig, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
+func validateSQLConfig(config *Config) (catalog.PluginConfig, PluginConfigs, error) {
+	datastoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
 	switch {
 	case len(datastoreConfigs) == 0:
-		return nil, errors.New("expecting a DataStore plugin")
+		config.ReportError("expecting a DataStore plugin")
+		return catalog.PluginConfig{}, PluginConfigs(nil), errors.New("expecting a DataStore plugin")
 	case len(datastoreConfigs) > 1:
-		return nil, errors.New("only one DataStore plugin is allowed")
+		config.ReportError("only one DataStore plugin is allowed")
+		return catalog.PluginConfig{}, PluginConfigs(nil), errors.New("only one DataStore plugin is allowed")
 	}
 
-	sqlConfig := datastoreConfigs[0]
+	datastoreConfig := datastoreConfigs[0]
 
-	if sqlConfig.Name != ds_sql.PluginName {
-		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
+	if datastoreConfig.Name != ds_sql.PluginName {
+		config.ReportErrorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
+		return catalog.PluginConfig{}, PluginConfigs(nil), fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
-	if sqlConfig.IsExternal() {
-		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
+	if datastoreConfig.IsExternal() {
+		config.ReportErrorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
+		return catalog.PluginConfig{}, PluginConfigs(nil), fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
-	if sqlConfig.DataSource == nil {
-		sqlConfig.DataSource = catalog.FixedData("")
+	if datastoreConfig.DataSource.IsDynamic() {
+		config.ReportInfo("DataStore is not reconfigurable even with a dynamic data source")
 	}
 
-	dsLog := config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name)
+	return datastoreConfig, pluginConfigs, nil
+}
+
+func loadSQLDataStore(ctx context.Context, config *Config, coreConfig catalog.CoreConfig) (*ds_sql.Plugin, PluginConfigs, error) {
+	dataStoreConfig, pluginConfigs, err := validateSQLConfig(config)
+	if err != nil {
+		return nil, nil, err
+	}
+	if dataStoreConfig.DataSource == nil {
+		dataStoreConfig.DataSource = catalog.FixedData("")
+	}
+
+	dsLog := config.Log.WithField(telemetry.SubsystemName, dataStoreConfig.Name)
 	ds := ds_sql.New(dsLog)
-	configurer := catalog.ConfigurerFunc(func(ctx context.Context, _ catalog.CoreConfig, configuration string) error {
-		return ds.Configure(ctx, configuration)
-	})
-
-	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, configurer, sqlConfig.DataSource, ""); err != nil {
-		return nil, err
-	}
-
-	if sqlConfig.DataSource.IsDynamic() {
-		config.Log.Warn("DataStore is not reconfigurable even with a dynamic data source")
+	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, ds, dataStoreConfig.DataSource, ""); err != nil {
+		return nil, nil, err
 	}
 
 	config.Log.WithField(telemetry.Reconfigurable, false).Info("Configured DataStore")
-	return ds, nil
+	return ds, pluginConfigs, nil
 }

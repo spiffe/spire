@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/x509/pkix"
+	"fmt"
 	"net"
 	"time"
 
@@ -120,6 +121,15 @@ type Config struct {
 	// calculation (prefer the TTL passed by the downstream caller, then fall
 	// back to the default X509 CA TTL).
 	UseLegacyDownstreamX509CATTL bool
+
+	// load this server, validate configurations, and then shutdown
+	ValidateOnly bool
+
+	// notes about the configuration
+	ValidationNotes []string
+
+	// the first validation error message
+	ValidationError string
 }
 
 type ExperimentalConfig struct {
@@ -133,8 +143,27 @@ type FederationConfig struct {
 	FederatesWith map[spiffeid.TrustDomain]bundle_client.TrustDomainConfig
 }
 
-func New(config Config) *Server {
+func New(config *Config) *Server {
 	return &Server{
 		config: config,
 	}
+}
+
+func (c *Config) ReportInfo(message string) {
+	c.ValidationNotes = append(c.ValidationNotes, message)
+}
+
+func (c *Config) ReportInfof(format string, args ...any) {
+	c.ReportInfo(fmt.Sprintf(format, args...))
+}
+
+func (c *Config) ReportError(message string) {
+	if c.ValidationError == "" {
+		c.ValidationError = message
+	}
+	c.ValidationNotes = append(c.ValidationNotes, message)
+}
+
+func (c *Config) ReportErrorf(format string, args ...any) {
+	c.ReportError(fmt.Sprintf(format, args...))
 }

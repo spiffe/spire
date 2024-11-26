@@ -2,6 +2,7 @@ package validate
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -31,11 +32,11 @@ func (s *ValidateSuite) SetupTest() {
 	s.stdout = new(bytes.Buffer)
 	s.stderr = new(bytes.Buffer)
 
-	s.cmd = newValidateCommand(&common_cli.Env{
+	s.cmd = newValidateCommand(context.Background(), &common_cli.Env{
 		Stdin:  s.stdin,
 		Stdout: s.stdout,
 		Stderr: s.stderr,
-	})
+	}, nil)
 }
 
 func (s *ValidateSuite) TestSynopsis() {
