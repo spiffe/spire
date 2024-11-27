@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 const DefaultRotatorInterval = 5 * time.Second
@@ -43,6 +44,9 @@ type RotatorConfig struct {
 	Clk clock.Clock
 
 	RotationStrategy *rotationutil.RotationStrategy
+
+	// TLSPolicy determines the post-quantum-safe policy for TLS connections.
+	TLSPolicy tlspolicy.Policy
 }
 
 func NewRotator(c *RotatorConfig) (Rotator, client.Client) {
@@ -85,6 +89,7 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 			}
 			return s.SVID, s.Key, rootCAs
 		},
+		TLSPolicy: c.TLSPolicy,
 	}
 	client := client.New(cfg)
 

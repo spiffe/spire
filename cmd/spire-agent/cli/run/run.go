@@ -39,6 +39,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 const (
@@ -121,6 +122,7 @@ type experimentalConfig struct {
 	NamedPipeName            string `hcl:"named_pipe_name"`
 	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
 	UseSyncAuthorizedEntries bool   `hcl:"use_sync_authorized_entries"`
+	RequirePQKEM             bool   `hcl:"require_pq_kem"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 }
@@ -590,6 +592,12 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 		ac.AvailabilityTarget = t
 	}
+
+	ac.TLSPolicy = tlspolicy.Policy{
+		RequirePQKEM: c.Agent.Experimental.RequirePQKEM,
+	}
+
+	tlspolicy.LogPolicy(ac.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
 
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
 		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")

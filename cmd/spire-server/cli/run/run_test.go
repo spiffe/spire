@@ -64,6 +64,7 @@ func TestParseConfigGood(t *testing.T) {
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
+	assert.True(t, c.Server.Experimental.RequirePQKEM)
 	testParseConfigGoodOS(t, c)
 
 	// Parse/reprint cycle trims outer whitespace
@@ -453,6 +454,16 @@ func TestMergeInput(t *testing.T) {
 			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.True(t, c.Server.AuditLogEnabled)
+			},
+		},
+		{
+			msg: "require_pq_kem should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.Experimental.RequirePQKEM = true
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.Experimental.RequirePQKEM)
 			},
 		},
 	}
@@ -1158,6 +1169,22 @@ func TestNewServerConfig(t *testing.T) {
 				require.Equal(t, []spiffeid.ID{
 					spiffeid.RequireFromString("spiffe://otherdomain.test/my/admin"),
 				}, c.AdminIDs)
+			},
+		},
+		{
+			msg:   "require PQ KEM is disabled (default)",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, false, c.TLSPolicy.RequirePQKEM)
+			},
+		},
+		{
+			msg: "require PQ KEM is enabled",
+			input: func(c *Config) {
+				c.Server.Experimental.RequirePQKEM = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
 			},
 		},
 	}
