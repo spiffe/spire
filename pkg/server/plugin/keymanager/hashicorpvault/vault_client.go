@@ -546,7 +546,6 @@ func (c *Client) getKey(ctx context.Context, spireKeyID string) (map[string]inte
 		return nil, status.Errorf(codes.Internal, "expected key map data type %T but got %T", keyMap, keys)
 	}
 
-	// TODO: Should we support multiple versions of the key?
 	currentKey, ok := keyMap["1"]
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "unable to find key with version 1 in %v", keyMap)
