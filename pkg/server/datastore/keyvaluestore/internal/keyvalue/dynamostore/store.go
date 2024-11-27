@@ -572,6 +572,13 @@ func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.List
 		}
 	}
 
+	if listObject.Limit > 0 && len(results) != 0 {
+		if len(results) > listObject.Limit {
+			results = results[:listObject.Limit]
+		}
+		nextCursor = results[len(results)-1].Key
+	}
+
 	return results, nextCursor, nil
 }
 
