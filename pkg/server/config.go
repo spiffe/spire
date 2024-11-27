@@ -10,6 +10,7 @@ import (
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	loggerv1 "github.com/spiffe/spire/pkg/server/api/logger/v1"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -120,6 +121,9 @@ type Config struct {
 	// calculation (prefer the TTL passed by the downstream caller, then fall
 	// back to the default X509 CA TTL).
 	UseLegacyDownstreamX509CATTL bool
+
+	// TLSPolicy determines the policy settings to apply to all TLS connections.
+	TLSPolicy tlspolicy.Policy
 }
 
 type ExperimentalConfig struct {

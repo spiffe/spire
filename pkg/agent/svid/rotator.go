@@ -367,6 +367,7 @@ func (r *rotator) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) (
 		Address:     r.c.ServerAddr,
 		TrustDomain: r.c.TrustDomain,
 		GetBundle:   bundle.X509Authorities,
+		TLSPolicy:   r.c.TLSPolicy,
 	})
 }
 
