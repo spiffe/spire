@@ -10,12 +10,14 @@ import (
 func TestApplyPolicy(t *testing.T) {
 	require := require.New(t)
 
-	tlsConfig := &tls.Config{}
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS12,
+	}
 	err := ApplyPolicy(tlsConfig, Policy{})
 	require.NoError(err)
 
-	require.Equal(len(tlsConfig.CurvePreferences), 0)
-	require.Equal(tlsConfig.MinVersion, uint16(0))
+	require.Equal(0, len(tlsConfig.CurvePreferences))
+	require.Equal(uint16(tls.VersionTLS12), tlsConfig.MinVersion)
 
 	tlsConfig = &tls.Config{
 		MinVersion: tls.VersionTLS12,
@@ -28,6 +30,6 @@ func TestApplyPolicy(t *testing.T) {
 	})
 	require.NoError(err)
 
-	require.Equal([]tls.CurveID{x25519Kyber768Draft00}, tlsConfig.CurvePreferences)
-	require.Equal(uint16(tls.VersionTLS13), tlsConfig.MinVersion)
+	require.Equal(tlsConfig.CurvePreferences, []tls.CurveID{x25519Kyber768Draft00})
+	require.Equal(tlsConfig.MinVersion, uint16(tls.VersionTLS13))
 }
