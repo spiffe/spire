@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// AppendBundle append bundle contents to the existing bundle (by trust domain). If no existing one is present, create it.
 func (ds *DataStore) AppendBundle(ctx context.Context, appends *common.Bundle) (*common.Bundle, error) {
 	if appends == nil {
 		return nil, kvError.New("missing bundle in request")
@@ -44,9 +45,8 @@ func (ds *DataStore) AppendBundle(ctx context.Context, appends *common.Bundle) (
 	}
 }
 
+// CountBundles can be used to count all existing bundles.
 func (ds *DataStore) CountBundles(ctx context.Context) (int32, error) {
-	// TO-DO
-	// return int32(ds.bundles.Count()), nil
 	records, _, err := ds.bundles.List(ctx, &datastore.ListBundlesRequest{})
 
 	if err != nil {
@@ -56,6 +56,7 @@ func (ds *DataStore) CountBundles(ctx context.Context) (int32, error) {
 	return int32(len(records)), nil
 }
 
+// CreateBundle stores the given bundle
 func (ds *DataStore) CreateBundle(ctx context.Context, in *common.Bundle) (*common.Bundle, error) {
 	if err := ds.bundles.Create(ctx, bundleObject{Bundle: in}); err != nil {
 		return nil, dsErr(err, "failed to create bundle")
@@ -63,6 +64,7 @@ func (ds *DataStore) CreateBundle(ctx context.Context, in *common.Bundle) (*comm
 	return in, nil
 }
 
+// DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
 func (ds *DataStore) DeleteBundle(ctx context.Context, trustDomainID string, mode datastore.DeleteMode) error {
 	_, err := ds.FetchBundle(ctx, trustDomainID)
 	if err != nil {
@@ -146,6 +148,7 @@ func removeFirstOccurrence(slice []string, element string) []string {
 	return slice
 }
 
+// FetchBundle returns the bundle matching the specified Trust Domain.
 func (ds *DataStore) FetchBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
 	out, err := ds.bundles.Get(ctx, trustDomainID)
 	switch {
@@ -158,6 +161,7 @@ func (ds *DataStore) FetchBundle(ctx context.Context, trustDomainID string) (*co
 	}
 }
 
+// ListBundles can be used to fetch all existing bundles.
 func (ds *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
 	records, cursor, err := ds.bundles.List(ctx, req)
 	if err != nil {
@@ -173,8 +177,8 @@ func (ds *DataStore) ListBundles(ctx context.Context, req *datastore.ListBundles
 	return resp, nil
 }
 
+// PruneBundle removes expired certs and keys from a bundle
 func (ds *DataStore) PruneBundle(ctx context.Context, trustDomainID string, expiresBefore time.Time) (changed bool, err error) {
-	// TODO: validation
 	r, err := ds.bundles.Get(ctx, trustDomainID)
 	switch {
 	case err == nil:
@@ -184,7 +188,6 @@ func (ds *DataStore) PruneBundle(ctx context.Context, trustDomainID string, expi
 			return false, status.Errorf(codes.Unknown, "prune failed: %v", err)
 		case changed:
 			pruned.SequenceNumber = r.Object.Bundle.SequenceNumber + 1
-			// TODO: retry on conflict
 			if err := ds.bundles.Update(ctx, bundleObject{Bundle: pruned}, r.Metadata.Revision); err != nil {
 				return false, dsErr(err, "failed to update existing bundle on prune")
 			}
@@ -199,6 +202,7 @@ func (ds *DataStore) PruneBundle(ctx context.Context, trustDomainID string, expi
 	}
 }
 
+// SetBundle sets bundle contents. If no bundle exists for the trust domain, it is created.
 func (ds *DataStore) SetBundle(ctx context.Context, in *common.Bundle) (*common.Bundle, error) {
 	bundle, err := ds.bundles.Get(ctx, in.TrustDomainId)
 	switch {
@@ -217,6 +221,8 @@ func (ds *DataStore) SetBundle(ctx context.Context, in *common.Bundle) (*common.
 	}
 }
 
+// UpdateBundle updates an existing bundle with the given CAs. Overwrites any
+// existing certificates.
 func (ds *DataStore) UpdateBundle(ctx context.Context, newBundle *common.Bundle, mask *common.BundleMask) (*common.Bundle, error) {
 	existing, err := ds.bundles.Get(ctx, newBundle.TrustDomainId)
 	if err != nil {

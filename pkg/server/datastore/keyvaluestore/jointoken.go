@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/record"
 )
 
+// CreateJoinToken takes a Token message and stores it
 func (ds *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {
 	if token == nil || token.Token == "" || token.Expiry.IsZero() {
 		return errors.New("token and expiry are required")
@@ -22,10 +23,13 @@ func (ds *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinT
 	return nil
 }
 
+// DeleteJoinToken deletes the given join token
 func (ds *DataStore) DeleteJoinToken(ctx context.Context, token string) error {
 	return ds.joinTokens.Delete(ctx, token)
 }
 
+// FetchJoinToken takes a Token message and returns one, populating the fields
+// we have knowledge of
 func (ds *DataStore) FetchJoinToken(ctx context.Context, token string) (*datastore.JoinToken, error) {
 	out, err := ds.joinTokens.Get(ctx, token)
 	switch {
@@ -38,6 +42,8 @@ func (ds *DataStore) FetchJoinToken(ctx context.Context, token string) (*datasto
 	}
 }
 
+// PruneJoinTokens takes a Token message, and deletes all tokens which have expired
+// before the date in the message
 func (ds *DataStore) PruneJoinTokens(ctx context.Context, expiresBefore time.Time) error {
 	records, _, err := ds.joinTokens.List(ctx, &listJoinTokens{
 		ByExpiresBefore: expiresBefore,

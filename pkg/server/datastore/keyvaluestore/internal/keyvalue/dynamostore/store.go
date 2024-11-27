@@ -188,9 +188,8 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// Get retrieves a record from the store based on kind and key.
 func (s *Store) Get(ctx context.Context, kind string, key string) (keyvalue.Record, error) {
-	//fmt.Printf("Dynamo Get kind: %s, key: %s\n", kind, key)
-
 	tableKey := map[string]types.AttributeValue{
 		"Key":  &types.AttributeValueMemberS{Value: key},
 		"Kind": &types.AttributeValueMemberS{Value: kind},
@@ -219,9 +218,8 @@ func (s *Store) Get(ctx context.Context, kind string, key string) (keyvalue.Reco
 	return record, nil
 }
 
+// Create inserts a new record into the store with the given kind, key, and object data.
 func (s *Store) Create(ctx context.Context, kind string, key string, object interface{}, byteValue []byte) error {
-	//fmt.Printf("Dynamo Create %s %s\n", kind, key)
-
 	now := s.now().UTC()
 
 	record := keyvalue.Record{
@@ -271,9 +269,9 @@ func (s *Store) Create(ctx context.Context, kind string, key string, object inte
 	return nil
 }
 
+// Update modifies an existing record in the store based on kind and key,
+// with the value if the specified revision matches the one in the store.
 func (s *Store) Update(ctx context.Context, kind string, key string, value interface{}, byteValue []byte, revision int64) error {
-	//fmt.Printf("Dynamo Update %s %s\n", kind, key)
-
 	tableKey := map[string]types.AttributeValue{
 		"Key":  &types.AttributeValueMemberS{Value: key},
 		"Kind": &types.AttributeValueMemberS{Value: kind},
@@ -315,9 +313,9 @@ func (s *Store) Update(ctx context.Context, kind string, key string, value inter
 
 }
 
+// Replace restar an existing record in the store based on kind and key,
+// with the value if the specified revision matches the one in the store.
 func (s *Store) Replace(ctx context.Context, kind string, key string, value interface{}, byteValue []byte) error {
-	//fmt.Printf("Dynamo Replace %s %s\n", kind, key)
-
 	tableKey := map[string]types.AttributeValue{
 		"Key":  &types.AttributeValueMemberS{Value: key},
 		"Kind": &types.AttributeValueMemberS{Value: kind},
@@ -357,9 +355,8 @@ func (s *Store) Replace(ctx context.Context, kind string, key string, value inte
 	return err
 }
 
+// Delete removes a record from the store based on kind and key.
 func (s *Store) Delete(ctx context.Context, kind string, key string) error {
-	//fmt.Printf("Dynamo Delete %+v\n", key)
-
 	tableKey := map[string]types.AttributeValue{
 		"Key":  &types.AttributeValueMemberS{Value: key},
 		"Kind": &types.AttributeValueMemberS{Value: kind},
@@ -390,13 +387,12 @@ func (s *Store) Delete(ctx context.Context, kind string, key string) error {
 }
 
 func (s *Store) Batch(ctx context.Context, ops []keyvalue.Op) error {
-	//fmt.Printf("Dynamo Batch\n")
 	return errors.New("unimplemented")
 }
 
+// AtomicCounter increments and retrieves the current value of the atomic counter
+// for the given kind.
 func (s *Store) AtomicCounter(ctx context.Context, kind string) (uint, error) {
-	//fmt.Printf("Dynamo AtomicCounter %s\n", kind)
-
 	// The "kind" will be used as key to the counter
 	tableKey := map[string]types.AttributeValue{
 		"Key":  &types.AttributeValueMemberS{Value: kind},
@@ -437,9 +433,11 @@ func (s *Store) AtomicCounter(ctx context.Context, kind string) (uint, error) {
 
 }
 
+// List retrieves records from the store based on kind,
+// filters, and pagination parameters from the ListObject.
 func (s *Store) List(ctx context.Context, kind string, listObject *keyvalue.ListObject) ([]keyvalue.Record, string, error) {
 	var results []keyvalue.Record
-	var projection []string //TO-DO
+	var projection []string //TODO
 	var nextCursor string
 
 	keyCondition := expression.Key("Kind").Equal(expression.Value(kind))

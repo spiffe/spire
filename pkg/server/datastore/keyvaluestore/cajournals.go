@@ -16,6 +16,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// SetCAJournal sets the content for the specified CA journal. If the CA journal
+// does not exist, it is created.
 func (ds *DataStore) SetCAJournal(ctx context.Context, caJournal *datastore.CAJournal) (*datastore.CAJournal, error) {
 	if err := validateCAJournal(caJournal); err != nil {
 		return nil, err
@@ -27,6 +29,8 @@ func (ds *DataStore) SetCAJournal(ctx context.Context, caJournal *datastore.CAJo
 	return ds.updateCAJournal(ctx, caJournal)
 }
 
+// FetchCAJournal fetches the CA journal that has the given active X509
+// authority domain. If the CA journal is not found, nil is returned.
 func (ds *DataStore) FetchCAJournal(ctx context.Context, activeX509AuthorityID string) (*datastore.CAJournal, error) {
 	if activeX509AuthorityID == "" {
 		return nil, status.Error(codes.InvalidArgument, "active X509 authority ID is required")
@@ -47,6 +51,8 @@ func (ds *DataStore) FetchCAJournal(ctx context.Context, activeX509AuthorityID s
 	return records[0].Object.CAJournal, nil
 }
 
+// PruneCAJournals prunes the CA journals that have all of their authorities
+// expired.
 func (ds *DataStore) PruneCAJournals(ctx context.Context, allAuthoritiesExpireBefore int64) error {
 	var errCount int
 	var firstErr error
@@ -93,6 +99,8 @@ checkAuthorities:
 	return nil
 }
 
+// ListCAJournalsForTesting returns all the CA journal records, and is meant to
+// be used in tests.
 func (ds *DataStore) ListCAJournalsForTesting(ctx context.Context) ([]*datastore.CAJournal, error) {
 	records, _, err := ds.caJournal.List(ctx, &listCaJournals{})
 	if err != nil {

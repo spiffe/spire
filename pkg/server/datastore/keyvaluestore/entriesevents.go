@@ -6,14 +6,15 @@ import (
 	"time"
 
 	"encoding/json"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/keyvalue"
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/record"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"strconv"
 )
 
+// ListRegistrationEntryEvents lists all registration entry events
 func (ds *DataStore) ListRegistrationEntryEvents(ctx context.Context, req *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
 	records, _, err := ds.entriesEvents.List(ctx, &listRegistrationEntryEventsRequest{
 		ListRegistrationEntryEventsRequest: *req,
@@ -32,6 +33,7 @@ func (ds *DataStore) ListRegistrationEntryEvents(ctx context.Context, req *datas
 	return resp, nil
 }
 
+// PruneRegistrationEntryEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
 func (ds *DataStore) PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) error {
 	records, _, err := ds.entriesEvents.List(ctx, &listRegistrationEntryEventsRequest{
 		ByCreatedBefore: time.Now().Add(-olderThan),
@@ -57,6 +59,7 @@ func (ds *DataStore) PruneRegistrationEntryEvents(ctx context.Context, olderThan
 	return nil
 }
 
+// FetchRegistrationEntryEvent fetches an existing registration entry event by event ID
 func (ds *DataStore) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*datastore.RegistrationEntryEvent, error) {
 	r, err := ds.entriesEvents.Get(ctx, entryEventContentKey(eventID))
 	switch {
@@ -69,6 +72,7 @@ func (ds *DataStore) FetchRegistrationEntryEvent(ctx context.Context, eventID ui
 	}
 }
 
+// CreateRegistrationEntryEventForTesting creates a registration entry event. Used for unit testing.
 func (ds *DataStore) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) error {
 	return ds.createRegistrationEntryEvent(ctx, event)
 }
@@ -87,9 +91,11 @@ func (ds *DataStore) createRegistrationEntryEvent(ctx context.Context, event *da
 	return nil
 }
 
+// DeleteRegistrationEntryEventForTesting deletes the given registration entry event. Used for unit testing.
 func (ds *DataStore) DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error {
 	return ds.deleteRegistrationEntryEvent(ctx, eventID)
 }
+
 func (ds *DataStore) deleteRegistrationEntryEvent(ctx context.Context, eventID uint) error {
 	if err := ds.entriesEvents.Delete(ctx, entryEventContentKey(eventID)); err != nil {
 		return dsErr(err, "failed to delete entry event")

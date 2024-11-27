@@ -116,12 +116,5 @@ func (c *Wrapper[C, I, O, L]) List(ctx context.Context, opts L) ([]*Record[O], s
 		rs = append(rs, r)
 	}
 
-	if filters.Limit > 0 && len(rs) != 0 {
-		if len(rs) > filters.Limit {
-			rs = rs[:filters.Limit]
-		}
-		nextCursor = rs[len(rs)-1].Object.Key()
-	}
-
 	return rs, nextCursor, nil
 }

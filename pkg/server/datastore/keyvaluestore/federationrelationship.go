@@ -17,6 +17,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// CreateFederationRelationship creates a new federation relationship. If the bundle endpoint
+// profile is 'https_spiffe' and the given federation relationship contains a bundle, the current
+// stored bundle is overridden.
+// If no bundle is provided and there is not a previously stored bundle in the datastore, the
+// federation relationship is not created.
 func (ds *DataStore) CreateFederationRelationship(ctx context.Context, in *datastore.FederationRelationship) (*datastore.FederationRelationship, error) {
 	if err := validateFederationRelationship(in, protoutil.AllTrueFederationRelationshipMask); err != nil {
 		return nil, err
@@ -35,6 +40,8 @@ func (ds *DataStore) CreateFederationRelationship(ctx context.Context, in *datas
 	return in, nil
 }
 
+// FetchFederationRelationship fetches the federation relationship that matches
+// the given trust domain. If the federation relationship is not found, nil is returned.
 func (ds *DataStore) FetchFederationRelationship(ctx context.Context, td spiffeid.TrustDomain) (*datastore.FederationRelationship, error) {
 	if td.IsZero() {
 		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
@@ -50,6 +57,7 @@ func (ds *DataStore) FetchFederationRelationship(ctx context.Context, td spiffei
 	}
 }
 
+// ListFederationRelationships can be used to list all existing federation relationships
 func (ds *DataStore) ListFederationRelationships(ctx context.Context, req *datastore.ListFederationRelationshipsRequest) (*datastore.ListFederationRelationshipsResponse, error) {
 	records, cursor, err := ds.federationRelationships.List(ctx, req)
 	if err != nil {
@@ -65,6 +73,8 @@ func (ds *DataStore) ListFederationRelationships(ctx context.Context, req *datas
 	return resp, nil
 }
 
+// DeleteFederationRelationship deletes the federation relationship to the
+// given trust domain. The associated trust bundle is not deleted.
 func (ds *DataStore) DeleteFederationRelationship(ctx context.Context, td spiffeid.TrustDomain) error {
 	if td.IsZero() {
 		return status.Error(codes.InvalidArgument, "trust domain is required")
@@ -76,6 +86,8 @@ func (ds *DataStore) DeleteFederationRelationship(ctx context.Context, td spiffe
 	return nil
 }
 
+// UpdateFederationRelationship updates the given federation relationship.
+// Attributes are only updated if the correspondent mask value is set to true.
 func (ds *DataStore) UpdateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship, mask *types.FederationRelationshipMask) (*datastore.FederationRelationship, error) {
 	if err := validateFederationRelationship(fr, mask); err != nil {
 		return nil, err

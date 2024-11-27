@@ -19,6 +19,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// CountRegistrationEntries counts all registrations (pagination available)
 func (ds *DataStore) CountRegistrationEntries(ctx context.Context, req *datastore.CountRegistrationEntriesRequest) (int32, error) {
 	listReq := &listRegistrationEntries{
 		ListRegistrationEntriesRequest: datastore.ListRegistrationEntriesRequest{
@@ -36,16 +37,16 @@ func (ds *DataStore) CountRegistrationEntries(ctx context.Context, req *datastor
 	return int32(len(records)), err
 }
 
+// CreateRegistrationEntry stores the given registration entry
 func (ds *DataStore) CreateRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, error) {
-	out, _, err := ds.createOrReturnRegistrationEntry(ctx, entry)
+	out, _, err := ds.CreateOrReturnRegistrationEntry(ctx, entry)
 	return out, err
 }
 
+// CreateOrReturnRegistrationEntry stores the given registration entry. If an
+// entry already exists with the same (parentID, spiffeID, selector) tuple,
+// that entry is returned instead.
 func (ds *DataStore) CreateOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
-	return ds.createOrReturnRegistrationEntry(ctx, entry)
-}
-
-func (ds *DataStore) createOrReturnRegistrationEntry(ctx context.Context, entry *common.RegistrationEntry) (*common.RegistrationEntry, bool, error) {
 	if err := validateRegistrationEntry(entry); err != nil {
 		return nil, false, err
 	}
@@ -93,6 +94,7 @@ func (ds *DataStore) createOrReturnRegistrationEntry(ctx context.Context, entry 
 	return ret, false, err
 }
 
+// DeleteRegistrationEntry deletes the given registration
 func (ds *DataStore) DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
 	r, err := ds.entries.Get(ctx, entryID)
 	if err != nil {
@@ -112,6 +114,7 @@ func (ds *DataStore) DeleteRegistrationEntry(ctx context.Context, entryID string
 	return r.Object.Entry, nil
 }
 
+// FetchRegistrationEntry fetches an existing registration by entry ID
 func (ds *DataStore) FetchRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error) {
 	r, err := ds.entries.Get(ctx, entryID)
 	switch {
@@ -124,6 +127,7 @@ func (ds *DataStore) FetchRegistrationEntry(ctx context.Context, entryID string)
 	}
 }
 
+// ListRegistrationEntries lists all registrations (pagination available)
 func (ds *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	records, cursor, err := ds.entries.List(ctx, &listRegistrationEntries{
 		ListRegistrationEntriesRequest: *req,
@@ -143,6 +147,8 @@ func (ds *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore
 	return resp, nil
 }
 
+// PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
+// before the date in the message
 func (ds *DataStore) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) error {
 	records, _, err := ds.entries.List(ctx, &listRegistrationEntries{
 		ByExpiresBefore: expiresBefore,
@@ -196,6 +202,7 @@ func newRegistrationEntryID() (string, error) {
 	return u.String(), nil
 }
 
+// UpdateRegistrationEntry updates an existing registration entry
 func (ds *DataStore) UpdateRegistrationEntry(ctx context.Context, newEntry *common.RegistrationEntry, mask *common.RegistrationEntryMask) (*common.RegistrationEntry, error) {
 	if err := validateRegistrationEntryForUpdate(newEntry, mask); err != nil {
 		return nil, dsErr(err, "failed to update entry")

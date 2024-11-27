@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// TaintX509CA taints an X.509 CA signed using the provided public key
 func (ds *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToTaint string) error {
 	existing, err := ds.bundles.Get(ctx, trustDomainID)
 	if err != nil {
@@ -51,6 +52,7 @@ func (ds *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, subj
 	return nil
 }
 
+// RevokeX509CA removes a Root CA from the bundle
 func (ds *DataStore) RevokeX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToRevoke string) error {
 	existing, err := ds.bundles.Get(ctx, trustDomainID)
 	if err != nil {
@@ -93,6 +95,7 @@ func (ds *DataStore) RevokeX509CA(ctx context.Context, trustDomainID string, sub
 	return nil
 }
 
+// TaintJWTKey taints a JWT Authority key
 func (ds *DataStore) TaintJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	existing, err := ds.bundles.Get(ctx, trustDomainID)
 	if err != nil {
@@ -134,6 +137,7 @@ func (ds *DataStore) TaintJWTKey(ctx context.Context, trustDomainID string, auth
 	return taintedKey, nil
 }
 
+// RevokeJWTKey removes JWT key from the bundle
 func (ds *DataStore) RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	existing, err := ds.bundles.Get(ctx, trustDomainID)
 	if err != nil {

@@ -6,14 +6,15 @@ import (
 	"time"
 
 	"encoding/json"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/keyvalue"
 	"github.com/spiffe/spire/pkg/server/datastore/keyvaluestore/internal/record"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"strconv"
 )
 
+// ListAttestedNodeEvents lists all attested node events
 func (ds *DataStore) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
 	records, _, err := ds.nodeEvents.List(ctx, &listAttestedNodeEventsRequest{
 		ListAttestedNodeEventsRequest: *req,
@@ -32,6 +33,7 @@ func (ds *DataStore) ListAttestedNodeEvents(ctx context.Context, req *datastore.
 	return resp, nil
 }
 
+// PruneAttestedNodeEvents deletes all attested node events older than a specified duration (i.e. more than 24 hours old)
 func (ds *DataStore) PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error {
 	records, _, err := ds.nodeEvents.List(ctx, &listAttestedNodeEventsRequest{
 		ByCreatedBefore: time.Now().Add(-olderThan),
@@ -57,6 +59,7 @@ func (ds *DataStore) PruneAttestedNodeEvents(ctx context.Context, olderThan time
 	return nil
 }
 
+// FetchAttestedNodeEvent fetches an existing attested node event by event ID
 func (ds *DataStore) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*datastore.AttestedNodeEvent, error) {
 	r, err := ds.nodeEvents.Get(ctx, eventIDtoKey(eventID))
 	switch {
@@ -69,6 +72,7 @@ func (ds *DataStore) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (
 	}
 }
 
+// CreateAttestedNodeEventForTesting creates an attested node event. Used for unit testing.
 func (ds *DataStore) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
 	return ds.createAttestedNodeEvent(ctx, event)
 }
