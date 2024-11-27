@@ -13,7 +13,7 @@ The plugin accepts the following configuration options:
 | namespace            | string |          | Name of the Vault namespace. This is only available in the Vault Enterprise.                             | `${VAULT_NAMESPACE}` |
 | transit_engine_path  | string |          | Path of the transit engine that stores the keys.                                                         | transit              |
 | ca_cert_path         | string |          | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported. | `${VAULT_CACERT}`    |
-| insecure_skip_verify | bool   |          | If true, vault client accepts any server certificates                                                    | false                |
+| insecure_skip_verify | bool   |          | If true, vault client accepts any server certificates. Should only be used for test environments.        | false                |
 | cert_auth            | struct |          | Configuration for the Client Certificate authentication method                                           |                      |
 | token_auth           | struct |          | Configuration for the Token authentication method                                                        |                      |
 | approle_auth         | struct |          | Configuration for the AppRole authentication method                                                      |                      |

@@ -156,6 +156,10 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
+	if config.InsecureSkipVerify {
+		p.logger.Warn("TLS verification of Vault certificates is skipped. This is only recommended for test environments.")
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
