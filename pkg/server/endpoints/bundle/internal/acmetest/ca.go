@@ -33,7 +33,7 @@
 //   appropriately by the SPIRE KeyManager signers.
 // - Fails new-reg requests if the terms-of-service has not been accepted
 
-// nolint // forked code
+//nolint // forked code
 package acmetest
 
 import (

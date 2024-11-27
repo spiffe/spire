@@ -122,7 +122,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 	if s.config.ValidationError == "" {
 		s.config.ValidationError = catalogConfig.ValidationError
 	}
-	if err != nil || s.config.ValidateOnly == true {
+	if err != nil || s.config.ValidateOnly {
 		return err
 	}
 	defer cat.Close()
