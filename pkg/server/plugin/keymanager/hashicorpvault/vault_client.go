@@ -337,7 +337,7 @@ func (c *Client) LookupSelf(token string) (*vapi.Secret, error) {
 		ClientToken:   id,
 		Renewable:     renewable,
 		LeaseDuration: int(ttl.Seconds()),
-		// don't care any parameters
+		// other parameters are not relevant for token renewal
 	}
 	return secret, nil
 }
