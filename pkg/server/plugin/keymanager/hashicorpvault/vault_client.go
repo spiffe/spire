@@ -253,11 +253,12 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 
 	switch {
 	case c.clientParams.ClientCertPath != "" && c.clientParams.ClientKeyPath != "":
-		c, err := tls.LoadX509KeyPair(c.clientParams.ClientCertPath, c.clientParams.ClientKeyPath)
+		var err error
+
+		clientCert, err = tls.LoadX509KeyPair(c.clientParams.ClientCertPath, c.clientParams.ClientKeyPath)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to parse client cert and private-key: %v", err)
 		}
-		clientCert = c
 		foundClientCert = true
 	case c.clientParams.ClientCertPath != "" || c.clientParams.ClientKeyPath != "":
 		return status.Error(codes.InvalidArgument, "both client cert and client key are required")
