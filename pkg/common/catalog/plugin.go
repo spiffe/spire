@@ -151,7 +151,6 @@ func (p *pluginImpl) bindRepo(repo bindableServiceRepo, grpcServiceNames map[str
 			if impl != nil {
 				continue
 			}
-			p.log.Infof("found implementation for service %s", facade.GRPCServiceName())
 			warnIfDeprecated(p.log, version, versions[0])
 			impl = p.bindFacade(repo, facade)
 		}
