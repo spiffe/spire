@@ -378,7 +378,7 @@ const (
 func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType TransitKeyType) error {
 	arguments := map[string]interface{}{
 		"type":       keyType,
-		"exportable": "false", // TODO: Maybe make this configurable
+		"exportable": "false", // SPIRE keys are never exportable
 	}
 
 	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID), arguments)
