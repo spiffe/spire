@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 // Config holds a cache manager configuration
@@ -43,6 +44,7 @@ type Config struct {
 	DisableLRUCache          bool
 	NodeAttestor             nodeattestor.NodeAttestor
 	RotationStrategy         *rotationutil.RotationStrategy
+	TLSPolicy                tlspolicy.Policy
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -83,6 +85,7 @@ func newManager(c *Config) *manager {
 		NodeAttestor:     c.NodeAttestor,
 		Reattestable:     c.Reattestable,
 		RotationStrategy: c.RotationStrategy,
+		TLSPolicy:        c.TLSPolicy,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

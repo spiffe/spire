@@ -312,6 +312,7 @@ func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, err
 		JWTIssuer:                    s.config.JWTIssuer,
 		CredentialComposers:          cat.GetCredentialComposers(),
 		UseLegacyDownstreamX509CATTL: s.config.UseLegacyDownstreamX509CATTL,
+		TLSPolicy:                    s.config.TLSPolicy,
 	})
 }
 

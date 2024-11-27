@@ -98,6 +98,7 @@ This may be useful for templating configuration files, for example across differ
 | `sql_transaction_timeout` | Maximum time an SQL transaction could take, used by the events based cache to determine when an event id is unlikely to be used anymore.                                                                               | 24h                                |
 | `auth_opa_policy_engine`  | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions                                                                                                                     | default SPIRE authorization policy |
 | `named_pipe_name`         | Pipe name of the SPIRE Server API named pipe (Windows only)                                                                                                                                                            | \spire-server\private\api          |
+| `require_pq_kem`         | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                                                               | false                              |
 
 | ratelimit     | Description                                                                                                                                        | Default |
 |:--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|---------|
