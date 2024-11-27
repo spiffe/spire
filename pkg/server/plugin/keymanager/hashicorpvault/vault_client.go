@@ -246,7 +246,13 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 	if vc.HttpClient == nil {
 		vc.HttpClient = vapi.DefaultConfig().HttpClient
 	}
-	clientTLSConfig := vc.HttpClient.Transport.(*http.Transport).TLSClientConfig
+
+	transport, ok := vc.HttpClient.Transport.(*http.Transport)
+	if !ok {
+		return status.Errorf(codes.Internal, "http client transport is of incorrect type. Expected is %T but was %T", transport, vc.HttpClient.Transport)
+	}
+
+	clientTLSConfig := transport.TLSClientConfig
 
 	var clientCert tls.Certificate
 	foundClientCert := false
