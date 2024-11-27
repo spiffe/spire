@@ -229,7 +229,9 @@ func validateSQLConfig(config *Config) (catalog.PluginConfig, PluginConfigs, err
 		config.ReportErrorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 		return catalog.PluginConfig{}, PluginConfigs(nil), fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
-	if datastoreConfig.DataSource.IsDynamic() {
+	if datastoreConfig.DataSource == nil {
+		config.ReportError("internal: DataStore is missing a configuration data source")
+	} else if datastoreConfig.DataSource.IsDynamic() {
 		config.ReportInfo("DataStore is not reconfigurable even with a dynamic data source")
 	}
 
