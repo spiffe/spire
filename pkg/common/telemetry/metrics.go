@@ -11,6 +11,9 @@ import (
 
 const timerGranularity = time.Millisecond
 
+// EnableTrustDomainLabel is the value for the custom TrustDomain label/tag for a metric
+var trustDomain = ""
+
 // Label is a label/tag for a metric
 type Label = metrics.Label
 
@@ -83,6 +86,11 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 		} else {
 			conf.EnableHostnameLabel = true
 		}
+
+		if c.FileConfig.EnableTrustDomainLabel != nil && c.FileConfig.TrustDomain != nil && *c.FileConfig.EnableTrustDomainLabel {
+			trustDomain = *c.FileConfig.TrustDomain
+		}
+
 		conf.EnableTypePrefix = runner.requiresTypePrefix()
 		conf.AllowedLabels = c.FileConfig.AllowedLabels
 		conf.BlockedLabels = c.FileConfig.BlockedLabels
@@ -112,13 +120,27 @@ func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 }
 
 func (m *MetricsImpl) SetGauge(key []string, val float32) {
-	for _, s := range m.metricsSinks {
-		s.SetGauge(key, val)
+	if trustDomain != "" {
+		m.SetGaugeWithLabels(key, val, []Label{})
+	} else {
+		for _, s := range m.metricsSinks {
+			s.SetGauge(key, val)
+		}
 	}
 }
 
 // SetGaugeWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) SetGaugeWithLabels(key []string, val float32, labels []Label) {
+	if trustDomain != "" {
+		for i, label := range labels {
+			if label.Name == TrustDomainID {
+				label.Value = trustDomain
+			}
+		}
+	}
+
+	// or optionally, the label could have another name instead of TrustDomainID and just append that to the list of exsiting labels.
+	// labels = append(labels, Label{Name: TrustDomain, Value: trustDomain})
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.SetGaugeWithLabels(key, val, sanitizedLabels)
@@ -132,13 +154,25 @@ func (m *MetricsImpl) EmitKey(key []string, val float32) {
 }
 
 func (m *MetricsImpl) IncrCounter(key []string, val float32) {
-	for _, s := range m.metricsSinks {
-		s.IncrCounter(key, val)
+	if trustDomain != "" {
+		m.IncrCounterWithLabels(key, val, []Label{})
+	} else {
+		for _, s := range m.metricsSinks {
+			s.IncrCounter(key, val)
+		}
 	}
 }
 
 // IncrCounterWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []Label) {
+	if trustDomain != "" {
+		for i, label := range labels {
+			if label.Name == TrustDomainID {
+				label.Value = trustDomain
+			}
+		}
+	}
+
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.IncrCounterWithLabels(key, val, sanitizedLabels)
@@ -146,13 +180,25 @@ func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []
 }
 
 func (m *MetricsImpl) AddSample(key []string, val float32) {
-	for _, s := range m.metricsSinks {
-		s.AddSample(key, val)
+	if trustDomain != "" {
+		m.AddSampleWithLabels(key, val, []Label{})
+	} else {
+		for _, s := range m.metricsSinks {
+			s.AddSample(key, val)
+		}
 	}
 }
 
 // AddSampleWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []Label) {
+	if trustDomain != "" {
+		for i, label := range labels {
+			if label.Name == TrustDomainID {
+				label.Value = trustDomain
+			}
+		}
+	}
+
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.AddSampleWithLabels(key, val, sanitizedLabels)
@@ -160,13 +206,25 @@ func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []La
 }
 
 func (m *MetricsImpl) MeasureSince(key []string, start time.Time) {
-	for _, s := range m.metricsSinks {
-		s.MeasureSince(key, start)
+	if trustDomain != "" {
+		m.MeasureSinceWithLabels(key, start, []Label{})
+	} else {
+		for _, s := range m.metricsSinks {
+			s.MeasureSince(key, start)
+		}
 	}
 }
 
 // MeasureSinceWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) MeasureSinceWithLabels(key []string, start time.Time, labels []Label) {
+	if trustDomain != "" {
+		for i, label := range labels {
+			if label.Name == TrustDomainID {
+				label.Value = trustDomain
+			}
+		}
+	}
+
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.MeasureSinceWithLabels(key, start, sanitizedLabels)
