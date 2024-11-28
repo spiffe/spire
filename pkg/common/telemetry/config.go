@@ -10,6 +10,7 @@ type MetricsConfig struct {
 	Logger      logrus.FieldLogger
 	ServiceName string
 	Sinks       []Sink
+	TrustDomain string
 }
 
 type FileConfig struct {
@@ -20,7 +21,6 @@ type FileConfig struct {
 	InMem      *InMem            `hcl:"InMem"`
 
 	MetricPrefix           string   `hcl:"MetricPrefix"`
-	TrustDomain            *string  `hcl:"TrustDomain"`
 	EnableTrustDomainLabel *bool    `hcl:"EnableTrustDomainLabel"`
 	EnableHostnameLabel    *bool    `hcl:"EnableHostnameLabel"`
 	AllowedPrefixes        []string `hcl:"AllowedPrefixes"` // A list of metric prefixes to allow, with '.' as the separator
