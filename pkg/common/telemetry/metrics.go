@@ -11,9 +11,6 @@ import (
 
 const timerGranularity = time.Millisecond
 
-// EnableTrustDomainLabel is the value for the custom TrustDomain label/tag for a metric
-var trustDomain = ""
-
 // Label is a label/tag for a metric
 type Label = metrics.Label
 
@@ -48,7 +45,8 @@ type MetricsImpl struct {
 	c       *MetricsConfig
 	runners []sinkRunner
 	// Each instance of metrics.Metrics in the slice corresponds to one metrics sink type
-	metricsSinks []*metrics.Metrics
+	metricsSinks           []*metrics.Metrics
+	enableTrustDomainLabel bool
 }
 
 var _ Metrics = (*MetricsImpl)(nil)
@@ -87,15 +85,17 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 			conf.EnableHostnameLabel = true
 		}
 
-		if c.FileConfig.EnableTrustDomainLabel != nil && c.FileConfig.TrustDomain != nil && *c.FileConfig.EnableTrustDomainLabel {
-			trustDomain = *c.FileConfig.TrustDomain
-		}
-
 		conf.EnableTypePrefix = runner.requiresTypePrefix()
 		conf.AllowedLabels = c.FileConfig.AllowedLabels
 		conf.BlockedLabels = c.FileConfig.BlockedLabels
 		conf.AllowedPrefixes = c.FileConfig.AllowedPrefixes
 		conf.BlockedPrefixes = c.FileConfig.BlockedPrefixes
+
+		if c.FileConfig.EnableTrustDomainLabel != nil {
+			impl.enableTrustDomainLabel = *c.FileConfig.EnableTrustDomainLabel
+		} else {
+			impl.enableTrustDomainLabel = false
+		}
 
 		metricsSink, err := metrics.New(conf, fanout)
 		if err != nil {
@@ -120,7 +120,7 @@ func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 }
 
 func (m *MetricsImpl) SetGauge(key []string, val float32) {
-	if trustDomain != "" {
+	if m.enableTrustDomainLabel {
 		m.SetGaugeWithLabels(key, val, []Label{})
 	} else {
 		for _, s := range m.metricsSinks {
@@ -131,16 +131,10 @@ func (m *MetricsImpl) SetGauge(key []string, val float32) {
 
 // SetGaugeWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) SetGaugeWithLabels(key []string, val float32, labels []Label) {
-	if trustDomain != "" {
-		for i, label := range labels {
-			if label.Name == TrustDomainID {
-				label.Value = trustDomain
-			}
-		}
+	if m.enableTrustDomainLabel {
+		labels = append(labels, Label{Name: TrustDomain, Value: m.c.TrustDomain})
 	}
 
-	// or optionally, the label could have another name instead of TrustDomainID and just append that to the list of exsiting labels.
-	// labels = append(labels, Label{Name: TrustDomain, Value: trustDomain})
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.SetGaugeWithLabels(key, val, sanitizedLabels)
@@ -154,7 +148,7 @@ func (m *MetricsImpl) EmitKey(key []string, val float32) {
 }
 
 func (m *MetricsImpl) IncrCounter(key []string, val float32) {
-	if trustDomain != "" {
+	if m.enableTrustDomainLabel {
 		m.IncrCounterWithLabels(key, val, []Label{})
 	} else {
 		for _, s := range m.metricsSinks {
@@ -165,12 +159,8 @@ func (m *MetricsImpl) IncrCounter(key []string, val float32) {
 
 // IncrCounterWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []Label) {
-	if trustDomain != "" {
-		for i, label := range labels {
-			if label.Name == TrustDomainID {
-				label.Value = trustDomain
-			}
-		}
+	if m.enableTrustDomainLabel {
+		labels = append(labels, Label{Name: TrustDomain, Value: m.c.TrustDomain})
 	}
 
 	sanitizedLabels := SanitizeLabels(labels)
@@ -180,7 +170,7 @@ func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []
 }
 
 func (m *MetricsImpl) AddSample(key []string, val float32) {
-	if trustDomain != "" {
+	if m.enableTrustDomainLabel {
 		m.AddSampleWithLabels(key, val, []Label{})
 	} else {
 		for _, s := range m.metricsSinks {
@@ -191,12 +181,8 @@ func (m *MetricsImpl) AddSample(key []string, val float32) {
 
 // AddSampleWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []Label) {
-	if trustDomain != "" {
-		for i, label := range labels {
-			if label.Name == TrustDomainID {
-				label.Value = trustDomain
-			}
-		}
+	if m.enableTrustDomainLabel {
+		labels = append(labels, Label{Name: TrustDomain, Value: m.c.TrustDomain})
 	}
 
 	sanitizedLabels := SanitizeLabels(labels)
@@ -206,7 +192,7 @@ func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []La
 }
 
 func (m *MetricsImpl) MeasureSince(key []string, start time.Time) {
-	if trustDomain != "" {
+	if m.enableTrustDomainLabel {
 		m.MeasureSinceWithLabels(key, start, []Label{})
 	} else {
 		for _, s := range m.metricsSinks {
@@ -217,12 +203,8 @@ func (m *MetricsImpl) MeasureSince(key []string, start time.Time) {
 
 // MeasureSinceWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) MeasureSinceWithLabels(key []string, start time.Time, labels []Label) {
-	if trustDomain != "" {
-		for i, label := range labels {
-			if label.Name == TrustDomainID {
-				label.Value = trustDomain
-			}
-		}
+	if m.enableTrustDomainLabel {
+		labels = append(labels, Label{Name: TrustDomain, Value: m.c.TrustDomain})
 	}
 
 	sanitizedLabels := SanitizeLabels(labels)
