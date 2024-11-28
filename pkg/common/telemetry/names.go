@@ -604,9 +604,6 @@ const (
 	// TrustDomainID tags the ID of some trust domain
 	TrustDomainID = "trust_domain_id"
 
-	// TrustDomainName tags the custom trust domain name provided for telemetry
-	TrustDomainName = "trust_domain_name"
-
 	// Unknown tags some unknown caller, entity, or status
 	Unknown = "unknown"
 
