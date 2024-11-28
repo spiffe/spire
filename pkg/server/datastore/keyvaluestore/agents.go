@@ -39,7 +39,33 @@ func (ds *DataStore) CreateAttestedNode(ctx context.Context, in *common.Attested
 	}
 
 	if err := ds.agents.Create(ctx, agentObject{Node: in, Banned: in.CertSerialNumber == "" && in.NewCertSerialNumber == ""}); err != nil {
-		return nil, dsErr(err, "failed to create agent")
+		switch {
+		case errors.Is(err, record.ErrExists):
+
+			oldAgent, err := ds.agents.Get(ctx, in.SpiffeId)
+			if err != nil {
+				return nil, dsErr(err, "failed to retrieve agent")
+			}
+
+			existing := oldAgent.Object.Node
+			emptyNode := &common.AttestedNode{SpiffeId: in.SpiffeId, Selectors: copySelectors(in.Selectors)}
+
+			// If the node only contains selectors, it was most likely created by SetNodeSelectors.
+			// That's why we update its contents.
+			if existing.String() == emptyNode.String() {
+				_, err = ds.updateAttestedNode(ctx, in, nil, oldAgent)
+
+				if err != nil {
+					return nil, dsErr(err, "failed to create agent")
+				}
+
+				return in, nil
+			} else {
+				return nil, dsErr(record.ErrExists, "failed to create agent")
+			}
+		default:
+			return nil, dsErr(err, "failed to create agent")
+		}
 	}
 
 	if err := ds.createAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
@@ -109,11 +135,16 @@ func (ds *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListA
 
 // UpdateAttestedNode updates the given node's cert serial and expiration.
 func (ds *DataStore) UpdateAttestedNode(ctx context.Context, newAgent *common.AttestedNode, mask *common.AttestedNodeMask) (*common.AttestedNode, error) {
-	record, err := ds.agents.Get(ctx, newAgent.SpiffeId)
+	oldAgent, err := ds.agents.Get(ctx, newAgent.SpiffeId)
 	if err != nil {
 		return nil, dsErr(err, "datastore-keyvalue")
 	}
-	existing := record.Object
+
+	return ds.updateAttestedNode(ctx, newAgent, mask, oldAgent)
+}
+
+func (ds *DataStore) updateAttestedNode(ctx context.Context, newAgent *common.AttestedNode, mask *common.AttestedNodeMask, oldAgent *record.Record[agentObject]) (*common.AttestedNode, error) {
+	existing := oldAgent.Object
 
 	if mask == nil {
 		mask = protoutil.AllTrueCommonAgentMask
@@ -138,11 +169,11 @@ func (ds *DataStore) UpdateAttestedNode(ctx context.Context, newAgent *common.At
 		existing.AttestationDataType = newAgent.AttestationDataType
 	}*/
 
-	if err := ds.agents.Update(ctx, existing, record.Metadata.Revision); err != nil {
+	if err := ds.agents.Update(ctx, existing, oldAgent.Metadata.Revision); err != nil {
 		return nil, dsErr(err, "datastore-keyvalue")
 	}
 
-	if err = ds.createAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
+	if err := ds.createAttestedNodeEvent(ctx, &datastore.AttestedNodeEvent{
 		SpiffeID: newAgent.SpiffeId,
 	}); err != nil {
 		return nil, err
