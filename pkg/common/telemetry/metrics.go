@@ -121,7 +121,7 @@ func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 
 func (m *MetricsImpl) SetGauge(key []string, val float32) {
 	if m.enableTrustDomainLabel {
-		m.SetGaugeWithLabels(key, val, []Label{})
+		m.SetGaugeWithLabels(key, val, nil)
 	} else {
 		for _, s := range m.metricsSinks {
 			s.SetGauge(key, val)
@@ -149,7 +149,7 @@ func (m *MetricsImpl) EmitKey(key []string, val float32) {
 
 func (m *MetricsImpl) IncrCounter(key []string, val float32) {
 	if m.enableTrustDomainLabel {
-		m.IncrCounterWithLabels(key, val, []Label{})
+		m.IncrCounterWithLabels(key, val, nil)
 	} else {
 		for _, s := range m.metricsSinks {
 			s.IncrCounter(key, val)
@@ -171,7 +171,7 @@ func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []
 
 func (m *MetricsImpl) AddSample(key []string, val float32) {
 	if m.enableTrustDomainLabel {
-		m.AddSampleWithLabels(key, val, []Label{})
+		m.AddSampleWithLabels(key, val, nil)
 	} else {
 		for _, s := range m.metricsSinks {
 			s.AddSample(key, val)
@@ -193,7 +193,7 @@ func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []La
 
 func (m *MetricsImpl) MeasureSince(key []string, start time.Time) {
 	if m.enableTrustDomainLabel {
-		m.MeasureSinceWithLabels(key, start, []Label{})
+		m.MeasureSinceWithLabels(key, start, nil)
 	} else {
 		for _, s := range m.metricsSinks {
 			s.MeasureSince(key, start)
