@@ -23,6 +23,7 @@ const (
 
 var (
 	testTokenAuthConfigTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 token_auth {
@@ -30,11 +31,13 @@ token_auth {
 }`
 
 	testTokenAuthConfigWithEnvTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 token_auth {}`
 
 	testCertAuthConfigTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 cert_auth {
@@ -45,6 +48,7 @@ cert_auth {
 }`
 
 	testCertAuthConfigWithEnvTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 cert_auth {
@@ -52,6 +56,7 @@ cert_auth {
 }`
 
 	testAppRoleAuthConfigTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 approle_auth {
@@ -61,6 +66,7 @@ approle_auth {
 }`
 
 	testAppRoleAuthConfigWithEnvTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 approle_auth {
@@ -68,6 +74,7 @@ approle_auth {
 }`
 
 	testK8sAuthConfigTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 k8s_auth {
@@ -77,6 +84,7 @@ k8s_auth {
 }`
 
 	testMultipleAuthConfigsTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 cert_auth {}
@@ -87,13 +95,8 @@ approle_auth {
 	approle_secret_id  = "test-approle-secret-id"
 }`
 
-	testConfigWithVaultAddrEnvTpl = `
-ca_cert_path = "testdata/root-cert.pem"	
-token_auth {
-   token  = "test-token"
-}`
-
 	testConfigWithTransitEnginePathTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 transit_engine_path = "test-path"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
@@ -102,6 +105,7 @@ token_auth {
 }`
 
 	testConfigWithTransitEnginePathEnvTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 token_auth {
@@ -109,6 +113,7 @@ token_auth {
 }`
 
 	testNamespaceConfigTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 namespace = "test-ns"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
@@ -117,6 +122,7 @@ token_auth {
 }`
 
 	testNamespaceEnvTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 token_auth {
@@ -124,6 +130,7 @@ token_auth {
 }`
 
 	testK8sAuthNoRoleNameTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 k8s_auth {
@@ -132,6 +139,7 @@ k8s_auth {
 }`
 
 	testK8sAuthNoTokenPathTpl = `
+key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 k8s_auth {
