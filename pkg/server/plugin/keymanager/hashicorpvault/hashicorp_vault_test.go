@@ -472,6 +472,22 @@ func TestPluginGenerateKey(t *testing.T) {
 			expectCode:      codes.Internal,
 			expectMsgPrefix: "keymanager(hashicorp_vault): unable to decode PEM key",
 		},
+		{
+			name:       "Generate key with existing SPIRE key id",
+			id:         "x509-CA-A",
+			keyType:    keymanager.ECP256,
+			config:     successfulConfig,
+			authMethod: TOKEN,
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer("test-transit")
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.GetKeysResponse = []byte(testGetKeysResponseOneKey)
+
+				return fakeServer
+			},
+		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -484,10 +500,12 @@ func TestPluginGenerateKey(t *testing.T) {
 			defer s.Close()
 
 			p := New()
+
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
 				plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
 			}
+
 			if tt.config != nil {
 				tt.config.KeyIdentifierFile = createKeyIdentifierFile(t)
 				tt.config.VaultAddr = fmt.Sprintf("https://%s", addr)
@@ -747,12 +765,18 @@ func setupSuccessFakeVaultServer(transitEnginePath string) *FakeVaultServerConfi
 	fakeVaultServer.K8sAuthReqEndpoint = "/v1/auth/test-k8s-auth/login"
 	fakeVaultServer.K8sAuthResponse = []byte(testK8sAuthResponse)
 
+	fakeVaultServer.LookupSelfResponseCode = 200
 	fakeVaultServer.LookupSelfResponse = []byte(testLookupSelfResponse)
 	fakeVaultServer.LookupSelfReqEndpoint = "GET /v1/auth/token/lookup-self"
-	fakeVaultServer.LookupSelfResponseCode = 200
 
 	fakeVaultServer.CreateKeyResponseCode = 200
 	fakeVaultServer.CreateKeyReqEndpoint = fmt.Sprintf("PUT /v1/%s/keys/{id}", transitEnginePath)
+
+	fakeVaultServer.DeleteKeyResponseCode = 204
+	fakeVaultServer.DeleteKeyReqEndpoint = fmt.Sprintf("DELETE /v1/%s/keys/{id}", transitEnginePath)
+
+	fakeVaultServer.UpdateKeyConfigurationResponseCode = 204
+	fakeVaultServer.UpdateKeyConfigurationReqEndpoint = fmt.Sprintf("PUT /v1/%s/keys/{id}/config", transitEnginePath)
 
 	fakeVaultServer.GetKeyResponseCode = 200
 	fakeVaultServer.GetKeyReqEndpoint = fmt.Sprintf("GET /v1/%s/keys/{id}", transitEnginePath)
