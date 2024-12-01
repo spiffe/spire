@@ -8,6 +8,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"os"
+	"path/filepath"
 	"testing"
 	"text/template"
 
@@ -15,6 +17,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+)
+
+const (
+	validServerID     = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+	validServerIDFile = "test-server-id"
 )
 
 func TestPluginConfigure(t *testing.T) {
@@ -198,8 +205,9 @@ func TestPluginConfigure(t *testing.T) {
 			if tt.plainConfig != "" {
 				plainConfig = tt.plainConfig
 			} else {
-				plainConfig = getTestConfigureRequest(t, fmt.Sprintf("https://%v/", addr), tt.configTmpl)
+				plainConfig = getTestConfigureRequest(t, fmt.Sprintf("https://%v/", addr), createKeyIdentifierFile(t), tt.configTmpl)
 			}
+
 			plugintest.Load(t, builtin(p), nil,
 				plugintest.CaptureConfigureError(&err),
 				plugintest.Configure(plainConfig),
@@ -481,6 +489,7 @@ func TestPluginGenerateKey(t *testing.T) {
 				plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
 			}
 			if tt.config != nil {
+				tt.config.KeyIdentifierFile = createKeyIdentifierFile(t)
 				tt.config.VaultAddr = fmt.Sprintf("https://%s", addr)
 				cp, err := p.genClientParams(tt.authMethod, tt.config)
 				require.NoError(t, err)
@@ -667,7 +676,7 @@ func TestPluginGetKey(t *testing.T) {
 			p := New()
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
-				plugintest.Configure(getTestConfigureRequest(t, fmt.Sprintf("https://%v/", addr), tt.configTmpl)),
+				plugintest.Configure(getTestConfigureRequest(t, fmt.Sprintf("https://%v/", addr), createKeyIdentifierFile(t), tt.configTmpl)),
 				plugintest.CoreConfig(catalog.CoreConfig{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 				}),
@@ -704,11 +713,17 @@ func TestPluginGetKey(t *testing.T) {
 
 // TODO: Should the Sign function also be tested?
 
-func getTestConfigureRequest(t *testing.T, addr string, tpl string) string {
+func getTestConfigureRequest(t *testing.T, addr string, keyIdentifierFile string, tpl string) string {
 	templ, err := template.New("plugin config").Parse(tpl)
 	require.NoError(t, err)
 
-	cp := &struct{ Addr string }{Addr: addr}
+	cp := &struct {
+		Addr              string
+		KeyIdentifierFile string
+	}{
+		Addr:              addr,
+		KeyIdentifierFile: keyIdentifierFile,
+	}
 
 	var c bytes.Buffer
 	err = templ.Execute(&c, cp)
@@ -757,4 +772,15 @@ func setupFakeVaultServer() *FakeVaultServerConfig {
 	fakeVaultServer.RenewResponseCode = 200
 	fakeVaultServer.RenewResponse = []byte(testRenewResponse)
 	return fakeVaultServer
+}
+
+func createKeyIdentifierFile(t *testing.T) string {
+	tempDir := t.TempDir()
+	tempFilePath := filepath.ToSlash(filepath.Join(tempDir, validServerIDFile))
+	err := os.WriteFile(tempFilePath, []byte(validServerID), 0o600)
+	if err != nil {
+		t.Error(err)
+	}
+
+	return tempFilePath
 }

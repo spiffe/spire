@@ -7,17 +7,19 @@ SVIDs as needed.
 
 The plugin accepts the following configuration options:
 
-| key                  | type   | required | description                                                                                              | default              |
-|:---------------------|:-------|:---------|:---------------------------------------------------------------------------------------------------------|:---------------------|
-| vault_addr           | string |          | The URL of the Vault server. (e.g., <https://vault.example.com:8443/>)                                   | `${VAULT_ADDR}`      |
-| namespace            | string |          | Name of the Vault namespace. This is only available in the Vault Enterprise.                             | `${VAULT_NAMESPACE}` |
-| transit_engine_path  | string |          | Path of the transit engine that stores the keys.                                                         | transit              |
-| ca_cert_path         | string |          | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported. | `${VAULT_CACERT}`    |
-| insecure_skip_verify | bool   |          | If true, vault client accepts any server certificates. Should only be used for test environments.        | false                |
-| cert_auth            | struct |          | Configuration for the Client Certificate authentication method                                           |                      |
-| token_auth           | struct |          | Configuration for the Token authentication method                                                        |                      |
-| approle_auth         | struct |          | Configuration for the AppRole authentication method                                                      |                      |
-| k8s_auth             | struct |          | Configuration for the Kubernetes authentication method                                                   |                      |
+| key                  | type   | required                                    | description                                                                                                                                          | default              |
+|:---------------------|:-------|:--------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------|
+| key_identifier_file  | string | Required if key_identifier_value is not set | A file path location where information about generated keys will be persisted. See "[Management of keys](#management-of-keys)" for more information. | ""                   |
+| key_identifier_value | string | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`).                                                           | ""                   |
+| vault_addr           | string |                                             | The URL of the Vault server. (e.g., <https://vault.example.com:8443/>)                                                                               | `${VAULT_ADDR}`      |
+| namespace            | string |                                             | Name of the Vault namespace. This is only available in the Vault Enterprise.                                                                         | `${VAULT_NAMESPACE}` |
+| transit_engine_path  | string |                                             | Path of the transit engine that stores the keys.                                                                                                     | transit              |
+| ca_cert_path         | string |                                             | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported.                                             | `${VAULT_CACERT}`    |
+| insecure_skip_verify | bool   |                                             | If true, vault client accepts any server certificates. Should only be used for test environments.                                                    | false                |
+| cert_auth            | struct |                                             | Configuration for the Client Certificate authentication method                                                                                       |                      |
+| token_auth           | struct |                                             | Configuration for the Token authentication method                                                                                                    |                      |
+| approle_auth         | struct |                                             | Configuration for the AppRole authentication method                                                                                                  |                      |
+| k8s_auth             | struct |                                             | Configuration for the Kubernetes authentication method                                                                                               |                      |
 
 The plugin supports **Client Certificate**, **Token** and **AppRole** authentication methods.
 
@@ -160,3 +162,20 @@ path "pki/root/sign-intermediate" {
         }
     }
 ```
+
+### Management of keys
+
+The plugin needs a way to identify the specific server instance where it's
+running. For that, either the `key_identifier_file` or `key_identifier_value`
+setting must be used. Setting a _Key Identifier File_ instructs the plugin to
+manage the identifier of the server automatically, storing the server ID in the
+specified file. This method should be appropriate for most situations.
+If a _Key Identifier File_ is configured and the file is not found during server
+startup, the file is recreated with a new auto-generated server ID.
+Consequently, if the file is lost, the plugin will not be able to identify keys
+that it has previously managed and will recreate new keys on demand.
+
+If you need more control over the identifier that's used for the server, the
+`key_identifier_value` setting can be used to specify a
+static identifier for the server instance. This setting is appropriate in situations
+where a key identifier file can't be persisted.
