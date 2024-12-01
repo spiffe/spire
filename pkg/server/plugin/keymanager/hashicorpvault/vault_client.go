@@ -389,7 +389,28 @@ func (c *Client) CreateKey(ctx context.Context, keyName string, keyType TransitK
 	return nil
 }
 
-// SignData signs the data using the transit engine key with the provided spire key id.
+// DeleteKey deletes a key in the specified transit secret engine
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#update-key-configuration and https://developer.hashicorp.com/vault/api-docs/secret/transit#delete-key
+func (c *Client) DeleteKey(ctx context.Context, keyName string) error {
+	arguments := map[string]interface{}{
+		"deletion_allowed": "true",
+	}
+
+	// First, we need to enable deletion of the key. This is disabled by default.
+	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s/config", c.clientParams.TransitEnginePath, keyName), arguments)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to enable deletion of transit engine key: %v", err)
+	}
+
+	_, err = c.vaultClient.Logical().DeleteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, keyName))
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to delete transit engine key: %v", err)
+	}
+
+	return nil
+}
+
+// SignData signs the data using the transit engine key with the key name.
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#sign-data
 func (c *Client) SignData(ctx context.Context, keyName string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
 	encodedData := base64.StdEncoding.EncodeToString(data)

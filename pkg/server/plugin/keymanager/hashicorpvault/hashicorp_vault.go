@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 	"os"
 	"sync"
+	"time"
 )
 
 const (
@@ -41,8 +43,10 @@ type keyEntry struct {
 }
 
 type pluginHooks struct {
+	clk clock.Clock
 	// Used for testing only.
-	lookupEnv func(string) (string, bool)
+	lookupEnv            func(string) (string, bool)
+	scheduleDeleteSignal chan error
 }
 
 // Config provides configuration context for the plugin.
@@ -134,6 +138,9 @@ type Plugin struct {
 	cc         *ClientConfig
 	vc         *Client
 
+	scheduleDelete chan string
+	cancelTasks    context.CancelFunc
+
 	hooks pluginHooks
 }
 
@@ -148,7 +155,9 @@ func newPlugin() *Plugin {
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
 			lookupEnv: os.LookupEnv,
+			clk:       clock.New(),
 		},
+		scheduleDelete: make(chan string, 120),
 	}
 }
 
@@ -213,6 +222,15 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	p.setCache(keyEntries)
+
+	// Cancel previous tasks in case of re-configure.
+	if p.cancelTasks != nil {
+		p.cancelTasks()
+	}
+
+	// start tasks
+	ctx, p.cancelTasks = context.WithCancel(context.Background())
+	go p.scheduleDeleteTask(ctx)
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -301,6 +319,61 @@ func (p *Plugin) getEnvOrDefault(envKey, fallback string) string {
 	return fallback
 }
 
+// scheduleDeleteTask is a long-running task that deletes keys that are stale
+func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
+	backoffMin := 1 * time.Second
+	backoffMax := 60 * time.Second
+	backoff := backoffMin
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case keyID := <-p.scheduleDelete:
+			log := p.logger.With("key_id", keyID)
+
+			if p.vc == nil {
+				err := p.genVaultClient()
+				if err != nil {
+					log.Error("Failed to generate vault client", "reason", err)
+					p.notifyDelete(err)
+					// TODO: Should we re-enqueue here?
+				}
+			}
+
+			err := p.vc.DeleteKey(ctx, keyID)
+
+			if err == nil {
+				log.Debug("Key deleted")
+				backoff = backoffMin
+				p.notifyDelete(nil)
+				continue
+			}
+
+			// For any other error, log it and re-enqueue the key for deletion as it might be a recoverable error
+			log.Error("It was not possible to schedule key for deletion. Trying to re-enqueue it for deletion", "reason", err)
+
+			select {
+			case p.scheduleDelete <- keyID:
+				log.Debug("Key re-enqueued for deletion")
+			default:
+				log.Error("Failed to re-enqueue key for deletion")
+			}
+
+			p.notifyDelete(nil)
+			backoff = min(backoff*2, backoffMax)
+			p.hooks.clk.Sleep(backoff)
+		}
+	}
+}
+
+// Used for testing only
+func (p *Plugin) notifyDelete(err error) {
+	if p.hooks.scheduleDeleteSignal != nil {
+		p.hooks.scheduleDeleteSignal <- err
+	}
+}
+
 func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyRequest) (*keymanagerv1.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
@@ -316,6 +389,15 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	newKeyEntry, err := p.createKey(ctx, spireKeyID, req.KeyType)
 	if err != nil {
 		return nil, err
+	}
+
+	if keyEntry, ok := p.getKeyEntry(spireKeyID); ok {
+		select {
+		case p.scheduleDelete <- keyEntry.KeyName:
+			p.logger.Debug("Key enqueued for deletion", "key_name", keyEntry.KeyName)
+		default:
+			p.logger.Error("Failed to enqueue key for deletion", "key_name", keyEntry.KeyName)
+		}
 	}
 
 	p.setKeyEntry(spireKeyID, *newKeyEntry)

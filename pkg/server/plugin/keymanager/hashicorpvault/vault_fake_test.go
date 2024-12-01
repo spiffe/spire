@@ -8,15 +8,17 @@ import (
 )
 
 const (
-	defaultTLSAuthEndpoint     = "PUT /v1/auth/cert/login"
-	defaultAppRoleAuthEndpoint = "PUT /v1/auth/approle/login"
-	defaultK8sAuthEndpoint     = "PUT /v1/auth/kubernetes/login"
-	defaultRenewEndpoint       = "POST /v1/auth/token/renew-self"
-	defaultLookupSelfEndpoint  = "GET /v1/auth/token/lookup-self"
-	defaultCreateKeyEndpoint   = "PUT /v1/transit/keys/{id}"
-	defaultGetKeyEndpoint      = "GET /v1/transit/keys/{id}"
-	defaultGetKeysEndpoint     = "GET /v1/transit/keys"
-	defaultSignDataEndpoint    = "PUT /v1/transit/sign/{id}/{algo}"
+	defaultTLSAuthEndpoint         = "PUT /v1/auth/cert/login"
+	defaultAppRoleAuthEndpoint     = "PUT /v1/auth/approle/login"
+	defaultK8sAuthEndpoint         = "PUT /v1/auth/kubernetes/login"
+	defaultRenewEndpoint           = "POST /v1/auth/token/renew-self"
+	defaultLookupSelfEndpoint      = "GET /v1/auth/token/lookup-self"
+	defaultCreateKeyEndpoint       = "PUT /v1/transit/keys/{id}"
+	defaultGetKeyEndpoint          = "GET /v1/transit/keys/{id}"
+	defaultDeleteKeyEndpoint       = "DELETE /v1/transit/keys/{id}"
+	defaultUpdateKeyConfigEndpoint = "PUT /v1/transit/keys/{id}/config"
+	defaultGetKeysEndpoint         = "GET /v1/transit/keys"
+	defaultSignDataEndpoint        = "PUT /v1/transit/sign/{id}/{algo}"
 
 	listenAddr = "127.0.0.1:0"
 )
@@ -616,69 +618,81 @@ k8s_auth {
 )
 
 type FakeVaultServerConfig struct {
-	ListenAddr               string
-	ServerCertificatePemPath string
-	ServerKeyPemPath         string
-	CertAuthReqEndpoint      string
-	CertAuthReqHandler       func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
-	CertAuthResponseCode     int
-	CertAuthResponse         []byte
-	AppRoleAuthReqEndpoint   string
-	AppRoleAuthReqHandler    func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
-	AppRoleAuthResponseCode  int
-	AppRoleAuthResponse      []byte
-	K8sAuthReqEndpoint       string
-	K8sAuthReqHandler        func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
-	K8sAuthResponseCode      int
-	K8sAuthResponse          []byte
-	RenewReqEndpoint         string
-	RenewReqHandler          func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
-	RenewResponseCode        int
-	RenewResponse            []byte
-	LookupSelfReqEndpoint    string
-	LookupSelfReqHandler     func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
-	LookupSelfResponseCode   int
-	LookupSelfResponse       []byte
-	CreateKeyReqEndpoint     string
-	CreateKeyReqHandler      func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
-	CreateKeyResponseCode    int
-	CreateKeyResponse        []byte
-	GetKeyReqEndpoint        string
-	GetKeyReqHandler         func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
-	GetKeyResponseCode       int
-	GetKeyResponse           []byte
-	GetKeysReqEndpoint       string
-	GetKeysReqHandler        func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
-	GetKeysResponseCode      int
-	GetKeysResponse          []byte
-	SignDataReqEndpoint      string
-	SignDataReqHandler       func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
-	SignDataResponseCode     int
-	SignDataResponse         []byte
+	ListenAddr                         string
+	ServerCertificatePemPath           string
+	ServerKeyPemPath                   string
+	CertAuthReqEndpoint                string
+	CertAuthReqHandler                 func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	CertAuthResponseCode               int
+	CertAuthResponse                   []byte
+	AppRoleAuthReqEndpoint             string
+	AppRoleAuthReqHandler              func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
+	AppRoleAuthResponseCode            int
+	AppRoleAuthResponse                []byte
+	K8sAuthReqEndpoint                 string
+	K8sAuthReqHandler                  func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
+	K8sAuthResponseCode                int
+	K8sAuthResponse                    []byte
+	RenewReqEndpoint                   string
+	RenewReqHandler                    func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	RenewResponseCode                  int
+	RenewResponse                      []byte
+	LookupSelfReqEndpoint              string
+	LookupSelfReqHandler               func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
+	LookupSelfResponseCode             int
+	LookupSelfResponse                 []byte
+	CreateKeyReqEndpoint               string
+	CreateKeyReqHandler                func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	CreateKeyResponseCode              int
+	CreateKeyResponse                  []byte
+	DeleteKeyReqEndpoint               string
+	DeleteKeyReqHandler                func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	DeleteKeyResponseCode              int
+	DeleteKeyResponse                  []byte
+	UpdateKeyConfigurationReqEndpoint  string
+	UpdateKeyConfigurationReqHandler   func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	UpdateKeyConfigurationResponseCode int
+	UpdateKeyConfigurationResponse     []byte
+	GetKeyReqEndpoint                  string
+	GetKeyReqHandler                   func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	GetKeyResponseCode                 int
+	GetKeyResponse                     []byte
+	GetKeysReqEndpoint                 string
+	GetKeysReqHandler                  func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	GetKeysResponseCode                int
+	GetKeysResponse                    []byte
+	SignDataReqEndpoint                string
+	SignDataReqHandler                 func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	SignDataResponseCode               int
+	SignDataResponse                   []byte
 }
 
 // NewFakeVaultServerConfig returns VaultServerConfig with default values
 func NewFakeVaultServerConfig() *FakeVaultServerConfig {
 	return &FakeVaultServerConfig{
-		ListenAddr:             listenAddr,
-		CertAuthReqEndpoint:    defaultTLSAuthEndpoint,
-		CertAuthReqHandler:     defaultReqHandler,
-		AppRoleAuthReqEndpoint: defaultAppRoleAuthEndpoint,
-		AppRoleAuthReqHandler:  defaultReqHandler,
-		K8sAuthReqEndpoint:     defaultK8sAuthEndpoint,
-		K8sAuthReqHandler:      defaultReqHandler,
-		RenewReqEndpoint:       defaultRenewEndpoint,
-		RenewReqHandler:        defaultReqHandler,
-		LookupSelfReqEndpoint:  defaultLookupSelfEndpoint,
-		LookupSelfReqHandler:   defaultReqHandler,
-		CreateKeyReqEndpoint:   defaultCreateKeyEndpoint,
-		CreateKeyReqHandler:    defaultReqHandler,
-		GetKeyReqEndpoint:      defaultGetKeyEndpoint,
-		GetKeyReqHandler:       defaultReqHandler,
-		GetKeysReqEndpoint:     defaultGetKeysEndpoint,
-		GetKeysReqHandler:      defaultReqHandler,
-		SignDataReqEndpoint:    defaultSignDataEndpoint,
-		SignDataReqHandler:     defaultReqHandler,
+		ListenAddr:                        listenAddr,
+		CertAuthReqEndpoint:               defaultTLSAuthEndpoint,
+		CertAuthReqHandler:                defaultReqHandler,
+		AppRoleAuthReqEndpoint:            defaultAppRoleAuthEndpoint,
+		AppRoleAuthReqHandler:             defaultReqHandler,
+		K8sAuthReqEndpoint:                defaultK8sAuthEndpoint,
+		K8sAuthReqHandler:                 defaultReqHandler,
+		RenewReqEndpoint:                  defaultRenewEndpoint,
+		RenewReqHandler:                   defaultReqHandler,
+		LookupSelfReqEndpoint:             defaultLookupSelfEndpoint,
+		LookupSelfReqHandler:              defaultReqHandler,
+		CreateKeyReqEndpoint:              defaultCreateKeyEndpoint,
+		CreateKeyReqHandler:               defaultReqHandler,
+		GetKeyReqEndpoint:                 defaultGetKeyEndpoint,
+		GetKeyReqHandler:                  defaultReqHandler,
+		GetKeysReqEndpoint:                defaultGetKeysEndpoint,
+		GetKeysReqHandler:                 defaultReqHandler,
+		SignDataReqEndpoint:               defaultSignDataEndpoint,
+		SignDataReqHandler:                defaultReqHandler,
+		UpdateKeyConfigurationReqEndpoint: defaultUpdateKeyConfigEndpoint,
+		UpdateKeyConfigurationReqHandler:  defaultReqHandler,
+		DeleteKeyReqEndpoint:              defaultDeleteKeyEndpoint,
+		DeleteKeyReqHandler:               defaultReqHandler,
 	}
 }
 
@@ -712,6 +726,8 @@ func (v *FakeVaultServerConfig) NewTLSServer() (srv *httptest.Server, addr strin
 	mux.HandleFunc(v.LookupSelfReqEndpoint, v.LookupSelfReqHandler(v.LookupSelfResponseCode, v.LookupSelfResponse))
 	mux.HandleFunc(v.CreateKeyReqEndpoint, v.CreateKeyReqHandler(v.CreateKeyResponseCode, v.CreateKeyResponse))
 	mux.HandleFunc(v.GetKeyReqEndpoint, v.GetKeyReqHandler(v.GetKeyResponseCode, v.GetKeyResponse))
+	mux.HandleFunc(v.UpdateKeyConfigurationReqEndpoint, v.UpdateKeyConfigurationReqHandler(v.UpdateKeyConfigurationResponseCode, v.UpdateKeyConfigurationResponse))
+	mux.HandleFunc(v.DeleteKeyReqEndpoint, v.DeleteKeyReqHandler(v.DeleteKeyResponseCode, v.DeleteKeyResponse))
 	mux.HandleFunc(v.GetKeysReqEndpoint, v.GetKeysReqHandler(v.GetKeysResponseCode, v.GetKeysResponse))
 	mux.HandleFunc(v.SignDataReqEndpoint, v.SignDataReqHandler(v.SignDataResponseCode, v.SignDataResponse))
 
