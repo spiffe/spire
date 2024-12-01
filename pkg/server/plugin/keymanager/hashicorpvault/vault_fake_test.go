@@ -403,7 +403,7 @@ k8s_auth {
   "lease_duration": 0,
   "data": {
     "keys": [
-      "x509-CA-A"
+      "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A"
     ]
   },
   "wrap_info": null,
@@ -447,7 +447,7 @@ k8s_auth {
     "min_available_version": 0,
     "min_decryption_version": 1,
     "min_encryption_version": 0,
-    "name": "x509-CA-A",
+    "name": "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A",
     "supports_decryption": false,
     "supports_derivation": false,
     "supports_encryption": false,
@@ -482,7 +482,7 @@ k8s_auth {
     "min_available_version": 0,
     "min_decryption_version": 1,
     "min_encryption_version": 0,
-    "name": "x509-CA-A",
+    "name": "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A",
     "supports_decryption": false,
     "supports_derivation": false,
     "supports_encryption": false,
@@ -517,7 +517,7 @@ k8s_auth {
     "min_available_version": 0,
     "min_decryption_version": 1,
     "min_encryption_version": 0,
-    "name": "x509-CA-A",
+    "name": "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A",
     "supports_decryption": true,
     "supports_derivation": false,
     "supports_encryption": true,
@@ -552,7 +552,7 @@ k8s_auth {
     "min_available_version": 0,
     "min_decryption_version": 1,
     "min_encryption_version": 0,
-    "name": "x509-CA-A",
+    "name": "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A",
     "supports_decryption": true,
     "supports_derivation": false,
     "supports_encryption": true,
@@ -587,7 +587,7 @@ k8s_auth {
     "min_available_version": 0,
     "min_decryption_version": 1,
     "min_encryption_version": 0,
-    "name": "x509-CA-A",
+    "name": "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A",
     "supports_decryption": true,
     "supports_derivation": false,
     "supports_encryption": true,
