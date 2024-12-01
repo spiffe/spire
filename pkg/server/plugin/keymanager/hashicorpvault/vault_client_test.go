@@ -913,7 +913,7 @@ func TestGetKeyEntry(t *testing.T) {
 	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
 	require.NoError(t, err)
 
-	resp, err := client.getKeyEntry(context.Background(), "x509-CA-A")
+	resp, err := client.getKeyEntry(context.Background(), "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A")
 	require.NoError(t, err)
 
 	block, _ := pem.Decode([]byte("-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEV57LFbIQZzyZ2YcKZfB9mGWkUhJv\niRzIZOqV4wRHoUOZjMuhBMR2WviEsy65TYpcBjreAc6pbneiyhlTwPvgmw==\n-----END PUBLIC KEY-----\n"))
@@ -951,7 +951,7 @@ func TestGetKeyEntryErrorFromEndpoint(t *testing.T) {
 	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
 	require.NoError(t, err)
 
-	resp, err := client.getKeyEntry(context.Background(), "x509-CA-A")
+	resp, err := client.getKeyEntry(context.Background(), "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A")
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to get transit engine key: Error making API request.")
 	require.Empty(t, resp)
 }

@@ -375,13 +375,13 @@ const (
 
 // CreateKey creates a new key in the specified transit secret engine
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#create-key
-func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType TransitKeyType) error {
+func (c *Client) CreateKey(ctx context.Context, keyName string, keyType TransitKeyType) error {
 	arguments := map[string]interface{}{
 		"type":       keyType,
 		"exportable": "false", // SPIRE keys are never exportable
 	}
 
-	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID), arguments)
+	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, keyName), arguments)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to create transit engine key: %v", err)
 	}
@@ -391,7 +391,7 @@ func (c *Client) CreateKey(ctx context.Context, spireKeyID string, keyType Trans
 
 // SignData signs the data using the transit engine key with the provided spire key id.
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#sign-data
-func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
+func (c *Client) SignData(ctx context.Context, keyName string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
 	encodedData := base64.StdEncoding.EncodeToString(data)
 
 	body := map[string]interface{}{
@@ -401,7 +401,7 @@ func (c *Client) SignData(ctx context.Context, spireKeyID string, data []byte, h
 		"prehashed":             "true",
 	}
 
-	sigResp, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/sign/%s/%s", c.clientParams.TransitEnginePath, spireKeyID, hashAlgo), body)
+	sigResp, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/sign/%s/%s", c.clientParams.TransitEnginePath, keyName, hashAlgo), body)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "transit engine sign call failed: %v", err)
 	}
@@ -449,18 +449,18 @@ func (c *Client) GetKeys(ctx context.Context) ([]*keyEntry, error) {
 		return nil, status.Errorf(codes.Internal, "transit engine list keys call was successful but keys are missing")
 	}
 
-	keyIds, ok := keys.([]interface{})
+	keyNames, ok := keys.([]interface{})
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "expected keys data type %T but got %T", keyIds, keys)
+		return nil, status.Errorf(codes.Internal, "expected keys data type %T but got %T", keyNames, keys)
 	}
 
-	for _, keyId := range keyIds {
-		keyIdStr, ok := keyId.(string)
+	for _, keyName := range keyNames {
+		keyNameStr, ok := keyName.(string)
 		if !ok {
-			return nil, status.Errorf(codes.Internal, "expected key id data type %T but got %T", keyIdStr, keyId)
+			return nil, status.Errorf(codes.Internal, "expected key id data type %T but got %T", keyNameStr, keyName)
 		}
 
-		keyEntry, err := c.getKeyEntry(ctx, keyIdStr)
+		keyEntry, err := c.getKeyEntry(ctx, keyNameStr)
 		if err != nil {
 			return nil, err
 		}
@@ -471,9 +471,14 @@ func (c *Client) GetKeys(ctx context.Context) ([]*keyEntry, error) {
 	return keyEntries, nil
 }
 
-// getKeyEntry gets the transit engine key with the specified spire key id and converts it into a key entry.
-func (c *Client) getKeyEntry(ctx context.Context, spireKeyID string) (*keyEntry, error) {
-	keyData, err := c.getKey(ctx, spireKeyID)
+// getKeyEntry gets the transit engine key with the specified key name and converts it into a key entry.
+func (c *Client) getKeyEntry(ctx context.Context, keyName string) (*keyEntry, error) {
+	spireKeyID, ok := spireKeyIDFromKeyName(keyName)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "unable to get SPIRE key ID from key %s", keyName)
+	}
+
+	keyData, err := c.getKey(ctx, keyName)
 	if err != nil {
 		return nil, err
 	}
@@ -519,6 +524,7 @@ func (c *Client) getKeyEntry(ctx context.Context, spireKeyID string) (*keyEntry,
 	}
 
 	return &keyEntry{
+		KeyName: keyName,
 		PublicKey: &keymanagerv1.PublicKey{
 			Id:          spireKeyID,
 			Type:        keyType,
@@ -530,8 +536,8 @@ func (c *Client) getKeyEntry(ctx context.Context, spireKeyID string) (*keyEntry,
 
 // getKey returns a specific key from the transit engine.
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#read-key
-func (c *Client) getKey(ctx context.Context, spireKeyID string) (map[string]interface{}, error) {
-	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, spireKeyID))
+func (c *Client) getKey(ctx context.Context, keyName string) (map[string]interface{}, error) {
+	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, keyName))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get transit engine key: %v", err)
 	}
@@ -557,4 +563,18 @@ func (c *Client) getKey(ctx context.Context, spireKeyID string) (map[string]inte
 	}
 
 	return currentKeyMap, nil
+}
+
+// spireKeyIDFromKeyName parses a Key Vault key name to get the
+// SPIRE Key ID. This Key ID is used in the Server KeyManager interface.
+func spireKeyIDFromKeyName(keyName string) (string, bool) {
+	// A key name would have the format <UUID>-<SPIRE-KEY-ID>.
+	// first we find the position where the SPIRE Key ID starts.
+	spireKeyIDIndex := 37 // 36 is the UUID length plus one '-' separator
+	if spireKeyIDIndex >= len(keyName) {
+		// The index is out of range.
+		return "", false
+	}
+	spireKeyID := keyName[spireKeyIDIndex:]
+	return spireKeyID, true
 }
