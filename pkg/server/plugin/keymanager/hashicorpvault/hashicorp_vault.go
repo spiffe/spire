@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"os"
@@ -50,6 +52,9 @@ type Config struct {
 	Namespace string `hcl:"namespace" json:"namespace"`
 	// TransitEnginePath specifies the path to the transit engine to perform key operations.
 	TransitEnginePath string `hcl:"transit_engine_path" json:"transit_engine_path"`
+
+	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
 
 	// If true, vault client accepts any server certificates.
 	// It should be used only test environment so on.
@@ -118,9 +123,10 @@ type Plugin struct {
 	keymanagerv1.UnsafeKeyManagerServer
 	configv1.UnsafeConfigServer
 
-	logger  hclog.Logger
-	mu      sync.RWMutex
-	entries map[string]keyEntry
+	logger   hclog.Logger
+	serverID string
+	mu       sync.RWMutex
+	entries  map[string]keyEntry
 
 	authMethod AuthMethod
 	cc         *ClientConfig
@@ -156,6 +162,17 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 
+	serverID := config.KeyIdentifierValue
+	if serverID == "" {
+		var err error
+
+		if serverID, err = getOrCreateServerID(config.KeyIdentifierFile); err != nil {
+			return nil, err
+		}
+	}
+
+	p.logger.Debug("Loaded server id", "server_id", serverID)
+
 	if config.InsecureSkipVerify {
 		p.logger.Warn("TLS verification of Vault certificates is skipped. This is only recommended for test environments.")
 	}
@@ -178,6 +195,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	p.authMethod = am
 	p.cc = vcConfig
+	p.serverID = serverID
 
 	if p.vc == nil {
 		err := p.genVaultClient()
@@ -491,4 +509,59 @@ func (p *Plugin) setCache(keyEntries []*keyEntry) {
 		p.entries[e.PublicKey.Id] = *e
 		p.logger.Debug("Key loaded", "key_id", e.PublicKey.Id, "key_type", e.PublicKey.Type)
 	}
+}
+
+// generateKeyName returns a new identifier to be used as a key name.
+// The returned name has the form: <UUID>-<SPIRE-KEY-ID>
+// where UUID is a new randomly generated UUID and SPIRE-KEY-ID is provided
+// through the spireKeyID parameter.
+func (p *Plugin) generateKeyName(spireKeyID string) (keyName string, err error) {
+	uniqueID, err := generateUniqueID()
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s-%s", uniqueID, spireKeyID), nil
+}
+
+// generateUniqueID returns a randomly generated UUID.
+func generateUniqueID() (id string, err error) {
+	u, err := uuid.NewV4()
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "could not create a randomly generated UUID: %v", err)
+	}
+
+	return u.String(), nil
+}
+
+func getOrCreateServerID(idPath string) (string, error) {
+	data, err := os.ReadFile(idPath)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return createServerID(idPath)
+	case err != nil:
+		return "", status.Errorf(codes.Internal, "failed to read server ID from path: %v", err)
+	}
+
+	serverID, err := uuid.FromString(string(data))
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to parse server ID from path: %v", err)
+	}
+	return serverID.String(), nil
+}
+
+// createServerID creates a randomly generated UUID to be used as a server ID
+// and stores it in the specified idPath.
+func createServerID(idPath string) (string, error) {
+	id, err := generateUniqueID()
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to generate ID for server: %v", err)
+	}
+
+	err = diskutil.WritePrivateFile(idPath, []byte(id))
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to persist server ID on path: %v", err)
+	}
+
+	return id, nil
 }
