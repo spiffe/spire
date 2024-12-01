@@ -36,6 +36,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type keyEntry struct {
+	KeyName   string
 	PublicKey *keymanagerv1.PublicKey
 }
 
@@ -123,10 +124,11 @@ type Plugin struct {
 	keymanagerv1.UnsafeKeyManagerServer
 	configv1.UnsafeConfigServer
 
-	logger   hclog.Logger
-	serverID string
-	mu       sync.RWMutex
-	entries  map[string]keyEntry
+	logger     hclog.Logger
+	serverID   string
+	mu         sync.RWMutex
+	entries    map[string]keyEntry
+	entriesMtx sync.RWMutex
 
 	authMethod AuthMethod
 	cc         *ClientConfig
@@ -316,7 +318,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 		return nil, err
 	}
 
-	p.entries[spireKeyID] = *newKeyEntry
+	p.setKeyEntry(spireKeyID, *newKeyEntry)
 
 	return &keymanagerv1.GenerateKeyResponse{
 		PublicKey: newKeyEntry.PublicKey,
@@ -351,7 +353,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		}
 	}
 
-	signature, err := p.vc.SignData(ctx, req.KeyId, req.Data, hashAlgo, signingAlgo)
+	signature, err := p.vc.SignData(ctx, keyEntry.KeyName, req.Data, hashAlgo, signingAlgo)
 	if err != nil {
 		return nil, err
 	}
@@ -451,12 +453,17 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
-	err = p.vc.CreateKey(ctx, spireKeyID, *kt)
+	keyName, err := p.generateKeyName(spireKeyID)
 	if err != nil {
 		return nil, err
 	}
 
-	return p.vc.getKeyEntry(ctx, spireKeyID)
+	err = p.vc.CreateKey(ctx, keyName, *kt)
+	if err != nil {
+		return nil, err
+	}
+
+	return p.vc.getKeyEntry(ctx, keyName)
 }
 
 func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*TransitKeyType, error) {
@@ -502,6 +509,8 @@ func makeFingerprint(pkixData []byte) string {
 
 func (p *Plugin) setCache(keyEntries []*keyEntry) {
 	// clean previous cache
+	p.entriesMtx.Lock()
+	defer p.entriesMtx.Unlock()
 	p.entries = make(map[string]keyEntry)
 
 	// add results to cache
@@ -509,6 +518,23 @@ func (p *Plugin) setCache(keyEntries []*keyEntry) {
 		p.entries[e.PublicKey.Id] = *e
 		p.logger.Debug("Key loaded", "key_id", e.PublicKey.Id, "key_type", e.PublicKey.Type)
 	}
+}
+
+// setKeyEntry adds the entry to the cache that matches the provided SPIRE Key ID
+func (p *Plugin) setKeyEntry(keyID string, ke keyEntry) {
+	p.entriesMtx.Lock()
+	defer p.entriesMtx.Unlock()
+
+	p.entries[keyID] = ke
+}
+
+// getKeyEntry gets the entry from the cache that matches the provided SPIRE Key ID
+func (p *Plugin) getKeyEntry(keyID string) (ke keyEntry, ok bool) {
+	p.entriesMtx.RLock()
+	defer p.entriesMtx.RUnlock()
+
+	ke, ok = p.entries[keyID]
+	return ke, ok
 }
 
 // generateKeyName returns a new identifier to be used as a key name.
