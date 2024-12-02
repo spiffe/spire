@@ -588,6 +588,9 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 				server_api {
 					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			out: &Config{
@@ -607,6 +610,9 @@ func parseConfigCasesOS() []parseConfigCase {
 				ServerAPI: &ServerAPIConfig{
 					Address:      "unix:///some/socket/path",
 					PollInterval: defaultPollInterval,
+					Experimental: experimentalServerAPIConfig{
+						NamedPipeName: "\\name\\for\\server\\api",
+					},
 				},
 				HealthChecks: nil,
 			},
@@ -622,6 +628,9 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 				server_api {
 					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			err: "the jwt_issuer url could not be parsed",
@@ -637,6 +646,9 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 				server_api {
 					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			err: "the jwt_issuer url could not be parsed",
@@ -652,6 +664,9 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 				server_api {
 					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			err: "the jwt_issuer url could not be parsed",
@@ -667,6 +682,9 @@ func parseConfigCasesOS() []parseConfigCase {
 				}
 				server_api {
 					address = "unix:///some/socket/path"
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
 				}
 			`,
 			out: &Config{
@@ -685,6 +703,9 @@ func parseConfigCasesOS() []parseConfigCase {
 				ServerAPI: &ServerAPIConfig{
 					Address:      "unix:///some/socket/path",
 					PollInterval: defaultPollInterval,
+					Experimental: experimentalServerAPIConfig{
+						NamedPipeName: "\\name\\for\\server\\api",
+					},
 				},
 				HealthChecks: nil,
 			},

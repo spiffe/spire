@@ -80,12 +80,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		Path:   path,
 	}
 
-	jwksURIPath, _ := url.JoinPath(path, "keys")
-	jwksURI := url.URL{
-		Scheme: urlScheme,
-		Host:   host,
-		Path:   jwksURIPath,
-	}
+	jwksURI := issuerURL.JoinPath("keys")
 
 	doc := struct {
 		Issuer  string `json:"issuer"`
