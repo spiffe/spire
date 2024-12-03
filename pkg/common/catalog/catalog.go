@@ -181,20 +181,16 @@ func Load(ctx context.Context, config *Config, repo Repository) (_ *Catalog, err
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("bindablePluginRepos: %+v", pluginRepos)
 
 	serviceRepos, err := makeBindableServiceRepos(repo.Services())
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("bindableServiceRepos: %+v", serviceRepos)
 
 	pluginCounts := make(map[string]int)
 	var reconfigurers Reconfigurers
 
 	for _, pluginConfig := range config.PluginConfigs {
-		log.Infof("plugin(%s): processing", pluginConfig.Name)
-
 		pluginLog := makePluginLog(config.Log, pluginConfig)
 
 		pluginRepo, ok := pluginRepos[pluginConfig.Type]
@@ -205,7 +201,6 @@ func Load(ctx context.Context, config *Config, repo Repository) (_ *Catalog, err
 			}
 			continue
 		}
-		log.Infof("plugin(%s): supported", pluginConfig.Name)
 
 		if pluginConfig.Disabled {
 			pluginLog.Debug("Not loading plugin; disabled")
@@ -227,7 +222,6 @@ func Load(ctx context.Context, config *Config, repo Repository) (_ *Catalog, err
 		// panic, etc.) we want the defer above to close the plugin. Failure to
 		// do so can orphan external plugin processes.
 		closers = append(closers, pluginCloser{plugin: plugin, log: pluginLog})
-		log.Infof("plugin(%s): loaded", pluginConfig.Name)
 
 		configurer, err := plugin.bindRepos(pluginRepo, serviceRepos)
 		if err != nil {
@@ -237,7 +231,6 @@ func Load(ctx context.Context, config *Config, repo Repository) (_ *Catalog, err
 				return nil, fmt.Errorf("failed to bind plugin %q: %w", pluginConfig.Name, err)
 			}
 		}
-		log.Infof("plugin(%s): bound, configurer %+v", pluginConfig.Name, configurer)
 
 		if !config.ValidateOnly {
 			reconfigurer, err := configurePlugin(ctx, pluginLog, config.CoreConfig, configurer, pluginConfig.DataSource)
