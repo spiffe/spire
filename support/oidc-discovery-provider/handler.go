@@ -24,17 +24,19 @@ type Handler struct {
 	allowInsecureScheme bool
 	setKeyUse           bool
 	log                 logrus.FieldLogger
+	jwtIssuer           string
 
 	http.Handler
 }
 
-func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool) *Handler {
+func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer string) *Handler {
 	h := &Handler{
 		domainPolicy:        domainPolicy,
 		source:              source,
 		allowInsecureScheme: allowInsecureScheme,
 		setKeyUse:           setKeyUse,
 		log:                 log,
+		jwtIssuer:           jwtIssuer,
 	}
 
 	mux := http.NewServeMux()
@@ -51,26 +53,34 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.verifyHost(r.Host); err != nil {
+	var host string
+	var path string
+	var urlScheme string
+	if h.jwtIssuer != "" {
+		jwtIssuerURL, _ := url.Parse(h.jwtIssuer)
+		host = jwtIssuerURL.Host
+		path = jwtIssuerURL.Path
+		urlScheme = jwtIssuerURL.Scheme
+	} else {
+		host = r.Host
+		urlScheme = "https"
+		if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
+			urlScheme = "http"
+		}
+	}
+
+	if err := h.verifyHost(host); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	urlScheme := "https"
-	if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
-		urlScheme = "http"
-	}
-
 	issuerURL := url.URL{
 		Scheme: urlScheme,
-		Host:   r.Host,
+		Host:   host,
+		Path:   path,
 	}
 
-	jwksURI := url.URL{
-		Scheme: urlScheme,
-		Host:   r.Host,
-		Path:   "/keys",
-	}
+	jwksURI := issuerURL.JoinPath("keys")
 
 	doc := struct {
 		Issuer  string `json:"issuer"`
