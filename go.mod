@@ -61,7 +61,7 @@ require (
 	github.com/imkira/go-observer v1.0.3
 	github.com/jackc/pgx/v5 v5.7.1
 	github.com/jinzhu/gorm v1.9.16
-	github.com/lestrrat-go/jwx/v2 v2.1.2
+	github.com/lestrrat-go/jwx/v2 v2.1.3
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/mitchellh/cli v1.1.5
@@ -75,7 +75,7 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.4.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20240916165922-16526993814a
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20240701180828-594312f4444d
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/uber-go/tally/v4 v4.1.16
 	github.com/valyala/fastjson v1.6.4
 	github.com/zeebo/errs v1.4.0
@@ -94,7 +94,7 @@ require (
 	k8s.io/client-go v0.31.3
 	k8s.io/kube-aggregator v0.31.3
 	k8s.io/mount-utils v0.31.3
-	sigs.k8s.io/controller-runtime v0.19.1
+	sigs.k8s.io/controller-runtime v0.19.2
 )
 
 require (
