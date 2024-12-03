@@ -67,7 +67,7 @@ func run(configPath string) error {
 		return err
 	}
 
-	var handler http.Handler = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse)
+	var handler http.Handler = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, config.JWTIssuer)
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)

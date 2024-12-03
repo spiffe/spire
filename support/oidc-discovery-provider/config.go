@@ -2,6 +2,7 @@ package main
 
 import (
 	"net"
+	"net/url"
 	"os"
 	"time"
 
@@ -75,6 +76,9 @@ type Config struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
+
+	// JWTIssuer specifies the issuer for the OIDC provider configuration request.
+	JWTIssuer string `hcl:"jwt_issuer"`
 }
 
 type ServingCertFileConfig struct {
@@ -287,7 +291,12 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	default:
 		return nil, errs.New("the server_api and workload_api sections are mutually exclusive")
 	}
-
+	if c.JWTIssuer != "" {
+		jwtIssuer, err := url.Parse(c.JWTIssuer)
+		if err != nil || jwtIssuer.Scheme == "" || jwtIssuer.Host == "" {
+			return nil, errs.New("the jwt_issuer url could not be parsed")
+		}
+	}
 	return c, nil
 }
 
