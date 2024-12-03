@@ -54,3 +54,13 @@ func (s *ValidateSuite) TestBadFlags() {
 	s.Equal("", s.stdout.String(), "stdout")
 	s.Contains(s.stderr.String(), "flag provided but not defined: -badflag")
 }
+
+func (s *ValidateSuite) TestValidate() {
+	code := s.cmd.Run([]string{"-config", "../../../../test/fixture/config/server_good_basic.conf"})
+	s.Equal(0, code, "exit code")
+}
+
+func (s *ValidateSuite) TestValidateFails() {
+	code := s.cmd.Run([]string{"-config", "../../../../test/fixture/config/server_bad_disk_keymanager_plugin.conf"})
+	s.Equal(1, code, "exit code")
+}
