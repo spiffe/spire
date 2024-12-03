@@ -28,7 +28,7 @@ type listCommand struct {
 	// Filters agents to those that are banned.
 	banned commoncli.BoolFlag
 
-	// Filters agents by those expires before.
+	// Filters agents by those that expire before this value.
 	expiresBefore string
 
 	// Filters agents to those matching the attestation type.

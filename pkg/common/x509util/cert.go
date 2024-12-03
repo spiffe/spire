@@ -11,11 +11,11 @@ import (
 )
 
 const (
-	unknowAuthorityErr = "x509: certificate signed by unknown authority"
+	unknownAuthorityErr = "x509: certificate signed by unknown authority"
 )
 
-func CreateCertificate(template, parent *x509.Certificate, pub, priv any) (*x509.Certificate, error) {
-	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, pub, priv)
+func CreateCertificate(template, parent *x509.Certificate, publicKey, privateKey any) (*x509.Certificate, error) {
+	certDER, err := x509.CreateCertificate(rand.Reader, template, parent, publicKey, privateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func RawCertsFromCertificates(certs []*x509.Certificate) [][]byte {
 	return rawCerts
 }
 
-// IsUnknownAuthorityError returns tru if the Server returned an unknow authority error when verifying
+// IsUnknownAuthorityError returns tru if the Server returned an unknown authority error when verifying
 // presented SVID
 func IsUnknownAuthorityError(err error) bool {
 	if err == nil {
@@ -87,7 +87,7 @@ func IsUnknownAuthorityError(err error) bool {
 	}
 
 	// Since it is an rpc error we are unable to use errors.As since it is not possible to unwrap
-	return strings.Contains(err.Error(), unknowAuthorityErr)
+	return strings.Contains(err.Error(), unknownAuthorityErr)
 }
 
 // IsSignedByRoot checks if the provided certificate chain is signed by one of the specified root CAs.

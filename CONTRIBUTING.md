@@ -45,7 +45,7 @@ toolchain and other build related files are cached under the `.build` folder
 
 ### Development in Docker
 
-You can either build SPIRE on your host or in a Ubuntu docker container. In
+You can either build SPIRE on your host or in an Ubuntu docker container. In
 both cases you will use the same Makefile commands.
 
 To build SPIRE within a container, first build the development image:
@@ -105,14 +105,14 @@ Packages should be exported through interfaces. Interaction with packages must b
 interfaces
 
 Interfaces should be defined in their own file, named (in lowercase) after the name of the
-interface. eg. `foodata.go` implements `type FooData any`
+interface. e.g. `foodata.go` implements `type FooData any`
 
 ### Metrics
 
 As much as possible, label names should be constants defined in the `telemetry` package. Additionally,
 specific metrics should be centrally defined in the `telemetry` package or its subpackages. Functions
 desiring metrics should delegate counter, gauge, timer, etc. creation to such packages.
-The metrics emitted by SPIRE are listed in the [telemetry document](doc/telemetry.md) and should be kept up to date.
+The metrics emitted by SPIRE are listed in the [telemetry document](doc/telemetry/telemetry.md) and should be kept up to date.
 
 In addition, metrics should be unit-tested where reasonable.
 

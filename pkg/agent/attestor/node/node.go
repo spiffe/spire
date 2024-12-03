@@ -25,6 +25,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_common "github.com/spiffe/spire/pkg/common/telemetry/common"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/zeebo/errs"
@@ -58,6 +59,7 @@ type Config struct {
 	Log               logrus.FieldLogger
 	ServerAddress     string
 	NodeAttestor      nodeattestor.NodeAttestor
+	TLSPolicy         tlspolicy.Policy
 }
 
 type attestor struct {
@@ -193,7 +195,7 @@ func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*spiff
 }
 
 func (a *attestor) getSVID(ctx context.Context, conn *grpc.ClientConn, csr []byte, attestor nodeattestor.NodeAttestor) ([]*x509.Certificate, bool, error) {
-	// make sure all of the streams are cancelled if something goes awry
+	// make sure all the streams are cancelled if something goes awry
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -256,6 +258,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) 
 			Address:     a.c.ServerAddress,
 			TrustDomain: a.c.TrustDomain,
 			GetBundle:   bundle.X509Authorities,
+			TLSPolicy:   a.c.TLSPolicy,
 		})
 	}
 

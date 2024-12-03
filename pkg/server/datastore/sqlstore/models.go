@@ -176,7 +176,7 @@ type FederatedTrustDomain struct {
 	// is "https_spiffe"
 	EndpointSPIFFEID string
 
-	// Implicit indicates wether the trust domain automatically federates with
+	// Implicit indicates whether the trust domain automatically federates with
 	// all registration entries by default or not.
 	Implicit bool
 }

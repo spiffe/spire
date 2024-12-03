@@ -37,7 +37,7 @@ the old registration API.
 
 ## List Operations
 
-Unlike the Registration API (with the exception of `ListAllEntriesWithPages`),
+Unlike the Registration API (except `ListAllEntriesWithPages`),
 the new APIs `List*` operations all support paging. If clients provide a page
 size, the server _will_ page the response, using the page size as an upper bound.
 However, even if clients do not provide a page size, the server is free to

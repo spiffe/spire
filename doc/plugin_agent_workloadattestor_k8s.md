@@ -27,7 +27,7 @@ server name validation against the kubelet certificate.
 <!-- different notes -->
 
 > **Note** The kubelet uses the TokenReview API to validate bearer tokens.
-> This requires reachability to the Kubernetes API server. Therefore API server downtime can
+> This requires reachability to the Kubernetes API server. Therefore, API server downtime can
 > interrupt workload attestation. The `--authentication-token-webhook-cache-ttl` kubelet flag
 > controls how long the kubelet caches TokenReview responses and may help to
 > mitigate this issue. A large cache ttl value is not recommended however, as
@@ -47,7 +47,7 @@ server name validation against the kubelet certificate.
 since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/) container is required on the agent container.
 
 | Configuration                    | Description                                                                                                                                                                                                                             |
-|--------------------------------  |-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+|----------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `disable_container_selectors`    | If true, container selectors are not produced. This can be used to produce pod selectors when the workload pod is known but the workload container is not ready at the time of attestation.                                             |
 | `kubelet_read_only_port`         | The kubelet read-only port. This is mutually exclusive with `kubelet_secure_port`.                                                                                                                                                      |
 | `kubelet_secure_port`            | The kubelet secure port. It defaults to `10250` unless `kubelet_read_only_port` is set.                                                                                                                                                 |

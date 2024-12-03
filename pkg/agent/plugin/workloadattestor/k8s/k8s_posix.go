@@ -103,7 +103,7 @@ var cgroupREs = []*regexp.Regexp{
 	// cgroup name. It assumes that any ".scope" suffix has been trimmed off
 	// beforehand.  CAUTION: we used to verify that the pod and container id were
 	// descendants of a kubepods directory, however, as of Kubernetes 1.21, cgroups
-	// namespaces are in use and therefore we can no longer discern if that is the
+	// namespaces are in use, and therefore we can no longer discern if that is the
 	// case from within SPIRE agent container (since the container itself is
 	// namespaced). As such, the regex has been relaxed to simply find the pod UID
 	// followed by the container ID with allowances for arbitrary punctuation, and

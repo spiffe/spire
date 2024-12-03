@@ -37,7 +37,7 @@ func (h *caHealth) CheckHealth() health.State {
 		})
 	}
 
-	// Both liveness and readiness are determined by whether or not the
+	// Both liveness and readiness are determined by whether the
 	// x509 CA was successfully signed.
 	ready := err == nil
 	live := err == nil
