@@ -173,10 +173,6 @@ func Load(ctx context.Context, config *Config, repo Repository) (_ *Catalog, err
 		}
 	}()
 
-	log := config.Log.WithFields(logrus.Fields{
-		telemetry.SubsystemName: "common_catalog",
-	})
-
 	pluginRepos, err := makeBindablePluginRepos(repo.Plugins())
 	if err != nil {
 		return nil, err
