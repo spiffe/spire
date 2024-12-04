@@ -14,6 +14,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
@@ -40,6 +41,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"google.golang.org/grpc"
 )
 
@@ -68,6 +70,18 @@ func (s *Server) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Server) ValidateConfig(ctx context.Context) (*configv1.ValidateResponse, error) {
+	return catalog.ValidateConfig(ctx, catalog.Config{
+		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+		Metrics:          fakemetrics.New(),
+		TrustDomain:      s.config.TrustDomain,
+		PluginConfigs:    s.config.PluginConfigs,
+		IdentityProvider: identityprovider.New(identityprovider.Config{TrustDomain: s.config.TrustDomain}),
+		AgentStore:       agentstore.New(),
+		HealthChecker:    health.NewChecker(s.config.HealthChecks, s.config.Log),
+	})
 }
 
 func (s *Server) run(ctx context.Context) (err error) {
