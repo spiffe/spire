@@ -46,11 +46,18 @@ func (c *validateCommand) Run(args []string) int {
 
 	s := server.New(*config)
 
-	err = s.ValidateConfig(context.Background())
+	resp, err := s.ValidateConfig(context.Background())
 	if err != nil {
-		_ = c.env.ErrPrintf("SPIRE server configuration file is invalid: %v\n", err)
+		_ = c.env.ErrPrintf("Could not validate configuration file: %v", err)
 		return 1
 	}
+	if resp != nil {
+		if !resp.Valid {
+			_ = c.env.ErrPrintf("SPIRE server configuration file is invalid.\nValidation notes: %v", resp.Notes)
+			return 1
+		}
+	}
+
 	_ = c.env.Println("SPIRE server configuration file is valid.")
 	return 0
 }
