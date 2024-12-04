@@ -85,7 +85,6 @@ func ValidatePlugin(ctx context.Context, coreConfig CoreConfig, configurer Confi
 		status.ReportErrorf("failed to load plugin data: %s", err.Error())
 		return status, err
 	}
-	status.ReportInfo("<validating plugin>")
 
 	return configurer.Validate(ctx, coreConfig, data)
 }
@@ -232,12 +231,9 @@ func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hcl
 		HclConfiguration:  hclConfiguration,
 	})
 	result := NewValidateResult()
-	// TODO: The GRPC default behavior is to not return a *ValidateResponse when there is an error, and that destroys many
-	//       of the validation messages, except for the error message.  We may wish to not consider validation errors
-	//       as errors going forward.
 	result.Notes = response.GetNotes()
 	if !response.GetValid() {
-		result.ReportErrorf("invalid configuration: %s", err.Error())
+		result.ReportError("plugin configuration is invalid")
 	}
 	return result, err
 }

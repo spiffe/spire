@@ -196,7 +196,7 @@ func (p *PCAPlugin) Validate(ctx context.Context, req *configv1.ValidateRequest)
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 // MintX509CA mints an X509CA by submitting the CSR to ACM to be signed by the certificate authority

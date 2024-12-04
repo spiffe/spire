@@ -91,7 +91,7 @@ func (m *KeyManager) Validate(_ context.Context, req *configv1.ValidateRequest) 
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 func (m *KeyManager) configure(config *configuration) error {
