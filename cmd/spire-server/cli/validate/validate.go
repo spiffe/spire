@@ -16,15 +16,17 @@ import (
 
 const commandName = "validate"
 
-func NewValidateCommand(ctx context.Context, logOptions []log.Option) cli.Command {
-	return newValidateCommand(ctx, commoncli.DefaultEnv, logOptions)
+func NewValidateCommand(ctx context.Context) cli.Command {
+	return newValidateCommand(ctx, commoncli.DefaultEnv)
 }
 
-func newValidateCommand(ctx context.Context, env *commoncli.Env, logOptions []log.Option) *validateCommand {
+func newValidateCommand(ctx context.Context, env *commoncli.Env) *validateCommand {
 	return &validateCommand{
 		ctx:        ctx,
 		env:        env,
-		logOptions: logOptions,
+		logOptions: []log.Option{
+			log.WithOutputFile("/dev/null"),
+		},
 	}
 }
 

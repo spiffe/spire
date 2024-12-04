@@ -125,7 +125,7 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 			return jwt.NewMintCommand(), nil
 		},
 		"validate": func() (cli.Command, error) {
-			return validate.NewValidateCommand(ctx, cc.LogOptions), nil
+			return validate.NewValidateCommand(ctx), nil
 		},
 		"localauthority x509 show": func() (cli.Command, error) {
 			return localauthority_x509.NewX509ShowCommand(), nil
