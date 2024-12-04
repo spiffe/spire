@@ -217,7 +217,7 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 	}, nil
 }
 
-func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) (validateResponse *configv1.ValidateResponse, err error) {
+func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) (resp *configv1.ValidateResponse, err error) {
 	closers := make(closerGroup, 0)
 	defer func() {
 		// If loading fails, clear out the catalog and close down all plugins
@@ -270,8 +270,8 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get plugin configuration: %w", err)
 		}
-		if err := configurer.Validate(ctx, config.CoreConfig, configString); err != nil {
-			return nil, err
+		if resp, err := configurer.Validate(ctx, config.CoreConfig, configString); err != nil {
+			return resp, err
 		}
 
 		pluginCounts[pluginConfig.Type]++

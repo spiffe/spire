@@ -14,6 +14,7 @@ import (
 	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
@@ -83,6 +84,18 @@ type Repository struct {
 	log      logrus.FieldLogger
 	dsCloser io.Closer
 	catalog  *catalog.Catalog
+}
+
+type dsConfigurer struct {
+	ds *ds_sql.Plugin
+}
+
+func (c *dsConfigurer) Configure(ctx context.Context, _ catalog.CoreConfig, configuration string) error {
+	return c.ds.Configure(ctx, configuration)
+}
+
+func (c *dsConfigurer) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
+	return c.ds.Validate(ctx, coreConfig, configuration)
 }
 
 func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
@@ -181,7 +194,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	return repo, nil
 }
 
-func ValidateConfig(ctx context.Context, config Config) (_ *Repository, err error) {
+func ValidateConfig(ctx context.Context, config Config) (resp *configv1.ValidateResponse, err error) {
 	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
 		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
 	}
@@ -191,9 +204,7 @@ func ValidateConfig(ctx context.Context, config Config) (_ *Repository, err erro
 		log: log,
 	}
 	defer func() {
-		if err != nil {
-			repo.Close()
-		}
+		repo.Close()
 	}()
 
 	coreConfig := catalog.CoreConfig{
@@ -207,13 +218,13 @@ func ValidateConfig(ctx context.Context, config Config) (_ *Repository, err erro
 	}
 
 	ds := ds_sql.New(log)
-	if err := ds.Validate(ctx, dsConfigString); err != nil {
-		return nil, fmt.Errorf("failed to validate DataStore configuration: %w", err)
+	if resp, err := ds.Validate(ctx, coreConfig, dsConfigString); err != nil {
+		return resp, fmt.Errorf("failed to validate DataStore configuration: %w", err)
 	}
 
 	repo.dsCloser = ds
 
-	if _, err = catalog.ValidatePluginConfigs(ctx, catalog.Config{
+	if resp, err := catalog.ValidatePluginConfigs(ctx, catalog.Config{
 		Log:           log,
 		CoreConfig:    coreConfig,
 		PluginConfigs: pluginConfigs,
@@ -223,10 +234,10 @@ func ValidateConfig(ctx context.Context, config Config) (_ *Repository, err erro
 			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
 		},
 	}, repo); err != nil {
-		return nil, err
+		return resp, err
 	}
 
-	return repo, nil
+	return resp, nil
 }
 
 func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.CoreConfig, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
@@ -251,11 +262,8 @@ func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.Cor
 
 	dsLog := config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name)
 	ds := ds_sql.New(dsLog)
-	configurer := catalog.ConfigurerFunc(func(ctx context.Context, _ catalog.CoreConfig, configuration string) error {
-		return ds.Configure(ctx, configuration)
-	})
-
-	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, configurer, sqlConfig.DataSource, ""); err != nil {
+	dsConfigurer := &dsConfigurer{ds: ds}
+	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, dsConfigurer, sqlConfig.DataSource, ""); err != nil {
 		return nil, err
 	}
 
