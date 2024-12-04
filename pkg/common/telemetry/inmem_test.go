@@ -80,6 +80,7 @@ func testInmemConfig() *MetricsConfig {
 	return &MetricsConfig{
 		Logger:      logger,
 		ServiceName: "foo",
+		TrustDomain: "test.org",
 		FileConfig:  FileConfig{InMem: &InMem{}},
 	}
 }
