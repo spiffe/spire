@@ -8,6 +8,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
@@ -176,6 +177,54 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 
 	repo.SetDataStore(dataStore)
 	repo.SetKeyManager(km_telemetry.WithMetrics(repo.GetKeyManager(), config.Metrics))
+
+	return repo, nil
+}
+
+func ValidateConfig(ctx context.Context, config Config) (_ *Repository, err error) {
+	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
+		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
+	}
+
+	log, _ := test.NewNullLogger()
+	repo := &Repository{
+		log: log,
+	}
+	defer func() {
+		if err != nil {
+			repo.Close()
+		}
+	}()
+
+	coreConfig := catalog.CoreConfig{
+		TrustDomain: config.TrustDomain,
+	}
+
+	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
+	dsConfigString, err := catalog.GetPluginConfigString(dataStoreConfigs[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to get DataStore configuration: %w", err)
+	}
+
+	ds := ds_sql.New(log)
+	if err := ds.Validate(ctx, dsConfigString); err != nil {
+		return nil, fmt.Errorf("failed to validate DataStore configuration: %w", err)
+	}
+
+	repo.dsCloser = ds
+
+	if _, err = catalog.ValidatePluginConfigs(ctx, catalog.Config{
+		Log:           log,
+		CoreConfig:    coreConfig,
+		PluginConfigs: pluginConfigs,
+		HostServices: []pluginsdk.ServiceServer{
+			identityproviderv1.IdentityProviderServiceServer(config.IdentityProvider.V1()),
+			agentstorev1.AgentStoreServiceServer(config.AgentStore.V1()),
+			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
+		},
+	}, repo); err != nil {
+		return nil, err
+	}
 
 	return repo, nil
 }

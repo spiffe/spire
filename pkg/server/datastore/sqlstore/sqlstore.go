@@ -866,6 +866,20 @@ func (ds *Plugin) Configure(_ context.Context, hclConfiguration string) error {
 	return ds.openConnections(config)
 }
 
+func (ds *Plugin) Validate(_ context.Context, hclConfiguration string) error {
+	config := &configuration{}
+	if err := hcl.Decode(config, hclConfiguration); err != nil {
+		return err
+	}
+
+	dbTypeConfig, err := parseDatabaseTypeASTNode(config.DatabaseTypeNode)
+	if err != nil {
+		return err
+	}
+	config.databaseTypeConfig = dbTypeConfig
+	return config.Validate()
+}
+
 func (ds *Plugin) openConnections(config *configuration) error {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
