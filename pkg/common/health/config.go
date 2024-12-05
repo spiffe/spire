@@ -1,7 +1,8 @@
 package health
 
 import (
-	"fmt"
+	"net"
+	"strings"
 
 	"github.com/hashicorp/hcl/hcl/token"
 )
@@ -24,7 +25,7 @@ type Config struct {
 func (c *Config) getAddress() string {
 	host := "localhost"
 	if c.BindAddress != "" {
-		host = c.BindAddress
+		host = strings.Trim(c.BindAddress, "[]")
 	}
 
 	port := "80"
@@ -32,7 +33,7 @@ func (c *Config) getAddress() string {
 		port = c.BindPort
 	}
 
-	return fmt.Sprintf("%s:%s", host, port)
+	return net.JoinHostPort(host, port)
 }
 
 // getReadyPath returns the configured value or a default

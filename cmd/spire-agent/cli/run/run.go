@@ -39,6 +39,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 const (
@@ -92,6 +93,7 @@ type agentConfig struct {
 	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
 	AvailabilityTarget            string    `hcl:"availability_target"`
 	X509SVIDCacheMaxSize          int       `hcl:"x509_svid_cache_max_size"`
+	JWTSVIDCacheMaxSize           int       `hcl:"jwt_svid_cache_max_size"`
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
@@ -120,6 +122,7 @@ type experimentalConfig struct {
 	NamedPipeName            string `hcl:"named_pipe_name"`
 	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
 	UseSyncAuthorizedEntries bool   `hcl:"use_sync_authorized_entries"`
+	RequirePQKEM             bool   `hcl:"require_pq_kem"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 }
@@ -501,6 +504,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.X509SVIDCacheMaxSize = c.Agent.X509SVIDCacheMaxSize
 
+	if c.Agent.JWTSVIDCacheMaxSize < 0 {
+		return nil, errors.New("jwt_svid_cache_max_size should not be negative")
+	}
+	ac.JWTSVIDCacheMaxSize = c.Agent.JWTSVIDCacheMaxSize
+
 	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
 	if err != nil {
 		return nil, err
@@ -584,6 +592,12 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 		ac.AvailabilityTarget = t
 	}
+
+	ac.TLSPolicy = tlspolicy.Policy{
+		RequirePQKEM: c.Agent.Experimental.RequirePQKEM,
+	}
+
+	tlspolicy.LogPolicy(ac.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
 
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
 		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")

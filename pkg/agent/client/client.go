@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -92,6 +93,9 @@ type Config struct {
 
 	// RotMtx is used to prevent the creation of new connections during SVID rotations
 	RotMtx *sync.RWMutex
+
+	// TLSPolicy determines the post-quantum-safe policy to apply to all TLS connections.
+	TLSPolicy tlspolicy.Policy
 }
 
 type client struct {
@@ -371,6 +375,7 @@ func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 			}
 			return agentCert
 		},
+		TLSPolicy:   c.c.TLSPolicy,
 		dialContext: c.dialContext,
 	})
 }
@@ -440,7 +445,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 	// on entry revisions.
 	processEntryRevisions := func(entryRevisions []*entryv1.EntryRevision) {
 		for _, entryRevision := range entryRevisions {
-			if entryRevision.Id == "" || entryRevision.RevisionNumber <= 0 {
+			if entryRevision.Id == "" || entryRevision.RevisionNumber < 0 {
 				c.c.Log.WithFields(logrus.Fields{
 					telemetry.RegistrationID: entryRevision.Id,
 					telemetry.RevisionNumber: entryRevision.RevisionNumber,

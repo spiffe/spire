@@ -67,6 +67,7 @@ If using spire_trust_bundle, the default exchanges an SVID under `/spire-exchang
 "{{ .PluginName}}/{{ .SVIDPathTrimmed }}"
 
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
+Details about the template engine are available [here](template_engine.md).
 
 Some useful values are:
 

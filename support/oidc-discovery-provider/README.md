@@ -48,6 +48,7 @@ The configuration file is **required** by the provider. It contains
 | `server_api`            | section | required\[2\]      | Provides SPIRE Server API details.                                     |          |
 | `workload_api`          | section | required\[2\]      | Provides Workload API details.                                         |          |
 | `health_checks`         | section | optional           | Enable and configure health check endpoints                            |          |
+| `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request       |          |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
