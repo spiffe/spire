@@ -48,6 +48,7 @@ The configuration file is **required** by the provider. It contains
 | `server_api`            | section | required\[2\]      | Provides SPIRE Server API details.                                     |          |
 | `workload_api`          | section | required\[2\]      | Provides Workload API details.                                         |          |
 | `health_checks`         | section | optional           | Enable and configure health check endpoints                            |          |
+| `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request       |          |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
@@ -100,11 +101,11 @@ will terminate if another domain is requested.
 
 #### Server API Section
 
-| Key             | Type     | Required? | Description                                                                                                                                                    | Default |
-|-----------------|----------|-----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| Key             | Type     | Required? | Description                                                                                                                                                      | Default |
+|-----------------|----------|-----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | `address`       | string   | required  | SPIRE Server API gRPC target address. Only the unix name system is supported. See <https://github.com/grpc/grpc/blob/master/doc/naming.md>. Unix platforms only. |         |
-| `experimental`  | section  | optional  | The experimental options that are subject to change or removal.                                                                                                |         |
-| `poll_interval` | duration | optional  | How often to poll for changes to the public key material.                                                                                                      | `"10s"` |
+| `experimental`  | section  | optional  | The experimental options that are subject to change or removal.                                                                                                  |         |
+| `poll_interval` | duration | optional  | How often to poll for changes to the public key material.                                                                                                        | `"10s"` |
 
 | experimental      | Type   | Required? | Description                                                 | Default |
 |:------------------|--------|-----------|-------------------------------------------------------------|---------|

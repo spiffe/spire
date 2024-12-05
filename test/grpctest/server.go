@@ -99,7 +99,7 @@ func StartServer(tb testing.TB, registerFn func(s grpc.ServiceRegistrar), opts .
 		serverListener = listener
 	}
 
-	// Clean up the  when the test is closed.
+	// Clean up when the test is closed.
 	tb.Cleanup(func() {
 		_ = serverListener.Close()
 	})

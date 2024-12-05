@@ -64,6 +64,7 @@ func TestParseConfigGood(t *testing.T) {
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
+	assert.True(t, c.Server.Experimental.RequirePQKEM)
 	testParseConfigGoodOS(t, c)
 
 	// Parse/reprint cycle trims outer whitespace
@@ -453,6 +454,16 @@ func TestMergeInput(t *testing.T) {
 			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.True(t, c.Server.AuditLogEnabled)
+			},
+		},
+		{
+			msg: "require_pq_kem should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.Experimental.RequirePQKEM = true
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.Experimental.RequirePQKEM)
 			},
 		},
 	}
@@ -1182,6 +1193,22 @@ func TestNewServerConfig(t *testing.T) {
 				}, c.AdminIDs)
 			},
 		},
+		{
+			msg:   "require PQ KEM is disabled (default)",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, false, c.TLSPolicy.RequirePQKEM)
+			},
+		},
+		{
+			msg: "require PQ KEM is enabled",
+			input: func(c *Config) {
+				c.Server.Experimental.RequirePQKEM = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
+			},
+		},
 	}
 	cases = append(cases, newServerConfigCasesOS(t)...)
 
@@ -1715,7 +1742,7 @@ func TestHasCompatibleTTLs(t *testing.T) {
 			msg:                      "default_jwt_svid_ttl is small enough for the configured CA TTL but larger than the max",
 			caTTL:                    time.Hour * 24 * 7 * 4 * 6, // Six months
 			x509SvidTTL:              0,
-			jwtSvidTTL:               time.Hour * 24 * 7 * 2, // Two weeks,,
+			jwtSvidTTL:               time.Hour * 24 * 7 * 2, // Two weeks
 			hasCompatibleSvidTTL:     true,
 			hasCompatibleX509SvidTTL: true,
 			hasCompatibleJwtSvidTTL:  false,

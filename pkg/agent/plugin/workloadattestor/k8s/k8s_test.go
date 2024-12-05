@@ -36,6 +36,8 @@ import (
 const (
 	pid = 123
 
+	testPollRetryInterval = time.Second
+
 	podListFilePath           = "testdata/pod_list.json"
 	podListNotRunningFilePath = "testdata/pod_list_not_running.json"
 
@@ -102,8 +104,10 @@ type Suite struct {
 	dir   string
 	clock *clock.Mock
 
-	podList [][]byte
-	env     map[string]string
+	podListMu sync.RWMutex
+	podList   [][]byte
+
+	env map[string]string
 
 	// kubelet stuff
 	server      *httptest.Server
@@ -148,11 +152,10 @@ func (s *Suite) TestAttestWithPidInPodAfterRetry() {
 
 	resultCh := s.goAttest(p)
 
-	s.clock.WaitForAfter(time.Minute, "waiting for cache expiry timer")
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(time.Second)
+	s.clock.Add(testPollRetryInterval)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(time.Second)
+	s.clock.Add(testPollRetryInterval)
 
 	select {
 	case result := <-resultCh:
@@ -180,19 +183,25 @@ func (s *Suite) TestAttestWithPidNotInPodCancelsEarly() {
 func (s *Suite) TestAttestPodListCache() {
 	s.startInsecureKubelet()
 	p := s.loadInsecurePlugin()
+	s.addGetContainerResponsePidInPod()
 
+	// Add two pod listings.
 	s.addPodListResponse(podListFilePath)
-
-	s.requireAttestSuccessWithPod(p)
-	s.clock.WaitForAfter(time.Minute, "waiting for cache expiry timer")
-
-	// The pod list is cached so we don't expect a request to kubelet
-	s.requireAttestSuccessWithPod(p)
-
-	// The cache expires after the clock advances by at least half the retry interval
-	s.clock.Add(time.Minute)
 	s.addPodListResponse(podListFilePath)
-	s.requireAttestSuccessWithPod(p)
+	s.Require().Equal(2, s.podListResponseCount())
+
+	// Attest and assert one pod listing was consumed (one remaining)
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+	s.Require().Equal(1, s.podListResponseCount())
+
+	// Attest again and assert no pod listing was consumed (still at one)
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+	s.Require().Equal(1, s.podListResponseCount())
+
+	// Now expire the cache, attest, and observe the last listing was consumed.
+	s.clock.Add(testPollRetryInterval / 2)
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+	s.Require().Equal(0, s.podListResponseCount())
 }
 
 func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
@@ -207,15 +216,14 @@ func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
 
 	resultCh := s.goAttest(p)
 
-	s.clock.WaitForAfter(time.Minute, "waiting for cache expiry timer")
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(time.Second)
+	s.clock.Add(testPollRetryInterval)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(time.Second)
+	s.clock.Add(testPollRetryInterval)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(time.Second)
+	s.clock.Add(testPollRetryInterval)
 	s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
-	s.clock.Add(time.Second)
+	s.clock.Add(testPollRetryInterval)
 
 	select {
 	case result := <-resultCh:
@@ -723,13 +731,11 @@ func (s *Suite) writeFile(path, data string) {
 }
 
 func (s *Suite) serveHTTP(w http.ResponseWriter, _ *http.Request) {
-	// TODO:
-	if len(s.podList) == 0 {
-		http.Error(w, "not configured to return a pod list", http.StatusOK)
+	podList := s.consumePodListResponse()
+	if podList == nil {
+		http.Error(w, "not configured to return a pod list", http.StatusInternalServerError)
 		return
 	}
-	podList := s.podList[0]
-	s.podList = s.podList[1:]
 	_, _ = w.Write(podList)
 }
 
@@ -970,7 +976,26 @@ func (s *Suite) addPodListResponse(fixturePath string) {
 	podList, err := os.ReadFile(fixturePath)
 	s.Require().NoError(err)
 
+	s.podListMu.Lock()
+	defer s.podListMu.Unlock()
 	s.podList = append(s.podList, podList)
+}
+
+func (s *Suite) consumePodListResponse() []byte {
+	s.podListMu.Lock()
+	defer s.podListMu.Unlock()
+	if len(s.podList) > 0 {
+		podList := s.podList[0]
+		s.podList = s.podList[1:]
+		return podList
+	}
+	return nil
+}
+
+func (s *Suite) podListResponseCount() int {
+	s.podListMu.RLock()
+	defer s.podListMu.RUnlock()
+	return len(s.podList)
 }
 
 type fakeSigstoreVerifier struct {

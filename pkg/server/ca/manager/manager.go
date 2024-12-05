@@ -301,7 +301,7 @@ func (m *Manager) RotateX509CA(ctx context.Context) {
 
 	m.currentX509CA, m.nextX509CA = m.nextX509CA, m.currentX509CA
 	m.nextX509CA.Reset()
-	if err := m.journal.UpdateX509CAStatus(ctx, m.nextX509CA.issuedAt, journal.Status_OLD); err != nil {
+	if err := m.journal.UpdateX509CAStatus(ctx, m.nextX509CA.AuthorityID(), journal.Status_OLD); err != nil {
 		m.c.Log.WithError(err).Error("Failed to update status on X509CA journal entry")
 	}
 
@@ -396,7 +396,7 @@ func (m *Manager) RotateJWTKey(ctx context.Context) {
 	m.currentJWTKey, m.nextJWTKey = m.nextJWTKey, m.currentJWTKey
 	m.nextJWTKey.Reset()
 
-	if err := m.journal.UpdateJWTKeyStatus(ctx, m.nextJWTKey.issuedAt, journal.Status_OLD); err != nil {
+	if err := m.journal.UpdateJWTKeyStatus(ctx, m.nextJWTKey.AuthorityID(), journal.Status_OLD); err != nil {
 		m.c.Log.WithError(err).Error("Failed to update status on JWTKey journal entry")
 	}
 
@@ -534,7 +534,7 @@ func (m *Manager) activateJWTKey(ctx context.Context) {
 	telemetry_server.IncrActivateJWTKeyManagerCounter(m.c.Metrics)
 
 	m.currentJWTKey.status = journal.Status_ACTIVE
-	if err := m.journal.UpdateJWTKeyStatus(ctx, m.currentJWTKey.issuedAt, journal.Status_ACTIVE); err != nil {
+	if err := m.journal.UpdateJWTKeyStatus(ctx, m.currentJWTKey.AuthorityID(), journal.Status_ACTIVE); err != nil {
 		log.WithError(err).Error("Failed to update to activated status on JWTKey journal entry")
 	}
 
@@ -553,7 +553,7 @@ func (m *Manager) activateX509CA(ctx context.Context) {
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
 
 	m.currentX509CA.status = journal.Status_ACTIVE
-	if err := m.journal.UpdateX509CAStatus(ctx, m.currentX509CA.issuedAt, journal.Status_ACTIVE); err != nil {
+	if err := m.journal.UpdateX509CAStatus(ctx, m.currentX509CA.AuthorityID(), journal.Status_ACTIVE); err != nil {
 		log.WithError(err).Error("Failed to update to activated status on X509CA journal entry")
 	}
 

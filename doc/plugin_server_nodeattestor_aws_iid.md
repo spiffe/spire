@@ -18,8 +18,8 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `skip_block_device`                  | Skip anti-tampering mechanism which checks to make sure that the underlying root volume has not been detached prior to attestation.                           | false                                                 |
 | `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false                                                 |
 | `assume_role`                        | The role to assume                                                                                                                                            | Empty string, Optional parameter.                     |
-| `partition`                          | The AWS partition SPIRE server is running in &lt;aws&vert;aws-cn&vert;aws-us-gov&gt;                                                                          | aws                                                  |
-| `verify_organization`                | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation) |                                |
+| `partition`                          | The AWS partition SPIRE server is running in &lt;aws&vert;aws-cn&vert;aws-us-gov&gt;                                                                          | aws                                                   |
+| `verify_organization`                | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation)                                  |                                                       |
 
 Sample configuration:
 
@@ -32,7 +32,7 @@ Sample configuration:
     }
 ```
 
-If `assume_role` is set, the SPIRE server will assume the role as specified by the template `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}` where `Partition` comes from the AWS NodeAttestor plugin configuration if specified otherwise set to 'aws', `AccountID` is taken from the AWS IID document sent by the SPIRE agent to the SPIRE server and `AssumeRole` comes from the AWS NodeAttestor plugin configuration.
+If `assume_role` is set, the SPIRE server will assume the role as specified by the template `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}` where `Partition` comes from the AWS NodeAttestor plugin configuration if specified otherwise set to 'aws', `AccountID` is taken from the AWS IID document sent by the SPIRE agent to the SPIRE server and `AssumeRole` comes from the AWS NodeAttestor plugin configuration. Details about the template engine are available [here](template_engine.md).
 
 In the following configuration,
 
@@ -144,7 +144,7 @@ This plugin generates the following selectors related to the instance where the 
 | Security Group ID   | `aws_iid:sg:id:sg-01234567`                           | The id of the security group the instance belongs to             |
 | Security Group Name | `aws_iid:sg:name:blog`                                | The name of the security group the instance belongs to           |
 
-All of the selectors have the type `aws_iid`.
+All the selectors have the type `aws_iid`.
 
 The `IAM role` selector is included in the generated set of selectors only if the instance has an IAM Instance Profile associated and `disable_instance_profile_selectors = false`
 

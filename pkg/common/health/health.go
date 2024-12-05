@@ -25,12 +25,12 @@ const (
 
 // State is the health state of a subsystem.
 type State struct {
-	// Live is whether or not the subsystem is live (i.e. in a good state
+	// Live is whether the subsystem is live (i.e. in a good state
 	// or in a state it can recover from while remaining alive). Global
 	// liveness is only reported true if all subsystems report live.
 	Live bool
 
-	// Ready is whether or not the subsystem is ready (i.e. ready to perform
+	// Ready is whether the subsystem is ready (i.e. ready to perform
 	// its function). Global readiness is only reported true if all subsystems
 	// report ready.
 	Ready bool

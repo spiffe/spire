@@ -14,7 +14,7 @@ The base commit of the release branch is based on the type of release being gene
 
 When a bug is discovered in the latest release that also affects releases of the prior minor version, it is necessary to backport the fix.
 
-Once the version branch is created, the patch is either cherry picked or backported into a PR against the version branch. The version branch is maintained via the same process as the main branch, including PR approval process etc.
+Once the version branch is created, the patch is either cherry-picked or backported into a PR against the version branch. The version branch is maintained via the same process as the main branch, including PR approval process etc.
 
 Ensure that the CHANGELOG is updated in both `main` and the version branch to reflect the new release.
 

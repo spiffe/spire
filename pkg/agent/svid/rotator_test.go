@@ -158,6 +158,7 @@ func TestRotator(t *testing.T) {
 				RotationStrategy: rotationutil.NewRotationStrategy(0),
 			})
 			rotator.client = mockClient
+			rotator.hooks.runRotatorSignal = make(chan struct{})
 
 			// Hook the rotation loop so we can determine when the rotator
 			// has finished a rotation evaluation (does not imply anything
@@ -178,6 +179,9 @@ func TestRotator(t *testing.T) {
 			go func() {
 				errCh <- rotator.Run(ctx)
 			}()
+
+			// Make sure that the rotator is running
+			<-rotator.hooks.runRotatorSignal
 
 			// All tests should get through one rotation loop or error
 			select {
@@ -513,7 +517,7 @@ func TestTaintedSVIDIsRotated(t *testing.T) {
 	})
 	rotator.client = mockClient
 	rotationFinishedCh := make(chan struct{}, 1)
-	rotator.rotationFinishedHook = func() {
+	rotator.hooks.rotationFinishedHook = func() {
 		close(rotationFinishedCh)
 	}
 

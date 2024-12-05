@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 type Config struct {
@@ -66,8 +67,11 @@ type Config struct {
 	// is used to sync entries from the server.
 	UseSyncAuthorizedEntries bool
 
-	// X509SVIDCacheMaxSize is a soft limit of max number of SVIDs that would be stored in cache
+	// X509SVIDCacheMaxSize is a soft limit of max number of X509-SVIDs that would be stored in cache
 	X509SVIDCacheMaxSize int
+
+	// JWTSVIDCacheMaxSize is a soft limit of max number of JWT-SVIDs that would be stored in cache
+	JWTSVIDCacheMaxSize int
 
 	// Trust domain and associated CA bundle
 	TrustDomain spiffeid.TrustDomain
@@ -100,6 +104,9 @@ type Config struct {
 
 	// AvailabilityTarget controls how frequently rotate SVIDs
 	AvailabilityTarget time.Duration
+
+	// TLSPolicy determines the post-quantum-safe TLS policy to apply to all TLS connections.
+	TLSPolicy tlspolicy.Policy
 }
 
 func New(c *Config) *Agent {

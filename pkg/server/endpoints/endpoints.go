@@ -32,6 +32,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
@@ -84,6 +85,7 @@ type Endpoints struct {
 	AuditLogEnabled              bool
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
+	TLSPolicy                    tlspolicy.Policy
 }
 
 type APIServers struct {
@@ -176,6 +178,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AuditLogEnabled:              c.AuditLogEnabled,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
+		TLSPolicy:                    c.TLSPolicy,
 	}, nil
 }
 
@@ -268,7 +271,7 @@ func (e *Endpoints) createUDSServer(unaryInterceptor grpc.UnaryServerInterceptor
 	return grpc.NewServer(options...)
 }
 
-// runTCPServer will start the server and block until it exits or we are dying.
+// runTCPServer will start the server and block until it exits, or we are dying.
 func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error {
 	l, err := net.Listen(e.TCPAddr.Network(), e.TCPAddr.String())
 	if err != nil {
@@ -299,7 +302,7 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 }
 
 // runLocalAccess will start a grpc server to be accessed locally
-// and block until it exits or we are dying.
+// and block until it exits, or we are dying.
 func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) error {
 	os.Remove(e.LocalAddr.String())
 	var l net.Listener
@@ -358,6 +361,11 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 		spiffeTLSConfig.MinVersion = tls.VersionTLS12
 		spiffeTLSConfig.NextProtos = []string{http2.NextProtoTLS}
 		spiffeTLSConfig.VerifyPeerCertificate = e.serverSpiffeVerificationFunc(bundleSrc)
+
+		err := tlspolicy.ApplyPolicy(spiffeTLSConfig, e.TLSPolicy)
+		if err != nil {
+			return nil, err
+		}
 
 		return spiffeTLSConfig, nil
 	}

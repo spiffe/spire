@@ -96,14 +96,15 @@ The plugin produces the following selectors.
 | Virtual Machine Name   | `vm-name:frontend:blog`                                | The name of the virtual machine (e.g. `blog`) qualified by the resource group (e.g. `frontend`)              |
 | Network Security Group | `network-security-group:frontend:webservers`           | The name of the network security group (e.g. `webservers`) qualified by the resource group (e.g. `frontend`) |
 | Virtual Network        | `virtual-network:frontend:vnet`                        | The name of the virtual network (e.g. `vnet`) qualified by the resource group (e.g. `frontend`)              |
-| Virtual Network Subnet | `virtual-network-subnet:frontend:vnet:default`         | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group   |
+| Virtual Network Subnet | `virtual-network-subnet:frontend:vnet:default`         | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group  |
 
-All of the selectors have the type `azure_msi`.
+All the selectors have the type `azure_msi`.
 
 ## Agent Path Template
 
 The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [MSI access token](https://learn.microsoft.com/en-us/azure/active-directory/develop/access-tokens#payload-claims).
+Details about the template engine are available [here](template_engine.md).
 
 Some useful values are:
 
