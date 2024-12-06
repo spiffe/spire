@@ -391,7 +391,7 @@ func testLoad(t *testing.T, pluginPath string, tt loadTest) {
 		tt.mutateServiceRepo(serviceRepo)
 	}
 
-	cat, err := catalog.Load(context.Background(), config, repo)
+	cat, err := catalog.Load(context.Background(), &config, repo)
 	if cat != nil {
 		defer func() {
 			cat.Close()

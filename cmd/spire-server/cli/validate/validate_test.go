@@ -2,6 +2,7 @@ package validate
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -31,11 +32,11 @@ func (s *ValidateSuite) SetupTest() {
 	s.stdout = new(bytes.Buffer)
 	s.stderr = new(bytes.Buffer)
 
-	s.cmd = newValidateCommand(&common_cli.Env{
+	s.cmd = newValidateCommand(context.Background(), &common_cli.Env{
 		Stdin:  s.stdin,
 		Stdout: s.stdout,
 		Stderr: s.stderr,
-	})
+	}, nil)
 }
 
 func (s *ValidateSuite) TestSynopsis() {
@@ -52,4 +53,14 @@ func (s *ValidateSuite) TestBadFlags() {
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
 	s.Contains(s.stderr.String(), "flag provided but not defined: -badflag")
+}
+
+func (s *ValidateSuite) TestValidate() {
+	code := s.cmd.Run([]string{"-config", "../../../../test/fixture/config/server_good_basic.conf"})
+	s.Equal(0, code, "exit code")
+}
+
+func (s *ValidateSuite) TestValidateFails() {
+	code := s.cmd.Run([]string{"-config", "../../../../test/fixture/config/server_bad_disk_keymanager_plugin.conf"})
+	s.Equal(1, code, "exit code")
 }
