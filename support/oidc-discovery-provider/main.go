@@ -25,6 +25,7 @@ import (
 var (
 	versionFlag = flag.Bool("version", false, "print version")
 	configFlag  = flag.String("config", "oidc-discovery-provider.conf", "configuration file")
+	expandEnv   = flag.Bool("expandEnv", false, "expand environment variables in config file")
 )
 
 func main() {
@@ -35,14 +36,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	if err := run(*configFlag); err != nil {
+	if err := run(*configFlag, *expandEnv); err != nil {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(configPath string) error {
-	config, err := LoadConfig(configPath)
+func run(configPath string, expandEnv bool) error {
+	config, err := LoadConfig(configPath, expandEnv)
 	if err != nil {
 		return err
 	}
