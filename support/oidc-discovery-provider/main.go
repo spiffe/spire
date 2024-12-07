@@ -25,7 +25,7 @@ import (
 var (
 	versionFlag = flag.Bool("version", false, "print version")
 	configFlag  = flag.String("config", "oidc-discovery-provider.conf", "configuration file")
-	expandEnv = flag.Bool("expandEnv", false, "expand environment variables in config file")
+	expandEnv   = flag.Bool("expandEnv", false, "expand environment variables in config file")
 )
 
 func main() {
