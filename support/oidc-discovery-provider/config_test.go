@@ -23,14 +23,14 @@ func TestLoadConfig(t *testing.T) {
 
 	confPath := filepath.Join(dir, "test.conf")
 
-	_, err := LoadConfig(confPath)
+	_, err := LoadConfig(confPath, false)
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 
 	err = os.WriteFile(confPath, []byte(minimalServerAPIConfig), 0600)
 	require.NoError(err)
 
-	config, err := LoadConfig(confPath)
+	config, err := LoadConfig(confPath, false)
 	require.NoError(err)
 
 	require.Equal(&Config{
