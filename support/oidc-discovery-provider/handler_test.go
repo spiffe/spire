@@ -598,7 +598,7 @@ func TestHandlerJWTIssuer(t *testing.T) {
 			code:      http.StatusOK,
 			body: `{
   "issuer": "https://domain.test/some/issuer/path/issuer1",
-  "jwks_uri": "https://domain.test/some/issuer/path/issuer1/keys",
+  "jwks_uri": "https://domain.test/keys",
   "authorization_endpoint": "",
   "response_types_supported": [
     "id_token"
@@ -619,7 +619,7 @@ func TestHandlerJWTIssuer(t *testing.T) {
 			code:      http.StatusOK,
 			body: `{
   "issuer": "http://domain.test/some/issuer/path/issuer1",
-  "jwks_uri": "http://domain.test/some/issuer/path/issuer1/keys",
+  "jwks_uri": "http://domain.test/keys",
   "authorization_endpoint": "",
   "response_types_supported": [
     "id_token"
@@ -640,7 +640,7 @@ func TestHandlerJWTIssuer(t *testing.T) {
 			code:      http.StatusOK,
 			body: `{
   "issuer": "http://domain.test/some/issuer/path/issuer1/",
-  "jwks_uri": "http://domain.test/some/issuer/path/issuer1/keys",
+  "jwks_uri": "http://domain.test/keys",
   "authorization_endpoint": "",
   "response_types_supported": [
     "id_token"
