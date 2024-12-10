@@ -19,6 +19,11 @@
 - Link to Telemetry documentation in the Contributing guide (#5650)
 - Handling of registration entries with revision number 0 when the agent syncs entries with the server (#5680)
 
+### Known Issues
+
+- Setting the new `jwt_issuer` configuration property in oidc-discovery-provider is not compatible with deployments that use a server port other than 443 (#5696)
+- Domain verification is bypassed when setting the new `jwt_issuer` configuration property in oidc-discovery-provider (#5697)
+
 ## [1.11.0] - 2024-10-24
 
 ### Added
