@@ -859,7 +859,7 @@ func (ds *Plugin) Configure(_ context.Context, _ catalog.CoreConfig, hclConfigur
 }
 
 func (ds *Plugin) Validate(_ context.Context, _ catalog.CoreConfig, hclConfiguration string) (*catalog.ValidateResult, error) {
-	return nil, nil
+	return nil, fmt.Errorf("%s", "edwin")
 }
 
 func (ds *Plugin) openConnections(config *configuration) error {

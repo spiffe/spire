@@ -269,6 +269,13 @@ func Load(ctx context.Context, config *Config, repo Repository) (_ *Catalog, err
 	}, nil
 }
 
+func GetPluginConfigString(c PluginConfig) (string, error) {
+	if c.DataSource == nil {
+		return "", nil
+	}
+	return c.DataSource.Load()
+}
+
 func makePluginLog(log logrus.FieldLogger, pluginConfig PluginConfig) logrus.FieldLogger {
 	return log.WithFields(logrus.Fields{
 		telemetry.PluginName: pluginConfig.Name,

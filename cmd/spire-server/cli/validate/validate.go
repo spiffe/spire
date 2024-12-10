@@ -68,20 +68,24 @@ func (c *validateCommand) Run(args []string) int {
 		ctx = context.Background()
 	}
 
-	err = s.Run(ctx)
+	result, err := s.ValidateConfig(ctx)
 	if err != nil {
-		config.Log.WithError(err).Error("Validation failed: validation server crashed")
+		config.Log.WithError(err).Errorf("Validation failed: %s", err)
 		return 1
 	}
 
+	// required to add Valid json output flag
 	err = c.printer.PrintStruct(&validateResult{
-		Valid: config.ValidationError == "",
-		Error: config.ValidationError,
-		Notes: config.ValidationNotes,
+		Valid: result.ValidationError == "",
+		Error: result.ValidationError,
+		Notes: result.ValidationNotes,
 	})
+
+
 	if err != nil {
 		return 1
 	}
+
 	return 0
 }
 
@@ -98,7 +102,7 @@ func (c *validateCommand) prettyPrintValidate(env *commoncli.Env, results ...any
 			return errors.New("unexpected type")
 		}
 		// pretty print error section
-		if !result.Valid {
+		if result.Error != "" {
 			if err := env.Printf("Validation error:\n"); err != nil {
 				return err
 			}
