@@ -106,10 +106,8 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		pathTemplate = tmpl
 	}
 
-	var svidPrefix string
-	if hclConfig.SVIDPrefix == nil {
-		svidPrefix = "/spire-exchange/"
-	} else {
+	svidPrefix :=  "/spire-exchange/"
+	if hclConfig.SVIDPrefix != nil {
 		svidPrefix = *hclConfig.SVIDPrefix
 		if !strings.HasSuffix(svidPrefix, "/") {
 			svidPrefix += "/"

@@ -61,10 +61,10 @@ If spiffe://example.com/other/testhost is given, it wont match the svid_prefix a
 The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
 
 If using ca_bundle_path(s), the default is:
-"{{ .PluginName}}/{{ .Fingerprint }}"
+"{{ .PluginName }}/{{ .Fingerprint }}"
 
 If using spire_trust_bundle, the default exchanges an SVID under `/spire-exchange/*` for `/spire/agent/x509pop/*`, via:
-"{{ .PluginName}}/{{ .SVIDPathTrimmed }}"
+"{{ .PluginName }}/{{ .SVIDPathTrimmed }}"
 
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
 Details about the template engine are available [here](template_engine.md).
