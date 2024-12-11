@@ -91,7 +91,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	repo := &Repository{
 		log: config.Log,
 	}
-	repo.catalog, err = catalog.Load(ctx, catalog.Config{
+	repo.catalog, err = catalog.Load(ctx, &catalog.Config{
 		Log: config.Log,
 		CoreConfig: catalog.CoreConfig{
 			TrustDomain: config.TrustDomain,
