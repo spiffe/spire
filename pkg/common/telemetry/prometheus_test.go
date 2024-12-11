@@ -82,6 +82,7 @@ func testPrometheusConfig() *MetricsConfig {
 	return &MetricsConfig{
 		Logger:      l,
 		ServiceName: "foo",
+		TrustDomain: "test.org",
 		FileConfig: FileConfig{
 			// Let prometheus listen on a random port
 			Prometheus: &PrometheusConfig{},
