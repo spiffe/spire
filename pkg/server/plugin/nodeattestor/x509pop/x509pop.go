@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
@@ -128,6 +129,8 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 type Plugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
+
+	log hclog.Logger
 
 	m                sync.Mutex
 	config           *configuration
@@ -286,6 +289,11 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 	}, err
 }
 
+// SetLogger sets this plugin's logger
+func (p *Plugin) SetLogger(log hclog.Logger) {
+        p.log = log
+}
+
 func (p *Plugin) getTrustBundle(ctx context.Context) (*x509.CertPool, error) {
 	resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
 	if err != nil {
@@ -302,6 +310,7 @@ func (p *Plugin) getTrustBundle(ctx context.Context) (*x509.CertPool, error) {
 	if len(trustBundles) > 0 {
 		return util.NewCertPool(trustBundles...), nil
 	}
+        p.log.Warn("No trust bundle retrieved from SPIRE")
 	return nil, nil
 }
 
