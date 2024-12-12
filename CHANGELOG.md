@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.11.1] - 2024-12-12
+
+### Added
+
+- The Go based text/template engine used in various plugins has been extended to include a set of functions from the SPRIG library (#5593, #5625)
+- The JWT-SVID cache in the agent is now configurable (#5633)
+- The JWT issuer is now configurable in the OIDC Discovery Provider (#5657)
+
+### Changed
+
+- CA journal now relies on the authority ID instead of the issued time when updating the status of keys (#5622)
+
+### Fixed
+
+- Spelling and grammar fixes (#5571)
+- Handling of IPv6 address consistently for the binding address of the server and health checks (#5623)
+- Link to Telemetry documentation in the Contributing guide (#5650)
+- Handling of registration entries with revision number 0 when the agent syncs entries with the server (#5680)
+
+### Known Issues
+
+- Setting the new `jwt_issuer` configuration property in oidc-discovery-provider is not compatible with deployments that use a server port other than 443 (#5696)
+- Domain verification is bypassed when setting the new `jwt_issuer` configuration property in oidc-discovery-provider (#5697)
+
 ## [1.11.0] - 2024-10-24
 
 ### Added
