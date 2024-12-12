@@ -79,7 +79,7 @@ require (
 	github.com/uber-go/tally/v4 v4.1.16
 	github.com/valyala/fastjson v1.6.4
 	github.com/zeebo/errs v1.4.0
-	golang.org/x/crypto v0.30.0
+	golang.org/x/crypto v0.31.0
 	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	golang.org/x/net v0.32.0
 	golang.org/x/sync v0.10.0
