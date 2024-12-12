@@ -271,6 +271,24 @@ func (s *Suite) TestConfigure() {
 
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "unable to load trust bundle")
 	})
+
+	s.T().Run("bad mode and ca_bundle_paths", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		mode = "spiffe"
+		ca_bundle_paths = ["blah"]
+		`)
+
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "you can not use ca_bundle_path or ca_bundle_paths in spiffe mode")
+	})
+
+	s.T().Run("bad mode and ca_bundle_path", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		mode = "spiffe"
+		ca_bundle_path = "blah"
+		`)
+
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "you can not use ca_bundle_path or ca_bundle_paths in spiffe mode")
+	})
 }
 
 func (s *Suite) loadPlugin(t *testing.T, config string) nodeattestor.NodeAttestor {
@@ -305,6 +323,13 @@ ca_bundle_paths = %s
 	}
 
 	return ""
+}
+
+func (s *Suite) createConfigurationModeSPIFFE(extraConfig string) string {
+	return fmt.Sprintf(`
+mode = "spiffe"
+%s
+`, extraConfig)
 }
 
 func marshal(t *testing.T, obj any) []byte {
