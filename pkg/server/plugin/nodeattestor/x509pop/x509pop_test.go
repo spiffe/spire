@@ -180,7 +180,6 @@ func (s *Suite) TestAttestFailure() {
 		require.Nil(t, result)
 	}
 
-
 	challengeResponseFails := func(t *testing.T, attestor nodeattestor.NodeAttestor, certs [][]byte, challengeResp string, fullChallenge bool, expectCode codes.Code, expectMessage string) {
 		payload := makePayload(t, &x509pop.AttestationData{
 			Certificates: certs,

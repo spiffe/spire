@@ -107,7 +107,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		pathTemplate = tmpl
 	}
 
-	svidPrefix :=  "/spire-exchange/"
+	svidPrefix := "/spire-exchange/"
 	if hclConfig.SVIDPrefix != nil {
 		svidPrefix = *hclConfig.SVIDPrefix
 		if !strings.HasSuffix(svidPrefix, "/") {
@@ -291,7 +291,7 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 
 // SetLogger sets this plugin's logger
 func (p *Plugin) SetLogger(log hclog.Logger) {
-        p.log = log
+	p.log = log
 }
 
 func (p *Plugin) getTrustBundle(ctx context.Context) (*x509.CertPool, error) {
@@ -310,7 +310,7 @@ func (p *Plugin) getTrustBundle(ctx context.Context) (*x509.CertPool, error) {
 	if len(trustBundles) > 0 {
 		return util.NewCertPool(trustBundles...), nil
 	}
-        p.log.Warn("No trust bundle retrieved from SPIRE")
+	p.log.Warn("No trust bundle retrieved from SPIRE")
 	return nil, nil
 }
 
