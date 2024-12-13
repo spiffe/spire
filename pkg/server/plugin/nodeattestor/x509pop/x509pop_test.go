@@ -365,7 +365,7 @@ func (s *Suite) loadPluginFull(t *testing.T, config string, identityProvider *fa
 		if err != nil {
 			return nil
 		}
-		ca, _ := pem.Decode([]byte(caRaw))
+		ca, _ := pem.Decode(caRaw)
 
 		bundle := &plugintypes.Bundle{
 			X509Authorities: []*plugintypes.X509Certificate{
