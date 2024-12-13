@@ -167,6 +167,7 @@ func (s *Suite) TestAttestSuccess() {
 
 func (s *Suite) TestAttestFailure() {
 	successConfiguration := s.createConfiguration("ca_bundle_path", "")
+	spiffeConfiguration := s.createConfigurationModeSPIFFE("")
 
 	makePayload := func(t *testing.T, attestationData *x509pop.AttestationData) []byte {
 		return marshal(t, attestationData)
@@ -179,12 +180,23 @@ func (s *Suite) TestAttestFailure() {
 		require.Nil(t, result)
 	}
 
-	challengeResponseFails := func(t *testing.T, attestor nodeattestor.NodeAttestor, challengeResp string, expectCode codes.Code, expectMessage string) {
+
+	challengeResponseFails := func(t *testing.T, attestor nodeattestor.NodeAttestor, certs [][]byte, challengeResp string, fullChallenge bool, expectCode codes.Code, expectMessage string) {
 		payload := makePayload(t, &x509pop.AttestationData{
-			Certificates: s.leafBundle,
+			Certificates: certs,
 		})
 		doChallenge := func(ctx context.Context, challenge []byte) ([]byte, error) {
 			return []byte(challengeResp), nil
+		}
+		if fullChallenge {
+			doChallenge = func(ctx context.Context, challenge []byte) ([]byte, error) {
+				require.NotEmpty(t, challenge)
+				popChallenge := new(x509pop.Challenge)
+				unmarshal(t, challenge, popChallenge)
+				response, err := x509pop.CalculateResponse(s.leafKey, popChallenge)
+				require.NoError(t, err)
+				return marshal(t, response), nil
+			}
 		}
 		result, err := attestor.Attest(context.Background(), payload, doChallenge)
 		spiretest.RequireGRPCStatusContains(t, err, expectCode, expectMessage)
@@ -240,12 +252,24 @@ func (s *Suite) TestAttestFailure() {
 
 	s.T().Run("malformed challenge response", func(t *testing.T) {
 		attestor := s.loadPlugin(t, successConfiguration)
-		challengeResponseFails(t, attestor, "", codes.InvalidArgument, "nodeattestor(x509pop): unable to unmarshal challenge response")
+		challengeResponseFails(t, attestor, s.leafBundle, "", false, codes.InvalidArgument, "nodeattestor(x509pop): unable to unmarshal challenge response")
 	})
 
 	s.T().Run("invalid response", func(t *testing.T) {
 		attestor := s.loadPlugin(t, successConfiguration)
-		challengeResponseFails(t, attestor, "{}", codes.PermissionDenied, "nodeattestor(x509pop): challenge response verification failed")
+		challengeResponseFails(t, attestor, s.leafBundle, "{}", false, codes.PermissionDenied, "nodeattestor(x509pop): challenge response verification failed")
+	})
+
+	s.T().Run("spiffe bad prefix", func(t *testing.T) {
+		attestor := s.loadPlugin(t, spiffeConfiguration)
+
+		challengeResponseFails(t, attestor, s.svidReg, "", true, codes.PermissionDenied, "nodeattestor(x509pop): x509 cert doesnt match SVID prefix")
+	})
+
+	s.T().Run("spiffe non svid", func(t *testing.T) {
+		attestor := s.loadPlugin(t, spiffeConfiguration)
+
+		challengeResponseFails(t, attestor, s.leafBundle, "", true, codes.PermissionDenied, "nodeattestor(x509pop): valid SVID x509 cert not found")
 	})
 }
 
@@ -332,24 +356,13 @@ func (s *Suite) loadPlugin(t *testing.T, config string) nodeattestor.NodeAttesto
 		return nil
 	}
 	ca, _ := pem.Decode([]byte(caRaw))
-/*	der, err := x509.MarshalPKIXPublicKey(ca)
-	if der == nil {
-		return nil
-	}*/
 
 	bundle := &plugintypes.Bundle{
                 X509Authorities: []*plugintypes.X509Certificate{
                         {Asn1: ca.Bytes},
-		//	[]byte("FOO")},
                 },
         }
 
-
-//	td := spiffeid.RequireTrustDomainFromString("example.org")
-//	bundle, err := x509bundle.Load(td, s.rootCertPath)
-//	if err != nil {
-//		return nil
-//	}
 	identityProvider := fakeidentityprovider.New()
 	identityProvider.AppendBundle(bundle)
 	plugintest.Load(t, BuiltIn(), v1,
