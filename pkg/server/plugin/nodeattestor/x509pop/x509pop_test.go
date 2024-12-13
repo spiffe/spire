@@ -271,6 +271,12 @@ func (s *Suite) TestAttestFailure() {
 
 		challengeResponseFails(t, attestor, s.leafBundle, "", true, codes.PermissionDenied, "nodeattestor(x509pop): valid SVID x509 cert not found")
 	})
+
+	s.T().Run("spiffe non svid", func(t *testing.T) {
+		attestor := s.loadPluginFull(t, spiffeConfiguration, fakeidentityprovider.New())
+
+		challengeResponseFails(t, attestor, s.svidExchange, "", true, codes.Internal, "nodeattestor(x509pop): failed to get trust bundle")
+	})
 }
 
 func (s *Suite) TestConfigure() {
@@ -349,22 +355,28 @@ func (s *Suite) TestConfigure() {
 }
 
 func (s *Suite) loadPlugin(t *testing.T, config string) nodeattestor.NodeAttestor {
+	return s.loadPluginFull(t, config, nil)
+}
+
+func (s *Suite) loadPluginFull(t *testing.T, config string, identityProvider *fakeidentityprovider.IdentityProvider) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 
-	caRaw, err := os.ReadFile(s.rootCertPath)
-	if err != nil {
-		return nil
+	if identityProvider == nil {
+		caRaw, err := os.ReadFile(s.rootCertPath)
+		if err != nil {
+			return nil
+		}
+		ca, _ := pem.Decode([]byte(caRaw))
+
+		bundle := &plugintypes.Bundle{
+			X509Authorities: []*plugintypes.X509Certificate{
+				{Asn1: ca.Bytes},
+			},
+		}
+
+		identityProvider = fakeidentityprovider.New()
+		identityProvider.AppendBundle(bundle)
 	}
-	ca, _ := pem.Decode([]byte(caRaw))
-
-	bundle := &plugintypes.Bundle{
-                X509Authorities: []*plugintypes.X509Certificate{
-                        {Asn1: ca.Bytes},
-                },
-        }
-
-	identityProvider := fakeidentityprovider.New()
-	identityProvider.AppendBundle(bundle)
 	plugintest.Load(t, BuiltIn(), v1,
 		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
 		plugintest.CoreConfig(catalog.CoreConfig{
