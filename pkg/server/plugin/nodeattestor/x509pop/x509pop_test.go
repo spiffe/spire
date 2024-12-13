@@ -6,12 +6,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
@@ -38,6 +41,8 @@ type Suite struct {
 	leafCert         *x509.Certificate
 	intermediateCert *x509.Certificate
 	rootCert         *x509.Certificate
+	svidReg          [][]byte
+	svidExchange     [][]byte
 
 	alternativeBundlePath string
 	alternativeBundle     *x509.Certificate
@@ -49,6 +54,8 @@ func (s *Suite) SetupTest() {
 	s.rootCertPath = fixture.Join("nodeattestor", "x509pop", "root-crt.pem")
 	leafCertPath := fixture.Join("nodeattestor", "x509pop", "leaf-crt-bundle.pem")
 	leafKeyPath := fixture.Join("nodeattestor", "x509pop", "leaf-key.pem")
+	svidRegPath := fixture.Join("nodeattestor", "x509pop", "svidreg.pem")
+	svidExchangePath := fixture.Join("nodeattestor", "x509pop", "svidexchange.pem")
 
 	kp, err := tls.LoadX509KeyPair(leafCertPath, leafKeyPath)
 	require.NoError(err)
@@ -61,6 +68,15 @@ func (s *Suite) SetupTest() {
 	s.rootCert, err = util.LoadCert(s.rootCertPath)
 	require.NoError(err)
 
+	kp, err = tls.LoadX509KeyPair(svidRegPath, leafKeyPath)
+	require.NoError(err)
+	s.svidReg = kp.Certificate
+	require.NoError(err)
+
+	kp, err = tls.LoadX509KeyPair(svidExchangePath, leafKeyPath)
+	require.NoError(err)
+	s.svidExchange = kp.Certificate
+
 	// Add alternative bundle
 	s.alternativeBundlePath = fixture.Join("certs", "ca.pem")
 	s.alternativeBundle, err = util.LoadCert(s.alternativeBundlePath)
@@ -72,26 +88,43 @@ func (s *Suite) TestAttestSuccess() {
 		desc          string
 		giveConfig    string
 		expectAgentID string
+		certs         [][]byte
+		serialnumber  string
 	}{
 		{
 			desc:          "default success (ca_bundle_path)",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/" + x509pop.Fingerprint(s.leafCert),
 			giveConfig:    s.createConfiguration("ca_bundle_path", ""),
+			certs:         s.leafBundle,
+			serialnumber:  "serialnumber:0a1b2c3d4e5f",
 		},
 		{
 			desc:          "success with custom agent id (ca_bundle_path)",
 			expectAgentID: "spiffe://example.org/spire/agent/cn/COMMONNAME",
 			giveConfig:    s.createConfiguration("ca_bundle_path", `agent_path_template = "/cn/{{ .Subject.CommonName }}"`),
+			certs:         s.leafBundle,
+			serialnumber:  "serialnumber:0a1b2c3d4e5f",
 		},
 		{
 			desc:          "default success (ca_bundle_paths)",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/" + x509pop.Fingerprint(s.leafCert),
 			giveConfig:    s.createConfiguration("ca_bundle_path", ""),
+			certs:         s.leafBundle,
+			serialnumber:  "serialnumber:0a1b2c3d4e5f",
 		},
 		{
 			desc:          "success with custom agent id (ca_bundle_paths)",
 			expectAgentID: "spiffe://example.org/spire/agent/serialnumber/0a1b2c3d4e5f",
 			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/serialnumber/{{ .SerialNumberHex }}"`),
+			certs:         s.leafBundle,
+			serialnumber:  "serialnumber:0a1b2c3d4e5f",
+		},
+		{
+			desc:          "success with spiffe exchange",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(""),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 		},
 	}
 
@@ -101,7 +134,7 @@ func (s *Suite) TestAttestSuccess() {
 			attestor := s.loadPlugin(t, tt.giveConfig)
 
 			attestationData := &x509pop.AttestationData{
-				Certificates: s.leafBundle,
+				Certificates: tt.certs,
 			}
 			payload := marshal(t, attestationData)
 
@@ -126,7 +159,7 @@ func (s *Suite) TestAttestSuccess() {
 					{Type: "x509pop", Value: "subject:cn:COMMONNAME"},
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
-					{Type: "x509pop", Value: "serialnumber:0a1b2c3d4e5f"},
+					{Type: "x509pop", Value: tt.serialnumber},
 				}, result.Selectors)
 		})
 	}
@@ -293,8 +326,34 @@ func (s *Suite) TestConfigure() {
 
 func (s *Suite) loadPlugin(t *testing.T, config string) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
+
+	caRaw, err := os.ReadFile(s.rootCertPath)
+	if err != nil {
+		return nil
+	}
+	ca, _ := pem.Decode([]byte(caRaw))
+/*	der, err := x509.MarshalPKIXPublicKey(ca)
+	if der == nil {
+		return nil
+	}*/
+
+	bundle := &plugintypes.Bundle{
+                X509Authorities: []*plugintypes.X509Certificate{
+                        {Asn1: ca.Bytes},
+		//	[]byte("FOO")},
+                },
+        }
+
+
+//	td := spiffeid.RequireTrustDomainFromString("example.org")
+//	bundle, err := x509bundle.Load(td, s.rootCertPath)
+//	if err != nil {
+//		return nil
+//	}
+	identityProvider := fakeidentityprovider.New()
+	identityProvider.AppendBundle(bundle)
 	plugintest.Load(t, BuiltIn(), v1,
-		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(fakeidentityprovider.New())),
+		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
