@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
@@ -17,7 +18,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/version"
-	"github.com/zeebo/errs"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 )
@@ -49,7 +49,7 @@ func run(configPath string) error {
 
 	log, err := log.NewLogger(log.WithLevel(config.LogLevel), log.WithFormat(config.LogFormat), log.WithOutputFile(config.LogPath))
 	if err != nil {
-		return errs.Wrap(err)
+		return err
 	}
 	defer log.Close()
 
@@ -157,7 +157,7 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 	case config.WorkloadAPI != nil:
 		workloadAPIAddr, err := config.getWorkloadAPIAddr()
 		if err != nil {
-			return nil, errs.Wrap(err)
+			return nil, err
 		}
 		return NewWorkloadAPISource(WorkloadAPISourceConfig{
 			Log:          log,
@@ -167,7 +167,7 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 		})
 	default:
 		// This is defensive; LoadConfig should prevent this from happening.
-		return nil, errs.New("no source has been configured")
+		return nil, errors.New("no source has been configured")
 	}
 }
 

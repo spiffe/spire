@@ -11,7 +11,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
-	"github.com/zeebo/errs"
 )
 
 const (
@@ -138,7 +137,7 @@ func (r *Rotator) rotate(ctx context.Context) error {
 		r.c.Log.WithError(jwtKeyErr).Error("Unable to rotate JWT key")
 	}
 
-	return errs.Combine(x509CAErr, jwtKeyErr)
+	return errors.Join(x509CAErr, jwtKeyErr)
 }
 
 func (r *Rotator) rotateJWTKey(ctx context.Context) error {
