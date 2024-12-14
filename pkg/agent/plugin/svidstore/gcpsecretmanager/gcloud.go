@@ -345,8 +345,6 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 
 	region, ok := data["region"]
 
-	var regions []*secretmanagerpb.Replication_UserManaged_Replica
-
 	var replica *secretmanagerpb.Replication
 
 	if !ok {
@@ -356,16 +354,14 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 			},
 		}
 	} else {
-		region := &secretmanagerpb.Replication_UserManaged_Replica{
-			Location: region,
-		}
-
-		regions = append(regions, region)
-
 		replica = &secretmanagerpb.Replication{
 			Replication: &secretmanagerpb.Replication_UserManaged_{
 				UserManaged: &secretmanagerpb.Replication_UserManaged{
-					Replicas: regions,
+					Replicas: []*secretmanagerpb.Replication_UserManaged_Replica{
+						{
+							Location: region,
+						},
+					},
 				},
 			},
 		}
