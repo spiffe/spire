@@ -71,3 +71,4 @@ Selectors are used on `storable` entries to describe metadata that is needed by 
 | `gcp_secretmanager:projectid`      | `gcp_secretmanager:projectid:some-project`                                       | x        | The Google Cloud project ID which the plugin will use Secret Manager       |
 | `gcp_secretmanager:role`           | `gcp_secretmanager:role:roles/secretmanager.viewer`                              | -        | The Google Cloud role id for IAM policy (serviceaccount required when set) |
 | `gcp_secretmanager:serviceaccount` | `gcp_secretmanager:serviceaccount:test-secret@test-proj.iam.gserviceaccount.com` | -        | The Google Cloud Service account for IAM policy (role required when set)   |
+| `gcp_secretmanager:region`         | `gcp_secretmanager:serviceaccount:europe-north1`                                 | -        | The Google Cloud Region to create the secret in                            |

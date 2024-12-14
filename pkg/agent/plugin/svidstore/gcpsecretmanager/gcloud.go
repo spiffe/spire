@@ -145,11 +145,7 @@ func (p *SecretManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1.
 			Parent:   opt.parent(),
 			SecretId: opt.name,
 			Secret: &secretmanagerpb.Secret{
-				Replication: &secretmanagerpb.Replication{
-					Replication: &secretmanagerpb.Replication_Automatic_{
-						Automatic: &secretmanagerpb.Replication_Automatic{},
-					},
-				},
+				Replication: opt.replication,
 				Labels: map[string]string{
 					"spire-svid": p.tdHash,
 				},
@@ -302,6 +298,7 @@ type secretOptions struct {
 	name           string
 	roleName       string
 	serviceAccount string
+	replication    *secretmanagerpb.Replication
 }
 
 // parent gets parent in the format `projects/*`
@@ -346,11 +343,40 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 		return nil, status.Error(codes.InvalidArgument, "service account is required when role is set")
 	}
 
+	region, ok := data["region"]
+
+	var regions []*secretmanagerpb.Replication_UserManaged_Replica
+
+	var replica *secretmanagerpb.Replication
+
+	if !ok {
+		replica = &secretmanagerpb.Replication{
+			Replication: &secretmanagerpb.Replication_Automatic_{
+				Automatic: &secretmanagerpb.Replication_Automatic{},
+			},
+		}
+	} else {
+		region := &secretmanagerpb.Replication_UserManaged_Replica{
+			Location: region,
+		}
+
+		regions = append(regions, region)
+
+		replica = &secretmanagerpb.Replication{
+			Replication: &secretmanagerpb.Replication_UserManaged_{
+				UserManaged: &secretmanagerpb.Replication_UserManaged{
+					Replicas: regions,
+				},
+			},
+		}
+	}
+
 	return &secretOptions{
 		name:           name,
 		projectID:      projectID,
 		roleName:       roleName,
 		serviceAccount: serviceAccount,
+		replication:    replica,
 	}, nil
 }
 
