@@ -936,7 +936,7 @@ func TestHandlerPrefix(t *testing.T) {
 }`,
 		},
 		{
-			name:   "GET well-known Prefix wtih trailing forward-slash",
+			name:   "GET well-known Prefix with trailing forward-slash",
 			prefix: "/some/issuer/path/issuer1/",
 			method: "GET",
 			path:   "/some/issuer/path/issuer1/.well-known/openid-configuration",
