@@ -343,7 +343,7 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 		return nil, status.Error(codes.InvalidArgument, "service account is required when role is set")
 	}
 
-	region, ok := data["region"]
+	regions, ok := data["regions"]
 
 	var replica *secretmanagerpb.Replication
 
@@ -354,14 +354,22 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 			},
 		}
 	} else {
+		regionsSlice := strings.Split(regions, ",")
+
+		var replicas []*secretmanagerpb.Replication_UserManaged_Replica
+
+		for _, region := range regionsSlice {
+			replica := &secretmanagerpb.Replication_UserManaged_Replica{
+				Location: region,
+			}
+
+			replicas = append(replicas, replica)
+		}
+
 		replica = &secretmanagerpb.Replication{
 			Replication: &secretmanagerpb.Replication_UserManaged_{
 				UserManaged: &secretmanagerpb.Replication_UserManaged{
-					Replicas: []*secretmanagerpb.Replication_UserManaged_Replica{
-						{
-							Location: region,
-						},
-					},
+					Replicas: replicas,
 				},
 			},
 		}
