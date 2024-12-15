@@ -26,11 +26,12 @@ type Handler struct {
 	log                 logrus.FieldLogger
 	jwtIssuer           string
 	advertisedURL       string
+	prefix              string
 
 	http.Handler
 }
 
-func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer string, advertisedURL string) *Handler {
+func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer string, advertisedURL string, prefix string) *Handler {
 	h := &Handler{
 		domainPolicy:        domainPolicy,
 		source:              source,
@@ -39,11 +40,24 @@ func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSo
 		log:                 log,
 		jwtIssuer:           jwtIssuer,
 		advertisedURL:       advertisedURL,
+		prefix:              prefix,
 	}
 
+	if prefix == "" {
+		prefix = "/"
+	}
 	mux := http.NewServeMux()
-	mux.Handle("/.well-known/openid-configuration", handlers.ProxyHeaders(http.HandlerFunc(h.serveWellKnown)))
-	mux.Handle("/keys", http.HandlerFunc(h.serveKeys))
+	wkPath, err := url.JoinPath(prefix, "/.well-known/openid-configuration")
+	if err != nil {
+		return nil
+	}
+	jwksPath, err := url.JoinPath(prefix, "/keys")
+	if err != nil {
+		return nil
+	}
+
+	mux.Handle(wkPath, handlers.ProxyHeaders(http.HandlerFunc(h.serveWellKnown)))
+	mux.Handle(jwksPath, http.HandlerFunc(h.serveKeys))
 
 	h.Handler = mux
 	return h
@@ -73,7 +87,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.advertisedURL != "" {
 		tmpURL, _ := url.Parse(h.advertisedURL)
-		keysPath, err := url.JoinPath(tmpURL.Path, "/keys")
+		keysPath, err := url.JoinPath(tmpURL.Path, h.prefix, "keys")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

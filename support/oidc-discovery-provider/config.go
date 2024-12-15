@@ -83,6 +83,11 @@ type Config struct {
 	// AdvertisedURL specifies the absolute urls to return in documents. Use this if you are fronting the
 	// discovery provider with a load balancer or reverse proxy
 	AdvertisedURL string `hcl:"advertised_url"`
+
+	// Prefix specifies the prefix to strip from requests to route to the server.
+	// Example: if Prefix is /foo then a request to http://127.0.0.1/foo/.well-known/openid-configuration and
+	// http://127.0.0.1/foo/keys will function with the server.
+	Prefix string `hcl:"prefix"`
 }
 
 type ServingCertFileConfig struct {
