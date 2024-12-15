@@ -95,7 +95,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.verifyHost(host); err != nil {
+	if err := h.verifyHost(r.Host); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
