@@ -79,6 +79,10 @@ type Config struct {
 
 	// JWTIssuer specifies the issuer for the OIDC provider configuration request.
 	JWTIssuer string `hcl:"jwt_issuer"`
+
+	// AdvertisedURL specifies the absolute urls to return in documents. Use this if you are fronting the
+	// discovery provider with a load balancer or reverse proxy
+	AdvertisedURL string `hcl:"advertised_url"`
 }
 
 type ServingCertFileConfig struct {
@@ -295,6 +299,12 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		jwtIssuer, err := url.Parse(c.JWTIssuer)
 		if err != nil || jwtIssuer.Scheme == "" || jwtIssuer.Host == "" {
 			return nil, errs.New("the jwt_issuer url could not be parsed")
+		}
+	}
+	if c.AdvertisedURL != "" {
+		advertisedURL, err := url.Parse(c.AdvertisedURL)
+		if err != nil || advertisedURL.Scheme == "" || advertisedURL.Host == "" {
+			return nil, errs.New("the advertised_url setting could not be parsed")
 		}
 	}
 	return c, nil
