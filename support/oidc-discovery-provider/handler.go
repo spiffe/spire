@@ -32,6 +32,9 @@ type Handler struct {
 }
 
 func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer string, advertisedURL string, prefix string) *Handler {
+	if prefix == "" {
+		prefix = "/"
+	}
 	h := &Handler{
 		domainPolicy:        domainPolicy,
 		source:              source,
@@ -43,9 +46,6 @@ func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSo
 		prefix:              prefix,
 	}
 
-	if prefix == "" {
-		prefix = "/"
-	}
 	mux := http.NewServeMux()
 	wkPath, err := url.JoinPath(prefix, "/.well-known/openid-configuration")
 	if err != nil {
@@ -72,7 +72,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 	var host string
 	var path string
 	var urlScheme string
-	var jwksURL url.URL
+	var jwksURI url.URL
 	if h.jwtIssuer != "" {
 		jwtIssuerURL, _ := url.Parse(h.jwtIssuer)
 		host = jwtIssuerURL.Host
@@ -92,7 +92,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		jwksURL = url.URL{
+		jwksURI = url.URL{
 			Scheme: tmpURL.Scheme,
 			Host:   tmpURL.Host,
 			Path:   keysPath,
@@ -102,7 +102,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
 			tmpURLScheme = "http"
 		}
-		jwksURL = url.URL{
+		jwksURI = url.URL{
 			Scheme: tmpURLScheme,
 			Host:   r.Host,
 			Path:   "/keys",
@@ -132,7 +132,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported"`
 	}{
 		Issuer:  issuerURL.String(),
-		JWKSURI: jwksURL.String(),
+		JWKSURI: jwksURI.String(),
 
 		AuthorizationEndpoint:            "",
 		ResponseTypesSupported:           []string{"id_token"},
