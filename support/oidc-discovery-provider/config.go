@@ -189,7 +189,7 @@ type experimentalWorkloadAPIConfig struct {
 func LoadConfig(path string) (*Config, error) {
 	hclBytes, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("unable to load configuration: %v", err)
+		return nil, fmt.Errorf("unable to load configuration: %w", err)
 	}
 	return ParseConfig(string(hclBytes))
 }
@@ -197,7 +197,7 @@ func LoadConfig(path string) (*Config, error) {
 func ParseConfig(hclConfig string) (_ *Config, err error) {
 	c := new(Config)
 	if err := hcl.Decode(c, hclConfig); err != nil {
-		return nil, fmt.Errorf("unable to decode configuration: %v", err)
+		return nil, fmt.Errorf("unable to decode configuration: %w", err)
 	}
 
 	if c.LogLevel == "" {
@@ -238,13 +238,13 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 		addr, err := net.ResolveTCPAddr("tcp", c.ServingCertFile.RawAddr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid addr in the serving_cert_file configuration section: %v", err)
+			return nil, fmt.Errorf("invalid addr in the serving_cert_file configuration section: %w", err)
 		}
 		c.ServingCertFile.Addr = addr
 
 		c.ServingCertFile.FileSyncInterval, err = parseDurationField(c.ServingCertFile.RawFileSyncInterval, defaultFileSyncInterval)
 		if err != nil {
-			return nil, fmt.Errorf("invalid file_sync_interval in the serving_cert_file configuration section: %v", err)
+			return nil, fmt.Errorf("invalid file_sync_interval in the serving_cert_file configuration section: %w", err)
 		}
 	}
 
@@ -253,7 +253,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	if c.ServerAPI != nil {
 		c.ServerAPI.PollInterval, err = parseDurationField(c.ServerAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
-			return nil, fmt.Errorf("invalid poll_interval in the server_api configuration section: %v", err)
+			return nil, fmt.Errorf("invalid poll_interval in the server_api configuration section: %w", err)
 		}
 		methodCount++
 	}
@@ -264,7 +264,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		}
 		c.WorkloadAPI.PollInterval, err = parseDurationField(c.WorkloadAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
-			return nil, fmt.Errorf("invalid poll_interval in the workload_api configuration section: %v", err)
+			return nil, fmt.Errorf("invalid poll_interval in the workload_api configuration section: %w", err)
 		}
 		methodCount++
 	}

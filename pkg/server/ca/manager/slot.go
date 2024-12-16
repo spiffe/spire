@@ -349,14 +349,14 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 
 	cert, err := x509.ParseCertificate(entry.Certificate)
 	if err != nil {
-		return nil, "", fmt.Errorf("unable to parse CA certificate: %v", err)
+		return nil, "", fmt.Errorf("unable to parse CA certificate: %w", err)
 	}
 
 	var upstreamChain []*x509.Certificate
 	for _, certDER := range entry.UpstreamChain {
 		cert, err := x509.ParseCertificate(certDER)
 		if err != nil {
-			return nil, "", fmt.Errorf("unable to parse upstream chain certificate: %v", err)
+			return nil, "", fmt.Errorf("unable to parse upstream chain certificate: %w", err)
 		}
 		upstreamChain = append(upstreamChain, cert)
 	}

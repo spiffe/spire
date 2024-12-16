@@ -40,7 +40,7 @@ func (t *keyStore) FindPublicKey(_ context.Context, td spiffeid.TrustDomain, key
 func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audience []string) (spiffeid.ID, map[string]any, error) {
 	tok, err := jwt.ParseSigned(token, AllowedSignatureAlgorithms)
 	if err != nil {
-		return spiffeid.ID{}, nil, fmt.Errorf("unable to parse JWT token: %v", err)
+		return spiffeid.ID{}, nil, fmt.Errorf("unable to parse JWT token: %w", err)
 	}
 
 	if len(tok.Headers) != 1 {
@@ -65,7 +65,7 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 	}
 	spiffeID, err := spiffeid.FromString(claims.Subject)
 	if err != nil {
-		return spiffeid.ID{}, nil, fmt.Errorf("token has in invalid subject claim: %v", err)
+		return spiffeid.ID{}, nil, fmt.Errorf("token has in invalid subject claim: %w", err)
 	}
 
 	// Construct the trust domain id from the SPIFFE ID and look up key by ID
@@ -92,8 +92,6 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 			err = errors.New("token has expired")
 		case errors.Is(err, jwt.ErrInvalidAudience):
 			err = fmt.Errorf("expected audience in %q (audience=%q)", audience, claims.Audience)
-		default:
-			err = err
 		}
 		return spiffeid.ID{}, nil, err
 	}

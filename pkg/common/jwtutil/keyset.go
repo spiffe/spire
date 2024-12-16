@@ -114,7 +114,7 @@ func DiscoverKeySetURI(ctx context.Context, configURL string) (string, error) {
 		JWKSURI string `json:"jwks_uri"`
 	}{}
 	if err := json.NewDecoder(resp.Body).Decode(config); err != nil {
-		return "", fmt.Errorf("failed to decode configuration: %v", err)
+		return "", fmt.Errorf("failed to decode configuration: %w", err)
 	}
 	if config.JWKSURI == "" {
 		return "", errors.New("configuration missing JWKS URI")
@@ -141,7 +141,7 @@ func FetchKeySet(ctx context.Context, jwksURI string) (*jose.JSONWebKeySet, erro
 
 	jwks := new(jose.JSONWebKeySet)
 	if err := json.NewDecoder(resp.Body).Decode(jwks); err != nil {
-		return nil, fmt.Errorf("failed to decode key set: %v", err)
+		return nil, fmt.Errorf("failed to decode key set: %w", err)
 	}
 
 	return jwks, nil

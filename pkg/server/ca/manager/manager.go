@@ -741,7 +741,7 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 		}
 	}
 	if allErrs != nil {
-		return fmt.Errorf("one or more notifiers returned an error: %v", allErrs)
+		return fmt.Errorf("one or more notifiers returned an error: %w", allErrs)
 	}
 
 	return nil

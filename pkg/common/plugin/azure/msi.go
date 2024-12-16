@@ -79,7 +79,7 @@ func FetchMSIToken(cl HTTPClient, resource string) (string, error) {
 	}{}
 
 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return "", fmt.Errorf("unable to decode response: %v", err)
+		return "", fmt.Errorf("unable to decode response: %w", err)
 	}
 
 	if r.AccessToken == "" {
@@ -107,7 +107,7 @@ func FetchInstanceMetadata(cl HTTPClient) (*InstanceMetadata, error) {
 
 	metadata := new(InstanceMetadata)
 	if err := json.NewDecoder(resp.Body).Decode(metadata); err != nil {
-		return nil, fmt.Errorf("unable to decode response: %v", err)
+		return nil, fmt.Errorf("unable to decode response: %w", err)
 	}
 
 	switch {

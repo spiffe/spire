@@ -314,7 +314,7 @@ func loadJournalFromDS(ctx context.Context, config *journalConfig) (*Journal, er
 
 	j.caJournalID = caJournal.ID
 	if err := proto.Unmarshal(caJournal.Data, j.entries); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal entries from CA journal record: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal entries from CA journal record: %w", err)
 	}
 	return j, nil
 }
