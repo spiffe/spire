@@ -195,7 +195,7 @@ SPIRE Agent, upon receipt of the signal, does the following:
 
 ## Telemetry configuration
 
-Please see the [Telemetry Configuration](./telemetry_config.md) guide for more information about configuring SPIRE Agent to emit telemetry.
+Please see the [Telemetry Configuration](./telemetry/telemetry_config.md) guide for more information about configuring SPIRE Agent to emit telemetry.
 
 ## Health check configuration
 
