@@ -132,18 +132,51 @@ func (c *cache) startRunner(ctx context.Context) {
 		}
 	}
 
-	ticker := c.clk.Ticker(readyCheckInterval)
+	startSteadyStateHealthCheckCh := make(chan struct{})
+	// Run health check in a tighter loop until we get an initial ready + live state
+	go func() {
+		for {
+			checkFunc()
+
+			allReady := true
+			allLive := true
+			for _, status := range c.getStatuses() {
+				if !status.details.Ready {
+					allReady = false
+					break
+				}
+
+				if !status.details.Live {
+					allLive = false
+					break
+				}
+			}
+
+			if allReady && allLive {
+				break
+			}
+
+			select {
+			case <-c.clk.After(readyCheckInitialInterval):
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		startSteadyStateHealthCheckCh <- struct{}{}
+	}()
 
 	go func() {
 		defer func() {
 			c.log.Debug("Finishing health checker")
-			ticker.Stop()
 		}()
+
+		<-startSteadyStateHealthCheckCh
 		for {
 			checkFunc()
 
 			select {
-			case <-ticker.C:
+			case <-c.clk.After(readyCheckInterval):
 			case <-ctx.Done():
 				return
 			}

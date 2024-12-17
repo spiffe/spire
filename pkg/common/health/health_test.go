@@ -67,7 +67,7 @@ func TestCheckerListeners(t *testing.T) {
 	clk := clock.NewMock()
 	finalChecker.cache.clk = clk
 
-	waitFor := make(chan struct{}, 1)
+	waitFor := make(chan struct{})
 	finalChecker.cache.hooks.statusUpdated = waitFor
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

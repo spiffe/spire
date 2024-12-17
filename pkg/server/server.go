@@ -211,7 +211,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		registrationManager.Run,
 		bundlePublishingManager.Run,
 		catalog.ReconfigureTask(s.config.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
-		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
+		healthChecker.ListenAndServe,
 	}
 
 	if s.config.LogReopener != nil {
@@ -491,14 +491,6 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 	return nil
 }
 
-// waitForTestDial calls health.WaitForTestDial to wait for a connection to the
-// SPIRE Server API socket. This function always returns nil, even if
-// health.WaitForTestDial exited due to a timeout.
-func (s *Server) waitForTestDial(ctx context.Context) error {
-	health.WaitForTestDial(ctx, s.config.BindLocalAddress)
-	return nil
-}
-
 // CheckHealth is used as a top-level health check for the Server.
 func (s *Server) CheckHealth() health.State {
 	err := s.tryGetBundle()
@@ -520,7 +512,12 @@ func (s *Server) CheckHealth() health.State {
 }
 
 func (s *Server) tryGetBundle() error {
-	client, err := server_util.NewServerClient(s.config.BindLocalAddress.String())
+	addr, err := util.GetTargetName(s.config.BindLocalAddress)
+	if err != nil {
+		return fmt.Errorf("cannot get local gRPC address: %w", err)
+	}
+
+	client, err := server_util.NewServerClient(addr)
 	if err != nil {
 		return errors.New("cannot create registration client")
 	}
