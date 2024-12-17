@@ -47,7 +47,7 @@ require (
 	github.com/google/btree v1.1.3
 	github.com/google/go-cmp v0.6.0
 	github.com/google/go-containerregistry v0.20.2
-	github.com/google/go-tpm v0.9.1
+	github.com/google/go-tpm v0.9.2
 	github.com/google/go-tpm-tools v0.4.4
 	github.com/googleapis/gax-go/v2 v2.14.0
 	github.com/gorilla/handlers v1.5.2
