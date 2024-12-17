@@ -350,7 +350,7 @@ func TestListenAndServe(t *testing.T) {
 	})
 
 	t.Run("Access denied to remote caller", func(t *testing.T) {
-		testRemoteCaller(ctx, t, target)
+		testRemoteCaller(t, target)
 	})
 
 	t.Run("Invalidate connection with misconfigured foreign admin caller", func(t *testing.T) {

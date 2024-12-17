@@ -229,7 +229,7 @@ func TestEndpoints(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.fromRemote {
-				testRemoteCaller(ctx, t, target)
+				testRemoteCaller(t, target)
 				return
 			}
 
