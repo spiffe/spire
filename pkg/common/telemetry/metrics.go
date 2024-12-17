@@ -91,10 +91,9 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 		conf.AllowedPrefixes = c.FileConfig.AllowedPrefixes
 		conf.BlockedPrefixes = c.FileConfig.BlockedPrefixes
 
+		impl.enableTrustDomainLabel = false
 		if c.FileConfig.EnableTrustDomainLabel != nil {
 			impl.enableTrustDomainLabel = *c.FileConfig.EnableTrustDomainLabel
-		} else {
-			impl.enableTrustDomainLabel = false
 		}
 
 		metricsSink, err := metrics.New(conf, fanout)
@@ -120,13 +119,7 @@ func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 }
 
 func (m *MetricsImpl) SetGauge(key []string, val float32) {
-	if m.enableTrustDomainLabel {
-		m.SetGaugeWithLabels(key, val, nil)
-	} else {
-		for _, s := range m.metricsSinks {
-			s.SetGauge(key, val)
-		}
-	}
+	m.SetGaugeWithLabels(key, val, nil)
 }
 
 // SetGaugeWithLabels delegates to embedded metrics, sanitizing labels
@@ -148,13 +141,7 @@ func (m *MetricsImpl) EmitKey(key []string, val float32) {
 }
 
 func (m *MetricsImpl) IncrCounter(key []string, val float32) {
-	if m.enableTrustDomainLabel {
-		m.IncrCounterWithLabels(key, val, nil)
-	} else {
-		for _, s := range m.metricsSinks {
-			s.IncrCounter(key, val)
-		}
-	}
+	m.IncrCounterWithLabels(key, val, nil)
 }
 
 // IncrCounterWithLabels delegates to embedded metrics, sanitizing labels
@@ -170,13 +157,7 @@ func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []
 }
 
 func (m *MetricsImpl) AddSample(key []string, val float32) {
-	if m.enableTrustDomainLabel {
-		m.AddSampleWithLabels(key, val, nil)
-	} else {
-		for _, s := range m.metricsSinks {
-			s.AddSample(key, val)
-		}
-	}
+	m.AddSampleWithLabels(key, val, nil)
 }
 
 // AddSampleWithLabels delegates to embedded metrics, sanitizing labels
@@ -192,13 +173,7 @@ func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []La
 }
 
 func (m *MetricsImpl) MeasureSince(key []string, start time.Time) {
-	if m.enableTrustDomainLabel {
-		m.MeasureSinceWithLabels(key, start, nil)
-	} else {
-		for _, s := range m.metricsSinks {
-			s.MeasureSince(key, start)
-		}
-	}
+	m.MeasureSinceWithLabels(key, start, nil)
 }
 
 // MeasureSinceWithLabels delegates to embedded metrics, sanitizing labels
