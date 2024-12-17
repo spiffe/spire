@@ -25,11 +25,16 @@ type Handler struct {
 	setKeyUse           bool
 	log                 logrus.FieldLogger
 	jwtIssuer           string
+	advertisedURL       string
+	prefix              string
 
 	http.Handler
 }
 
-func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer string) *Handler {
+func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer string, advertisedURL string, prefix string) *Handler {
+	if prefix == "" {
+		prefix = "/"
+	}
 	h := &Handler{
 		domainPolicy:        domainPolicy,
 		source:              source,
@@ -37,11 +42,22 @@ func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSo
 		setKeyUse:           setKeyUse,
 		log:                 log,
 		jwtIssuer:           jwtIssuer,
+		advertisedURL:       advertisedURL,
+		prefix:              prefix,
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/.well-known/openid-configuration", handlers.ProxyHeaders(http.HandlerFunc(h.serveWellKnown)))
-	mux.Handle("/keys", http.HandlerFunc(h.serveKeys))
+	wkPath, err := url.JoinPath(prefix, "/.well-known/openid-configuration")
+	if err != nil {
+		return nil
+	}
+	jwksPath, err := url.JoinPath(prefix, "/keys")
+	if err != nil {
+		return nil
+	}
+
+	mux.Handle(wkPath, handlers.ProxyHeaders(http.HandlerFunc(h.serveWellKnown)))
+	mux.Handle(jwksPath, http.HandlerFunc(h.serveKeys))
 
 	h.Handler = mux
 	return h
@@ -56,6 +72,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 	var host string
 	var path string
 	var urlScheme string
+	var jwksURI url.URL
 	if h.jwtIssuer != "" {
 		jwtIssuerURL, _ := url.Parse(h.jwtIssuer)
 		host = jwtIssuerURL.Host
@@ -68,8 +85,31 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 			urlScheme = "http"
 		}
 	}
+	if h.advertisedURL != "" {
+		tmpURL, _ := url.Parse(h.advertisedURL)
+		keysPath, err := url.JoinPath(tmpURL.Path, h.prefix, "keys")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		jwksURI = url.URL{
+			Scheme: tmpURL.Scheme,
+			Host:   tmpURL.Host,
+			Path:   keysPath,
+		}
+	} else {
+		tmpURLScheme := "https"
+		if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
+			tmpURLScheme = "http"
+		}
+		jwksURI = url.URL{
+			Scheme: tmpURLScheme,
+			Host:   r.Host,
+			Path:   "/keys",
+		}
+	}
 
-	if err := h.verifyHost(host); err != nil {
+	if err := h.verifyHost(r.Host); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -79,8 +119,6 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		Host:   host,
 		Path:   path,
 	}
-
-	jwksURI := issuerURL.JoinPath("keys")
 
 	doc := struct {
 		Issuer  string `json:"issuer"`
