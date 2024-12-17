@@ -283,7 +283,8 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 }
 
 func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore,
-	healthChecker health.Checker) (*catalog.Repository, error) {
+	healthChecker health.Checker,
+) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
@@ -447,8 +448,8 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 		Pagination: &datastore.Pagination{
 			Token:    "",
 			PageSize: pageSize,
-		}})
-
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -469,7 +470,8 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 		Pagination: &datastore.Pagination{
 			Token:    "",
 			PageSize: pageSize,
-		}})
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -518,7 +520,7 @@ func (s *Server) CheckHealth() health.State {
 }
 
 func (s *Server) tryGetBundle() error {
-	client, err := server_util.NewServerClient(s.config.BindLocalAddress)
+	client, err := server_util.NewServerClient(s.config.BindLocalAddress.String())
 	if err != nil {
 		return errors.New("cannot create registration client")
 	}

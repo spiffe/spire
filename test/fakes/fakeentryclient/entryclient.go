@@ -49,7 +49,7 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore,
 	service := entry.New(entry.Config{
 		TrustDomain: trustDomain,
 		DataStore:   ds,
-		//EntryFetcher: authorizedEntryFetcherWithCache,
+		// EntryFetcher: authorizedEntryFetcherWithCache,
 	})
 
 	log, _ := test.NewNullLogger()
@@ -68,7 +68,7 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore,
 		grpctest.Credentials(fakeTransportCreds{}),
 	)
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	c.done = server.Stop
 	c.EntryClient = entryv1.NewEntryClient(conn)

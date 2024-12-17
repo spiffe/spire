@@ -2940,7 +2940,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	test.client = bundlev1.NewBundleClient(conn)
 	test.done = server.Stop

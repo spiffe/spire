@@ -17,9 +17,6 @@ import (
 )
 
 const (
-	// testDialTimeout is the duration to wait for a test dial
-	testDialTimeout = 30 * time.Second
-
 	readyCheckInterval = time.Minute
 )
 
@@ -144,10 +141,7 @@ func (c *checker) ListenAndServe(ctx context.Context) error {
 // Nothing is done with the connection, which is just closed in case it
 // is created.
 func WaitForTestDial(ctx context.Context, addr net.Addr) {
-	ctx, cancel := context.WithTimeout(ctx, testDialTimeout)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, //nolint: staticcheck // It is going to be resolved on #5152
+	conn, err := grpc.NewClient(
 		addr.String(),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(func(ctx context.Context, name string) (net.Conn, error) {
@@ -156,7 +150,7 @@ func WaitForTestDial(ctx context.Context, addr net.Addr) {
 				Name: name,
 			})
 		}),
-		grpc.WithBlock()) //nolint: staticcheck // It is going to be resolved on #5152
+	)
 	if err != nil {
 		return
 	}

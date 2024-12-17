@@ -1,12 +1,6 @@
 //go:build windows
 
-package common
-
-import (
-	"net"
-
-	"github.com/spiffe/spire/pkg/common/namedpipe"
-)
+package clitest
 
 var (
 	AddrArg         = "-namedPipeName"
@@ -19,7 +13,3 @@ var (
 `
 	AddrValue = "\\does-not-exist"
 )
-
-func GetAddr(addr net.Addr) string {
-	return namedpipe.GetPipeName(addr.String())
-}
