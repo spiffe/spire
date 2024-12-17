@@ -11,7 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/zeebo/errs"
 )
 
 type Getter interface {
@@ -57,7 +56,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	// it gives us the ability to use/inspect an ephemeral port during testing.
 	listener, err := s.c.listen("tcp", s.c.Address)
 	if err != nil {
-		return errs.Wrap(err)
+		return err
 	}
 
 	// Set up the TLS config, setting TLS 1.2 as the minimum.
@@ -72,7 +71,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- errs.Wrap(server.ServeTLS(listener, "", ""))
+		errCh <- server.ServeTLS(listener, "", "")
 	}()
 
 	select {

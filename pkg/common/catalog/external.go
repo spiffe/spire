@@ -14,7 +14,6 @@ import (
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 )
 
@@ -154,7 +153,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 	// does not work yet anyway, so it is a moot point.
 	listener, err := b.Accept(private.HostServiceProviderID)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 
 	server := newHostServer(p.config.Log, p.config.Name, p.config.HostServices)
