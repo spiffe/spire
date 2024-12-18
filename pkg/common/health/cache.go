@@ -171,15 +171,16 @@ func (c *cache) startRunner(ctx context.Context) {
 			c.log.Debug("Finishing health checker")
 		}()
 
+		// Wait until initial ready + live state is achieved, then periodically check health at a longer interval
 		<-startSteadyStateHealthCheckCh
 		for {
-			checkFunc()
-
 			select {
 			case <-c.clk.After(readyCheckInterval):
 			case <-ctx.Done():
 				return
 			}
+
+			checkFunc()
 		}
 	}()
 }

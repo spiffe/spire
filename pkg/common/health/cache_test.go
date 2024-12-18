@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -80,19 +79,15 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	err = c.addCheck("bar", barChecker)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
 	err = c.start(ctx)
 	require.NoError(t, err)
 
 	t.Run("fail to start initially", func(t *testing.T) {
 		// Wait for initial calls
-		select {
-		case <-waitFor:
-		case <-ctx.Done():
-			require.Fail(t, "unable to get updates because context is finished")
-		}
+		<-waitFor
+
 		expectLogs := []spiretest.LogEntry{
 			{
 				Level:   logrus.DebugLevel,
@@ -160,11 +155,8 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		clockMock.Add(readyCheckInitialInterval)
 
 		// Wait for initial calls
-		select {
-		case <-waitFor:
-		case <-ctx.Done():
-			require.Fail(t, "unable to get updates because context is finished")
-		}
+		<-waitFor
+
 		expectLogs := []spiretest.LogEntry{
 			{
 				Level:   logrus.InfoLevel,
@@ -219,12 +211,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		// Move to next interval
 		clockMock.Add(readyCheckInterval)
 
-		// Wait for new call
-		select {
-		case <-waitFor:
-		case <-ctx.Done():
-			require.Fail(t, "unable to get updates because context is finished")
-		}
+		<-waitFor
 
 		expectStatus := map[string]checkState{
 			"foo": {
@@ -282,11 +269,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		clockMock.Add(readyCheckInterval)
 
 		// Wait for new call
-		select {
-		case <-waitFor:
-		case <-ctx.Done():
-			require.Fail(t, "unable to get updates because context is finished")
-		}
+		<-waitFor
 
 		expectStatus := map[string]checkState{
 			"foo": {
@@ -342,11 +325,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		clockMock.Add(readyCheckInterval)
 
 		// Wait for new call
-		select {
-		case <-waitFor:
-		case <-ctx.Done():
-			require.Fail(t, "unable to get updates because context is finished")
-		}
+		<-waitFor
 
 		expectStatus := map[string]checkState{
 			"foo": {
