@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -410,7 +411,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}
 
-	bindAddress, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", c.Server.BindAddress, c.Server.BindPort))
+	bindAddress, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(strings.Trim(c.Server.BindAddress, "[]"), strconv.Itoa(c.Server.BindPort)))
 	if err != nil {
 		return nil, fmt.Errorf(`could not resolve bind address "%s:%d": %w`, c.Server.BindAddress, c.Server.BindPort, err)
 	}

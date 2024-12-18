@@ -5,7 +5,7 @@ package middleware
 import (
 	"fmt"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"golang.org/x/sys/windows"

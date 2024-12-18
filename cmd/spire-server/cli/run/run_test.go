@@ -516,6 +516,28 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "IPv6 bind_address in square brackets and bind_port should be correctly parsed",
+			input: func(c *Config) {
+				c.Server.BindAddress = "[2001:101::]"
+				c.Server.BindPort = 1337
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "2001:101::", c.BindAddress.IP.String())
+				require.Equal(t, 1337, c.BindAddress.Port)
+			},
+		},
+		{
+			msg: "IPv6 bind_address without square brackets and bind_port should be correctly parsed",
+			input: func(c *Config) {
+				c.Server.BindAddress = "2001:101::"
+				c.Server.BindPort = 1337
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "2001:101::", c.BindAddress.IP.String())
+				require.Equal(t, 1337, c.BindAddress.Port)
+			},
+		},
+		{
 			msg: "bind_address with hostname value should be correctly parsed",
 			input: func(c *Config) {
 				c.Server.BindAddress = "localhost"

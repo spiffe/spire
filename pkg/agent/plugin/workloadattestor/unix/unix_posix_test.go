@@ -23,9 +23,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-var (
-	ctx = context.Background()
-)
+var ctx = context.Background()
 
 func TestPlugin(t *testing.T) {
 	spiretest.Run(t, new(Suite))
@@ -261,7 +259,7 @@ func (s *Suite) TestAttest() {
 }
 
 func (s *Suite) writeFile(path string, data []byte) {
-	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, path), data, 0600))
+	s.Require().NoError(os.WriteFile(filepath.Join(s.dir, path), data, 0o600))
 }
 
 func (s *Suite) loadPlugin(t *testing.T, trustDomain string, config string) workloadattestor.WorkloadAttestor {
@@ -292,35 +290,35 @@ type fakeProcess struct {
 	dir string
 }
 
-func (p fakeProcess) Uids() ([]int32, error) {
+func (p fakeProcess) Uids() ([]uint32, error) {
 	switch p.pid {
 	case 1:
-		return []int32{}, nil
+		return []uint32{}, nil
 	case 2:
 		return nil, fmt.Errorf("unable to get UIDs for PID %d", p.pid)
 	case 3:
-		return []int32{1999}, nil
+		return []uint32{1999}, nil
 	case 4, 5, 6, 7, 9, 10, 11, 12, 13, 14:
-		return []int32{1000}, nil
+		return []uint32{1000}, nil
 	case 8:
-		return []int32{1000, 1100}, nil
+		return []uint32{1000, 1100}, nil
 	default:
 		return nil, fmt.Errorf("unhandled uid test case %d", p.pid)
 	}
 }
 
-func (p fakeProcess) Gids() ([]int32, error) {
+func (p fakeProcess) Gids() ([]uint32, error) {
 	switch p.pid {
 	case 4:
-		return []int32{}, nil
+		return []uint32{}, nil
 	case 5:
 		return nil, fmt.Errorf("unable to get GIDs for PID %d", p.pid)
 	case 6:
-		return []int32{2999}, nil
+		return []uint32{2999}, nil
 	case 3, 7, 9, 10, 11, 12, 13, 14:
-		return []int32{2000}, nil
+		return []uint32{2000}, nil
 	case 8:
-		return []int32{2000, 2100}, nil
+		return []uint32{2000, 2100}, nil
 	default:
 		return nil, fmt.Errorf("unhandled gid test case %d", p.pid)
 	}

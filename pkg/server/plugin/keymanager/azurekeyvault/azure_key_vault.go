@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -19,10 +20,10 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -546,17 +547,16 @@ func keyVaultKeyToRawKey(keyVaultKey *azkeys.JSONWebKey) (any, error) {
 	}
 
 	// Parse JWK
-	key, err := jwk.ParseKey(jwkJSON)
-	if err != nil {
+	var key jose.JSONWebKey
+	if err := json.Unmarshal(jwkJSON, &key); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to parse key: %v", err)
 	}
 
-	var rawkey any
-	// Raw returns the public key represented by this JWK (in this case, *rsa.PublicKey or *ecdsa.PublicKey)
-	if err := key.Raw(&rawkey); err != nil {
+	if key.Key == nil {
 		return nil, status.Errorf(codes.Internal, "failed to convert Key Vault key to raw key: %v", err)
 	}
-	return rawkey, nil
+
+	return key.Key, nil
 }
 
 // GetPublicKey returns the public key for a given key

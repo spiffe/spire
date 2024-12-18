@@ -3,7 +3,7 @@
 package middleware
 
 import (
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
@@ -27,7 +27,7 @@ func setFields(p *process.Process, fields logrus.Fields) error {
 	return nil
 }
 
-func getUID(p *process.Process) (int32, error) {
+func getUID(p *process.Process) (uint32, error) {
 	uids, err := p.Uids()
 	if err != nil {
 		return 0, status.Errorf(codes.Internal, "failed UIDs lookup: %v", err)
@@ -43,7 +43,7 @@ func getUID(p *process.Process) (int32, error) {
 	}
 }
 
-func getGID(p *process.Process) (int32, error) {
+func getGID(p *process.Process) (uint32, error) {
 	gids, err := p.Gids()
 	if err != nil {
 		return 0, status.Errorf(codes.Internal, "failed GIDs lookup: %v", err)

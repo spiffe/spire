@@ -16,7 +16,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -34,8 +34,8 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type processInfo interface {
-	Uids() ([]int32, error)
-	Gids() ([]int32, error)
+	Uids() ([]uint32, error)
+	Gids() ([]uint32, error)
 	Groups() ([]string, error)
 	Exe() (string, error)
 	NamespacedExe() string

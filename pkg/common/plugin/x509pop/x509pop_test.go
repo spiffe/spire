@@ -138,7 +138,7 @@ func TestMakeAgentID(t *testing.T) {
 	}{
 		{
 			desc:     "default template with sha1",
-			template: DefaultAgentPathTemplate,
+			template: DefaultAgentPathTemplateCN,
 			expectID: "spiffe://example.org/spire/agent/x509pop/da39a3ee5e6b4b0d3255bfef95601890afd80709",
 		},
 		{
@@ -161,7 +161,7 @@ func TestMakeAgentID(t *testing.T) {
 					CommonName: "test-cert",
 				},
 			}
-			id, err := MakeAgentID(spiffeid.RequireTrustDomainFromString("example.org"), tt.template, cert)
+			id, err := MakeAgentID(spiffeid.RequireTrustDomainFromString("example.org"), tt.template, cert, "")
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)

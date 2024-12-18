@@ -445,7 +445,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 	// on entry revisions.
 	processEntryRevisions := func(entryRevisions []*entryv1.EntryRevision) {
 		for _, entryRevision := range entryRevisions {
-			if entryRevision.Id == "" || entryRevision.RevisionNumber <= 0 {
+			if entryRevision.Id == "" || entryRevision.RevisionNumber < 0 {
 				c.c.Log.WithFields(logrus.Fields{
 					telemetry.RegistrationID: entryRevision.Id,
 					telemetry.RevisionNumber: entryRevision.RevisionNumber,

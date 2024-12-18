@@ -8,6 +8,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"net/url"
 	"os"
 	"time"
 )
@@ -49,11 +50,31 @@ func main() {
 		Subject:      pkix.Name{CommonName: "COMMONNAME"},
 	}, intermediateKey, intermediateCert)
 
+	svid, _ := url.Parse("spiffe://example.org/somesvid")
+	spiffeLeafCertReg := createCertificate(leafKey, &x509.Certificate{
+		SerialNumber: big.NewInt(0x0a1b2c3d4e6f),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		NotAfter:     neverExpires,
+		Subject:      pkix.Name{CommonName: "COMMONNAME"},
+		URIs:         []*url.URL{svid},
+	}, intermediateKey, intermediateCert)
+
+	svidExchange, _ := url.Parse("spiffe://example.org/spire-exchange/testhost")
+	spiffeLeafCertExchange := createCertificate(leafKey, &x509.Certificate{
+		SerialNumber: big.NewInt(0x0a1b2c3d4e7f),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		NotAfter:     neverExpires,
+		Subject:      pkix.Name{CommonName: "COMMONNAME"},
+		URIs:         []*url.URL{svidExchange},
+	}, intermediateKey, intermediateCert)
+
 	writeKey("leaf-key.pem", leafKey)
 	writeCerts("leaf-crt-bundle.pem", leafCert, intermediateCert)
 	writeCerts("leaf.pem", leafCert)
 	writeCerts("intermediate.pem", intermediateCert)
 	writeCerts("root-crt.pem", rootCert)
+	writeCerts("svidreg.pem", spiffeLeafCertReg, intermediateCert)
+	writeCerts("svidexchange.pem", spiffeLeafCertExchange, intermediateCert)
 }
 
 func createRootCertificate(key *rsa.PrivateKey, tmpl *x509.Certificate) *x509.Certificate {
