@@ -34,5 +34,5 @@ func testRemoteCaller(t *testing.T, target string) {
 	_, err = healthClient.Check(context.Background(), &grpc_health_v1.HealthCheckRequest{})
 
 	// Remote calls must be denied
-	require.ErrorIs(t, err, windows.ERROR_ACCESS_DENIED)
+	require.ErrorContains(t, err, windows.ERROR_ACCESS_DENIED.Error())
 }
