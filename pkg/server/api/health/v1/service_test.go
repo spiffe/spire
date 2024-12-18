@@ -22,9 +22,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-var (
-	td = spiffeid.RequireTrustDomainFromString("example.org")
-)
+var td = spiffeid.RequireTrustDomainFromString("example.org")
 
 func TestServiceCheck(t *testing.T) {
 	for _, tt := range []struct {
@@ -112,7 +110,7 @@ func TestServiceCheck(t *testing.T) {
 				}),
 			)
 
-			conn := server.Dial(t)
+			conn := server.NewGRPCClient(t)
 
 			client := grpc_health_v1.NewHealthClient(conn)
 			resp, err := client.Check(context.Background(), &grpc_health_v1.HealthCheckRequest{

@@ -2127,7 +2127,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	test.client = svidv1.NewSVIDClient(conn)
 	test.done = server.Stop

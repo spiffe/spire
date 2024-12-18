@@ -1664,7 +1664,8 @@ func TestBatchCreateEntry(t *testing.T) {
 					},
 					Selectors: []*types.Selector{{Type: "type", Value: "value"}},
 					DnsNames:  []string{""},
-				}, {
+				},
+				{
 					Id: "entry2",
 					ParentId: &types.SPIFFEID{
 						TrustDomain: "example.org",
@@ -1739,7 +1740,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						{Type: "type", Value: "value2"},
 					},
 					Hint: "internal",
-				}},
+				},
+			},
 			expectDsEntries: map[string]*common.RegistrationEntry{
 				"entry1": {
 					EntryId:  "entry1",
@@ -1810,7 +1812,8 @@ func TestBatchCreateEntry(t *testing.T) {
 						{Type: "type", Value: "value2"},
 					},
 					StoreSvid: true,
-				}},
+				},
+			},
 			expectDsEntries: map[string]*common.RegistrationEntry{
 				"entry1": {
 					EntryId:  "entry1",
@@ -3508,7 +3511,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parentUpdated"}},
+						ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parentUpdated"},
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -3551,7 +3555,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workloadUpdated"}},
+						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workloadUpdated"},
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -4172,8 +4177,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
-					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid spiffe ID: trust domain is missing"},
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid spiffe ID: trust domain is missing",
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -4213,8 +4220,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
-					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid parent ID: trust domain is missing"},
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid parent ID: trust domain is missing",
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -4254,8 +4263,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
-					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid parent ID: trust domain is missing"},
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid parent ID: trust domain is missing",
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -4295,8 +4306,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
-					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: invalid spiffe ID: trust domain is missing"},
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: invalid spiffe ID: trust domain is missing",
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -4336,8 +4349,10 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
 				{
-					Status: &types.Status{Code: int32(codes.InvalidArgument),
-						Message: "failed to convert entry: selector list is empty"},
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: selector list is empty",
+					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
@@ -4773,7 +4788,7 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore, options ...serviceTe
 		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	test.client = entryv1.NewEntryClient(conn)
 	test.done = server.Stop
