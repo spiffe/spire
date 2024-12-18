@@ -48,7 +48,7 @@ func TestLoadConfig(t *testing.T) {
 	err = os.WriteFile(confPath, []byte(minimalServerAPIConfig), 0600)
 	require.NoError(err)
 
-	config, err := LoadConfig(confPath, false)
+	config, err = LoadConfig(confPath, false)
 	require.NoError(err)
 
 	require.Equal(&Config{
