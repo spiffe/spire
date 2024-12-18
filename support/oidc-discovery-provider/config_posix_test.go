@@ -21,7 +21,7 @@ var (
 	minimalEnvServerAPIConfig = `
 		domains = ["${SPIFFE_TRUST_DOMAIN}"]
 		acme {
-			email = "admin@@{SPIFFE_TRUST_DOMAIN}"
+			email = "admin@${SPIFFE_TRUST_DOMAIN}"
 			tos_accepted = true
 		}
 		server_api {
