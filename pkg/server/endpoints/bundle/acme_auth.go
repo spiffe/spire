@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
+	"fmt"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/autocert"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/zeebo/errs"
 	"golang.org/x/crypto/acme"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -122,7 +122,7 @@ func (ks *acmeKeyStore) NewPrivateKey(ctx context.Context, id string, keyType au
 	case autocert.EC256:
 		kmKeyType = keymanager.ECP256
 	default:
-		return nil, errs.New("unsupported key type: %d", keyType)
+		return nil, fmt.Errorf("unsupported key type: %d", keyType)
 	}
 
 	key, err := ks.km.GenerateKey(ctx, keyID, kmKeyType)

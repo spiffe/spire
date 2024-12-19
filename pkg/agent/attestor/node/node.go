@@ -28,7 +28,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -101,7 +100,7 @@ func (a *attestor) Attest(ctx context.Context) (res *AttestationResult, err erro
 		// This is a bizarre case where we have an SVID but were unable to
 		// load a bundle from the cache which suggests some tampering with the
 		// cache on disk.
-		return nil, errs.New("SVID loaded but no bundle in cache")
+		return nil, errors.New("SVID loaded but no bundle in cache")
 	default:
 		log.WithField(telemetry.SPIFFEID, svid[0].URIs[0].String()).Info("SVID loaded")
 	}
@@ -265,7 +264,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) 
 	if !a.c.InsecureBootstrap {
 		// We shouldn't get here since loadBundle() should fail if the bundle
 		// is empty, but just in case...
-		return nil, errs.New("no bundle and not doing insecure bootstrap")
+		return nil, errors.New("no bundle and not doing insecure bootstrap")
 	}
 
 	// Insecure bootstrapping. Do not verify the server chain but rather do a
@@ -279,7 +278,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) 
 			if len(rawCerts) == 0 {
 				// This is not really possible without a catastrophic bug
 				// creeping into the TLS stack.
-				return errs.New("server chain is unexpectedly empty")
+				return errors.New("server chain is unexpectedly empty")
 			}
 
 			expectedServerID, err := idutil.ServerID(a.c.TrustDomain)
@@ -292,7 +291,7 @@ func (a *attestor) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) 
 				return err
 			}
 			if len(serverCert.URIs) != 1 || serverCert.URIs[0].String() != expectedServerID.String() {
-				return errs.New("expected server SPIFFE ID %q; got %q", expectedServerID, serverCert.URIs)
+				return fmt.Errorf("expected server SPIFFE ID %q; got %q", expectedServerID, serverCert.URIs)
 			}
 			return nil
 		},

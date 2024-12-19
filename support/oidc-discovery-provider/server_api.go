@@ -12,7 +12,6 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 )
@@ -51,7 +50,7 @@ func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) 
 
 	conn, err := util.GRPCDialContext(context.Background(), config.GRPCTarget)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
