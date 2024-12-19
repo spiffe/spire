@@ -20,6 +20,18 @@ var (
 			}
 		}
 `
+	minimalEnvServerAPIConfig = `
+		domains = ["${SPIFFE_TRUST_DOMAIN}"]
+		acme {
+			email = "admin@${SPIFFE_TRUST_DOMAIN}"
+			tos_accepted = true
+		}
+		server_api {
+			experimental {
+				named_pipe_name = "\\name\\for\\server\\api"
+			}
+		}
+`
 
 	serverAPIConfig = &ServerAPIConfig{
 		Experimental: experimentalServerAPIConfig{

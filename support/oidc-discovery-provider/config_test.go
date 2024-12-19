@@ -23,14 +23,32 @@ func TestLoadConfig(t *testing.T) {
 
 	confPath := filepath.Join(dir, "test.conf")
 
-	_, err := LoadConfig(confPath)
+	_, err := LoadConfig(confPath, false)
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
+
+	err = os.WriteFile(confPath, []byte(minimalEnvServerAPIConfig), 0600)
+	require.NoError(err)
+
+	os.Setenv("SPIFFE_TRUST_DOMAIN", "domain.test")
+	config, err := LoadConfig(confPath, true)
+	require.NoError(err)
+
+	require.Equal(&Config{
+		LogLevel: defaultLogLevel,
+		Domains:  []string{"domain.test"},
+		ACME: &ACMEConfig{
+			CacheDir:    defaultCacheDir,
+			Email:       "admin@domain.test",
+			ToSAccepted: true,
+		},
+		ServerAPI: serverAPIConfig,
+	}, config)
 
 	err = os.WriteFile(confPath, []byte(minimalServerAPIConfig), 0600)
 	require.NoError(err)
 
-	config, err := LoadConfig(confPath)
+	config, err = LoadConfig(confPath, false)
 	require.NoError(err)
 
 	require.Equal(&Config{
