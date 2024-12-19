@@ -304,7 +304,7 @@ For more information about the different profiles defined in SPIFFE, along with 
 
 ## Telemetry configuration
 
-Please see the [Telemetry Configuration](./telemetry_config.md) guide for more information about configuring SPIRE Server to emit telemetry.
+Please see the [Telemetry Configuration](./telemetry/telemetry_config.md) guide for more information about configuring SPIRE Server to emit telemetry.
 
 ## Health check configuration
 
