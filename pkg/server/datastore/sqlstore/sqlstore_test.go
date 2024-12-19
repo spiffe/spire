@@ -1726,7 +1726,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	const attestationDataType = "fake_nodeattestor"
 	nonExpiredAttNodes := make([]*common.AttestedNode, numNonExpiredAttNodes)
 	now := time.Now()
-	for i := 0; i < numNonExpiredAttNodes; i++ {
+	for i := range numNonExpiredAttNodes {
 		nonExpiredAttNodes[i] = &common.AttestedNode{
 			SpiffeId:            fmt.Sprintf("spiffe://example.org/non-expired-node-%d", i),
 			AttestationDataType: attestationDataType,
@@ -1739,7 +1739,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 
 	const numExpiredAttNodes = 2
 	expiredAttNodes := make([]*common.AttestedNode, numExpiredAttNodes)
-	for i := 0; i < numExpiredAttNodes; i++ {
+	for i := range numExpiredAttNodes {
 		expiredAttNodes[i] = &common.AttestedNode{
 			SpiffeId:            fmt.Sprintf("spiffe://example.org/expired-node-%d", i),
 			AttestationDataType: attestationDataType,
@@ -1770,7 +1770,7 @@ func (s *PluginSuite) TestListNodeSelectors() {
 	}
 
 	nonExpiredSelectorsMap := make(map[string][]*common.Selector, numNonExpiredAttNodes)
-	for i := 0; i < numNonExpiredAttNodes; i++ {
+	for i := range numNonExpiredAttNodes {
 		spiffeID := nonExpiredAttNodes[i].SpiffeId
 		nonExpiredSelectorsMap[spiffeID] = selectorMap[spiffeID]
 	}
@@ -1824,10 +1824,10 @@ func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
 	resultCh := make(chan error, numWorkers)
 	nextID := int32(0)
 
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		go func() {
 			id := fmt.Sprintf("ID%d", atomic.AddInt32(&nextID, 1))
-			for j := 0; j < 10; j++ {
+			for range 10 {
 				err := s.ds.SetNodeSelectors(ctx, id, selectors)
 				if err != nil {
 					resultCh <- err
@@ -1837,7 +1837,7 @@ func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
 		}()
 	}
 
-	for i := 0; i < numWorkers; i++ {
+	for range numWorkers {
 		s.Require().NoError(<-resultCh)
 	}
 }
@@ -4892,7 +4892,7 @@ func (s *PluginSuite) TestUpdateFederationRelationship() {
 }
 
 func (s *PluginSuite) TestMigration() {
-	for schemaVersion := 0; schemaVersion < latestSchemaVersion; schemaVersion++ {
+	for schemaVersion := range latestSchemaVersion {
 		s.T().Run(fmt.Sprintf("migration_from_schema_version_%d", schemaVersion), func(t *testing.T) {
 			require := require.New(t)
 			dbName := fmt.Sprintf("v%d.sqlite3", schemaVersion)
@@ -5245,7 +5245,7 @@ func (s *PluginSuite) TestConfigure() {
 			// begin many queries simultaneously
 			numQueries := 100
 			var rowsList []*sql.Rows
-			for i := 0; i < numQueries; i++ {
+			for range numQueries {
 				rows, err := db.Query("SELECT * FROM bundles")
 				require.NoError(t, err)
 				rowsList = append(rowsList, rows)

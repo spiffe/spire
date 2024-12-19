@@ -736,7 +736,7 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 	}
 
 	var allErrs errs.Group
-	for i := 0; i < len(notifiers); i++ {
+	for range notifiers {
 		// don't select on the ctx here as we can rely on the plugins to
 		// respond to context cancellation and return an error.
 		if err := <-errsCh; err != nil {

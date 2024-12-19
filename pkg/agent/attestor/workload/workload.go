@@ -66,7 +66,7 @@ func (wla *attestor) Attest(ctx context.Context, pid int) ([]*common.Selector, e
 
 	// Collect the results
 	selectors := []*common.Selector{}
-	for i := 0; i < len(plugins); i++ {
+	for range plugins {
 		select {
 		case s := <-sChan:
 			selectors = append(selectors, s...)
