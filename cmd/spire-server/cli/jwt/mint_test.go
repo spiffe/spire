@@ -16,9 +16,9 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,7 +35,7 @@ qNV3lKIL59N7G2B4ojbhfSNneSIIpP448uPxUnaunaQZ+/m7+x9oobIp
 	availableFormats = []string{"pretty", "json"}
 	expectedUsage    = `Usage of jwt mint:
   -audience value
-    	Audience claim that will be included in the SVID. Can be used more than once.` + common.AddrOutputUsage +
+    	Audience claim that will be included in the SVID. Can be used more than once.` + clitest.AddrOutputUsage +
 		`  -spiffeID string
     	SPIFFE ID of the JWT-SVID
   -ttl duration
@@ -325,7 +325,7 @@ func TestMintRun(t *testing.T) {
 					BaseDir: dir,
 				})
 
-				args := []string{common.AddrArg, common.GetAddr(addr)}
+				args := []string{clitest.AddrArg, clitest.GetAddr(addr)}
 				if tt.spiffeID != "" {
 					args = append(args, "-spiffeID", tt.spiffeID)
 				}

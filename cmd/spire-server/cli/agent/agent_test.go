@@ -12,8 +12,8 @@ import (
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/agent"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -92,10 +92,13 @@ func TestBan(t *testing.T) {
 			expectStderr:     "Error: a SPIFFE ID is required\n",
 		},
 		{
-			name:             "wrong UDS path",
-			args:             []string{common.AddrArg, common.AddrValue},
+			name: "wrong UDS path",
+			args: []string{
+				clitest.AddrArg, clitest.AddrValue,
+				"-spiffeID", "spiffe://example.org/spire/agent/agent1",
+			},
 			expectReturnCode: 1,
-			expectStderr:     common.AddrError,
+			expectStderr:     "Error: " + clitest.AddrError,
 		},
 		{
 			name:             "server error",
@@ -152,10 +155,13 @@ func TestEvict(t *testing.T) {
 			expectedStderr:     "Error: a SPIFFE ID is required\n",
 		},
 		{
-			name:               "wrong UDS path",
-			args:               []string{common.AddrArg, common.AddrValue},
+			name: "wrong UDS path",
+			args: []string{
+				clitest.AddrArg, clitest.AddrValue,
+				"-spiffeID", "spiffe://example.org/spire/agent/agent1",
+			},
 			expectedReturnCode: 1,
-			expectedStderr:     common.AddrError,
+			expectedStderr:     "Error: " + clitest.AddrError,
 		},
 		{
 			name:               "server error",
@@ -221,9 +227,9 @@ func TestCount(t *testing.T) {
 		},
 		{
 			name:               "wrong UDS path",
-			args:               []string{common.AddrArg, common.AddrValue},
+			args:               []string{clitest.AddrArg, clitest.AddrValue},
 			expectedReturnCode: 1,
-			expectedStderr:     common.AddrError,
+			expectedStderr:     "Error: " + clitest.AddrError,
 		},
 		{
 			name:               "Count by expiresBefore: month out of range",
@@ -448,9 +454,9 @@ func TestList(t *testing.T) {
 		},
 		{
 			name:               "wrong UDS path",
-			args:               []string{common.AddrArg, common.AddrValue},
+			args:               []string{clitest.AddrArg, clitest.AddrValue},
 			expectedReturnCode: 1,
-			expectedStderr:     common.AddrError,
+			expectedStderr:     "Error: " + clitest.AddrError,
 		},
 		{
 			name:               "List by expiresBefore: month out of range",
@@ -740,10 +746,13 @@ func TestShow(t *testing.T) {
 			expectedStderr:     "Error: rpc error: code = Internal desc = internal server error\n",
 		},
 		{
-			name:               "wrong UDS path",
-			args:               []string{common.AddrArg, common.AddrValue},
+			name: "wrong UDS path",
+			args: []string{
+				clitest.AddrArg, clitest.AddrValue,
+				"-spiffeID", "spiffe://example.org/spire/agent/agent1",
+			},
 			expectedReturnCode: 1,
-			expectedStderr:     common.AddrError,
+			expectedStderr:     "Error: " + clitest.AddrError,
 		},
 		{
 			name:                 "show selectors",
@@ -801,7 +810,7 @@ func setupTest(t *testing.T, newClient func(*commoncli.Env) cli.Command) *agentT
 		stdin:  stdin,
 		stdout: stdout,
 		stderr: stderr,
-		args:   []string{common.AddrArg, common.GetAddr(addr)},
+		args:   []string{clitest.AddrArg, clitest.GetAddr(addr)},
 		server: server,
 		client: client,
 	}

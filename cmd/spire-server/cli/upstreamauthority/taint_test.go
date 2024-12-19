@@ -6,8 +6,8 @@ import (
 
 	"github.com/gogo/status"
 	authority_common_test "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon/test"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/spiffe/spire/cmd/spire-server/cli/upstreamauthority"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -49,10 +49,13 @@ func TestTaint(t *testing.T) {
 			expectStderr:     "Error: the Subject Key ID of the X.509 upstream authority is required\n",
 		},
 		{
-			name:             "wrong UDS path",
-			args:             []string{common.AddrArg, common.AddrValue},
+			name: "wrong UDS path",
+			args: []string{
+				clitest.AddrArg, clitest.AddrValue,
+				"-subjectKeyID", "subject-key-id",
+			},
 			expectReturnCode: 1,
-			expectStderr:     common.AddrError,
+			expectStderr:     "Error: could not taint X.509 upstream authority: " + clitest.AddrError,
 		},
 		{
 			name:             "server error",

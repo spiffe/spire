@@ -26,9 +26,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var (
-	td = spiffeid.RequireTrustDomainFromString("example.org")
-)
+var td = spiffeid.RequireTrustDomainFromString("example.org")
 
 func TestServiceCheck(t *testing.T) {
 	ca := testca.New(t, td)
@@ -106,7 +104,7 @@ func TestServiceCheck(t *testing.T) {
 				}),
 			)
 
-			client := grpc_health_v1.NewHealthClient(server.Dial(t))
+			client := grpc_health_v1.NewHealthClient(server.NewGRPCClient(t))
 			resp, err := client.Check(context.Background(), &grpc_health_v1.HealthCheckRequest{
 				Service: tt.service,
 			})
