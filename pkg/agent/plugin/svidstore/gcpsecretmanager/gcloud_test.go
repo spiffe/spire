@@ -209,7 +209,7 @@ func TestPutX509SVID(t *testing.T) {
 			"federated1": {federatedBundle},
 		},
 	}
-
+	
 	secret := &svidstore.Data{
 		SPIFFEID:    "spiffe://example.org/foh",
 		X509SVID:    x509CertPem,
@@ -440,6 +440,42 @@ func TestPutX509SVID(t *testing.T) {
 					Replication: &secretmanagerpb.Replication{
 						Replication: &secretmanagerpb.Replication_Automatic_{
 							Automatic: &secretmanagerpb.Replication_Automatic{},
+						},
+					},
+					Labels: map[string]string{
+						"spire-svid": tdHash,
+					},
+				},
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{
+				getSecretErr: status.Error(codes.NotFound, "secret not found"),
+			},
+		},
+		{
+			name: "Add payload and create regional secret",
+			req:  successReq,
+			expectCreateSecretReq: &secretmanagerpb.CreateSecretRequest{
+				Parent:   "projects/project1",
+				SecretId: "secret1",
+				Secret: &secretmanagerpb.Secret{
+					Replication: &secretmanagerpb.Replication{
+						Replication: &secretmanagerpb.Replication_UserManaged_{
+							UserManaged: &secretmanagerpb.Replication_UserManaged{
+								Replicas: []*secretmanagerpb.Replication_UserManaged_Replica{
+									{
+										Location: "europe-north1",
+									},
+								},
+							},
 						},
 					},
 					Labels: map[string]string{
