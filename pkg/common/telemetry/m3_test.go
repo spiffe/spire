@@ -124,6 +124,7 @@ func testM3Config() *MetricsConfig {
 	return &MetricsConfig{
 		Logger:      l,
 		ServiceName: "foo",
+		TrustDomain: "test.org",
 		FileConfig: FileConfig{
 			M3: []M3Config{
 				{
