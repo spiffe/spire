@@ -46,7 +46,6 @@ func TestWithMetrics(t *testing.T) {
 			statusLabelValue: codes.PermissionDenied.String(),
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var expectedLabels []telemetry.Label
 

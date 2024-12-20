@@ -85,7 +85,6 @@ func TestConfigure(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			idp := fakeidentityprovider.New()
 
@@ -204,7 +203,6 @@ func testUpdateBundleObject(t *testing.T, notify func(notifier.Notifier) error) 
 			desc: "notifier(gcs_bundle): unable to update bundle object the-bucket/bundle.pem: googleapi: got HTTP response code 412 with body: ohno",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a raw instance so we can hook the bucket client creation,
 			// possibly overriding with a test specific hook.

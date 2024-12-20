@@ -934,7 +934,6 @@ func TestPruneCAJournals(t *testing.T) {
 
 	var expectedCAJournals []*datastore.CAJournal
 	for _, testCase := range testCases {
-		testCase := testCase
 		expectedCAJournals = []*datastore.CAJournal{}
 		t.Run(testCase.name, func(t *testing.T) {
 			// Have a fresh data store in each test case
@@ -1139,7 +1138,6 @@ func TestAlternateKeyTypes(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			ctx := context.Background()
 

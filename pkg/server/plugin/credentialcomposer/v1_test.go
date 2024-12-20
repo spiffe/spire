@@ -236,7 +236,6 @@ func TestV1ComposeServerX509CA(t *testing.T) {
 			expectMessage: `credentialcomposer(test): plugin returned invalid X509CA attributes: extra extensions: invalid OID: non-integer part "NOT AN OID"`,
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			plugin := &fakeV1Plugin{err: tt.pluginErr, composeServerX509CAResponseOut: tt.responseOut}
 			cc := loadV1Plugin(t, plugin)
@@ -384,7 +383,6 @@ func TestV1ComposeServerX509SVID(t *testing.T) {
 			expectMessage: `credentialcomposer(test): plugin returned invalid X509SVID attributes: extra extensions: invalid OID: non-integer part "NOT AN OID"`,
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			plugin := &fakeV1Plugin{err: tt.pluginErr, composeServerX509SVIDResponseOut: tt.responseOut}
 			cc := loadV1Plugin(t, plugin)
@@ -567,7 +565,6 @@ func TestV1ComposeAgentX509SVID(t *testing.T) {
 			expectMessage: `credentialcomposer(test): plugin returned invalid X509SVID attributes: extra extensions: invalid OID: non-integer part "NOT AN OID"`,
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			plugin := &fakeV1Plugin{err: tt.pluginErr, composeAgentX509SVIDResponseOut: tt.responseOut}
 			cc := loadV1Plugin(t, plugin)
@@ -750,7 +747,6 @@ func TestV1ComposeWorkloadX509SVID(t *testing.T) {
 			expectMessage: `credentialcomposer(test): plugin returned invalid X509SVID attributes: extra extensions: invalid OID: non-integer part "NOT AN OID"`,
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			plugin := &fakeV1Plugin{err: tt.pluginErr, composeWorkloadX509SVIDResponseOut: tt.responseOut}
 			cc := loadV1Plugin(t, plugin)
@@ -847,7 +843,6 @@ func TestV1ComposeWorkloadJWTSVID(t *testing.T) {
 			expectAttributesOut: credentialcomposer.JWTSVIDAttributes{Claims: map[string]any{"NEW_KEY": "NEW_VALUE"}},
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			plugin := &fakeV1Plugin{err: tt.pluginErr, composeWorkloadJWTSVIDResponseOut: tt.responseOut}
 			cc := loadV1Plugin(t, plugin)

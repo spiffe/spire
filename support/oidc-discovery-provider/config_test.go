@@ -67,7 +67,6 @@ func TestParseConfig(t *testing.T) {
 	testCases = append(testCases, parseConfigCasesOS()...)
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			actual, err := ParseConfig(testCase.in)
 			if testCase.err != "" {

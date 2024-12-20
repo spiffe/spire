@@ -129,7 +129,6 @@ func (s *Suite) TestAttestSuccess() {
 	}
 
 	for _, tt := range tests {
-		tt := tt // alias loop variable as it is used in the closure
 		s.T().Run(tt.desc, func(t *testing.T) {
 			attestor := s.loadPlugin(t, tt.giveConfig)
 

@@ -123,7 +123,6 @@ func TestContainerIDFinders(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.msg, func(t *testing.T) {
 			cf, err := NewContainerIDFinder(tt.matchers)
 			if tt.expectErr != "" {

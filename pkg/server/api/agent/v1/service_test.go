@@ -213,7 +213,6 @@ func TestCountAgents(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, 0)
 			defer test.Cleanup()
@@ -906,7 +905,6 @@ func TestListAgents(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 			test.ds.SetNextError(tt.dsError)
@@ -1161,7 +1159,6 @@ func TestBanAgent(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, 0)
 			defer test.Cleanup()
@@ -1405,7 +1402,6 @@ func TestDeleteAgent(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, 0)
 			defer test.Cleanup()
@@ -1637,7 +1633,6 @@ func TestGetAgent(t *testing.T) {
 			dsError: errors.New("datastore error"),
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, 0)
 			test.createTestNodes(ctx, t)
@@ -1981,7 +1976,6 @@ func TestRenewAgent(t *testing.T) {
 			expectDetail: &types.PermissionDeniedDetails{Reason: types.PermissionDeniedDetails_AGENT_MUST_REATTEST},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup test
 			test := setupServiceTest(t, tt.agentSVIDTTL)
@@ -2163,7 +2157,6 @@ func TestCreateJoinToken(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, 0)
 			test.ds.SetNextError(tt.dsError)
@@ -3133,7 +3126,6 @@ func TestAttestAgent(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			test := setupServiceTest(t, 0)

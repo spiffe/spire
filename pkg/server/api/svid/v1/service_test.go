@@ -528,7 +528,6 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
@@ -788,7 +787,6 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
@@ -1089,7 +1087,6 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
@@ -1717,7 +1714,6 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
@@ -2002,7 +1998,6 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 			test.ef.err = tt.fetcherErr

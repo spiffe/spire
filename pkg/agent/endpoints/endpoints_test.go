@@ -163,7 +163,6 @@ func TestEndpoints(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			metrics := fakemetrics.New()

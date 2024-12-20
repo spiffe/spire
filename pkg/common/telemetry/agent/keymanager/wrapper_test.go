@@ -72,7 +72,6 @@ func TestWithMetrics(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		m.Reset()
 		require.NoError(t, tt.call())
 		key := strings.Split(tt.key, ".")

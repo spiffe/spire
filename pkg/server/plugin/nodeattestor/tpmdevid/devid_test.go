@@ -138,7 +138,6 @@ func TestConfigure(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := tpmdevid.New()
 			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{
@@ -494,7 +493,6 @@ func TestAttestFailiures(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := loadPlugin(t, tt.hclConf)
 			result, err := plugin.Attest(context.Background(), tt.payload, tt.challengeFn)
@@ -611,7 +609,6 @@ func TestAttestSucceeds(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a TPM session to generate payload and challenge response data
 			session, err := tpmutil.NewSession(&tpmutil.SessionConfig{

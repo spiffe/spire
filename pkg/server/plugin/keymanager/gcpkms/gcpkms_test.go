@@ -386,7 +386,6 @@ func TestConfigure(t *testing.T) {
 			getPublicKeyErrCount: getPublicKeyMaxAttempts + 1,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
@@ -966,7 +965,6 @@ func TestGenerateKey(t *testing.T) {
 			getTokenInfoErr: errors.New("error getting token info"),
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.setDestroyTime(fakeTime)
@@ -1109,7 +1107,6 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
@@ -1215,7 +1212,6 @@ func TestGetPublicKeys(t *testing.T) {
 			name: "non existing keys",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
@@ -1317,7 +1313,6 @@ func TestGetPublicKey(t *testing.T) {
 			expectCodeGetPublicKey: codes.InvalidArgument,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.setPEMCrc32C(tt.pemCrc32C)
@@ -1413,7 +1408,6 @@ func TestSetIAMPolicy(t *testing.T) {
 			useCustomPolicy: true,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.fakeIAMHandle.setPolicyError(tt.policyErr)
@@ -1650,7 +1644,6 @@ func TestSignData(t *testing.T) {
 			signatureCrc32C: &wrapperspb.Int64Value{Value: 1},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ts := setupTest(t)
 			ts.fakeKMSClient.setAsymmetricSignErr(tt.asymmetricSignErr)

@@ -95,7 +95,6 @@ func TestGetDBCodeVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
 			retVersion, err := getDBCodeVersion(tt.storedMigration)
 
@@ -157,7 +156,6 @@ func TestIsCompatibleCodeVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
 			compatible := isCompatibleCodeVersion(tt.thisCodeVersion, tt.dbCodeVersion)
 
@@ -184,7 +182,6 @@ func TestIsDisabledMigrationAllowed(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
 			err := isDisabledMigrationAllowed(codeVersion, tt.dbCodeVersion)
 
