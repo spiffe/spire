@@ -129,7 +129,6 @@ func TestV1(t *testing.T) {
 			expectResult:  resultWithSelectorsAndCanReattest,
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			nodeattestor := loadV1Plugin(t, tt.plugin)
 			result, err := nodeattestor.Attest(context.Background(), []byte(tt.payload),

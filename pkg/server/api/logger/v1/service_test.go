@@ -141,7 +141,6 @@ func TestGetLogger(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, tt.launchLevel)
 			defer test.Cleanup()
@@ -390,7 +389,6 @@ func TestSetLoggerThenGetLogger(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, tt.launchLevel)
 			defer test.Cleanup()
@@ -638,7 +636,6 @@ func TestResetLogger(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, tt.launchLevel)
 			defer test.Cleanup()
@@ -729,7 +726,6 @@ func TestUnsetSetLogLevelRequest(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, tt.launchLevel)
 			defer test.Cleanup()

@@ -584,7 +584,6 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			expectedFetches:           []string{},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
@@ -812,7 +811,6 @@ func TestSelectedPolledNodeEvents(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
@@ -1065,7 +1063,6 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
@@ -1435,7 +1432,6 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 			expectedAuthorizedEntries: []string{},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewNodeScenario(t, tt.setup)
 			attestedNodes, err := scenario.buildAttestedNodesCache()
