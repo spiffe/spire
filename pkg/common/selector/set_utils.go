@@ -74,9 +74,9 @@ func powerSet(s *set, c chan Set) {
 
 		// Walk through the binary, and append
 		// "enabled" elements to the working set
-		for position := 0; position < len(binary); position++ {
+		for position := range binary {
 			// Read the binary right to left
-			negPosition := (len(binary) - position - 1)
+			negPosition := len(binary) - position - 1
 			if binary[negPosition] == "1" {
 				set.Add(sarr[position])
 			}

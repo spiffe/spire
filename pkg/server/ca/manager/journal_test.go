@@ -192,7 +192,7 @@ func TestX509CAOverflow(t *testing.T) {
 
 	journal := test.loadJournal(t)
 
-	for i := 0; i < (journalCap + 1); i++ {
+	for range journalCap + 1 {
 		now = now.Add(time.Minute)
 		err := journal.AppendX509CA(ctx, "A", now, &ca.X509CA{
 			Signer:      kmKeys["X509-CA-A"],
@@ -313,7 +313,7 @@ func TestJWTKeyOverflow(t *testing.T) {
 
 	journal := test.loadJournal(t)
 
-	for i := 0; i < (journalCap + 1); i++ {
+	for range journalCap + 1 {
 		now = now.Add(time.Minute)
 		err := journal.AppendJWTKey(ctx, "B", now, &ca.JWTKey{
 			Signer:   kmKeys["JWT-Signer-B"],

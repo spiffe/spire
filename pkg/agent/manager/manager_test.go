@@ -455,7 +455,7 @@ func TestSVIDRotation(t *testing.T) {
 	defer closer()
 
 	// Loop, we should not detect SVID rotations
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		s := m.GetCurrentCredentials()
 		svid = s.SVID
 		require.True(t, svidsEqual(svid, baseSVID))

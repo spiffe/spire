@@ -445,7 +445,7 @@ func getEntries(count int) []*types.Entry {
 	}
 
 	e := []*types.Entry{}
-	for i := 0; i < count; i++ {
+	for i := range count {
 		e = append(e, entries[i])
 	}
 

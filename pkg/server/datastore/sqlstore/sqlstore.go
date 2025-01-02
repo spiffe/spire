@@ -3453,7 +3453,7 @@ func indent(builder *strings.Builder, indentation int) {
 	case 5:
 		builder.WriteString("\t\t\t\t\t")
 	default:
-		for i := 0; i < indentation; i++ {
+		for range indentation {
 			builder.WriteString("\t")
 		}
 	}

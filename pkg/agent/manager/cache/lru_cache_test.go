@@ -1251,7 +1251,7 @@ func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
 		Bundles:             bundlesV1,
 		RegistrationEntries: make(map[string]*common.RegistrationEntry, numEntries),
 	}
-	for i := 0; i < numEntries; i++ {
+	for i := range numEntries {
 		entryID := fmt.Sprintf("00000000-0000-0000-0000-%012d", i)
 		updateEntries.RegistrationEntries[entryID] = &common.RegistrationEntry{
 			EntryId:   entryID,
@@ -1262,7 +1262,7 @@ func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
 	}
 
 	cache.UpdateEntries(updateEntries, nil)
-	for i := 0; i < numWorkloads; i++ {
+	for i := range numWorkloads {
 		selectors := distinctSelectors(i, selectorsPerWorkload)
 		cache.NewSubscriber(selectors)
 	}
@@ -1271,7 +1271,7 @@ func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
 
 	b.ResetTimer()
 	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		if i%2 == 0 {
 			updateEntries.Bundles = bundlesV2
 		} else {
@@ -1299,7 +1299,7 @@ func createUpdateEntries(numEntries int, bundles map[spiffeid.TrustDomain]*spiff
 		RegistrationEntries: make(map[string]*common.RegistrationEntry, numEntries),
 	}
 
-	for i := 0; i < numEntries; i++ {
+	for i := range numEntries {
 		entryID := fmt.Sprintf("00000000-0000-0000-0000-%012d", i)
 		updateEntries.RegistrationEntries[entryID] = &common.RegistrationEntry{
 			EntryId:   entryID,
@@ -1335,7 +1335,7 @@ func subscribeToWorkloadUpdates(t *testing.T, cache *LRUCache, selectors []*comm
 
 func distinctSelectors(id, n int) []*common.Selector {
 	out := make([]*common.Selector, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		out = append(out, &common.Selector{
 			Type:  "test",
 			Value: fmt.Sprintf("id:%d:n:%d", id, i),
@@ -1436,7 +1436,7 @@ func makeFederatesWith(bundles ...*Bundle) []string {
 
 func createTestEntries(count int) []*common.RegistrationEntry {
 	var entries []*common.RegistrationEntry
-	for i := 0; i < count; i++ {
+	for i := range count {
 		entry := makeRegistrationEntry(fmt.Sprintf("e%d", i), fmt.Sprintf("s%d", i))
 		entries = append(entries, entry)
 	}

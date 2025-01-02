@@ -338,7 +338,7 @@ func (k *fakeKMSClient) setGetPublicKeySequentialErrs(fakeError error, count int
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	fakeErrors := make([]error, count)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		fakeErrors[i] = fakeError
 	}
 	k.getPublicKeyErrs = fakeErrors

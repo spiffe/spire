@@ -53,7 +53,7 @@ func TestCache(t *testing.T) {
 	const serverID = "spiffe://example.org/spire/server"
 	const numEntries = 5
 	entryIDs := make([]string, numEntries)
-	for i := 0; i < numEntries; i++ {
+	for i := range numEntries {
 		entryIDURI := url.URL{
 			Scheme: spiffeScheme,
 			Host:   trustDomain,
@@ -340,7 +340,7 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 
 	const numAliasEntries = 3
 	aliasEntryIDs := make([]string, numAliasEntries)
-	for i := 0; i < numAliasEntries; i++ {
+	for i := range numAliasEntries {
 		entryURI := &url.URL{
 			Scheme: spiffeScheme,
 			Host:   trustDomain,
@@ -369,13 +369,13 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 	}
 
 	aliasEntries := make([]*common.RegistrationEntry, numAliasEntries)
-	for i := 0; i < numAliasEntries; i++ {
+	for i := range numAliasEntries {
 		aliasEntries[i] = createRegistrationEntry(ctx, t, ds, aliasEntriesToCreate[i])
 	}
 
 	const numWorkloadEntries = 5
 	workloadEntryIDs := make([]string, numWorkloadEntries)
-	for i := 0; i < numWorkloadEntries; i++ {
+	for i := range numWorkloadEntries {
 		entryURI := &url.URL{
 			Scheme: spiffeScheme,
 			Host:   trustDomain,
@@ -421,7 +421,7 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 	}
 
 	workloadEntries := make([]*common.RegistrationEntry, numWorkloadEntries)
-	for i := 0; i < numWorkloadEntries; i++ {
+	for i := range numWorkloadEntries {
 		workloadEntries[i] = createRegistrationEntry(ctx, t, ds, workloadEntriesToCreate[i])
 	}
 
@@ -470,7 +470,7 @@ func TestBuildIteratorError(t *testing.T) {
 func BenchmarkBuildInMemory(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
 		if err != nil {
 			b.Fatal(err)
@@ -483,7 +483,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	cache, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
 	require.NoError(b, err)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := range b.N {
 		cache.GetAuthorizedEntries(agents[i%len(agents)].ID)
 	}
 }
@@ -518,7 +518,7 @@ func BenchmarkBuildSQL(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_, err := BuildFromDataStore(ctx, ds)
 		if err != nil {
 			b.Fatal(err)
@@ -680,7 +680,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 
 	const numAgents = 50000
 	agents := make([]Agent, 0, numAgents)
-	for i := 0; i < numAgents; i++ {
+	for i := range numAgents {
 		agents = append(agents, Agent{
 			ID: makeAgentID(i),
 			Selectors: []*types.Selector{
@@ -717,7 +717,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 	}
 
 	var workloadEntries1 []*types.Entry
-	for i := 0; i < 300; i++ {
+	for i := range 300 {
 		workloadEntries1 = append(workloadEntries1, &types.Entry{
 			Id: fmt.Sprintf("workload%d", i),
 			SpiffeId: &types.SPIFFEID{
@@ -732,7 +732,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 	}
 
 	var workloadEntries2 []*types.Entry
-	for i := 0; i < 300; i++ {
+	for i := range 300 {
 		workloadEntries2 = append(workloadEntries2, &types.Entry{
 			Id: fmt.Sprintf("workload%d", i),
 			SpiffeId: &types.SPIFFEID{

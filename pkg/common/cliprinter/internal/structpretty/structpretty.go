@@ -55,7 +55,7 @@ func printStruct(msg any, stdout, stderr io.Writer) error {
 	}
 
 	builder := new(strings.Builder)
-	for i := 0; i < msgType.NumField(); i++ {
+	for i := range msgType.NumField() {
 		fieldType := msgType.Field(i)
 		fieldValue := msgValue.Field(i)
 

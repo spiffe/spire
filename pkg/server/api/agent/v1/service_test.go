@@ -218,7 +218,7 @@ func TestCountAgents(t *testing.T) {
 			test := setupServiceTest(t, 0)
 			defer test.Cleanup()
 
-			for i := 0; i < int(tt.count); i++ {
+			for i := range int(tt.count) {
 				now := time.Now()
 				_, err := test.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 					SpiffeId:            ids[i].String(),

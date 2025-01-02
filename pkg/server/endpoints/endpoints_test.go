@@ -1022,7 +1022,7 @@ func testAuthorization(ctx context.Context, t *testing.T, client any, expectedAu
 	cv := reflect.ValueOf(client)
 	ct := cv.Type()
 
-	for i := 0; i < ct.NumMethod(); i++ {
+	for i := range ct.NumMethod() {
 		mv := cv.Method(i)
 		methodName := ct.Method(i).Name
 		t.Run(methodName, func(t *testing.T) {
@@ -1065,7 +1065,7 @@ func assertServiceUnavailable(ctx context.Context, t *testing.T, client any) {
 	cv := reflect.ValueOf(client)
 	ct := cv.Type()
 
-	for i := 0; i < ct.NumMethod(); i++ {
+	for i := range ct.NumMethod() {
 		mv := cv.Method(i)
 		methodName := ct.Method(i).Name
 		t.Run(methodName, func(t *testing.T) {

@@ -238,7 +238,7 @@ func marshalAttestationData(t *testing.T, cert []byte) []byte {
 func TestIssueChallengeUniqueness(t *testing.T) {
 	_, s := newTestHandshake(t)
 	challenges := make(map[string]struct{})
-	for i := 0; i < 10000; i++ {
+	for range 10000 {
 		s.state = stateAttestationDataVerified
 		challenge, err := s.IssueChallenge()
 		require.NoError(t, err)
