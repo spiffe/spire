@@ -23,6 +23,7 @@ linters:
     - unparam
     - whitespace
     - gocritic
+    - wastedassign
     - nolintlint
 
 linters-settings:
