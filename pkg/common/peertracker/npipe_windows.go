@@ -65,7 +65,7 @@ func isCompareObjectHandlesFound() bool {
 // compareObjectHandles compares two object handles to determine if they
 // refer to the same underlying kernel object
 func compareObjectHandles(firstHandle, secondHandle windows.Handle) error {
-	if isCompareObjectHandlesFound() {
+	if procCompareObjectHandlesErr != nil {
 		return procCompareObjectHandlesErr
 	}
 	r1, _, e1 := syscall.SyscallN(procCompareObjectHandles.Addr(), uintptr(firstHandle), uintptr(secondHandle))
