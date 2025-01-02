@@ -25,7 +25,7 @@ func (cache *stmtCache) get(ctx context.Context, query string) (*sql.Stmt, error
 
 	stmt, err := cache.db.PrepareContext(ctx, query)
 	if err != nil {
-		return nil, sqlError.Wrap(err)
+		return nil, newWrappedSQLError(err)
 	}
 	value, loaded = cache.stmts.LoadOrStore(query, stmt)
 	if loaded {

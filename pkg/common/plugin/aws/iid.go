@@ -1,17 +1,10 @@
 package aws
 
-import (
-	"github.com/zeebo/errs"
-)
+import "fmt"
 
 const (
 	// PluginName for AWS IID
 	PluginName = "aws_iid"
-)
-
-var (
-	IidErrorClass = errs.Class("aws-iid")
-	iidError      = IidErrorClass
 )
 
 // IIDAttestationData AWS IID attestation data
@@ -23,5 +16,5 @@ type IIDAttestationData struct {
 
 // AttestationStepError error with attestation
 func AttestationStepError(step string, cause error) error {
-	return iidError.New("attempted attestation but an error occurred %s: %w", step, cause)
+	return fmt.Errorf("aws-iid: attempted attestation but an error occurred %s: %w", step, cause)
 }
