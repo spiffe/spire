@@ -105,7 +105,7 @@ func TestBundleSource(t *testing.T) {
 		{
 			name: "success, with authorities",
 			getter: func(domain spiffeid.TrustDomain) ([]*x509.Certificate, error) {
-				return []*x509.Certificate{&x509.Certificate{}}, nil
+				return []*x509.Certificate{{}}, nil
 			},
 			trustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 			want: x509bundle.FromX509Authorities(

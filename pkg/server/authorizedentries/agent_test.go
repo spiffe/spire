@@ -24,8 +24,8 @@ func TestAgentRecordByID(t *testing.T) {
 
 	// ExpiresAt is irrelevant.
 	records := []agentRecord{
-		agentRecord{ID: "1", ExpiresAt: 9999},
-		agentRecord{ID: "2", ExpiresAt: 8888},
+		{ID: "1", ExpiresAt: 9999},
+		{ID: "2", ExpiresAt: 8888},
 	}
 
 	lesser := agentRecord{}
@@ -48,12 +48,12 @@ func TestAgentRecordByExpiresAt(t *testing.T) {
 	}
 
 	records := []agentRecord{
-		agentRecord{ID: "1"},
-		agentRecord{ID: "2"},
-		agentRecord{ID: "1", ExpiresAt: 1},
-		agentRecord{ID: "2", ExpiresAt: 1},
-		agentRecord{ID: "1", ExpiresAt: 2},
-		agentRecord{ID: "2", ExpiresAt: 2},
+		{ID: "1"},
+		{ID: "2"},
+		{ID: "1", ExpiresAt: 1},
+		{ID: "2", ExpiresAt: 1},
+		{ID: "1", ExpiresAt: 2},
+		{ID: "2", ExpiresAt: 2},
 	}
 
 	lesser := agentRecord{}

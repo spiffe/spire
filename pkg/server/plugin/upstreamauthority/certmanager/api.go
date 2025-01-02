@@ -83,15 +83,15 @@ func (p *Plugin) cleanupStaleCertificateRequests(ctx context.Context) error {
 
 	for i, cr := range crList.Items {
 		for _, cond := range []cmapi.CertificateRequestCondition{
-			cmapi.CertificateRequestCondition{
+			{
 				Type:   cmapi.CertificateRequestConditionDenied,
 				Status: cmapi.ConditionTrue,
 			},
-			cmapi.CertificateRequestCondition{
+			{
 				Type:   cmapi.CertificateRequestConditionReady,
 				Status: cmapi.ConditionTrue,
 			},
-			cmapi.CertificateRequestCondition{
+			{
 				Type:   cmapi.CertificateRequestConditionReady,
 				Status: cmapi.ConditionFalse,
 				Reason: cmapi.CertificateRequestReasonFailed,

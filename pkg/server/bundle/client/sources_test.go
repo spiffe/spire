@@ -61,8 +61,8 @@ func TestMergedTrustDomainConfigSource(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, map[spiffeid.TrustDomain]client.TrustDomainConfig{
-			domain1: client.TrustDomainConfig{EndpointURL: "A"},
-			domain2: client.TrustDomainConfig{EndpointURL: "A"},
+			domain1: {EndpointURL: "A"},
+			domain2: {EndpointURL: "A"},
 		}, configs)
 	})
 }
