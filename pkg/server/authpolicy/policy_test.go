@@ -209,7 +209,6 @@ func TestPolicy(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var json map[string]any
 			err := util.UnmarshalJSON([]byte(tt.jsonData), &json)
@@ -386,7 +385,6 @@ func TestNewEngineFromConfig(t *testing.T) {
 			success: false,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
@@ -425,7 +423,6 @@ func TestNewEngineFromRego(t *testing.T) {
 			success: false,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			// Just create arbitrary store since there isn't a way to create

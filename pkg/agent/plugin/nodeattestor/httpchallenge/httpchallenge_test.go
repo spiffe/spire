@@ -39,7 +39,6 @@ func TestConfigureCommon(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := newPlugin()
 
@@ -85,7 +84,6 @@ func TestAidAttestationFailures(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
 			p := loadAndConfigurePlugin(t, tt.trustDomain, tt.config)
@@ -194,7 +192,6 @@ func TestAidAttestationSucceeds(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
 			expectPayload, err := json.Marshal(&tt.attestationData)

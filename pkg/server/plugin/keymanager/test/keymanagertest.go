@@ -263,7 +263,6 @@ func assertRSAKey(t *testing.T, key keymanager.Key, bits int) {
 
 func testSignCertificates(t *testing.T, key keymanager.Key, signatureAlgorithms []x509.SignatureAlgorithm) {
 	for _, signatureAlgorithm := range signatureAlgorithms {
-		signatureAlgorithm := signatureAlgorithm
 		t.Run("sign data "+signatureAlgorithm.String(), func(t *testing.T) {
 			assertSignCertificate(t, key, signatureAlgorithm)
 		})

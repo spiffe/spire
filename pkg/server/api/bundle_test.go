@@ -90,7 +90,6 @@ func TestBundleToProto(t *testing.T) {
 			expectError: "invalid trust domain id: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			bundle, err := api.BundleToProto(tt.bundle)
 
@@ -214,7 +213,6 @@ func TestProtoToBundle(t *testing.T) {
 			expectError: "invalid trust domain: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			bundle, err := api.ProtoToBundle(tt.bundle)
 

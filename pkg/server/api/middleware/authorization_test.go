@@ -321,7 +321,6 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			expectMsg:  "failed to fetch caller entries: entry fetcher error",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 			policyEngine, err := authpolicy.NewEngineFromRego(ctx, tt.rego, inmem.NewFromObject(map[string]any{}))

@@ -76,7 +76,6 @@ func (s *TokenSuite) TestDifferentKeys() {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.kid, func(t *testing.T) {
 			token := s.signJWTSVID(fakeSpiffeID, fakeAudience, time.Now().Add(time.Hour), testCase.key, testCase.kid)
 

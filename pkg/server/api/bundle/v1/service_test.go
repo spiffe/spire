@@ -258,7 +258,6 @@ func TestGetFederatedBundle(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 			test.isAdmin = tt.isAdmin
@@ -360,7 +359,6 @@ func TestGetBundle(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
@@ -746,7 +744,6 @@ func TestAppendBundle(t *testing.T) {
 			noBundle: true,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
@@ -1106,7 +1103,6 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			dsError:         status.New(codes.Internal, "datasource fails").Err(),
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
@@ -1376,7 +1372,6 @@ func TestPublishJWTAuthority(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
@@ -1539,7 +1534,6 @@ func TestListFederatedBundles(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
@@ -1693,7 +1687,6 @@ func TestCountBundles(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
@@ -2064,7 +2057,6 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 			clearDSBundles(t, test.ds)
@@ -2451,7 +2443,6 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
@@ -2815,7 +2806,6 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
