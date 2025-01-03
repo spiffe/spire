@@ -4783,7 +4783,7 @@ func fetchCAJournal(tx *gorm.DB, activeX509AuthorityID string) (*datastore.CAJou
 
 func listCAJournalsForTesting(tx *gorm.DB) (caJournals []*datastore.CAJournal, err error) {
 	var caJournalsModel []CAJournal
-	if err := tx.Find(&caJournals).Error; err != nil {
+	if err := tx.Find(&caJournalsModel).Error; err != nil {
 		return nil, sqlError.Wrap(err)
 	}
 
