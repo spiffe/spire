@@ -4,10 +4,14 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"strings"
 	"sync"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
+	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -35,12 +39,16 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type Config struct {
+	Mode              string   `hcl:"mode"`
+	SVIDPrefix        *string  `hcl:"spiffe_prefix"`
 	CABundlePath      string   `hcl:"ca_bundle_path"`
 	CABundlePaths     []string `hcl:"ca_bundle_paths"`
 	AgentPathTemplate string   `hcl:"agent_path_template"`
 }
 
 type configuration struct {
+	mode         string
+	svidPrefix   string
 	trustDomain  spiffeid.TrustDomain
 	trustBundle  *x509.CertPool
 	pathTemplate *agentpathtemplate.Template
@@ -53,29 +61,44 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
-	var caPaths []string
-	if hclConfig.CABundlePath != "" && len(hclConfig.CABundlePaths) > 0 {
-		status.ReportError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
+	if hclConfig.Mode == "" {
+		hclConfig.Mode = "external_pki"
 	}
-	if hclConfig.CABundlePath != "" {
-		caPaths = []string{hclConfig.CABundlePath}
-	} else {
-		caPaths = hclConfig.CABundlePaths
+	if hclConfig.Mode != "external_pki" && hclConfig.Mode != "spiffe" {
+		status.ReportError("mode can only be either spiffe or external_pki")
 	}
-	if len(caPaths) == 0 {
-		status.ReportError("one of ca_bundle_path or ca_bundle_paths must be configured")
-	}
-
 	var trustBundles []*x509.Certificate
-	for _, caPath := range caPaths {
-		certs, err := util.LoadCertificates(caPath)
-		if err != nil {
-			status.ReportErrorf("unable to load trust bundle %q: %v", caPath, err)
+	if hclConfig.Mode == "external_pki" {
+		var caPaths []string
+		if hclConfig.CABundlePath != "" && len(hclConfig.CABundlePaths) > 0 {
+			status.ReportError("only one of ca_bundle_path or ca_bundle_paths can be configured, not both")
 		}
-		trustBundles = append(trustBundles, certs...)
+		if hclConfig.CABundlePath != "" {
+			caPaths = []string{hclConfig.CABundlePath}
+		} else {
+			caPaths = hclConfig.CABundlePaths
+		}
+		if len(caPaths) == 0 {
+			status.ReportError("one of ca_bundle_path or ca_bundle_paths must be configured")
+		}
+
+		for _, caPath := range caPaths {
+			certs, err := util.LoadCertificates(caPath)
+			if err != nil {
+				status.ReportErrorf("unable to load trust bundle %q: %v", caPath, err)
+			}
+			trustBundles = append(trustBundles, certs...)
+		}
 	}
 
-	pathTemplate := x509pop.DefaultAgentPathTemplate
+	if hclConfig.Mode == "spiffe" && (hclConfig.CABundlePath != "" || len(hclConfig.CABundlePaths) > 0) {
+		status.ReportError("you can not use ca_bundle_path or ca_bundle_paths in spiffe mode")
+	}
+
+	pathTemplate := x509pop.DefaultAgentPathTemplateCN
+	if hclConfig.Mode == "spiffe" {
+		pathTemplate = x509pop.DefaultAgentPathTemplateSVID
+	}
 	if len(hclConfig.AgentPathTemplate) > 0 {
 		tmpl, err := agentpathtemplate.Parse(hclConfig.AgentPathTemplate)
 		if err != nil {
@@ -84,10 +107,20 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		pathTemplate = tmpl
 	}
 
+	svidPrefix := "/spire-exchange/"
+	if hclConfig.SVIDPrefix != nil {
+		svidPrefix = *hclConfig.SVIDPrefix
+		if !strings.HasSuffix(svidPrefix, "/") {
+			svidPrefix += "/"
+		}
+	}
+
 	newConfig := &configuration{
 		trustDomain:  coreConfig.TrustDomain,
 		trustBundle:  util.NewCertPool(trustBundles...),
 		pathTemplate: pathTemplate,
+		mode:         hclConfig.Mode,
+		svidPrefix:   svidPrefix,
 	}
 
 	return newConfig
@@ -97,12 +130,22 @@ type Plugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
-	m      sync.Mutex
-	config *configuration
+	log hclog.Logger
+
+	m                sync.Mutex
+	config           *configuration
+	identityProvider identityproviderv1.IdentityProviderServiceClient
 }
 
 func New() *Plugin {
 	return &Plugin{}
+}
+
+func (p *Plugin) BrokerHostServices(broker pluginsdk.ServiceBroker) error {
+	if !broker.BrokerClient(&p.identityProvider) {
+		return status.Errorf(codes.FailedPrecondition, "IdentityProvider host service is required")
+	}
+	return nil
 }
 
 func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
@@ -143,10 +186,18 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		intermediates.AddCert(intermediate)
 	}
 
+	trustBundle := config.trustBundle
+	if config.mode == "spiffe" {
+		trustBundle, err = p.getTrustBundle(stream.Context())
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to get trust bundle: %v", err)
+		}
+	}
+
 	// verify the chain of trust
 	chains, err := leaf.Verify(x509.VerifyOptions{
 		Intermediates: intermediates,
-		Roots:         config.trustBundle,
+		Roots:         trustBundle,
 		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
 	})
 	if err != nil {
@@ -188,7 +239,19 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
 	}
 
-	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf)
+	svidPath := ""
+	if config.mode == "spiffe" {
+		if len(leaf.URIs) == 0 {
+			return status.Errorf(codes.PermissionDenied, "valid SVID x509 cert not found")
+		}
+		svidPath = leaf.URIs[0].EscapedPath()
+		if !strings.HasPrefix(svidPath, config.svidPrefix) {
+			return status.Errorf(codes.PermissionDenied, "x509 cert doesnt match SVID prefix")
+		}
+		svidPath = strings.TrimPrefix(svidPath, config.svidPrefix)
+	}
+
+	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf, svidPath)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
@@ -224,6 +287,31 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 		Valid: err == nil,
 		Notes: notes,
 	}, err
+}
+
+// SetLogger sets this plugin's logger
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
+}
+
+func (p *Plugin) getTrustBundle(ctx context.Context) (*x509.CertPool, error) {
+	resp, err := p.identityProvider.FetchX509Identity(ctx, &identityproviderv1.FetchX509IdentityRequest{})
+	if err != nil {
+		return nil, err
+	}
+	var trustBundles []*x509.Certificate
+	for _, rawcert := range resp.Bundle.X509Authorities {
+		certificates, err := x509.ParseCertificates(rawcert.Asn1)
+		if err != nil {
+			return nil, err
+		}
+		trustBundles = append(trustBundles, certificates...)
+	}
+	if len(trustBundles) > 0 {
+		return util.NewCertPool(trustBundles...), nil
+	}
+	p.log.Warn("No trust bundle retrieved from SPIRE")
+	return nil, nil
 }
 
 func (p *Plugin) getConfig() (*configuration, error) {
