@@ -209,7 +209,7 @@ func TestPutX509SVID(t *testing.T) {
 			"federated1": {federatedBundle},
 		},
 	}
-	
+
 	secret := &svidstore.Data{
 		SPIFFEID:    "spiffe://example.org/foh",
 		X509SVID:    x509CertPem,
@@ -462,7 +462,15 @@ func TestPutX509SVID(t *testing.T) {
 		},
 		{
 			name: "Add payload and create regional secret",
-			req:  successReq,
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"regions:europe-north1",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
 			expectCreateSecretReq: &secretmanagerpb.CreateSecretRequest{
 				Parent:   "projects/project1",
 				SecretId: "secret1",
