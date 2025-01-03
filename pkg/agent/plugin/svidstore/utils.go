@@ -64,7 +64,7 @@ func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Data, error) {
 func ParseMetadata(metaData []string) (map[string]string, error) {
 	data := make(map[string]string)
 	for _, s := range metaData {
-		value := strings.Split(s, ":")
+		value := strings.SplitN(s, ":", 2)
 		if len(value) < 2 {
 			return nil, fmt.Errorf("metadata does not contain a colon: %q", s)
 		}
