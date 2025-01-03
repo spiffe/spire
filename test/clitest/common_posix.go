@@ -1,12 +1,10 @@
 //go:build !windows
 
-package common
-
-import "net"
+package clitest
 
 var (
 	AddrArg         = "-socketPath"
-	AddrError       = "Error: connection error: desc = \"transport: error while dialing: dial unix /does-not-exist.sock: connect: no such file or directory\"\n"
+	AddrError       = "rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial unix ///does-not-exist.sock: connect: no such file or directory\"\n"
 	AddrOutputUsage = `
   -output value
     	Desired output format (pretty, json); default: pretty.
@@ -15,7 +13,3 @@ var (
 `
 	AddrValue = "/does-not-exist.sock"
 )
-
-func GetAddr(addr net.Addr) string {
-	return addr.String()
-}

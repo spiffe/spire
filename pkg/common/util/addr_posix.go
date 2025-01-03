@@ -3,7 +3,6 @@
 package util
 
 import (
-	"context"
 	"errors"
 	"net"
 
@@ -12,9 +11,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func GRPCDialContext(ctx context.Context, target string, options ...grpc.DialOption) (*grpc.ClientConn, error) {
+func NewGRPCClient(target string, options ...grpc.DialOption) (*grpc.ClientConn, error) {
 	options = append(options, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	return grpc.DialContext(ctx, target, options...) //nolint: staticcheck // It is going to be resolved on #5152
+	return grpc.NewClient(target, options...)
 }
 
 func GetWorkloadAPIClientOption(addr net.Addr) (workloadapi.ClientOption, error) {
