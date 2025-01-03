@@ -82,6 +82,17 @@ func TestParseMetadata(t *testing.T) {
 			},
 		},
 		{
+			name: "multiples selectors",
+			secretData: []string{
+				"a:b:c",
+				"d:e-f:g-h",
+			},
+			expect: map[string]string{
+				"a": "b:c",
+				"d": "e-f:g-h",
+			},
+		},
+		{
 			name:       "no data",
 			secretData: []string{},
 			expect:     map[string]string{},
