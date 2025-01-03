@@ -145,7 +145,7 @@ func (a *api) QuerySystemExtendedHandleInformation() ([]SystemHandleInformationE
 		handlesList := (*SystemExtendedHandleInformation)(unsafe.Pointer(&buffer[0]))
 		handles := unsafe.Slice(&handlesList.Handles[0], int(handlesList.NumberOfHandles))
 
-		return handles, nil
+		return handles, nil //nolint:nilerr
 	}
 
 	return nil, status

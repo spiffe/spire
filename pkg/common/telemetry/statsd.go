@@ -16,7 +16,7 @@ func newStatsdRunner(c *MetricsConfig) (sinkRunner, error) {
 	for _, sc := range c.FileConfig.Statsd {
 		sink, err := metrics.NewStatsdSink(sc.Address)
 		if err != nil {
-			return runner, nil
+			return nil, err
 		}
 
 		runner.loadedSinks = append(runner.loadedSinks, sink)
