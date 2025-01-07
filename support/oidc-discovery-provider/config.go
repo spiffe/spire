@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/config"
 )
 
 const (
@@ -186,12 +187,16 @@ type experimentalWorkloadAPIConfig struct {
 	NamedPipeName string `hcl:"named_pipe_name" json:"named_pipe_name"`
 }
 
-func LoadConfig(path string) (*Config, error) {
+func LoadConfig(path string, expandEnv bool) (*Config, error) {
 	hclBytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load configuration: %w", err)
 	}
-	return ParseConfig(string(hclBytes))
+	hclString := string(hclBytes)
+	if expandEnv {
+		hclString = config.ExpandEnv(hclString)
+	}
+	return ParseConfig(hclString)
 }
 
 func ParseConfig(hclConfig string) (_ *Config, err error) {
