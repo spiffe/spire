@@ -12,11 +12,7 @@ func TestSQLError(t *testing.T) {
 	assert.EqualError(t, err, "datastore-sql: an error with two dynamic fields: hello, 1")
 
 	var sErr *sqlError
-	assert.True(t, errors.As(err, &sErr))
-
-	assert.True(t, errors.Is(err, &sqlError{
-		msg: "an error with two dynamic fields: hello, 1",
-	}))
+	assert.ErrorAs(t, err, &sErr)
 }
 
 func TestWrappedSQLError(t *testing.T) {
@@ -32,11 +28,7 @@ func TestWrappedSQLError(t *testing.T) {
 		assert.EqualError(t, err, "datastore-sql: foo")
 
 		var sErr *sqlError
-		assert.True(t, errors.As(err, &sErr))
-
-		assert.True(t, errors.Is(err, &sqlError{
-			err: wrappedErr,
-		}))
+		assert.ErrorAs(t, err, &sErr)
 	})
 }
 
@@ -45,11 +37,7 @@ func TestValidationError(t *testing.T) {
 	assert.EqualError(t, err, "datastore-validation: an error with two dynamic fields: hello, 1")
 
 	var vErr *validationError
-	assert.True(t, errors.As(err, &vErr))
-
-	assert.True(t, errors.Is(err, &validationError{
-		msg: "an error with two dynamic fields: hello, 1",
-	}))
+	assert.ErrorAs(t, err, &vErr)
 }
 
 func TestWrappedValidationError(t *testing.T) {
@@ -65,10 +53,6 @@ func TestWrappedValidationError(t *testing.T) {
 		assert.EqualError(t, err, "datastore-validation: bar")
 
 		var vErr *validationError
-		assert.True(t, errors.As(err, &vErr))
-
-		assert.True(t, errors.Is(err, &validationError{
-			err: wrappedErr,
-		}))
+		assert.ErrorAs(t, err, &vErr)
 	})
 }

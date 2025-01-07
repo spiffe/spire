@@ -173,7 +173,7 @@ func validateMySQLConfig(cfg *configuration, isReadOnly bool) error {
 	}
 
 	if !opts.ParseTime {
-		return newWrappedSQLError(errors.New("invalid mysql config: missing parseTime=true param in connection_string"))
+		return newSQLError("invalid mysql config: missing parseTime=true param in connection_string")
 	}
 
 	return nil

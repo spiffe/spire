@@ -14,9 +14,7 @@ func (cs closerGroup) Close() error {
 	// Close in reverse order.
 	var errs error
 	for i := len(cs) - 1; i >= 0; i-- {
-		if err := cs[i].Close(); err != nil {
-			errs = errors.Join(errs, err)
-		}
+		errs = errors.Join(errs, cs[i].Close())
 	}
 
 	return errs

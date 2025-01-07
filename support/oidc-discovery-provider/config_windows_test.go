@@ -645,7 +645,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					}
 				}
 			`,
-			err: "the jwt_issuer url could not be parsed",
+			err: "the jwt_issuer url must contain a scheme",
 		},
 		{
 			name: "JWT issuer with missing host",
@@ -663,7 +663,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					}
 				}
 			`,
-			err: "the jwt_issuer url could not be parsed",
+			err: "the jwt_issuer url must contain a host",
 		},
 		{
 			name: "JWT issuer is invalid",

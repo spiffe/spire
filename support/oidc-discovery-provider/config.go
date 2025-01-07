@@ -299,8 +299,13 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	}
 	if c.JWTIssuer != "" {
 		jwtIssuer, err := url.Parse(c.JWTIssuer)
-		if err != nil || jwtIssuer.Scheme == "" || jwtIssuer.Host == "" {
-			return nil, errors.New("the jwt_issuer url could not be parsed")
+		switch {
+		case err != nil:
+			return nil, fmt.Errorf("the jwt_issuer url could not be parsed: %w", err)
+		case jwtIssuer.Scheme == "":
+			return nil, errors.New("the jwt_issuer url must contain a scheme")
+		case jwtIssuer.Host == "":
+			return nil, errors.New("the jwt_issuer url must contain a host")
 		}
 	}
 	return c, nil

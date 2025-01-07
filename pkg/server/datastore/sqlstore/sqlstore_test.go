@@ -250,7 +250,6 @@ func (s *PluginSuite) TestBundleCRUD() {
 
 	// fetch non-existent
 	fb, err := s.ds.FetchBundle(ctx, "spiffe://foo")
-	s.T().Logf("err type: %T", err)
 	s.Require().NoError(err)
 	s.Require().Nil(fb)
 
