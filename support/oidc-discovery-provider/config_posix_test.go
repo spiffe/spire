@@ -18,6 +18,16 @@ var (
 			address = "unix:///some/socket/path"
 		}
 `
+	minimalEnvServerAPIConfig = `
+		domains = ["${SPIFFE_TRUST_DOMAIN}"]
+		acme {
+			email = "admin@${SPIFFE_TRUST_DOMAIN}"
+			tos_accepted = true
+		}
+		server_api {
+			address = "unix:///some/socket/path"
+		}
+`
 
 	serverAPIConfig = &ServerAPIConfig{
 		Address:      "unix:///some/socket/path",
