@@ -719,6 +719,7 @@ func TestGenerateKey(t *testing.T) {
 				{
 					Level:   logrus.WarnLevel,
 					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instance.",
+					Data:    logrus.Fields{reasonTag: `incomplete resource, expected 'resource-type/resource-id' but got "example-account-id"`},
 				},
 			},
 		},
@@ -734,6 +735,7 @@ func TestGenerateKey(t *testing.T) {
 				{
 					Level:   logrus.WarnLevel,
 					Message: "In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instance.",
+					Data:    logrus.Fields{reasonTag: `arn does not contain an assumed role: "arn:aws:sts::example-account-id:user/development"`},
 				},
 			},
 		},

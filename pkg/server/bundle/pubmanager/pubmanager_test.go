@@ -182,7 +182,7 @@ type managerTest struct {
 }
 
 func (test *managerTest) waitForPublishResult(ctx context.Context, t *testing.T, expectedResults publishResults) {
-	for i := 0; i < len(expectedResults); i++ {
+	for range expectedResults {
 		select {
 		case bpe := <-test.m.hooks.publishResultCh:
 			expectedBPEvent, ok := expectedResults[bpe.pluginName]

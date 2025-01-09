@@ -3449,7 +3449,7 @@ func indent(builder *strings.Builder, indentation int) {
 	case 5:
 		builder.WriteString("\t\t\t\t\t")
 	default:
-		for i := 0; i < indentation; i++ {
+		for range indentation {
 			builder.WriteString("\t")
 		}
 	}
@@ -4779,7 +4779,7 @@ func fetchCAJournal(tx *gorm.DB, activeX509AuthorityID string) (*datastore.CAJou
 
 func listCAJournalsForTesting(tx *gorm.DB) (caJournals []*datastore.CAJournal, err error) {
 	var caJournalsModel []CAJournal
-	if err := tx.Find(&caJournals).Error; err != nil {
+	if err := tx.Find(&caJournalsModel).Error; err != nil {
 		return nil, newWrappedSQLError(err)
 	}
 
