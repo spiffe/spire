@@ -230,7 +230,7 @@ func doX509popStep(ctx context.Context) error {
 
 	// Ban agent
 	if err := banAgent(ctx, client, svidResp.Id); err != nil {
-		return errors.New("failed to ban agent")
+		return fmt.Errorf("failed to ban agent: %w", err)
 	}
 
 	// Reattest banned agent, it MUST fail

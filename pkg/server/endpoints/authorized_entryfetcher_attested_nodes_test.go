@@ -41,11 +41,11 @@ var (
 		},
 	}
 	defaultNodeEventsStartingAt60 = []*datastore.AttestedNodeEvent{
-		&datastore.AttestedNodeEvent{
+		{
 			EventID:  60,
 			SpiffeID: "spiffe://example.org/test_node_2",
 		},
-		&datastore.AttestedNodeEvent{
+		{
 			EventID:  61,
 			SpiffeID: "spiffe://example.org/test_node_3",
 		},
@@ -94,9 +94,9 @@ func TestLoadNodeCache(t *testing.T) {
 				"spiffe://example.org/test_node_1",
 			},
 			expectedGauges: []expectedGauge{
-				expectedGauge{Key: skippedNodeEventID, Value: 0},
-				expectedGauge{Key: cachedAgentsByID, Value: 1},
-				expectedGauge{Key: cachedAgentsByExpiresAt, Value: 1},
+				{Key: skippedNodeEventID, Value: 0},
+				{Key: cachedAgentsByID, Value: 1},
+				{Key: cachedAgentsByExpiresAt, Value: 1},
 			},
 		},
 		{
@@ -265,7 +265,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			waitToPoll: time.Duration(2) * defaultSQLTransactionTimeout,
 			// even with new before first events, they shouldn't load
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  58,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
@@ -294,7 +294,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  58,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
@@ -311,7 +311,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  64,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
@@ -329,7 +329,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			},
 			eventsBeforeFirst: []uint{58},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  58,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
@@ -347,11 +347,11 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			},
 			eventsBeforeFirst: []uint{58},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  defaultFirstNodeEvent - 2,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  defaultLastNodeEvent + 2,
 					SpiffeID: "spiffe://example.org/test_node_4",
 				},
@@ -368,23 +368,23 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  48,
 					SpiffeID: "spiffe://example.org/test_node_10",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  49,
 					SpiffeID: "spiffe://example.org/test_node_11",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  53,
 					SpiffeID: "spiffe://example.org/test_node_12",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  56,
 					SpiffeID: "spiffe://example.org/test_node_13",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  57,
 					SpiffeID: "spiffe://example.org/test_node_14",
 				},
@@ -407,23 +407,23 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  48,
 					SpiffeID: "spiffe://example.org/test_node_10",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  49,
 					SpiffeID: "spiffe://example.org/test_node_11",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  53,
 					SpiffeID: "spiffe://example.org/test_node_12",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  56,
 					SpiffeID: "spiffe://example.org/test_node_13",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  defaultLastNodeEvent + 1,
 					SpiffeID: "spiffe://example.org/test_node_14",
 				},
@@ -446,23 +446,23 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 
 			eventsBeforeFirst: []uint{48, 49},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  48,
 					SpiffeID: "spiffe://example.org/test_node_10",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  49,
 					SpiffeID: "spiffe://example.org/test_node_11",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  53,
 					SpiffeID: "spiffe://example.org/test_node_12",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  56,
 					SpiffeID: "spiffe://example.org/test_node_13",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  57,
 					SpiffeID: "spiffe://example.org/test_node_14",
 				},
@@ -483,23 +483,23 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			},
 			eventsBeforeFirst: []uint{48, 49},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  48,
 					SpiffeID: "spiffe://example.org/test_node_10",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  49,
 					SpiffeID: "spiffe://example.org/test_node_11",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  53,
 					SpiffeID: "spiffe://example.org/test_node_12",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  56,
 					SpiffeID: "spiffe://example.org/test_node_13",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  defaultLastNodeEvent + 1,
 					SpiffeID: "spiffe://example.org/test_node_14",
 				},
@@ -520,23 +520,23 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 
 			eventsBeforeFirst: []uint{48, 49, 53, 56, 57},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  48,
 					SpiffeID: "spiffe://example.org/test_node_10",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  49,
 					SpiffeID: "spiffe://example.org/test_node_11",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  53,
 					SpiffeID: "spiffe://example.org/test_node_12",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  56,
 					SpiffeID: "spiffe://example.org/test_node_13",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  57,
 					SpiffeID: "spiffe://example.org/test_node_14",
 				},
@@ -554,27 +554,27 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 
 			eventsBeforeFirst: []uint{48, 49, 53, 56, 57},
 			polledEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  48,
 					SpiffeID: "spiffe://example.org/test_node_10",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  49,
 					SpiffeID: "spiffe://example.org/test_node_11",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  53,
 					SpiffeID: "spiffe://example.org/test_node_12",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  56,
 					SpiffeID: "spiffe://example.org/test_node_13",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  57,
 					SpiffeID: "spiffe://example.org/test_node_14",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  defaultLastNodeEvent + 1,
 					SpiffeID: "spiffe://example.org/test_node_28",
 				},
@@ -640,7 +640,7 @@ func TestSelectedPolledNodeEvents(t *testing.T) {
 			name: "nothing to poll, no action take, one event",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  100,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
@@ -651,23 +651,23 @@ func TestSelectedPolledNodeEvents(t *testing.T) {
 			name: "nothing to poll, no action taken, five events",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  102,
 						SpiffeID: "spiffe://example.org/test_node_2",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  103,
 						SpiffeID: "spiffe://example.org/test_node_3",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  104,
 						SpiffeID: "spiffe://example.org/test_node_4",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  105,
 						SpiffeID: "spiffe://example.org/test_node_5",
 					},
@@ -678,19 +678,19 @@ func TestSelectedPolledNodeEvents(t *testing.T) {
 			name: "polling one item, not found",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  102,
 						SpiffeID: "spiffe://example.org/test_node_2",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  104,
 						SpiffeID: "spiffe://example.org/test_node_4",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  105,
 						SpiffeID: "spiffe://example.org/test_node_5",
 					},
@@ -702,11 +702,11 @@ func TestSelectedPolledNodeEvents(t *testing.T) {
 			name: "polling five items, not found",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  107,
 						SpiffeID: "spiffe://example.org/test_node_7",
 					},
@@ -718,15 +718,15 @@ func TestSelectedPolledNodeEvents(t *testing.T) {
 			name: "polling one item, found",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  102,
 						SpiffeID: "spiffe://example.org/test_node_2",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  103,
 						SpiffeID: "spiffe://example.org/test_node_3",
 					},
@@ -742,19 +742,19 @@ func TestSelectedPolledNodeEvents(t *testing.T) {
 			name: "polling five items, two found",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  103,
 						SpiffeID: "spiffe://example.org/test_node_3",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  106,
 						SpiffeID: "spiffe://example.org/test_node_6",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  107,
 						SpiffeID: "spiffe://example.org/test_node_7",
 					},
@@ -771,31 +771,31 @@ func TestSelectedPolledNodeEvents(t *testing.T) {
 			name: "polling five items, five found",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  102,
 						SpiffeID: "spiffe://example.org/test_node_2",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  103,
 						SpiffeID: "spiffe://example.org/test_node_3",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  104,
 						SpiffeID: "spiffe://example.org/test_node_4",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  105,
 						SpiffeID: "spiffe://example.org/test_node_5",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  106,
 						SpiffeID: "spiffe://example.org/test_node_6",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  107,
 						SpiffeID: "spiffe://example.org/test_node_7",
 					},
@@ -851,7 +851,7 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			name: "no new event, with first event",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
@@ -865,14 +865,14 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			name: "one new event",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
 				},
 			},
 			newEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  102,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
@@ -887,14 +887,14 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			name: "one new event, skipping an event",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
 				},
 			},
 			newEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  103,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
@@ -909,18 +909,18 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			name: "two new events, same attested node",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
 				},
 			},
 			newEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  102,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  103,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
@@ -935,18 +935,18 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			name: "two new events, different attested nodes",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
 				},
 			},
 			newEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  102,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  103,
 					SpiffeID: "spiffe://example.org/test_node_2",
 				},
@@ -962,18 +962,18 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			name: "two new events, with a skipped event",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
 				},
 			},
 			newEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  102,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  104,
 					SpiffeID: "spiffe://example.org/test_node_2",
 				},
@@ -989,18 +989,18 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			name: "two new events, with three skipped events",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
 				},
 			},
 			newEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  102,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  106,
 					SpiffeID: "spiffe://example.org/test_node_2",
 				},
@@ -1016,42 +1016,42 @@ func TestScanForNewNodeEvents(t *testing.T) {
 			name: "five events, four new events, two skip regions",
 			setup: &nodeScenarioSetup{
 				attestedNodeEvents: []*datastore.AttestedNodeEvent{
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  101,
 						SpiffeID: "spiffe://example.org/test_node_1",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  102,
 						SpiffeID: "spiffe://example.org/test_node_2",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  103,
 						SpiffeID: "spiffe://example.org/test_node_3",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  104,
 						SpiffeID: "spiffe://example.org/test_node_4",
 					},
-					&datastore.AttestedNodeEvent{
+					{
 						EventID:  105,
 						SpiffeID: "spiffe://example.org/test_node_5",
 					},
 				},
 			},
 			newEvents: []*datastore.AttestedNodeEvent{
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  108,
 					SpiffeID: "spiffe://example.org/test_node_1",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  109,
 					SpiffeID: "spiffe://example.org/test_node_2",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  110,
 					SpiffeID: "spiffe://example.org/test_node_2",
 				},
-				&datastore.AttestedNodeEvent{
+				{
 					EventID:  112,
 					SpiffeID: "spiffe://example.org/test_node_11",
 				},
@@ -1539,7 +1539,7 @@ func (s *scenario) buildAttestedNodesCache() (*attestedNodes, error) {
 	attestedNodes, err := buildAttestedNodesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, defaultCacheReloadInterval, defaultSQLTransactionTimeout)
 	if attestedNodes != nil {
 		// clear out the fetches
-		for node, _ := range attestedNodes.fetchNodes {
+		for node := range attestedNodes.fetchNodes {
 			delete(attestedNodes.fetchNodes, node)
 		}
 	}
