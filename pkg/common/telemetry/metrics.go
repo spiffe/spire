@@ -45,7 +45,8 @@ type MetricsImpl struct {
 	c       *MetricsConfig
 	runners []sinkRunner
 	// Each instance of metrics.Metrics in the slice corresponds to one metrics sink type
-	metricsSinks []*metrics.Metrics
+	metricsSinks           []*metrics.Metrics
+	enableTrustDomainLabel bool
 }
 
 var _ Metrics = (*MetricsImpl)(nil)
@@ -83,11 +84,17 @@ func NewMetrics(c *MetricsConfig) (*MetricsImpl, error) {
 		} else {
 			conf.EnableHostnameLabel = true
 		}
+
 		conf.EnableTypePrefix = runner.requiresTypePrefix()
 		conf.AllowedLabels = c.FileConfig.AllowedLabels
 		conf.BlockedLabels = c.FileConfig.BlockedLabels
 		conf.AllowedPrefixes = c.FileConfig.AllowedPrefixes
 		conf.BlockedPrefixes = c.FileConfig.BlockedPrefixes
+
+		impl.enableTrustDomainLabel = false
+		if c.FileConfig.EnableTrustDomainLabel != nil {
+			impl.enableTrustDomainLabel = *c.FileConfig.EnableTrustDomainLabel
+		}
 
 		metricsSink, err := metrics.New(conf, fanout)
 		if err != nil {
@@ -112,13 +119,15 @@ func (m *MetricsImpl) ListenAndServe(ctx context.Context) error {
 }
 
 func (m *MetricsImpl) SetGauge(key []string, val float32) {
-	for _, s := range m.metricsSinks {
-		s.SetGauge(key, val)
-	}
+	m.SetGaugeWithLabels(key, val, nil)
 }
 
 // SetGaugeWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) SetGaugeWithLabels(key []string, val float32, labels []Label) {
+	if m.enableTrustDomainLabel {
+		labels = append(labels, Label{Name: TrustDomain, Value: m.c.TrustDomain})
+	}
+
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.SetGaugeWithLabels(key, val, sanitizedLabels)
@@ -132,13 +141,15 @@ func (m *MetricsImpl) EmitKey(key []string, val float32) {
 }
 
 func (m *MetricsImpl) IncrCounter(key []string, val float32) {
-	for _, s := range m.metricsSinks {
-		s.IncrCounter(key, val)
-	}
+	m.IncrCounterWithLabels(key, val, nil)
 }
 
 // IncrCounterWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []Label) {
+	if m.enableTrustDomainLabel {
+		labels = append(labels, Label{Name: TrustDomain, Value: m.c.TrustDomain})
+	}
+
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.IncrCounterWithLabels(key, val, sanitizedLabels)
@@ -146,13 +157,15 @@ func (m *MetricsImpl) IncrCounterWithLabels(key []string, val float32, labels []
 }
 
 func (m *MetricsImpl) AddSample(key []string, val float32) {
-	for _, s := range m.metricsSinks {
-		s.AddSample(key, val)
-	}
+	m.AddSampleWithLabels(key, val, nil)
 }
 
 // AddSampleWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []Label) {
+	if m.enableTrustDomainLabel {
+		labels = append(labels, Label{Name: TrustDomain, Value: m.c.TrustDomain})
+	}
+
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.AddSampleWithLabels(key, val, sanitizedLabels)
@@ -160,13 +173,15 @@ func (m *MetricsImpl) AddSampleWithLabels(key []string, val float32, labels []La
 }
 
 func (m *MetricsImpl) MeasureSince(key []string, start time.Time) {
-	for _, s := range m.metricsSinks {
-		s.MeasureSince(key, start)
-	}
+	m.MeasureSinceWithLabels(key, start, nil)
 }
 
 // MeasureSinceWithLabels delegates to embedded metrics, sanitizing labels
 func (m *MetricsImpl) MeasureSinceWithLabels(key []string, start time.Time, labels []Label) {
+	if m.enableTrustDomainLabel {
+		labels = append(labels, Label{Name: TrustDomain, Value: m.c.TrustDomain})
+	}
+
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.MeasureSinceWithLabels(key, start, sanitizedLabels)

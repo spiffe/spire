@@ -58,6 +58,7 @@ func testDogStatsdConfig() *MetricsConfig {
 	return &MetricsConfig{
 		Logger:      l,
 		ServiceName: "foo",
+		TrustDomain: "test.org",
 		FileConfig: FileConfig{
 			DogStatsd: []DogStatsdConfig{
 				{
