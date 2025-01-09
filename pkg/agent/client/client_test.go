@@ -660,7 +660,7 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 func TestNewNodeClientRelease(t *testing.T) {
 	client, _ := createClient(t)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// Create agent client and release
 		_, r, err := client.newAgentClient(ctx)
 		require.NoError(t, err)
@@ -697,7 +697,7 @@ func TestNewNodeClientRelease(t *testing.T) {
 func TestNewNodeInternalClientRelease(t *testing.T) {
 	client, _ := createClient(t)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// Create agent client
 		_, conn, err := client.newAgentClient(ctx)
 		require.NoError(t, err)

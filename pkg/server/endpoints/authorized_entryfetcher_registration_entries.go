@@ -224,7 +224,7 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 
 // updateCacheEntry update/deletes/creates an individual registration entry in the cache.
 func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
-	for entryId, _ := range a.fetchEntries {
+	for entryId := range a.fetchEntries {
 		commonEntry, err := a.ds.FetchRegistrationEntry(ctx, entryId)
 		if err != nil {
 			return err

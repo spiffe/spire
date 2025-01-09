@@ -24,8 +24,8 @@ func TestEntryRecordByEntryID(t *testing.T) {
 
 	// ParentID is irrelevant.
 	records := []entryRecord{
-		entryRecord{EntryID: "1", ParentID: "2"},
-		entryRecord{EntryID: "2", ParentID: "1"},
+		{EntryID: "1", ParentID: "2"},
+		{EntryID: "2", ParentID: "1"},
 	}
 
 	lesser := entryRecord{}
@@ -43,12 +43,12 @@ func TestEntryRecordByParentID(t *testing.T) {
 	}
 
 	records := []entryRecord{
-		entryRecord{ParentID: "1"},
-		entryRecord{ParentID: "1", EntryID: "1"},
-		entryRecord{ParentID: "1", EntryID: "2"},
-		entryRecord{ParentID: "2"},
-		entryRecord{ParentID: "2", EntryID: "1"},
-		entryRecord{ParentID: "2", EntryID: "2"},
+		{ParentID: "1"},
+		{ParentID: "1", EntryID: "1"},
+		{ParentID: "1", EntryID: "2"},
+		{ParentID: "2"},
+		{ParentID: "2", EntryID: "1"},
+		{ParentID: "2", EntryID: "2"},
 	}
 
 	lesser := entryRecord{}

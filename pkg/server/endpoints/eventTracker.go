@@ -58,7 +58,7 @@ func (et *eventTracker) StopTracking(event uint) {
 
 func (et *eventTracker) SelectEvents() []uint {
 	pollList := *et.pool.Get().(*[]uint)
-	for event, _ := range et.events {
+	for event := range et.events {
 		if et.events[event] >= et.pollPeriods {
 			et.StopTracking(event)
 			continue

@@ -64,7 +64,7 @@ func TestNewNodeMany(t *testing.T) {
 	firstRelease := false
 
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			nodeConn.AddRef()
 			if !firstRelease {
 				nodeConn.Release()
@@ -75,7 +75,7 @@ func TestNewNodeMany(t *testing.T) {
 	}()
 
 	go func() {
-		for i := 0; i < 100; i++ {
+		for range 100 {
 			nodeConn.Release()
 		}
 		close(waitForReleases)
