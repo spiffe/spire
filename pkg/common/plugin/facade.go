@@ -52,7 +52,7 @@ func (f *Facade) InitLog(log logrus.FieldLogger) {
 // that come out of plugin implementations.
 func (f *Facade) WrapErr(err error) error {
 	if err == nil {
-		return err
+		return nil
 	}
 
 	// Embellish the gRPC status with the prefix, if necessary.
