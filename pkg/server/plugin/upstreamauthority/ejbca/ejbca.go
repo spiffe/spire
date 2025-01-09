@@ -358,7 +358,7 @@ func (p *Plugin) setClient(client ejbcaClient) {
 func (p *Plugin) getEndEntityName(config *Config, csr *x509.CertificateRequest) (string, error) {
 	logger := p.logger.Named("getEndEntityName")
 
-	eeName := ""
+	var eeName string
 	// 1. If the endEntityName option is set, determine the end entity name based on the option
 	// 2. If the endEntityName option is not set, determine the end entity name based on the CSR
 
