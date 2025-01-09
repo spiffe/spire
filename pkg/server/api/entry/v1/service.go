@@ -476,6 +476,7 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 		for j, entry := range entries[i : i+n] {
 			entryRevisions[j].Id = entry.Id
 			entryRevisions[j].RevisionNumber = entry.RevisionNumber
+			entryRevisions[j].CreatedAt = entry.CreatedAt
 		}
 
 		if err := stream.Send(&entryv1.SyncAuthorizedEntriesResponse{
