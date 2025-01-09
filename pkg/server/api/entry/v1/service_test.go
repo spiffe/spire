@@ -147,7 +147,7 @@ func TestCountEntries(t *testing.T) {
 			test := setupServiceTest(t, ds)
 			defer test.Cleanup()
 
-			for i := 0; i < int(tt.count); i++ {
+			for i := range int(tt.count) {
 				_, err := test.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 					ParentId: spiffeid.RequireFromSegments(td, fmt.Sprintf("parent%d", i)).String(),
 					SpiffeId: spiffeid.RequireFromSegments(td, fmt.Sprintf("child%d", i)).String(),
@@ -3322,7 +3322,7 @@ func FuzzSyncAuthorizedStreams(f *testing.F) {
 
 	const maxEntries = 40
 	var entries []*types.Entry
-	for i := 0; i < maxEntries; i++ {
+	for i := range maxEntries {
 		entries = append(entries, &types.Entry{Id: strconv.Itoa(i), RevisionNumber: 1})
 	}
 
@@ -3374,7 +3374,7 @@ func FuzzSyncAuthorizedStreams(f *testing.F) {
 		// The number of entries exceeded the page size. Expect one or more
 		// pages of entry revisions.
 		var actualIDs []string
-		for page := 0; page < calculatePageCount(totalEntries)-1; page++ {
+		for range calculatePageCount(totalEntries) - 1 {
 			resp := recvNoError(t, stream)
 			require.Equal(t, len(resp.EntryRevisions), entryPageSize)
 			require.Zero(t, resp.Entries)
@@ -3397,7 +3397,7 @@ func FuzzSyncAuthorizedStreams(f *testing.F) {
 		require.NoError(t, stream.Send(&entryv1.SyncAuthorizedEntriesRequest{Ids: staleIDs}))
 
 		actualIDs = actualIDs[:0]
-		for page := 0; page < calculatePageCount(len(staleIDs))-1; page++ {
+		for range calculatePageCount(len(staleIDs)) - 1 {
 			resp = recvNoError(t, stream)
 			require.Equal(t, len(resp.Entries), entryPageSize)
 			require.Zero(t, resp.EntryRevisions)

@@ -221,7 +221,7 @@ func TestTLSConfig(t *testing.T) {
 	t.Run("update cert file with an invalid cert start error log loop", func(t *testing.T) {
 		writeFile(t, certFilePath, []byte("invalid-cert"))
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			clk.Add(10 * time.Millisecond)
 		}
 
@@ -254,7 +254,7 @@ func TestTLSConfig(t *testing.T) {
 
 		writeFile(t, keyFilePath, []byte("invalid-key"))
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			clk.Add(10 * time.Millisecond)
 		}
 
@@ -302,7 +302,7 @@ func TestTLSConfig(t *testing.T) {
 	t.Run("delete cert files start error log loop", func(t *testing.T) {
 		removeFile(t, keyFilePath)
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			clk.Add(10 * time.Millisecond)
 		}
 
@@ -319,7 +319,7 @@ func TestTLSConfig(t *testing.T) {
 
 		removeFile(t, certFilePath)
 
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			clk.Add(10 * time.Millisecond)
 		}
 

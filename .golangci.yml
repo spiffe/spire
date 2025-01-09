@@ -21,6 +21,7 @@ linters:
     - nakedret
     - unconvert
     - unparam
+    - intrange
     - whitespace
     - gocritic
     - wastedassign

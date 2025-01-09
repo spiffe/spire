@@ -317,7 +317,7 @@ func testPlugin(t *testing.T, pluginPath string) {
 		t.Run("no maximum", func(t *testing.T) {
 			testLoad(t, pluginPath, loadTest{
 				mutateConfig: func(config *catalog.Config) {
-					for i := 0; i < 10; i++ {
+					for range 10 {
 						config.PluginConfigs = append(config.PluginConfigs, config.PluginConfigs[0])
 					}
 				},

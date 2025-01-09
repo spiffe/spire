@@ -1699,7 +1699,7 @@ func TestCountBundles(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
 
-			for i := 0; i < int(tt.count); i++ {
+			for i := range int(tt.count) {
 				createBundle(t, test, tds[i].IDString())
 			}
 
