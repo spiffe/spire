@@ -179,7 +179,7 @@ func TestConfigure(t *testing.T) {
 				return v, ok
 			}
 
-			plainConfig := ""
+			var plainConfig string
 			if tt.plainConfig != "" {
 				plainConfig = tt.plainConfig
 			} else {
