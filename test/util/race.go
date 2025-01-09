@@ -22,10 +22,10 @@ func RaceTest(t *testing.T, fn func(*testing.T)) {
 	// complete before this method returns. All subtests
 	// will be run in parallel
 	t.Run("group", func(t *testing.T) {
-		for i := 0; i < raceTestNumThreads; i++ {
+		for i := range raceTestNumThreads {
 			t.Run(fmt.Sprintf("thread %v", i), func(t *testing.T) {
 				t.Parallel()
-				for i := 0; i < raceTestNumLoops; i++ {
+				for range raceTestNumLoops {
 					fn(t)
 				}
 			})
