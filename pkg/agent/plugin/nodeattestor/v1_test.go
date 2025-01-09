@@ -107,7 +107,6 @@ func TestV1(t *testing.T) {
 			expectMessage: "nodeattestor(test): plugin response missing challenge response",
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			nodeattestor := loadV1Plugin(t, tt.pluginImpl)
 			err := nodeattestor.Attest(context.Background(), tt.streamImpl)

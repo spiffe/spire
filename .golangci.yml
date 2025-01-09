@@ -23,6 +23,7 @@ linters:
     - unparam
     - whitespace
     - gocritic
+    - copyloopvar
     - nolintlint
 
 linters-settings:

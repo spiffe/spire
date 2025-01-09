@@ -165,7 +165,6 @@ func TestCallerContextFromContext(t *testing.T) {
 			expectMsg:  "client certificate has a malformed URI SAN: scheme is missing or invalid",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctxIn := context.Background()
 			if tt.peer != nil {

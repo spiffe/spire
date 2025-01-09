@@ -67,7 +67,6 @@ func TestSelectorsFromProto(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			selectors, err := api.SelectorsFromProto(testCase.proto)
 			if testCase.err != "" {

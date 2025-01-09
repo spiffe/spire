@@ -106,7 +106,6 @@ func TestConfigure(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			plugin := httpchallenge.New()
 			resp, err := plugin.Configure(context.Background(), &configv1.ConfigureRequest{
@@ -323,7 +322,6 @@ func TestAttestFailures(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var testNonce string
 			if tt.tofu {
@@ -402,7 +400,6 @@ func TestAttestSucceeds(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			testNonce := "123456789abcdefghijklmnopqrstuvwxyz"
 			plugin := loadPlugin(t, tt.hclConf, !tt.tofu, client, testNonce)

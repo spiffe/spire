@@ -71,7 +71,6 @@ func TestV1GenerateKey(t *testing.T) {
 			expectCode: codes.OK,
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			plugin := fakeV1Plugin{
 				generateKeyResponse: &keymanagerv1.GenerateKeyResponse{
@@ -136,7 +135,6 @@ func TestV1GetKey(t *testing.T) {
 			expectCode: codes.OK,
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			plugin := fakeV1Plugin{
 				getPublicKeyResponse: &keymanagerv1.GetPublicKeyResponse{
@@ -193,7 +191,6 @@ func TestV1GetKeys(t *testing.T) {
 			expectCode: codes.OK,
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			resp := &keymanagerv1.GetPublicKeysResponse{}
 			if tt.publicKey != nil {
@@ -290,7 +287,6 @@ func TestV1SignData(t *testing.T) {
 			expectCode:       codes.OK,
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			plugin := fakeV1Plugin{
 				expectSignerOpts: tt.expectSignerOpts,

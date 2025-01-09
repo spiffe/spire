@@ -160,7 +160,6 @@ func TestRetrieveIdentity(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.msg, func(t *testing.T) {
 			url := tt.url
 			if tt.handleFunc != nil {

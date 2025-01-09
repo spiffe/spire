@@ -164,7 +164,6 @@ func TestHandlerHTTPS(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
 			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
@@ -277,7 +276,6 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
 			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
@@ -442,7 +440,6 @@ func TestHandlerHTTP(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
 			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
@@ -559,7 +556,6 @@ func TestHandlerProxied(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
 			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
@@ -697,7 +693,6 @@ func TestHandlerJWTIssuer(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
 			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)

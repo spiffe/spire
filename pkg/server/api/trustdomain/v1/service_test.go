@@ -196,7 +196,6 @@ func TestGetFederationRelationship(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ds := newFakeDS(t)
 			test := setupServiceTest(t, ds)
@@ -408,7 +407,6 @@ func TestListFederationRelationships(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 

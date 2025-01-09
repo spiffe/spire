@@ -122,7 +122,6 @@ func TestMintX509CA(t *testing.T) {
 			expectedX509Authorities: []string{"spiffe://root"},
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			p := New()
 			p.clock = testData.Clock
@@ -307,7 +306,6 @@ func TestConfigure(t *testing.T) {
 			expectMsgPrefix:    "server core configuration must contain trust_domain",
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			var err error
 

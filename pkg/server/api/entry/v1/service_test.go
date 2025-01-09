@@ -141,7 +141,6 @@ func TestCountEntries(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ds := fakedatastore.New(t)
 			test := setupServiceTest(t, ds)
@@ -1194,7 +1193,6 @@ func TestListEntries(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 			ds.SetNextError(tt.dsError)
@@ -1444,7 +1442,6 @@ func TestGetEntry(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 			ds.SetNextError(tt.dsError)
@@ -2390,7 +2387,6 @@ func TestBatchCreateEntry(t *testing.T) {
 			}},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ds := newFakeDS(t)
 
@@ -2651,7 +2647,6 @@ func TestBatchDeleteEntry(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ds := fakedatastore.New(t)
 			test := setupServiceTest(t, ds)
@@ -2868,7 +2863,6 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, fakedatastore.New(t))
 			defer test.Cleanup()
@@ -3265,7 +3259,6 @@ func TestSyncAuthorizedEntries(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, fakedatastore.New(t))
 			defer func() {
@@ -4597,7 +4590,6 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ds := fakedatastore.New(t)
 			test := setupServiceTest(t, ds)

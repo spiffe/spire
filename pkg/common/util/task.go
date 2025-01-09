@@ -37,7 +37,6 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 
 	wg.Add(len(tasks))
 	for _, task := range tasks {
-		task := task
 		go func() {
 			errch <- runTask(task)
 		}()

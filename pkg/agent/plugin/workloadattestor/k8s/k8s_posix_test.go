@@ -307,7 +307,6 @@ func TestGetContainerIDFromCGroups(t *testing.T) {
 			expectMsg:         "multiple pod UIDs found in cgroups (11111111-b29f-11e7-9350-020968147796, 22222222-b29f-11e7-9350-020968147796)",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			podUID, containerID, err := getPodUIDAndContainerIDFromCGroups(makeCGroups(tt.cgroupPaths))
 			spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
@@ -411,7 +410,6 @@ func TestGetPodUIDAndContainerIDFromCGroupPath(t *testing.T) {
 			cgroupPath: "/kubepods/pod2732ca68f6358eba7703fb6f82a25c94",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Logf("cgroup path=%s", tt.cgroupPath)
 			podUID, containerID, ok := getPodUIDAndContainerIDFromCGroupPath(tt.cgroupPath)

@@ -91,7 +91,6 @@ func TestNewAuthenticatedClientCertAuth(t *testing.T) {
 			namespace: "test-ns",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer.CertAuthResponse = tt.response
 
@@ -176,7 +175,6 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 			expectMsgPrefix: "token is empty",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer.LookupSelfResponse = tt.response
 
@@ -244,7 +242,6 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 			namespace: "test-ns",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer.AppRoleAuthResponse = tt.response
 
@@ -308,7 +305,6 @@ func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
 			namespace: "test-ns",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer.K8sAuthResponse = tt.response
 

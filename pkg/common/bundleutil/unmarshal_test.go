@@ -106,7 +106,6 @@ func TestUnmarshal(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			bundle, err := Unmarshal(trustDomain, []byte(testCase.doc))
 			if testCase.err != "" {
