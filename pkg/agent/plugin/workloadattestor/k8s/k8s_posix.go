@@ -33,7 +33,7 @@ func createHelper(c *Plugin) ContainerHelper {
 		rootDir = "/"
 	}
 	return &containerHelper{
-		rootDir: c.rootDir,
+		rootDir: rootDir,
 	}
 }
 
