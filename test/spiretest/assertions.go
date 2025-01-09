@@ -123,7 +123,7 @@ func AssertProtoListEqual(tb testing.TB, expected, actual any) bool {
 	if !assert.Equal(tb, ev.Len(), av.Len(), "expected %d elements in list; got %d", ev.Len(), av.Len()) {
 		return false
 	}
-	for i := 0; i < ev.Len(); i++ {
+	for i := range ev.Len() {
 		e := ev.Index(i).Interface().(proto.Message)
 		a := av.Index(i).Interface().(proto.Message)
 		if !AssertProtoEqual(tb, e, a, "proto %d in list is not equal", i) {

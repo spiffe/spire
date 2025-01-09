@@ -14,6 +14,7 @@ linters:
     - bodyclose
     - durationcheck
     - errorlint
+    - gofmt
     - goimports
     - revive
     - gosec
@@ -22,11 +23,18 @@ linters:
     - nilerr
     - unconvert
     - unparam
+    - intrange
     - whitespace
     - gocritic
+    - wastedassign
     - nolintlint
 
 linters-settings:
+  govet:
+    enable:
+      - nilness
+      - sortslice
+      - unusedwrite
   revive:
     # minimal confidence for issues, default is 0.8
     confidence: 0.0
