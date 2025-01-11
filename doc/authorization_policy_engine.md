@@ -18,6 +18,7 @@ server {
             local {
                 rego_path = "./conf/server/policy.rego"
                 policy_data_path = "./conf/server/policy_data.json"
+                use_rego_v1 = true
             }
         }
     }
