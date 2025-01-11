@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 
+	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/storage/inmem"
 	"github.com/open-policy-agent/opa/v1/util"
 )
@@ -23,5 +24,5 @@ func DefaultAuthPolicy(ctx context.Context) (*Engine, error) {
 	}
 	store := inmem.NewFromObject(json)
 
-	return NewEngineFromRego(ctx, defaultPolicyRego, store)
+	return NewEngineFromRego(ctx, defaultPolicyRego, store, ast.RegoV1)
 }
