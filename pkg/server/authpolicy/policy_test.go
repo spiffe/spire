@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/open-policy-agent/opa/storage/inmem"
-	"github.com/open-policy-agent/opa/util"
+	"github.com/open-policy-agent/opa/v1/storage/inmem"
+	"github.com/open-policy-agent/opa/v1/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/stretchr/testify/require"
 )

@@ -4,8 +4,8 @@ import (
 	"context"
 	_ "embed"
 
-	"github.com/open-policy-agent/opa/storage/inmem"
-	"github.com/open-policy-agent/opa/util"
+	"github.com/open-policy-agent/opa/v1/storage/inmem"
+	"github.com/open-policy-agent/opa/v1/util"
 )
 
 var (
