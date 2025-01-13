@@ -2,7 +2,6 @@ package util
 
 import (
 	"context"
-	"crypto"
 	"crypto/x509"
 	"flag"
 	"fmt"
@@ -20,6 +19,7 @@ import (
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	api_types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -252,7 +252,7 @@ func protoFromSpiffeBundle(bundle *spiffebundle.Bundle) (*api_types.Bundle, erro
 		X509Authorities: protoFromX509Certificates(bundle.X509Authorities()),
 	}
 
-	jwtAuthorities, err := protoFromJWTKeys(bundle.JWTAuthorities())
+	jwtAuthorities, err := jwtutil.ProtoFromJWTKeys(bundle.JWTAuthorities())
 	if err != nil {
 		return nil, err
 	}
@@ -279,22 +279,4 @@ func protoFromX509Certificates(certs []*x509.Certificate) []*api_types.X509Certi
 	}
 
 	return resp
-}
-
-// protoFromJWTKeys converts JWT keys from the given map[string]crypto.PublicKey to []*types.JWTKey
-func protoFromJWTKeys(keys map[string]crypto.PublicKey) ([]*api_types.JWTKey, error) {
-	var resp []*api_types.JWTKey
-
-	for kid, key := range keys {
-		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
-		if err != nil {
-			return nil, err
-		}
-		resp = append(resp, &api_types.JWTKey{
-			PublicKey: pkixBytes,
-			KeyId:     kid,
-		})
-	}
-
-	return resp, nil
 }
