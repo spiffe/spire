@@ -92,6 +92,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		FileConfig:  s.config.Telemetry,
 		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireServer,
+		TrustDomain: s.config.TrustDomain.Name(),
 	})
 	if err != nil {
 		return err
