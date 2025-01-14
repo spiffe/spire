@@ -81,14 +81,14 @@ type Config struct {
 	// JWTIssuer specifies the issuer for the OIDC provider configuration request.
 	JWTIssuer string `hcl:"jwt_issuer"`
 
-	// AdvertisedURL specifies the absolute urls to return in documents. Use this if you are fronting the
+	// JWKSURI specifies the absolute uri to the jwks keys document. Use this if you are fronting the
 	// discovery provider with a load balancer or reverse proxy
-	AdvertisedURL string `hcl:"advertised_url"`
+	JWKSURI string `hcl:"jwks_uri"`
 
-	// Prefix specifies the prefix to strip from requests to route to the server.
-	// Example: if Prefix is /foo then a request to http://127.0.0.1/foo/.well-known/openid-configuration and
+	// ServerPathPrefix specifies the prefix to strip from the path of requests to route to the server.
+	// Example: if ServerPathPrefix is /foo then a request to http://127.0.0.1/foo/.well-known/openid-configuration and
 	// http://127.0.0.1/foo/keys will function with the server.
-	Prefix string `hcl:"prefix"`
+	ServerPathPrefix string `hcl:"server_path_prefix"`
 }
 
 type ServingCertFileConfig struct {
@@ -311,10 +311,10 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 			return nil, errs.New("the jwt_issuer url could not be parsed")
 		}
 	}
-	if c.AdvertisedURL != "" {
-		advertisedURL, err := url.Parse(c.AdvertisedURL)
-		if err != nil || advertisedURL.Scheme == "" || advertisedURL.Host == "" {
-			return nil, errs.New("the advertised_url setting could not be parsed")
+	if c.JWKSURI != "" {
+		jwksURI, err := url.Parse(c.JWKSURI)
+		if err != nil || jwksURI.Scheme == "" || jwksURI.Host == "" {
+			return nil, errs.New("the jwks_uri setting could not be parsed")
 		}
 	}
 	return c, nil

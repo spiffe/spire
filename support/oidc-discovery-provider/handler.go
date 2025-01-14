@@ -25,15 +25,15 @@ type Handler struct {
 	setKeyUse           bool
 	log                 logrus.FieldLogger
 	jwtIssuer           string
-	advertisedURL       string
-	prefix              string
+	jwksURI             string
+	serverPathPrefix    string
 
 	http.Handler
 }
 
-func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer string, advertisedURL string, prefix string) *Handler {
-	if prefix == "" {
-		prefix = "/"
+func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer string, jwksURI string, serverPathPrefix string) *Handler {
+	if serverPathPrefix == "" {
+		serverPathPrefix = "/"
 	}
 	h := &Handler{
 		domainPolicy:        domainPolicy,
@@ -42,16 +42,16 @@ func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSo
 		setKeyUse:           setKeyUse,
 		log:                 log,
 		jwtIssuer:           jwtIssuer,
-		advertisedURL:       advertisedURL,
-		prefix:              prefix,
+		jwksURI:             jwksURI,
+		serverPathPrefix:    serverPathPrefix,
 	}
 
 	mux := http.NewServeMux()
-	wkPath, err := url.JoinPath(prefix, "/.well-known/openid-configuration")
+	wkPath, err := url.JoinPath(serverPathPrefix, "/.well-known/openid-configuration")
 	if err != nil {
 		return nil
 	}
-	jwksPath, err := url.JoinPath(prefix, "/keys")
+	jwksPath, err := url.JoinPath(serverPathPrefix, "/keys")
 	if err != nil {
 		return nil
 	}
@@ -85,27 +85,23 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 			urlScheme = "http"
 		}
 	}
-	if h.advertisedURL != "" {
-		tmpURL, _ := url.Parse(h.advertisedURL)
-		keysPath, err := url.JoinPath(tmpURL.Path, h.prefix, "keys")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		jwksURI = url.URL{
-			Scheme: tmpURL.Scheme,
-			Host:   tmpURL.Host,
-			Path:   keysPath,
-		}
+	if h.jwksURI != "" {
+		tmpURI, _ := url.Parse(h.jwksURI)
+		jwksURI = *tmpURI
 	} else {
 		tmpURLScheme := "https"
 		if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
 			tmpURLScheme = "http"
 		}
+		keysPath, err := url.JoinPath(h.serverPathPrefix, "keys")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		jwksURI = url.URL{
 			Scheme: tmpURLScheme,
 			Host:   r.Host,
-			Path:   "/keys",
+			Path:   keysPath,
 		}
 	}
 
