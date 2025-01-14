@@ -14,7 +14,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
-	"github.com/zeebo/errs"
 )
 
 type SPIFFEAuthConfig struct {
@@ -92,15 +91,15 @@ func (c *client) FetchBundle(context.Context) (*spiffebundle.Bundle, error) {
 		var hostnameError x509.HostnameError
 		if errors.As(err, &hostnameError) && c.c.SPIFFEAuth == nil && len(hostnameError.Certificate.URIs) > 0 {
 			if id, idErr := spiffeid.FromString(hostnameError.Certificate.URIs[0].String()); idErr == nil {
-				return nil, errs.New("failed to authenticate bundle endpoint using web authentication but the server certificate contains SPIFFE ID %q: maybe use https_spiffe instead of https_web: %v", id, err)
+				return nil, fmt.Errorf("failed to authenticate bundle endpoint using web authentication but the server certificate contains SPIFFE ID %q: maybe use https_spiffe instead of https_web: %w", id, err)
 			}
 		}
-		return nil, errs.New("failed to fetch bundle: %v", err)
+		return nil, fmt.Errorf("failed to fetch bundle: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errs.New("unexpected status %d fetching bundle: %s", resp.StatusCode, tryRead(resp.Body))
+		return nil, fmt.Errorf("unexpected status %d fetching bundle: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
 	b, err := bundleutil.Decode(c.c.TrustDomain, resp.Body)

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -8,7 +10,6 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/config"
-	"github.com/zeebo/errs"
 )
 
 const (
@@ -189,7 +190,7 @@ type experimentalWorkloadAPIConfig struct {
 func LoadConfig(path string, expandEnv bool) (*Config, error) {
 	hclBytes, err := os.ReadFile(path)
 	if err != nil {
-		return nil, errs.New("unable to load configuration: %v", err)
+		return nil, fmt.Errorf("unable to load configuration: %w", err)
 	}
 	hclString := string(hclBytes)
 	if expandEnv {
@@ -201,7 +202,7 @@ func LoadConfig(path string, expandEnv bool) (*Config, error) {
 func ParseConfig(hclConfig string) (_ *Config, err error) {
 	c := new(Config)
 	if err := hcl.Decode(c, hclConfig); err != nil {
-		return nil, errs.New("unable to decode configuration: %v", err)
+		return nil, fmt.Errorf("unable to decode configuration: %w", err)
 	}
 
 	if c.LogLevel == "" {
@@ -209,7 +210,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	}
 
 	if len(c.Domains) == 0 {
-		return nil, errs.New("at least one domain must be configured")
+		return nil, errors.New("at least one domain must be configured")
 	}
 	c.Domains = dedupeList(c.Domains)
 
@@ -220,20 +221,20 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		}
 		switch {
 		case c.InsecureAddr != "":
-			return nil, errs.New("insecure_addr and the acme section are mutually exclusive")
+			return nil, errors.New("insecure_addr and the acme section are mutually exclusive")
 		case !c.ACME.ToSAccepted:
-			return nil, errs.New("tos_accepted must be set to true in the acme configuration section")
+			return nil, errors.New("tos_accepted must be set to true in the acme configuration section")
 		case c.ACME.Email == "":
-			return nil, errs.New("email must be configured in the acme configuration section")
+			return nil, errors.New("email must be configured in the acme configuration section")
 		}
 	}
 
 	if c.ServingCertFile != nil {
 		if c.ServingCertFile.CertFilePath == "" {
-			return nil, errs.New("cert_file_path must be configured in the serving_cert_file configuration section")
+			return nil, errors.New("cert_file_path must be configured in the serving_cert_file configuration section")
 		}
 		if c.ServingCertFile.KeyFilePath == "" {
-			return nil, errs.New("key_file_path must be configured in the serving_cert_file configuration section")
+			return nil, errors.New("key_file_path must be configured in the serving_cert_file configuration section")
 		}
 
 		if c.ServingCertFile.RawAddr == "" {
@@ -242,13 +243,13 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 		addr, err := net.ResolveTCPAddr("tcp", c.ServingCertFile.RawAddr)
 		if err != nil {
-			return nil, errs.New("invalid addr in the serving_cert_file configuration section: %v", err)
+			return nil, fmt.Errorf("invalid addr in the serving_cert_file configuration section: %w", err)
 		}
 		c.ServingCertFile.Addr = addr
 
 		c.ServingCertFile.FileSyncInterval, err = parseDurationField(c.ServingCertFile.RawFileSyncInterval, defaultFileSyncInterval)
 		if err != nil {
-			return nil, errs.New("invalid file_sync_interval in the serving_cert_file configuration section: %v", err)
+			return nil, fmt.Errorf("invalid file_sync_interval in the serving_cert_file configuration section: %w", err)
 		}
 	}
 
@@ -257,18 +258,18 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	if c.ServerAPI != nil {
 		c.ServerAPI.PollInterval, err = parseDurationField(c.ServerAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
-			return nil, errs.New("invalid poll_interval in the server_api configuration section: %v", err)
+			return nil, fmt.Errorf("invalid poll_interval in the server_api configuration section: %w", err)
 		}
 		methodCount++
 	}
 
 	if c.WorkloadAPI != nil {
 		if c.WorkloadAPI.TrustDomain == "" {
-			return nil, errs.New("trust_domain must be configured in the workload_api configuration section")
+			return nil, errors.New("trust_domain must be configured in the workload_api configuration section")
 		}
 		c.WorkloadAPI.PollInterval, err = parseDurationField(c.WorkloadAPI.RawPollInterval, defaultPollInterval)
 		if err != nil {
-			return nil, errs.New("invalid poll_interval in the workload_api configuration section: %v", err)
+			return nil, fmt.Errorf("invalid poll_interval in the workload_api configuration section: %w", err)
 		}
 		methodCount++
 	}
@@ -291,15 +292,20 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 	switch methodCount {
 	case 0:
-		return nil, errs.New("either the server_api or workload_api section must be configured")
+		return nil, errors.New("either the server_api or workload_api section must be configured")
 	case 1:
 	default:
-		return nil, errs.New("the server_api and workload_api sections are mutually exclusive")
+		return nil, errors.New("the server_api and workload_api sections are mutually exclusive")
 	}
 	if c.JWTIssuer != "" {
 		jwtIssuer, err := url.Parse(c.JWTIssuer)
-		if err != nil || jwtIssuer.Scheme == "" || jwtIssuer.Host == "" {
-			return nil, errs.New("the jwt_issuer url could not be parsed")
+		switch {
+		case err != nil:
+			return nil, fmt.Errorf("the jwt_issuer url could not be parsed: %w", err)
+		case jwtIssuer.Scheme == "":
+			return nil, errors.New("the jwt_issuer url must contain a scheme")
+		case jwtIssuer.Host == "":
+			return nil, errors.New("the jwt_issuer url must contain a host")
 		}
 	}
 	return c, nil

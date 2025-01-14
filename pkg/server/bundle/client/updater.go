@@ -10,7 +10,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/server/datastore"
-	"github.com/zeebo/errs"
 )
 
 type BundleUpdaterConfig struct {
@@ -141,7 +140,7 @@ func fetchBundleIfExists(ctx context.Context, ds datastore.DataStore, trustDomai
 	// Load the current bundle and extract the root CA certificates
 	bundle, err := ds.FetchBundle(ctx, trustDomain.IDString())
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 	if bundle == nil {
 		return nil, nil
