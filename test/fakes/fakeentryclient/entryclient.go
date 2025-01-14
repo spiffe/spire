@@ -49,7 +49,6 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, ds datastore.DataStore,
 	service := entry.New(entry.Config{
 		TrustDomain: trustDomain,
 		DataStore:   ds,
-		// EntryFetcher: authorizedEntryFetcherWithCache,
 	})
 
 	log, _ := test.NewNullLogger()

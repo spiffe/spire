@@ -33,6 +33,7 @@ func (a *Adapter) getGRPCAddr() string {
 func dialer(ctx context.Context, addr string) (net.Conn, error) {
 	// This is an ugly workaround to circumvent grpc-go needing us to provide the resolver in the address
 	// in order to bypass DNS lookup, which is not relevant in the case of CLI invocation.
+	// More context can be found in this issue: https://github.com/grpc/grpc-go/issues/1786#issuecomment-2114124036
 	socketPathAddr := strings.TrimPrefix(addr, "unix:")
 	return (&net.Dialer{}).DialContext(ctx, "unix", socketPathAddr)
 }
