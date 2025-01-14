@@ -356,18 +356,22 @@ func optionsFromSecretData(selectorData []string) (*secretOptions, error) {
 	} else {
 		regionsSlice := strings.Split(regions, ",")
 
-		if len(regionsSlice) == 0 || (len(regionsSlice) == 1 && regionsSlice[0] == "") {
-			return nil, status.Error(codes.InvalidArgument, "need to specify at least one region")
-		}
-
 		var replicas []*secretmanagerpb.Replication_UserManaged_Replica
 
 		for _, region := range regionsSlice {
+			// Avoid adding empty strings as region
+			if region == "" {
+				continue
+			}
 			replica := &secretmanagerpb.Replication_UserManaged_Replica{
 				Location: region,
 			}
 
 			replicas = append(replicas, replica)
+		}
+
+		if len(replicas) == 0 {
+			return nil, status.Error(codes.InvalidArgument, "need to specify at least one region")
 		}
 
 		replica = &secretmanagerpb.Replication{
