@@ -39,7 +39,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
-	for key, _ := range newConfig.Extra {
+	for key := range newConfig.Extra {
 		status.ReportInfof("unknown setting \"%s\" encountered", key)
 	}
 

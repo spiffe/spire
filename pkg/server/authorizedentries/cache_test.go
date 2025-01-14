@@ -358,7 +358,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	staticSelector2 := &types.Selector{Type: "static", Value: "static-2"}
 
 	const numAgents = 50000
-	for i := 0; i < numAgents; i++ {
+	for i := range numAgents {
 		test.withAgent(spiffeid.RequireFromPathf(td, "/agent-%d", i), staticSelector1)
 	}
 
@@ -382,7 +382,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 		},
 	)
 
-	for i := 0; i < 300; i++ {
+	for i := range 300 {
 		test.withEntries(&types.Entry{
 			Id: fmt.Sprintf("alias1-workload-%d", i),
 			SpiffeId: &types.SPIFFEID{
@@ -396,7 +396,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 		})
 	}
 
-	for i := 0; i < 300; i++ {
+	for i := range 300 {
 		test.withEntries(&types.Entry{
 			Id: fmt.Sprintf("alias2-workload-%d", i),
 			SpiffeId: &types.SPIFFEID{
@@ -412,7 +412,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 
 	cache := test.hydrate(b)
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		cache.GetAuthorizedEntries(test.pickAgent())
 	}
 }

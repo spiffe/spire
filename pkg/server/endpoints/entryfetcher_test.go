@@ -224,7 +224,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 func setupExpectedEntriesData(t *testing.T, agentID spiffeid.ID) []*types.Entry {
 	const numEntries = 2
 	entryIDs := make([]spiffeid.ID, numEntries)
-	for i := 0; i < numEntries; i++ {
+	for i := range numEntries {
 		entryIDs[i] = spiffeid.RequireFromPathf(trustDomain, "/%d", i)
 	}
 

@@ -807,7 +807,7 @@ func (p *Plugin) createDefaultPolicy(ctx context.Context) (*string, error) {
 	roleName, err := roleNameFromARN(*result.Arn)
 	if err != nil {
 		// the server has not assumed any role, use default KMS policy and log a warn message
-		p.log.Warn("In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instance.")
+		p.log.Warn("In a future version of SPIRE, it will be mandatory for the SPIRE servers to assume an AWS IAM Role when using the default AWS KMS key policy. Please assign an IAM role to this SPIRE Server instance.", reasonTag, err)
 		return nil, nil
 	}
 

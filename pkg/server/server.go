@@ -92,6 +92,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		FileConfig:  s.config.Telemetry,
 		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireServer,
+		TrustDomain: s.config.TrustDomain.Name(),
 	})
 	if err != nil {
 		return err
@@ -519,7 +520,7 @@ func (s *Server) tryGetBundle() error {
 
 	client, err := server_util.NewServerClient(addr)
 	if err != nil {
-		return errors.New("cannot create registration client")
+		return fmt.Errorf("cannot create registration client: %w", err)
 	}
 	defer client.Release()
 
@@ -530,7 +531,7 @@ func (s *Server) tryGetBundle() error {
 	// As currently coded however, the API isn't served until after
 	// the server CA has been signed by upstream.
 	if _, err := bundleClient.GetBundle(context.Background(), &bundlev1.GetBundleRequest{}); err != nil {
-		return errors.New("unable to fetch bundle")
+		return fmt.Errorf("unable to fetch bundle: %w", err)
 	}
 	return nil
 }
