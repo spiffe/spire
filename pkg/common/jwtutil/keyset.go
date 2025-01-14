@@ -3,6 +3,8 @@ package jwtutil
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,7 +14,6 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
-	"github.com/zeebo/errs"
 )
 
 const (
@@ -34,7 +35,7 @@ type OIDCIssuer string
 func (c OIDCIssuer) GetKeySet(ctx context.Context) (*jose.JSONWebKeySet, error) {
 	u, err := url.Parse(string(c))
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 	u.Path = path.Join(u.Path, wellKnownOpenIDConfiguration)
 
@@ -86,7 +87,7 @@ func (c *CachingKeySetProvider) GetKeySet(ctx context.Context) (*jose.JSONWebKey
 	} else {
 		logrus.WithError(err).Warn("Unable to refresh key set")
 		if c.jwks == nil {
-			return nil, errs.Wrap(err)
+			return nil, err
 		}
 	}
 
@@ -96,27 +97,27 @@ func (c *CachingKeySetProvider) GetKeySet(ctx context.Context) (*jose.JSONWebKey
 func DiscoverKeySetURI(ctx context.Context, configURL string) (string, error) {
 	req, err := http.NewRequest("GET", configURL, nil)
 	if err != nil {
-		return "", errs.Wrap(err)
+		return "", err
 	}
 	req = req.WithContext(ctx)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", errs.Wrap(err)
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", errs.New("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
+		return "", fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
 	config := &struct {
 		JWKSURI string `json:"jwks_uri"`
 	}{}
 	if err := json.NewDecoder(resp.Body).Decode(config); err != nil {
-		return "", errs.New("failed to decode configuration: %v", err)
+		return "", fmt.Errorf("failed to decode configuration: %w", err)
 	}
 	if config.JWKSURI == "" {
-		return "", errs.New("configuration missing JWKS URI")
+		return "", errors.New("configuration missing JWKS URI")
 	}
 
 	return config.JWKSURI, nil
@@ -125,22 +126,22 @@ func DiscoverKeySetURI(ctx context.Context, configURL string) (string, error) {
 func FetchKeySet(ctx context.Context, jwksURI string) (*jose.JSONWebKeySet, error) {
 	req, err := http.NewRequest("GET", jwksURI, nil)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 	req = req.WithContext(ctx)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, errs.New("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
 	jwks := new(jose.JSONWebKeySet)
 	if err := json.NewDecoder(resp.Body).Decode(jwks); err != nil {
-		return nil, errs.New("failed to decode key set: %v", err)
+		return nil, fmt.Errorf("failed to decode key set: %w", err)
 	}
 
 	return jwks, nil

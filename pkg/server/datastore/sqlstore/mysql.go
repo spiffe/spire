@@ -169,11 +169,11 @@ func hasTLSConfig(cfg *configuration) bool {
 func validateMySQLConfig(cfg *configuration, isReadOnly bool) error {
 	opts, err := mysql.ParseDSN(getConnectionString(cfg, isReadOnly))
 	if err != nil {
-		return sqlError.Wrap(err)
+		return newWrappedSQLError(err)
 	}
 
 	if !opts.ParseTime {
-		return sqlError.Wrap(errors.New("invalid mysql config: missing parseTime=true param in connection_string"))
+		return newSQLError("invalid mysql config: missing parseTime=true param in connection_string")
 	}
 
 	return nil

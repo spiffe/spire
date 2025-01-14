@@ -22,7 +22,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -99,7 +98,7 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 	}()
 
 	var versionCounter int64
-	var versionInfo = strconv.FormatInt(versionCounter, 10)
+	versionInfo := strconv.FormatInt(versionCounter, 10)
 	var lastNonce string
 	var lastNode *core_v3.Node
 	var upd *cache.WorkloadUpdate
@@ -150,7 +149,7 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 
 			// We need to send updates if the requested resource list has changed
 			// either explicitly, or implicitly because this is the first request.
-			var sendUpdates = lastReq == nil || subListChanged(lastReq.ResourceNames, newReq.ResourceNames)
+			sendUpdates := lastReq == nil || subListChanged(lastReq.ResourceNames, newReq.ResourceNames)
 
 			// save request so that all future workload updates lead to SDS updates for the last request
 			lastReq = newReq
@@ -206,7 +205,7 @@ func subListChanged(oldSubs []string, newSubs []string) (b bool) {
 	if len(oldSubs) != len(newSubs) {
 		return true
 	}
-	var subMap = make(map[string]bool)
+	subMap := make(map[string]bool)
 	for _, sub := range oldSubs {
 		subMap[sub] = true
 	}
@@ -582,7 +581,7 @@ func nextNonce() (string, error) {
 	b := make([]byte, 4)
 	_, err := rand.Read(b)
 	if err != nil {
-		return "", errs.Wrap(err)
+		return "", err
 	}
 	return hex.EncodeToString(b), nil
 }
