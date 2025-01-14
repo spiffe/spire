@@ -13,7 +13,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/server/datastore"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -124,7 +123,7 @@ func (v1 *identityProviderV1) FetchX509Identity(ctx context.Context, _ *identity
 
 	privateKey, err := x509.MarshalPKCS8PrivateKey(x509Identity.PrivateKey)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 
 	return &identityproviderv1.FetchX509IdentityResponse{

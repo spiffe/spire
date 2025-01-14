@@ -27,7 +27,7 @@ func TestLoadConfig(t *testing.T) {
 	require.Error(err)
 	require.Contains(err.Error(), "unable to load configuration:")
 
-	err = os.WriteFile(confPath, []byte(minimalEnvServerAPIConfig), 0600)
+	err = os.WriteFile(confPath, []byte(minimalEnvServerAPIConfig), 0o600)
 	require.NoError(err)
 
 	os.Setenv("SPIFFE_TRUST_DOMAIN", "domain.test")
@@ -45,7 +45,7 @@ func TestLoadConfig(t *testing.T) {
 		ServerAPI: serverAPIConfig,
 	}, config)
 
-	err = os.WriteFile(confPath, []byte(minimalServerAPIConfig), 0600)
+	err = os.WriteFile(confPath, []byte(minimalServerAPIConfig), 0o600)
 	require.NoError(err)
 
 	config, err = LoadConfig(confPath, false)

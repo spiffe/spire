@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"github.com/Microsoft/go-winio"
 	"github.com/spiffe/spire/pkg/common/namedpipe"
 	"github.com/spiffe/spire/pkg/common/sddl"
-	"github.com/zeebo/errs"
 )
 
 func (c *Config) getWorkloadAPIAddr() (net.Addr, error) {
@@ -25,29 +25,29 @@ func (c *Config) getServerAPITargetName() string {
 func (c *Config) validateOS() (err error) {
 	switch {
 	case c.ACME == nil && c.Experimental.ListenNamedPipeName == "" && c.ServingCertFile == nil && c.InsecureAddr == "":
-		return errs.New("either acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured")
+		return errors.New("either acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured")
 	case c.ACME != nil && c.ServingCertFile != nil:
-		return errs.New("acme and serving_cert_file are mutually exclusive")
+		return errors.New("acme and serving_cert_file are mutually exclusive")
 	case c.ACME != nil && c.Experimental.ListenNamedPipeName != "":
-		return errs.New("listen_named_pipe_name and the acme section are mutually exclusive")
+		return errors.New("listen_named_pipe_name and the acme section are mutually exclusive")
 	case c.ACME != nil && c.InsecureAddr != "":
-		return errs.New("acme and insecure_addr are mutually exclusive")
+		return errors.New("acme and insecure_addr are mutually exclusive")
 	case c.ServingCertFile != nil && c.InsecureAddr != "":
-		return errs.New("serving_cert_file and insecure_addr are mutually exclusive")
+		return errors.New("serving_cert_file and insecure_addr are mutually exclusive")
 	case c.ServingCertFile != nil && c.Experimental.ListenNamedPipeName != "":
-		return errs.New("serving_cert_file and listen_named_pipe_name are mutually exclusive")
+		return errors.New("serving_cert_file and listen_named_pipe_name are mutually exclusive")
 	case c.InsecureAddr != "" && c.Experimental.ListenNamedPipeName != "":
-		return errs.New("insecure_addr and listen_named_pipe_name are mutually exclusive")
+		return errors.New("insecure_addr and listen_named_pipe_name are mutually exclusive")
 	}
 	if c.ServerAPI != nil {
 		if c.ServerAPI.Experimental.NamedPipeName == "" {
-			return errs.New("named_pipe_name must be configured in the server_api configuration section")
+			return errors.New("named_pipe_name must be configured in the server_api configuration section")
 		}
 	}
 
 	if c.WorkloadAPI != nil {
 		if c.WorkloadAPI.Experimental.NamedPipeName == "" {
-			return errs.New("named_pipe_name must be configured in the workload_api configuration section")
+			return errors.New("named_pipe_name must be configured in the workload_api configuration section")
 		}
 	}
 

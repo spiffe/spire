@@ -2,6 +2,8 @@ package azure
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -9,7 +11,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/idutil"
-	"github.com/zeebo/errs"
 )
 
 const (
@@ -56,7 +57,7 @@ func (fn HTTPClientFunc) Do(req *http.Request) (*http.Response, error) {
 func FetchMSIToken(cl HTTPClient, resource string) (string, error) {
 	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01", nil)
 	if err != nil {
-		return "", errs.Wrap(err)
+		return "", err
 	}
 	req.Header.Add("Metadata", "true")
 
@@ -66,11 +67,11 @@ func FetchMSIToken(cl HTTPClient, resource string) (string, error) {
 
 	resp, err := cl.Do(req)
 	if err != nil {
-		return "", errs.Wrap(err)
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", errs.New("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
+		return "", fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
 	r := struct {
@@ -78,11 +79,11 @@ func FetchMSIToken(cl HTTPClient, resource string) (string, error) {
 	}{}
 
 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
-		return "", errs.New("unable to decode response: %v", err)
+		return "", fmt.Errorf("unable to decode response: %w", err)
 	}
 
 	if r.AccessToken == "" {
-		return "", errs.New("response missing access token")
+		return "", fmt.Errorf("response missing access token")
 	}
 
 	return r.AccessToken, nil
@@ -91,31 +92,31 @@ func FetchMSIToken(cl HTTPClient, resource string) (string, error) {
 func FetchInstanceMetadata(cl HTTPClient) (*InstanceMetadata, error) {
 	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json", nil)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 	req.Header.Add("Metadata", "true")
 
 	resp, err := cl.Do(req)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, errs.New("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
 	metadata := new(InstanceMetadata)
 	if err := json.NewDecoder(resp.Body).Decode(metadata); err != nil {
-		return nil, errs.New("unable to decode response: %v", err)
+		return nil, fmt.Errorf("unable to decode response: %w", err)
 	}
 
 	switch {
 	case metadata.Compute.Name == "":
-		return nil, errs.New("response missing instance name")
+		return nil, errors.New("response missing instance name")
 	case metadata.Compute.SubscriptionID == "":
-		return nil, errs.New("response missing instance subscription id")
+		return nil, errors.New("response missing instance subscription id")
 	case metadata.Compute.ResourceGroupName == "":
-		return nil, errs.New("response missing instance resource group name")
+		return nil, errors.New("response missing instance resource group name")
 	}
 
 	return metadata, nil

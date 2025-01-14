@@ -55,7 +55,7 @@ func openSQLite3(connString string) (*gorm.DB, error) {
 	}
 	db, err := gorm.Open("sqlite3", embellished)
 	if err != nil {
-		return nil, sqlError.Wrap(err)
+		return nil, newWrappedSQLError(err)
 	}
 	return db, nil
 }
@@ -74,7 +74,7 @@ func embellishSQLite3ConnString(connectionString string) (string, error) {
 
 	u, err := url.Parse(connectionString)
 	if err != nil {
-		return "", sqlError.Wrap(err)
+		return "", newWrappedSQLError(err)
 	}
 
 	switch {
@@ -88,7 +88,7 @@ func embellishSQLite3ConnString(connectionString string) (string, error) {
 		u.Opaque, u.Path = u.Path, ""
 	case u.Scheme != "file":
 		// only no scheme (i.e. file path) or file scheme is supported
-		return "", sqlError.New("unsupported scheme %q", u.Scheme)
+		return "", newSQLError("unsupported scheme %q", u.Scheme)
 	}
 
 	q := u.Query()

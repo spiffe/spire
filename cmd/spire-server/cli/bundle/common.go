@@ -17,7 +17,6 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
-	"github.com/zeebo/errs"
 )
 
 const (
@@ -78,7 +77,7 @@ func printBundle(out io.Writer, bundle *types.Bundle) error {
 
 	docBytes, err := b.Marshal()
 	if err != nil {
-		return errs.Wrap(err)
+		return err
 	}
 
 	var o bytes.Buffer
@@ -87,7 +86,7 @@ func printBundle(out io.Writer, bundle *types.Bundle) error {
 	}
 
 	if _, err := fmt.Fprintln(out, o.String()); err != nil {
-		return errs.Wrap(err)
+		return err
 	}
 
 	return nil

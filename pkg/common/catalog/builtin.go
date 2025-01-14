@@ -11,7 +11,6 @@ import (
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -151,7 +150,7 @@ func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, 
 		grpc.WithContextDialer(pipeNet.DialContext),
 	)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 	closers = append(closers, conn)
 
