@@ -422,7 +422,7 @@ func entryIsStale(entry *common.RegistrationEntry, revisionNumber, revisionCreat
 		return true
 	}
 
-	// TOOD: remove in SPIRE 1.14
+	// TODO: remove in SPIRE 1.14
 	if revisionCreatedAt == 0 {
 		return false
 	}
