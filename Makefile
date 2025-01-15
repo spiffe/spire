@@ -403,7 +403,7 @@ endif
 lint: lint-code lint-md
 
 lint-code: $(golangci_lint_bin)
-	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run ./...
+	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run --max-issues-per-linter=0 --max-same-issues=0 ./...
 
 lint-md:
 	$(E)docker run --rm -v "$(DIR):/workdir" $(markdown_lint_image) "**/*.md"
