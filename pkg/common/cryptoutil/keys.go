@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/go-jose/go-jose/v4"
-	"github.com/zeebo/errs"
 )
 
 func RSAPublicKeyEqual(a, b *rsa.PublicKey) bool {
@@ -58,7 +57,7 @@ func JoseAlgFromPublicKey(publicKey any) (jose.SignatureAlgorithm, error) {
 	case *rsa.PublicKey:
 		// Prevent the use of keys smaller than 2048 bits
 		if publicKey.Size() < 256 {
-			return "", errs.New("unsupported RSA key size: %d", publicKey.Size())
+			return "", fmt.Errorf("unsupported RSA key size: %d", publicKey.Size())
 		}
 		alg = jose.RS256
 	case *ecdsa.PublicKey:
@@ -69,10 +68,10 @@ func JoseAlgFromPublicKey(publicKey any) (jose.SignatureAlgorithm, error) {
 		case 384:
 			alg = jose.ES384
 		default:
-			return "", errs.New("unable to determine signature algorithm for EC public key size %d", params.BitSize)
+			return "", fmt.Errorf("unable to determine signature algorithm for EC public key size %d", params.BitSize)
 		}
 	default:
-		return "", errs.New("unable to determine signature algorithm for public key type %T", publicKey)
+		return "", fmt.Errorf("unable to determine signature algorithm for public key type %T", publicKey)
 	}
 	return alg, nil
 }

@@ -190,7 +190,7 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 	// Poll the CertificateRequest until it is signed. If not signed after 300
 	// polls, error.
 	obj := client.ObjectKey{Name: cr.GetName(), Namespace: cr.GetNamespace()}
-	for i := 0; true; i++ {
+	for i := 0; ; i++ {
 		if i == 60*5 { // ~1.25 mins
 			log.Error("Failed to wait for CertificateRequest to become ready in time")
 			return status.Error(codes.Internal, "request did not become ready in time")

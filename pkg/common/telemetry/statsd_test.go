@@ -64,6 +64,7 @@ func testStatsdConfigWithPort(port int) *MetricsConfig {
 	return &MetricsConfig{
 		Logger:      l,
 		ServiceName: "foo",
+		TrustDomain: "test.org",
 		FileConfig: FileConfig{
 			Statsd: []StatsdConfig{
 				{

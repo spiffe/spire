@@ -19,7 +19,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -274,7 +273,6 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 // Instead, we'll rotate into a new one.
 func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*journal.JWTKeyEntry, []*journal.X509CAEntry, error) {
 	bundle, err := s.fetchOptionalBundle(ctx)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -314,7 +312,7 @@ func (s *SlotLoader) fetchOptionalBundle(ctx context.Context) (*common.Bundle, e
 	ds := s.Catalog.GetDataStore()
 	bundle, err := ds.FetchBundle(ctx, s.TrustDomain.IDString())
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 	return bundle, nil
 }
@@ -351,14 +349,14 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 
 	cert, err := x509.ParseCertificate(entry.Certificate)
 	if err != nil {
-		return nil, "", errs.New("unable to parse CA certificate: %v", err)
+		return nil, "", fmt.Errorf("unable to parse CA certificate: %w", err)
 	}
 
 	var upstreamChain []*x509.Certificate
 	for _, certDER := range entry.UpstreamChain {
 		cert, err := x509.ParseCertificate(certDER)
 		if err != nil {
-			return nil, "", errs.New("unable to parse upstream chain certificate: %v", err)
+			return nil, "", fmt.Errorf("unable to parse upstream chain certificate: %w", err)
 		}
 		upstreamChain = append(upstreamChain, cert)
 	}
@@ -421,7 +419,7 @@ func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *journal
 
 	publicKey, err := x509.ParsePKIXPublicKey(entry.PublicKey)
 	if err != nil {
-		return nil, "", errs.Wrap(err)
+		return nil, "", err
 	}
 
 	signer, err := s.makeSigner(ctx, jwtKeyKmKeyID(entry.SlotId))
@@ -460,7 +458,7 @@ func (s *SlotLoader) makeSigner(ctx context.Context, keyID string) (crypto.Signe
 	case codes.NotFound:
 		return nil, nil
 	default:
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 }
 

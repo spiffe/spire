@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/zeebo/errs"
 )
 
 func TestManagerPeriodicBundleRefresh(t *testing.T) {
@@ -278,7 +278,7 @@ func newManagerTest(t *testing.T, source TrustDomainConfigSource, localBundles, 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				errCh <- errs.New("%+v", r)
+				errCh <- fmt.Errorf("%+v", r)
 			}
 		}()
 		errCh <- test.manager.Run(ctx)

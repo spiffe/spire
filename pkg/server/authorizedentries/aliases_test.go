@@ -23,16 +23,16 @@ func TestAliasRecordByEntryID(t *testing.T) {
 	}
 
 	records := []aliasRecord{
-		aliasRecord{EntryID: "1"},
-		aliasRecord{EntryID: "1", Selector: Selector{Type: "1", Value: "1"}},
-		aliasRecord{EntryID: "1", Selector: Selector{Type: "1", Value: "2"}},
-		aliasRecord{EntryID: "1", Selector: Selector{Type: "2", Value: "1"}},
-		aliasRecord{EntryID: "1", Selector: Selector{Type: "2", Value: "2"}},
-		aliasRecord{EntryID: "2"},
-		aliasRecord{EntryID: "2", Selector: Selector{Type: "1", Value: "1"}},
-		aliasRecord{EntryID: "2", Selector: Selector{Type: "1", Value: "2"}},
-		aliasRecord{EntryID: "2", Selector: Selector{Type: "2", Value: "1"}},
-		aliasRecord{EntryID: "2", Selector: Selector{Type: "2", Value: "2"}},
+		{EntryID: "1"},
+		{EntryID: "1", Selector: Selector{Type: "1", Value: "1"}},
+		{EntryID: "1", Selector: Selector{Type: "1", Value: "2"}},
+		{EntryID: "1", Selector: Selector{Type: "2", Value: "1"}},
+		{EntryID: "1", Selector: Selector{Type: "2", Value: "2"}},
+		{EntryID: "2"},
+		{EntryID: "2", Selector: Selector{Type: "1", Value: "1"}},
+		{EntryID: "2", Selector: Selector{Type: "1", Value: "2"}},
+		{EntryID: "2", Selector: Selector{Type: "2", Value: "1"}},
+		{EntryID: "2", Selector: Selector{Type: "2", Value: "2"}},
 	}
 
 	lesser := aliasRecord{}
@@ -50,17 +50,17 @@ func TestAliasRecordBySelector(t *testing.T) {
 	}
 
 	records := []aliasRecord{
-		aliasRecord{Selector: Selector{Type: "1", Value: "1"}},
-		aliasRecord{Selector: Selector{Type: "1", Value: "1"}, EntryID: "1"},
-		aliasRecord{Selector: Selector{Type: "1", Value: "1"}, EntryID: "2"},
-		aliasRecord{Selector: Selector{Type: "1", Value: "2"}, EntryID: "1"},
-		aliasRecord{Selector: Selector{Type: "1", Value: "2"}, EntryID: "2"},
-		aliasRecord{Selector: Selector{Type: "2", Value: "1"}},
-		aliasRecord{Selector: Selector{Type: "2", Value: "1"}, EntryID: "1"},
-		aliasRecord{Selector: Selector{Type: "2", Value: "1"}, EntryID: "2"},
-		aliasRecord{Selector: Selector{Type: "2", Value: "2"}},
-		aliasRecord{Selector: Selector{Type: "2", Value: "2"}, EntryID: "1"},
-		aliasRecord{Selector: Selector{Type: "2", Value: "2"}, EntryID: "2"},
+		{Selector: Selector{Type: "1", Value: "1"}},
+		{Selector: Selector{Type: "1", Value: "1"}, EntryID: "1"},
+		{Selector: Selector{Type: "1", Value: "1"}, EntryID: "2"},
+		{Selector: Selector{Type: "1", Value: "2"}, EntryID: "1"},
+		{Selector: Selector{Type: "1", Value: "2"}, EntryID: "2"},
+		{Selector: Selector{Type: "2", Value: "1"}},
+		{Selector: Selector{Type: "2", Value: "1"}, EntryID: "1"},
+		{Selector: Selector{Type: "2", Value: "1"}, EntryID: "2"},
+		{Selector: Selector{Type: "2", Value: "2"}},
+		{Selector: Selector{Type: "2", Value: "2"}, EntryID: "1"},
+		{Selector: Selector{Type: "2", Value: "2"}, EntryID: "2"},
 	}
 	lesser := aliasRecord{}
 	for _, greater := range records {

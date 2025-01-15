@@ -18,6 +18,16 @@ var (
 			address = "unix:///some/socket/path"
 		}
 `
+	minimalEnvServerAPIConfig = `
+		domains = ["${SPIFFE_TRUST_DOMAIN}"]
+		acme {
+			email = "admin@${SPIFFE_TRUST_DOMAIN}"
+			tos_accepted = true
+		}
+		server_api {
+			address = "unix:///some/socket/path"
+		}
+`
 
 	serverAPIConfig = &ServerAPIConfig{
 		Address:      "unix:///some/socket/path",
@@ -687,7 +697,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					address = "unix:///some/socket/path"
 				}
 			`,
-			err: "the jwt_issuer url could not be parsed",
+			err: "the jwt_issuer url must contain a scheme",
 		},
 		{
 			name: "JWT issuer with missing host",
@@ -702,7 +712,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					address = "unix:///some/socket/path"
 				}
 			`,
-			err: "the jwt_issuer url could not be parsed",
+			err: "the jwt_issuer url must contain a host",
 		},
 		{
 			name: "JWT issuer is invalid",
