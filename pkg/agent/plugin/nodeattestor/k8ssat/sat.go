@@ -14,7 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -148,10 +147,10 @@ func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
 func loadTokenFromFile(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", errs.Wrap(err)
+		return "", err
 	}
 	if len(data) == 0 {
-		return "", errs.New("%q is empty", path)
+		return "", fmt.Errorf("%q is empty", path)
 	}
 	return string(data), nil
 }

@@ -28,7 +28,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -456,7 +455,6 @@ func (m *Manager) PruneBundle(ctx context.Context) (err error) {
 	expiresBefore := m.c.Clock.Now().Add(-safetyThresholdBundle)
 
 	changed, err := ds.PruneBundle(ctx, m.c.TrustDomain.IDString(), expiresBefore)
-
 	if err != nil {
 		return fmt.Errorf("unable to prune bundle: %w", err)
 	}
@@ -478,7 +476,6 @@ func (m *Manager) PruneCAJournals(ctx context.Context) (err error) {
 	expiresBefore := m.c.Clock.Now().Add(-safetyThresholdCAJournals)
 
 	err = ds.PruneCAJournals(ctx, expiresBefore.Unix())
-
 	if err != nil {
 		return fmt.Errorf("unable to prune CA journals: %w", err)
 	}
@@ -735,17 +732,18 @@ func (m *Manager) notify(ctx context.Context, event string, advise bool, pre fun
 		}(n)
 	}
 
-	var allErrs errs.Group
+	var allErrs error
 	for range notifiers {
 		// don't select on the ctx here as we can rely on the plugins to
 		// respond to context cancellation and return an error.
 		if err := <-errsCh; err != nil {
-			allErrs.Add(err)
+			allErrs = errors.Join(allErrs, err)
 		}
 	}
-	if err := allErrs.Err(); err != nil {
-		return errs.New("one or more notifiers returned an error: %v", err)
+	if allErrs != nil {
+		return fmt.Errorf("one or more notifiers returned an error: %w", allErrs)
 	}
+
 	return nil
 }
 
@@ -755,7 +753,7 @@ func (m *Manager) fetchRequiredBundle(ctx context.Context) (*common.Bundle, erro
 		return nil, err
 	}
 	if bundle == nil {
-		return nil, errs.New("trust domain bundle is missing")
+		return nil, errors.New("trust domain bundle is missing")
 	}
 	return bundle, nil
 }
@@ -764,7 +762,7 @@ func (m *Manager) fetchOptionalBundle(ctx context.Context) (*common.Bundle, erro
 	ds := m.c.Catalog.GetDataStore()
 	bundle, err := ds.FetchBundle(ctx, m.c.TrustDomain.IDString())
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 	return bundle, nil
 }
@@ -1052,7 +1050,7 @@ func keyIDFromBytes(choices []byte) string {
 func publicKeyFromJWTKey(jwtKey *ca.JWTKey) (*common.PublicKey, error) {
 	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtKey.Signer.Public())
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 
 	return &common.PublicKey{

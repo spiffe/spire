@@ -22,7 +22,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
-	"github.com/zeebo/errs"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -512,12 +511,12 @@ func keyStoreFromBundles(bundles []*spiffebundle.Bundle) (jwtsvid.KeyStore, erro
 func structFromValues(values map[string]any) (*structpb.Struct, error) {
 	valuesJSON, err := json.Marshal(values)
 	if err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 
 	s := new(structpb.Struct)
 	if err := protojson.Unmarshal(valuesJSON, s); err != nil {
-		return nil, errs.Wrap(err)
+		return nil, err
 	}
 
 	return s, nil

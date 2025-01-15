@@ -14,7 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/private/server/journal"
-	"github.com/zeebo/errs"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -125,7 +124,7 @@ func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time
 
 	pkixBytes, err := x509.MarshalPKIXPublicKey(jwtKey.Signer.Public())
 	if err != nil {
-		return errs.Wrap(err)
+		return err
 	}
 
 	backup := j.entries.JwtKeys
@@ -273,7 +272,7 @@ func (j *Journal) findCAJournal(ctx context.Context) (*datastore.CAJournal, erro
 func (j *Journal) save(ctx context.Context) error {
 	entriesBytes, err := proto.Marshal(j.entries)
 	if err != nil {
-		return errs.Wrap(err)
+		return err
 	}
 
 	caJournalID, err := j.saveInDatastore(ctx, entriesBytes)
@@ -315,7 +314,7 @@ func loadJournalFromDS(ctx context.Context, config *journalConfig) (*Journal, er
 
 	j.caJournalID = caJournal.ID
 	if err := proto.Unmarshal(caJournal.Data, j.entries); err != nil {
-		return nil, errs.New("unable to unmarshal entries from CA journal record: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal entries from CA journal record: %w", err)
 	}
 	return j, nil
 }
