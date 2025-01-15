@@ -461,6 +461,97 @@ func TestPutX509SVID(t *testing.T) {
 			},
 		},
 		{
+			name: "Add payload and create regional secret",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"regions:europe-north1",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectCreateSecretReq: &secretmanagerpb.CreateSecretRequest{
+				Parent:   "projects/project1",
+				SecretId: "secret1",
+				Secret: &secretmanagerpb.Secret{
+					Replication: &secretmanagerpb.Replication{
+						Replication: &secretmanagerpb.Replication_UserManaged_{
+							UserManaged: &secretmanagerpb.Replication_UserManaged{
+								Replicas: []*secretmanagerpb.Replication_UserManaged_Replica{
+									{
+										Location: "europe-north1",
+									},
+								},
+							},
+						},
+					},
+					Labels: map[string]string{
+						"spire-svid": tdHash,
+					},
+				},
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{
+				getSecretErr: status.Error(codes.NotFound, "secret not found"),
+			},
+		},
+		{
+			name: "Add payload and create secret in multiple regions",
+			req: &svidstore.X509SVID{
+				SVID: successReq.SVID,
+				Metadata: []string{
+					"name:secret1",
+					"projectid:project1",
+					"regions:europe-north1,europe-west1",
+				},
+				FederatedBundles: successReq.FederatedBundles,
+			},
+			expectCreateSecretReq: &secretmanagerpb.CreateSecretRequest{
+				Parent:   "projects/project1",
+				SecretId: "secret1",
+				Secret: &secretmanagerpb.Secret{
+					Replication: &secretmanagerpb.Replication{
+						Replication: &secretmanagerpb.Replication_UserManaged_{
+							UserManaged: &secretmanagerpb.Replication_UserManaged{
+								Replicas: []*secretmanagerpb.Replication_UserManaged_Replica{
+									{
+										Location: "europe-north1",
+									},
+									{
+										Location: "europe-west1",
+									},
+								},
+							},
+						},
+					},
+					Labels: map[string]string{
+						"spire-svid": tdHash,
+					},
+				},
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payload,
+				},
+			},
+			clientConfig: &clientConfig{
+				getSecretErr: status.Error(codes.NotFound, "secret not found"),
+			},
+		},
+		{
 			name: "Add IAM policy when creating",
 			req: &svidstore.X509SVID{
 				SVID: successReq.SVID,
