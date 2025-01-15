@@ -160,6 +160,8 @@ func (s *Suite) TestAttestSuccess() {
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
 					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
 					{Type: "x509pop", Value: tt.serialnumber},
+					{Type: "x509pop", Value: "san:datacenter:us-east-1"},
+					{Type: "x509pop", Value: "san:environment:production"},
 				}, result.Selectors)
 		})
 	}
