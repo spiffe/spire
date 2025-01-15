@@ -7,8 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/open-policy-agent/opa/storage/inmem"
-	"github.com/open-policy-agent/opa/util"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/storage/inmem"
+	"github.com/open-policy-agent/opa/v1/util"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/stretchr/testify/require"
 )
@@ -220,7 +221,7 @@ func TestPolicy(t *testing.T) {
 			ctx := context.Background()
 
 			// Check with NewEngineFromRego
-			pe, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store)
+			pe, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store, ast.RegoV1)
 			require.Nil(t, err, "failed to create policy engine")
 
 			res, err := pe.Eval(ctxIn, tt.input)
@@ -432,7 +433,7 @@ func TestNewEngineFromRego(t *testing.T) {
 			// a bad store
 			store := inmem.New()
 
-			_, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store)
+			_, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store, ast.RegoV1)
 			require.Equal(t, err == nil, tt.success)
 		})
 	}
@@ -450,7 +451,7 @@ func condCheckRego(cond string) string {
     }
     default allow = false
 
-    allow=true {
+    allow=true if {
         %s
     }
     `
@@ -479,7 +480,7 @@ var badEvalPolicy = `
     }
     default allow = false
 
-    allow=true {
+    allow=true if {
         %s
     }
     `

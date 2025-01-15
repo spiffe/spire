@@ -109,10 +109,11 @@ This may be useful for templating configuration files, for example across differ
 |:-----------------------|---------------------------------------------------|---------|
 | `local`                | Local OPA configuration for authorization policy. |         |
 
-| auth_opa_policy_engine.local  | Description                                              | Default        |
-|:------------------------------|----------------------------------------------------------|----------------|
-| `rego_path`                   | File to retrieve OPA rego policy for authorization.      |                |
-| `policy_data_path`            | File to retrieve databindings for policy evaluation.     |                |
+| auth_opa_policy_engine.local  | Description                                                                  | Default        |
+|:------------------------------|------------------------------------------------------------------------------|----------------|
+| `rego_path`                   | File to retrieve OPA rego policy for authorization.                          |                |
+| `policy_data_path`            | File to retrieve databindings for policy evaluation.                         |                |
+| `use_rego_v0`                 | Use rego V0 when evaluating the policy. Will be removed in a future version. | false          |
 
 ### Profiling Names
 
