@@ -10,8 +10,8 @@ import (
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -155,7 +155,7 @@ func (e *entryTest) afterTest(t *testing.T) {
 }
 
 func (e *entryTest) args(extra ...string) []string {
-	return append([]string{common.AddrArg, e.addr}, extra...)
+	return append([]string{clitest.AddrArg, e.addr}, extra...)
 }
 
 type fakeEntryServer struct {
@@ -242,7 +242,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *entry
 	})
 
 	test := &entryTest{
-		addr:   common.GetAddr(addr),
+		addr:   clitest.GetAddr(addr),
 		stdin:  stdin,
 		stdout: stdout,
 		stderr: stderr,

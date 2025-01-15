@@ -70,8 +70,7 @@ func TestCheckerListeners(t *testing.T) {
 	waitFor := make(chan struct{}, 1)
 	finalChecker.cache.hooks.statusUpdated = waitFor
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
+	ctx := context.Background()
 
 	go func() {
 		_ = servableChecker.ListenAndServe(ctx)
@@ -113,11 +112,7 @@ func TestCheckerListeners(t *testing.T) {
 	barChecker.state.ReadyDetails = healthDetails{Err: "ready fails"}
 
 	clk.Add(readyCheckInterval)
-	select {
-	case <-waitFor:
-	case <-ctx.Done():
-		require.Fail(t, "unable to get updates")
-	}
+	<-waitFor
 
 	t.Run("live fails", func(t *testing.T) {
 		resp, err := http.Get("http://localhost:12345/live")

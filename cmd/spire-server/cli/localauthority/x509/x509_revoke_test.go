@@ -7,8 +7,8 @@ import (
 	"github.com/gogo/status"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	authoritycommon_test "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon/test"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority/x509"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -54,10 +54,13 @@ func TestX509Revoke(t *testing.T) {
 			expectStderr:     "Error: an authority ID is required\n",
 		},
 		{
-			name:             "wrong UDS path",
-			args:             []string{common.AddrArg, common.AddrValue},
+			name: "wrong UDS path",
+			args: []string{
+				clitest.AddrArg, clitest.AddrValue,
+				"-authorityID", "prepared-id",
+			},
 			expectReturnCode: 1,
-			expectStderr:     common.AddrError,
+			expectStderr:     "Error: could not revoke X.509 authority: " + clitest.AddrError,
 		},
 		{
 			name:             "server error",

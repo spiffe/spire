@@ -255,7 +255,7 @@ func (r *rotator) reattest(ctx context.Context) (err error) {
 		return err
 	}
 
-	conn, err := r.serverConn(ctx, bundle)
+	conn, err := r.serverConn(bundle)
 	if err != nil {
 		return err
 	}
@@ -362,8 +362,8 @@ func (r *rotator) generateKey(ctx context.Context) (keymanager.Key, error) {
 	return r.c.SVIDKeyManager.GenerateKey(ctx, existingKey)
 }
 
-func (r *rotator) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) (*grpc.ClientConn, error) {
-	return client.DialServer(ctx, client.DialServerConfig{
+func (r *rotator) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, error) {
+	return client.NewServerGRPCClient(client.ServerClientConfig{
 		Address:     r.c.ServerAddr,
 		TrustDomain: r.c.TrustDomain,
 		GetBundle:   bundle.X509Authorities,

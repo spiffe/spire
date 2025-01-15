@@ -3268,7 +3268,7 @@ func setupServiceTest(t *testing.T, agentSVIDTTL time.Duration) *serviceTest {
 		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	test.client = agentv1.NewAgentClient(conn)
 	test.done = server.Stop

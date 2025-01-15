@@ -48,7 +48,7 @@ func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) 
 		config.Clock = clock.New()
 	}
 
-	conn, err := util.GRPCDialContext(context.Background(), config.GRPCTarget)
+	conn, err := util.NewGRPCClient(config.GRPCTarget)
 	if err != nil {
 		return nil, err
 	}

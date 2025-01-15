@@ -7,8 +7,8 @@ import (
 	"github.com/gogo/status"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	authoritycommon_test "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon/test"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority/x509"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -49,9 +49,9 @@ func TestX509Prepare(t *testing.T) {
 		},
 		{
 			name:             "wrong UDS path",
-			args:             []string{common.AddrArg, common.AddrValue},
+			args:             []string{clitest.AddrArg, clitest.AddrValue},
 			expectReturnCode: 1,
-			expectStderr:     common.AddrError,
+			expectStderr:     "Error: could not prepare X.509 authority: " + clitest.AddrError,
 		},
 		{
 			name:             "server error",

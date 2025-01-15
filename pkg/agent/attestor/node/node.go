@@ -227,7 +227,7 @@ func (a *attestor) newSVID(ctx context.Context, key keymanager.Key, bundle *spif
 	defer counter.Done(&err)
 	telemetry_common.AddAttestorType(counter, a.c.NodeAttestor.Name())
 
-	conn, err := a.serverConn(ctx, bundle)
+	conn, err := a.serverConn(bundle)
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("create attestation client: %w", err)
 	}
@@ -251,9 +251,9 @@ func (a *attestor) newSVID(ctx context.Context, key keymanager.Key, bundle *spif
 	return newSVID, newBundle, reattestable, nil
 }
 
-func (a *attestor) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) (*grpc.ClientConn, error) {
+func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, error) {
 	if bundle != nil {
-		return client.DialServer(ctx, client.DialServerConfig{
+		return client.NewServerGRPCClient(client.ServerClientConfig{
 			Address:     a.c.ServerAddress,
 			TrustDomain: a.c.TrustDomain,
 			GetBundle:   bundle.X509Authorities,
@@ -297,12 +297,11 @@ func (a *attestor) serverConn(ctx context.Context, bundle *spiffebundle.Bundle) 
 		},
 	}
 
-	return grpc.DialContext(ctx, a.c.ServerAddress, //nolint: staticcheck // It is going to be resolved on #5152
+	return grpc.NewClient(
+		a.c.ServerAddress,
 		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
 		grpc.WithDisableServiceConfig(),
-		grpc.FailOnNonTempDialError(true), //nolint: staticcheck // It is going to be resolved on #5152
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithReturnConnectionError(), //nolint: staticcheck // It is going to be resolved on #5152
 	)
 }
 

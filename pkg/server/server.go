@@ -212,7 +212,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		registrationManager.Run,
 		bundlePublishingManager.Run,
 		catalog.ReconfigureTask(s.config.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
-		util.SerialRun(s.waitForTestDial, healthChecker.ListenAndServe),
+		healthChecker.ListenAndServe,
 	}
 
 	if s.config.LogReopener != nil {
@@ -284,7 +284,8 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 }
 
 func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, identityProvider *identityprovider.IdentityProvider, agentStore *agentstore.AgentStore,
-	healthChecker health.Checker) (*catalog.Repository, error) {
+	healthChecker health.Checker,
+) (*catalog.Repository, error) {
 	return catalog.Load(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          metrics,
@@ -448,8 +449,8 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 		Pagination: &datastore.Pagination{
 			Token:    "",
 			PageSize: pageSize,
-		}})
-
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -470,7 +471,8 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 		Pagination: &datastore.Pagination{
 			Token:    "",
 			PageSize: pageSize,
-		}})
+		},
+	})
 	if err != nil {
 		return err
 	}
@@ -487,14 +489,6 @@ func (s *Server) validateTrustDomain(ctx context.Context, ds datastore.DataStore
 			s.config.Log.Warn(msg)
 		}
 	}
-	return nil
-}
-
-// waitForTestDial calls health.WaitForTestDial to wait for a connection to the
-// SPIRE Server API socket. This function always returns nil, even if
-// health.WaitForTestDial exited due to a timeout.
-func (s *Server) waitForTestDial(ctx context.Context) error {
-	health.WaitForTestDial(ctx, s.config.BindLocalAddress)
 	return nil
 }
 
@@ -519,7 +513,12 @@ func (s *Server) CheckHealth() health.State {
 }
 
 func (s *Server) tryGetBundle() error {
-	client, err := server_util.NewServerClient(s.config.BindLocalAddress)
+	addr, err := util.GetTargetName(s.config.BindLocalAddress)
+	if err != nil {
+		return fmt.Errorf("cannot get local gRPC address: %w", err)
+	}
+
+	client, err := server_util.NewServerClient(addr)
 	if err != nil {
 		return fmt.Errorf("cannot create registration client: %w", err)
 	}

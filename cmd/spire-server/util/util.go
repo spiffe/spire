@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
-	"net"
 	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -33,13 +32,12 @@ const (
 	FormatSPIFFE         = "spiffe"
 )
 
-func Dial(addr net.Addr) (*grpc.ClientConn, error) {
-	return grpc.Dial(addr.String(), //nolint: staticcheck // It is going to be resolved on #5152
+func NewGRPCClient(addr string) (*grpc.ClientConn, error) {
+	return grpc.NewClient(
+		addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),
-		grpc.WithBlock(),                  //nolint: staticcheck // It is going to be resolved on #5152
-		grpc.FailOnNonTempDialError(true), //nolint: staticcheck // It is going to be resolved on #5152
-		grpc.WithReturnConnectionError())  //nolint: staticcheck // It is going to be resolved on #5152
+	)
 }
 
 type ServerClient interface {
@@ -54,8 +52,8 @@ type ServerClient interface {
 	NewHealthClient() grpc_health_v1.HealthClient
 }
 
-func NewServerClient(addr net.Addr) (ServerClient, error) {
-	conn, err := Dial(addr)
+func NewServerClient(addr string) (ServerClient, error) {
+	conn, err := NewGRPCClient(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -157,12 +155,7 @@ func (a *Adapter) Run(args []string) int {
 		return 1
 	}
 
-	addr, err := a.getAddr()
-	if err != nil {
-		fmt.Fprintln(a.env.Stderr, "Error: "+err.Error())
-		return 1
-	}
-
+	addr := a.getGRPCAddr()
 	client, err := NewServerClient(addr)
 	if err != nil {
 		fmt.Fprintln(a.env.Stderr, "Error: "+err.Error())

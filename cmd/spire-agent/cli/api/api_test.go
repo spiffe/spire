@@ -15,9 +15,9 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/x509util"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/fakes/fakeworkloadapi"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
@@ -416,9 +416,10 @@ func TestValidateJWTCommand(t *testing.T) {
 						Claims: &structpb.Struct{
 							Fields: map[string]*structpb.Value{
 								"aud": {
-									Kind: &structpb.Value_ListValue{ListValue: &structpb.ListValue{
-										Values: []*structpb.Value{{Kind: &structpb.Value_StringValue{StringValue: "foo"}}},
-									},
+									Kind: &structpb.Value_ListValue{
+										ListValue: &structpb.ListValue{
+											Values: []*structpb.Value{{Kind: &structpb.Value_StringValue{StringValue: "foo"}}},
+										},
 									},
 								},
 							},
@@ -504,7 +505,7 @@ func setupTest(t *testing.T, newCmd func(env *commoncli.Env, clientMaker workloa
 	}, newWorkloadClient)
 
 	test := &apiTest{
-		addr:        common.GetAddr(addr),
+		addr:        clitest.GetAddr(addr),
 		stdin:       stdin,
 		stdout:      stdout,
 		stderr:      stderr,
@@ -538,7 +539,7 @@ func (s *apiTest) afterTest(t *testing.T) {
 }
 
 func (s *apiTest) args(extra ...string) []string {
-	return append([]string{common.AddrArg, s.addr}, extra...)
+	return append([]string{clitest.AddrArg, s.addr}, extra...)
 }
 
 func assertOutputBasedOnFormat(t *testing.T, format, stdoutString, expectedStdoutJSON string, expectedStdoutPretty ...string) {

@@ -9,8 +9,8 @@ import (
 	"github.com/mitchellh/cli"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -116,7 +116,7 @@ type tokenTest struct {
 }
 
 func (t *tokenTest) args(extra ...string) []string {
-	return append([]string{common.AddrArg, t.addr}, extra...)
+	return append([]string{clitest.AddrArg, t.addr}, extra...)
 }
 
 func setupTest(t *testing.T) *tokenTest {
@@ -137,7 +137,7 @@ func setupTest(t *testing.T) *tokenTest {
 	})
 
 	return &tokenTest{
-		addr:   common.GetAddr(addr),
+		addr:   clitest.GetAddr(addr),
 		stderr: stderr,
 		stdin:  stdin,
 		stdout: stdout,

@@ -7,8 +7,8 @@ import (
 	"github.com/gogo/status"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	authoritycommon_test "github.com/spiffe/spire/cmd/spire-server/cli/authoritycommon/test"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	"github.com/spiffe/spire/cmd/spire-server/cli/localauthority/jwt"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -101,9 +101,9 @@ func TestJWTShow(t *testing.T) {
 		},
 		{
 			name:             "wrong UDS path",
-			args:             []string{common.AddrArg, common.AddrValue},
+			args:             []string{clitest.AddrArg, clitest.AddrValue},
 			expectReturnCode: 1,
-			expectStderr:     common.AddrError,
+			expectStderr:     "Error: " + clitest.AddrError,
 		},
 		{
 			name:             "server error",

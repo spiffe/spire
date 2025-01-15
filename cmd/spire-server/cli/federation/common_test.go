@@ -11,9 +11,9 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/fakes/fakeserverca"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -124,7 +124,7 @@ func (c *cmdTest) afterTest(t *testing.T) {
 }
 
 func (c *cmdTest) args(extra ...string) []string {
-	return append([]string{common.AddrArg, c.addr}, extra...)
+	return append([]string{clitest.AddrArg, c.addr}, extra...)
 }
 
 type fakeServer struct {
@@ -222,7 +222,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *cmdTe
 	})
 
 	test := &cmdTest{
-		addr:   common.GetAddr(addr),
+		addr:   clitest.GetAddr(addr),
 		stdin:  stdin,
 		stdout: stdout,
 		stderr: stderr,
@@ -241,7 +241,7 @@ func createBundle(t *testing.T, trustDomain string) (*types.Bundle, string) {
 	td := spiffeid.RequireTrustDomainFromString(trustDomain)
 	bundlePath := path.Join(t.TempDir(), "bundle.pem")
 	ca := fakeserverca.New(t, td, &fakeserverca.Options{})
-	require.NoError(t, os.WriteFile(bundlePath, pemutil.EncodeCertificates(ca.Bundle()), 0600))
+	require.NoError(t, os.WriteFile(bundlePath, pemutil.EncodeCertificates(ca.Bundle()), 0o600))
 
 	return &types.Bundle{
 		TrustDomain: td.Name(),
@@ -253,13 +253,13 @@ func createBundle(t *testing.T, trustDomain string) (*types.Bundle, string) {
 
 func createCorruptedBundle(t *testing.T) string {
 	bundlePath := path.Join(t.TempDir(), "bundle.pem")
-	require.NoError(t, os.WriteFile(bundlePath, []byte("corrupted-bundle"), 0600))
+	require.NoError(t, os.WriteFile(bundlePath, []byte("corrupted-bundle"), 0o600))
 	return bundlePath
 }
 
 func createJSONDataFile(t *testing.T, data string) string {
 	jsonDataFilePath := path.Join(t.TempDir(), "bundle.pem")
-	require.NoError(t, os.WriteFile(jsonDataFilePath, []byte(data), 0600))
+	require.NoError(t, os.WriteFile(jsonDataFilePath, []byte(data), 0o600))
 	return jsonDataFilePath
 }
 
