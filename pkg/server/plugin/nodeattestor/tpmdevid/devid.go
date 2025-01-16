@@ -242,7 +242,7 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 func (p *Plugin) getConfiguration() *config {

@@ -15,6 +15,16 @@ type Status struct {
 	err   error
 }
 
+func (s *Status) Append(other *Status) {
+	if other == nil {
+		return
+	}
+	s.notes = append(s.notes, other.notes...)
+	if s.err == nil {
+		s.err = other.err
+	}
+}
+
 func (s *Status) ReportInfo(message string) {
 	s.notes = append(s.notes, message)
 }
@@ -32,6 +42,14 @@ func (s *Status) ReportError(message string) {
 
 func (s *Status) ReportErrorf(format string, args ...any) {
 	s.ReportError(fmt.Sprintf(format, args...))
+}
+
+func (s *Status) HasError() bool {
+	return s.err != nil
+}
+
+func (s *Status) Error() error {
+	return s.err
 }
 
 type Request interface {

@@ -356,7 +356,7 @@ func (p *AttestorPlugin) Validate(_ context.Context, req *configv1.ValidateReque
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
