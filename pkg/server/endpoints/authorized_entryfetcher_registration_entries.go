@@ -251,8 +251,8 @@ func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 }
 
 func (a *registrationEntries) emitMetrics() {
-	if a.skippedEntryEvents != int(a.eventTracker.EventCount()) {
-		a.skippedEntryEvents = int(a.eventTracker.EventCount())
+	if a.skippedEntryEvents != a.eventTracker.EventCount() {
+		a.skippedEntryEvents = a.eventTracker.EventCount()
 		server_telemetry.SetSkippedEntryEventIDsCacheCountGauge(a.metrics, a.skippedEntryEvents)
 	}
 

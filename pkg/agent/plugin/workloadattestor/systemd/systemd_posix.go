@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/godbus/dbus/v5"
 	"github.com/hashicorp/go-hclog"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
@@ -55,7 +56,11 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
-	uInfo, err := p.getUnitInfo(ctx, p, uint(req.Pid))
+	pid, err := safecast.ToUint(req.Pid)
+	if err != nil {
+		return nil, fmt.Errorf("PID: %w", err)
+	}
+	uInfo, err := p.getUnitInfo(ctx, p, pid)
 	if err != nil {
 		return nil, err
 	}
