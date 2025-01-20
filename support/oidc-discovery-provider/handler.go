@@ -24,14 +24,14 @@ type Handler struct {
 	allowInsecureScheme bool
 	setKeyUse           bool
 	log                 logrus.FieldLogger
-	jwtIssuer           string
-	jwksURI             string
+	jwtIssuer           *url.URL
+	jwksURI             *url.URL
 	serverPathPrefix    string
 
 	http.Handler
 }
 
-func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer string, jwksURI string, serverPathPrefix string) *Handler {
+func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer *url.URL, jwksURI *url.URL, serverPathPrefix string) *Handler {
 	if serverPathPrefix == "" {
 		serverPathPrefix = "/"
 	}
@@ -72,12 +72,11 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 	var host string
 	var path string
 	var urlScheme string
-	var jwksURI url.URL
-	if h.jwtIssuer != "" {
-		jwtIssuerURL, _ := url.Parse(h.jwtIssuer)
-		host = jwtIssuerURL.Host
-		path = jwtIssuerURL.Path
-		urlScheme = jwtIssuerURL.Scheme
+	var jwksURI *url.URL
+	if h.jwtIssuer != nil {
+		host = h.jwtIssuer.Host
+		path = h.jwtIssuer.Path
+		urlScheme = h.jwtIssuer.Scheme
 	} else {
 		host = r.Host
 		urlScheme = "https"
@@ -85,9 +84,8 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 			urlScheme = "http"
 		}
 	}
-	if h.jwksURI != "" {
-		tmpURI, _ := url.Parse(h.jwksURI)
-		jwksURI = *tmpURI
+	if h.jwksURI != nil {
+		jwksURI = h.jwksURI
 	} else {
 		tmpURLScheme := "https"
 		if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
@@ -95,10 +93,10 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		}
 		keysPath, err := url.JoinPath(h.serverPathPrefix, "keys")
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		jwksURI = url.URL{
+		jwksURI = &url.URL{
 			Scheme: tmpURLScheme,
 			Host:   r.Host,
 			Path:   keysPath,

@@ -320,7 +320,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	if c.JWKSURI != "" {
 		jwksURI, err := url.Parse(c.JWKSURI)
 		if err != nil || jwksURI.Scheme == "" || jwksURI.Host == "" {
-			return nil, errors.New("the jwks_uri setting could not be parsed")
+			return nil, fmt.Errorf("the jwks_uri setting could not be parsed: %w", err)
 		}
 	}
 	return c, nil
