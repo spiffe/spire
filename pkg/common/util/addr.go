@@ -36,7 +36,7 @@ func GetTargetName(addr net.Addr) (string, error) {
 	case "unix":
 		return "unix://" + addr.String(), nil
 	case "pipe":
-		return addr.String(), nil
+		return "passthrough:" + addr.String(), nil
 	default:
 		return "", fmt.Errorf("unsupported network %q", addr.Network())
 	}

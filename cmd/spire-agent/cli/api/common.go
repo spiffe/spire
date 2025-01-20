@@ -28,7 +28,7 @@ func newWorkloadClient(ctx context.Context, addr net.Addr, timeout time.Duration
 	if err != nil {
 		return nil, err
 	}
-	conn, err := util.GRPCDialContext(ctx, target)
+	conn, err := util.NewGRPCClient(target)
 	if err != nil {
 		return nil, err
 	}

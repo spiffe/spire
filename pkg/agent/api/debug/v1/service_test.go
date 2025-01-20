@@ -277,7 +277,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	}
 	server := grpctest.StartServer(t, registerFn)
 	test.done = server.Stop
-	test.client = debugv1.NewDebugClient(server.Dial(t))
+	test.client = debugv1.NewDebugClient(server.NewGRPCClient(t))
 
 	return test
 }

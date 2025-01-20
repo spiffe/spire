@@ -662,25 +662,25 @@ func TestNewNodeClientRelease(t *testing.T) {
 
 	for range 3 {
 		// Create agent client and release
-		_, r, err := client.newAgentClient(ctx)
+		_, r, err := client.newAgentClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
 
 		// Create bundle client and release
-		_, r, err = client.newBundleClient(ctx)
+		_, r, err = client.newBundleClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
 
 		// Create entry client and release
-		_, r, err = client.newEntryClient(ctx)
+		_, r, err = client.newEntryClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
 
 		// Create svid client and release
-		_, r, err = client.newSVIDClient(ctx)
+		_, r, err = client.newSVIDClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
@@ -699,7 +699,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 
 	for range 3 {
 		// Create agent client
-		_, conn, err := client.newAgentClient(ctx)
+		_, conn, err := client.newAgentClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -708,7 +708,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 		assertConnectionIsNil(t, client)
 
 		// Create bundle client
-		_, conn, err = client.newBundleClient(ctx)
+		_, conn, err = client.newBundleClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -717,7 +717,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 		assertConnectionIsNil(t, client)
 
 		// Create entry client
-		_, conn, err = client.newEntryClient(ctx)
+		_, conn, err = client.newEntryClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -726,7 +726,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 		assertConnectionIsNil(t, client)
 
 		// Create svid client
-		_, conn, err = client.newSVIDClient(ctx)
+		_, conn, err = client.newSVIDClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -827,54 +827,6 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T)
 	})
 
 	spiretest.AssertLogs(t, logHook.AllEntries(), entries)
-}
-
-func TestNewAgentClientFailsDial(t *testing.T) {
-	client := newClient(&Config{
-		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomain,
-	})
-	agentClient, conn, err := client.newAgentClient(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to dial")
-	require.Nil(t, agentClient)
-	require.Nil(t, conn)
-}
-
-func TestNewBundleClientFailsDial(t *testing.T) {
-	client := newClient(&Config{
-		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomain,
-	})
-	agentClient, conn, err := client.newBundleClient(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to dial")
-	require.Nil(t, agentClient)
-	require.Nil(t, conn)
-}
-
-func TestNewEntryClientFailsDial(t *testing.T) {
-	client := newClient(&Config{
-		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomain,
-	})
-	agentClient, conn, err := client.newEntryClient(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to dial")
-	require.Nil(t, agentClient)
-	require.Nil(t, conn)
-}
-
-func TestNewSVIDClientFailsDial(t *testing.T) {
-	client := newClient(&Config{
-		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomain,
-	})
-	agentClient, conn, err := client.newSVIDClient(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to dial")
-	require.Nil(t, agentClient)
-	require.Nil(t, conn)
 }
 
 func TestFetchJWTSVID(t *testing.T) {
@@ -1012,11 +964,10 @@ func createClient(t *testing.T) (*client, *testServer) {
 	listener := bufconn.Listen(1024)
 	spiretest.ServeGRPCServerOnListener(t, server, listener)
 
-	client.dialContext = func(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-		return grpc.DialContext(ctx, addr, //nolint: staticcheck // It is going to be resolved on #5152
-			grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-				return listener.DialContext(ctx)
-			}))
+	client.dialOpts = []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listener.DialContext(ctx)
+		}),
 	}
 	return client, tc
 }
