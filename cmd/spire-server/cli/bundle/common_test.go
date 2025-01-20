@@ -9,9 +9,9 @@ import (
 	"github.com/mitchellh/cli"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -203,7 +203,7 @@ func setupTest(t *testing.T, newClient func(*common_cli.Env) cli.Command) *bundl
 		cert1:    cert1,
 		cert2:    cert2,
 		key1Pkix: key1Pkix,
-		addr:     common.GetAddr(addr),
+		addr:     clitest.GetAddr(addr),
 		stdin:    stdin,
 		stdout:   stdout,
 		stderr:   stderr,
@@ -241,7 +241,7 @@ func (s *bundleTest) afterTest(t *testing.T) {
 }
 
 func (s *bundleTest) args(extra ...string) []string {
-	return append([]string{common.AddrArg, s.addr}, extra...)
+	return append([]string{clitest.AddrArg, s.addr}, extra...)
 }
 
 type fakeBundleServer struct {

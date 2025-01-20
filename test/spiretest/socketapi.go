@@ -33,7 +33,7 @@ func ServeGRPCServerOnTempUDSSocket(t *testing.T, server *grpc.Server) net.Addr 
 
 func ServeGRPCServerOnUDSSocket(t *testing.T, server *grpc.Server, socketPath string) net.Addr {
 	// ensure the directory holding the socket exists
-	require.NoError(t, os.MkdirAll(filepath.Dir(socketPath), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(socketPath), 0o755))
 
 	listener, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
