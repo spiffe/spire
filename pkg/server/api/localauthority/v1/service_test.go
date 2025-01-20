@@ -2454,7 +2454,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	test.done = server.Stop
 	test.client = localauthorityv1.NewLocalAuthorityClient(conn)

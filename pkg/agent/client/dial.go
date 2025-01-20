@@ -1,11 +1,9 @@
 package client
 
 import (
-	"context"
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"time"
 
@@ -25,7 +23,7 @@ const (
 	roundRobinServiceConfig = `{ "loadBalancingConfig": [ { "round_robin": {} } ] }`
 )
 
-type DialServerConfig struct {
+type ServerClientConfig struct {
 	// Address is the SPIRE server address
 	Address string
 
@@ -42,11 +40,11 @@ type DialServerConfig struct {
 	// TLSPolicy determines the post-quantum-safe policy to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
 
-	// dialContext is an optional constructor for the grpc client connection.
-	dialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	// dialOpts are optional gRPC dial options
+	dialOpts []grpc.DialOption
 }
 
-func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn, error) {
+func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 	bundleSource := newBundleSource(config.TrustDomain, config.GetBundle)
 	serverID, err := idutil.ServerID(config.TrustDomain)
 	if err != nil {
@@ -66,29 +64,20 @@ func DialServer(ctx context.Context, config DialServerConfig) (*grpc.ClientConn,
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
-	defer cancel()
+	dialOpts := config.dialOpts
+	if dialOpts == nil {
+		dialOpts = []grpc.DialOption{
+			grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+			grpc.WithDisableServiceConfig(),
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		}
+	}
 
-	if config.dialContext == nil {
-		config.dialContext = grpc.DialContext //nolint: staticcheck // It is going to be resolved on #5152
+	client, err := grpc.NewClient(config.Address, dialOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
 	}
-	client, err := config.dialContext(ctx, config.Address,
-		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
-		grpc.WithDisableServiceConfig(),
-		grpc.FailOnNonTempDialError(true), //nolint: staticcheck // It is going to be resolved on #5152
-		grpc.WithBlock(),                  //nolint: staticcheck // It is going to be resolved on #5152
-		grpc.WithReturnConnectionError(),  //nolint: staticcheck // It is going to be resolved on #5152
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-	)
-	switch {
-	case err == nil:
-	case errors.Is(err, context.Canceled):
-		return nil, fmt.Errorf("failed to dial %s: canceled", config.Address)
-	case errors.Is(err, context.DeadlineExceeded):
-		return nil, fmt.Errorf("failed to dial %s: timed out", config.Address)
-	default:
-		return nil, fmt.Errorf("failed to dial %s: %w", config.Address, err)
-	}
+
 	return client, nil
 }
 

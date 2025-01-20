@@ -25,12 +25,12 @@ type Server struct {
 	stop        func()
 }
 
-func (s *Server) Dial(tb testing.TB, extraOptions ...grpc.DialOption) grpc.ClientConnInterface {
+func (s *Server) NewGRPCClient(tb testing.TB, extraOptions ...grpc.DialOption) grpc.ClientConnInterface {
 	dialOptions := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	dialOptions = append(dialOptions, s.dialOptions...)
 	dialOptions = append(dialOptions, extraOptions...)
-	conn, err := grpc.DialContext(context.Background(), s.dialTarget, dialOptions...) //nolint: staticcheck // It is going to be resolved on #5152
-	require.NoError(tb, err, "failed to dial")
+	conn, err := grpc.NewClient(s.dialTarget, dialOptions...)
+	require.NoError(tb, err, "failed to create client")
 	tb.Cleanup(func() {
 		_ = conn.Close()
 	})
@@ -80,8 +80,16 @@ func StartServer(tb testing.TB, registerFn func(s grpc.ServiceRegistrar), opts .
 	switch config.net {
 	case "":
 		listener := bufconn.Listen(1024 * 32)
-		dialOptions = append(dialOptions, grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) {
-			return listener.Dial()
+		// When grpc-go deprecated grpc.DialContext() in favor of grpc.NewClient(),
+		// they made a breaking change to always use the DNS resolver, even when overriding the context dialer.
+		// This is problematic for tests that rely on the grpc-go bufconn transport.
+		// grpc-go mentions that bufconn was only designed for internal testing of grpc-go, but we are relying on it in our tests.
+		// As a workaround, use the passthrough resolver to prevent using the DNS resolver,
+		// since the address is anyway being thrown away by the dialer method.
+		// More context can be found in this issue: https://github.com/grpc/grpc-go/issues/1786#issuecomment-2114124036
+		dialTarget = "passthrough:dummyaddressthatisignoredbybufconntransport"
+		dialOptions = append(dialOptions, grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listener.DialContext(ctx)
 		}))
 		serverListener = listener
 	case "unix":

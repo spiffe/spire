@@ -3,7 +3,6 @@
 package endpoints
 
 import (
-	"context"
 	"net"
 	"path/filepath"
 	"testing"
@@ -18,6 +17,6 @@ func getTestAddr(t *testing.T) net.Addr {
 	}
 }
 
-func testRemoteCaller(context.Context, *testing.T, string) {
+func testRemoteCaller(*testing.T, string) {
 	// No testing for UDS endpoints
 }

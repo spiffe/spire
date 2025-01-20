@@ -249,8 +249,8 @@ func TestListenAndServe(t *testing.T) {
 	}()
 
 	dialTCP := func(tlsConfig *tls.Config) *grpc.ClientConn {
-		conn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(), //nolint: staticcheck // It is going to be resolved on #5152
-			grpc.WithBlock(), //nolint: staticcheck // It is going to be resolved on #5152
+		conn, err := grpc.NewClient(
+			endpoints.TCPAddr.String(),
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		)
 		require.NoError(t, err)
@@ -260,7 +260,7 @@ func TestListenAndServe(t *testing.T) {
 	target, err := util.GetTargetName(endpoints.LocalAddr)
 	require.NoError(t, err)
 
-	localConn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock()) //nolint: staticcheck // It is going to be resolved on #5152
+	localConn, err := util.NewGRPCClient(target)
 	require.NoError(t, err)
 	defer localConn.Close()
 
@@ -291,15 +291,20 @@ func TestListenAndServe(t *testing.T) {
 		// Create an SVID from a different CA. This ensures that we verify
 		// incoming certificates against the trust bundle.
 		badSVID := testca.New(t, testTD).CreateX509SVID(agentID)
-		ctx, cancel := context.WithTimeout(ctx, time.Second)
-		defer cancel()
 
 		tlsConfig := tlsconfig.MTLSClientConfig(badSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 		require.NoError(t, tlspolicy.ApplyPolicy(tlsConfig, endpoints.TLSPolicy))
 
-		badConn, err := grpc.DialContext(ctx, endpoints.TCPAddr.String(), grpc.WithBlock(), grpc.FailOnNonTempDialError(true), //nolint: staticcheck // It is going to be resolved on #5152
+		badConn, err := grpc.NewClient(
+			endpoints.TCPAddr.String(),
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		)
+
+		require.NoError(t, err)
+
+		// Call an API using the server clientConn to cause gRPC to attempt to dial the server
+		healthClient := grpc_health_v1.NewHealthClient(badConn)
+		_, err = healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{})
 		if !assert.Error(t, err, "dialing should have failed") {
 			// close the conn if the dialing unexpectedly succeeded
 			badConn.Close()
@@ -345,7 +350,7 @@ func TestListenAndServe(t *testing.T) {
 	})
 
 	t.Run("Access denied to remote caller", func(t *testing.T) {
-		testRemoteCaller(ctx, t, target)
+		testRemoteCaller(t, target)
 	})
 
 	t.Run("Invalidate connection with misconfigured foreign admin caller", func(t *testing.T) {
