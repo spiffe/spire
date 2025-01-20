@@ -69,21 +69,25 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var host string
-	var path string
-	var urlScheme string
-	var jwksURI *url.URL
+	var issuerURL *url.URL
 	if h.jwtIssuer != nil {
-		host = h.jwtIssuer.Host
-		path = h.jwtIssuer.Path
-		urlScheme = h.jwtIssuer.Scheme
+		issuerURL = &url.URL{
+			Scheme: h.jwtIssuer.Scheme,
+			Host:   h.jwtIssuer.Host,
+			Path:   h.jwtIssuer.Path,
+		}
 	} else {
-		host = r.Host
-		urlScheme = "https"
+		urlScheme := "https"
 		if h.allowInsecureScheme && r.TLS == nil && r.URL.Scheme != "https" {
 			urlScheme = "http"
 		}
+		issuerURL = &url.URL{
+			Scheme: urlScheme,
+			Host:   r.Host,
+		}
 	}
+
+	var jwksURI *url.URL
 	if h.jwksURI != nil {
 		jwksURI = h.jwksURI
 	} else {
@@ -106,12 +110,6 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 	if err := h.verifyHost(r.Host); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	}
-
-	issuerURL := url.URL{
-		Scheme: urlScheme,
-		Host:   host,
-		Path:   path,
 	}
 
 	doc := struct {
