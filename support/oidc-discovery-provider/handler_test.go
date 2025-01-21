@@ -173,7 +173,7 @@ func TestHandlerHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse, "", "", "")
+			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse, nil, nil, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -286,7 +286,7 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, true, false, "", "", "")
+			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, true, false, nil, nil, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -456,7 +456,7 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false, "", "", "")
+			h := NewHandler(log, domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false, nil, nil, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -568,7 +568,7 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Scheme", "https")
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, "", "", "")
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, "")
 			h.ServeHTTP(w, r)
 			t.Logf("HEADERS: %q", w.Header())
 			assert.Equal(t, testCase.code, w.Code)
@@ -708,7 +708,8 @@ func TestHandlerJWTIssuer(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, testCase.jwtIssuer, "", "")
+			u, _ := url.Parse(testCase.jwtIssuer)
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, nil, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -849,7 +850,8 @@ func TestHandlerAdvertisedURL(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, "", testCase.jwksURI, "")
+			u, _ := url.Parse(testCase.jwksURI)
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, u, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -969,7 +971,7 @@ func TestHandlerPrefix(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, "", "", testCase.serverPathPrefix)
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, testCase.serverPathPrefix)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
