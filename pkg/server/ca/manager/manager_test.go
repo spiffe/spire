@@ -457,11 +457,14 @@ func TestUpstreamProcessTaintedAuthorityBackoff(t *testing.T) {
 		}
 	}
 
+	test.clock.WaitForAfter(time.Second, "waiting for the retry to wait for next duration")
 	// Must fail due to the invalid key type
 	expectBackoffErr(t)
 
 	// Try again; expect to fail
 	test.clock.Add(6 * time.Second)
+
+	test.clock.WaitForAfter(time.Second, "waiting for the retry to wait for next duration")
 	expectBackoffErr(t)
 
 	// Restore to a valid key type, and advance time again
