@@ -44,6 +44,10 @@ func New(tb testing.TB) *DataStore {
 	`, atomic.AddUint32(&nextID, 1)))
 	require.NoError(tb, err)
 
+	tb.Cleanup(func() {
+		ds.Close()
+	})
+
 	return &DataStore{
 		ds: ds,
 	}
