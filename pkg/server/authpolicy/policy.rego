@@ -32,7 +32,7 @@ default allow = false
 
 
 # Admin allow check
-allow_if_admin = true { 
+allow_if_admin = true if { 
     r := data.apis[_]
     r.full_method == input.full_method 
     
@@ -40,7 +40,7 @@ allow_if_admin = true {
 }
 
 # Local allow check
-allow_if_local = true { 
+allow_if_local = true if { 
     r := data.apis[_]
     r.full_method == input.full_method 
     
@@ -49,7 +49,7 @@ allow_if_local = true {
 
 
 # Downstream allow check
-allow_if_downstream = true { 
+allow_if_downstream = true if { 
     r := data.apis[_]
     r.full_method == input.full_method 
     
@@ -58,7 +58,7 @@ allow_if_downstream = true {
 
 
 # Agent allow check
-allow_if_agent = true { 
+allow_if_agent = true if { 
     r := data.apis[_]
     r.full_method == input.full_method 
     
@@ -66,7 +66,7 @@ allow_if_agent = true {
 }
 
 # Any allow check
-allow = true { 
+allow = true if { 
     r := data.apis[_]
     r.full_method == input.full_method 
     

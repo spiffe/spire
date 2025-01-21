@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/open-policy-agent/opa/rego"
-	"github.com/open-policy-agent/opa/storage"
-	"github.com/open-policy-agent/opa/storage/inmem"
-	"github.com/open-policy-agent/opa/util"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/rego"
+	"github.com/open-policy-agent/opa/v1/storage"
+	"github.com/open-policy-agent/opa/v1/storage/inmem"
+	"github.com/open-policy-agent/opa/v1/util"
 )
 
 const (
@@ -32,6 +33,7 @@ type OpaEngineConfig struct {
 type LocalOpaProviderConfig struct {
 	RegoPath       string `hcl:"rego_path"`
 	PolicyDataPath string `hcl:"policy_data_path"`
+	UseRegoV0      bool   `hcl:"use_rego_v0"`
 }
 
 // Input represents context associated with an access request.
@@ -99,16 +101,22 @@ func newEngine(ctx context.Context, cfg *OpaEngineConfig) (*Engine, error) {
 		store = inmem.NewFromObject(map[string]any{})
 	}
 
-	return NewEngineFromRego(ctx, string(module), store)
+	version := ast.RegoV1
+	if cfg.LocalOpaProvider.UseRegoV0 {
+		version = ast.RegoV0
+	}
+
+	return NewEngineFromRego(ctx, string(module), store, version)
 }
 
 // NewEngineFromRego is a helper to create the Engine object
-func NewEngineFromRego(ctx context.Context, regoPolicy string, dataStore storage.Store) (*Engine, error) {
+func NewEngineFromRego(ctx context.Context, regoPolicy string, dataStore storage.Store, version ast.RegoVersion) (*Engine, error) {
 	rego := rego.New(
 		rego.Query("data.spire.result"),
 		rego.Package("spire"),
 		rego.Module("spire.rego", regoPolicy),
 		rego.Store(dataStore),
+		rego.SetRegoVersion(version),
 	)
 	pr, err := rego.PartialResult(ctx)
 	if err != nil {
