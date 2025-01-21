@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/mitchellh/cli"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc"
@@ -58,24 +58,24 @@ func (s *HealthCheckSuite) TestBadFlags() {
 }
 
 func (s *HealthCheckSuite) TestFailsIfEndpointDoesNotExist() {
-	code := s.cmd.Run([]string{common.AddrArg, common.AddrValue})
+	code := s.cmd.Run([]string{clitest.AddrArg, clitest.AddrValue})
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
-	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), common.AddrError)
+	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), "Error: server is unhealthy: unable to determine health\n")
 }
 
 func (s *HealthCheckSuite) TestFailsIfEndpointDoesNotExistVerbose() {
-	code := s.cmd.Run([]string{common.AddrArg, common.AddrValue, "-verbose"})
+	code := s.cmd.Run([]string{clitest.AddrArg, clitest.AddrValue, "-verbose"})
 	s.NotEqual(0, code, "exit code")
-	s.Equal("", s.stdout.String(), "stdout")
-	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), common.AddrError)
+	s.Equal("Checking server health...\n", s.stdout.String(), "stdout")
+	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), "Failed to check health: "+clitest.AddrError)
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {
 	addr := spiretest.StartGRPCServer(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
-	code := s.cmd.Run([]string{common.AddrArg, common.GetAddr(addr)})
+	code := s.cmd.Run([]string{clitest.AddrArg, clitest.GetAddr(addr)})
 	s.Equal(0, code, "exit code")
 	s.Equal("Server is healthy.\n", s.stdout.String(), "stdout")
 	s.Equal("", s.stderr.String(), "stderr")
@@ -85,7 +85,7 @@ func (s *HealthCheckSuite) TestSucceedsIfServingStatusServingVerbose() {
 	addr := spiretest.StartGRPCServer(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_SERVING))
 	})
-	code := s.cmd.Run([]string{common.AddrArg, common.GetAddr(addr), "-verbose"})
+	code := s.cmd.Run([]string{clitest.AddrArg, clitest.GetAddr(addr), "-verbose"})
 	s.Equal(0, code, "exit code")
 	s.Equal(`Checking server health...
 Server is healthy.
@@ -97,7 +97,7 @@ func (s *HealthCheckSuite) TestFailsIfServiceStatusOther() {
 	addr := spiretest.StartGRPCServer(s.T(), func(srv *grpc.Server) {
 		grpc_health_v1.RegisterHealthServer(srv, withStatus(grpc_health_v1.HealthCheckResponse_NOT_SERVING))
 	})
-	code := s.cmd.Run([]string{common.AddrArg, common.GetAddr(addr), "-verbose"})
+	code := s.cmd.Run([]string{clitest.AddrArg, clitest.GetAddr(addr), "-verbose"})
 	s.NotEqual(0, code, "exit code")
 	s.Equal(`Checking server health...
 `, s.stdout.String(), "stdout")

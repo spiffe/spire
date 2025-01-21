@@ -22,9 +22,9 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ import (
 var (
 	expectedUsage = `Usage of x509 mint:
   -dns value
-    	DNS name that will be included in SVID. Can be used more than once.` + common.AddrOutputUsage +
+    	DNS name that will be included in SVID. Can be used more than once.` + clitest.AddrOutputUsage +
 		`  -spiffeID string
     	SPIFFE ID of the X509-SVID
   -ttl duration
@@ -297,7 +297,7 @@ Root CAs:
 					return testKey, nil
 				})
 
-				args := []string{common.AddrArg, common.GetAddr(addr)}
+				args := []string{clitest.AddrArg, clitest.GetAddr(addr)}
 				if tt.spiffeID != "" {
 					args = append(args, "-spiffeID", tt.spiffeID)
 				}

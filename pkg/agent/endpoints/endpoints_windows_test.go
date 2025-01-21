@@ -14,21 +14,25 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
-	"google.golang.org/grpc"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 func getTestAddr(*testing.T) net.Addr {
 	return spiretest.GetRandNamedPipeAddr()
 }
 
-func testRemoteCaller(ctx context.Context, t *testing.T, target string) {
+func testRemoteCaller(t *testing.T, target string) {
 	hostName, err := os.Hostname()
 	require.NoError(t, err)
 
 	// Use the host name instead of "." in the target, as it would be a remote caller
 	targetAsRemote := strings.ReplaceAll(target, "\\\\.\\", fmt.Sprintf("\\\\%s\\", hostName))
-	_, err = util.GRPCDialContext(ctx, targetAsRemote, grpc.WithBlock(), grpc.FailOnNonTempDialError(true)) //nolint: staticcheck // It is going to be resolved on #5152
+	conn, err := util.NewGRPCClient(targetAsRemote)
+	require.NoError(t, err)
+
+	healthClient := grpc_health_v1.NewHealthClient(conn)
+	_, err = healthClient.Check(context.Background(), &grpc_health_v1.HealthCheckRequest{})
 
 	// Remote calls must be denied
-	require.ErrorIs(t, err, windows.ERROR_ACCESS_DENIED)
+	require.ErrorContains(t, err, windows.ERROR_ACCESS_DENIED.Error())
 }
