@@ -4,7 +4,7 @@
 # binaries from the environment that aren't a version match.
 mkdir -p ./bin
 
-KINDVERSION=v0.17.0
+KINDVERSION=v0.26.0
 KUBECTLVERSION=v1.25.3
 K8SIMAGE=kindest/node:v1.25.3
 HELMVERSION=v3.11.1

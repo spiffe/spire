@@ -232,7 +232,7 @@ download-bin() {
 }
 
 download-kind() {
-    KINDVERSION=${KINDVERSION:-v0.11.1}
+    KINDVERSION=${KINDVERSION:-v0.26.0}
     KINDPATH=$(command -v kind || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
