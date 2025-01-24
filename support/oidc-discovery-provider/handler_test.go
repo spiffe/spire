@@ -924,7 +924,7 @@ func TestHandlerPrefix(t *testing.T) {
 			path:             "/some/issuer/path/issuer1/.well-known/openid-configuration",
 			code:             http.StatusOK,
 			body: `{
-  "issuer": "https://domain.test",
+  "issuer": "https://domain.test/some/issuer/path/issuer1",
   "jwks_uri": "https://domain.test/some/issuer/path/issuer1/keys",
   "authorization_endpoint": "",
   "response_types_supported": [
@@ -945,7 +945,7 @@ func TestHandlerPrefix(t *testing.T) {
 			path:             "/some/issuer/path/issuer1/.well-known/openid-configuration",
 			code:             http.StatusOK,
 			body: `{
-  "issuer": "https://domain.test",
+  "issuer": "https://domain.test/some/issuer/path/issuer1/",
   "jwks_uri": "https://domain.test/some/issuer/path/issuer1/keys",
   "authorization_endpoint": "",
   "response_types_supported": [

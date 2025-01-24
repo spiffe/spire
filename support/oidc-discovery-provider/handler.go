@@ -74,17 +74,14 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 		urlScheme = "http"
 	}
 
-	var issuerURL *url.URL
-	if h.jwtIssuer != nil {
-		issuerURL = &url.URL{
-			Scheme: h.jwtIssuer.Scheme,
-			Host:   h.jwtIssuer.Host,
-			Path:   h.jwtIssuer.Path,
-		}
-	} else {
+	issuerURL := h.jwtIssuer
+	if h.jwtIssuer == nil {
 		issuerURL = &url.URL{
 			Scheme: urlScheme,
 			Host:   r.Host,
+		}
+		if h.serverPathPrefix != "/" {
+			issuerURL.Path = h.serverPathPrefix
 		}
 	}
 
