@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -15,6 +14,7 @@ import (
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/test/clock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -94,19 +94,19 @@ func (s *Service) GetInfo(context.Context, *debugv1.GetInfoRequest) (*debugv1.Ge
 			})
 		}
 
-		uptime, err := safecast.ToInt32(s.uptime().Seconds())
+		uptime, err := util.CheckedCast[int32](int64(s.uptime().Seconds()))
 		if err != nil {
 			return nil, fmt.Errorf("uptime: %w", err)
 		}
-		x509SvidsCount, err := safecast.ToInt32(s.m.CountX509SVIDs())
+		x509SvidsCount, err := util.CheckedCast[int32](s.m.CountX509SVIDs())
 		if err != nil {
 			return nil, fmt.Errorf("X.509 SVIDs count: %w", err)
 		}
-		jwtSvidsCount, err := safecast.ToInt32(s.m.CountJWTSVIDs())
+		jwtSvidsCount, err := util.CheckedCast[int32](s.m.CountJWTSVIDs())
 		if err != nil {
 			return nil, fmt.Errorf("JWT SVIDs count: %w", err)
 		}
-		svidstoreX509SvidsCount, err := safecast.ToInt32(s.m.CountSVIDStoreX509SVIDs())
+		svidstoreX509SvidsCount, err := util.CheckedCast[int32](s.m.CountSVIDStoreX509SVIDs())
 		if err != nil {
 			return nil, fmt.Errorf("SVIDStore X.509 SVIDs count: %w", err)
 		}

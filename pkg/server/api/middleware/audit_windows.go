@@ -5,10 +5,10 @@ package middleware
 import (
 	"fmt"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"golang.org/x/sys/windows"
 )
 
@@ -26,7 +26,7 @@ func setFields(p *process.Process, fields logrus.Fields) error {
 }
 
 func getUserSID(pID int32) (string, error) {
-	pidUint32, err := safecast.ToUint32(pID)
+	pidUint32, err := util.CheckedCast[uint32](pID)
 	if err != nil {
 		return "", fmt.Errorf("PID: %w", err)
 	}

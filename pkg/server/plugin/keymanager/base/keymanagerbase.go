@@ -14,8 +14,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/ccoveille/go-safecast"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
+	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -171,7 +171,7 @@ func (m *Base) signData(req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDa
 		if opts.HashAlgorithm == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM {
 			return nil, status.Error(codes.InvalidArgument, "hash algorithm is required")
 		}
-		signerOpts = crypto.Hash(safecast.MustConvert[uint](int32(opts.HashAlgorithm)))
+		signerOpts = util.MustCast[crypto.Hash](opts.HashAlgorithm)
 	case *keymanagerv1.SignDataRequest_PssOptions:
 		if opts.PssOptions == nil {
 			return nil, status.Error(codes.InvalidArgument, "PSS options are nil")
@@ -181,7 +181,7 @@ func (m *Base) signData(req *keymanagerv1.SignDataRequest) (*keymanagerv1.SignDa
 		}
 		signerOpts = &rsa.PSSOptions{
 			SaltLength: int(opts.PssOptions.SaltLength),
-			Hash:       crypto.Hash(safecast.MustConvert[uint](int32(opts.PssOptions.HashAlgorithm))),
+			Hash:       util.MustCast[crypto.Hash](opts.PssOptions.HashAlgorithm),
 		}
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "unsupported signer opts type %T", opts)
