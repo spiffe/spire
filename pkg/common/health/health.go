@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -12,15 +11,11 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
-	// testDialTimeout is the duration to wait for a test dial
-	testDialTimeout = 30 * time.Second
-
-	readyCheckInterval = time.Minute
+	readyCheckInitialInterval = time.Second
+	readyCheckInterval        = time.Minute
 )
 
 // State is the health state of a subsystem.
@@ -137,31 +132,6 @@ func (c *checker) ListenAndServe(ctx context.Context) error {
 	wg.Wait()
 
 	return nil
-}
-
-// WaitForTestDial tries to create a client connection to the given target
-// with a blocking dial and a timeout specified in testDialTimeout.
-// Nothing is done with the connection, which is just closed in case it
-// is created.
-func WaitForTestDial(ctx context.Context, addr net.Addr) {
-	ctx, cancel := context.WithTimeout(ctx, testDialTimeout)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, //nolint: staticcheck // It is going to be resolved on #5152
-		addr.String(),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(ctx context.Context, name string) (net.Conn, error) {
-			return net.DialUnix("unix", nil, &net.UnixAddr{
-				Net:  "unix",
-				Name: name,
-			})
-		}),
-		grpc.WithBlock()) //nolint: staticcheck // It is going to be resolved on #5152
-	if err != nil {
-		return
-	}
-
-	_ = conn.Close()
 }
 
 // LiveState returns the global live state and details.

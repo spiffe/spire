@@ -3,7 +3,6 @@
 package endpoints
 
 import (
-	"context"
 	"net"
 	"path/filepath"
 	"testing"
@@ -16,6 +15,6 @@ func getLocalAddr(t *testing.T) net.Addr {
 	return &net.UnixAddr{Net: "unix", Name: filepath.Join(tempdir, "sockets")}
 }
 
-func testRemoteCaller(context.Context, *testing.T, string) {
+func testRemoteCaller(*testing.T, string) {
 	// No testing for UDS endpoints
 }

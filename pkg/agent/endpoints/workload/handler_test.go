@@ -1541,7 +1541,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	), grpctest.OverUDS(),
 	)
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	// Provide a cancelable context to ensure the stream is always
 	// closed when the test case is done, and also to ensure that

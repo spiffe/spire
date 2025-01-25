@@ -23,6 +23,13 @@
           
           declare -A tags_map
           for element in "${tags_sorted[@]}"; do
+            # Skip 1.32.1 until either a new version of kind is released the problem
+            # with the kindest/node:1.32.1 image is fixed. See upstream kind issue:
+            # https://github.com/kubernetes-sigs/kind/issues/3853
+            if [[ "$element" == "v1.32.1" ]]; then
+              continue
+            fi
+
             # Element is in this form: "X.XX.YY"
             # If not, continue
             num_dots=$(echo "$element" | grep -o '\.' | wc -l)
