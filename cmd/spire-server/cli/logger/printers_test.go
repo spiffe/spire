@@ -53,7 +53,6 @@ Launch Level : info
 			expectedError: errors.New("internal error: unexpected type *types.Entry returned; please report this as a bug"),
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.env = &commoncli.Env{
 				Stdout: &tt.outWriter,

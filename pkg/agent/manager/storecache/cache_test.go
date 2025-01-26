@@ -523,8 +523,6 @@ func TestUpdateEntries(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			log.Level = logrus.DebugLevel

@@ -378,7 +378,6 @@ func TestGetInfo(t *testing.T) {
 			state: x509SVIDState,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()

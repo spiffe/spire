@@ -81,7 +81,6 @@ func TestWithMetrics(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		m.Reset()
 		tt.call(t)
 

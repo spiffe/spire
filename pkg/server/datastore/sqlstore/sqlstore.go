@@ -1339,7 +1339,6 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 		Pagination: p,
 	}
 	for _, model := range bundles {
-		model := model // alias the loop variable since we pass it by reference below
 		bundle, err := modelToBundle(&model)
 		if err != nil {
 			return nil, err
@@ -4279,7 +4278,6 @@ func listFederationRelationships(tx *gorm.DB, req *datastore.ListFederationRelat
 		FederationRelationships: []*datastore.FederationRelationship{},
 	}
 	for _, model := range federationRelationships {
-		model := model // alias the loop variable since we pass it by reference below
 		federationRelationship, err := modelToFederationRelationship(tx, &model)
 		if err != nil {
 			return nil, err
@@ -4784,7 +4782,6 @@ func listCAJournalsForTesting(tx *gorm.DB) (caJournals []*datastore.CAJournal, e
 	}
 
 	for _, model := range caJournalsModel {
-		model := model // alias the loop variable since we pass it by reference below
 		caJournals = append(caJournals, modelToCAJournal(model))
 	}
 	return caJournals, nil

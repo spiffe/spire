@@ -403,7 +403,6 @@ func TestRenewSVID(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			logHook.Reset()
 			tc.agentServer.err = tt.agentErr
@@ -757,7 +756,6 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 			err: "failed to fetch bundle: rpc error: code = Unknown desc = an error",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			client, tc := createClient(t)
 			tt.setupTest(tc)
@@ -921,7 +919,6 @@ func TestFetchJWTSVID(t *testing.T) {
 			fetchErr: status.Error(codes.Internal, "NewJWTSVID fails"),
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupTest(tt.fetchErr)
 			resp, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"})

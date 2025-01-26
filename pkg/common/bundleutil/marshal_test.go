@@ -141,7 +141,6 @@ func TestMarshal(t *testing.T) {
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			bundle := spiffebundle.New(trustDomain)
 			bundle.SetRefreshHint(time.Minute)

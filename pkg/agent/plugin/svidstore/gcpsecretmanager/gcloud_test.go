@@ -785,7 +785,6 @@ func TestPutX509SVID(t *testing.T) {
 			expectMsgPrefix: "svidstore(gcp_secretmanager): failed to add secret version: rpc error: code = DeadlineExceeded desc = some error",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			defer cancel()

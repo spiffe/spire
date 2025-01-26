@@ -211,7 +211,6 @@ func TestVerifyAttestationData(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			s.state = stateServerInit
 			s.s.canonicalDomain = tt.serverCanonicalDomain
@@ -278,7 +277,6 @@ func TestRespondToChallenge(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			c.state = stateProvidedAttestationData
 			_, err := c.RespondToChallenge(tt.challengeReq)
@@ -339,7 +337,6 @@ func TestVerifyChallengeResponse(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			s.state = stateAttestationDataVerified
 			s.cert = c.c.cert
@@ -393,7 +390,6 @@ func TestDecanonicalizeHostname(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			hostname, err := decanonicalizeHostname(tt.fqdn, tt.domain)
 			if tt.expectErr != "" {

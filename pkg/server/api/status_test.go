@@ -138,7 +138,6 @@ func TestMakeErr(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			err := api.MakeErr(log, tt.code, tt.msg, tt.err)

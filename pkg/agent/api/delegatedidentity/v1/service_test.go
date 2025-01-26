@@ -327,7 +327,6 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
 	} {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			metrics := fakemetrics.New()
 			params := testParams{
@@ -428,7 +427,6 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
 				CA:           ca,
@@ -668,7 +666,6 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
 				CA:           ca,
@@ -768,7 +765,6 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
 				CA:           ca,

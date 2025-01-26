@@ -153,7 +153,6 @@ func TestNewSession(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Run hook if exists, generally used to intentionally cause an error
 			// and test more code paths.
@@ -251,7 +250,6 @@ func TestSolveDevIDChallenge(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if isWindows {
 				tt.scfg.DevicePath = ""
@@ -325,7 +323,6 @@ func TestSolveCredActivationChallenge(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			nonce, err := tpm.SolveCredActivationChallenge(tt.credBlob, tt.encryptedSecret)
 			if tt.expErr != "" {
@@ -365,7 +362,6 @@ func TestCertifyDevIDKey(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var devicePath string
 			if !isWindows {
@@ -463,7 +459,6 @@ func TestGetEKCert(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.hook != nil {
 				tt.hook()
@@ -521,7 +516,6 @@ func TestGetEKPublic(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.hook != nil {
 				tt.hook()
@@ -595,7 +589,6 @@ func TestAutoDetectTPMPath(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// Create devices
 			for _, fileName := range tt.deviceNames {

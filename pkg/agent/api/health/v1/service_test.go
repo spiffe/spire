@@ -82,7 +82,6 @@ func TestServiceCheck(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			log, logHook := test.NewNullLogger()
 

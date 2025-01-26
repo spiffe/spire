@@ -233,7 +233,6 @@ func (s *Suite) TestAttest() {
 	s.writeFile("exe", []byte("data"))
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		s.T().Run(testCase.name, func(t *testing.T) {
 			defer s.logHook.Reset()
 

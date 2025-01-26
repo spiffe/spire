@@ -199,7 +199,6 @@ func TestV1MintX509CA(t *testing.T) {
 			expectStreamMessage: "upstreamauthority(test): ohno",
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			log, logHook := test.NewNullLogger()
 
@@ -364,7 +363,6 @@ func TestV1PublishJWTKey(t *testing.T) {
 			expectStreamMessage: "upstreamauthority(test): ohno",
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			log, logHook := test.NewNullLogger()
 

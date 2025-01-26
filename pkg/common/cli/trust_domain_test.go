@@ -38,7 +38,6 @@ func TestParseTrustDomain(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.msg, func(t *testing.T) {
 			logger, hook := logtest.NewNullLogger()
 			td, err := ParseTrustDomain(testCase.domain, logger)

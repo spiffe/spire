@@ -54,7 +54,6 @@ func TestNewClient(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			c, err := NewClient("example.org", tt.configString)
 			if tt.expectErr != "" {
@@ -139,7 +138,6 @@ func TestNewServer(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			s, err := NewServer(tt.trustDomain, tt.configString)
 			if tt.expectErr != "" {
@@ -192,7 +190,6 @@ func TestPubkeysFromPath(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			pubkeys, err := pubkeysFromPath(tt.pubkeyPath)
 			if tt.expectErr != "" {

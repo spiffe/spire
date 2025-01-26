@@ -264,7 +264,6 @@ func TestRateLimits(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			ctx := rpccontext.WithLogger(context.Background(), log)
