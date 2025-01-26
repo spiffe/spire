@@ -128,7 +128,7 @@ func TestCache(t *testing.T) {
 
 	expected := entries[:3]
 	expected = append(expected, entries[4])
-	assertAuthorizedEntries(t, cache, rootID, expected...)
+	assertAuthorizedEntries(t, cache, rootID, entries, expected...)
 }
 
 func TestCacheReturnsClonedEntries(t *testing.T) {
@@ -232,9 +232,9 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 	cache, err := BuildFromDataStore(context.Background(), ds)
 	assert.NoError(t, err)
 
-	assertAuthorizedEntries(t, cache, agentIDs[0], workloadEntries[:2]...)
-	assertAuthorizedEntries(t, cache, agentIDs[1], workloadEntries[1])
-	assertAuthorizedEntries(t, cache, agentIDs[2], workloadEntries[2])
+	assertAuthorizedEntries(t, cache, agentIDs[0], workloadEntries, workloadEntries[:2]...)
+	assertAuthorizedEntries(t, cache, agentIDs[1], workloadEntries, workloadEntries[1])
+	assertAuthorizedEntries(t, cache, agentIDs[2], workloadEntries, workloadEntries[2])
 }
 
 func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T) {
@@ -795,7 +795,7 @@ func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.DataStore {
 	return p
 }
 
-func assertAuthorizedEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, entries ...*common.RegistrationEntry) {
+func assertAuthorizedEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, allEntries []*common.RegistrationEntry, entries ...*common.RegistrationEntry) {
 	tb.Helper()
 	expected, err := api.RegistrationEntriesToProto(entries)
 	require.NoError(tb, err)
@@ -806,6 +806,22 @@ func assertAuthorizedEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, en
 	sortEntries(authorizedEntries)
 
 	spiretest.AssertProtoListEqual(tb, expected, authorizedEntries)
+
+	assertLookupEntries(tb, cache, agentID, allEntries, entries...)
+}
+
+func assertLookupEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, lookup []*common.RegistrationEntry, entries ...*common.RegistrationEntry) {
+	tb.Helper()
+	expected, err := api.RegistrationEntriesToProto(entries)
+	require.NoError(tb, err)
+	sortEntries(expected)
+
+	lookupEntries := make(map[string]struct{})
+	for _, entry := range lookup {
+		lookupEntries[entry.EntryId] = struct{}{}
+	}
+	foundEntries := cache.LookupAuthorizedEntries(agentID, lookupEntries)
+	require.Len(tb, foundEntries, len(entries))
 }
 
 func sortEntries(es []*types.Entry) {

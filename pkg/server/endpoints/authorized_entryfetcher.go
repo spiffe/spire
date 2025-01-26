@@ -56,6 +56,10 @@ func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logr
 	}, nil
 }
 
+func (a *AuthorizedEntryFetcherWithEventsBasedCache) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, entryIDs map[string]struct{}) (map[string]*types.Entry, error) {
+	return a.cache.LookupAuthorizedEntries(agentID, entryIDs), nil
+}
+
 func (a *AuthorizedEntryFetcherWithEventsBasedCache) FetchAuthorizedEntries(_ context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
 	return a.cache.GetAuthorizedEntries(agentID), nil
 }
