@@ -22,7 +22,5 @@ func freeStringSet(set stringSet) {
 }
 
 func clearStringSet(set stringSet) {
-	for k := range set {
-		delete(set, k)
-	}
+	clear(set)
 }

@@ -168,8 +168,13 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to certificate signing rate limiting", err)
 	}
 
+	requestedEntries := make(map[string]struct{})
+	for _, svidParam := range req.Params {
+		requestedEntries[svidParam.GetEntryId()] = struct{}{}
+	}
+
 	// Fetch authorized entries
-	entriesMap, err := s.fetchEntries(ctx, log)
+	entriesMap, err := s.findEntries(ctx, log, requestedEntries)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +208,19 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 	}
 
 	return &svidv1.BatchNewX509SVIDResponse{Results: results}, nil
+}
+
+func (s *Service) findEntries(ctx context.Context, log logrus.FieldLogger, entries map[string]struct{}) (map[string]*types.Entry, error) {
+	callerID, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
+	}
+
+	foundEntries, err := s.ef.FindAuthorizedEntries(ctx, callerID, entries)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to fetch registration entries", err)
+	}
+	return foundEntries, nil
 }
 
 // fetchEntries fetches authorized entries using caller ID from context
@@ -262,7 +280,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 		}
 	}
 
-	spiffeID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, entry.SpiffeId)
+	spiffeID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, entry.GetSpiffeId())
 	if err != nil {
 		// This shouldn't be the case unless there is invalid data in the datastore
 		return &svidv1.BatchNewX509SVIDResponse_Result{
@@ -274,8 +292,8 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 	x509Svid, err := s.ca.SignWorkloadX509SVID(ctx, ca.WorkloadX509SVIDParams{
 		SPIFFEID:  spiffeID,
 		PublicKey: csr.PublicKey,
-		DNSNames:  entry.DnsNames,
-		TTL:       time.Duration(entry.X509SvidTtl) * time.Second,
+		DNSNames:  entry.GetDnsNames(),
+		TTL:       time.Duration(entry.GetX509SvidTtl()) * time.Second,
 	})
 	if err != nil {
 		return &svidv1.BatchNewX509SVIDResponse_Result{
@@ -285,12 +303,12 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 
 	log.WithField(telemetry.Expiration, x509Svid[0].NotAfter.Format(time.RFC3339)).
 		WithField(telemetry.SerialNumber, x509Svid[0].SerialNumber.String()).
-		WithField(telemetry.RevisionNumber, entry.RevisionNumber).
+		WithField(telemetry.RevisionNumber, entry.GetRevisionNumber()).
 		Debug("Signed X509 SVID")
 
 	return &svidv1.BatchNewX509SVIDResponse_Result{
 		Svid: &types.X509SVID{
-			Id:        entry.SpiffeId,
+			Id:        entry.GetSpiffeId(),
 			CertChain: x509util.RawCertsFromCertificates(x509Svid),
 			ExpiresAt: x509Svid[0].NotAfter.Unix(),
 		},
@@ -350,8 +368,12 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to JWT signing request rate limiting", err)
 	}
 
+	entries := map[string]struct{}{
+		req.EntryId: struct{}{},
+	}
+
 	// Fetch authorized entries
-	entriesMap, err := s.fetchEntries(ctx, log)
+	entriesMap, err := s.findEntries(ctx, log, entries)
 	if err != nil {
 		return nil, err
 	}
@@ -361,12 +383,12 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 		return nil, api.MakeErr(log, codes.NotFound, "entry not found or not authorized", nil)
 	}
 
-	jwtsvid, err := s.mintJWTSVID(ctx, entry.SpiffeId, req.Audience, entry.JwtSvidTtl)
+	jwtsvid, err := s.mintJWTSVID(ctx, entry.GetSpiffeId(), req.Audience, entry.GetJwtSvidTtl())
 	if err != nil {
 		return nil, err
 	}
 	rpccontext.AuditRPCWithFields(ctx, logrus.Fields{
-		telemetry.TTL: entry.JwtSvidTtl,
+		telemetry.TTL: entry.GetJwtSvidTtl(),
 	})
 
 	return &svidv1.NewJWTSVIDResponse{

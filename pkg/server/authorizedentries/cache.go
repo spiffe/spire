@@ -59,6 +59,37 @@ func NewCache(clk clock.Clock) *Cache {
 	}
 }
 
+func (c *Cache) FindAuthorizedEntries(agentID spiffeid.ID, entryIDs map[string]struct{}) map[string]*types.Entry {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Load up the agent selectors. If the agent info does not exist, it is
+	// likely that the cache is still catching up to a recent attestation.
+	// Since the calling agent has already been authorized and authenticated,
+	// it is safe to continue with the authorized entry crawl to obtain entries
+	// that are directly parented against the agent. Any entries that would be
+	// obtained via node aliasing will not be returned until the cache is
+	// updated with the node selectors for the agent.
+	agent, _ := c.agentsByID.Get(agentRecord{ID: agentID.String()})
+
+	parentSeen := allocStringSet()
+	defer freeStringSet(parentSeen)
+
+	records := allocRecordSlice()
+	defer freeRecordSlice(records)
+
+	foundEntries := make(map[string]*types.Entry)
+
+	c.findDescendents(records, foundEntries, agentID.String(), entryIDs, parentSeen)
+
+	agentAliases := c.getAgentAliases(agent.Selectors)
+	for _, alias := range agentAliases {
+		c.findDescendents(records, foundEntries, alias.AliasID, entryIDs, parentSeen)
+	}
+
+	return foundEntries
+}
+
 func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -160,6 +191,24 @@ func (c *Cache) appendDescendents(records []entryRecord, parentID string, parent
 	// Crawl the children that were appended to get their descendents
 	for _, entry := range records[lenBefore:] {
 		records = c.appendDescendents(records, entry.SPIFFEID, parentSeen)
+	}
+	return records
+}
+
+func (c *Cache) findDescendents(records []entryRecord, foundEntries map[string]*types.Entry, parentID string, entryIDs map[string]struct{}, parentSeen stringSet) []entryRecord {
+	if _, ok := parentSeen[parentID]; ok {
+		return records
+	}
+	parentSeen[parentID] = struct{}{}
+
+	lenBefore := len(records)
+	records = c.appendEntryRecordsForParentID(records, parentID)
+	// Crawl the children that were appended to get their descendents
+	for _, entry := range records[lenBefore:] {
+		if _, ok := entryIDs[entry.EntryID]; ok {
+			foundEntries[entry.EntryID] = cloneEntry(entry.EntryCloneOnly)
+		}
+		records = c.findDescendents(records, foundEntries, entry.SPIFFEID, entryIDs, parentSeen)
 	}
 	return records
 }

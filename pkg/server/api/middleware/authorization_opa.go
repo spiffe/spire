@@ -53,6 +53,14 @@ func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authp
 		return ctx, true, nil
 	}
 
+	if res.AllowIfAgent && !rpccontext.CallerIsLocal(ctx) {
+		if ctx, err := isAgent(ctx, m.agentAuthorizer); err != nil {
+			return ctx, false, err
+		}
+		ctx = setAuthorizationLogFields(ctx, "agent", "datastore")
+		return ctx, true, nil
+	}
+
 	// Check local
 	if res.AllowIfLocal && rpccontext.CallerIsLocal(ctx) {
 		ctx = setAuthorizationLogFields(ctx, "local", "transport")
@@ -87,14 +95,6 @@ func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authp
 				return ctx, true, nil
 			}
 		}
-	}
-
-	if res.AllowIfAgent && !rpccontext.CallerIsLocal(ctx) {
-		if ctx, err := isAgent(ctx, m.agentAuthorizer); err != nil {
-			return ctx, false, err
-		}
-		ctx = setAuthorizationLogFields(ctx, "agent", "datastore")
-		return ctx, true, nil
 	}
 
 	return ctx, false, nil
