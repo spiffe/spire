@@ -693,7 +693,6 @@ func TestConfigure(t *testing.T) {
 			`,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupTest(t, withNoConfigure())
 			_, err := test.rawPlugin.Configure(context.Background(), &configv1.ConfigureRequest{

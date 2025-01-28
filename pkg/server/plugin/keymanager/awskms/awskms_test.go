@@ -357,7 +357,6 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			ts := setupTest(t)
@@ -740,7 +739,6 @@ func TestGenerateKey(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			ts := setupTest(t)
@@ -1063,7 +1061,6 @@ func TestSignData(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			ts := setupTest(t)
@@ -1133,7 +1130,6 @@ func TestGetPublicKey(t *testing.T) {
 			code: codes.InvalidArgument,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			ts := setupTest(t)
@@ -1178,7 +1174,6 @@ func TestGetPublicKeys(t *testing.T) {
 			name: "non existing keys",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			ts := setupTest(t)
@@ -1350,7 +1345,6 @@ func TestRefreshAliases(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			ts := setupTest(t)
@@ -1582,7 +1576,6 @@ func TestDisposeAliases(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			ts := setupTest(t)
@@ -1922,7 +1915,6 @@ func TestDisposeKeys(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
 			ts := setupTest(t)

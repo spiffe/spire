@@ -78,7 +78,6 @@ func TestWithBundlePublisher(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		ctx := context.Background()
 		t.Run(tt.name, func(t *testing.T) {
 			var ds datastore.DataStore = fakedatastore.New(t)

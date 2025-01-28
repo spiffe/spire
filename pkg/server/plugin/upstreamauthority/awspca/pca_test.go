@@ -202,7 +202,6 @@ badjson
 			expectMsgPrefix:         "failed to create client: MissingEndpoint: 'Endpoint' configuration is required for this service",
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			client := &pcaClientFake{t: t}
 			clock := clock.NewMock()
@@ -411,7 +410,6 @@ func TestMintX509CA(t *testing.T) {
 			expectMsgPrefix:         "upstreamauthority(aws_pca): failed to parse certificate chain from response: no PEM blocks",
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			client := &pcaClientFake{t: t}
 			clk := clock.NewMock()

@@ -464,7 +464,6 @@ func (s *PluginSuite) TestListBundlesWithPagination() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			resp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{
 				Pagination: test.pagination,
@@ -1181,7 +1180,6 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			byCanReattest:       &canReattestFalse,
 		},
 	} {
-		tt := tt
 		for _, withPagination := range []bool{true, false} {
 			for _, withSelectors := range []bool{true, false} {
 				name := tt.test
@@ -1391,7 +1389,6 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 			},
 		},
 	} {
-		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
 			s.ds = s.newPlugin()
 			defer s.ds.Close()
@@ -2077,7 +2074,6 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 			},
 		},
 	} {
-		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
 			createdEntry, err := s.ds.CreateRegistrationEntry(ctx, tt.entry)
 			s.Require().NoError(err)
@@ -2150,7 +2146,6 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 			},
 		},
 	} {
-		tt := tt
 		s.T().Run(tt.name, func(t *testing.T) {
 			// Get latest event id
 			resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
@@ -2813,7 +2808,6 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 			expectPagedEntriesOut: [][]*common.RegistrationEntry{{foobarAD12}, {}},
 		},
 	} {
-		tt := tt
 		for _, withPagination := range []bool{true, false} {
 			name := tt.test
 			if withPagination {
@@ -3431,7 +3425,6 @@ func (s *PluginSuite) TestListParentIDEntries() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			defer ds.Close()
@@ -3481,7 +3474,6 @@ func (s *PluginSuite) TestListSelectorEntries() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			defer ds.Close()
@@ -3538,7 +3530,6 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			defer ds.Close()
@@ -3595,7 +3586,6 @@ func (s *PluginSuite) TestListSelectorEntriesSuperset() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			defer ds.Close()
@@ -3663,7 +3653,6 @@ func (s *PluginSuite) TestListEntriesBySelectorMatchAny() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			defer ds.Close()
@@ -3731,7 +3720,6 @@ func (s *PluginSuite) TestListEntriesByFederatesWithExact() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			defer ds.Close()
@@ -3799,7 +3787,6 @@ func (s *PluginSuite) TestListEntriesByFederatesWithSubset() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			defer ds.Close()
@@ -3872,7 +3859,6 @@ func (s *PluginSuite) TestListEntriesByFederatesWithMatchAny() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			defer ds.Close()
@@ -3944,7 +3930,6 @@ func (s *PluginSuite) TestListEntriesByFederatesWithSuperset() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			ds := s.newPlugin()
 			defer ds.Close()
@@ -4737,7 +4722,6 @@ func (s *PluginSuite) TestListFederationRelationships() {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		s.T().Run(test.name, func(t *testing.T) {
 			resp, err := s.ds.ListFederationRelationships(ctx, &datastore.ListFederationRelationshipsRequest{
 				Pagination: test.pagination,
@@ -5292,7 +5276,6 @@ func (s *PluginSuite) TestConfigure() {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		s.T().Run(tt.desc, func(t *testing.T) {
 			dbPath := filepath.ToSlash(filepath.Join(s.dir, "test-datastore-configure.sqlite3"))
 

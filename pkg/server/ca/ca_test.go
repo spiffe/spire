@@ -367,7 +367,6 @@ func (s *CATestSuite) TestSignWorkloadX509SVIDWithSubject() {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		s.T().Run(testCase.name, func(t *testing.T) {
 			params := s.createWorkloadX509SVIDParams()
 			params.Subject = testCase.subject

@@ -26,6 +26,7 @@ linters:
     - intrange
     - whitespace
     - gocritic
+    - copyloopvar
     - wastedassign
     - nolintlint
 
