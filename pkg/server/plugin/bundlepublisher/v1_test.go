@@ -49,7 +49,6 @@ func TestV1Publish(t *testing.T) {
 			expectMessage: "bundlepublisher(test): bundle is invalid: trust domain is missing",
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			bundlepublisher := loadV1Plugin(t, &fakeV1Plugin{err: tt.pluginErr})
 			err := bundlepublisher.PublishBundle(context.Background(), tt.bundle)

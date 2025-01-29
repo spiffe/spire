@@ -50,7 +50,6 @@ func TestIDFromProto(t *testing.T) {
 	// runTests exercises all the test cases against the given function
 	runTests := func(t *testing.T, fn func(ctx context.Context, td spiffeid.TrustDomain, protoID *types.SPIFFEID) (spiffeid.ID, error), testCases []testCase) {
 		for _, testCase := range append(baseCases, testCases...) {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				log, logHook := test.NewNullLogger()
 
@@ -233,7 +232,6 @@ func TestAttestedNodeToProto(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			agent, err := api.AttestedNodeToProto(testCase.attNode, testCase.selectors)
 			if testCase.err != "" {

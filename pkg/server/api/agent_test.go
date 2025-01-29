@@ -67,7 +67,6 @@ func TestProtoFromAttestedNode(t *testing.T) {
 			expectErr: "scheme is missing or invalid",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			a, err := api.ProtoFromAttestedNode(tt.n)
 
