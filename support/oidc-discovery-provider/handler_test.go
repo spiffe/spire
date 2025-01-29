@@ -753,7 +753,6 @@ func TestHandlerJWTIssuerAndJWKSURI(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
 			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
@@ -896,7 +895,6 @@ func TestHandlerAdvertisedURL(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
 			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
@@ -1017,7 +1015,6 @@ func TestHandlerPrefix(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			source := new(FakeKeySetSource)
 			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
