@@ -110,7 +110,6 @@ func (m *Manager) publishBundle(ctx context.Context) (err error) {
 	var wg sync.WaitGroup
 	wg.Add(len(m.bundlePublishers))
 	for _, bp := range m.bundlePublishers {
-		bp := bp
 		go func() {
 			defer wg.Done()
 

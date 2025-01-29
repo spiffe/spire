@@ -88,7 +88,6 @@ func TestPruneBundle(t *testing.T) {
 			changed:    true,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			log, _ := testlog.NewNullLogger()
 			newBundle, changed, err := PruneBundle(tt.bundle, tt.expiration, log)
@@ -217,7 +216,6 @@ func TestCommonBundleFromProto(t *testing.T) {
 			expectError: `bundle has an invalid trust domain "invalid TD": trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			bundle, err := CommonBundleFromProto(tt.bundle)
 

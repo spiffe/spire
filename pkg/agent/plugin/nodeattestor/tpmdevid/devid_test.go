@@ -166,7 +166,6 @@ func TestConfigureCommon(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tpmdevid.AutoDetectTPMPath = func(string) (string, error) {
 				if isWindows {
@@ -265,7 +264,6 @@ func TestConfigurePosix(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tpmdevid.AutoDetectTPMPath = func(string) (string, error) {
 				if tt.autoDetectTPMFails {
@@ -359,7 +357,6 @@ func TestConfigureWindows(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tpmdevid.AutoDetectTPMPath = func(string) (string, error) {
 				return "", errors.New("autodetect is not supported on windows")
@@ -477,7 +474,6 @@ func TestAidAttestationFailures(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			sim := setupSimulator(t)
 

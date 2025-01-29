@@ -528,7 +528,6 @@ func (p *Plugin) refreshAliases(ctx context.Context) error {
 	defer p.mu.RUnlock()
 	var errs []string
 	for _, entry := range p.entries {
-		entry := entry
 		_, err := p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
 			AliasName:   &entry.AliasName,
 			TargetKeyId: &entry.Arn,

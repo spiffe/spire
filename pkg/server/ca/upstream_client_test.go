@@ -100,7 +100,6 @@ func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 			expectMsg:  "X509 CA minted by upstream authority is invalid: oh no",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			client, _, _ := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
 				TrustDomain:              trustDomain,

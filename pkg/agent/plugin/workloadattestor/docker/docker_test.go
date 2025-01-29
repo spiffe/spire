@@ -76,7 +76,6 @@ func TestDockerSelectors(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt // alias loop variable as it is used in the closure
 		t.Run(tt.desc, func(t *testing.T) {
 			d := fakeContainer{
 				Labels: tt.mockContainerLabels,
