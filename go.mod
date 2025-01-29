@@ -4,7 +4,7 @@ go 1.23.5
 
 require (
 	cloud.google.com/go/iam v1.3.0
-	cloud.google.com/go/kms v1.20.1
+	cloud.google.com/go/kms v1.20.4
 	cloud.google.com/go/secretmanager v1.14.2
 	cloud.google.com/go/security v1.18.2
 	cloud.google.com/go/storage v1.50.0
@@ -27,7 +27,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.37.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.200.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.38.1
-	github.com/aws/aws-sdk-go-v2/service/kms v1.37.5
+	github.com/aws/aws-sdk-go-v2/service/kms v1.37.8
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.37.0
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.73.0
@@ -68,7 +68,7 @@ require (
 	github.com/prometheus/client_golang v1.20.5
 	github.com/shirou/gopsutil/v4 v4.24.12
 	github.com/sigstore/cosign/v2 v2.4.1
-	github.com/sigstore/rekor v1.3.7
+	github.com/sigstore/rekor v1.3.8
 	github.com/sigstore/sigstore v1.8.12
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spiffe/go-spiffe/v2 v2.4.0
@@ -257,7 +257,7 @@ require (
 	github.com/secure-systems-lab/go-securesystemslib v0.9.0 // indirect
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/sigstore/protobuf-specs v0.3.2 // indirect
+	github.com/sigstore/protobuf-specs v0.3.3 // indirect
 	github.com/sigstore/timestamp-authority v1.2.2 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
