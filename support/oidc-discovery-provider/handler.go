@@ -88,6 +88,18 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 	var jwksURI *url.URL
 	if h.jwksURI != nil {
 		jwksURI = h.jwksURI
+	} else if h.jwtIssuer != nil {
+		// If jwksIsser is set but not jwksURI, fall back to 1.11.1 behavior until we can remove jwksIssuer leaking into jwksURI in 1.13.0
+		keysPath, err := url.JoinPath(h.jwtIssuer.Path, "keys")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jwksURI = &url.URL{
+			Scheme: h.jwtIssuer.Scheme,
+			Host:   h.jwtIssuer.Host,
+			Path:   keysPath,
+		}
 	} else {
 		keysPath, err := url.JoinPath(h.serverPathPrefix, "keys")
 		if err != nil {
