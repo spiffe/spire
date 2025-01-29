@@ -719,6 +719,67 @@ func TestHandlerJWTIssuer(t *testing.T) {
 		})
 	}
 }
+func TestHandlerJWTIssuerAndJWKSURI(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	testCases := []struct {
+		name      string
+		jwtIssuer string
+		jwksURI   string
+		method    string
+		path      string
+		jwks      *jose.JSONWebKeySet
+		modTime   time.Time
+		pollTime  time.Time
+		code      int
+		body      string
+	}{
+		{
+			name:      "GET well-known HTTPS JWT Issuer and JWKS URI",
+			jwtIssuer: "https://domain.test/some/issuer/path/issuer1",
+			jwksURI:   "http://other.test/keys",
+			method:    "GET",
+			path:      "/.well-known/openid-configuration",
+			code:      http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test/some/issuer/path/issuer1",
+  "jwks_uri": "http://other.test/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			source := new(FakeKeySetSource)
+			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
+
+			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
+			require.NoError(t, err)
+			r.Header.Add("X-Forwarded-Scheme", "https")
+			r.Header.Add("X-Forwarded-Host", "domain.test")
+			w := httptest.NewRecorder()
+
+			u, _ := url.Parse(testCase.jwtIssuer)
+			j, _ := url.Parse(testCase.jwksURI)
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, j, "")
+			h.ServeHTTP(w, r)
+
+			t.Logf("HEADERS: %q", w.Header())
+			assert.Equal(t, testCase.code, w.Code)
+			assert.Equal(t, testCase.body, w.Body.String())
+		})
+	}
+}
 func TestHandlerAdvertisedURL(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
