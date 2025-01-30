@@ -1144,7 +1144,17 @@ type testServer struct {
 }
 
 func checkAuthorizedEntryOutputMask(outputMask *types.EntryMask) error {
-	if diff := cmp.Diff(outputMask, entryOutputMask, protocmp.Transform()); diff != "" {
+	if diff := cmp.Diff(outputMask, &types.EntryMask{
+		SpiffeId:       true,
+		Selectors:      true,
+		FederatesWith:  true,
+		Admin:          true,
+		Downstream:     true,
+		RevisionNumber: true,
+		StoreSvid:      true,
+		Hint:           true,
+		CreatedAt:      true,
+	}, protocmp.Transform()); diff != "" {
 		return status.Errorf(codes.InvalidArgument, "invalid output mask requested: %s", diff)
 	}
 	return nil
