@@ -65,7 +65,7 @@ func (h *containerHelper) GetPodUIDAndContainerID(pID int32, log hclog.Logger) (
 	}
 
 	extractor := containerinfo.Extractor{RootDir: h.rootDir, VerboseLogging: h.verboseContainerLocatorLogs}
-	return extractor.GetPodUIDAndContainerID(int(pID), log)
+	return extractor.GetPodUIDAndContainerID(pID, log)
 }
 
 func getPodUIDAndContainerIDFromCGroups(cgroups []cgroups.Cgroup) (types.UID, string, error) {

@@ -9,7 +9,6 @@ import (
 type Set interface {
 	Raw() []*common.Selector
 	Array() []*Selector
-	Power() <-chan Set
 	Equal(otherSet Set) bool
 	Includes(selector *Selector) bool
 	IncludesSet(s2 Set) bool
@@ -62,10 +61,6 @@ func (s *set) Array() []*Selector {
 		c = append(c, selector)
 	}
 	return c
-}
-
-func (s *set) Power() <-chan Set {
-	return PowerSet(s)
 }
 
 func (s *set) Equal(otherSet Set) bool {
