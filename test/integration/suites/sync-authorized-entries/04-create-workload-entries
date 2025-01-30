@@ -1,19 +1,24 @@
 #!/bin/bash
 
-ENTRIES="{\"entries\": []}"
-
 # We need at least 500 entries to make sure we test the SyncAuthorizedEntries API,
 # otherwise the agent falls back to a full sync.
-for id in $(seq 1 512); do
-    ENTRIES=$(jq \
-        --arg uidselector "uid:${id}"\
-        --arg spiffeID  "spiffe://domain.test/workload${id}"\
-        '.entries[.entries| length] |= . + {
-    "parent_id": "spiffe://domain.test/node",
-    "spiffe_id": $spiffeID,
-    "selectors": [{"type": "unix", "value": $uidselector}]
-}' <<< ${ENTRIES})
-done
+ENTRIES=$(jq -n '{
+    entries: [
+        (
+            range(1; 512) | {
+                parent_id: "spiffe://domain.test/node",
+                spiffe_id: ("spiffe://domain.test/workload" + (. | tostring)),
+                selectors: [
+                    {
+                        type: "unix",
+                        value: ("uid:" + (. | tostring))
+                    }
+                ]
+            }
+        )
+    ]
+}')
+
 
 docker compose exec -T spire-server /opt/spire/bin/spire-server entry create -data - <<< ${ENTRIES}
 
@@ -24,17 +29,4 @@ docker compose exec -T spire-server \
     -spiffeID "spiffe://domain.test/theworkload" \
     -selector "unix:uid:0"
 
-# Check at most 30 times (with one second in between) that the agent has
-# successfully synced down the workload entry.
-MAXCHECKS=30
-CHECKINTERVAL=1
-for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "checking for synced workload entry ($i of $MAXCHECKS max)..."
-
-    if docker compose logs spire-agent | grep "spiffe://domain.test/theworkload"; then
-        exit 0
-    fi
-    sleep "${CHECKINTERVAL}"
-done
-
-fail-now "timed out waiting for agent to sync down entry"
+check-synced-entry "spire-agent" "spiffe://domain.test/theworkload"

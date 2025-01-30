@@ -1,9 +1,7 @@
-# Join Token Suite
+# sync-authorized-entries suite
 
 ## Description
 
-This suite verifies that:
-
-- An agent can attest with a join token
-- A join token vanity record can be used to register a workload
-- A join token cannot be reused
+This suite verifies that the agent can sync authorized entries using
+the SyncAuthorizedEntries API. For this we need to have at least 500
+entries created to avoid falling back to using a full sync.

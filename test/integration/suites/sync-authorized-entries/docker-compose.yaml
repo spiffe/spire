@@ -9,8 +9,3 @@ services:
     volumes:
       - ./conf/agent:/opt/spire/conf/agent
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
-  bad-spire-agent:
-    image: spire-agent:latest-local
-    volumes:
-      - ./conf/bad-agent:/opt/spire/conf/agent
-    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
