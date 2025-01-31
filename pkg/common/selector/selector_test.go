@@ -25,7 +25,6 @@ func TestValidate(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test // alias loop variable as it is used in the closure
 		t.Run(test.name, func(t *testing.T) {
 			s := &common.Selector{
 				Type: test.selectorType,

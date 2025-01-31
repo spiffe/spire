@@ -154,7 +154,6 @@ func TestMakeAgentID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			cert := &x509.Certificate{
 				Subject: pkix.Name{

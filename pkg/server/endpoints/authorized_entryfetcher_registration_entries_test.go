@@ -782,7 +782,6 @@ func TestSearchBeforeFirstEntryEvent(t *testing.T) {
 			expectedFetches:           []string{},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewEntryScenario(t, tt.setup)
 			registrationEntries, err := scenario.buildRegistrationEntriesCache()
@@ -1015,7 +1014,6 @@ func TestSelectedPolledEntryEvents(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewEntryScenario(t, tt.setup)
 			registrationEntries, err := scenario.buildRegistrationEntriesCache()
@@ -1279,7 +1277,6 @@ func TestScanForNewEntryEvents(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewEntryScenario(t, tt.setup)
 			attestedEntries, err := scenario.buildRegistrationEntriesCache()
@@ -1791,7 +1788,6 @@ func TestUpdateRegistrationEntriesCache(t *testing.T) {
 			expectedAuthorizedEntries: []string{},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewEntryScenario(t, tt.setup)
 			registeredEntries, err := scenario.buildRegistrationEntriesCache()

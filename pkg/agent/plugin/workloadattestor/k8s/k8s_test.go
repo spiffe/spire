@@ -579,7 +579,6 @@ func (s *Suite) TestConfigure() {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase // alias loop variable as it is used in the closure
 		s.T().Run(testCase.name, func(t *testing.T) {
 			p := s.newPlugin()
 
@@ -681,7 +680,6 @@ func (s *Suite) TestConfigureWithSigstore() {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		s.T().Run(tc.name, func(t *testing.T) {
 			p := s.newPlugin()
 

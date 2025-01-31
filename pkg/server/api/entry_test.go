@@ -95,7 +95,6 @@ func TestRegistrationEntryToProto(t *testing.T) {
 			err: "invalid SPIFFE ID: scheme is missing or invalid",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			entry, err := api.RegistrationEntryToProto(tt.entry)
 			if tt.err != "" {
@@ -464,7 +463,6 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 			err:  "hint is too long, max length is 1024 characters",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			entry, err := api.ProtoToRegistrationEntryWithMask(context.Background(), td, tt.entry, tt.mask)
 			if tt.err != "" {
@@ -635,7 +633,6 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 			err: "selector list is empty",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			entry, err := api.ProtoToRegistrationEntry(context.Background(), td, tt.entry)
 			if tt.err != "" {

@@ -43,7 +43,6 @@ func TestV1SetGauge(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			expected := fakemetrics.New()
 			expected.SetGaugeWithLabels(tt.req.Key, tt.req.Val, v1ConvertToTelemetryLabels(tt.req.Labels))
@@ -89,7 +88,6 @@ func TestV1MeasureSince(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			expected := fakemetrics.New()
 			expected.MeasureSinceWithLabels(tt.req.Key, time.Unix(0, tt.req.Time), v1ConvertToTelemetryLabels(tt.req.Labels))
@@ -135,7 +133,6 @@ func TestV1IncrCounter(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			expected := fakemetrics.New()
 			expected.IncrCounterWithLabels(tt.req.Key, tt.req.Val, v1ConvertToTelemetryLabels(tt.req.Labels))
@@ -181,7 +178,6 @@ func TestV1AddSample(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			expected := fakemetrics.New()
 			expected.AddSampleWithLabels(tt.req.Key, tt.req.Val, v1ConvertToTelemetryLabels(tt.req.Labels))
@@ -214,7 +210,6 @@ func TestV1EmitKey(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			expected := fakemetrics.New()
 			expected.EmitKey(tt.req.Key, tt.req.Val)
@@ -320,7 +315,6 @@ func TestV1ConvertToTelemetryLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			outLabels := v1ConvertToTelemetryLabels(tt.inLabels)
 
@@ -397,7 +391,6 @@ func TestV1ConvertToRPCLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			outLabels := v1ConvertToRPCLabels(tt.inLabels)
 

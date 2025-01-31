@@ -80,7 +80,6 @@ func TestConfigure(t *testing.T) {
 	}
 	cases = append(cases, configureCasesOS(t)...)
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
 
@@ -261,7 +260,6 @@ func TestMintX509CA(t *testing.T) {
 
 	cases = append(cases, mintX509CACasesOS(t)...)
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			mockClock := clock.NewMock(t)
 

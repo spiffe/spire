@@ -44,7 +44,6 @@ func TestPlugin(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		log, logHook := test.NewNullLogger()
 		t.Run(testCase.name, func(t *testing.T) {
 			p := loadPlugin(t, log)

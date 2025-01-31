@@ -19,7 +19,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
-	github.com/aws/aws-sdk-go-v2 v1.33.0
+	github.com/aws/aws-sdk-go-v2 v1.34.0
 	github.com/aws/aws-sdk-go-v2/config v1.29.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.53
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.24
@@ -33,7 +33,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.73.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.8
-	github.com/aws/smithy-go v1.22.1
+	github.com/aws/smithy-go v1.22.2
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/docker/docker v27.5.0+incompatible
@@ -68,7 +68,7 @@ require (
 	github.com/prometheus/client_golang v1.20.5
 	github.com/shirou/gopsutil/v4 v4.24.12
 	github.com/sigstore/cosign/v2 v2.4.1
-	github.com/sigstore/rekor v1.3.8
+	github.com/sigstore/rekor v1.3.9
 	github.com/sigstore/sigstore v1.8.12
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spiffe/go-spiffe/v2 v2.5.0
@@ -83,10 +83,10 @@ require (
 	golang.org/x/sync v0.10.0
 	golang.org/x/sys v0.29.0
 	golang.org/x/time v0.9.0
-	google.golang.org/api v0.217.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250106144421-5f5ef82da422
+	google.golang.org/api v0.219.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250124145028-65684f501c47
 	google.golang.org/grpc v1.70.0
-	google.golang.org/protobuf v1.36.3
+	google.golang.org/protobuf v1.36.4
 	k8s.io/api v0.32.1
 	k8s.io/apimachinery v0.32.1
 	k8s.io/client-go v0.32.1
