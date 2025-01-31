@@ -4,6 +4,8 @@ package common
 
 import (
 	"os"
+
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
 
 const (
@@ -20,6 +22,10 @@ func init() {
 	DefaultNamedPipeName = DefaultRunNamedPipeName
 	ses := os.Getenv("SPIFFE_ENDPOINT_SOCKET")
 	if ses != "" {
-		DefaultNamedPipeName = ses
+		var err error
+		DefaultNamedPipeName, err = workloadapi.TargetFromAddress(ses)
+		if err != nil {
+			panic(err)
+		}
 	}
 }

@@ -3,7 +3,11 @@
 package common
 
 import (
+	"fmt"
+	"net/url"
 	"os"
+
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
 
 const (
@@ -20,6 +24,15 @@ func init() {
 	DefaultSocketPath = DefaultRunSocketPath
 	ses := os.Getenv("SPIFFE_ENDPOINT_SOCKET")
 	if ses != "" {
-		DefaultSocketPath = ses
+		var err error
+		ses, err = workloadapi.TargetFromAddress(ses)
+		if err != nil {
+			panic(err)
+		}
+		u, err := url.Parse(ses)
+		if u.Scheme != "unix" {
+			panic(fmt.Sprintf("Unsupported scheme: %s", u.Scheme))
+		}
+		DefaultSocketPath = u.Path
 	}
 }
