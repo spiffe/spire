@@ -13,6 +13,9 @@ It provides the following endpoints:
 | `GET` | `/ready`                            | Returns http.OK (200) as soon as requests can be served. (disabled by default)                                          |
 | `GET` | `/live`                             | Returns http.OK (200) as soon as a keyset is available, otherwise http.InternalServerError (500). (disabled by default) |
 
+The endpoints can be moved to a different prefix by way of the `server_path_prefix` option. For example, setting server_path_prefix to `/instance/1` will make
+the OIDC discovery document served at `/instance/1/.well-known/openid-configuration` and keys at `/instance/1/keys`
+
 The provider by default relies on ACME to obtain TLS certificates that it uses to
 serve the documents securely.
 
@@ -49,6 +52,8 @@ The configuration file is **required** by the provider. It contains
 | `workload_api`          | section | required\[2\]      | Provides Workload API details.                                         |          |
 | `health_checks`         | section | optional           | Enable and configure health check endpoints                            |          |
 | `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request       |          |
+| `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document              |          |
+| `server_path_prefix`    | string  | optional           | If specified, all endpoints listened to will be prefixed by this value | `"/"`    |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|

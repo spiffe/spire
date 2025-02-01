@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -68,7 +69,23 @@ func run(configPath string, expandEnv bool) error {
 		return err
 	}
 
-	var handler http.Handler = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, config.JWTIssuer)
+	var jwtIssuer *url.URL
+	if config.JWTIssuer != "" {
+		jwtIssuer, err = url.Parse(config.JWTIssuer)
+		if err != nil {
+			return err
+		}
+	}
+
+	var jwksURI *url.URL
+	if config.JWKSURI != "" {
+		jwksURI, err = url.Parse(config.JWKSURI)
+		if err != nil {
+			return err
+		}
+	}
+
+	var handler http.Handler = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, jwtIssuer, jwksURI, config.ServerPathPrefix)
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)
