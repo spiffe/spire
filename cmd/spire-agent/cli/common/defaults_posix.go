@@ -29,7 +29,7 @@ func init() {
 		if err != nil {
 			panic(err)
 		}
-		u, err := url.Parse(ses)
+		u, _ := url.Parse(ses)
 		if u.Scheme != "unix" {
 			panic(fmt.Sprintf("Unsupported scheme: %s", u.Scheme))
 		}
