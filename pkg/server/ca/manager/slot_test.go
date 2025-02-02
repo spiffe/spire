@@ -228,6 +228,7 @@ func TestJournalLoad(t *testing.T) {
 				X509CAs: []*journal.X509CAEntry{
 					{
 						SlotId:      "B",
+						NotAfter:    notAfterUnix,
 						IssuedAt:    secondIssuedAtUnix,
 						Certificate: x509RootB.Raw,
 					},
@@ -288,18 +289,21 @@ func TestJournalLoad(t *testing.T) {
 					{
 						SlotId:      "A",
 						IssuedAt:    firstIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootA.Raw,
 						AuthorityId: "3",
 					},
 					{
 						SlotId:      "B",
 						IssuedAt:    secondIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootB.Raw,
 						AuthorityId: "2",
 					},
 					{
 						SlotId:      "A",
 						IssuedAt:    thirdIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootA.Raw,
 						AuthorityId: "1",
 					},
@@ -399,6 +403,7 @@ func TestJournalLoad(t *testing.T) {
 					{
 						SlotId:      "A",
 						IssuedAt:    thirdIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootA.Raw,
 						Status:      journal.Status_PREPARED,
 						AuthorityId: "1",
@@ -466,6 +471,7 @@ func TestJournalLoad(t *testing.T) {
 					{
 						SlotId:      "A",
 						IssuedAt:    firstIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootA.Raw,
 						Status:      journal.Status_OLD,
 						AuthorityId: "3",
@@ -473,6 +479,7 @@ func TestJournalLoad(t *testing.T) {
 					{
 						SlotId:      "B",
 						IssuedAt:    secondIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootB.Raw,
 						Status:      journal.Status_OLD,
 						AuthorityId: "2",
@@ -480,6 +487,7 @@ func TestJournalLoad(t *testing.T) {
 					{
 						SlotId:      "A",
 						IssuedAt:    thirdIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootA.Raw,
 						Status:      journal.Status_ACTIVE,
 						AuthorityId: "1",
@@ -584,6 +592,7 @@ func TestJournalLoad(t *testing.T) {
 					{
 						SlotId:      "A",
 						IssuedAt:    firstIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootA.Raw,
 						Status:      journal.Status_ACTIVE,
 						AuthorityId: "3",
@@ -591,6 +600,7 @@ func TestJournalLoad(t *testing.T) {
 					{
 						SlotId:      "B",
 						IssuedAt:    secondIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootB.Raw,
 						Status:      journal.Status_OLD,
 						AuthorityId: "2",
@@ -598,6 +608,7 @@ func TestJournalLoad(t *testing.T) {
 					{
 						SlotId:      "B",
 						IssuedAt:    thirdIssuedAtUnix,
+						NotAfter:    notAfterUnix,
 						Certificate: x509RootB.Raw,
 						Status:      journal.Status_PREPARED,
 						AuthorityId: "1",
@@ -702,6 +713,7 @@ func TestJournalLoad(t *testing.T) {
 					{
 						SlotId:              "A",
 						IssuedAt:            firstIssuedAtUnix,
+						NotAfter:            notAfterUnix,
 						Certificate:         []byte("foo"),
 						Status:              journal.Status_ACTIVE,
 						AuthorityId:         "1",
@@ -724,6 +736,50 @@ func TestJournalLoad(t *testing.T) {
 					Message: "X509CA slot failed to load",
 					Data: logrus.Fields{
 						logrus.ErrorKey:               "unable to parse CA certificate: x509: malformed certificate",
+						telemetry.IssuedAt:            firstIssuedAt.String(),
+						telemetry.Slot:                "A",
+						telemetry.Status:              "ACTIVE",
+						telemetry.LocalAuthorityID:    "1",
+						telemetry.UpstreamAuthorityID: "2",
+					},
+				},
+			},
+		},
+		{
+			name: "Expired X.509 entry",
+			entries: &journal.Entries{
+				X509CAs: []*journal.X509CAEntry{
+					{
+						SlotId:              "A",
+						IssuedAt:            firstIssuedAtUnix,
+						NotAfter:            time.Now().Add(-time.Minute).Unix(),
+						Certificate:         x509RootA.Raw,
+						Status:              journal.Status_ACTIVE,
+						AuthorityId:         "1",
+						UpstreamAuthorityId: "2",
+					},
+				},
+			},
+			expectSlots: map[SlotPosition]Slot{
+				CurrentX509CASlot: newX509CASlot("A"),
+				NextX509CASlot:    newX509CASlot("B"),
+				CurrentJWTKeySlot: newJWTKeySlot("A"),
+				NextJWTKeySlot:    newJWTKeySlot("B"),
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Journal loaded",
+					Data: logrus.Fields{
+						telemetry.X509CAs: "1",
+						telemetry.JWTKeys: "0",
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "X509CA slot unusable",
+					Data: logrus.Fields{
+						logrus.ErrorKey:               "slot expired",
 						telemetry.IssuedAt:            firstIssuedAt.String(),
 						telemetry.Slot:                "A",
 						telemetry.Status:              "ACTIVE",
@@ -766,6 +822,49 @@ func TestJournalLoad(t *testing.T) {
 						telemetry.Slot:             "B",
 						telemetry.IssuedAt:         thirdIssuedAt.String(),
 						telemetry.Status:           "PREPARED",
+						telemetry.LocalAuthorityID: "a",
+					},
+				},
+			},
+		},
+		{
+			name: "Expired JWTKey entry",
+			entries: &journal.Entries{
+				JwtKeys: []*journal.JWTKeyEntry{
+					{
+						SlotId:      "B",
+						IssuedAt:    thirdIssuedAtUnix,
+						Kid:         "kid3",
+						NotAfter:    time.Now().Add(-time.Minute).Unix(),
+						PublicKey:   jwtKeyAPKIX,
+						Status:      journal.Status_ACTIVE,
+						AuthorityId: "a",
+					},
+				},
+			},
+			expectSlots: map[SlotPosition]Slot{
+				CurrentX509CASlot: newX509CASlot("A"),
+				NextX509CASlot:    newX509CASlot("B"),
+				CurrentJWTKeySlot: newJWTKeySlot("A"),
+				NextJWTKeySlot:    newJWTKeySlot("B"),
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Journal loaded",
+					Data: logrus.Fields{
+						telemetry.X509CAs: "0",
+						telemetry.JWTKeys: "1",
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "JWT key slot unusable",
+					Data: logrus.Fields{
+						logrus.ErrorKey:            "slot expired",
+						telemetry.IssuedAt:         thirdIssuedAt.String(),
+						telemetry.Slot:             "B",
+						telemetry.Status:           "ACTIVE",
 						telemetry.LocalAuthorityID: "a",
 					},
 				},
