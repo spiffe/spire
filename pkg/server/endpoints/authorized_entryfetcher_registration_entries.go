@@ -198,12 +198,15 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 		},
 	}
 
+	if err := registrationEntries.captureChangedEntries(ctx); err != nil {
+		return nil, err
+	}
+
 	if err := registrationEntries.loadCache(ctx, pageSize); err != nil {
 		return nil, err
 	}
-	if err := registrationEntries.updateCache(ctx); err != nil {
-		return nil, err
-	}
+
+	registrationEntries.emitMetrics()
 
 	return registrationEntries, nil
 }

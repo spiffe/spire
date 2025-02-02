@@ -187,12 +187,15 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metric
 		},
 	}
 
+	if err := attestedNodes.captureChangedNodes(ctx); err != nil {
+		return nil, err
+	}
+
 	if err := attestedNodes.loadCache(ctx); err != nil {
 		return nil, err
 	}
-	if err := attestedNodes.updateCache(ctx); err != nil {
-		return nil, err
-	}
+
+	attestedNodes.emitMetrics()
 
 	return attestedNodes, nil
 }
