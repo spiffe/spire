@@ -41,9 +41,6 @@ type attestedNodes struct {
 }
 
 func (a *attestedNodes) captureChangedNodes(ctx context.Context) error {
-	// first, reset what we might fetch
-	a.fetchNodes = make(map[string]struct{})
-
 	if err := a.searchBeforeFirstEvent(ctx); err != nil {
 		return err
 	}
@@ -218,7 +215,7 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 	for spiffeId := range a.fetchNodes {
 		node, err := a.ds.FetchAttestedNode(ctx, spiffeId)
 		if err != nil {
-			return err
+			continue
 		}
 
 		// Node was deleted
@@ -230,7 +227,7 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 
 		selectors, err := a.ds.GetNodeSelectors(ctx, spiffeId, datastore.RequireCurrent)
 		if err != nil {
-			return err
+			continue
 		}
 		node.Selectors = selectors
 
