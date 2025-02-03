@@ -3,8 +3,9 @@ package fakedatastore
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"path/filepath"
 	"sort"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,8 +22,6 @@ import (
 
 var (
 	ctx = context.Background()
-
-	nextID uint32
 )
 
 type DataStore struct {
@@ -38,10 +37,14 @@ func New(tb testing.TB) *DataStore {
 	ds := sql.New(log)
 	ds.SetUseServerTimestamps(true)
 
+	tmpDir := tb.TempDir()
+	dbPath := filepath.Join(tmpDir, "spire.db")
+	dbPath = url.PathEscape(dbPath)
+
 	err := ds.Configure(ctx, fmt.Sprintf(`
 		database_type = "sqlite3"
-		connection_string = "file:memdb%d?mode=memory&cache=shared"
-	`, atomic.AddUint32(&nextID, 1)))
+		connection_string = "file:%s"
+	`, dbPath))
 	require.NoError(tb, err)
 
 	tb.Cleanup(func() {
