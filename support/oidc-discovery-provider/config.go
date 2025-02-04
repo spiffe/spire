@@ -323,6 +323,10 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 			return nil, fmt.Errorf("the jwks_uri setting could not be parsed: %w", err)
 		}
 	}
+	if c.JWKSURI == "" && c.JWTIssuer != "" {
+		fmt.Printf("Warning: The jwt_issuer configuration will also affect the jwks_uri behavior when jwks_url is not set. This behaviour will be changed in 1.13.0.")
+
+	}
 	return c, nil
 }
 
