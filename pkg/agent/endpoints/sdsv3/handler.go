@@ -171,7 +171,9 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 				continue
 			}
 		case err := <-errch:
-			log.WithError(err).Error("Received error from stream secrets server")
+			if err != nil {
+				log.WithError(err).Error("Received error from stream secrets server")
+			}
 			return err
 		}
 
