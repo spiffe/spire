@@ -40,9 +40,6 @@ type registrationEntries struct {
 }
 
 func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
-	// first, reset the entries we might fetch.
-	a.fetchEntries = make(map[string]struct{})
-
 	if err := a.searchBeforeFirstEvent(ctx); err != nil {
 		return err
 	}
@@ -198,12 +195,15 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 		},
 	}
 
+	if err := registrationEntries.captureChangedEntries(ctx); err != nil {
+		return nil, err
+	}
+
 	if err := registrationEntries.loadCache(ctx, pageSize); err != nil {
 		return nil, err
 	}
-	if err := registrationEntries.updateCache(ctx); err != nil {
-		return nil, err
-	}
+
+	registrationEntries.emitMetrics()
 
 	return registrationEntries, nil
 }
@@ -227,7 +227,7 @@ func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 	for entryId := range a.fetchEntries {
 		commonEntry, err := a.ds.FetchRegistrationEntry(ctx, entryId)
 		if err != nil {
-			return err
+			continue
 		}
 
 		if commonEntry == nil {
