@@ -347,6 +347,10 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 		return nil, "no slot id", nil
 	}
 
+	if entry.GetNotAfter() < time.Now().Unix() {
+		return nil, "slot expired", nil
+	}
+
 	cert, err := x509.ParseCertificate(entry.Certificate)
 	if err != nil {
 		return nil, "", fmt.Errorf("unable to parse CA certificate: %w", err)
@@ -415,6 +419,10 @@ func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *jour
 func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *journal.JWTKeyEntry) (*jwtKeySlot, string, error) {
 	if entry.SlotId == "" {
 		return nil, "no slot id", nil
+	}
+
+	if entry.GetNotAfter() < time.Now().Unix() {
+		return nil, "slot expired", nil
 	}
 
 	publicKey, err := x509.ParsePKIXPublicKey(entry.PublicKey)
