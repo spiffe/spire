@@ -2,6 +2,7 @@ package entrycache
 
 import (
 	"context"
+	"maps"
 	"sync"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -28,6 +29,7 @@ var _ Cache = (*FullEntryCache)(nil)
 // Cache contains a snapshot of all registration entries and Agent selectors from the data source
 // at a particular moment in time.
 type Cache interface {
+	LookupAuthorizedEntries(agentID spiffeid.ID, entries map[string]struct{}) map[string]*types.Entry
 	GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry
 }
 
@@ -173,12 +175,35 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	}, nil
 }
 
+func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, entries map[string]struct{}) map[string]*types.Entry {
+	seen := allocSeenSet()
+	defer freeSeenSet(seen)
+
+	return c.lookupAuthorizedEntries(spiffeIDFromID(agentID), entries, seen)
+}
+
 // GetAuthorizedEntries gets all authorized registration entries for a given Agent SPIFFE ID.
 func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
 	return cloneEntries(c.getAuthorizedEntries(spiffeIDFromID(agentID), seen))
+}
+
+func (c *FullEntryCache) lookupAuthorizedEntries(id spiffeID, entries map[string]struct{}, seen map[spiffeID]struct{}) map[string]*types.Entry {
+	foundEntries := make(map[string]*types.Entry)
+
+	for _, descendant := range c.crawl(id, seen) {
+		if _, ok := entries[descendant.Id]; ok {
+			foundEntries[descendant.Id] = descendant
+		}
+		maps.Copy(foundEntries, c.lookupAuthorizedEntries(spiffeIDFromProto(descendant.SpiffeId), entries, seen))
+	}
+
+	for _, alias := range c.aliases[id] {
+		maps.Copy(foundEntries, c.lookupAuthorizedEntries(alias.id, entries, seen))
+	}
+	return foundEntries
 }
 
 func (c *FullEntryCache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
