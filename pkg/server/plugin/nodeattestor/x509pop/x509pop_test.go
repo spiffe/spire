@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -126,6 +127,13 @@ func (s *Suite) TestAttestSuccess() {
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 		},
+		{
+			desc:          "success with custom X509pop san selectors",
+			expectAgentID: "spiffe://example.org/spire/agent/foo/us-east-1/production/path/to/value",
+			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/foo/{{ .URISanSelectors.datacenter }}/{{ .URISanSelectors.environment }}/{{ .URISanSelectors.key }}"`),
+			certs:         s.leafBundle,
+			serialnumber:  "serialnumber:0a1b2c3d4e5f",
+		},
 	}
 
 	for _, tt := range tests {
@@ -153,15 +161,20 @@ func (s *Suite) TestAttestSuccess() {
 			require.NoError(t, err)
 			require.Equal(t, tt.expectAgentID, result.AgentID)
 
+			expectedSelectors := []*common.Selector{
+				{Type: "x509pop", Value: "subject:cn:COMMONNAME"},
+				{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
+				{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
+				{Type: "x509pop", Value: tt.serialnumber},
+				{Type: "x509pop", Value: "san:datacenter:us-east-1"},
+				{Type: "x509pop", Value: "san:environment:production"},
+				{Type: "x509pop", Value: "san:key:path/to/value"},
+			}
+			sortX509PopSelectors(expectedSelectors)
+			sortX509PopSelectors(result.Selectors)
+
 			spiretest.AssertProtoListEqual(t,
-				[]*common.Selector{
-					{Type: "x509pop", Value: "subject:cn:COMMONNAME"},
-					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
-					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
-					{Type: "x509pop", Value: tt.serialnumber},
-					{Type: "x509pop", Value: "san:datacenter:us-east-1"},
-					{Type: "x509pop", Value: "san:environment:production"},
-				}, result.Selectors)
+				expectedSelectors, result.Selectors)
 		})
 	}
 }
@@ -428,4 +441,13 @@ func unmarshal(t *testing.T, data []byte, obj any) {
 
 func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
+}
+
+func sortX509PopSelectors(s []*common.Selector) {
+	sort.Slice(s, func(i, j int) bool {
+		if s[i].Type == s[j].Type {
+			return s[i].Value < s[j].Value
+		}
+		return s[i].Type < s[j].Type
+	})
 }
