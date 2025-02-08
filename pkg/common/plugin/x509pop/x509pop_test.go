@@ -149,9 +149,9 @@ func TestMakeAgentID(t *testing.T) {
 		},
 		{
 			desc:         "custom template with san selectors",
-			template:     agentpathtemplate.MustParse("/foo/{{ .San.datacenter }}/{{ .San.environment }}"),
-			sanSelectors: map[string]string{"datacenter": "us-east-1", "environment": "production"},
-			expectID:     "spiffe://example.org/spire/agent/foo/us-east-1/production",
+			template:     agentpathtemplate.MustParse("/foo/{{ .URISanSelectors.datacenter }}/{{ .URISanSelectors.environment }}/{{ .URISanSelectors.key }}"),
+			sanSelectors: map[string]string{"datacenter": "us-east-1", "environment": "production", "key": "path/to/value"},
+			expectID:     "spiffe://example.org/spire/agent/foo/us-east-1/production/path/to/value",
 		},
 		{
 			desc:      "custom template with nonexistant fields",

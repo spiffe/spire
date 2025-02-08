@@ -258,7 +258,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		svidPath = strings.TrimPrefix(svidPath, config.svidPrefix)
 	}
 
-	sanSelectors := parseUriSanSelectors(leaf, config.trustDomain.Name())
+	sanSelectors := p.parseUriSanSelectors(leaf, config.trustDomain.Name())
 
 	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf, svidPath, sanSelectors)
 	if err != nil {
@@ -368,19 +368,21 @@ func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate, s
 	return selectorValues
 }
 
-func parseUriSanSelectors(leaf *x509.Certificate, trustDomain string) map[string]string {
+func (p *Plugin) parseUriSanSelectors(leaf *x509.Certificate, trustDomain string) map[string]string {
 	uriSelectorMap := make(map[string]string)
 	sanPrefix := "x509pop://" + trustDomain + "/"
 	for _, uri := range leaf.URIs {
-		if strings.HasPrefix(uri.String(), sanPrefix) {
-			unprefixedUriSan := strings.TrimPrefix(uri.String(), sanPrefix)
-			if strings.Contains(unprefixedUriSan, ":") {
-				lastIndex := strings.LastIndex(unprefixedUriSan, ":")
-				uriSelectorKey := unprefixedUriSan[:lastIndex]
-				uriSelectorValue := unprefixedUriSan[lastIndex+1:]
-				uriSelectorMap[uriSelectorKey] = uriSelectorValue
-			}
+		if !strings.HasPrefix(uri.String(), sanPrefix) {
+			p.log.Warn(uri.String(), "san does not contain the expected scheme or trust domain")
+			continue
 		}
+		segments := strings.Split(strings.Trim(uri.Path, "/"), "/")
+		if len(segments) < 2 {
+			p.log.Warn("cannot extract x509pop san selectors from", uri.String())
+			continue
+		}
+
+		uriSelectorMap[segments[0]] = strings.Join(segments[1:], "/")
 	}
 	return uriSelectorMap
 }
