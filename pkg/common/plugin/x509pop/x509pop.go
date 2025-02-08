@@ -36,7 +36,7 @@ type agentPathTemplateData struct {
 	PluginName      string
 	TrustDomain     string
 	SVIDPathTrimmed string
-	San             map[string]string
+	URISanSelectors map[string]string
 }
 
 type AttestationData struct {
@@ -277,7 +277,7 @@ func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.T
 		SerialNumberHex: SerialNumberHex(cert.SerialNumber),
 		Fingerprint:     Fingerprint(cert),
 		SVIDPathTrimmed: svidPathTrimmed,
-		San:             sanSelectors,
+		URISanSelectors: sanSelectors,
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
