@@ -372,17 +372,14 @@ func (p *Plugin) parseUriSanSelectors(leaf *x509.Certificate, trustDomain string
 	uriSelectorMap := make(map[string]string)
 	sanPrefix := "x509pop://" + trustDomain + "/"
 	for _, uri := range leaf.URIs {
-		if !strings.HasPrefix(uri.String(), sanPrefix) {
-			p.log.Warn(uri.String(), "san does not contain the expected scheme or trust domain")
-			continue
+		if strings.HasPrefix(uri.String(), sanPrefix) {
+			segments := strings.SplitN(strings.Trim(uri.Path, "/"), "/", 2)
+			if len(segments) < 2 {
+				p.log.Warn("cannot extract x509pop san selectors from", uri.String())
+				continue
+			}
+			uriSelectorMap[segments[0]] = segments[1]
 		}
-		segments := strings.Split(strings.Trim(uri.Path, "/"), "/")
-		if len(segments) < 2 {
-			p.log.Warn("cannot extract x509pop san selectors from", uri.String())
-			continue
-		}
-
-		uriSelectorMap[segments[0]] = strings.Join(segments[1:], "/")
 	}
 	return uriSelectorMap
 }
