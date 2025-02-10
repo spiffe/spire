@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sort"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -18,6 +17,7 @@ import (
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
+	spirecommonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
@@ -170,8 +170,8 @@ func (s *Suite) TestAttestSuccess() {
 				{Type: "x509pop", Value: "san:environment:production"},
 				{Type: "x509pop", Value: "san:key:path/to/value"},
 			}
-			sortX509PopSelectors(expectedSelectors)
-			sortX509PopSelectors(result.Selectors)
+			spirecommonutil.SortSelectors(expectedSelectors)
+			spirecommonutil.SortSelectors(result.Selectors)
 
 			spiretest.AssertProtoListEqual(t,
 				expectedSelectors, result.Selectors)
@@ -441,13 +441,4 @@ func unmarshal(t *testing.T, data []byte, obj any) {
 
 func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
-}
-
-func sortX509PopSelectors(s []*common.Selector) {
-	sort.Slice(s, func(i, j int) bool {
-		if s[i].Type == s[j].Type {
-			return s[i].Value < s[j].Value
-		}
-		return s[i].Type < s[j].Type
-	})
 }
