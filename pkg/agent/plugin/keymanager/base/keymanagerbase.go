@@ -37,10 +37,10 @@ type Config struct {
 }
 
 type Generator interface {
-	GenerateRSA2048Key() (*rsa.PrivateKey, error)
-	GenerateRSA4096Key() (*rsa.PrivateKey, error)
-	GenerateEC256Key() (*ecdsa.PrivateKey, error)
-	GenerateEC384Key() (*ecdsa.PrivateKey, error)
+	GenerateRSA2048Key() (crypto.Signer, error)
+	GenerateRSA4096Key() (crypto.Signer, error)
+	GenerateEC256Key() (crypto.Signer, error)
+	GenerateEC384Key() (crypto.Signer, error)
 }
 
 // Base is the base KeyManager implementation
@@ -299,19 +299,19 @@ func ecdsaKeyType(privateKey *ecdsa.PrivateKey) (keymanagerv1.KeyType, error) {
 
 type defaultGenerator struct{}
 
-func (defaultGenerator) GenerateRSA2048Key() (*rsa.PrivateKey, error) {
+func (defaultGenerator) GenerateRSA2048Key() (crypto.Signer, error) {
 	return rsa.GenerateKey(rand.Reader, 2048)
 }
 
-func (defaultGenerator) GenerateRSA4096Key() (*rsa.PrivateKey, error) {
+func (defaultGenerator) GenerateRSA4096Key() (crypto.Signer, error) {
 	return rsa.GenerateKey(rand.Reader, 4096)
 }
 
-func (defaultGenerator) GenerateEC256Key() (*ecdsa.PrivateKey, error) {
+func (defaultGenerator) GenerateEC256Key() (crypto.Signer, error) {
 	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 }
 
-func (defaultGenerator) GenerateEC384Key() (*ecdsa.PrivateKey, error) {
+func (defaultGenerator) GenerateEC384Key() (crypto.Signer, error) {
 	return ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 }
 
