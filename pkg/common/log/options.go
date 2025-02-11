@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -69,9 +70,13 @@ func WithFormat(format string) Option {
 		case DefaultFormat:
 			// Logrus has a default formatter set up in logrus.New(), so we don't change it
 		case JSONFormat:
-			logger.Formatter = &logrus.JSONFormatter{}
+			logger.Formatter = &logrus.JSONFormatter{
+				TimestampFormat: time.RFC3339Nano,
+			}
 		case TextFormat:
-			logger.Formatter = &logrus.TextFormatter{}
+			logger.Formatter = &logrus.TextFormatter{
+				TimestampFormat: time.RFC3339Nano,
+			}
 		default:
 			return fmt.Errorf("unknown logger format: %q", format)
 		}
