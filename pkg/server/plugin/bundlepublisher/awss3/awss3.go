@@ -44,6 +44,7 @@ type Config struct {
 	Bucket          string `hcl:"bucket" json:"bucket"`
 	ObjectKey       string `hcl:"object_key" json:"object_key"`
 	Format          string `hcl:"format" json:"format"`
+	Endpoint        string `hcl:"endpoint" json:"endpoint"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.
