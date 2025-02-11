@@ -5252,7 +5252,7 @@ func (s *PluginSuite) TestConfigure() {
 			desc:               "defaults",
 			expectMaxOpenConns: 100,
 			// defined in database/sql
-			expectIdle: 2,
+			expectIdle: 100,
 		},
 		{
 			desc: "zero values",
