@@ -3,6 +3,8 @@ package endpoints
 import (
 	"sync"
 	"time"
+
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 type eventTracker struct {
@@ -20,7 +22,7 @@ func PollPeriods(pollTime time.Duration, trackTime time.Duration) uint {
 	if trackTime < time.Second {
 		trackTime = time.Second
 	}
-	return uint(1 + (trackTime-1)/pollTime)
+	return util.MustCast[uint](1 + (trackTime-1)/pollTime)
 }
 
 func NewEventTracker(pollPeriods uint) *eventTracker {
@@ -74,6 +76,6 @@ func (et *eventTracker) FreeEvents(events []uint) {
 	et.pool.Put(&events)
 }
 
-func (et *eventTracker) EventCount() uint {
-	return uint(len(et.events))
+func (et *eventTracker) EventCount() int {
+	return len(et.events)
 }
