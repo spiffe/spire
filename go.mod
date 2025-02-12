@@ -56,7 +56,7 @@ require (
 	github.com/hashicorp/go-plugin v1.6.3
 	github.com/hashicorp/hcl v1.0.1-vault-7
 	github.com/hashicorp/vault/api v1.15.0
-	github.com/hashicorp/vault/sdk v0.14.1
+	github.com/hashicorp/vault/sdk v0.15.0
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
 	github.com/jackc/pgx/v5 v5.7.2
@@ -180,7 +180,7 @@ require (
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/certificate-transparency-go v1.2.1 // indirect
+	github.com/google/certificate-transparency-go v1.3.1 // indirect
 	github.com/google/flatbuffers v23.5.26+incompatible // indirect
 	github.com/google/gnostic-models v0.6.9-0.20230804172637-c7be7c783f49 // indirect
 	github.com/google/go-configfs-tsm v0.2.2 // indirect
@@ -199,7 +199,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
-	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.8 // indirect
+	github.com/hashicorp/go-secure-stdlib/parseutil v0.1.9 // indirect
 	github.com/hashicorp/go-secure-stdlib/strutil v0.1.2 // indirect
 	github.com/hashicorp/go-sockaddr v1.0.6 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
