@@ -81,5 +81,6 @@ func slicedEntryFromProto(e *types.Entry) (*common.RegistrationEntry, error) {
 		Admin:          e.Admin,
 		Downstream:     e.Downstream,
 		Hint:           e.Hint,
+		CreatedAt:      e.CreatedAt,
 	}, nil
 }
