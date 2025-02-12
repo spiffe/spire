@@ -81,6 +81,15 @@ type Config struct {
 
 	// JWTIssuer specifies the issuer for the OIDC provider configuration request.
 	JWTIssuer string `hcl:"jwt_issuer"`
+
+	// JWKSURI specifies the absolute uri to the jwks keys document. Use this if you are fronting the
+	// discovery provider with a load balancer or reverse proxy
+	JWKSURI string `hcl:"jwks_uri"`
+
+	// ServerPathPrefix specifies the prefix to strip from the path of requests to route to the server.
+	// Example: if ServerPathPrefix is /foo then a request to http://127.0.0.1/foo/.well-known/openid-configuration and
+	// http://127.0.0.1/foo/keys will function with the server.
+	ServerPathPrefix string `hcl:"server_path_prefix"`
 }
 
 type ServingCertFileConfig struct {
@@ -307,6 +316,15 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		case jwtIssuer.Host == "":
 			return nil, errors.New("the jwt_issuer url must contain a host")
 		}
+	}
+	if c.JWKSURI != "" {
+		jwksURI, err := url.Parse(c.JWKSURI)
+		if err != nil || jwksURI.Scheme == "" || jwksURI.Host == "" {
+			return nil, fmt.Errorf("the jwks_uri setting could not be parsed: %w", err)
+		}
+	}
+	if c.JWKSURI == "" && c.JWTIssuer != "" {
+		fmt.Printf("Warning: The jwt_issuer configuration will also affect the jwks_uri behavior when jwks_url is not set. This behaviour will be changed in 1.13.0.")
 	}
 	return c, nil
 }

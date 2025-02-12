@@ -649,15 +649,18 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete the event for creating the node or now and then add it back later to simulate out of order events
-	err = ds.DeleteAttestedNodeEventForTesting(ctx, 1)
-	require.NoError(t, err)
 	_, err = ds.DeleteAttestedNode(ctx, agent1.String())
+	require.NoError(t, err)
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 1)
 	require.NoError(t, err)
 
 	// Create entry fetcher
 	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
+
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
 
 	// Ensure there are no entries to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agent1)

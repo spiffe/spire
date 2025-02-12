@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -172,7 +173,7 @@ func TestHandlerHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse, "")
+			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse, nil, nil, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -284,7 +285,7 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, true, false, "")
+			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, true, false, nil, nil, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -453,7 +454,7 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false, "")
+			h := NewHandler(log, domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false, nil, nil, "")
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -564,7 +565,7 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Scheme", "https")
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, "")
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, "")
 			h.ServeHTTP(w, r)
 			t.Logf("HEADERS: %q", w.Header())
 			assert.Equal(t, testCase.code, w.Code)
@@ -703,7 +704,328 @@ func TestHandlerJWTIssuer(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, testCase.jwtIssuer)
+			u, _ := url.Parse(testCase.jwtIssuer)
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, nil, "")
+			h.ServeHTTP(w, r)
+
+			t.Logf("HEADERS: %q", w.Header())
+			assert.Equal(t, testCase.code, w.Code)
+			assert.Equal(t, testCase.body, w.Body.String())
+		})
+	}
+}
+func TestHandlerJWTIssuerAndJWKSURI(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	testCases := []struct {
+		name      string
+		jwtIssuer string
+		jwksURI   string
+		method    string
+		path      string
+		jwks      *jose.JSONWebKeySet
+		modTime   time.Time
+		pollTime  time.Time
+		code      int
+		body      string
+	}{
+		{
+			name:      "GET well-known HTTPS JWT Issuer and JWKS URI",
+			jwtIssuer: "https://domain.test/some/issuer/path/issuer1",
+			jwksURI:   "http://other.test/keys",
+			method:    "GET",
+			path:      "/.well-known/openid-configuration",
+			code:      http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test/some/issuer/path/issuer1",
+  "jwks_uri": "http://other.test/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			source := new(FakeKeySetSource)
+			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
+
+			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
+			require.NoError(t, err)
+			r.Header.Add("X-Forwarded-Scheme", "https")
+			r.Header.Add("X-Forwarded-Host", "domain.test")
+			w := httptest.NewRecorder()
+
+			u, _ := url.Parse(testCase.jwtIssuer)
+			j, _ := url.Parse(testCase.jwksURI)
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, j, "")
+			h.ServeHTTP(w, r)
+
+			t.Logf("HEADERS: %q", w.Header())
+			assert.Equal(t, testCase.code, w.Code)
+			assert.Equal(t, testCase.body, w.Body.String())
+		})
+	}
+}
+func TestHandlerAdvertisedURL(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	testCases := []struct {
+		name     string
+		jwksURI  string
+		method   string
+		path     string
+		jwks     *jose.JSONWebKeySet
+		modTime  time.Time
+		pollTime time.Time
+		code     int
+		body     string
+	}{
+		{
+			name:    "GET well-known advertised url with path, without trailing forward-slash and https",
+			jwksURI: "https://domain.test/some/issuer/path/issuer1/keys",
+			method:  "GET",
+			path:    "/.well-known/openid-configuration",
+			code:    http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test",
+  "jwks_uri": "https://domain.test/some/issuer/path/issuer1/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+		{
+			name:    "GET well-known advertised url with path and without trailing forward-slash",
+			jwksURI: "http://domain.test/some/issuer/path/issuer1/keys",
+			method:  "GET",
+			path:    "/.well-known/openid-configuration",
+			code:    http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test",
+  "jwks_uri": "http://domain.test/some/issuer/path/issuer1/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+		{
+			name:    "GET well-known advertised url with path and trailing forward-slash",
+			jwksURI: "http://domain.test/some/issuer/path/issuer1/keys",
+			method:  "GET",
+			path:    "/.well-known/openid-configuration",
+			code:    http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test",
+  "jwks_uri": "http://domain.test/some/issuer/path/issuer1/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+		{
+			name:    "GET well-known advertised url with trailing forward-slash",
+			jwksURI: "http://domain.test/keys",
+			method:  "GET",
+			path:    "/.well-known/openid-configuration",
+			code:    http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test",
+  "jwks_uri": "http://domain.test/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+		{
+			name:    "GET well-known advertised url without a path",
+			jwksURI: "http://domain.test/keys",
+			method:  "GET",
+			path:    "/.well-known/openid-configuration",
+			code:    http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test",
+  "jwks_uri": "http://domain.test/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			source := new(FakeKeySetSource)
+			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
+
+			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
+			require.NoError(t, err)
+			r.Header.Add("X-Forwarded-Scheme", "https")
+			r.Header.Add("X-Forwarded-Host", "domain.test")
+			w := httptest.NewRecorder()
+
+			u, _ := url.Parse(testCase.jwksURI)
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, u, "")
+			h.ServeHTTP(w, r)
+
+			t.Logf("HEADERS: %q", w.Header())
+			assert.Equal(t, testCase.code, w.Code)
+			assert.Equal(t, testCase.body, w.Body.String())
+		})
+	}
+}
+func TestHandlerPrefix(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	testCases := []struct {
+		name             string
+		serverPathPrefix string
+		method           string
+		path             string
+		jwks             *jose.JSONWebKeySet
+		modTime          time.Time
+		pollTime         time.Time
+		code             int
+		body             string
+	}{
+		{
+			name:             "GET well-known No Prefix",
+			serverPathPrefix: "",
+			method:           "GET",
+			path:             "/.well-known/openid-configuration",
+			code:             http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test",
+  "jwks_uri": "https://domain.test/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+		{
+			name:             "GET well-known Prefix /",
+			serverPathPrefix: "/",
+			method:           "GET",
+			path:             "/.well-known/openid-configuration",
+			code:             http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test",
+  "jwks_uri": "https://domain.test/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+		{
+			name:             "GET well-known Prefix without slash",
+			serverPathPrefix: "/some/issuer/path/issuer1",
+			method:           "GET",
+			path:             "/some/issuer/path/issuer1/.well-known/openid-configuration",
+			code:             http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test/some/issuer/path/issuer1",
+  "jwks_uri": "https://domain.test/some/issuer/path/issuer1/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+		{
+			name:             "GET well-known Prefix with trailing forward-slash",
+			serverPathPrefix: "/some/issuer/path/issuer1/",
+			method:           "GET",
+			path:             "/some/issuer/path/issuer1/.well-known/openid-configuration",
+			code:             http.StatusOK,
+			body: `{
+  "issuer": "https://domain.test/some/issuer/path/issuer1/",
+  "jwks_uri": "https://domain.test/some/issuer/path/issuer1/keys",
+  "authorization_endpoint": "",
+  "response_types_supported": [
+    "id_token"
+  ],
+  "subject_types_supported": [],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "ES256",
+    "ES384"
+  ]
+}`,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			source := new(FakeKeySetSource)
+			source.SetKeySet(testCase.jwks, testCase.modTime, testCase.pollTime)
+
+			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
+			require.NoError(t, err)
+			r.Header.Add("X-Forwarded-Scheme", "https")
+			r.Header.Add("X-Forwarded-Host", "domain.test")
+			w := httptest.NewRecorder()
+
+			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, testCase.serverPathPrefix)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
