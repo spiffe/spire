@@ -55,6 +55,8 @@ const (
 	PostgreSQL = "postgres"
 	// SQLite database type
 	SQLite = "sqlite3"
+	// Gauss database type
+	OpenGaussSQL = "opengauss"
 
 	// MySQL database provided by an AWS service
 	AWSMySQL = "aws_mysql"
@@ -1040,7 +1042,12 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	case isSQLiteDbType(cfg.databaseTypeConfig.databaseType):
 		dialect = sqliteDB{log: ds.log}
 	case isPostgresDbType(cfg.databaseTypeConfig.databaseType):
-		dialect = postgresDB{}
+		switch cfg.databaseTypeConfig.databaseType {
+		case OpenGaussSQL:
+			dialect = gaussDB{}
+		default:
+			dialect = postgresDB{}
+		}
 	case isMySQLDbType(cfg.databaseTypeConfig.databaseType):
 		dialect = mysqlDB{
 			logger: ds.log,
@@ -4869,7 +4876,7 @@ func isMySQLDbType(dbType string) bool {
 }
 
 func isPostgresDbType(dbType string) bool {
-	return dbType == PostgreSQL || dbType == AWSPostgreSQL
+	return dbType == PostgreSQL || dbType == AWSPostgreSQL || dbType == OpenGaussSQL
 }
 
 func isSQLiteDbType(dbType string) bool {
