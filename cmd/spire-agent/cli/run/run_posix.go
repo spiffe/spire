@@ -22,7 +22,7 @@ func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *agentConfig) setPlatformDefaults() {
-	c.SocketPath = common.DefaultSocketPath
+	c.SocketPath = common.DefaultRunSocketPath
 }
 
 func (c *agentConfig) getAddr() (net.Addr, error) {

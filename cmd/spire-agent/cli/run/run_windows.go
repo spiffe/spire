@@ -17,7 +17,7 @@ func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *agentConfig) setPlatformDefaults() {
-	c.Experimental.NamedPipeName = common.DefaultNamedPipeName
+	c.Experimental.NamedPipeName = common.DefaultRunNamedPipeName
 }
 
 func (c *agentConfig) getAddr() (net.Addr, error) {
