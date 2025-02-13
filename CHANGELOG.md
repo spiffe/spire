@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.11.2] - 2025-02-13
+
+### Added
+
+- `gcp_secretmanager` SVIDStore plugin now supports specifying the regions where secrets are created (#5718)
+- Support for expanding environment variables in the OIDC Discovery Provider configuration (#5689)
+- Support for optionally enabling `trust_domain` label for all metrics (#5673)
+- The JWKS URI returned in the discovery document can now be configured in the OIDC Discovery Provider (#5690)
+- A server path prefix can now be specified in the OIDC Discovery Provider (#5690)
+
+### Changed
+
+- Small documentation improvements (#5809, #5720)
+
+### Fixed
+
+- Regression in the hydration of the experimental event-based cache that caused a delay in availability (#5842)
+- Do not log an error when the Envoy SDS v3 API connection has been closed cleanly (#5835)
+- SVIDStore plugins to properly parse metadata in entry selectors containing ':' characters (#5750)
+- Compatibility with deployments that use a server port other than 443 when the `jwt_issuer` configuration is set in the OIDC Discovery Provider (#5690)
+- Domain verification is now properly done when setting the `jwt_issuer` configuration in the OIDC Discovery Provider (#5690)
+
+### Security
+
+- Fixed to properly call the CompareObjectHandles function when it's available on Windows systems, as an extra security measure in the peertracker (#5749)
+
 ## [1.11.1] - 2024-12-12
 
 ### Added
