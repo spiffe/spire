@@ -7,17 +7,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	serverutil "github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 func NewMintCommand() cli.Command {
@@ -25,7 +25,7 @@ func NewMintCommand() cli.Command {
 }
 
 func newMintCommand(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, &mintCommand{env: env})
+	return serverutil.AdaptCommand(env, &mintCommand{env: env})
 }
 
 type mintCommand struct {
@@ -53,7 +53,7 @@ func (c *mintCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintMint)
 }
 
-func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient serverutil.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("spiffeID must be specified")
 	}
@@ -138,7 +138,7 @@ func getJWTSVIDEndOfLife(token string) (time.Time, error) {
 // ttlToSeconds returns the number of seconds in a duration, rounded up to
 // the nearest second
 func ttlToSeconds(ttl time.Duration) (int32, error) {
-	return safecast.ToInt32(int64((ttl + time.Second - 1) / time.Second))
+	return util.CheckedCast[int32]((ttl + time.Second - 1) / time.Second)
 }
 
 func prettyPrintMint(env *commoncli.Env, results ...any) error {

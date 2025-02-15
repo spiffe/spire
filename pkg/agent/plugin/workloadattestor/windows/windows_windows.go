@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
@@ -255,7 +254,7 @@ type processQueryer interface {
 type processQuery struct{}
 
 func (q *processQuery) OpenProcess(pid int32) (handle windows.Handle, err error) {
-	pidUint32, err := safecast.ToUint32(pid)
+	pidUint32, err := util.CheckedCast[uint32](pid)
 	if err != nil {
 		return 0, fmt.Errorf("PID: %w", err)
 	}

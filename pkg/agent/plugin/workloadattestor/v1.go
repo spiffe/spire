@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ccoveille/go-safecast"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -16,7 +16,7 @@ type V1 struct {
 }
 
 func (v1 *V1) Attest(ctx context.Context, pid int) ([]*common.Selector, error) {
-	pidInt32, err := safecast.ToInt32(pid)
+	pidInt32, err := util.CheckedCast[int32](pid)
 	if err != nil {
 		return nil, v1.WrapErr(fmt.Errorf("PID: %w", err))
 	}

@@ -6,13 +6,13 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	serverutil "github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
+	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 )
 
@@ -22,7 +22,7 @@ func NewUpdateCommand() cli.Command {
 }
 
 func newUpdateCommand(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, &updateCommand{env: env})
+	return serverutil.AdaptCommand(env, &updateCommand{env: env})
 }
 
 type updateCommand struct {
@@ -101,7 +101,7 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintUpdate)
 }
 
-func (c *updateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
+func (c *updateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient serverutil.ServerClient) error {
 	if err := c.validate(); err != nil {
 		return err
 	}
@@ -171,12 +171,12 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 		return nil, err
 	}
 
-	x509SvidTTL, err := safecast.ToInt32(c.x509SvidTTL)
+	x509SvidTTL, err := util.CheckedCast[int32](c.x509SvidTTL)
 	if err != nil {
 		return nil, fmt.Errorf("X509 SVID TTL: %w", err)
 	}
 
-	jwtSvidTTL, err := safecast.ToInt32(c.jwtSvidTTL)
+	jwtSvidTTL, err := util.CheckedCast[int32](c.jwtSvidTTL)
 	if err != nil {
 		return nil, fmt.Errorf("JWT SVID TTL: %w", err)
 	}
@@ -195,7 +195,7 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 
 	selectors := []*types.Selector{}
 	for _, s := range c.selectors {
-		cs, err := util.ParseSelector(s)
+		cs, err := serverutil.ParseSelector(s)
 		if err != nil {
 			return nil, err
 		}
@@ -252,7 +252,7 @@ func prettyPrintUpdate(env *commoncli.Env, results ...any) error {
 	// Print entries that failed to be updated
 	for _, r := range failed {
 		env.ErrPrintf("Failed to update the following entry (code: %s, msg: %q):\n",
-			codes.Code(safecast.MustConvert[uint32](r.Status.Code)),
+			util.MustCast[codes.Code](r.Status.Code),
 			r.Status.Message)
 		printEntry(r.Entry, env.ErrPrintf)
 	}

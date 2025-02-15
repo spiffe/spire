@@ -14,13 +14,13 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/util"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -1304,7 +1304,7 @@ func countBundles(tx *gorm.DB) (int32, error) {
 		return 0, newWrappedSQLError(err)
 	}
 
-	return safecast.ToInt32(count)
+	return util.CheckedCast[int32](count)
 }
 
 // listBundles can be used to fetch all existing bundles.
@@ -1589,7 +1589,7 @@ func countAttestedNodes(tx *gorm.DB) (int32, error) {
 		return 0, newWrappedSQLError(err)
 	}
 
-	return safecast.ToInt32(count)
+	return util.CheckedCast[int32](count)
 }
 
 func countAttestedNodesHasFilters(req *datastore.CountAttestedNodesRequest) bool {
@@ -1688,7 +1688,7 @@ func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, _ logrus.Fiel
 			}
 		}
 
-		val += safecast.MustConvert[int32](len(resp.Nodes))
+		val += util.MustCast[int32](len(resp.Nodes))
 
 		listReq.Pagination = resp.Pagination
 	}
@@ -3327,7 +3327,7 @@ func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogg
 			}
 		}
 
-		val += safecast.MustConvert[int32](len(resp.Entries))
+		val += util.MustCast[int32](len(resp.Entries))
 
 		listReq.Pagination = resp.Pagination
 	}
@@ -3853,13 +3853,13 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 	}
 	if r.RegTTL.Valid {
 		var err error
-		if entry.X509SvidTtl, err = safecast.ToInt32(r.RegTTL.Int64); err != nil {
+		if entry.X509SvidTtl, err = util.CheckedCast[int32](r.RegTTL.Int64); err != nil {
 			return newSQLError("RegTTL: %s", err)
 		}
 	}
 	if r.RegJwtSvidTTL.Valid {
 		var err error
-		if entry.JwtSvidTtl, err = safecast.ToInt32(r.RegJwtSvidTTL.Int64); err != nil {
+		if entry.JwtSvidTtl, err = util.CheckedCast[int32](r.RegJwtSvidTTL.Int64); err != nil {
 			return newSQLError("RegJwtSvidTTL: %s", err)
 		}
 	}
