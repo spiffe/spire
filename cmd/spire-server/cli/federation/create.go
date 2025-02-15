@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/mitchellh/cli"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -101,7 +102,7 @@ func (c *createCommand) prettyPrintCreate(env *commoncli.Env, results ...any) er
 	for _, r := range failed {
 		env.Println()
 		env.ErrPrintf("Failed to create the following federation relationship (code: %s, msg: %q):\n",
-			codes.Code(r.Status.Code),
+			codes.Code(safecast.MustConvert[uint32](r.Status.Code)),
 			r.Status.Message)
 		printFederationRelationship(r.FederationRelationship, env.ErrPrintf)
 	}

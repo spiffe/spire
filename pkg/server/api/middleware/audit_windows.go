@@ -5,6 +5,7 @@ package middleware
 import (
 	"fmt"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -25,7 +26,11 @@ func setFields(p *process.Process, fields logrus.Fields) error {
 }
 
 func getUserSID(pID int32) (string, error) {
-	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pID))
+	pidUint32, err := safecast.ToUint32(pID)
+	if err != nil {
+		return "", fmt.Errorf("PID: %w", err)
+	}
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pidUint32)
 	if err != nil {
 		return "", fmt.Errorf("failed to open process: %w", err)
 	}

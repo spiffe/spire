@@ -239,8 +239,8 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 }
 
 func (a *attestedNodes) emitMetrics() {
-	if a.skippedNodeEvents != int(a.eventTracker.EventCount()) {
-		a.skippedNodeEvents = int(a.eventTracker.EventCount())
+	if a.skippedNodeEvents != a.eventTracker.EventCount() {
+		a.skippedNodeEvents = a.eventTracker.EventCount()
 		server_telemetry.SetSkippedNodeEventIDsCacheCountGauge(a.metrics, a.skippedNodeEvents)
 	}
 

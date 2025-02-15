@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
@@ -1303,7 +1304,7 @@ func countBundles(tx *gorm.DB) (int32, error) {
 		return 0, newWrappedSQLError(err)
 	}
 
-	return int32(count), nil
+	return safecast.ToInt32(count)
 }
 
 // listBundles can be used to fetch all existing bundles.
@@ -1588,7 +1589,7 @@ func countAttestedNodes(tx *gorm.DB) (int32, error) {
 		return 0, newWrappedSQLError(err)
 	}
 
-	return int32(count), nil
+	return safecast.ToInt32(count)
 }
 
 func countAttestedNodesHasFilters(req *datastore.CountAttestedNodesRequest) bool {
@@ -1687,7 +1688,7 @@ func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, _ logrus.Fiel
 			}
 		}
 
-		val += int32(len(resp.Nodes))
+		val += safecast.MustConvert[int32](len(resp.Nodes))
 
 		listReq.Pagination = resp.Pagination
 	}
@@ -3326,7 +3327,7 @@ func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogg
 			}
 		}
 
-		val += int32(len(resp.Entries))
+		val += safecast.MustConvert[int32](len(resp.Entries))
 
 		listReq.Pagination = resp.Pagination
 	}
@@ -3851,10 +3852,16 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		entry.FederatesWith = append(entry.FederatesWith, r.TrustDomain.String)
 	}
 	if r.RegTTL.Valid {
-		entry.X509SvidTtl = int32(r.RegTTL.Int64)
+		var err error
+		if entry.X509SvidTtl, err = safecast.ToInt32(r.RegTTL.Int64); err != nil {
+			return newSQLError("RegTTL: %s", err)
+		}
 	}
 	if r.RegJwtSvidTTL.Valid {
-		entry.JwtSvidTtl = int32(r.RegJwtSvidTTL.Int64)
+		var err error
+		if entry.JwtSvidTtl, err = safecast.ToInt32(r.RegJwtSvidTTL.Int64); err != nil {
+			return newSQLError("RegJwtSvidTTL: %s", err)
+		}
 	}
 	if r.Hint.Valid {
 		entry.Hint = r.Hint.String

@@ -3,9 +3,11 @@ package debug
 import (
 	"context"
 	"crypto/x509"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -92,15 +94,32 @@ func (s *Service) GetInfo(context.Context, *debugv1.GetInfoRequest) (*debugv1.Ge
 			})
 		}
 
+		uptime, err := safecast.ToInt32(s.uptime().Seconds())
+		if err != nil {
+			return nil, fmt.Errorf("uptime: %w", err)
+		}
+		x509SvidsCount, err := safecast.ToInt32(s.m.CountX509SVIDs())
+		if err != nil {
+			return nil, fmt.Errorf("X.509 SVIDs count: %w", err)
+		}
+		jwtSvidsCount, err := safecast.ToInt32(s.m.CountJWTSVIDs())
+		if err != nil {
+			return nil, fmt.Errorf("JWT SVIDs count: %w", err)
+		}
+		svidstoreX509SvidsCount, err := safecast.ToInt32(s.m.CountSVIDStoreX509SVIDs())
+		if err != nil {
+			return nil, fmt.Errorf("SVIDStore X.509 SVIDs count: %w", err)
+		}
+
 		// Reset clock and set current response
 		s.getInfoResp.ts = s.clock.Now()
 		s.getInfoResp.resp = &debugv1.GetInfoResponse{
 			SvidChain:                     svidChain,
-			Uptime:                        int32(s.uptime().Seconds()),
-			SvidsCount:                    int32(s.m.CountX509SVIDs()),
-			CachedX509SvidsCount:          int32(s.m.CountX509SVIDs()),
-			CachedJwtSvidsCount:           int32(s.m.CountJWTSVIDs()),
-			CachedSvidstoreX509SvidsCount: int32(s.m.CountSVIDStoreX509SVIDs()),
+			Uptime:                        uptime,
+			SvidsCount:                    x509SvidsCount,
+			CachedX509SvidsCount:          x509SvidsCount,
+			CachedJwtSvidsCount:           jwtSvidsCount,
+			CachedSvidstoreX509SvidsCount: svidstoreX509SvidsCount,
 			LastSyncSuccess:               s.m.GetLastSync().UTC().Unix(),
 		}
 	}

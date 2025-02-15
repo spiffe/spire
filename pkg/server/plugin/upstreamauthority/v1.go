@@ -7,6 +7,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
@@ -35,7 +36,7 @@ func (v1 *V1) MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Dura
 
 	stream, err := v1.UpstreamAuthorityPluginClient.MintX509CAAndSubscribe(ctx, &upstreamauthorityv1.MintX509CARequest{
 		Csr:          csr,
-		PreferredTtl: int32(preferredTTL / time.Second),
+		PreferredTtl: safecast.MustConvert[int32](int64(preferredTTL / time.Second)),
 	})
 	if err != nil {
 		return nil, nil, nil, v1.WrapErr(err)

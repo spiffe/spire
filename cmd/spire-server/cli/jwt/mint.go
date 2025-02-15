@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -63,6 +64,10 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	if err != nil {
 		return err
 	}
+	ttl, err := ttlToSeconds(c.ttl)
+	if err != nil {
+		return fmt.Errorf("TTL: %w", err)
+	}
 
 	client := serverClient.NewSVIDClient()
 	resp, err := client.MintJWTSVID(ctx, &svidv1.MintJWTSVIDRequest{
@@ -70,7 +75,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 			TrustDomain: spiffeID.TrustDomain().Name(),
 			Path:        spiffeID.Path(),
 		},
-		Ttl:      ttlToSeconds(c.ttl),
+		Ttl:      ttl,
 		Audience: c.audience,
 	})
 	if err != nil {
@@ -132,8 +137,8 @@ func getJWTSVIDEndOfLife(token string) (time.Time, error) {
 
 // ttlToSeconds returns the number of seconds in a duration, rounded up to
 // the nearest second
-func ttlToSeconds(ttl time.Duration) int32 {
-	return int32((ttl + time.Second - 1) / time.Second)
+func ttlToSeconds(ttl time.Duration) (int32, error) {
+	return safecast.ToInt32(int64((ttl + time.Second - 1) / time.Second))
 }
 
 func prettyPrintMint(env *commoncli.Env, results ...any) error {

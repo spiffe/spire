@@ -40,16 +40,16 @@ type Extractor struct {
 	VerboseLogging bool
 }
 
-func (e *Extractor) GetContainerID(pid int, log hclog.Logger) (string, error) {
+func (e *Extractor) GetContainerID(pid int32, log hclog.Logger) (string, error) {
 	_, containerID, err := e.extractInfo(pid, log, false)
 	return containerID, err
 }
 
-func (e *Extractor) GetPodUIDAndContainerID(pid int, log hclog.Logger) (types.UID, string, error) {
+func (e *Extractor) GetPodUIDAndContainerID(pid int32, log hclog.Logger) (types.UID, string, error) {
 	return e.extractInfo(pid, log, true)
 }
 
-func (e *Extractor) extractInfo(pid int, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
+func (e *Extractor) extractInfo(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
 	// Try to get the information from /proc/pid/mountinfo first. Otherwise,
 	// fall back to /proc/pid/cgroup. If it isn't in mountinfo, then the
 	// workload being attested likely originates in the same Pod as the agent.
@@ -74,7 +74,7 @@ func (e *Extractor) extractInfo(pid int, log hclog.Logger, extractPodUID bool) (
 	return podUID, containerID, nil
 }
 
-func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
+func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
 	mountInfoPath := filepath.Join(e.RootDir, "/proc", fmt.Sprint(pid), "mountinfo")
 
 	mountInfos, err := mount.ParseMountInfo(mountInfoPath)
@@ -122,8 +122,8 @@ func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int, log hclog.
 	return ex.PodUID(), ex.ContainerID(), nil
 }
 
-func (e *Extractor) extractPodUIDAndContainerIDFromCGroups(pid int, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
-	cgroups, err := cgroups.GetCgroups(int32(pid), dirFS(e.RootDir))
+func (e *Extractor) extractPodUIDAndContainerIDFromCGroups(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
+	cgroups, err := cgroups.GetCgroups(pid, dirFS(e.RootDir))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", "", nil

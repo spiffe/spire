@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"github.com/ccoveille/go-safecast"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -61,7 +62,7 @@ func (l *logger) AuditWithTypesStatus(fields logrus.Fields, s *types.Status) {
 }
 
 func fieldsFromStatus(s *types.Status) logrus.Fields {
-	err := status.Error(codes.Code(s.Code), s.Message)
+	err := status.Error(codes.Code(safecast.MustConvert[uint32](s.Code)), s.Message)
 	return fieldsFromError(err)
 }
 
