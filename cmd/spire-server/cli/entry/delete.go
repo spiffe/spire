@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
@@ -135,7 +136,7 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...any) er
 	for _, result := range failed {
 		env.ErrPrintf("Failed to delete entry with ID %s (code: %s, msg: %q)\n",
 			result.Id,
-			codes.Code(result.Status.Code),
+			codes.Code(safecast.MustConvert[uint32](result.Status.Code)),
 			result.Status.Message)
 	}
 

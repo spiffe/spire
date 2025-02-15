@@ -3,7 +3,9 @@ package token
 import (
 	"context"
 	"flag"
+	"fmt"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -44,11 +46,15 @@ func (g *generateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClien
 	if err != nil {
 		return err
 	}
+	ttl, err := safecast.ToInt32(g.TTL)
+	if err != nil {
+		return fmt.Errorf("TTL: %w", err)
+	}
 
 	c := serverClient.NewAgentClient()
 	resp, err := c.CreateJoinToken(ctx, &agentv1.CreateJoinTokenRequest{
 		AgentId: id,
-		Ttl:     int32(g.TTL),
+		Ttl:     ttl,
 	})
 	if err != nil {
 		return err

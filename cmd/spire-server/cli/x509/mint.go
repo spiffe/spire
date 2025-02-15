@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
@@ -80,6 +81,11 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 		return err
 	}
 
+	ttl, err := ttlToSeconds(c.ttl)
+	if err != nil {
+		return fmt.Errorf("TTL: %w", err)
+	}
+
 	key, err := c.generateKey()
 	if err != nil {
 		return fmt.Errorf("unable to generate key: %w", err)
@@ -96,7 +102,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	client := serverClient.NewSVIDClient()
 	resp, err := client.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
 		Csr: csr,
-		Ttl: ttlToSeconds(c.ttl),
+		Ttl: ttl,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to mint SVID: %w", err)
@@ -167,8 +173,8 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 
 // ttlToSeconds returns the number of seconds in a duration, rounded up to
 // the nearest second
-func ttlToSeconds(ttl time.Duration) int32 {
-	return int32((ttl + time.Second - 1) / time.Second)
+func ttlToSeconds(ttl time.Duration) (int32, error) {
+	return safecast.ToInt32(int64((ttl + time.Second - 1) / time.Second))
 }
 
 type mintResult struct {

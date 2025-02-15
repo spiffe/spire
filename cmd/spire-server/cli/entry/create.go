@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 
+	"github.com/ccoveille/go-safecast"
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -175,6 +177,16 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		return nil, err
 	}
 
+	x509SvidTTL, err := safecast.ToInt32(c.x509SVIDTTL)
+	if err != nil {
+		return nil, fmt.Errorf("X509 SVID TTL: %w", err)
+	}
+
+	jwtSvidTTL, err := safecast.ToInt32(c.jwtSVIDTTL)
+	if err != nil {
+		return nil, fmt.Errorf("JWT SVID TTL: %w", err)
+	}
+
 	e := &types.Entry{
 		Id:          c.entryID,
 		ParentId:    parentID,
@@ -183,8 +195,8 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		ExpiresAt:   c.entryExpiry,
 		DnsNames:    c.dnsNames,
 		StoreSvid:   c.storeSVID,
-		X509SvidTtl: int32(c.x509SVIDTTL),
-		JwtSvidTtl:  int32(c.jwtSVIDTTL),
+		X509SvidTtl: x509SvidTTL,
+		JwtSvidTtl:  jwtSvidTTL,
 		Hint:        c.hint,
 	}
 
@@ -254,7 +266,7 @@ func prettyPrintCreate(env *commoncli.Env, results ...any) error {
 
 	for _, r := range failed {
 		env.ErrPrintf("Failed to create the following entry (code: %s, msg: %q):\n",
-			codes.Code(r.Status.Code),
+			codes.Code(safecast.MustConvert[uint32](r.Status.Code)),
 			r.Status.Message)
 		printEntry(r.Entry, env.ErrPrintf)
 	}
