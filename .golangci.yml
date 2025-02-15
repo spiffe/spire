@@ -7,7 +7,11 @@ issues:
     - testdata$
     - test/mock
   exclude-files:
-    - ".*\\.pb\\.go"
+    - ".*\\.pb\\.go$"
+  exclude-rules:
+    - linters: [ staticcheck ]
+      path: ".*_test\\.go$"
+      text: "Subjects has been deprecated since Go 1\\.18.*Subjects will not include the system roots"
 
 linters:
   enable:
@@ -42,3 +46,6 @@ linters-settings:
     rules:
       - name: unused-parameter
         disabled: true
+  gosec:
+    excludes:
+      - G115 # "Potential integer overflow when converting between integer types"; TODO re-enable eventually
