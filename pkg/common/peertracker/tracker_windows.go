@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"golang.org/x/sys/windows"
 )
 
@@ -87,7 +87,7 @@ func (t *windowsTracker) newWindowsWatcher(info CallerInfo, log logrus.FieldLogg
 	if err != nil {
 		return nil, fmt.Errorf("error getting process id from handle: %w", err)
 	}
-	pidInt32, err := safecast.ToInt32(pid)
+	pidInt32, err := util.CheckedCast[int32](pid)
 	if err != nil {
 		return nil, fmt.Errorf("process ID: %w", err)
 	}
@@ -213,7 +213,7 @@ func (s *systemCall) GetProcessID(h windows.Handle) (uint32, error) {
 }
 
 func (s *systemCall) OpenProcess(pid int32) (handle windows.Handle, err error) {
-	pidUint32, err := safecast.ToUint32(pid)
+	pidUint32, err := util.CheckedCast[uint32](pid)
 	if err != nil {
 		return 0, fmt.Errorf("PID: %w", err)
 	}

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 type eventTracker struct {
@@ -22,7 +22,7 @@ func PollPeriods(pollTime time.Duration, trackTime time.Duration) uint {
 	if trackTime < time.Second {
 		trackTime = time.Second
 	}
-	return safecast.MustConvert[uint](int64(1 + (trackTime-1)/pollTime))
+	return util.MustCast[uint](1 + (trackTime-1)/pollTime)
 }
 
 func NewEventTracker(pollPeriods uint) *eventTracker {

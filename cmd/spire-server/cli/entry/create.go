@@ -6,14 +6,14 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	serverutil "github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 )
 
@@ -23,7 +23,7 @@ func NewCreateCommand() cli.Command {
 }
 
 func newCreateCommand(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, &createCommand{env: env})
+	return serverutil.AdaptCommand(env, &createCommand{env: env})
 }
 
 type createCommand struct {
@@ -106,7 +106,7 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintCreate)
 }
 
-func (c *createCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
+func (c *createCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient serverutil.ServerClient) error {
 	if err := c.validate(); err != nil {
 		return err
 	}
@@ -177,12 +177,12 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		return nil, err
 	}
 
-	x509SvidTTL, err := safecast.ToInt32(c.x509SVIDTTL)
+	x509SvidTTL, err := util.CheckedCast[int32](c.x509SVIDTTL)
 	if err != nil {
 		return nil, fmt.Errorf("X509 SVID TTL: %w", err)
 	}
 
-	jwtSvidTTL, err := safecast.ToInt32(c.jwtSVIDTTL)
+	jwtSvidTTL, err := util.CheckedCast[int32](c.jwtSVIDTTL)
 	if err != nil {
 		return nil, fmt.Errorf("JWT SVID TTL: %w", err)
 	}
@@ -202,7 +202,7 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 
 	selectors := []*types.Selector{}
 	for _, s := range c.selectors {
-		cs, err := util.ParseSelector(s)
+		cs, err := serverutil.ParseSelector(s)
 		if err != nil {
 			return nil, err
 		}
@@ -266,7 +266,7 @@ func prettyPrintCreate(env *commoncli.Env, results ...any) error {
 
 	for _, r := range failed {
 		env.ErrPrintf("Failed to create the following entry (code: %s, msg: %q):\n",
-			codes.Code(safecast.MustConvert[uint32](r.Status.Code)),
+			util.MustCast[codes.Code](r.Status.Code),
 			r.Status.Message)
 		printEntry(r.Entry, env.ErrPrintf)
 	}

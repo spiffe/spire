@@ -8,12 +8,12 @@ import (
 	"io"
 	"os"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	serverutil "github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
+	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 )
 
@@ -23,7 +23,7 @@ func NewDeleteCommand() cli.Command {
 }
 
 func newDeleteCommand(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, &deleteCommand{env: env})
+	return serverutil.AdaptCommand(env, &deleteCommand{env: env})
 }
 
 type deleteCommand struct {
@@ -71,7 +71,7 @@ func parseEntryDeleteJSON(path string) ([]string, error) {
 	return batchDeleteEntryRequest.Ids, nil
 }
 
-func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
+func (c *deleteCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient serverutil.ServerClient) error {
 	if err := c.validate(); err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...any) er
 	for _, result := range failed {
 		env.ErrPrintf("Failed to delete entry with ID %s (code: %s, msg: %q)\n",
 			result.Id,
-			codes.Code(safecast.MustConvert[uint32](result.Status.Code)),
+			util.MustCast[codes.Code](result.Status.Code),
 			result.Status.Message)
 	}
 

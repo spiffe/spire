@@ -15,15 +15,15 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/ccoveille/go-safecast"
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	serverutil "github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 type generateKeyFunc func() (crypto.Signer, error)
@@ -38,7 +38,7 @@ func newMintCommand(env *commoncli.Env, generateKey generateKeyFunc) cli.Command
 			return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		}
 	}
-	return util.AdaptCommand(env, &mintCommand{
+	return serverutil.AdaptCommand(env, &mintCommand{
 		generateKey: generateKey,
 		env:         env,
 	})
@@ -71,7 +71,7 @@ func (c *mintCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintMint)
 }
 
-func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient serverutil.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("spiffeID must be specified")
 	}
@@ -174,7 +174,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 // ttlToSeconds returns the number of seconds in a duration, rounded up to
 // the nearest second
 func ttlToSeconds(ttl time.Duration) (int32, error) {
-	return safecast.ToInt32(int64((ttl + time.Second - 1) / time.Second))
+	return util.CheckedCast[int32]((ttl + time.Second - 1) / time.Second)
 }
 
 type mintResult struct {
