@@ -122,7 +122,7 @@ ghcr.io/spiffe/spire-server   1.9.1             e3b24c3cd9e1   4 weeks ago    10
 envoyproxy/envoy              contrib-v1.29.1   644f45f6626c   7 weeks ago    181MB
 ```
 
-Then u4se the `REPOSITORY:TAG` as the selector, not the `IMAGE ID` column.
+Then use the `REPOSITORY:TAG` as the selector, not the `IMAGE ID` column.
 
 ```shell
 $ spire-server entry create \
