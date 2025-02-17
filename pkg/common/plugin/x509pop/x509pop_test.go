@@ -131,10 +131,11 @@ func createBadCertificate(privateKey, publicKey any) (*x509.Certificate, error) 
 
 func TestMakeAgentID(t *testing.T) {
 	tests := []struct {
-		desc      string
-		template  *agentpathtemplate.Template
-		expectID  string
-		expectErr string
+		desc         string
+		template     *agentpathtemplate.Template
+		sanSelectors map[string]string
+		expectID     string
+		expectErr    string
 	}{
 		{
 			desc:     "default template with sha1",
@@ -145,6 +146,12 @@ func TestMakeAgentID(t *testing.T) {
 			desc:     "custom template with subject identifiers",
 			template: agentpathtemplate.MustParse("/foo/{{ .Subject.CommonName }}"),
 			expectID: "spiffe://example.org/spire/agent/foo/test-cert",
+		},
+		{
+			desc:         "custom template with san selectors",
+			template:     agentpathtemplate.MustParse("/foo/{{ .URISanSelectors.datacenter }}/{{ .URISanSelectors.environment }}/{{ .URISanSelectors.key }}"),
+			sanSelectors: map[string]string{"datacenter": "us-east-1", "environment": "production", "key": "path/to/value"},
+			expectID:     "spiffe://example.org/spire/agent/foo/us-east-1/production/path/to/value",
 		},
 		{
 			desc:      "custom template with nonexistant fields",
@@ -160,7 +167,7 @@ func TestMakeAgentID(t *testing.T) {
 					CommonName: "test-cert",
 				},
 			}
-			id, err := MakeAgentID(spiffeid.RequireTrustDomainFromString("example.org"), tt.template, cert, "")
+			id, err := MakeAgentID(spiffeid.RequireTrustDomainFromString("example.org"), tt.template, cert, "", tt.sanSelectors)
 			if tt.expectErr != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.expectErr)
