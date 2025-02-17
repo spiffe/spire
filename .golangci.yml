@@ -7,7 +7,14 @@ issues:
     - testdata$
     - test/mock
   exclude-files:
-    - ".*\\.pb\\.go"
+    - ".*\\.pb\\.go$"
+  exclude-rules:
+    - linters: [ staticcheck ]
+      path: ".*_test\\.go$"
+      text: "Subjects has been deprecated since Go 1\\.18.*Subjects will not include the system roots"
+    - linters: [ gosec ]
+      path: "(.*_test\\.go$)|(^test/.*)"
+      text: "integer overflow conversion"
 
 linters:
   enable:
