@@ -2,6 +2,7 @@ package authorizedentries
 
 import (
 	"fmt"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -57,11 +58,11 @@ func TestGetAuthorizedEntries(t *testing.T) {
 
 	t.Run("entry removed", func(t *testing.T) {
 		workload := makeWorkload(agent1)
-		cache := testCache().
+		testCache, cache := testCache().
 			withAgent(agent1, sel1).
 			withEntries(workload).hydrate(t)
 		cache.RemoveEntry(workload.Id)
-		assertAuthorizedEntries(t, cache, agent1)
+		assertAuthorizedEntries(t, cache, agent1, testCache.entries)
 	})
 
 	t.Run("indirectly via delegated workload", func(t *testing.T) {
@@ -114,13 +115,13 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			workloadEntry = makeWorkload(alias1)
 		)
 
-		cache := testCache().
+		testCache, cache := testCache().
 			withEntries(workloadEntry, aliasEntry).
 			withAgent(agent1, sel1, sel2).
 			hydrate(t)
 
 		cache.RemoveEntry(aliasEntry.Id)
-		assertAuthorizedEntries(t, cache, agent1)
+		assertAuthorizedEntries(t, cache, agent1, testCache.entries)
 	})
 
 	t.Run("agent removed", func(t *testing.T) {
@@ -129,13 +130,13 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			workloadEntry = makeWorkload(alias1)
 		)
 
-		cache := testCache().
+		testCache, cache := testCache().
 			withEntries(workloadEntry, aliasEntry).
 			withAgent(agent1, sel1, sel2).
 			hydrate(t)
 
 		cache.RemoveAgent(agent1.String())
-		assertAuthorizedEntries(t, cache, agent1)
+		assertAuthorizedEntries(t, cache, agent1, testCache.entries)
 	})
 
 	t.Run("agent pruned after expiry", func(t *testing.T) {
@@ -144,24 +145,25 @@ func TestGetAuthorizedEntries(t *testing.T) {
 			workloadEntry = makeWorkload(alias1)
 		)
 
-		cache := testCache().
+		testCache, cache := testCache().
 			withEntries(workloadEntry, aliasEntry).
 			withExpiredAgent(agent1, time.Hour, sel1, sel2).
 			withExpiredAgent(agent2, time.Hour, sel1, sel2).
 			withExpiredAgent(agent3, time.Hour*2, sel1, sel2).
 			withAgent(agent4, sel1, sel2).
 			hydrate(t)
-		assertAuthorizedEntries(t, cache, agent1, workloadEntry)
-		assertAuthorizedEntries(t, cache, agent2, workloadEntry)
-		assertAuthorizedEntries(t, cache, agent3, workloadEntry)
-		assertAuthorizedEntries(t, cache, agent4, workloadEntry)
+
+		assertAuthorizedEntries(t, cache, agent1, testCache.entries, workloadEntry)
+		assertAuthorizedEntries(t, cache, agent2, testCache.entries, workloadEntry)
+		assertAuthorizedEntries(t, cache, agent3, testCache.entries, workloadEntry)
+		assertAuthorizedEntries(t, cache, agent4, testCache.entries, workloadEntry)
 
 		assert.Equal(t, 3, cache.PruneExpiredAgents())
 
-		assertAuthorizedEntries(t, cache, agent1)
-		assertAuthorizedEntries(t, cache, agent2)
-		assertAuthorizedEntries(t, cache, agent3)
-		assertAuthorizedEntries(t, cache, agent4, workloadEntry)
+		assertAuthorizedEntries(t, cache, agent1, testCache.entries)
+		assertAuthorizedEntries(t, cache, agent2, testCache.entries)
+		assertAuthorizedEntries(t, cache, agent3, testCache.entries)
+		assertAuthorizedEntries(t, cache, agent4, testCache.entries, workloadEntry)
 	})
 }
 
@@ -299,7 +301,7 @@ func (a *cacheTest) withExpiredAgent(node spiffeid.ID, expiredBy time.Duration, 
 	return a
 }
 
-func (a *cacheTest) hydrate(tb testing.TB) *Cache {
+func (a *cacheTest) hydrate(tb testing.TB) (*cacheTest, *Cache) {
 	clk := clock.NewMock(tb)
 	cache := NewCache(clk)
 	for _, entry := range a.entries {
@@ -308,12 +310,13 @@ func (a *cacheTest) hydrate(tb testing.TB) *Cache {
 	for agent, info := range a.agents {
 		cache.UpdateAgent(agent.String(), info.ExpiresAt, info.Selectors)
 	}
-	return cache
+	return a, cache
 }
 
 func (a *cacheTest) assertAuthorizedEntries(t *testing.T, agent spiffeid.ID, expectEntries ...*types.Entry) {
 	t.Helper()
-	assertAuthorizedEntries(t, a.hydrate(t), agent, expectEntries...)
+	_, cache := a.hydrate(t)
+	assertAuthorizedEntries(t, cache, agent, a.entries, expectEntries...)
 }
 
 func makeAlias(alias spiffeid.ID, selectors ...*types.Selector) *types.Entry {
@@ -410,14 +413,14 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 		})
 	}
 
-	cache := test.hydrate(b)
+	_, cache := test.hydrate(b)
 	b.ResetTimer()
 	for range b.N {
 		cache.GetAuthorizedEntries(test.pickAgent())
 	}
 }
 
-func assertAuthorizedEntries(tb testing.TB, cache *Cache, agentID spiffeid.ID, wantEntries ...*types.Entry) {
+func assertAuthorizedEntries(tb testing.TB, cache *Cache, agentID spiffeid.ID, allEntries map[string]*types.Entry, wantEntries ...*types.Entry) {
 	tb.Helper()
 
 	entriesMap := func(entries []*types.Entry) map[string]*types.Entry {
@@ -454,6 +457,87 @@ func assertAuthorizedEntries(tb testing.TB, cache *Cache, agentID spiffeid.ID, w
 		if _, ok := wantMap[id]; !ok {
 			assert.Fail(tb, "unexpected entry returned", "unexpected entry %q", id)
 			continue
+		}
+	}
+
+	assertLookupEntries(tb, cache, agentID, allEntries, wantEntries...)
+}
+
+func assertLookupEntries(tb testing.TB, cache *Cache, agentID spiffeid.ID, allEntries map[string]*types.Entry, wantEntries ...*types.Entry) {
+	tb.Helper()
+
+	lookupEntries := make(map[string]struct{})
+	for _, entry := range allEntries {
+		lookupEntries[entry.Id] = struct{}{}
+	}
+	foundEntries := cache.LookupAuthorizedEntries(agentID, lookupEntries)
+	require.Len(tb, foundEntries, len(wantEntries))
+}
+
+func setupLookupTest(t testing.TB, count int) *Cache {
+	testcache := testCache().
+		withAgent(agent1, sel1).
+		withEntries(makeAlias(alias1, sel1))
+
+	for id := range count {
+		idStr := strconv.Itoa(id)
+		// Create one entry parented to the alias
+		entryID := "workload-" + idStr
+		testcache = testcache.withEntries(&types.Entry{
+			Id:        entryID,
+			ParentId:  api.ProtoFromID(agent1),
+			SpiffeId:  &types.SPIFFEID{TrustDomain: "domain.test", Path: "/workload/" + idStr},
+			Selectors: []*types.Selector{{Type: "not", Value: "relevant"}},
+		})
+
+		// And another one to parented to the workload to verify
+		// the lookup recurses.
+		entryID = "workload-child-" + idStr
+		testcache = testcache.withEntries(&types.Entry{
+			Id:        entryID,
+			ParentId:  api.ProtoFromID(agent1),
+			SpiffeId:  &types.SPIFFEID{TrustDomain: "domain.test", Path: "/workload/" + idStr + "child"},
+			Selectors: []*types.Selector{{Type: "not", Value: "relevant"}},
+		})
+	}
+
+	_, cache := testcache.hydrate(t)
+	return cache
+}
+
+func TestLookupEntries(t *testing.T) {
+	cache := setupLookupTest(t, 8)
+
+	found := cache.LookupAuthorizedEntries(agent1, make(map[string]struct{}))
+	require.Len(t, found, 0)
+
+	found = cache.LookupAuthorizedEntries(agent1, map[string]struct{}{
+		"does-not-exist": {},
+	})
+	require.Len(t, found, 0)
+
+	found = cache.LookupAuthorizedEntries(agent1, map[string]struct{}{
+		"does-not-exist":   {},
+		"workload-1":       {},
+		"workload-child-7": {},
+	})
+	require.Contains(t, found, "workload-1")
+	require.Contains(t, found, "workload-child-7")
+}
+
+func BenchmarkEntryLookup(b *testing.B) {
+	numEntries := 256
+	cache := setupLookupTest(b, numEntries)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		for id := range numEntries {
+			entryID := "workload-" + strconv.Itoa(id)
+			entries := cache.LookupAuthorizedEntries(agent1, map[string]struct{}{
+				entryID: {},
+			})
+			require.Len(b, entries, 1)
 		}
 	}
 }

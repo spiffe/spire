@@ -28,6 +28,7 @@ var _ Cache = (*FullEntryCache)(nil)
 // Cache contains a snapshot of all registration entries and Agent selectors from the data source
 // at a particular moment in time.
 type Cache interface {
+	LookupAuthorizedEntries(agentID spiffeid.ID, entries map[string]struct{}) map[string]*types.Entry
 	GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry
 }
 
@@ -173,12 +174,34 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	}, nil
 }
 
+func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries map[string]struct{}) map[string]*types.Entry {
+	seen := allocSeenSet()
+	defer freeSeenSet(seen)
+
+	foundEntries := make(map[string]*types.Entry)
+	c.lookupAuthorizedEntries(spiffeIDFromID(agentID), foundEntries, requestedEntries, seen)
+	return foundEntries
+}
+
 // GetAuthorizedEntries gets all authorized registration entries for a given Agent SPIFFE ID.
 func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
 	return cloneEntries(c.getAuthorizedEntries(spiffeIDFromID(agentID), seen))
+}
+
+func (c *FullEntryCache) lookupAuthorizedEntries(id spiffeID, foundEntries map[string]*types.Entry, requestedEntries map[string]struct{}, seen map[spiffeID]struct{}) {
+	for _, descendant := range c.crawl(id, seen) {
+		if _, ok := requestedEntries[descendant.Id]; ok {
+			foundEntries[descendant.Id] = proto.Clone(descendant).(*types.Entry)
+		}
+		c.lookupAuthorizedEntries(spiffeIDFromProto(descendant.SpiffeId), foundEntries, requestedEntries, seen)
+	}
+
+	for _, alias := range c.aliases[id] {
+		c.lookupAuthorizedEntries(alias.id, foundEntries, requestedEntries, seen)
+	}
 }
 
 func (c *FullEntryCache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
