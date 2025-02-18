@@ -3139,6 +3139,7 @@ func TestSyncAuthorizedEntries(t *testing.T) {
 								ParentId:       entry1.ParentId,
 								Selectors:      entry1.Selectors,
 								RevisionNumber: entry1.RevisionNumber,
+								CreatedAt:      entry1.CreatedAt,
 							},
 							{
 								Id:             entry2.Id,

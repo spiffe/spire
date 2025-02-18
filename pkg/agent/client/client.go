@@ -39,6 +39,7 @@ var (
 		RevisionNumber: true,
 		StoreSvid:      true,
 		Hint:           true,
+		CreatedAt:      true,
 	}
 )
 
@@ -416,6 +417,27 @@ func (c *client) syncEntries(ctx context.Context, cachedEntries map[string]*comm
 	return stats, nil
 }
 
+func entryIsStale(entry *common.RegistrationEntry, revisionNumber, revisionCreatedAt int64) bool {
+	if entry.RevisionNumber != revisionNumber {
+		return true
+	}
+
+	// TODO: remove in SPIRE 1.14
+	if revisionCreatedAt == 0 {
+		return false
+	}
+
+	// Verify that the CreatedAt of the entries match. If they are different, they are
+	// completely different entries even if the revision number is the same.
+	// This can happen for example if an entry is deleted and recreated with the
+	// same entry id.
+	if entry.CreatedAt != revisionCreatedAt {
+		return true
+	}
+
+	return false
+}
+
 func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.EntryClient, cachedEntries map[string]*common.RegistrationEntry) (stats SyncEntriesStats, err error) {
 	// Build a set of all the entries to be removed. This set is initialized
 	// with all entries currently known. As entries are synced down from the
@@ -459,7 +481,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 			// If entry is either not cached or is stale, record the ID so
 			// the full entry can be requested after syncing down all
 			// entry revisions.
-			if cachedEntry, ok := cachedEntries[entryRevision.Id]; !ok || cachedEntry.RevisionNumber < entryRevision.RevisionNumber {
+			if cachedEntry, ok := cachedEntries[entryRevision.Id]; !ok || entryIsStale(cachedEntry, entryRevision.GetRevisionNumber(), entryRevision.GetCreatedAt()) {
 				needFull = append(needFull, entryRevision.Id)
 			}
 		}
@@ -487,7 +509,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 			switch {
 			case !ok:
 				stats.Missing++
-			case cachedEntry.RevisionNumber < entry.RevisionNumber:
+			case entryIsStale(cachedEntry, entry.GetRevisionNumber(), entry.GetCreatedAt()):
 				stats.Stale++
 			}
 

@@ -285,14 +285,19 @@ func TestSyncUpdatesEntries(t *testing.T) {
 		assert.Equal(t, expected, cachedEntries)
 	}
 
-	entryA1 := makeEntry("A", 1)
-	entryB1 := makeEntry("B", 1)
-	entryC1 := makeEntry("C", 1)
-	entryD1 := makeEntry("D", 1)
+	firstDate := time.Date(2024, time.December, 31, 0, 0, 0, 0, time.UTC)
+	secondDate := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 
-	entryA2 := makeEntry("A", 2)
-	entryB2 := makeEntry("B", 2)
-	entryC2 := makeEntry("C", 2)
+	entryA1 := makeEntry("A", 1, firstDate)
+	entryB1 := makeEntry("B", 1, firstDate)
+	entryC1 := makeEntry("C", 1, firstDate)
+	entryD1 := makeEntry("D", 1, firstDate)
+
+	entryA2 := makeEntry("A", 2, firstDate)
+	entryB2 := makeEntry("B", 2, firstDate)
+	entryC2 := makeEntry("C", 2, firstDate)
+
+	entryB1prime := makeEntry("B", 1, secondDate)
 
 	// No entries yet
 	syncAndAssertEntries(t, 0, 0, 0, 0)
@@ -314,6 +319,12 @@ func TestSyncUpdatesEntries(t *testing.T) {
 
 	// Sync again but with no changes.
 	syncAndAssertEntries(t, 3, 0, 0, 0, entryA2, entryB2, entryC2)
+
+	// Sync again after recreating an entry with the same entry ID, which should be marked stale
+	syncAndAssertEntries(t, 3, 0, 1, 0, entryA2, entryB1prime, entryC2)
+
+	// Sync again after the database has been rolled back to a previous version
+	syncAndAssertEntries(t, 4, 1, 3, 0, entryA1, entryB1, entryC1, entryD1)
 }
 
 func TestRenewSVID(t *testing.T) {
@@ -1142,6 +1153,7 @@ func checkAuthorizedEntryOutputMask(outputMask *types.EntryMask) error {
 		RevisionNumber: true,
 		StoreSvid:      true,
 		Hint:           true,
+		CreatedAt:      true,
 	}, protocmp.Transform()); diff != "" {
 		return status.Errorf(codes.InvalidArgument, "invalid output mask requested: %s", diff)
 	}
@@ -1162,12 +1174,13 @@ func makeCommonBundle(trustDomainName string) *common.Bundle {
 	}
 }
 
-func makeEntry(id string, revisionNumber int64) *types.Entry {
+func makeEntry(id string, revisionNumber int64, createdAt time.Time) *types.Entry {
 	return &types.Entry{
 		Id:             id,
 		SpiffeId:       &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
 		ParentId:       &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
 		Selectors:      []*types.Selector{{Type: "not", Value: "relevant"}},
 		RevisionNumber: revisionNumber,
+		CreatedAt:      createdAt.Unix(),
 	}
 }
