@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -375,7 +376,7 @@ func (p *Plugin) parseUriSanSelectors(leaf *x509.Certificate, trustDomain string
 		if strings.HasPrefix(uri.String(), sanPrefix) {
 			segments := strings.SplitN(strings.Trim(uri.Path, "/"), "/", 2)
 			if len(segments) < 2 {
-				p.log.Warn("cannot extract x509pop san selectors from", uri.String())
+				p.log.Warn(fmt.Sprintf("cannot extract x509pop san selectors from %s", uri.String()))
 				continue
 			}
 			uriSelectorMap[segments[0]] = segments[1]
