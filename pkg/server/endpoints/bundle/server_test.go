@@ -185,12 +185,12 @@ func TestDiskCertManagerAuth(t *testing.T) {
 	serverCert, serverKey := createServerCertificate(t)
 
 	serverCertPem := pemutil.EncodeCertificate(serverCert)
-	err := os.WriteFile(filepath.Join(dir, "server.crt"), serverCertPem, 0600)
+	err := os.WriteFile(filepath.Join(dir, "server.crt"), serverCertPem, 0o600)
 	require.NoError(t, err)
 
 	serverKeyPem, err := pemutil.EncodePKCS8PrivateKey(serverKey)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(dir, "server.key"), serverKeyPem, 0600)
+	err = os.WriteFile(filepath.Join(dir, "server.key"), serverKeyPem, 0o600)
 	require.NoError(t, err)
 
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
@@ -241,26 +241,26 @@ func TestACMEAuth(t *testing.T) {
 	bundle := spiffebundle.New(trustDomain)
 	km := fakeserverkeymanager.New(t)
 
-	ca := acmetest.NewCAServer([]string{"tls-alpn-01"}, []string{"domain.test"})
-
-	client := http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs:    ca.Roots,
-				ServerName: "domain.test",
-				MinVersion: tls.VersionTLS12,
-			},
-		},
-	}
-
 	// Perform the initial challenge to obtain a new certificate but without
 	// the TOS being accepted. This should fail. We require the ToSAccepted
 	// configurable to be set in order to function.
 	t.Run("new-account-tos-not-accepted", func(t *testing.T) {
+		ca := acmetest.NewCAServer(t).Start()
+
+		client := http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs:    ca.Roots(),
+					ServerName: "domain.test",
+					MinVersion: tls.VersionTLS12,
+				},
+			},
+		}
+
 		log, hook := test.NewNullLogger()
 		addr, done := newTestServer(t, testGetter(bundle),
 			ACMEAuth(log, km, ACMEConfig{
-				DirectoryURL: ca.URL,
+				DirectoryURL: ca.URL(),
 				DomainName:   "domain.test",
 				CacheDir:     dir,
 				Email:        "admin@domain.test",
@@ -281,8 +281,8 @@ func TestACMEAuth(t *testing.T) {
 			assert.Equal(t, "ACME Terms of Service have not been accepted. See the `tos_accepted` configurable", entry.Message)
 			assert.Equal(t, logrus.WarnLevel, entry.Level)
 			assert.Equal(t, logrus.Fields{
-				"directory_url": ca.URL,
-				"tos_url":       ca.URL + "/tos",
+				"directory_url": ca.URL(),
+				"tos_url":       ca.URL() + "/tos",
 				"email":         "admin@domain.test",
 			}, entry.Data)
 		}
@@ -290,10 +290,22 @@ func TestACMEAuth(t *testing.T) {
 
 	// Perform the initial challenge to obtain a new certificate.
 	t.Run("initial", func(t *testing.T) {
+		ca := acmetest.NewCAServer(t).Start()
+
+		client := http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					RootCAs:    ca.Roots(),
+					ServerName: "domain.test",
+					MinVersion: tls.VersionTLS12,
+				},
+			},
+		}
+
 		log, hook := test.NewNullLogger()
 		addr, done := newTestServer(t, testGetter(bundle),
 			ACMEAuth(log, km, ACMEConfig{
-				DirectoryURL: ca.URL,
+				DirectoryURL: ca.URL(),
 				DomainName:   "domain.test",
 				CacheDir:     dir,
 				Email:        "admin@domain.test",
@@ -328,33 +340,19 @@ func TestACMEAuth(t *testing.T) {
 			assert.Equal(t, "ACME Terms of Service accepted", entry.Message)
 			assert.Equal(t, logrus.InfoLevel, entry.Level)
 			assert.Equal(t, logrus.Fields{
-				"directory_url": ca.URL,
-				"tos_url":       ca.URL + "/tos",
+				"directory_url": ca.URL(),
+				"tos_url":       ca.URL() + "/tos",
 				"email":         "admin@domain.test",
 			}, entry.Data)
 		}
-	})
 
-	// Now test that the cached credentials are used. This test resolves the
-	// domain to bogus address so that the challenge would fail if it were tried
-	// as a way of telling that the challenge was not attempted
-	t.Run("cached", func(t *testing.T) {
-		log, _ := test.NewNullLogger()
-		addr, done := newTestServer(t, testGetter(bundle),
-			ACMEAuth(log, km, ACMEConfig{
-				DirectoryURL: ca.URL,
-				DomainName:   "domain.test",
-				CacheDir:     dir,
-				Email:        "admin@domain.test",
-				ToSAccepted:  true,
-			}),
-			5*time.Minute,
-		)
-		defer done()
+		// Now test that the cached credentials are used. This test resolves the
+		// domain to bogus address so that the challenge would fail if it were tried
+		// as a way of telling that the challenge was not attempted
 
 		ca.Resolve("domain.test", "127.0.0.1:0")
 
-		resp, err := client.Get(fmt.Sprintf("https://%s", addr))
+		resp, err = client.Get(fmt.Sprintf("https://%s", addr))
 		require.NoError(t, err)
 		resp.Body.Close()
 	})
