@@ -19,6 +19,7 @@ linters:
     - copyloopvar
     - durationcheck
     - errorlint
+    - exptostd
     - gocritic
     - gofmt
     - goimports
@@ -26,7 +27,7 @@ linters:
     - intrange
     - misspell
     - nakedret
-    - nilerr
+    - nilnesserr
     - nolintlint
     - revive
     - unconvert
@@ -37,7 +38,6 @@ linters:
 linters-settings:
   govet:
     enable:
-      - nilness
       - sortslice
       - unusedwrite
   revive:
