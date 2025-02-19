@@ -39,6 +39,7 @@ var (
 		RevisionNumber: true,
 		StoreSvid:      true,
 		Hint:           true,
+		CreatedAt:      true,
 	}
 )
 
@@ -103,8 +104,8 @@ type client struct {
 	connections *nodeConn
 	m           sync.Mutex
 
-	// Constructor used for testing purposes.
-	dialContext func(ctx context.Context, target string, opts ...grpc.DialOption) (*grpc.ClientConn, error)
+	// dialOpts optionally sets gRPC dial options
+	dialOpts []grpc.DialOption
 }
 
 // New creates a new client struct with the configuration provided
@@ -233,7 +234,7 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
-	agentClient, connection, err := c.newAgentClient(ctx)
+	agentClient, connection, err := c.newAgentClient()
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +309,7 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
-	svidClient, connection, err := c.newSVIDClient(ctx)
+	svidClient, connection, err := c.newSVIDClient()
 	if err != nil {
 		return nil, err
 	}
@@ -357,8 +358,8 @@ func (c *client) release(conn *nodeConn) {
 	}
 }
 
-func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
-	return DialServer(ctx, DialServerConfig{
+func (c *client) newServerGRPCClient() (*grpc.ClientConn, error) {
+	return NewServerGRPCClient(ServerClientConfig{
 		Address:     c.c.Addr,
 		TrustDomain: c.c.TrustDomain,
 		GetBundle: func() []*x509.Certificate {
@@ -375,13 +376,13 @@ func (c *client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 			}
 			return agentCert
 		},
-		TLSPolicy:   c.c.TLSPolicy,
-		dialContext: c.dialContext,
+		TLSPolicy: c.c.TLSPolicy,
+		dialOpts:  c.dialOpts,
 	})
 }
 
 func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
-	entryClient, connection, err := c.newEntryClient(ctx)
+	entryClient, connection, err := c.newEntryClient()
 	if err != nil {
 		return nil, err
 	}
@@ -400,7 +401,7 @@ func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
 }
 
 func (c *client) syncEntries(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry) (SyncEntriesStats, error) {
-	entryClient, connection, err := c.newEntryClient(ctx)
+	entryClient, connection, err := c.newEntryClient()
 	if err != nil {
 		return SyncEntriesStats{}, err
 	}
@@ -414,6 +415,27 @@ func (c *client) syncEntries(ctx context.Context, cachedEntries map[string]*comm
 	}
 
 	return stats, nil
+}
+
+func entryIsStale(entry *common.RegistrationEntry, revisionNumber, revisionCreatedAt int64) bool {
+	if entry.RevisionNumber != revisionNumber {
+		return true
+	}
+
+	// TODO: remove in SPIRE 1.14
+	if revisionCreatedAt == 0 {
+		return false
+	}
+
+	// Verify that the CreatedAt of the entries match. If they are different, they are
+	// completely different entries even if the revision number is the same.
+	// This can happen for example if an entry is deleted and recreated with the
+	// same entry id.
+	if entry.CreatedAt != revisionCreatedAt {
+		return true
+	}
+
+	return false
 }
 
 func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.EntryClient, cachedEntries map[string]*common.RegistrationEntry) (stats SyncEntriesStats, err error) {
@@ -459,7 +481,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 			// If entry is either not cached or is stale, record the ID so
 			// the full entry can be requested after syncing down all
 			// entry revisions.
-			if cachedEntry, ok := cachedEntries[entryRevision.Id]; !ok || cachedEntry.RevisionNumber < entryRevision.RevisionNumber {
+			if cachedEntry, ok := cachedEntries[entryRevision.Id]; !ok || entryIsStale(cachedEntry, entryRevision.GetRevisionNumber(), entryRevision.GetCreatedAt()) {
 				needFull = append(needFull, entryRevision.Id)
 			}
 		}
@@ -487,7 +509,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 			switch {
 			case !ok:
 				stats.Missing++
-			case cachedEntry.RevisionNumber < entry.RevisionNumber:
+			case entryIsStale(cachedEntry, entry.GetRevisionNumber(), entry.GetCreatedAt()):
 				stats.Stale++
 			}
 
@@ -580,7 +602,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 }
 
 func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([]*types.Bundle, error) {
-	bundleClient, connection, err := c.newBundleClient(ctx)
+	bundleClient, connection, err := c.newBundleClient()
 	if err != nil {
 		return nil, err
 	}
@@ -621,7 +643,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 }
 
 func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDParams) ([]*types.X509SVID, error) {
-	svidClient, connection, err := c.newSVIDClient(ctx)
+	svidClient, connection, err := c.newSVIDClient()
 	if err != nil {
 		return nil, err
 	}
@@ -653,44 +675,44 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDPar
 	return svids, nil
 }
 
-func (c *client) newEntryClient(ctx context.Context) (entryv1.EntryClient, *nodeConn, error) {
-	conn, err := c.getOrOpenConn(ctx)
+func (c *client) newEntryClient() (entryv1.EntryClient, *nodeConn, error) {
+	conn, err := c.getOrOpenConn()
 	if err != nil {
 		return nil, nil, err
 	}
 	return entryv1.NewEntryClient(conn.Conn()), conn, nil
 }
 
-func (c *client) newBundleClient(ctx context.Context) (bundlev1.BundleClient, *nodeConn, error) {
-	conn, err := c.getOrOpenConn(ctx)
+func (c *client) newBundleClient() (bundlev1.BundleClient, *nodeConn, error) {
+	conn, err := c.getOrOpenConn()
 	if err != nil {
 		return nil, nil, err
 	}
 	return bundlev1.NewBundleClient(conn.Conn()), conn, nil
 }
 
-func (c *client) newSVIDClient(ctx context.Context) (svidv1.SVIDClient, *nodeConn, error) {
-	conn, err := c.getOrOpenConn(ctx)
+func (c *client) newSVIDClient() (svidv1.SVIDClient, *nodeConn, error) {
+	conn, err := c.getOrOpenConn()
 	if err != nil {
 		return nil, nil, err
 	}
 	return svidv1.NewSVIDClient(conn.Conn()), conn, nil
 }
 
-func (c *client) newAgentClient(ctx context.Context) (agentv1.AgentClient, *nodeConn, error) {
-	conn, err := c.getOrOpenConn(ctx)
+func (c *client) newAgentClient() (agentv1.AgentClient, *nodeConn, error) {
+	conn, err := c.getOrOpenConn()
 	if err != nil {
 		return nil, nil, err
 	}
 	return agentv1.NewAgentClient(conn.Conn()), conn, nil
 }
 
-func (c *client) getOrOpenConn(ctx context.Context) (*nodeConn, error) {
+func (c *client) getOrOpenConn() (*nodeConn, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
 
 	if c.connections == nil {
-		conn, err := c.dial(ctx)
+		conn, err := c.newServerGRPCClient()
 		if err != nil {
 			return nil, err
 		}

@@ -37,7 +37,6 @@ func TestSanitize(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			out := sanitize(tt.in)
 
@@ -73,7 +72,6 @@ func TestSanitizeLabel(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			out := sanitizeLabel(labelName, tt.in)
 
@@ -132,7 +130,6 @@ func TestGetSanitizedLabels(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			out := SanitizeLabels(tt.in)
 

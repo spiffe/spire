@@ -123,8 +123,6 @@ func TestDownloadTrustBundle(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		testCase := testCase
-
 		t.Run(testCase.msg, func(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(
 				func(w http.ResponseWriter, r *http.Request) {
@@ -629,8 +627,6 @@ func TestMergeInput(t *testing.T) {
 	cases = append(cases, mergeInputCasesOS()...)
 
 	for _, testCase := range cases {
-		testCase := testCase
-
 		fileInput := &Config{Agent: &agentConfig{}}
 		cliInput := &agentConfig{}
 
@@ -1042,8 +1038,6 @@ func TestNewAgentConfig(t *testing.T) {
 	}
 	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {
-		testCase := testCase
-
 		input := defaultValidConfig()
 
 		testCase.input(input)
@@ -1206,8 +1200,6 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		testCase := testCase
-
 		c, err := ParseFile(filepath.Join(testFileDir, testCase.confFile), false)
 		require.NoError(t, err)
 

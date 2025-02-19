@@ -30,7 +30,7 @@ $ docker run \
     --user 1000:1000 \
     -p 8081:8081 \
     -v /path/to/server/config:/etc/spire/server \
-    ghcr.io/spiffe/spire-server:v1.6.0 \
+    ghcr.io/spiffe/spire-server:1.6.1 \
     -config /etc/spire/server/server.conf
 ```
 

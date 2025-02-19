@@ -189,7 +189,6 @@ func TestGetInfo(t *testing.T) {
 			err:  "failed to verify agent SVID: x509svid: could not get leaf SPIFFE ID: certificate contains no URI SAN",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
@@ -277,7 +276,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 	}
 	server := grpctest.StartServer(t, registerFn)
 	test.done = server.Stop
-	test.client = debugv1.NewDebugClient(server.Dial(t))
+	test.client = debugv1.NewDebugClient(server.NewGRPCClient(t))
 
 	return test
 }

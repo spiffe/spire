@@ -173,7 +173,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
-		util.SerialRun(a.waitForTestDial, healthChecker.ListenAndServe),
+		healthChecker.ListenAndServe,
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -385,14 +385,6 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 	}
 
 	return admin_api.New(config)
-}
-
-// waitForTestDial calls health.WaitForTestDial to wait for a connection to the
-// SPIRE Agent API socket. This function always returns nil, even if
-// health.WaitForTestDial exited due to a timeout.
-func (a *Agent) waitForTestDial(ctx context.Context) error {
-	health.WaitForTestDial(ctx, a.c.BindAddress)
-	return nil
 }
 
 // CheckHealth is used as a top-level health check for the agent.

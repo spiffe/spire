@@ -250,7 +250,6 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "ListCAJournalsForTesting",
 		},
 	} {
-		tt := tt
 		methodType, ok := wt.MethodByName(tt.methodName)
 		require.True(t, ok, "method %q does not exist on DataStore interface", tt.methodName)
 		methodValue := wv.Method(methodType.Index)

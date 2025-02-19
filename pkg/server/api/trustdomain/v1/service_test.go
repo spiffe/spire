@@ -119,7 +119,6 @@ func TestGetFederationRelationship(t *testing.T) {
 			},
 		},
 		{
-
 			name:        "malformed trust domain",
 			trustDomain: "https://foot.test",
 			err:         "failed to parse trust domain: scheme is missing or invalid",
@@ -196,7 +195,6 @@ func TestGetFederationRelationship(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			ds := newFakeDS(t)
 			test := setupServiceTest(t, ds)
@@ -408,7 +406,6 @@ func TestListFederationRelationships(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
@@ -1159,7 +1156,6 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 			},
 		},
 		{
-
 			name:            "empty trust domain",
 			reqTrustDomains: []string{""},
 			expectDs:        allRelationships,
@@ -1191,7 +1187,6 @@ func TestBatchDeleteFederationRelationship(t *testing.T) {
 			},
 		},
 		{
-
 			name:            "malformed trust domain",
 			reqTrustDomains: []string{"https://foot.test"},
 			expectDs:        allRelationships,
@@ -2214,7 +2209,7 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore) *serviceTest {
 		grpctest.Middleware(middleware.WithAuditLog(false)),
 	)
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	test.client = trustdomainv1.NewTrustDomainClient(conn)
 	test.done = server.Stop

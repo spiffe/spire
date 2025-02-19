@@ -235,7 +235,6 @@ func TestAuditWitTypesStatus(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			auditLog := audit.New(log)
 			logHook.Reset()
@@ -322,7 +321,6 @@ func TestAuditWithError(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			auditLog := audit.New(log)
 			logHook.Reset()

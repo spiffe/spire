@@ -201,7 +201,6 @@ func TestJWTSVIDCache(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			cache := NewJWTSVIDCache(log, fakeMetrics, 8)
 			if tt.setJWTSVIDsCached != nil {

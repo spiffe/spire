@@ -457,11 +457,14 @@ func TestUpstreamProcessTaintedAuthorityBackoff(t *testing.T) {
 		}
 	}
 
+	test.clock.WaitForAfter(time.Second, "waiting for the retry to wait for next duration")
 	// Must fail due to the invalid key type
 	expectBackoffErr(t)
 
 	// Try again; expect to fail
 	test.clock.Add(6 * time.Second)
+
+	test.clock.WaitForAfter(time.Second, "waiting for the retry to wait for next duration")
 	expectBackoffErr(t)
 
 	// Restore to a valid key type, and advance time again
@@ -934,7 +937,6 @@ func TestPruneCAJournals(t *testing.T) {
 
 	var expectedCAJournals []*datastore.CAJournal
 	for _, testCase := range testCases {
-		testCase := testCase
 		expectedCAJournals = []*datastore.CAJournal{}
 		t.Run(testCase.name, func(t *testing.T) {
 			// Have a fresh data store in each test case
@@ -1139,7 +1141,6 @@ func TestAlternateKeyTypes(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			ctx := context.Background()
 

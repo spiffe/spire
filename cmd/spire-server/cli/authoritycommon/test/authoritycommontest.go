@@ -7,16 +7,14 @@ import (
 
 	"github.com/mitchellh/cli"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
-	"github.com/spiffe/spire/cmd/spire-server/cli/common"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
 
-var (
-	AvailableFormats = []string{"pretty", "json"}
-)
+var AvailableFormats = []string{"pretty", "json"}
 
 type localAuthorityTest struct {
 	Stdin  *bytes.Buffer
@@ -55,7 +53,7 @@ func SetupTest(t *testing.T, newClient func(*commoncli.Env) cli.Command) *localA
 		Stdin:  stdin,
 		Stdout: stdout,
 		Stderr: stderr,
-		Args:   []string{common.AddrArg, common.GetAddr(addr)},
+		Args:   []string{clitest.AddrArg, clitest.GetAddr(addr)},
 		Server: server,
 		Client: client,
 	}

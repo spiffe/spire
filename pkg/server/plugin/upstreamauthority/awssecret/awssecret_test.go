@@ -197,7 +197,6 @@ func TestConfigure(t *testing.T) {
 			expectMsgPrefix: "unable to read missing_bundle: secret not found",
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			var err error
 
@@ -328,7 +327,6 @@ func TestMintX509CA(t *testing.T) {
 			expectMsgPrefix: "upstreamauthority(awssecret): unable to sign CSR: unable to parse CSR",
 		},
 	} {
-		tt := tt
 		t.Run(tt.test, func(t *testing.T) {
 			p := New()
 			p.hooks.clock = clk

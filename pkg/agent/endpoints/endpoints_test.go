@@ -163,7 +163,6 @@ func TestEndpoints(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			metrics := fakemetrics.New()
@@ -229,11 +228,11 @@ func TestEndpoints(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.fromRemote {
-				testRemoteCaller(ctx, t, target)
+				testRemoteCaller(t, target)
 				return
 			}
 
-			conn, err := util.GRPCDialContext(ctx, target, grpc.WithBlock()) //nolint: staticcheck // It is going to be resolved on #5152
+			conn, err := util.NewGRPCClient(target)
 			require.NoError(t, err)
 			defer conn.Close()
 

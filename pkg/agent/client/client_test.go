@@ -285,14 +285,19 @@ func TestSyncUpdatesEntries(t *testing.T) {
 		assert.Equal(t, expected, cachedEntries)
 	}
 
-	entryA1 := makeEntry("A", 1)
-	entryB1 := makeEntry("B", 1)
-	entryC1 := makeEntry("C", 1)
-	entryD1 := makeEntry("D", 1)
+	firstDate := time.Date(2024, time.December, 31, 0, 0, 0, 0, time.UTC)
+	secondDate := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 
-	entryA2 := makeEntry("A", 2)
-	entryB2 := makeEntry("B", 2)
-	entryC2 := makeEntry("C", 2)
+	entryA1 := makeEntry("A", 1, firstDate)
+	entryB1 := makeEntry("B", 1, firstDate)
+	entryC1 := makeEntry("C", 1, firstDate)
+	entryD1 := makeEntry("D", 1, firstDate)
+
+	entryA2 := makeEntry("A", 2, firstDate)
+	entryB2 := makeEntry("B", 2, firstDate)
+	entryC2 := makeEntry("C", 2, firstDate)
+
+	entryB1prime := makeEntry("B", 1, secondDate)
 
 	// No entries yet
 	syncAndAssertEntries(t, 0, 0, 0, 0)
@@ -314,6 +319,12 @@ func TestSyncUpdatesEntries(t *testing.T) {
 
 	// Sync again but with no changes.
 	syncAndAssertEntries(t, 3, 0, 0, 0, entryA2, entryB2, entryC2)
+
+	// Sync again after recreating an entry with the same entry ID, which should be marked stale
+	syncAndAssertEntries(t, 3, 0, 1, 0, entryA2, entryB1prime, entryC2)
+
+	// Sync again after the database has been rolled back to a previous version
+	syncAndAssertEntries(t, 4, 1, 3, 0, entryA1, entryB1, entryC1, entryD1)
 }
 
 func TestRenewSVID(t *testing.T) {
@@ -403,7 +414,6 @@ func TestRenewSVID(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			logHook.Reset()
 			tc.agentServer.err = tt.agentErr
@@ -662,25 +672,25 @@ func TestNewNodeClientRelease(t *testing.T) {
 
 	for range 3 {
 		// Create agent client and release
-		_, r, err := client.newAgentClient(ctx)
+		_, r, err := client.newAgentClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
 
 		// Create bundle client and release
-		_, r, err = client.newBundleClient(ctx)
+		_, r, err = client.newBundleClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
 
 		// Create entry client and release
-		_, r, err = client.newEntryClient(ctx)
+		_, r, err = client.newEntryClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
 
 		// Create svid client and release
-		_, r, err = client.newSVIDClient(ctx)
+		_, r, err = client.newSVIDClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 		r.Release()
@@ -699,7 +709,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 
 	for range 3 {
 		// Create agent client
-		_, conn, err := client.newAgentClient(ctx)
+		_, conn, err := client.newAgentClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -708,7 +718,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 		assertConnectionIsNil(t, client)
 
 		// Create bundle client
-		_, conn, err = client.newBundleClient(ctx)
+		_, conn, err = client.newBundleClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -717,7 +727,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 		assertConnectionIsNil(t, client)
 
 		// Create entry client
-		_, conn, err = client.newEntryClient(ctx)
+		_, conn, err = client.newEntryClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -726,7 +736,7 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 		assertConnectionIsNil(t, client)
 
 		// Create svid client
-		_, conn, err = client.newSVIDClient(ctx)
+		_, conn, err = client.newSVIDClient()
 		require.NoError(t, err)
 		assertConnectionIsNotNil(t, client)
 
@@ -757,7 +767,6 @@ func TestFetchUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 			err: "failed to fetch bundle: rpc error: code = Unknown desc = an error",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			client, tc := createClient(t)
 			tt.setupTest(tc)
@@ -827,54 +836,6 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T)
 	})
 
 	spiretest.AssertLogs(t, logHook.AllEntries(), entries)
-}
-
-func TestNewAgentClientFailsDial(t *testing.T) {
-	client := newClient(&Config{
-		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomain,
-	})
-	agentClient, conn, err := client.newAgentClient(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to dial")
-	require.Nil(t, agentClient)
-	require.Nil(t, conn)
-}
-
-func TestNewBundleClientFailsDial(t *testing.T) {
-	client := newClient(&Config{
-		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomain,
-	})
-	agentClient, conn, err := client.newBundleClient(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to dial")
-	require.Nil(t, agentClient)
-	require.Nil(t, conn)
-}
-
-func TestNewEntryClientFailsDial(t *testing.T) {
-	client := newClient(&Config{
-		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomain,
-	})
-	agentClient, conn, err := client.newEntryClient(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to dial")
-	require.Nil(t, agentClient)
-	require.Nil(t, conn)
-}
-
-func TestNewSVIDClientFailsDial(t *testing.T) {
-	client := newClient(&Config{
-		KeysAndBundle: keysAndBundle,
-		TrustDomain:   trustDomain,
-	})
-	agentClient, conn, err := client.newSVIDClient(ctx)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to dial")
-	require.Nil(t, agentClient)
-	require.Nil(t, conn)
 }
 
 func TestFetchJWTSVID(t *testing.T) {
@@ -969,7 +930,6 @@ func TestFetchJWTSVID(t *testing.T) {
 			fetchErr: status.Error(codes.Internal, "NewJWTSVID fails"),
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupTest(tt.fetchErr)
 			resp, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"})
@@ -1012,11 +972,10 @@ func createClient(t *testing.T) (*client, *testServer) {
 	listener := bufconn.Listen(1024)
 	spiretest.ServeGRPCServerOnListener(t, server, listener)
 
-	client.dialContext = func(ctx context.Context, addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
-		return grpc.DialContext(ctx, addr, //nolint: staticcheck // It is going to be resolved on #5152
-			grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
-				return listener.DialContext(ctx)
-			}))
+	client.dialOpts = []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return listener.DialContext(ctx)
+		}),
 	}
 	return client, tc
 }
@@ -1194,6 +1153,7 @@ func checkAuthorizedEntryOutputMask(outputMask *types.EntryMask) error {
 		RevisionNumber: true,
 		StoreSvid:      true,
 		Hint:           true,
+		CreatedAt:      true,
 	}, protocmp.Transform()); diff != "" {
 		return status.Errorf(codes.InvalidArgument, "invalid output mask requested: %s", diff)
 	}
@@ -1214,12 +1174,13 @@ func makeCommonBundle(trustDomainName string) *common.Bundle {
 	}
 }
 
-func makeEntry(id string, revisionNumber int64) *types.Entry {
+func makeEntry(id string, revisionNumber int64, createdAt time.Time) *types.Entry {
 	return &types.Entry{
 		Id:             id,
 		SpiffeId:       &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
 		ParentId:       &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
 		Selectors:      []*types.Selector{{Type: "not", Value: "relevant"}},
 		RevisionNumber: revisionNumber,
+		CreatedAt:      createdAt.Unix(),
 	}
 }

@@ -470,8 +470,6 @@ func TestMergeInput(t *testing.T) {
 	cases = append(cases, mergeInputCasesOS(t)...)
 
 	for _, testCase := range cases {
-		testCase := testCase
-
 		fileInput := &Config{Server: &serverConfig{}}
 
 		testCase.fileInput(fileInput)
@@ -1213,8 +1211,6 @@ func TestNewServerConfig(t *testing.T) {
 	cases = append(cases, newServerConfigCasesOS(t)...)
 
 	for _, testCase := range cases {
-		testCase := testCase
-
 		input := defaultValidConfig()
 
 		testCase.input(input)
@@ -1337,7 +1333,6 @@ func TestValidateConfig(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			conf := defaultValidConfig()
 			testCase.applyConf(conf)
@@ -1550,8 +1545,6 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		testCase := testCase
-
 		c, err := ParseFile(filepath.Join(testFileDir, testCase.confFile), false)
 		require.NoError(t, err)
 
@@ -1759,7 +1752,6 @@ func TestHasCompatibleTTLs(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		testCase := testCase
 		if testCase.caTTL == 0 {
 			testCase.caTTL = credtemplate.DefaultX509CATTL
 		}

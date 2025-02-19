@@ -342,7 +342,8 @@ func TestGetInfo(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to parse bundle",
 					Data: logrus.Fields{
-						logrus.ErrorKey: expectParseErr.Error()},
+						logrus.ErrorKey: expectParseErr.Error(),
+					},
 				},
 			},
 			bundles: []*common.Bundle{
@@ -377,7 +378,6 @@ func TestGetInfo(t *testing.T) {
 			state: x509SVIDState,
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
@@ -475,7 +475,7 @@ func setupServiceTest(t *testing.T) *serviceTest {
 
 	server := grpctest.StartServer(t, registerFn, grpctest.OverrideContext(overrideContext))
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	test.done = server.Stop
 	test.client = debugv1.NewDebugClient(conn)

@@ -168,10 +168,11 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				identities[0],
 			},
 			updates: []*cache.WorkloadUpdate{
-				{Identities: []cache.Identity{
-					identities[0],
-					identities[1],
-				},
+				{
+					Identities: []cache.Identity{
+						identities[0],
+						identities[1],
+					},
 					Bundle: bundle,
 				},
 			},
@@ -238,7 +239,8 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 					},
 					Bundle: bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
-						federatedBundle1.TrustDomain(): federatedBundle1},
+						federatedBundle1.TrustDomain(): federatedBundle1,
+					},
 				},
 			},
 			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
@@ -269,7 +271,8 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 					},
 					Bundle: bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
-						federatedBundle1.TrustDomain(): federatedBundle1},
+						federatedBundle1.TrustDomain(): federatedBundle1,
+					},
 				},
 			},
 			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
@@ -301,7 +304,8 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 					Bundle: bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle1.TrustDomain(): federatedBundle1,
-						federatedBundle2.TrustDomain(): federatedBundle2},
+						federatedBundle2.TrustDomain(): federatedBundle2,
+					},
 				},
 			},
 			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
@@ -315,13 +319,14 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 						X509SvidKey: pkcs8FromSigner(t, x509SVID1.PrivateKey),
 					},
 				},
-				FederatesWith: []string{federatedBundle1.TrustDomain().IDString(),
-					federatedBundle2.TrustDomain().IDString()},
+				FederatesWith: []string{
+					federatedBundle1.TrustDomain().IDString(),
+					federatedBundle2.TrustDomain().IDString(),
+				},
 			},
 			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
 	} {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			metrics := fakemetrics.New()
 			params := testParams{
@@ -370,7 +375,6 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 		expectResp   []*delegatedidentityv1.SubscribeToX509BundlesResponse
 		cacheUpdates map[spiffeid.TrustDomain]*cache.Bundle
 	}{
-
 		{
 			testName:   "Attest error",
 			attestErr:  errors.New("ohno"),
@@ -423,7 +427,6 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
 				CA:           ca,
@@ -663,7 +666,6 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
 				CA:           ca,
@@ -711,7 +713,6 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 		expectResp   []*delegatedidentityv1.SubscribeToJWTBundlesResponse
 		cacheUpdates map[spiffeid.TrustDomain]*cache.Bundle
 	}{
-
 		{
 			testName:   "Attest error",
 			attestErr:  errors.New("ohno"),
@@ -764,7 +765,6 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
 				CA:           ca,
@@ -844,7 +844,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	conn, _ := grpc.DialContext(ctx, "unix:"+addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint: staticcheck // It is going to be resolved on #5152
+	conn, _ := grpc.NewClient("unix:"+addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	t.Cleanup(func() { conn.Close() })
 
 	fn(ctx, delegatedidentityv1.NewDelegatedIdentityClient(conn))

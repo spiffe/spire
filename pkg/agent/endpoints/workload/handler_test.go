@@ -266,7 +266,6 @@ func TestFetchX509SVID(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
 				CA:         ca,
@@ -425,7 +424,6 @@ func TestFetchX509Bundles(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
 				CA:                            ca,
@@ -837,7 +835,6 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
 				CA:         ca,
@@ -1042,7 +1039,6 @@ func TestFetchJWTBundles(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
 				CA:                            ca,
@@ -1476,7 +1472,6 @@ func TestValidateJWTSVID(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
 				Updates:                 tt.updates,
@@ -1541,7 +1536,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	), grpctest.OverUDS(),
 	)
 
-	conn := server.Dial(t)
+	conn := server.NewGRPCClient(t)
 
 	// Provide a cancelable context to ensure the stream is always
 	// closed when the test case is done, and also to ensure that
