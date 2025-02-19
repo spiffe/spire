@@ -16,23 +16,23 @@ issues:
 linters:
   enable:
     - bodyclose
+    - copyloopvar
     - durationcheck
     - errorlint
+    - gocritic
     - gofmt
     - goimports
-    - revive
     - gosec
+    - intrange
     - misspell
     - nakedret
     - nilerr
+    - nolintlint
+    - revive
     - unconvert
     - unparam
-    - intrange
-    - whitespace
-    - gocritic
-    - copyloopvar
     - wastedassign
-    - nolintlint
+    - whitespace
 
 linters-settings:
   govet:
