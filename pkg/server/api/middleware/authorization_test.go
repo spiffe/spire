@@ -10,7 +10,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/open-policy-agent/opa/storage/inmem"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/storage/inmem"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -323,7 +324,7 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			policyEngine, err := authpolicy.NewEngineFromRego(ctx, tt.rego, inmem.NewFromObject(map[string]any{}))
+			policyEngine, err := authpolicy.NewEngineFromRego(ctx, tt.rego, inmem.NewFromObject(map[string]any{}), ast.RegoV1)
 			require.NoError(t, err, "failed to initialize policy engine")
 
 			// Set up an authorization middleware with one method.
@@ -489,7 +490,7 @@ func condCheckRego(cond string) string {
     }
     default allow = false
     
-    allow=true {
+    allow=true if {
         %s
     }
     `

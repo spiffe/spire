@@ -163,7 +163,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	authPolicyEngine, err := authpolicy.NewEngineFromConfigOrDefault(ctx, s.config.AuthOpaPolicyEngineConfig)
+	authPolicyEngine, err := authpolicy.NewEngineFromConfigOrDefault(ctx, s.config.Log, s.config.AuthOpaPolicyEngineConfig)
 	if err != nil {
 		return fmt.Errorf("unable to obtain authpolicy engine: %w", err)
 	}
