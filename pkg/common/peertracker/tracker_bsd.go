@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"golang.org/x/sys/unix"
 )
 
@@ -18,9 +19,7 @@ const (
 	bsdType = "bsd"
 )
 
-var (
-	safetyDelay = 250 * time.Millisecond
-)
+var safetyDelay = 250 * time.Millisecond
 
 type bsdTracker struct {
 	closer      func()
@@ -145,7 +144,11 @@ func (b *bsdTracker) receiveKevents(kqfd int) {
 		b.mtx.Lock()
 		for _, kevent := range receive[:num] {
 			if kevent.Filter == unix.EVFILT_PROC && (kevent.Fflags&unix.NOTE_EXIT) > 0 {
-				pid := int(kevent.Ident)
+				pid, err := util.CheckedCast[int](kevent.Ident)
+				if err != nil {
+					b.log.WithError(err).WithField(telemetry.PID, kevent.Ident).Warn("Failed to cast PID from kevent")
+					continue
+				}
 				done, ok := b.watchedPIDs[pid]
 				if ok {
 					close(done)
