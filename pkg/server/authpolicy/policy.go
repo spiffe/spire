@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/open-policy-agent/opa/rego"
-	"github.com/open-policy-agent/opa/storage"
-	"github.com/open-policy-agent/opa/storage/inmem"
-	"github.com/open-policy-agent/opa/util"
+	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/rego"
+	"github.com/open-policy-agent/opa/v1/storage"
+	"github.com/open-policy-agent/opa/v1/storage/inmem"
+	"github.com/open-policy-agent/opa/v1/util"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -32,6 +34,7 @@ type OpaEngineConfig struct {
 type LocalOpaProviderConfig struct {
 	RegoPath       string `hcl:"rego_path"`
 	PolicyDataPath string `hcl:"policy_data_path"`
+	UseRegoV1      bool   `hcl:"use_rego_v1"`
 }
 
 // Input represents context associated with an access request.
@@ -58,16 +61,16 @@ type Result struct {
 
 // NewEngineFromConfigOrDefault returns a new policy engine. Or if no
 // config is provided, provides the default policy
-func NewEngineFromConfigOrDefault(ctx context.Context, cfg *OpaEngineConfig) (*Engine, error) {
+func NewEngineFromConfigOrDefault(ctx context.Context, logger logrus.FieldLogger, cfg *OpaEngineConfig) (*Engine, error) {
 	if cfg == nil {
 		return DefaultAuthPolicy(ctx)
 	}
-	return newEngine(ctx, cfg)
+	return newEngine(ctx, logger, cfg)
 }
 
 // newEngine returns a new policy engine. Or nil if no
 // config is provided.
-func newEngine(ctx context.Context, cfg *OpaEngineConfig) (*Engine, error) {
+func newEngine(ctx context.Context, logger logrus.FieldLogger, cfg *OpaEngineConfig) (*Engine, error) {
 	switch {
 	case cfg == nil:
 		return nil, errors.New("policy engine configuration is nil")
@@ -99,16 +102,24 @@ func newEngine(ctx context.Context, cfg *OpaEngineConfig) (*Engine, error) {
 		store = inmem.NewFromObject(map[string]any{})
 	}
 
-	return NewEngineFromRego(ctx, string(module), store)
+	version := ast.RegoV0
+	if cfg.LocalOpaProvider.UseRegoV1 {
+		version = ast.RegoV1
+	} else {
+		logger.Warn("Using rego.v0 policy format, which will be depracated in SPIRE 1.13; Update the policy to rego.v1 and specify 'use_rego_v1 = true' in the configuration.")
+	}
+
+	return NewEngineFromRego(ctx, string(module), store, version)
 }
 
 // NewEngineFromRego is a helper to create the Engine object
-func NewEngineFromRego(ctx context.Context, regoPolicy string, dataStore storage.Store) (*Engine, error) {
+func NewEngineFromRego(ctx context.Context, regoPolicy string, dataStore storage.Store, version ast.RegoVersion) (*Engine, error) {
 	rego := rego.New(
 		rego.Query("data.spire.result"),
 		rego.Package("spire"),
 		rego.Module("spire.rego", regoPolicy),
 		rego.Store(dataStore),
+		rego.SetRegoVersion(version),
 	)
 	pr, err := rego.PartialResult(ctx)
 	if err != nil {
