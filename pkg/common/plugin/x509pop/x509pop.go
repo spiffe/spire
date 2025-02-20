@@ -36,6 +36,7 @@ type agentPathTemplateData struct {
 	PluginName      string
 	TrustDomain     string
 	SVIDPathTrimmed string
+	URISanSelectors map[string]string
 }
 
 type AttestationData struct {
@@ -268,7 +269,7 @@ func Fingerprint(cert *x509.Certificate) string {
 }
 
 // MakeAgentID creates an agent ID from X.509 certificate data.
-func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate, svidPathTrimmed string) (spiffeid.ID, error) {
+func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate, svidPathTrimmed string, sanSelectors map[string]string) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
 		TrustDomain:     td.Name(),
 		Certificate:     cert,
@@ -276,6 +277,7 @@ func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.T
 		SerialNumberHex: SerialNumberHex(cert.SerialNumber),
 		Fingerprint:     Fingerprint(cert),
 		SVIDPathTrimmed: svidPathTrimmed,
+		URISanSelectors: sanSelectors,
 	})
 	if err != nil {
 		return spiffeid.ID{}, err

@@ -17,6 +17,7 @@ import (
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
+	spirecommonutil "github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
@@ -126,6 +127,13 @@ func (s *Suite) TestAttestSuccess() {
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 		},
+		{
+			desc:          "success with custom X509pop san selectors",
+			expectAgentID: "spiffe://example.org/spire/agent/foo/us-east-1/production/path/to/value",
+			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/foo/{{ .URISanSelectors.datacenter }}/{{ .URISanSelectors.environment }}/{{ .URISanSelectors.key }}"`),
+			certs:         s.leafBundle,
+			serialnumber:  "serialnumber:0a1b2c3d4e5f",
+		},
 	}
 
 	for _, tt := range tests {
@@ -153,13 +161,20 @@ func (s *Suite) TestAttestSuccess() {
 			require.NoError(t, err)
 			require.Equal(t, tt.expectAgentID, result.AgentID)
 
+			expectedSelectors := []*common.Selector{
+				{Type: "x509pop", Value: "subject:cn:COMMONNAME"},
+				{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
+				{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
+				{Type: "x509pop", Value: tt.serialnumber},
+				{Type: "x509pop", Value: "san:datacenter:us-east-1"},
+				{Type: "x509pop", Value: "san:environment:production"},
+				{Type: "x509pop", Value: "san:key:path/to/value"},
+			}
+			spirecommonutil.SortSelectors(expectedSelectors)
+			spirecommonutil.SortSelectors(result.Selectors)
+
 			spiretest.AssertProtoListEqual(t,
-				[]*common.Selector{
-					{Type: "x509pop", Value: "subject:cn:COMMONNAME"},
-					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.intermediateCert)},
-					{Type: "x509pop", Value: "ca:fingerprint:" + x509pop.Fingerprint(s.rootCert)},
-					{Type: "x509pop", Value: tt.serialnumber},
-				}, result.Selectors)
+				expectedSelectors, result.Selectors)
 		})
 	}
 }

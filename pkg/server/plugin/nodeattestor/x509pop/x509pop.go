@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -241,17 +243,25 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	svidPath := ""
 	if config.mode == "spiffe" {
-		if len(leaf.URIs) == 0 {
+		var spiffeURIs []*url.URL
+		for _, uri := range leaf.URIs {
+			if uri.Scheme == "spiffe" {
+				spiffeURIs = append(spiffeURIs, uri)
+			}
+		}
+		if len(spiffeURIs) == 0 {
 			return status.Errorf(codes.PermissionDenied, "valid SVID x509 cert not found")
 		}
-		svidPath = leaf.URIs[0].EscapedPath()
+		svidPath = spiffeURIs[0].EscapedPath()
 		if !strings.HasPrefix(svidPath, config.svidPrefix) {
 			return status.Errorf(codes.PermissionDenied, "x509 cert doesnt match SVID prefix")
 		}
 		svidPath = strings.TrimPrefix(svidPath, config.svidPrefix)
 	}
 
-	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf, svidPath)
+	sanSelectors := p.parseUriSanSelectors(leaf, config.trustDomain.Name())
+
+	spiffeid, err := x509pop.MakeAgentID(config.trustDomain, config.pathTemplate, leaf, svidPath, sanSelectors)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
@@ -260,7 +270,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       spiffeid.String(),
-				SelectorValues: buildSelectorValues(leaf, chains),
+				SelectorValues: buildSelectorValues(leaf, chains, sanSelectors),
 				CanReattest:    true,
 			},
 		},
@@ -323,7 +333,7 @@ func (p *Plugin) getConfig() (*configuration, error) {
 	return p.config, nil
 }
 
-func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {
+func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate, sanSelectors map[string]string) []string {
 	var selectorValues []string
 
 	if leaf.Subject.CommonName != "" {
@@ -352,5 +362,25 @@ func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) [
 		selectorValues = append(selectorValues, "serialnumber:"+serialNumberHex)
 	}
 
+	for sanUriKey, saniUriValue := range sanSelectors {
+		selectorValues = append(selectorValues, "san:"+sanUriKey+":"+saniUriValue)
+	}
+
 	return selectorValues
+}
+
+func (p *Plugin) parseUriSanSelectors(leaf *x509.Certificate, trustDomain string) map[string]string {
+	uriSelectorMap := make(map[string]string)
+	sanPrefix := "x509pop://" + trustDomain + "/"
+	for _, uri := range leaf.URIs {
+		if strings.HasPrefix(uri.String(), sanPrefix) {
+			segments := strings.SplitN(strings.Trim(uri.Path, "/"), "/", 2)
+			if len(segments) < 2 {
+				p.log.Warn(fmt.Sprintf("cannot extract x509pop san selectors from %s", uri.String()))
+				continue
+			}
+			uriSelectorMap[segments[0]] = segments[1]
+		}
+	}
+	return uriSelectorMap
 }
