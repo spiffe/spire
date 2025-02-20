@@ -19,10 +19,11 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	serverutil "github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 type generateKeyFunc func() (crypto.Signer, error)
@@ -37,7 +38,7 @@ func newMintCommand(env *commoncli.Env, generateKey generateKeyFunc) cli.Command
 			return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		}
 	}
-	return util.AdaptCommand(env, &mintCommand{
+	return serverutil.AdaptCommand(env, &mintCommand{
 		generateKey: generateKey,
 		env:         env,
 	})
@@ -70,7 +71,7 @@ func (c *mintCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintMint)
 }
 
-func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient serverutil.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("spiffeID must be specified")
 	}
@@ -78,6 +79,11 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	id, err := spiffeid.FromString(c.spiffeID)
 	if err != nil {
 		return err
+	}
+
+	ttl, err := ttlToSeconds(c.ttl)
+	if err != nil {
+		return fmt.Errorf("invalid value for TTL: %w", err)
 	}
 
 	key, err := c.generateKey()
@@ -96,7 +102,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	client := serverClient.NewSVIDClient()
 	resp, err := client.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
 		Csr: csr,
-		Ttl: ttlToSeconds(c.ttl),
+		Ttl: ttl,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to mint SVID: %w", err)
@@ -167,8 +173,8 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 
 // ttlToSeconds returns the number of seconds in a duration, rounded up to
 // the nearest second
-func ttlToSeconds(ttl time.Duration) int32 {
-	return int32((ttl + time.Second - 1) / time.Second)
+func ttlToSeconds(ttl time.Duration) (int32, error) {
+	return util.CheckedCast[int32]((ttl + time.Second - 1) / time.Second)
 }
 
 type mintResult struct {

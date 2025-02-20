@@ -12,11 +12,12 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	serverutil "github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 func NewMintCommand() cli.Command {
@@ -24,7 +25,7 @@ func NewMintCommand() cli.Command {
 }
 
 func newMintCommand(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, &mintCommand{env: env})
+	return serverutil.AdaptCommand(env, &mintCommand{env: env})
 }
 
 type mintCommand struct {
@@ -52,7 +53,7 @@ func (c *mintCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintMint)
 }
 
-func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient util.ServerClient) error {
+func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient serverutil.ServerClient) error {
 	if c.spiffeID == "" {
 		return errors.New("spiffeID must be specified")
 	}
@@ -63,6 +64,10 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	if err != nil {
 		return err
 	}
+	ttl, err := ttlToSeconds(c.ttl)
+	if err != nil {
+		return fmt.Errorf("invalid value for TTL: %w", err)
+	}
 
 	client := serverClient.NewSVIDClient()
 	resp, err := client.MintJWTSVID(ctx, &svidv1.MintJWTSVIDRequest{
@@ -70,7 +75,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 			TrustDomain: spiffeID.TrustDomain().Name(),
 			Path:        spiffeID.Path(),
 		},
-		Ttl:      ttlToSeconds(c.ttl),
+		Ttl:      ttl,
 		Audience: c.audience,
 	})
 	if err != nil {
@@ -132,8 +137,8 @@ func getJWTSVIDEndOfLife(token string) (time.Time, error) {
 
 // ttlToSeconds returns the number of seconds in a duration, rounded up to
 // the nearest second
-func ttlToSeconds(ttl time.Duration) int32 {
-	return int32((ttl + time.Second - 1) / time.Second)
+func ttlToSeconds(ttl time.Duration) (int32, error) {
+	return util.CheckedCast[int32]((ttl + time.Second - 1) / time.Second)
 }
 
 func prettyPrintMint(env *commoncli.Env, results ...any) error {

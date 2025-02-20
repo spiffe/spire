@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"golang.org/x/sys/windows"
 )
 
@@ -86,7 +87,11 @@ func (t *windowsTracker) newWindowsWatcher(info CallerInfo, log logrus.FieldLogg
 	if err != nil {
 		return nil, fmt.Errorf("error getting process id from handle: %w", err)
 	}
-	if int32(pid) != info.PID {
+	pidInt32, err := util.CheckedCast[int32](pid)
+	if err != nil {
+		return nil, fmt.Errorf("invalid value for process ID: %w", err)
+	}
+	if pidInt32 != info.PID {
 		return nil, errors.New("process ID does not match with the caller")
 	}
 
@@ -208,5 +213,9 @@ func (s *systemCall) GetProcessID(h windows.Handle) (uint32, error) {
 }
 
 func (s *systemCall) OpenProcess(pid int32) (handle windows.Handle, err error) {
-	return windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	pidUint32, err := util.CheckedCast[uint32](pid)
+	if err != nil {
+		return 0, fmt.Errorf("invalid value for PID: %w", err)
+	}
+	return windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pidUint32)
 }

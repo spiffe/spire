@@ -254,7 +254,11 @@ type processQueryer interface {
 type processQuery struct{}
 
 func (q *processQuery) OpenProcess(pid int32) (handle windows.Handle, err error) {
-	return windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	pidUint32, err := util.CheckedCast[uint32](pid)
+	if err != nil {
+		return 0, fmt.Errorf("invalid value for PID: %w", err)
+	}
+	return windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pidUint32)
 }
 
 func (q *processQuery) OpenProcessToken(h windows.Handle, token *windows.Token) (err error) {

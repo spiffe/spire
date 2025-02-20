@@ -9,6 +9,7 @@ import (
 
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/keymanager/v1"
 	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -118,7 +119,7 @@ func (v1 *V1) convertKeyType(t KeyType) (keymanagerv1.KeyType, error) {
 
 func (v1 *V1) convertHashAlgorithm(h crypto.Hash) keymanagerv1.HashAlgorithm {
 	// Hash algorithm constants are aligned.
-	return keymanagerv1.HashAlgorithm(h)
+	return util.MustCast[keymanagerv1.HashAlgorithm](h)
 }
 
 type v1Key struct {
@@ -155,7 +156,7 @@ func (s *v1Key) signContext(ctx context.Context, digest []byte, opts crypto.Sign
 	case *rsa.PSSOptions:
 		req.SignerOpts = &keymanagerv1.SignDataRequest_PssOptions{
 			PssOptions: &keymanagerv1.SignDataRequest_PSSOptions{
-				SaltLength:    int32(opts.SaltLength),
+				SaltLength:    util.MustCast[int32](opts.SaltLength),
 				HashAlgorithm: s.v1.convertHashAlgorithm(opts.Hash),
 			},
 		}

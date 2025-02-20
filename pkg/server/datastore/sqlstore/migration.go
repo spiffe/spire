@@ -3,7 +3,6 @@ package sqlstore
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 
 	"github.com/blang/semver/v4"
@@ -391,12 +390,9 @@ func getDBCodeVersion(migration Migration) (dbCodeVersion semver.Version, err er
 }
 
 func isCompatibleCodeVersion(thisCodeVersion, dbCodeVersion semver.Version) bool {
-	// If major version is the same and minor version is +/- 1, versions are
-	// compatible
-	if dbCodeVersion.Major != thisCodeVersion.Major || (math.Abs(float64(int64(dbCodeVersion.Minor)-int64(thisCodeVersion.Minor))) > 1) {
-		return false
-	}
-	return true
+	// If major version is the same and minor version is +/- 1, versions are compatible
+	minMinor, maxMinor := min(dbCodeVersion.Minor, thisCodeVersion.Minor), max(dbCodeVersion.Minor, thisCodeVersion.Minor)
+	return dbCodeVersion.Major == thisCodeVersion.Major && (minMinor == maxMinor || minMinor+1 == maxMinor)
 }
 
 func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
