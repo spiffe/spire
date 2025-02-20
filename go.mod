@@ -20,19 +20,19 @@ require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
 	github.com/aws/aws-sdk-go-v2 v1.36.1
-	github.com/aws/aws-sdk-go-v2/config v1.29.0
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.53
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.24
+	github.com/aws/aws-sdk-go-v2/config v1.29.6
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.59
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.28
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.1
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.38.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.203.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.39.1
-	github.com/aws/aws-sdk-go-v2/service/kms v1.37.8
+	github.com/aws/aws-sdk-go-v2/service/kms v1.37.18
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.37.0
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.16.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.77.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.33.8
+	github.com/aws/aws-sdk-go-v2/service/sts v1.33.14
 	github.com/aws/smithy-go v1.22.2
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v4 v4.3.0
@@ -67,7 +67,7 @@ require (
 	github.com/open-policy-agent/opa v1.1.0
 	github.com/prometheus/client_golang v1.21.0
 	github.com/shirou/gopsutil/v4 v4.25.1
-	github.com/sigstore/cosign/v2 v2.4.1
+	github.com/sigstore/cosign/v2 v2.4.3
 	github.com/sigstore/rekor v1.3.9
 	github.com/sigstore/sigstore v1.8.15
 	github.com/sirupsen/logrus v1.9.3
@@ -78,7 +78,7 @@ require (
 	github.com/uber-go/tally/v4 v4.1.16
 	github.com/valyala/fastjson v1.6.4
 	golang.org/x/crypto v0.33.0
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
+	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
 	golang.org/x/net v0.35.0
 	golang.org/x/sync v0.11.0
 	golang.org/x/sys v0.30.0
@@ -121,16 +121,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.9 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.32 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.32 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.2 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.32 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.24.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.21.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.6.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.13 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.24.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.24.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.14 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
@@ -202,6 +200,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/yamux v0.1.1 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
+	github.com/in-toto/attestation v1.1.0 // indirect
 	github.com/in-toto/in-toto-golang v0.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -214,13 +213,13 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/letsencrypt/boulder v0.0.0-20240620165639-de9c06129bec // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
-	github.com/magiconair/properties v1.8.7 // indirect
+	github.com/magiconair/properties v1.8.9 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/sys/mountinfo v0.7.2 // indirect
@@ -235,7 +234,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
-	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
+	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
@@ -254,17 +253,19 @@ require (
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sigstore/protobuf-specs v0.4.0 // indirect
-	github.com/sigstore/timestamp-authority v1.2.2 // indirect
+	github.com/sigstore/sigstore-go v0.7.0 // indirect
+	github.com/sigstore/timestamp-authority v1.2.4 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
-	github.com/spf13/cobra v1.8.1 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/cobra v1.9.1 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/spf13/viper v1.19.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20220721030215-126854af5e6d // indirect
 	github.com/tchap/go-patricia/v2 v2.3.2 // indirect
 	github.com/theupdateframework/go-tuf v0.7.0 // indirect
+	github.com/theupdateframework/go-tuf/v2 v2.0.2 // indirect
 	github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
