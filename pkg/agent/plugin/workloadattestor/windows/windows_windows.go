@@ -256,7 +256,7 @@ type processQuery struct{}
 func (q *processQuery) OpenProcess(pid int32) (handle windows.Handle, err error) {
 	pidUint32, err := util.CheckedCast[uint32](pid)
 	if err != nil {
-		return 0, fmt.Errorf("PID: %w", err)
+		return 0, fmt.Errorf("invalid value for PID: %w", err)
 	}
 	return windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pidUint32)
 }

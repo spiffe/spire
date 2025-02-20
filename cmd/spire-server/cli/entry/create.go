@@ -179,12 +179,12 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 
 	x509SvidTTL, err := util.CheckedCast[int32](c.x509SVIDTTL)
 	if err != nil {
-		return nil, fmt.Errorf("X509 SVID TTL: %w", err)
+		return nil, fmt.Errorf("invalid value for X509 SVID TTL: %w", err)
 	}
 
 	jwtSvidTTL, err := util.CheckedCast[int32](c.jwtSVIDTTL)
 	if err != nil {
-		return nil, fmt.Errorf("JWT SVID TTL: %w", err)
+		return nil, fmt.Errorf("invalid value for JWT SVID TTL: %w", err)
 	}
 
 	e := &types.Entry{

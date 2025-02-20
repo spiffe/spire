@@ -28,7 +28,7 @@ func setFields(p *process.Process, fields logrus.Fields) error {
 func getUserSID(pID int32) (string, error) {
 	pidUint32, err := util.CheckedCast[uint32](pID)
 	if err != nil {
-		return "", fmt.Errorf("PID: %w", err)
+		return "", fmt.Errorf("invalid value for PID: %w", err)
 	}
 	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pidUint32)
 	if err != nil {

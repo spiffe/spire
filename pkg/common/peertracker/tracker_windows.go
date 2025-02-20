@@ -89,7 +89,7 @@ func (t *windowsTracker) newWindowsWatcher(info CallerInfo, log logrus.FieldLogg
 	}
 	pidInt32, err := util.CheckedCast[int32](pid)
 	if err != nil {
-		return nil, fmt.Errorf("process ID: %w", err)
+		return nil, fmt.Errorf("invalid value for process ID: %w", err)
 	}
 	if pidInt32 != info.PID {
 		return nil, errors.New("process ID does not match with the caller")
@@ -215,7 +215,7 @@ func (s *systemCall) GetProcessID(h windows.Handle) (uint32, error) {
 func (s *systemCall) OpenProcess(pid int32) (handle windows.Handle, err error) {
 	pidUint32, err := util.CheckedCast[uint32](pid)
 	if err != nil {
-		return 0, fmt.Errorf("PID: %w", err)
+		return 0, fmt.Errorf("invalid value for PID: %w", err)
 	}
 	return windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pidUint32)
 }

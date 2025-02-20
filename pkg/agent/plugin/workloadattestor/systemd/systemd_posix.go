@@ -58,7 +58,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
 	pid, err := util.CheckedCast[uint](req.Pid)
 	if err != nil {
-		return nil, fmt.Errorf("PID: %w", err)
+		return nil, fmt.Errorf("invalid value for PID: %w", err)
 	}
 	uInfo, err := p.getUnitInfo(ctx, p, pid)
 	if err != nil {

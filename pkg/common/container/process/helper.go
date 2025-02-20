@@ -49,7 +49,7 @@ func (h *helper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, e
 	// Duplicate the process handle that we want to validate, with limited permissions.
 	pidUint32, err := util.CheckedCast[uint32](pID)
 	if err != nil {
-		return "", fmt.Errorf("PID: %w", err)
+		return "", fmt.Errorf("invalid value for PID: %w", err)
 	}
 	childProcessHandle, err := h.wapi.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pidUint32)
 	if err != nil {

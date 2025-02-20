@@ -96,19 +96,19 @@ func (s *Service) GetInfo(context.Context, *debugv1.GetInfoRequest) (*debugv1.Ge
 
 		uptime, err := util.CheckedCast[int32](int64(s.uptime().Seconds()))
 		if err != nil {
-			return nil, fmt.Errorf("uptime: %w", err)
+			return nil, fmt.Errorf("invalid value for uptime: %w", err)
 		}
 		x509SvidsCount, err := util.CheckedCast[int32](s.m.CountX509SVIDs())
 		if err != nil {
-			return nil, fmt.Errorf("X.509 SVIDs count: %w", err)
+			return nil, fmt.Errorf("out of range value for X.509 SVIDs count: %w", err)
 		}
 		jwtSvidsCount, err := util.CheckedCast[int32](s.m.CountJWTSVIDs())
 		if err != nil {
-			return nil, fmt.Errorf("JWT SVIDs count: %w", err)
+			return nil, fmt.Errorf("out of range value for JWT SVIDs count: %w", err)
 		}
 		svidstoreX509SvidsCount, err := util.CheckedCast[int32](s.m.CountSVIDStoreX509SVIDs())
 		if err != nil {
-			return nil, fmt.Errorf("SVIDStore X.509 SVIDs count: %w", err)
+			return nil, fmt.Errorf("out of range value for SVIDStore X.509 SVIDs count: %w", err)
 		}
 
 		// Reset clock and set current response

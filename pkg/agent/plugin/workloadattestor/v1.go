@@ -18,7 +18,7 @@ type V1 struct {
 func (v1 *V1) Attest(ctx context.Context, pid int) ([]*common.Selector, error) {
 	pidInt32, err := util.CheckedCast[int32](pid)
 	if err != nil {
-		return nil, v1.WrapErr(fmt.Errorf("PID: %w", err))
+		return nil, v1.WrapErr(fmt.Errorf("invalid value for PID: %w", err))
 	}
 	resp, err := v1.WorkloadAttestorPluginClient.Attest(ctx, &workloadattestorv1.AttestRequest{
 		Pid: pidInt32,

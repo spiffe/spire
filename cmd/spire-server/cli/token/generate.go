@@ -48,7 +48,7 @@ func (g *generateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClien
 	}
 	ttl, err := util.CheckedCast[int32](g.TTL)
 	if err != nil {
-		return fmt.Errorf("TTL: %w", err)
+		return fmt.Errorf("invalid value for TTL: %w", err)
 	}
 
 	c := serverClient.NewAgentClient()

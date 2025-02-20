@@ -66,7 +66,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	}
 	ttl, err := ttlToSeconds(c.ttl)
 	if err != nil {
-		return fmt.Errorf("TTL: %w", err)
+		return fmt.Errorf("invalid value for TTL: %w", err)
 	}
 
 	client := serverClient.NewSVIDClient()

@@ -3854,13 +3854,13 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 	if r.RegTTL.Valid {
 		var err error
 		if entry.X509SvidTtl, err = util.CheckedCast[int32](r.RegTTL.Int64); err != nil {
-			return newSQLError("RegTTL: %s", err)
+			return newSQLError("invalid value for X.509 SVID TTL: %s", err)
 		}
 	}
 	if r.RegJwtSvidTTL.Valid {
 		var err error
 		if entry.JwtSvidTtl, err = util.CheckedCast[int32](r.RegJwtSvidTTL.Int64); err != nil {
-			return newSQLError("RegJwtSvidTTL: %s", err)
+			return newSQLError("invalid value for JWT SVID TTL: %s", err)
 		}
 	}
 	if r.Hint.Valid {
