@@ -4,7 +4,7 @@ go 1.23.6
 
 require (
 	cloud.google.com/go/iam v1.4.0
-	cloud.google.com/go/kms v1.20.5
+	cloud.google.com/go/kms v1.21.0
 	cloud.google.com/go/secretmanager v1.14.3
 	cloud.google.com/go/security v1.18.3
 	cloud.google.com/go/storage v1.50.0
@@ -296,7 +296,7 @@ require (
 	golang.org/x/term v0.29.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
 	google.golang.org/genproto v0.0.0-20250122153221-138b5a5a4fd4 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250207221924-e9438ea467c6 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250219182151-9fdb1cabc7b2 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
