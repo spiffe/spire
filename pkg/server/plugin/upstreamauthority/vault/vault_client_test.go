@@ -517,7 +517,7 @@ func TestConfigureTLSWithTokenAuth(t *testing.T) {
 
 	testPool, err := testRootCAs()
 	require.NoError(t, err)
-	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.True(t, testPool.Equal(tcc.RootCAs))
 }
 
 func TestConfigureTLSWithAppRoleAuth(t *testing.T) {
@@ -539,7 +539,7 @@ func TestConfigureTLSWithAppRoleAuth(t *testing.T) {
 
 	testPool, err := testRootCAs()
 	require.NoError(t, err)
-	require.Equal(t, testPool.Subjects(), tcc.RootCAs.Subjects())
+	require.True(t, testPool.Equal(tcc.RootCAs))
 }
 
 func TestConfigureTLSInvalidCACert(t *testing.T) {

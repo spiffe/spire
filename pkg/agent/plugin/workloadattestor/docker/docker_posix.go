@@ -92,7 +92,7 @@ func (h *containerHelper) getContainerID(pID int32, log hclog.Logger) (string, e
 	}
 
 	extractor := containerinfo.Extractor{RootDir: h.rootDir, VerboseLogging: h.verboseContainerLocatorLogs}
-	return extractor.GetContainerID(int(pID), log)
+	return extractor.GetContainerID(pID, log)
 }
 
 func getDockerHost(c *dockerPluginConfig) string {

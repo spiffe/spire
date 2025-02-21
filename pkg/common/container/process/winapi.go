@@ -6,6 +6,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/spiffe/spire/pkg/common/util"
 	"golang.org/x/sys/windows"
 )
 
@@ -90,7 +91,7 @@ func (a *api) GetObjectType(handle windows.Handle) (string, error) {
 	length := uint32(0)
 
 	status := ntQueryObject(handle, ObjectTypeInformationClass,
-		&buffer[0], uint32(len(buffer)), &length)
+		&buffer[0], util.MustCast[uint32](len(buffer)), &length)
 	if status != windows.STATUS_SUCCESS {
 		return "", status
 	}
@@ -104,7 +105,7 @@ func (a *api) GetObjectName(handle windows.Handle) (string, error) {
 	var length uint32
 
 	status := ntQueryObject(handle, ObjectNameInformationClass,
-		&buffer[0], uint32(len(buffer)), &length)
+		&buffer[0], util.MustCast[uint32](len(buffer)), &length)
 	if status != windows.STATUS_SUCCESS {
 		return "", status
 	}
@@ -121,7 +122,7 @@ func (a *api) QuerySystemExtendedHandleInformation() ([]SystemHandleInformationE
 		status = ntQuerySystemInformation(
 			windows.SystemExtendedHandleInformation,
 			unsafe.Pointer(&buffer[0]),
-			uint32(len(buffer)),
+			util.MustCast[uint32](len(buffer)),
 			&retLen,
 		)
 

@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/util"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -1303,7 +1304,7 @@ func countBundles(tx *gorm.DB) (int32, error) {
 		return 0, newWrappedSQLError(err)
 	}
 
-	return int32(count), nil
+	return util.CheckedCast[int32](count)
 }
 
 // listBundles can be used to fetch all existing bundles.
@@ -1588,7 +1589,7 @@ func countAttestedNodes(tx *gorm.DB) (int32, error) {
 		return 0, newWrappedSQLError(err)
 	}
 
-	return int32(count), nil
+	return util.CheckedCast[int32](count)
 }
 
 func countAttestedNodesHasFilters(req *datastore.CountAttestedNodesRequest) bool {
@@ -1687,7 +1688,7 @@ func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, _ logrus.Fiel
 			}
 		}
 
-		val += int32(len(resp.Nodes))
+		val += util.MustCast[int32](len(resp.Nodes))
 
 		listReq.Pagination = resp.Pagination
 	}
@@ -3326,7 +3327,7 @@ func countRegistrationEntries(ctx context.Context, db *sqlDB, _ logrus.FieldLogg
 			}
 		}
 
-		val += int32(len(resp.Entries))
+		val += util.MustCast[int32](len(resp.Entries))
 
 		listReq.Pagination = resp.Pagination
 	}
@@ -3851,10 +3852,16 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		entry.FederatesWith = append(entry.FederatesWith, r.TrustDomain.String)
 	}
 	if r.RegTTL.Valid {
-		entry.X509SvidTtl = int32(r.RegTTL.Int64)
+		var err error
+		if entry.X509SvidTtl, err = util.CheckedCast[int32](r.RegTTL.Int64); err != nil {
+			return newSQLError("invalid value for X.509 SVID TTL: %s", err)
+		}
 	}
 	if r.RegJwtSvidTTL.Valid {
-		entry.JwtSvidTtl = int32(r.RegJwtSvidTTL.Int64)
+		var err error
+		if entry.JwtSvidTtl, err = util.CheckedCast[int32](r.RegJwtSvidTTL.Int64); err != nil {
+			return newSQLError("invalid value for JWT SVID TTL: %s", err)
+		}
 	}
 	if r.Hint.Valid {
 		entry.Hint = r.Hint.String

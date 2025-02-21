@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc/codes"
 )
@@ -35,7 +36,7 @@ func (v1 *V1) MintX509CA(ctx context.Context, csr []byte, preferredTTL time.Dura
 
 	stream, err := v1.UpstreamAuthorityPluginClient.MintX509CAAndSubscribe(ctx, &upstreamauthorityv1.MintX509CARequest{
 		Csr:          csr,
-		PreferredTtl: int32(preferredTTL / time.Second),
+		PreferredTtl: util.MustCast[int32](preferredTTL / time.Second),
 	})
 	if err != nil {
 		return nil, nil, nil, v1.WrapErr(err)

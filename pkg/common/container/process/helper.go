@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/util"
 	"golang.org/x/sys/windows"
 )
 
@@ -46,7 +47,11 @@ func (h *helper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, e
 	currentProcess := h.wapi.CurrentProcess()
 
 	// Duplicate the process handle that we want to validate, with limited permissions.
-	childProcessHandle, err := h.wapi.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pID))
+	pidUint32, err := util.CheckedCast[uint32](pID)
+	if err != nil {
+		return "", fmt.Errorf("invalid value for PID: %w", err)
+	}
+	childProcessHandle, err := h.wapi.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pidUint32)
 	if err != nil {
 		return "", fmt.Errorf("failed to open child process: %w", err)
 	}

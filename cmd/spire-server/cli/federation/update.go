@@ -9,9 +9,10 @@ import (
 	"github.com/mitchellh/cli"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	serverutil "github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
+	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 )
 
@@ -21,7 +22,7 @@ func NewUpdateCommand() cli.Command {
 }
 
 func newUpdateCommand(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, &updateCommand{env: env})
+	return serverutil.AdaptCommand(env, &updateCommand{env: env})
 }
 
 type updateCommand struct {
@@ -47,7 +48,7 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, c.prettyPrintUpdate)
 }
 
-func (c *updateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
+func (c *updateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient serverutil.ServerClient) error {
 	federationRelationships, err := getRelationships(c.config, c.path)
 	if err != nil {
 		return err
@@ -97,7 +98,7 @@ func (c *updateCommand) prettyPrintUpdate(env *commoncli.Env, results ...any) er
 	for _, r := range failed {
 		env.Println()
 		env.ErrPrintf("Failed to update the following federation relationship (code: %s, msg: %q):\n",
-			codes.Code(r.Status.Code),
+			util.MustCast[codes.Code](r.Status.Code),
 			r.Status.Message)
 		printFederationRelationship(r.FederationRelationship, env.ErrPrintf)
 	}
