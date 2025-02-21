@@ -10,8 +10,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/open-policy-agent/opa/v1/ast"
-	"github.com/open-policy-agent/opa/v1/storage/inmem"
+	"github.com/open-policy-agent/opa/ast"           //nolint:staticcheck // Will be removed when https://github.com/spiffe/spire/issues/5887 is closed
+	"github.com/open-policy-agent/opa/storage/inmem" //nolint:staticcheck // Will be removed when https://github.com/spiffe/spire/issues/5887 is closed
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
