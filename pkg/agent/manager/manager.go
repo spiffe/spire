@@ -315,6 +315,9 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
+	var rebootstrapTime time.Time
+	rebootstrapTimeoutSeconds := 30
+	rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
 	syncInterval := min(m.synchronizeBackoff.NextBackOff(), defaultSyncInterval)
 	for {
 		select {
@@ -324,10 +327,28 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		}
 
 		err := m.synchronize(ctx)
+		if !x509util.IsUnknownAuthorityError(err) {
+			rebootstrapTime = time.Time{}
+		}
 		switch {
 		case x509util.IsUnknownAuthorityError(err):
-			m.c.Log.WithError(err).Info("Synchronize failed, non-recoverable error")
-			return fmt.Errorf("failed to sync with SPIRE Server: %w", err)
+			if rebootstrapTime.IsZero() {
+				rebootstrapTime = time.Now()
+			}
+			seconds := time.Now().Sub(rebootstrapTime)
+			if seconds < rebootstrapTimeoutUSconds {
+				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
+			} else {
+				fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+				m.deleteSVID()
+				m.storeBundle(nil)
+				return fmt.Errorf("Shutting down for rebootstrapping")
+			}
+			//FIXME write out rebootstrap timer so on restart it can contiue on
+			m.synchronizeBackoff.Reset()
+			syncInterval = m.synchronizeBackoff.NextBackOff()
+			syncInterval = min(syncInterval, defaultSyncInterval)
+			continue
 		case err != nil && nodeutil.ShouldAgentReattest(err):
 			fallthrough
 		case nodeutil.ShouldAgentShutdown(err):

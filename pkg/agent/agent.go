@@ -32,6 +32,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/common/version"
 	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
@@ -105,18 +106,44 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
+//FIXME KMF
+a.c.RetryBootstrap=true
+
 	if a.c.RetryBootstrap {
+		var rebootstrapTime time.Time
+		//FIXME KMF configurable
+		rebootstrapTimeoutSeconds := 10
+		rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
+
 		attBackoffClock := clock.New()
 		attBackoff := backoff.NewBackoff(
 			attBackoffClock,
 			bootstrapBackoffInterval,
 			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+			//KMF how to ignore max time if rebootstrapping
 		)
 
 		for {
 			as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
 			if err == nil {
 				break
+			}
+
+			if x509util.IsUnknownAuthorityError(err) {
+				if rebootstrapTime.IsZero() {
+					rebootstrapTime = time.Now()
+				}
+				seconds := time.Now().Sub(rebootstrapTime)
+				if seconds < rebootstrapTimeoutUSconds {
+					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
+				} else {
+					//FIXME loop and keep retrying syncronize... first with timeout, and then after passed timeout, add clearing bundle and deletesvid.
+					//FIXME double check... if this mechanism work with online update too... its sharing most of the code?
+					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+					a.c.TrustBundle = nil
+					sto.StoreBundle(nil)
+					err = nil
+				}
 			}
 
 			if status.Code(err) == codes.PermissionDenied {
@@ -288,20 +315,44 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
 		TLSPolicy:                a.c.TLSPolicy,
 	}
-
+//FIXME KMF
+a.c.RetryBootstrap=true
 	mgr := manager.New(config)
 	if a.c.RetryBootstrap {
+		var rebootstrapTime time.Time
+		//FIXME KMF configurable
+		rebootstrapTimeoutSeconds := 10
+		rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
+
 		initBackoffClock := clock.New()
 		initBackoff := backoff.NewBackoff(
 			initBackoffClock,
 			bootstrapBackoffInterval,
 			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+			//KMF how to ignore max time if rebootstrapping
 		)
 
 		for {
 			err := mgr.Initialize(ctx)
 			if err == nil {
 				return mgr, nil
+			}
+			if x509util.IsUnknownAuthorityError(err) {
+				if rebootstrapTime.IsZero() {
+					rebootstrapTime = time.Now()
+				}
+				seconds := time.Now().Sub(rebootstrapTime)
+				if seconds < rebootstrapTimeoutUSconds {
+					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
+				} else {
+					//FIXME loop and keep retrying syncronize... first with timeout, and then after passed timeout, add clearing bundle and deletesvid.
+					//FIXME double check... if this mechanism work with online update too... its sharing most of the code?
+					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+					sto.DeleteSVID()
+					sto.StoreBundle(nil)
+					return nil, errors.New("Agent needs to rebootstrap. shutting down")
+
+				}
 			}
 
 			if nodeutil.ShouldAgentReattest(err) || nodeutil.ShouldAgentShutdown(err) {
