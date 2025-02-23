@@ -1594,7 +1594,7 @@ func (s *PluginSuite) TestListAttestedNodeEvents() {
 			name:               "Setting both greater and less than",
 			greaterThanEventID: 1,
 			lessThanEventID:    1,
-			expectedErr:        "rpc error: code = Unknown desc = datastore-sql: can't set both greater and less than event id",
+			expectedErr:        "datastore-sql: can't set both greater and less than event id",
 		},
 	}
 	for _, test := range tests {
@@ -4133,7 +4133,7 @@ func (s *PluginSuite) TestListRegistrationEntryEvents() {
 			name:               "Setting both greater and less than",
 			greaterThanEventID: 1,
 			lessThanEventID:    1,
-			expectedErr:        "rpc error: code = Unknown desc = datastore-sql: can't set both greater and less than event id",
+			expectedErr:        "datastore-sql: can't set both greater and less than event id",
 		},
 	}
 	for _, test := range tests {
