@@ -48,7 +48,7 @@ A sample configuration:
 
 ## SVID Path Prefix
 
-When `mode="spiffe"` the SPIFFE ID being exchanged must be prefixed by the specified `svid_prefix`. The prefix will be removed from the `.SVIDPathTrimmed` property before sending to the agent path template. If `svid_prefix` is set to `""`, all prefices will allowed, and the limiting logic will have to be implemented in the `agent_path_template`.
+When `mode="spiffe"` the SPIFFE ID being exchanged must be prefixed by the specified `svid_prefix`. The prefix will be removed from the `.SVIDPathTrimmed` property before sending to the agent path template. If `svid_prefix` is set to `""`, all prefixes will be allowed, and the limiting logic will have to be implemented in the `agent_path_template`.
 
 **Example:** If your trust domain is example.com and `svid_prefix` is set to its default value `/spire-exchange`, and [agent_path_template](#agent-path-template) is the default too, then the SPIFFE ID from the x509 identity `spiffe://example.com/spire-exchange/testhost` will be exchanged for `spiffe://example.com/spire/agent/x509pop/testhost`. If a SPIFFE ID with a different prefix is given, for example `spiffe://example.com/other/testhost`, it will not match the `svid_prefix` and will be rejected.
 
@@ -56,10 +56,10 @@ When `mode="spiffe"` the SPIFFE ID being exchanged must be prefixed by the speci
 
 Specifying the value of `agent_path_template` provides a way of customizing the format of generated SPIFFE IDs for agents. The default format for every mode is shown below
 
-|`mode`|`agent_path_template`|
-|------|---------------------|
-| `spiffe` | `{{ .PluginName }}/{{ .SVIDPathTrimmed }}`|
-| `external_pki` |  `{{ .PluginName }}/{{ .Fingerprint }}` |
+| `mode`         | `agent_path_template`                      |
+|----------------|--------------------------------------------|
+| `spiffe`       | `{{ .PluginName }}/{{ .SVIDPathTrimmed }}` |
+| `external_pki` | `{{ .PluginName }}/{{ .Fingerprint }}`     |
 
 The template formatter is using Golang text/template conventions. It can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate).
 Details about the template engine are available [here](template_engine.md).
