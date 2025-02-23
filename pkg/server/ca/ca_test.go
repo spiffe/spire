@@ -3,12 +3,14 @@ package ca
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/health"
@@ -520,6 +522,64 @@ func (s *CATestSuite) TestSignDownstreamX509CANoCASet() {
 	s.Require().EqualError(err, "X509 CA is not available for signing")
 }
 
+func (s *CATestSuite) TestNoWITKeySet() {
+	s.ca.SetWITKey(nil)
+	_, err := s.ca.SignWorkloadWITSVID(ctx, s.createWITSVIDParams(trustDomainExample, 0))
+	s.Require().EqualError(err, "WIT key is not available for signing")
+}
+
+func (s *CATestSuite) TestSignWorkloadWITSVIDUsesDefaultTTLIfTTLUnspecified() {
+	token, err := s.ca.SignWorkloadWITSVID(ctx, s.createWITSVIDParams(trustDomainExample, 0))
+	s.Require().NoError(err)
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
+	s.Require().NoError(err)
+	s.Require().Equal(s.clock.Now(), issuedAt)
+	s.Require().Equal(s.clock.Now().Add(credtemplate.DefaultWITSVIDTTL), expiresAt)
+}
+
+func (s *CATestSuite) TestSignWorkloadWITSVIDUsesTTLIfSpecified() {
+	token, err := s.ca.SignWorkloadWITSVID(ctx, s.createWITSVIDParams(trustDomainExample, time.Minute+time.Second))
+	s.Require().NoError(err)
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
+	s.Require().NoError(err)
+	s.Require().Equal(s.clock.Now(), issuedAt)
+	s.Require().Equal(s.clock.Now().Add(time.Minute+time.Second), expiresAt)
+}
+
+func (s *CATestSuite) TestSignWorkloadWITSVIDCapsTTLToKeyExpiry() {
+	token, err := s.ca.SignWorkloadWITSVID(ctx, s.createWITSVIDParams(trustDomainExample, 48*time.Hour))
+	s.Require().NoError(err)
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
+	s.Require().NoError(err)
+	s.Require().Equal(s.clock.Now(), issuedAt)
+	s.Require().Equal(s.clock.Now().Add(24*time.Hour), expiresAt)
+}
+
+func (s *CATestSuite) TestSignWorkloadWITSVIDValidation() {
+	// spiffe id for wrong trust domain
+	_, err := s.ca.SignWorkloadWITSVID(ctx, s.createWITSVIDParams(trustDomainFoo, 0))
+	s.Require().EqualError(err, `invalid WIT-SVID ID: "spiffe://foo.com/workload" is not a member of trust domain "example.org"`)
+
+	// validates public key
+	params := s.createWITSVIDParams(trustDomainExample, 0)
+	params.PublicKey = jose.JSONWebKey{
+		Key: "invalid",
+	}
+	_, err = s.ca.SignWorkloadWITSVID(ctx, params)
+	s.Require().EqualError(err, "could not determined workload key algorithm: unable to determine signature algorithm for public key type string")
+
+	// Validate key algorithm
+	params = s.createWITSVIDParams(trustDomainExample, 0)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024) //nolint:gosec
+	s.Require().NoError(err)
+
+	params.PublicKey = jose.JSONWebKey{
+		Key: &rsaKey.PublicKey,
+	}
+	_, err = s.ca.SignWorkloadWITSVID(ctx, params)
+	s.Require().EqualError(err, "could not determined workload key algorithm: unsupported RSA key size: 128")
+}
+
 func (s *CATestSuite) TestSignDownstreamX509CA() {
 	svidChain, err := s.ca.SignDownstreamX509CA(ctx, s.createDownstreamX509CAParams())
 	s.Require().NoError(err)
@@ -604,7 +664,7 @@ func (s *CATestSuite) setWITKey() {
 	s.ca.SetWITKey(&WITKey{
 		Signer:   testSigner,
 		Kid:      "KID",
-		NotAfter: s.clock.Now().Add(10 * time.Minute),
+		NotAfter: s.clock.Now().Add(24 * time.Hour),
 	})
 }
 
@@ -647,6 +707,16 @@ func (s *CATestSuite) createJWTSVIDParams(trustDomain spiffeid.TrustDomain, ttl 
 		SPIFFEID: spiffeid.RequireFromPath(trustDomain, "/workload"),
 		Audience: []string{"AUDIENCE"},
 		TTL:      ttl,
+	}
+}
+
+func (s *CATestSuite) createWITSVIDParams(trustDomain spiffeid.TrustDomain, ttl time.Duration) WorkloadWITSVIDParams {
+	return WorkloadWITSVIDParams{
+		SPIFFEID: spiffeid.RequireFromPath(trustDomain, "/workload"),
+		TTL:      ttl,
+		PublicKey: jose.JSONWebKey{
+			Key: testSigner.Public(),
+		},
 	}
 }
 
