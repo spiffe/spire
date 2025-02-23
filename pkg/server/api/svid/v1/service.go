@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
@@ -162,7 +163,20 @@ func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDReques
 
 func (s *Service) MintWITSVID(ctx context.Context, req *svidv1.MintWITSVIDRequest) (*svidv1.MintWITSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
-	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+	if s.isWITSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "WIT functionality is disabled", nil)
+	}
+
+	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromWITSvidParams(ctx, req.Id, req.Ttl))
+	witsvid, err := s.mintWITSVID(ctx, req.Id, req.PublicKey, req.Ttl)
+	if err != nil {
+		return nil, err
+	}
+	rpccontext.AuditRPC(ctx)
+
+	return &svidv1.MintWITSVIDResponse{
+		Svid: witsvid,
+	}, nil
 }
 
 func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
@@ -393,7 +407,169 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 
 func (s *Service) BatchNewWITSVID(ctx context.Context, req *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
-	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+
+	if len(req.Params) == 0 {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "missing parameters", nil)
+	}
+
+	if err := rpccontext.RateLimit(ctx, len(req.Params)); err != nil {
+		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to certificate signing rate limiting", err)
+	}
+
+	requestedEntries := make(map[string]struct{})
+	for _, svidParam := range req.Params {
+		requestedEntries[svidParam.GetEntryId()] = struct{}{}
+	}
+
+	// Fetch authorized entries
+	entriesMap, err := s.findEntries(ctx, log, requestedEntries)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []*svidv1.BatchNewWITSVIDResponse_Result
+	for _, svidParam := range req.Params {
+		//  Create new SVID
+		r := s.newWITSVID(ctx, svidParam, entriesMap)
+		results = append(results, r)
+		spiffeID := ""
+		if r.Svid != nil {
+			id, err := idutil.IDProtoString(r.Svid.Id)
+			if err == nil {
+				spiffeID = id
+			}
+		}
+
+		rpccontext.AuditRPCWithTypesStatus(ctx, r.Status, func() logrus.Fields {
+			fields := logrus.Fields{
+				telemetry.RegistrationID: svidParam.EntryId,
+				telemetry.SPIFFEID:       spiffeID,
+			}
+
+			if r.Svid != nil {
+				fields[telemetry.ExpiresAt] = r.Svid.ExpiresAt
+			}
+
+			return fields
+		})
+	}
+
+	return &svidv1.BatchNewWITSVIDResponse{Results: results}, nil
+}
+
+func (s *Service) mintWITSVID(ctx context.Context, protoID *types.SPIFFEID, publicKeyDer []byte, ttl int32) (*types.WITSVID, error) {
+	log := rpccontext.Logger(ctx)
+
+	id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
+	}
+
+	log = log.WithField(telemetry.SPIFFEID, id.String())
+
+	publicKey, err := x509.ParsePKIXPublicKey(publicKeyDer)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid public key", err)
+	}
+
+	token, err := s.ca.SignWorkloadWITSVID(ctx, ca.WorkloadWITSVIDParams{
+		SPIFFEID: id,
+		TTL:      time.Duration(ttl) * time.Second,
+		PublicKey: jose.JSONWebKey{
+			Key: publicKey,
+		},
+	})
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to sign WIT-SVID", err)
+	}
+
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
+	if err != nil {
+		return nil, api.MakeErr(log, codes.Internal, "failed to get WIT-SVID expiry", err)
+	}
+
+	log.WithFields(logrus.Fields{
+		telemetry.Expiration: expiresAt.Format(time.RFC3339),
+	}).Debug("Server CA successfully signed WIT-SVID")
+
+	return &types.WITSVID{
+		Token:     token,
+		Id:        api.ProtoFromID(id),
+		ExpiresAt: expiresAt.Unix(),
+		IssuedAt:  issuedAt.Unix(),
+	}, nil
+}
+
+// newWITSVID creates an WIT-SVID using data from registration entry and public key from input params
+func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams, entries map[string]api.ReadOnlyEntry) *svidv1.BatchNewWITSVIDResponse_Result {
+	log := rpccontext.Logger(ctx)
+
+	switch {
+	case param.EntryId == "":
+		return &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
+		}
+	case len(param.PublicKey) == 0:
+		return &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "missing public key", nil),
+		}
+	}
+
+	log = log.WithField(telemetry.RegistrationID, param.EntryId)
+
+	entry, ok := entries[param.EntryId]
+	if !ok {
+		return &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.MakeStatus(log, codes.NotFound, "entry not found or not authorized", nil),
+		}
+	}
+
+	publicKey, err := x509.ParsePKIXPublicKey(param.PublicKey)
+	if err != nil {
+		return &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "malformed public key", err),
+		}
+	}
+
+	spiffeID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, entry.GetSpiffeId())
+	if err != nil {
+		// This shouldn't be the case unless there is invalid data in the datastore
+		return &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "entry has malformed SPIFFE ID", err),
+		}
+	}
+
+	log = log.WithField(telemetry.SPIFFEID, spiffeID.String())
+
+	witSvid, err := s.ca.SignWorkloadWITSVID(ctx, ca.WorkloadWITSVIDParams{
+		SPIFFEID: spiffeID,
+		PublicKey: jose.JSONWebKey{
+			Key: publicKey,
+		},
+		// TODO: add its own TTL
+		TTL: time.Duration(entry.GetX509SvidTtl()) * time.Second,
+	})
+	if err != nil {
+		return &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to sign WIT-SVID", err),
+		}
+	}
+
+	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(witSvid)
+	if err != nil {
+		return &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.MakeStatus(log, codes.Internal, "failed to get WIT-SVID expiry", err),
+		}
+	}
+
+	return &svidv1.BatchNewWITSVIDResponse_Result{
+		Svid: &types.WITSVID{
+			Id:        entry.GetSpiffeId(),
+			Token:     witSvid,
+			ExpiresAt: expiresAt.Unix(),
+			IssuedAt:  issuedAt.Unix(),
+		},
+	}
 }
 
 func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownstreamX509CARequest) (*svidv1.NewDownstreamX509CAResponse, error) {
@@ -470,6 +646,10 @@ func (s *Service) isJWTSVIDsDisabled() bool {
 	return s.ca.IsJWTSVIDsDisabled()
 }
 
+func (s *Service) isWITSVIDsDisabled() bool {
+	return s.ca.IsWITSVIDsDisabled()
+}
+
 func (s Service) fieldsFromJWTSvidParams(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) logrus.Fields {
 	fields := logrus.Fields{
 		telemetry.TTL: ttl,
@@ -484,6 +664,21 @@ func (s Service) fieldsFromJWTSvidParams(ctx context.Context, protoID *types.SPI
 
 	if len(audience) > 0 {
 		fields[telemetry.Audience] = strings.Join(audience, ",")
+	}
+
+	return fields
+}
+
+func (s Service) fieldsFromWITSvidParams(ctx context.Context, protoID *types.SPIFFEID, ttl int32) logrus.Fields {
+	fields := logrus.Fields{
+		telemetry.TTL: ttl,
+	}
+	if protoID != nil {
+		// Don't care about parsing error
+		id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
+		if err == nil {
+			fields[telemetry.SPIFFEID] = id.String()
+		}
 	}
 
 	return fields
