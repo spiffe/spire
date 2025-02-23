@@ -555,7 +555,7 @@ func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*anyp
 		return nil, err
 	}
 
-	certsPEM := pemutil.EncodeCertificates(identity.SVID)
+	certsPEM := pemutil.EncodeCertificates(identity.X509SVID)
 
 	return anypb.New(&tls_v3.Secret{
 		Name: name,

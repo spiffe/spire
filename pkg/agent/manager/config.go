@@ -72,7 +72,7 @@ func newManager(c *Config) *manager {
 		c.Clk = clock.New()
 	}
 
-	cache := managerCache.NewLRUCache(c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
+	cache := managerCache.NewLRUCache[*managerCache.X509SVID](c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
 		c.Metrics, c.X509SVIDCacheMaxSize, c.JWTSVIDCacheMaxSize, c.Clk)
 
 	rotCfg := &svid.RotatorConfig{
@@ -94,7 +94,7 @@ func newManager(c *Config) *manager {
 	svidRotator, client := svid.NewRotator(rotCfg)
 
 	m := &manager{
-		cache:          cache,
+		x509SVIDCache:  cache,
 		c:              c,
 		mtx:            new(sync.RWMutex),
 		svid:           svidRotator,

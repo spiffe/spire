@@ -98,8 +98,8 @@ type Manager interface {
 
 // Cache stores each registration entry, signed X509-SVIDs for those entries,
 // bundles, and JWT SVIDs for the agent.
-type Cache interface {
-	SVIDCache
+type Cache[SVID interface{}] interface {
+	SVIDCache[SVID]
 
 	// Bundle gets latest cached bundle
 	Bundle() *spiffebundle.Bundle
@@ -117,7 +117,7 @@ type Cache interface {
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 
 	// CountX509SVIDs in cache stored
-	CountX509SVIDs() int
+	CountSVIDs() int
 
 	// CountJWTSVIDs in cache stored
 	CountJWTSVIDs() int
@@ -146,8 +146,8 @@ type manager struct {
 	// Protects multiple goroutines from requesting SVID signings at the same time
 	updateSVIDMu sync.RWMutex
 
-	cache Cache
-	svid  svid.Rotator
+	x509SVIDCache Cache[*cache.X509SVID]
+	svid          svid.Rotator
 
 	storage storage.Storage
 
@@ -186,7 +186,7 @@ type manager struct {
 
 func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
-	m.storeBundle(m.cache.Bundle())
+	m.storeBundle(m.x509SVIDCache.Bundle())
 
 	// upper limit of backoff is 8 mins
 	synchronizeBackoffMaxInterval := min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*m.c.SyncInterval)
@@ -250,7 +250,7 @@ func (m *manager) Run(ctx context.Context) error {
 }
 
 func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
-	return m.cache.SubscribeToWorkloadUpdates(ctx, selectors)
+	return m.x509SVIDCache.SubscribeToWorkloadUpdates(ctx, selectors)
 }
 
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {
@@ -258,7 +258,7 @@ func (m *manager) SubscribeToSVIDChanges() observer.Stream {
 }
 
 func (m *manager) SubscribeToBundleChanges() *cache.BundleStream {
-	return m.cache.SubscribeToBundleChanges()
+	return m.x509SVIDCache.SubscribeToBundleChanges()
 }
 
 func (m *manager) GetRotationMtx() *sync.RWMutex {
@@ -274,15 +274,15 @@ func (m *manager) SetRotationFinishedHook(f func()) {
 }
 
 func (m *manager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
-	return m.cache.MatchingRegistrationEntries(selectors)
+	return m.x509SVIDCache.MatchingRegistrationEntries(selectors)
 }
 
 func (m *manager) CountX509SVIDs() int {
-	return m.cache.CountX509SVIDs()
+	return m.x509SVIDCache.CountSVIDs()
 }
 
 func (m *manager) CountJWTSVIDs() int {
-	return m.cache.CountJWTSVIDs()
+	return m.x509SVIDCache.CountJWTSVIDs()
 }
 
 func (m *manager) CountSVIDStoreX509SVIDs() int {
@@ -291,7 +291,7 @@ func (m *manager) CountSVIDStoreX509SVIDs() int {
 
 // FetchWorkloadUpdates gets the latest workload update for the selectors
 func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {
-	return m.cache.FetchWorkloadUpdate(selectors)
+	return m.x509SVIDCache.FetchWorkloadUpdate(selectors)
 }
 
 func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {
@@ -308,7 +308,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 	var cachedSVID *client.JWTSVID
 	var ok bool
 	if !bypassCache {
-		cachedSVID, ok = m.cache.GetJWTSVID(spiffeID, audience)
+		cachedSVID, ok = m.x509SVIDCache.GetJWTSVID(spiffeID, audience)
 		if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
 			return cachedSVID, nil
 		}
@@ -332,7 +332,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 	}
 
 	if !bypassCache {
-		m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
+		m.x509SVIDCache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
 	}
 	return newSVID, nil
 }
@@ -393,7 +393,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 
 			// Clamp the sync interval to the default value when the agent doesn't have any SVIDs cached
 			// AND the previous sync request succeeded
-			if m.cache.CountX509SVIDs() == 0 {
+			if m.x509SVIDCache.CountSVIDs() == 0 {
 				syncInterval = min(syncInterval, defaultSyncInterval)
 			}
 		}
@@ -437,7 +437,7 @@ func (m *manager) GetBundle() *cache.Bundle {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
-	return m.cache.Bundle()
+	return m.x509SVIDCache.Bundle()
 }
 
 func (m *manager) runSVIDObserver(ctx context.Context) error {

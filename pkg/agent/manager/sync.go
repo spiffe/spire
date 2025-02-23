@@ -28,12 +28,12 @@ type csrRequest struct {
 	CurrentSVIDExpiresAt time.Time
 }
 
-type SVIDCache interface {
+type SVIDCache[SVID interface{}] interface {
 	// UpdateEntries updates entries on cache
-	UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool)
+	UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, SVID) bool)
 
 	// UpdateSVIDs updates SVIDs on provided records
-	UpdateSVIDs(update *cache.UpdateSVIDs)
+	UpdateSVIDs(update *cache.UpdateSVIDs[SVID])
 
 	// GetStaleEntries gets a list of records that need update SVIDs
 	GetStaleEntries() []*cache.StaleEntry
@@ -49,8 +49,8 @@ type SVIDCache interface {
 }
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
-	m.cache.SyncSVIDsWithSubscribers()
-	return m.updateSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.cache)
+	m.x509SVIDCache.SyncSVIDsWithSubscribers()
+	return m.updateSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.x509SVIDCache)
 }
 
 // processTaintedAuthorities verifies if a new authority is tainted and forces rotation in all caches if required.
@@ -66,7 +66,7 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 		}
 
 		// Taint all regular X.509 SVIDs
-		m.cache.TaintX509SVIDs(ctx, taintedX509Authorities)
+		m.x509SVIDCache.TaintX509SVIDs(ctx, taintedX509Authorities)
 
 		// Taint all SVIDStore SVIDs
 		m.svidStoreCache.TaintX509SVIDs(ctx, taintedX509Authorities)
@@ -87,7 +87,7 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 			Debug("New tainted JWT authorities found")
 
 		// Taint JWT-SVIDs in the cache
-		m.cache.TaintJWTSVIDs(ctx, jwtAuthorities)
+		m.x509SVIDCache.TaintJWTSVIDs(ctx, jwtAuthorities)
 
 		for _, subjectKeyID := range newTaintedJWTAuthorities {
 			m.processedTaintedJWTAuthorities[subjectKeyID] = struct{}{}
@@ -110,7 +110,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := m.updateCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.cache); err != nil {
+	if err := m.updateCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.x509SVIDCache); err != nil {
 		return err
 	}
 
@@ -123,7 +123,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c SVIDCache) error {
+func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c SVIDCache[*cache.X509SVID]) error {
 	// update the cache and build a list of CSRs that need to be processed
 	// in this interval.
 	//
@@ -166,7 +166,7 @@ func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, 
 	return m.updateSVIDs(ctx, log, c)
 }
 
-func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVIDCache) error {
+func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVIDCache[*cache.X509SVID]) error {
 	m.updateSVIDMu.Lock()
 	defer m.updateSVIDMu.Unlock()
 
@@ -202,7 +202,7 @@ func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVI
 	return nil
 }
 
-func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.UpdateSVIDs, err error) {
+func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.UpdateSVIDs[*cache.X509SVID], err error) {
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	counter := telemetry_agent.StartManagerFetchSVIDsUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
@@ -281,8 +281,8 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 		}
 	}
 
-	return &cache.UpdateSVIDs{
-		X509SVIDs: byEntryID,
+	return &cache.UpdateSVIDs[*cache.X509SVID]{
+		SVIDs: byEntryID,
 	}, nil
 }
 

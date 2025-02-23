@@ -1277,7 +1277,7 @@ func (h *handlerTest) setWorkloadUpdate(workloadCert *x509.Certificate) {
 					Entry: &common.RegistrationEntry{
 						SpiffeId: "spiffe://domain.test/workload",
 					},
-					SVID:       []*x509.Certificate{workloadCert},
+					X509SVID:   []*x509.Certificate{workloadCert},
 					PrivateKey: workloadKey,
 				},
 			},

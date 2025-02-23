@@ -1787,7 +1787,7 @@ func identityFromX509SVID(svid *x509svid.SVID, entryID string) cache.Identity {
 	return cache.Identity{
 		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String(), Hint: svid.Hint, EntryId: entryID},
 		PrivateKey: svid.PrivateKey,
-		SVID:       svid.Certificates,
+		X509SVID:   svid.Certificates,
 	}
 }
 

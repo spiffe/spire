@@ -383,7 +383,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	// blocked on this logic
 	if !quietLogging {
 		for i, svid := range resp.Svids {
-			ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
+			ttl := time.Until(update.Identities[i].X509SVID[0].NotAfter)
 			log.WithFields(logrus.Fields{
 				telemetry.SPIFFEID: svid.SpiffeId,
 				telemetry.TTL:      ttl.Seconds(),
@@ -415,7 +415,7 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 
 		svid := &workload.X509SVID{
 			SpiffeId:    id,
-			X509Svid:    x509util.DERFromCertificates(identity.SVID),
+			X509Svid:    x509util.DERFromCertificates(identity.X509SVID),
 			X509SvidKey: keyData,
 			Bundle:      bundle,
 			Hint:        identity.Entry.Hint,

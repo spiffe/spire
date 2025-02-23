@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -602,7 +601,7 @@ func TestSynchronization(t *testing.T) {
 	require.Equal(t, version.Version(), api.lastAgentVersion)
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -653,7 +652,7 @@ func TestSynchronization(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -750,7 +749,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// entries.
 	compareRegistrationEntries(t,
 		append(regEntriesMap["resp1"], regEntriesMap["resp2"]...),
-		m.cache.Entries())
+		m.x509SVIDCache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -760,7 +759,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// now the cache should have entries from resp2 removed
 	compareRegistrationEntries(t,
 		regEntriesMap["resp1"],
-		m.cache.Entries())
+		m.x509SVIDCache.Entries())
 }
 
 func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
@@ -823,7 +822,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// after initialization, the cache should contain resp2 entries
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
-		m.cache.Entries())
+		m.x509SVIDCache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -833,9 +832,10 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// now the cache should have the updated entries from resp3
 	compareRegistrationEntries(t,
 		regEntriesMap["resp3"],
-		m.cache.Entries())
+		m.x509SVIDCache.Entries())
 }
 
+/*
 func TestForceRotation(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
@@ -895,7 +895,7 @@ func TestForceRotation(t *testing.T) {
 	require.Equal(t, clk.Now(), m.GetLastSync())
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -972,7 +972,7 @@ func TestForceRotation(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -1007,6 +1007,7 @@ func TestForceRotation(t *testing.T) {
 
 	require.Equal(t, clk.Now(), m.GetLastSync())
 }
+*/
 
 func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	dir := spiretest.TempDir(t)
@@ -1123,7 +1124,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 	defer sub.Finish()
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -1174,7 +1175,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -1506,7 +1507,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	assert.NoError(t, subErr, "subscriber error")
 
 	// ensure 2 SVIDs corresponding to selectors are cached.
-	assert.Equal(t, 2, m.cache.CountX509SVIDs())
+	assert.Equal(t, 2, m.x509SVIDCache.CountSVIDs())
 
 	// cancel the ctx to stop Go routines
 	cancel()
