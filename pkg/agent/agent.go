@@ -16,6 +16,7 @@ import (
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -44,6 +45,9 @@ const (
 	bootstrapBackoffInterval       = 5 * time.Second
 	bootstrapBackoffMaxElapsedTime = 1 * time.Minute
 )
+
+//FIXME
+var bundleThing trustbundlesources.Config = trustbundlesources.Config{}
 
 type Agent struct {
 	c *Config
@@ -114,6 +118,7 @@ a.c.RetryBootstrap=true
 		//FIXME KMF configurable
 		rebootstrapTimeoutSeconds := 10
 		rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
+		rebootstrapCount := 0
 
 		attBackoffClock := clock.New()
 		attBackoff := backoff.NewBackoff(
@@ -132,17 +137,17 @@ a.c.RetryBootstrap=true
 			if x509util.IsUnknownAuthorityError(err) {
 				if rebootstrapTime.IsZero() {
 					rebootstrapTime = time.Now()
+					rebootstrapCount = 0
 				}
 				seconds := time.Now().Sub(rebootstrapTime)
 				if seconds < rebootstrapTimeoutUSconds {
 					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
 				} else {
-					//FIXME loop and keep retrying syncronize... first with timeout, and then after passed timeout, add clearing bundle and deletesvid.
-					//FIXME double check... if this mechanism work with online update too... its sharing most of the code?
 					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
-					a.c.TrustBundle = nil
+					a.c.BootstrapTrustBundle = nil
 					sto.StoreBundle(nil)
 					err = nil
+					rebootstrapCount++
 				}
 			}
 
@@ -278,17 +283,17 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 
 func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
-		Catalog:           cat,
-		Metrics:           metrics,
-		JoinToken:         a.c.JoinToken,
-		TrustDomain:       a.c.TrustDomain,
-		TrustBundle:       a.c.TrustBundle,
-		InsecureBootstrap: a.c.InsecureBootstrap,
-		Storage:           sto,
-		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
-		ServerAddress:     a.c.ServerAddress,
-		NodeAttestor:      na,
-		TLSPolicy:         a.c.TLSPolicy,
+		Catalog:              cat,
+		Metrics:              metrics,
+		JoinToken:            a.c.JoinToken,
+		TrustDomain:          a.c.TrustDomain,
+		BootstrapTrustBundle: a.c.BootstrapTrustBundle,
+		InsecureBootstrap:    a.c.InsecureBootstrap,
+		Storage:              sto,
+		Log:                  a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
+		ServerAddress:        a.c.ServerAddress,
+		NodeAttestor:         na,
+		TLSPolicy:            a.c.TLSPolicy,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
@@ -329,7 +334,7 @@ a.c.RetryBootstrap=true
 			initBackoffClock,
 			bootstrapBackoffInterval,
 			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
-			//KMF how to ignore max time if rebootstrapping
+			//FIXME KMF how to ignore max time if rebootstrapping
 		)
 
 		for {
@@ -345,11 +350,10 @@ a.c.RetryBootstrap=true
 				if seconds < rebootstrapTimeoutUSconds {
 					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
 				} else {
-					//FIXME loop and keep retrying syncronize... first with timeout, and then after passed timeout, add clearing bundle and deletesvid.
-					//FIXME double check... if this mechanism work with online update too... its sharing most of the code?
 					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
 					sto.DeleteSVID()
 					sto.StoreBundle(nil)
+					//FIXME load in updated a.c.TrustBundle from plugin
 					return nil, errors.New("Agent needs to rebootstrap. shutting down")
 
 				}

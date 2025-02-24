@@ -75,7 +75,9 @@ type Config struct {
 
 	// Trust domain and associated CA bundle
 	TrustDomain spiffeid.TrustDomain
-	TrustBundle []*x509.Certificate
+
+	// Bundle to use when bootstrapping
+	BootstrapTrustBundle []*x509.Certificate
 
 	// Join token to use for attestation, if needed
 	JoinToken string

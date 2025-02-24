@@ -2,13 +2,11 @@ package run
 
 import (
 	"context"
-	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -26,10 +24,9 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/config"
@@ -37,7 +34,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
@@ -370,86 +366,18 @@ func mergeInput(fileInput *Config, cliInput *agentConfig) (*Config, error) {
 	return c, nil
 }
 
-func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x509.Certificate, error) {
-	switch trustBundleContentType {
-	case bundleFormatPEM:
-		bundle, err := pemutil.ParseCertificates(bundleBytes)
-		if err != nil {
-			return nil, err
-		}
-		return bundle, nil
-	case bundleFormatSPIFFE:
-		bundle, err := bundleutil.Unmarshal(spiffeid.TrustDomain{}, bundleBytes)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse SPIFFE trust bundle: %w", err)
-		}
-		return bundle.X509Authorities(), nil
-	}
-
-	return nil, fmt.Errorf("unknown trust bundle format: %s", trustBundleContentType)
-}
-
-func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
-	// Download the trust bundle URL from the user specified URL
-	// We use gosec -- the annotation below will disable a security check that URLs are not tainted
-	/* #nosec G107 */
-	resp, err := http.Get(trustBundleURL)
-	if err != nil {
-		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %w", trustBundleURL, err)
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error downloading trust bundle: %s", resp.Status)
-	}
-	pemBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read from trust bundle URL %s: %w", trustBundleURL, err)
-	}
-
-	return pemBytes, nil
-}
-
+/*
+FIXME KMF
 func setupTrustBundle(ac *agent.Config, c *Config) error {
 	// Either download the trust bundle if TrustBundleURL is set, or read it
 	// from disk if TrustBundlePath is set
 	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
 
-	var bundleBytes []byte
-	var err error
-
-	switch {
-	case c.Agent.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL)
-		if err != nil {
-			return err
-		}
-	case c.Agent.TrustBundlePath != "":
-		bundleBytes, err = loadTrustBundle(c.Agent.TrustBundlePath)
-		if err != nil {
-			return fmt.Errorf("could not parse trust bundle: %w", err)
-		}
-	default:
-		// If InsecureBootstrap is configured, the bundle is not required
-		if ac.InsecureBootstrap {
-			return nil
-		}
-	}
-
-	bundle, err := parseTrustBundle(bundleBytes, c.Agent.TrustBundleFormat)
-	if err != nil {
-		return err
-	}
-
-	if len(bundle) == 0 {
-		return errors.New("no certificates found in trust bundle")
-	}
-
-	ac.TrustBundle = bundle
+	ac.BootstrapTrustBundle = bundle
 
 	return nil
 }
+*/
 
 func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*agent.Config, error) {
 	ac := &agent.Config{}
@@ -538,7 +466,23 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.DisableSPIFFECertValidation = c.Agent.SDS.DisableSPIFFECertValidation
 
-	err = setupTrustBundle(ac, c)
+	ts := &trustbundlesources.Config {
+		InsecureBootstrap: c.Agent.InsecureBootstrap,
+		TrustBundleFormat: c.Agent.TrustBundleFormat,
+		TrustBundlePath:   c.Agent.TrustBundlePath,
+		TrustBundleURL:    c.Agent.TrustBundleURL,
+		TrustDomain:       c.Agent.TrustDomain,
+		ServerAddress:     c.Agent.ServerAddress,
+		ServerPort:        c.Agent.ServerPort,
+	}
+
+	//FIXME store this in ac rather then the TrustBundle
+	tbss := trustbundlesources.New(ts)
+
+	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
+
+	//FIXME move this to when its first needed.
+	ac.BootstrapTrustBundle, err = tbss.GetBundle(trustbundlesources.UseBootstrap, 0, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -699,13 +643,4 @@ func defaultConfig() *Config {
 	c.Agent.setPlatformDefaults()
 
 	return c
-}
-
-func loadTrustBundle(path string) ([]byte, error) {
-	bundleBytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return bundleBytes, nil
 }
