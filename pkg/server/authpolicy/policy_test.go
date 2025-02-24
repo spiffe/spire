@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/open-policy-agent/opa/storage/inmem" //nolint:staticcheck // Will be removed when https://github.com/spiffe/spire/issues/5887 is closed
-	"github.com/open-policy-agent/opa/util"          //nolint:staticcheck // Will be removed when https://github.com/spiffe/spire/issues/5887 is closed
 	"github.com/open-policy-agent/opa/v1/ast"
+	"github.com/open-policy-agent/opa/v1/storage/inmem"
+	"github.com/open-policy-agent/opa/v1/util"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/stretchr/testify/require"
