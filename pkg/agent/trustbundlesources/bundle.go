@@ -16,15 +16,38 @@ import (
 
 type Bundle struct {
 	config *Config
+	use int
+	connectionAttempts int
+	startTime time.Time
 }
 
+//FIXME KMF take in state interface...
 func New(config *Config) *Bundle {
 	return &Bundle {
 		config: config,
 	}
 }
 
-func (b *Bundle) GetBundle(use int, connection_attempts int, strttime time.Time) ([]*x509.Certificate, error) {
+func (b *Bundle) SetUse(use int) {
+	if b.use != use {
+		b.use = use
+		b.connectionAttempts = 0
+		b.startTime = time.Now()
+	}
+}
+
+func (b *Bundle) SetSuccess() {
+	b.use = UseUnspecified
+	b.connectionAttempts = 0
+	b.startTime = time.Time{}
+	//FIXME clear out settings in the state store too
+}
+
+func (b *Bundle) GetStartTime() time.Time {
+	return b.startTime
+}
+
+func (b *Bundle) GetBundle() ([]*x509.Certificate, error) {
 	var bundleBytes []byte
 	var err error
 

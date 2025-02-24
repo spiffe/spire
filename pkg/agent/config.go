@@ -2,12 +2,12 @@ package agent
 
 import (
 	"context"
-	"crypto/x509"
 	"net"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
@@ -76,8 +76,8 @@ type Config struct {
 	// Trust domain and associated CA bundle
 	TrustDomain spiffeid.TrustDomain
 
-	// Bundle to use when bootstrapping
-	BootstrapTrustBundle []*x509.Certificate
+	// Sources for getting Trust Bundles
+	TrustBundleSources *trustbundlesources.Bundle
 
 	// Join token to use for attestation, if needed
 	JoinToken string

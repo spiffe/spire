@@ -366,19 +366,6 @@ func mergeInput(fileInput *Config, cliInput *agentConfig) (*Config, error) {
 	return c, nil
 }
 
-/*
-FIXME KMF
-func setupTrustBundle(ac *agent.Config, c *Config) error {
-	// Either download the trust bundle if TrustBundleURL is set, or read it
-	// from disk if TrustBundlePath is set
-	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
-
-	ac.BootstrapTrustBundle = bundle
-
-	return nil
-}
-*/
-
 func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*agent.Config, error) {
 	ac := &agent.Config{}
 
@@ -481,11 +468,17 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
 
+	ac.TrustBundleSources = tbss
+	//FIXME KMF Once state is implemented, it shoudl keep usage if already in Rebootstrap mode
+	tbss.SetUse(trustbundlesources.UseBootstrap)
+
+	/*
 	//FIXME move this to when its first needed.
 	ac.BootstrapTrustBundle, err = tbss.GetBundle(trustbundlesources.UseBootstrap, 0, time.Now())
 	if err != nil {
 		return nil, err
 	}
+	*/
 
 	ac.WorkloadKeyType = workloadkey.ECP256
 	if c.Agent.WorkloadX509SVIDKeyType != "" {

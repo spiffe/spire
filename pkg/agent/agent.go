@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
@@ -110,72 +111,67 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
-//FIXME KMF
-a.c.RetryBootstrap=true
+	//FIXME KMF configurable
+	rebootstrapTimeoutSeconds := 10
+	rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
 
-	if a.c.RetryBootstrap {
-		var rebootstrapTime time.Time
-		//FIXME KMF configurable
-		rebootstrapTimeoutSeconds := 10
-		rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
-		rebootstrapCount := 0
+	attBackoffClock := clock.New()
+	attBackoff := backoff.NewBackoff(
+		attBackoffClock,
+		bootstrapBackoffInterval,
+		backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+		//KMF how to ignore max time if rebootstrapping
+	)
 
-		attBackoffClock := clock.New()
-		attBackoff := backoff.NewBackoff(
-			attBackoffClock,
-			bootstrapBackoffInterval,
-			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
-			//KMF how to ignore max time if rebootstrapping
-		)
-
-		for {
-			as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
+	for {
+		BootstrapTrustBundle, err := sto.LoadBundle()
+		if errors.Is(err, storage.ErrNotCached) {
+			err = nil
+			if !a.c.InsecureBootstrap {
+				BootstrapTrustBundle, err = a.c.TrustBundleSources.GetBundle()
+			}
+		}
+		if err == nil {
+			as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle)
 			if err == nil {
+				a.c.TrustBundleSources.SetSuccess()
 				break
 			}
 
 			if x509util.IsUnknownAuthorityError(err) {
-				if rebootstrapTime.IsZero() {
-					rebootstrapTime = time.Now()
-					rebootstrapCount = 0
-				}
-				seconds := time.Now().Sub(rebootstrapTime)
+				a.c.TrustBundleSources.SetUse(trustbundlesources.UseRebootstrap)
+				seconds := time.Now().Sub(a.c.TrustBundleSources.GetStartTime())
 				if seconds < rebootstrapTimeoutUSconds {
 					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
 				} else {
 					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
-					a.c.BootstrapTrustBundle = nil
+					//FIXME Move this to a.c.TrustBundleSources
+					//a.c.BootstrapTrustBundle = nil
 					sto.StoreBundle(nil)
 					err = nil
-					rebootstrapCount++
 				}
 			}
 
 			if status.Code(err) == codes.PermissionDenied {
 				return err
 			}
-
-			nextDuration := attBackoff.NextBackOff()
-			if nextDuration == backoff.Stop {
-				return err
-			}
-
-			a.c.Log.WithFields(logrus.Fields{
-				telemetry.Error:         err,
-				telemetry.RetryInterval: nextDuration,
-			}).Warn("Failed to retrieve attestation result")
-
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-attBackoffClock.After(nextDuration):
-				continue
-			}
 		}
-	} else {
-		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
-		if err != nil {
+
+		nextDuration := attBackoff.NextBackOff()
+		if nextDuration == backoff.Stop {
 			return err
+		}
+
+		a.c.Log.WithFields(logrus.Fields{
+			telemetry.Error:         err,
+			telemetry.RetryInterval: nextDuration,
+		}).Warn("Failed to retrieve attestation result")
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-attBackoffClock.After(nextDuration):
+			continue
 		}
 	}
 
@@ -281,13 +277,13 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor) (*node_attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor, BootstrapTrustBundle []*x509.Certificate) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
 		Catalog:              cat,
 		Metrics:              metrics,
 		JoinToken:            a.c.JoinToken,
 		TrustDomain:          a.c.TrustDomain,
-		BootstrapTrustBundle: a.c.BootstrapTrustBundle,
+		BootstrapTrustBundle: BootstrapTrustBundle,
 		InsecureBootstrap:    a.c.InsecureBootstrap,
 		Storage:              sto,
 		Log:                  a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
