@@ -77,11 +77,11 @@ func (c *Cache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries ma
 	parentSeen := allocStringSet()
 	defer freeStringSet(parentSeen)
 
-	c.findDescendents(foundEntries, agentID.String(), requestedEntries, parentSeen)
+	c.addDescendants(foundEntries, agentID.String(), requestedEntries, parentSeen)
 
 	agentAliases := c.getAgentAliases(agent.Selectors)
 	for _, alias := range agentAliases {
-		c.findDescendents(foundEntries, alias.AliasID, requestedEntries, parentSeen)
+		c.addDescendants(foundEntries, alias.AliasID, requestedEntries, parentSeen)
 	}
 
 	return foundEntries
@@ -192,7 +192,7 @@ func (c *Cache) appendDescendents(records []entryRecord, parentID string, parent
 	return records
 }
 
-func (c *Cache) findDescendents(foundEntries map[string]*types.Entry, parentID string, requestedEntries map[string]struct{}, parentSeen stringSet) {
+func (c *Cache) addDescendants(foundEntries map[string]*types.Entry, parentID string, requestedEntries map[string]struct{}, parentSeen stringSet) {
 	if _, ok := parentSeen[parentID]; ok {
 		return
 	}
@@ -207,7 +207,7 @@ func (c *Cache) findDescendents(foundEntries map[string]*types.Entry, parentID s
 		if _, ok := requestedEntries[record.EntryID]; ok {
 			foundEntries[record.EntryID] = cloneEntry(record.EntryCloneOnly)
 		}
-		c.findDescendents(foundEntries, record.SPIFFEID, requestedEntries, parentSeen)
+		c.addDescendants(foundEntries, record.SPIFFEID, requestedEntries, parentSeen)
 		return true
 	})
 }
