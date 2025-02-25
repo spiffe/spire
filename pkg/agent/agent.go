@@ -115,77 +115,96 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	//FIXME KMF configurable
-	rebootstrapTimeoutSeconds := 10
-	rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
+	// FIXME KMF
+	a.c.RetryBootstrap = true
+	if a.c.RetryBootstrap {
+		//FIXME KMF configurable
+		rebootstrapTimeoutSeconds := 10
+		rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
 
-	attBackoffClock := clock.New()
-	attBackoff := backoff.NewBackoff(
-		attBackoffClock,
-		bootstrapBackoffInterval,
-		backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
-		//KMF how to ignore max time if rebootstrapping
-	)
+		attBackoffClock := clock.New()
+		attBackoff := backoff.NewBackoff(
+			attBackoffClock,
+			bootstrapBackoffInterval,
+			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+			//KMF how to ignore max time if rebootstrapping
+		)
 
-	for {
+		for {
+			BootstrapTrustBundle, err := sto.LoadBundle()
+			if errors.Is(err, storage.ErrNotCached) {
+				err = nil
+				if !a.c.InsecureBootstrap {
+					//FIXME KMF rebootstrap timeout?
+					BootstrapTrustBundle, err = a.c.TrustBundleSources.GetBundle()
+				}
+			}
+			if err == nil {
+				as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle)
+				if err == nil {
+					err = a.c.TrustBundleSources.SetSuccess()
+					if err != nil {
+						return err
+					}
+					break
+				}
+
+				if x509util.IsUnknownAuthorityError(err) {
+					if a.c.TrustBundleSources.IsBootstrap() {
+						fmt.Printf("Trust Bandle and Server dont agree.... bootstrapping again")
+					} else {
+						//FIXME KMF if rebootstrap disabled, return or retry here?
+						startTime, err := a.c.TrustBundleSources.GetStartTime()
+						if err != nil {
+							return nil
+						}
+						seconds := time.Now().Sub(startTime)
+						if seconds < rebootstrapTimeoutUSconds {
+							fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
+						} else {
+							fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping\n")
+							//FIXME Move this to a.c.TrustBundleSources
+							err = sto.StoreBundle(nil)
+						}
+					}
+				}
+
+				if status.Code(err) == codes.PermissionDenied {
+					return err
+				}
+			}
+
+			nextDuration := attBackoff.NextBackOff()
+			if nextDuration == backoff.Stop {
+				return err
+			}
+
+			a.c.Log.WithFields(logrus.Fields{
+				telemetry.Error:         err,
+				telemetry.RetryInterval: nextDuration,
+			}).Warn("Failed to retrieve attestation result")
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-attBackoffClock.After(nextDuration):
+				continue
+			}
+		}
+	} else {
 		BootstrapTrustBundle, err := sto.LoadBundle()
 		if errors.Is(err, storage.ErrNotCached) {
 			err = nil
 			if !a.c.InsecureBootstrap {
-				//FIXME KMF rebootstrap timeout?
 				BootstrapTrustBundle, err = a.c.TrustBundleSources.GetBundle()
 			}
 		}
-		if err == nil {
-			as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle)
-			if err == nil {
-				err = a.c.TrustBundleSources.SetSuccess()
-				if err != nil {
-					return err
-				}
-				break
-			}
-
-			if x509util.IsUnknownAuthorityError(err) {
-				if a.c.TrustBundleSources.IsBootstrap() {
-					fmt.Printf("Trust Bandle and Server dont agree.... bootstrapping again")
-				} else {
-					//FIXME KMF if rebootstrap disabled, return or retry here?
-					startTime, err := a.c.TrustBundleSources.GetStartTime()
-					if err != nil {
-						return nil
-					}
-					seconds := time.Now().Sub(startTime)
-					if seconds < rebootstrapTimeoutUSconds {
-						fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
-					} else {
-						fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping\n")
-						//FIXME Move this to a.c.TrustBundleSources
-						err = sto.StoreBundle(nil)
-					}
-				}
-			}
-
-			if status.Code(err) == codes.PermissionDenied {
-				return err
-			}
-		}
-
-		nextDuration := attBackoff.NextBackOff()
-		if nextDuration == backoff.Stop {
+		if err != nil {
 			return err
 		}
-
-		a.c.Log.WithFields(logrus.Fields{
-			telemetry.Error:         err,
-			telemetry.RetryInterval: nextDuration,
-		}).Warn("Failed to retrieve attestation result")
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-attBackoffClock.After(nextDuration):
-			continue
+		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle)
+		if err != nil {
+			return err
 		}
 	}
 
