@@ -17,7 +17,6 @@ import (
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
-	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -46,9 +45,6 @@ const (
 	bootstrapBackoffInterval       = 5 * time.Second
 	bootstrapBackoffMaxElapsedTime = 1 * time.Minute
 )
-
-//FIXME
-var bundleThing trustbundlesources.Config = trustbundlesources.Config{}
 
 type Agent struct {
 	c *Config
@@ -111,6 +107,10 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
+//FIXME there is both bootstrap and rebootstrap here.... code misleading to be just one...
+//FIXME add conditional around bootstrapping vs rebootstrapping to allow one and not the other.
+	a.c.TrustBundleSources.SetStorage(sto)
+
 	//FIXME KMF configurable
 	rebootstrapTimeoutSeconds := 10
 	rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
@@ -128,6 +128,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		if errors.Is(err, storage.ErrNotCached) {
 			err = nil
 			if !a.c.InsecureBootstrap {
+				//FIXME KMF rebootstrap timeout?
 				BootstrapTrustBundle, err = a.c.TrustBundleSources.GetBundle()
 			}
 		}
@@ -139,16 +140,23 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 
 			if x509util.IsUnknownAuthorityError(err) {
-				a.c.TrustBundleSources.SetUse(trustbundlesources.UseRebootstrap)
-				seconds := time.Now().Sub(a.c.TrustBundleSources.GetStartTime())
-				if seconds < rebootstrapTimeoutUSconds {
-					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
+				if a.c.TrustBundleSources.IsBootstrap() {
+					fmt.Printf("Trust Bandle and Server dont agree.... bootstrapping again")
 				} else {
-					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
-					//FIXME Move this to a.c.TrustBundleSources
-					//a.c.BootstrapTrustBundle = nil
-					sto.StoreBundle(nil)
-					err = nil
+					//FIXME KMF if rebootstrap disabled, return or retry here?
+					startTime, err := a.c.TrustBundleSources.GetStartTime()
+					if err != nil {
+						return nil
+					}
+					seconds := time.Now().Sub(startTime)
+					if seconds < rebootstrapTimeoutUSconds {
+						fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
+					} else {
+						fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+						//FIXME Move this to a.c.TrustBundleSources
+						sto.StoreBundle(nil)
+						err = nil
+					}
 				}
 			}
 
@@ -307,6 +315,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		Metrics:                  metrics,
 		WorkloadKeyType:          a.c.WorkloadKeyType,
 		Storage:                  sto,
+		TrustBundleSources:       a.c.TrustBundleSources,
 		SyncInterval:             a.c.SyncInterval,
 		UseSyncAuthorizedEntries: a.c.UseSyncAuthorizedEntries,
 		X509SVIDCacheMaxSize:     a.c.X509SVIDCacheMaxSize,
@@ -320,7 +329,6 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 a.c.RetryBootstrap=true
 	mgr := manager.New(config)
 	if a.c.RetryBootstrap {
-		var rebootstrapTime time.Time
 		//FIXME KMF configurable
 		rebootstrapTimeoutSeconds := 10
 		rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
@@ -336,22 +344,21 @@ a.c.RetryBootstrap=true
 		for {
 			err := mgr.Initialize(ctx)
 			if err == nil {
+				a.c.TrustBundleSources.SetSuccessIfRunning()
 				return mgr, nil
 			}
-			if x509util.IsUnknownAuthorityError(err) {
-				if rebootstrapTime.IsZero() {
-					rebootstrapTime = time.Now()
+			if x509util.IsUnknownAuthorityError(err) { //FIXME KMF && rebootstrap enabled
+				startTime, err := a.c.TrustBundleSources.GetStartTime()
+				if err != nil {
+					return nil, err
 				}
-				seconds := time.Now().Sub(rebootstrapTime)
+				seconds := time.Now().Sub(startTime)
 				if seconds < rebootstrapTimeoutUSconds {
 					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
 				} else {
 					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
-					sto.DeleteSVID()
-					sto.StoreBundle(nil)
-					//FIXME load in updated a.c.TrustBundle from plugin
+					a.c.TrustBundleSources.SetForceRebootstrap()
 					return nil, errors.New("Agent needs to rebootstrap. shutting down")
-
 				}
 			}
 

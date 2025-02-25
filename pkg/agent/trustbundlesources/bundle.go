@@ -9,7 +9,9 @@ import (
 	"os"
 	"time"
 
+        "github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 )
@@ -19,37 +21,112 @@ type Bundle struct {
 	use int
 	connectionAttempts int
 	startTime time.Time
+	log logrus.FieldLogger
+	storage storage.Storage
+	lastBundle []*x509.Certificate
 }
 
 //FIXME KMF take in state interface...
-func New(config *Config) *Bundle {
+func New(config *Config, log logrus.FieldLogger) *Bundle {
 	return &Bundle {
 		config: config,
+		log: log,
 	}
 }
 
-func (b *Bundle) SetUse(use int) {
+func (b *Bundle) SetStorage(storage storage.Storage) error {
+	b.storage = storage
+	use, startTime, err := b.storage.LoadBootstrapState()
+	b.use = use
+	b.startTime = startTime
+	if use == UseUnspecified {
+		use = UseBootstrap
+	}
+	return err
+}
+
+func (b *Bundle) SetUse(use int) error {
 	if b.use != use {
 		b.use = use
 		b.connectionAttempts = 0
 		b.startTime = time.Now()
+		b.log.Info("Setting use.")
+		err := b.storage.StoreBootstrapState(use, b.startTime)
+		if err != nil {
+			return err
+		}
+		/*
+		only when after timeout....
+		err := b.storage.StoreBundle(nil)
+		//FIXME if svid is set, clear that too
+		*/
+		return err
 	}
+	return nil
 }
 
-func (b *Bundle) SetSuccess() {
-	b.use = UseUnspecified
+func (b *Bundle) SetSuccessIfRunning() error {
+	if !b.startTime.IsZero() {
+		return b.SetSuccess()
+	}
+	return nil
+}
+
+func (b *Bundle) SetSuccess() error {
+	var err error
+	b.log.Info("Success, attempts=", b.connectionAttempts)
+	b.use = UseRebootstrap
 	b.connectionAttempts = 0
 	b.startTime = time.Time{}
-	//FIXME clear out settings in the state store too
+	b.log.Info("Setting use.")
+	if b.storage != nil {
+		err := b.storage.StoreBootstrapState(b.use, b.startTime)
+		if err != nil {
+			return err
+		}
+		err = b.storage.StoreBundle(b.lastBundle)
+	}
+	return err
 }
 
-func (b *Bundle) GetStartTime() time.Time {
-	return b.startTime
+func (b *Bundle) SetForceRebootstrap() {
+	//FIXME KMF add retry counter to StoreBootstrapState too?
+	b.use = UseRebootstrap
+	b.storage.StoreBootstrapState(b.use, b.startTime)
+	b.storage.DeleteSVID()
+	b.storage.StoreBundle(nil)
+}
+
+func (b *Bundle) GetStartTime() (time.Time, error) {
+	var err error
+	if b.startTime.IsZero() {
+		b.startTime = time.Now()
+		err = b.storage.StoreBootstrapState(b.use, b.startTime)
+	}
+	return b.startTime, err
+}
+
+func (b *Bundle) IsBootstrap() bool {
+	return b.use != UseRebootstrap
+}
+
+func (b *Bundle) IsRebootstrap() bool {
+	return b.use == UseRebootstrap
 }
 
 func (b *Bundle) GetBundle() ([]*x509.Certificate, error) {
 	var bundleBytes []byte
 	var err error
+
+	b.connectionAttempts++
+	if b.startTime.IsZero() {
+		b.startTime = time.Now()
+		err = b.storage.StoreBootstrapState(b.use, b.startTime)
+		if err == nil {
+			return nil, err
+		}
+	}
+
 
 	switch {
 	case b.config.TrustBundleURL != "":
@@ -77,6 +154,8 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, error) {
 	if len(bundle) == 0 {
 		return nil, errors.New("no certificates found in trust bundle")
 	}
+
+	b.lastBundle = bundle
 
 	return bundle, nil
 }

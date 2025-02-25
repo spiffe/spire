@@ -315,7 +315,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
-	var rebootstrapTime time.Time
+	//FIXME KMF make this configurable
 	rebootstrapTimeoutSeconds := 30
 	rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
 	syncInterval := min(m.synchronizeBackoff.NextBackOff(), defaultSyncInterval)
@@ -327,24 +327,23 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		}
 
 		err := m.synchronize(ctx)
-		if !x509util.IsUnknownAuthorityError(err) {
-			rebootstrapTime = time.Time{}
+		if err == nil {
+			m.c.TrustBundleSources.SetSuccessIfRunning()
 		}
 		switch {
-		case x509util.IsUnknownAuthorityError(err):
-			if rebootstrapTime.IsZero() {
-				rebootstrapTime = time.Now()
+		case x509util.IsUnknownAuthorityError(err): //FIXME KMF &&  rebootstrap enabled
+			startTime, err := m.c.TrustBundleSources.GetStartTime()
+			if err != nil {
+				return err
 			}
-			seconds := time.Now().Sub(rebootstrapTime)
+			seconds := time.Now().Sub(startTime)
 			if seconds < rebootstrapTimeoutUSconds {
 				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
 			} else {
 				fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
-				m.deleteSVID()
-				m.storeBundle(nil)
+				m.c.TrustBundleSources.SetForceRebootstrap()
 				return fmt.Errorf("Shutting down for rebootstrapping")
 			}
-			//FIXME write out rebootstrap timer so on restart it can contiue on
 			m.synchronizeBackoff.Reset()
 			syncInterval = m.synchronizeBackoff.NextBackOff()
 			syncInterval = min(syncInterval, defaultSyncInterval)

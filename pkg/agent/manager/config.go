@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
@@ -34,6 +35,7 @@ type Config struct {
 	Metrics                  telemetry.Metrics
 	ServerAddr               string
 	Storage                  storage.Storage
+	TrustBundleSources       *trustbundlesources.Bundle
 	WorkloadKeyType          workloadkey.KeyType
 	SyncInterval             time.Duration
 	UseSyncAuthorizedEntries bool

@@ -463,14 +463,11 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		ServerPort:        c.Agent.ServerPort,
 	}
 
-	//FIXME store this in ac rather then the TrustBundle
-	tbss := trustbundlesources.New(ts)
+	tbss := trustbundlesources.New(ts, ac.Log.WithField("Logger", "TrustBundleSources"))
 
 	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
 
 	ac.TrustBundleSources = tbss
-	//FIXME KMF Once state is implemented, it shoudl keep usage if already in Rebootstrap mode
-	tbss.SetUse(trustbundlesources.UseBootstrap)
 
 	/*
 	//FIXME move this to when its first needed.
