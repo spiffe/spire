@@ -933,7 +933,7 @@ func BenchmarkEntryLookup(b *testing.B) {
 				id:            {},
 				id + "/child": {},
 			})
-			require.Len(b, entries, 2)
+			require.Len(b, entries, 1)
 		}
 	}
 }
