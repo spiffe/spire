@@ -59,6 +59,34 @@ func NewCache(clk clock.Clock) *Cache {
 	}
 }
 
+func (c *Cache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries map[string]struct{}) map[string]*types.Entry {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Load up the agent selectors. If the agent info does not exist, it is
+	// likely that the cache is still catching up to a recent attestation.
+	// Since the calling agent has already been authorized and authenticated,
+	// it is safe to continue with the authorized entry crawl to obtain entries
+	// that are directly parented against the agent. Any entries that would be
+	// obtained via node aliasing will not be returned until the cache is
+	// updated with the node selectors for the agent.
+	agent, _ := c.agentsByID.Get(agentRecord{ID: agentID.String()})
+
+	foundEntries := make(map[string]*types.Entry)
+
+	parentSeen := allocStringSet()
+	defer freeStringSet(parentSeen)
+
+	c.addDescendants(foundEntries, agentID.String(), requestedEntries, parentSeen)
+
+	agentAliases := c.getAgentAliases(agent.Selectors)
+	for _, alias := range agentAliases {
+		c.addDescendants(foundEntries, alias.AliasID, requestedEntries, parentSeen)
+	}
+
+	return foundEntries
+}
+
 func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -162,6 +190,26 @@ func (c *Cache) appendDescendents(records []entryRecord, parentID string, parent
 		records = c.appendDescendents(records, entry.SPIFFEID, parentSeen)
 	}
 	return records
+}
+
+func (c *Cache) addDescendants(foundEntries map[string]*types.Entry, parentID string, requestedEntries map[string]struct{}, parentSeen stringSet) {
+	if _, ok := parentSeen[parentID]; ok {
+		return
+	}
+	parentSeen[parentID] = struct{}{}
+
+	pivot := entryRecord{ParentID: parentID}
+	c.entriesByParentID.AscendGreaterOrEqual(pivot, func(record entryRecord) bool {
+		if record.ParentID != parentID {
+			return false
+		}
+
+		if _, ok := requestedEntries[record.EntryID]; ok {
+			foundEntries[record.EntryID] = cloneEntry(record.EntryCloneOnly)
+		}
+		c.addDescendants(foundEntries, record.SPIFFEID, requestedEntries, parentSeen)
+		return true
+	})
 }
 
 func (c *Cache) appendEntryRecordsForParentID(records []entryRecord, parentID string) []entryRecord {
