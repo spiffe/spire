@@ -3,14 +3,16 @@ package token
 import (
 	"context"
 	"flag"
+	"fmt"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	prototypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/util"
+	serverutil "github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
 func NewGenerateCommand() cli.Command {
@@ -18,7 +20,7 @@ func NewGenerateCommand() cli.Command {
 }
 
 func newGenerateCommand(env *commoncli.Env) cli.Command {
-	return util.AdaptCommand(env, &generateCommand{env: env})
+	return serverutil.AdaptCommand(env, &generateCommand{env: env})
 }
 
 type generateCommand struct {
@@ -39,16 +41,20 @@ func (g *generateCommand) Synopsis() string {
 	return "Generates a join token"
 }
 
-func (g *generateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient util.ServerClient) error {
+func (g *generateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient serverutil.ServerClient) error {
 	id, err := getID(g.SpiffeID)
 	if err != nil {
 		return err
+	}
+	ttl, err := util.CheckedCast[int32](g.TTL)
+	if err != nil {
+		return fmt.Errorf("invalid value for TTL: %w", err)
 	}
 
 	c := serverClient.NewAgentClient()
 	resp, err := c.CreateJoinToken(ctx, &agentv1.CreateJoinTokenRequest{
 		AgentId: id,
-		Ttl:     int32(g.TTL),
+		Ttl:     ttl,
 	})
 	if err != nil {
 		return err

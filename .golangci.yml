@@ -7,33 +7,37 @@ issues:
     - testdata$
     - test/mock
   exclude-files:
-    - ".*\\.pb\\.go"
+    - ".*\\.pb\\.go$"
+  exclude-rules:
+    - linters: [ gosec ]
+      path: "(.*_test\\.go$)|(^test/.*)"
+      text: "integer overflow conversion"
 
 linters:
   enable:
     - bodyclose
+    - copyloopvar
     - durationcheck
     - errorlint
+    - exptostd
+    - gocritic
     - gofmt
     - goimports
-    - revive
     - gosec
+    - intrange
     - misspell
     - nakedret
-    - nilerr
+    - nilnesserr
+    - nolintlint
+    - revive
     - unconvert
     - unparam
-    - intrange
-    - whitespace
-    - gocritic
-    - copyloopvar
     - wastedassign
-    - nolintlint
+    - whitespace
 
 linters-settings:
   govet:
     enable:
-      - nilness
       - sortslice
       - unusedwrite
   revive:

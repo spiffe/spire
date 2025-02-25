@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -43,8 +43,8 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 // Docker is a subset of the docker client functionality, useful for mocking.
 type Docker interface {
-	ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error)
-	ImageInspectWithRaw(ctx context.Context, imageID string) (types.ImageInspect, []byte, error)
+	ContainerInspect(ctx context.Context, containerID string) (container.InspectResponse, error)
+	ImageInspectWithRaw(ctx context.Context, imageID string) (image.InspectResponse, []byte, error)
 }
 
 type Plugin struct {
@@ -140,7 +140,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		return &workloadattestorv1.AttestResponse{}, nil
 	}
 
-	var container types.ContainerJSON
+	var container container.InspectResponse
 	err = p.retryer.Retry(ctx, func() error {
 		container, err = p.docker.ContainerInspect(ctx, containerID)
 		if err != nil {

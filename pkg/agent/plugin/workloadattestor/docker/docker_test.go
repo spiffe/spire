@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -236,7 +236,7 @@ func TestDockerConfigDefault(t *testing.T) {
 
 	require.NotNil(t, p.docker)
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
-	require.Equal(t, "1.47", p.docker.(*dockerclient.Client).ClientVersion())
+	require.Equal(t, "1.48", p.docker.(*dockerclient.Client).ClientVersion())
 	verifyConfigDefault(t, p.c)
 }
 
@@ -405,28 +405,28 @@ func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 
 type dockerError struct{}
 
-func (dockerError) ContainerInspect(context.Context, string) (types.ContainerJSON, error) {
-	return types.ContainerJSON{}, errors.New("docker error")
+func (dockerError) ContainerInspect(context.Context, string) (container.InspectResponse, error) {
+	return container.InspectResponse{}, errors.New("docker error")
 }
 
-func (dockerError) ImageInspectWithRaw(context.Context, string) (types.ImageInspect, []byte, error) {
-	return types.ImageInspect{}, nil, errors.New("docker error")
+func (dockerError) ImageInspectWithRaw(context.Context, string) (image.InspectResponse, []byte, error) {
+	return image.InspectResponse{}, nil, errors.New("docker error")
 }
 
 type fakeContainer container.Config
 
-func (f fakeContainer) ContainerInspect(_ context.Context, containerID string) (types.ContainerJSON, error) {
+func (f fakeContainer) ContainerInspect(_ context.Context, containerID string) (container.InspectResponse, error) {
 	if containerID != testContainerID {
-		return types.ContainerJSON{}, errors.New("expected test container ID")
+		return container.InspectResponse{}, errors.New("expected test container ID")
 	}
 	config := container.Config(f)
-	return types.ContainerJSON{
+	return container.InspectResponse{
 		Config: &config,
 	}, nil
 }
 
-func (f fakeContainer) ImageInspectWithRaw(_ context.Context, imageName string) (types.ImageInspect, []byte, error) {
-	return types.ImageInspect{ID: imageName, RepoDigests: []string{testImageID}}, nil, nil
+func (f fakeContainer) ImageInspectWithRaw(_ context.Context, imageName string) (image.InspectResponse, []byte, error) {
+	return image.InspectResponse{ID: imageName, RepoDigests: []string{testImageID}}, nil, nil
 }
 
 type fakeSigstoreVerifier struct {

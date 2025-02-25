@@ -85,13 +85,13 @@ func (m *Mock) WaitForTicker(timeout time.Duration, format string, args ...any) 
 	m.WaitForTickerMulti(timeout, 1, format, args...)
 }
 
-func (m *Mock) WaitForTickerMulti(timeout time.Duration, count int, format string, args ...any) {
+func (m *Mock) WaitForTickerMulti(timeout time.Duration, count int32, format string, args ...any) {
 	deadlineChan := time.After(timeout)
 	for {
 		select {
 		case <-m.tickerC:
-			if m.tickerCount.Load() >= int32(count) {
-				m.tickerCount.Add(-1 * int32(count))
+			if m.tickerCount.Load() >= count {
+				m.tickerCount.Add(-1 * count)
 				return
 			}
 		case <-deadlineChan:
