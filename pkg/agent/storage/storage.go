@@ -170,10 +170,10 @@ func (s *storage) DeleteBootstrapState() error {
 }
 
 type storageJSON struct {
-	SVID               [][]byte `json:"svid"`
-	Bundle             [][]byte `json:"bundle"`
-	Reattestable       bool `json:"reattestable"`
-	BootstrapUse       int `json:"bootstrap_use"`
+	SVID               [][]byte  `json:"svid"`
+	Bundle             [][]byte  `json:"bundle"`
+	Reattestable       bool      `json:"reattestable"`
+	BootstrapUse       int       `json:"bootstrap_use"`
 	BootstrapStartTime time.Time `json:"bootstrap_start_time"`
 }
 

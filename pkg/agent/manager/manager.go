@@ -338,7 +338,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			}
 			seconds := time.Now().Sub(startTime)
 			if seconds < rebootstrapTimeoutUSconds {
-				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
+				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
 			} else {
 				fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
 				m.c.TrustBundleSources.SetForceRebootstrap()

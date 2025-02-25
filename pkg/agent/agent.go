@@ -33,8 +33,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/common/version"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -107,8 +107,8 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
-//FIXME there is both bootstrap and rebootstrap here.... code misleading to be just one...
-//FIXME add conditional around bootstrapping vs rebootstrapping to allow one and not the other.
+	//FIXME there is both bootstrap and rebootstrap here.... code misleading to be just one...
+	//FIXME add conditional around bootstrapping vs rebootstrapping to allow one and not the other.
 	a.c.TrustBundleSources.SetStorage(sto)
 
 	//FIXME KMF configurable
@@ -150,7 +150,7 @@ func (a *Agent) Run(ctx context.Context) error {
 					}
 					seconds := time.Now().Sub(startTime)
 					if seconds < rebootstrapTimeoutUSconds {
-						fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
+						fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
 					} else {
 						fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
 						//FIXME Move this to a.c.TrustBundleSources
@@ -325,8 +325,8 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
 		TLSPolicy:                a.c.TLSPolicy,
 	}
-//FIXME KMF
-a.c.RetryBootstrap=true
+	// FIXME KMF
+	a.c.RetryBootstrap = true
 	mgr := manager.New(config)
 	if a.c.RetryBootstrap {
 		//FIXME KMF configurable
@@ -354,7 +354,7 @@ a.c.RetryBootstrap=true
 				}
 				seconds := time.Now().Sub(startTime)
 				if seconds < rebootstrapTimeoutUSconds {
-					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds - seconds)
+					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
 				} else {
 					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
 					a.c.TrustBundleSources.SetForceRebootstrap()

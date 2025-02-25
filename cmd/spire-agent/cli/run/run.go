@@ -453,7 +453,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.DisableSPIFFECertValidation = c.Agent.SDS.DisableSPIFFECertValidation
 
-	ts := &trustbundlesources.Config {
+	ts := &trustbundlesources.Config{
 		InsecureBootstrap: c.Agent.InsecureBootstrap,
 		TrustBundleFormat: c.Agent.TrustBundleFormat,
 		TrustBundlePath:   c.Agent.TrustBundlePath,
@@ -463,19 +463,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		ServerPort:        c.Agent.ServerPort,
 	}
 
-	tbss := trustbundlesources.New(ts, ac.Log.WithField("Logger", "TrustBundleSources"))
+	ac.TrustBundleSources = trustbundlesources.New(ts, ac.Log.WithField("Logger", "TrustBundleSources"))
 
 	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
-
-	ac.TrustBundleSources = tbss
-
-	/*
-	//FIXME move this to when its first needed.
-	ac.BootstrapTrustBundle, err = tbss.GetBundle(trustbundlesources.UseBootstrap, 0, time.Now())
-	if err != nil {
-		return nil, err
-	}
-	*/
 
 	ac.WorkloadKeyType = workloadkey.ECP256
 	if c.Agent.WorkloadX509SVIDKeyType != "" {

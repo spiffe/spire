@@ -9,28 +9,28 @@ import (
 	"os"
 	"time"
 
-        "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/storage"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 )
 
 type Bundle struct {
-	config *Config
-	use int
+	config             *Config
+	use                int
 	connectionAttempts int
-	startTime time.Time
-	log logrus.FieldLogger
-	storage storage.Storage
-	lastBundle []*x509.Certificate
+	startTime          time.Time
+	log                logrus.FieldLogger
+	storage            storage.Storage
+	lastBundle         []*x509.Certificate
 }
 
-//FIXME KMF take in state interface...
+// FIXME KMF take in state interface...
 func New(config *Config, log logrus.FieldLogger) *Bundle {
-	return &Bundle {
+	return &Bundle{
 		config: config,
-		log: log,
+		log:    log,
 	}
 }
 
@@ -56,9 +56,9 @@ func (b *Bundle) SetUse(use int) error {
 			return err
 		}
 		/*
-		only when after timeout....
-		err := b.storage.StoreBundle(nil)
-		//FIXME if svid is set, clear that too
+			only when after timeout....
+			err := b.storage.StoreBundle(nil)
+			//FIXME if svid is set, clear that too
 		*/
 		return err
 	}
@@ -126,7 +126,6 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, error) {
 			return nil, err
 		}
 	}
-
 
 	switch {
 	case b.config.TrustBundleURL != "":
