@@ -43,7 +43,8 @@ import (
 
 const (
 	bootstrapBackoffInterval       = 5 * time.Second
-	bootstrapBackoffMaxElapsedTime = 1 * time.Minute
+	//FIXME KMF what to do...
+	bootstrapBackoffMaxElapsedTime = 24 * time.Hour //1 *time.Minute
 )
 
 type Agent struct {
@@ -109,7 +110,10 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	//FIXME there is both bootstrap and rebootstrap here.... code misleading to be just one...
 	//FIXME add conditional around bootstrapping vs rebootstrapping to allow one and not the other.
-	a.c.TrustBundleSources.SetStorage(sto)
+	err = a.c.TrustBundleSources.SetStorage(sto)
+	if err != nil {
+		return err
+	}
 
 	//FIXME KMF configurable
 	rebootstrapTimeoutSeconds := 10
@@ -135,7 +139,10 @@ func (a *Agent) Run(ctx context.Context) error {
 		if err == nil {
 			as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle)
 			if err == nil {
-				a.c.TrustBundleSources.SetSuccess()
+				err = a.c.TrustBundleSources.SetSuccess()
+				if err != nil {
+					return err
+				}
 				break
 			}
 
@@ -152,10 +159,9 @@ func (a *Agent) Run(ctx context.Context) error {
 					if seconds < rebootstrapTimeoutUSconds {
 						fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
 					} else {
-						fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+						fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping\n")
 						//FIXME Move this to a.c.TrustBundleSources
-						sto.StoreBundle(nil)
-						err = nil
+						err = sto.StoreBundle(nil)
 					}
 				}
 			}
@@ -344,7 +350,10 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		for {
 			err := mgr.Initialize(ctx)
 			if err == nil {
-				a.c.TrustBundleSources.SetSuccessIfRunning()
+				err = a.c.TrustBundleSources.SetSuccessIfRunning()
+				if err != nil {
+					return nil, err
+				}
 				return mgr, nil
 			}
 			if x509util.IsUnknownAuthorityError(err) { //FIXME KMF && rebootstrap enabled
@@ -357,7 +366,10 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
 				} else {
 					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
-					a.c.TrustBundleSources.SetForceRebootstrap()
+					err = a.c.TrustBundleSources.SetForceRebootstrap()
+					if err != nil {
+						return nil, err
+					}
 					return nil, errors.New("Agent needs to rebootstrap. shutting down")
 				}
 			}

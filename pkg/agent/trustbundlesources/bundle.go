@@ -89,12 +89,19 @@ func (b *Bundle) SetSuccess() error {
 	return err
 }
 
-func (b *Bundle) SetForceRebootstrap() {
+func (b *Bundle) SetForceRebootstrap() error {
 	//FIXME KMF add retry counter to StoreBootstrapState too?
 	b.use = UseRebootstrap
-	b.storage.StoreBootstrapState(b.use, b.startTime)
-	b.storage.DeleteSVID()
-	b.storage.StoreBundle(nil)
+	err := b.storage.StoreBootstrapState(b.use, b.startTime)
+	if err != nil {
+		return err
+	}
+	err = b.storage.DeleteSVID()
+	if err != nil {
+		return err
+	}
+	err = b.storage.StoreBundle(nil)
+	return err
 }
 
 func (b *Bundle) GetStartTime() (time.Time, error) {

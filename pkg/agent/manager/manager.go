@@ -328,7 +328,10 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 
 		err := m.synchronize(ctx)
 		if err == nil {
-			m.c.TrustBundleSources.SetSuccessIfRunning()
+			err = m.c.TrustBundleSources.SetSuccessIfRunning()
+			if err != nil {
+				return err
+			}
 		}
 		switch {
 		case x509util.IsUnknownAuthorityError(err): //FIXME KMF &&  rebootstrap enabled
@@ -341,7 +344,10 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
 			} else {
 				fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
-				m.c.TrustBundleSources.SetForceRebootstrap()
+				err = m.c.TrustBundleSources.SetForceRebootstrap()
+				if err != nil {
+					return err
+				}
 				return fmt.Errorf("Shutting down for rebootstrapping")
 			}
 			m.synchronizeBackoff.Reset()
