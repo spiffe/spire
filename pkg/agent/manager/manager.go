@@ -315,9 +315,6 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
-	//FIXME KMF make this configurable
-	rebootstrapTimeoutSeconds := 30
-	rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
 	syncInterval := min(m.synchronizeBackoff.NextBackOff(), defaultSyncInterval)
 	for {
 		select {
@@ -334,14 +331,14 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			}
 		}
 		switch {
-		case x509util.IsUnknownAuthorityError(err): //FIXME KMF &&  rebootstrap enabled
+		case x509util.IsUnknownAuthorityError(err) && m.c.RebootstrapDelay != nil:
 			startTime, err := m.c.TrustBundleSources.GetStartTime()
 			if err != nil {
 				return err
 			}
 			seconds := time.Now().Sub(startTime)
-			if seconds < rebootstrapTimeoutUSconds {
-				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
+			if seconds < *m.c.RebootstrapDelay {
+				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *m.c.RebootstrapDelay-seconds)
 			} else {
 				fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
 				err = m.c.TrustBundleSources.SetForceRebootstrap()

@@ -43,8 +43,8 @@ import (
 
 const (
 	bootstrapBackoffInterval       = 5 * time.Second
-	//FIXME KMF what to do...
-	bootstrapBackoffMaxElapsedTime = 24 * time.Hour //1 *time.Minute
+	// FIXME KMF what to do...
+	bootstrapBackoffMaxElapsedTime = 24 * time.Hour // 1 *time.Minute
 )
 
 type Agent struct {
@@ -108,26 +108,18 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
-	//FIXME there is both bootstrap and rebootstrap here.... code misleading to be just one...
-	//FIXME add conditional around bootstrapping vs rebootstrapping to allow one and not the other.
 	err = a.c.TrustBundleSources.SetStorage(sto)
 	if err != nil {
 		return err
 	}
 
-	// FIXME KMF
-	a.c.RetryBootstrap = true
 	if a.c.RetryBootstrap {
-		//FIXME KMF configurable
-		rebootstrapTimeoutSeconds := 10
-		rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
-
 		attBackoffClock := clock.New()
 		attBackoff := backoff.NewBackoff(
 			attBackoffClock,
 			bootstrapBackoffInterval,
 			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
-			//KMF how to ignore max time if rebootstrapping
+			// FIXME KMF how to ignore max time if rebootstrapping
 		)
 
 		for {
@@ -135,7 +127,6 @@ func (a *Agent) Run(ctx context.Context) error {
 			if errors.Is(err, storage.ErrNotCached) {
 				err = nil
 				if !a.c.InsecureBootstrap {
-					//FIXME KMF rebootstrap timeout?
 					BootstrapTrustBundle, err = a.c.TrustBundleSources.GetBundle()
 				}
 			}
@@ -152,18 +143,16 @@ func (a *Agent) Run(ctx context.Context) error {
 				if x509util.IsUnknownAuthorityError(err) {
 					if a.c.TrustBundleSources.IsBootstrap() {
 						fmt.Printf("Trust Bandle and Server dont agree.... bootstrapping again")
-					} else {
-						//FIXME KMF if rebootstrap disabled, return or retry here?
+					} else if a.c.RebootstrapDelay != nil {
 						startTime, err := a.c.TrustBundleSources.GetStartTime()
 						if err != nil {
 							return nil
 						}
 						seconds := time.Now().Sub(startTime)
-						if seconds < rebootstrapTimeoutUSconds {
-							fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
+						if seconds < *a.c.RebootstrapDelay {
+							fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *a.c.RebootstrapDelay-seconds)
 						} else {
 							fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping\n")
-							//FIXME Move this to a.c.TrustBundleSources
 							err = sto.StoreBundle(nil)
 						}
 					}
@@ -341,6 +330,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		WorkloadKeyType:          a.c.WorkloadKeyType,
 		Storage:                  sto,
 		TrustBundleSources:       a.c.TrustBundleSources,
+		RebootstrapDelay:         a.c.RebootstrapDelay,
 		SyncInterval:             a.c.SyncInterval,
 		UseSyncAuthorizedEntries: a.c.UseSyncAuthorizedEntries,
 		X509SVIDCacheMaxSize:     a.c.X509SVIDCacheMaxSize,
@@ -350,20 +340,14 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
 		TLSPolicy:                a.c.TLSPolicy,
 	}
-	// FIXME KMF
-	a.c.RetryBootstrap = true
 	mgr := manager.New(config)
 	if a.c.RetryBootstrap {
-		//FIXME KMF configurable
-		rebootstrapTimeoutSeconds := 10
-		rebootstrapTimeoutUSconds := time.Duration(float64(rebootstrapTimeoutSeconds) * float64(time.Second))
-
 		initBackoffClock := clock.New()
 		initBackoff := backoff.NewBackoff(
 			initBackoffClock,
 			bootstrapBackoffInterval,
 			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
-			//FIXME KMF how to ignore max time if rebootstrapping
+			// FIXME KMF how to ignore max time if rebootstrapping
 		)
 
 		for {
@@ -375,14 +359,14 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 				}
 				return mgr, nil
 			}
-			if x509util.IsUnknownAuthorityError(err) { //FIXME KMF && rebootstrap enabled
+			if x509util.IsUnknownAuthorityError(err) && a.c.RebootstrapDelay != nil {
 				startTime, err := a.c.TrustBundleSources.GetStartTime()
 				if err != nil {
 					return nil, err
 				}
 				seconds := time.Now().Sub(startTime)
-				if seconds < rebootstrapTimeoutUSconds {
-					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", rebootstrapTimeoutUSconds-seconds)
+				if seconds < *a.c.RebootstrapDelay {
+					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *a.c.RebootstrapDelay-seconds)
 				} else {
 					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
 					err = a.c.TrustBundleSources.SetForceRebootstrap()
