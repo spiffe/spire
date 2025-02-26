@@ -338,6 +338,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
 		TLSPolicy:                a.c.TLSPolicy,
 	}
+
 	mgr := manager.New(config)
 	if a.c.RetryBootstrap {
 		initBackoffClock := clock.New()

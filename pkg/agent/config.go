@@ -40,7 +40,7 @@ type Config struct {
 	// If true, the agent retries bootstrap with backoff
 	RetryBootstrap bool
 
-	// If set, the agent will rebootstrap after configured amount on unknown x509 cert from the srever
+	// If set, the agent will rebootstrap after configured amount on unknown x509 cert from the server
 	RebootstrapDelay *time.Duration
 
 	// HealthChecks provides the configuration for health monitoring
