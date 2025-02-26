@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
@@ -35,6 +36,15 @@ type Storage interface {
 
 	// StoreBundle stores the bundle.
 	StoreBundle(certs []*x509.Certificate) error
+
+	// LoadBootstrapState returns the Bootstrap state items
+	LoadBootstrapState() (use int, start_time time.Time, err error)
+
+	// StoreBootstrapState stores the use and start_time bootstrap states for future use
+	StoreBootstrapState(use int, start_time time.Time) error
+
+	// DeleteBootstrapState removes the bootstrap state
+	DeleteBootstrapState() error
 }
 
 func Open(dir string) (Storage, error) {
@@ -122,16 +132,57 @@ func (s *storage) DeleteSVID() error {
 	return nil
 }
 
+func (s *storage) LoadBootstrapState() (use int, start_time time.Time, err error) {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+
+	return s.data.BootstrapUse, s.data.BootstrapStartTime, nil
+}
+func (s *storage) StoreBootstrapState(use int, start_time time.Time) error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	data := s.data
+	data.BootstrapUse = use
+	data.BootstrapStartTime = start_time
+
+	if err := storeData(s.dir, data); err != nil {
+		return err
+	}
+
+	s.data = data
+	return nil
+}
+
+func (s *storage) DeleteBootstrapState() error {
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	data := s.data
+	data.BootstrapUse = 0 //FIXME use const
+	data.BootstrapStartTime = time.Time{}
+	if err := storeData(s.dir, data); err != nil {
+		return err
+	}
+
+	s.data = data
+	return nil
+}
+
 type storageJSON struct {
-	SVID         [][]byte `json:"svid"`
-	Bundle       [][]byte `json:"bundle"`
-	Reattestable bool     `json:"reattestable"`
+	SVID               [][]byte  `json:"svid"`
+	Bundle             [][]byte  `json:"bundle"`
+	Reattestable       bool      `json:"reattestable"`
+	BootstrapUse       int       `json:"bootstrap_use"`
+	BootstrapStartTime time.Time `json:"bootstrap_start_time"`
 }
 
 type storageData struct {
-	SVID         []*x509.Certificate
-	Bundle       []*x509.Certificate
-	Reattestable bool
+	SVID               []*x509.Certificate
+	Bundle             []*x509.Certificate
+	Reattestable       bool
+	BootstrapUse       int
+	BootstrapStartTime time.Time
 }
 
 func (d storageData) MarshalJSON() ([]byte, error) {
@@ -144,9 +195,11 @@ func (d storageData) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("failed to encode bundle: %w", err)
 	}
 	return json.Marshal(storageJSON{
-		SVID:         svid,
-		Bundle:       bundle,
-		Reattestable: d.Reattestable,
+		SVID:               svid,
+		Bundle:             bundle,
+		Reattestable:       d.Reattestable,
+		BootstrapUse:       d.BootstrapUse,
+		BootstrapStartTime: d.BootstrapStartTime,
 	})
 }
 
@@ -167,6 +220,8 @@ func (d *storageData) UnmarshalJSON(b []byte) error {
 	d.SVID = svid
 	d.Bundle = bundle
 	d.Reattestable = j.Reattestable
+	d.BootstrapUse = j.BootstrapUse
+	d.BootstrapStartTime = j.BootstrapStartTime
 	return nil
 }
 
