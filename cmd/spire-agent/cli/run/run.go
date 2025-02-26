@@ -479,8 +479,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	ac.TrustBundleSources = trustbundlesources.New(ts, ac.Log.WithField("Logger", "TrustBundleSources"))
 
-	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
-
 	ac.WorkloadKeyType = workloadkey.ECP256
 	if c.Agent.WorkloadX509SVIDKeyType != "" {
 		ac.WorkloadKeyType, err = workloadkey.KeyTypeFromString(c.Agent.WorkloadX509SVIDKeyType)

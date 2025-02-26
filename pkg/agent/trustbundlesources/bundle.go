@@ -121,7 +121,7 @@ func (b *Bundle) IsRebootstrap() bool {
 	return b.use == UseRebootstrap
 }
 
-func (b *Bundle) GetBundle() ([]*x509.Certificate, error) {
+func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 	var bundleBytes []byte
 	var err error
 
@@ -130,7 +130,7 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, error) {
 		b.startTime = time.Now()
 		err = b.storage.StoreBootstrapState(b.use, b.startTime)
 		if err == nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
@@ -138,32 +138,32 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, error) {
 	case b.config.TrustBundleURL != "":
 		bundleBytes, err = downloadTrustBundle(b.config.TrustBundleURL)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	case b.config.TrustBundlePath != "":
 		bundleBytes, err = loadTrustBundle(b.config.TrustBundlePath)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse trust bundle: %w", err)
+			return nil, false, fmt.Errorf("could not parse trust bundle: %w", err)
 		}
 	default:
 		// If InsecureBootstrap is configured, the bundle is not required
 		if b.config.InsecureBootstrap {
-			return nil, nil
+			return nil, true, nil
 		}
 	}
 
 	bundle, err := parseTrustBundle(bundleBytes, b.config.TrustBundleFormat)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if len(bundle) == 0 {
-		return nil, errors.New("no certificates found in trust bundle")
+		return nil, false, errors.New("no certificates found in trust bundle")
 	}
 
 	b.lastBundle = bundle
 
-	return bundle, nil
+	return bundle, false, nil
 }
 
 func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x509.Certificate, error) {

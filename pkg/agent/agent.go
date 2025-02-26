@@ -123,15 +123,14 @@ func (a *Agent) Run(ctx context.Context) error {
 		)
 
 		for {
+			InsecureBootstrap := false
 			BootstrapTrustBundle, err := sto.LoadBundle()
 			if errors.Is(err, storage.ErrNotCached) {
 				err = nil
-				if !a.c.InsecureBootstrap {
-					BootstrapTrustBundle, err = a.c.TrustBundleSources.GetBundle()
-				}
+				BootstrapTrustBundle, InsecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
 			}
 			if err == nil {
-				as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle)
+				as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle, InsecureBootstrap)
 				if err == nil {
 					err = a.c.TrustBundleSources.SetSuccess()
 					if err != nil {
@@ -181,17 +180,16 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 		}
 	} else {
+		InsecureBootstrap := false
 		BootstrapTrustBundle, err := sto.LoadBundle()
 		if errors.Is(err, storage.ErrNotCached) {
 			err = nil
-			if !a.c.InsecureBootstrap {
-				BootstrapTrustBundle, err = a.c.TrustBundleSources.GetBundle()
-			}
+			BootstrapTrustBundle, InsecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
 		}
 		if err != nil {
 			return err
 		}
-		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle)
+		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle, InsecureBootstrap)
 		if err != nil {
 			return err
 		}
@@ -299,14 +297,14 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor, BootstrapTrustBundle []*x509.Certificate) (*node_attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor, BootstrapTrustBundle []*x509.Certificate, InsecureBootstrap bool) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
 		Catalog:              cat,
 		Metrics:              metrics,
 		JoinToken:            a.c.JoinToken,
 		TrustDomain:          a.c.TrustDomain,
 		BootstrapTrustBundle: BootstrapTrustBundle,
-		InsecureBootstrap:    a.c.InsecureBootstrap,
+		InsecureBootstrap:    InsecureBootstrap,
 		Storage:              sto,
 		Log:                  a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
 		ServerAddress:        a.c.ServerAddress,
