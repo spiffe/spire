@@ -4841,6 +4841,20 @@ type entryFetcher struct {
 	entries []*types.Entry
 }
 
+func (f *entryFetcher) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, _ map[string]struct{}) (map[string]*types.Entry, error) {
+	entries, err := f.FetchAuthorizedEntries(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+
+	entriesMap := make(map[string]*types.Entry)
+	for _, entry := range entries {
+		entriesMap[entry.GetId()] = entry
+	}
+
+	return entriesMap, nil
+}
+
 func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
 	if f.err != "" {
 		return nil, status.Error(codes.Internal, f.err)
