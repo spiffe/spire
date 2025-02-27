@@ -40,7 +40,7 @@ func (b *Bundle) SetStorage(storage storage.Storage) error {
 	b.use = use
 	b.startTime = startTime
 	if use == UseUnspecified {
-		use = UseBootstrap
+		b.use = UseBootstrap
 	}
 	return err
 }

@@ -159,7 +159,7 @@ func (s *storage) DeleteBootstrapState() error {
 	defer s.mtx.Unlock()
 
 	data := s.data
-	data.BootstrapUse = 0 //FIXME use const
+	data.BootstrapUse = 0
 	data.BootstrapStartTime = time.Time{}
 	if err := storeData(s.dir, data); err != nil {
 		return err

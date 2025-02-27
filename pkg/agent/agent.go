@@ -42,7 +42,7 @@ import (
 )
 
 const (
-	bootstrapBackoffInterval       = 5 * time.Second
+	bootstrapBackoffInterval = 5 * time.Second
 	// FIXME KMF what to do...
 	bootstrapBackoffMaxElapsedTime = 24 * time.Hour // 1 *time.Minute
 )
@@ -147,7 +147,7 @@ func (a *Agent) Run(ctx context.Context) error {
 						if err != nil {
 							return nil
 						}
-						seconds := time.Now().Sub(startTime)
+						seconds := time.Since(startTime)
 						if seconds < *a.c.RebootstrapDelay {
 							fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *a.c.RebootstrapDelay-seconds)
 						} else {
@@ -297,14 +297,14 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor, BootstrapTrustBundle []*x509.Certificate, InsecureBootstrap bool) (*node_attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor, bootstrapTrustBundle []*x509.Certificate, insecureBootstrap bool) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
 		Catalog:              cat,
 		Metrics:              metrics,
 		JoinToken:            a.c.JoinToken,
 		TrustDomain:          a.c.TrustDomain,
-		BootstrapTrustBundle: BootstrapTrustBundle,
-		InsecureBootstrap:    InsecureBootstrap,
+		BootstrapTrustBundle: bootstrapTrustBundle,
+		InsecureBootstrap:    insecureBootstrap,
 		Storage:              sto,
 		Log:                  a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
 		ServerAddress:        a.c.ServerAddress,
@@ -363,7 +363,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 				if err != nil {
 					return nil, err
 				}
-				seconds := time.Now().Sub(startTime)
+				seconds := time.Since(startTime)
 				if seconds < *a.c.RebootstrapDelay {
 					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *a.c.RebootstrapDelay-seconds)
 				} else {
