@@ -4,7 +4,7 @@
 
 The `x509pop` plugin attests nodes that have been provisioned with an x509
 identity through an out-of-band mechanism. It verifies that the certificate is
-rooted to a trusted set of CAs and issues a signature based proof-of-possession
+rooted to a trusted set of CAs and issues a signature-based proof-of-possession
 challenge to the agent plugin to verify that the node is in possession of the
 private key.
 
@@ -30,7 +30,7 @@ A sample configuration:
     NodeAttestor "x509pop" {
         plugin_data {
             ca_bundle_path = "/opt/spire/conf/server/agent-cacert.pem"
-            
+
             # Change the agent's SPIFFE ID format
             # agent_path_template = "/cn/{{ .Subject.CommonName }}"
         }
@@ -48,26 +48,20 @@ A sample configuration:
 
 ## SVID Path Prefix
 
-When mode="spiffe", the SPIFFE ID being exchanged must be prefixed by the specified svid_prefix. The prefix will be removed from the .SVIDPathTrimmed property before sending to the
-agent path template. If set to "", all prefixes are allowed and you will want to do limiting logic in in the agent_path_template.
+When `mode="spiffe"` the SPIFFE ID being exchanged must be prefixed by the specified `svid_prefix`. The prefix will be removed from the `.SVIDPathTrimmed` property before sending to the agent path template. If `svid_prefix` is set to `""`, all prefixes will be allowed, and the limiting logic will have to be implemented in the `agent_path_template`.
 
-Example: if your trust domain is example.com and svid_prefix = the default of /spire-exchange, and agent path template is the default,
-
-spiffe://example.com/spire-exchange/testhost will render out to spiffe://example.com/spire/agent/x509pop/testhost
-
-If spiffe://example.com/other/testhost is given, it wont match the svid_prefix and it will be rejected.
+**Example:** If your trust domain is example.com and `svid_prefix` is set to its default value `/spire-exchange`, and [agent_path_template](#agent-path-template) is the default too, then the SPIFFE ID from the x509 identity `spiffe://example.com/spire-exchange/testhost` will be exchanged for `spiffe://example.com/spire/agent/x509pop/testhost`. If a SPIFFE ID with a different prefix is given, for example `spiffe://example.com/other/testhost`, it will not match the `svid_prefix` and will be rejected.
 
 ## Agent Path Template
 
-The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
+Specifying the value of `agent_path_template` provides a way of customizing the format of generated SPIFFE IDs for agents. The default format for every mode is shown below
 
-If using ca_bundle_path(s), the default is:
-"{{ .PluginName }}/{{ .Fingerprint }}"
+| `mode`         | `agent_path_template`                      |
+|----------------|--------------------------------------------|
+| `spiffe`       | `{{ .PluginName }}/{{ .SVIDPathTrimmed }}` |
+| `external_pki` | `{{ .PluginName }}/{{ .Fingerprint }}`     |
 
-If using spire_trust_bundle, the default exchanges an SVID under `/spire-exchange/*` for `/spire/agent/x509pop/*`, via:
-"{{ .PluginName }}/{{ .SVIDPathTrimmed }}"
-
-The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate)
+The template formatter is using Golang text/template conventions. It can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate).
 Details about the template engine are available [here](template_engine.md).
 
 Some useful values are:
