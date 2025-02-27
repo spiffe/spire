@@ -63,55 +63,55 @@ func BenchmarkStatsd(b *testing.B) {
 
 func benchmarkMetricImpl(b *testing.B, m Metrics) {
 	b.Run("SetGauge", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			m.SetGauge(key, valf)
 		}
 	})
 
 	b.Run("SetGaugeWithLabels", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			m.SetGaugeWithLabels(key, valf, labels)
 		}
 	})
 
 	b.Run("EmitKey", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			m.EmitKey(key, valf)
 		}
 	})
 
 	b.Run("IncrCounter", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			m.IncrCounter(key, valf)
 		}
 	})
 
 	b.Run("IncrCounterWithLabels", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			m.IncrCounterWithLabels(key, valf, labels)
 		}
 	})
 
 	b.Run("AddSample", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			m.AddSample(key, valf)
 		}
 	})
 
 	b.Run("AddSampleWithLabels", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			m.AddSampleWithLabels(key, valf, labels)
 		}
 	})
 
 	b.Run("MeasureSince", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			m.MeasureSince(key, valt)
 		}
 	})
 
 	b.Run("MeasureSinceWithLabels", func(b *testing.B) {
-		for range b.N {
+		for b.Loop() {
 			m.MeasureSinceWithLabels(key, valt, labels)
 		}
 	})

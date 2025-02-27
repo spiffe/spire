@@ -3,6 +3,7 @@ package gcpiit
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -159,14 +160,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return err
 	}
 
-	projectIDMatchesAllowList := false
-	for _, projectID := range c.ProjectIDAllowList {
-		if identityMetadata.ProjectID == projectID {
-			projectIDMatchesAllowList = true
-			break
-		}
-	}
-	if !projectIDMatchesAllowList {
+	if !slices.Contains(c.ProjectIDAllowList, identityMetadata.ProjectID) {
 		return status.Errorf(codes.PermissionDenied, "identity token project ID %q is not in the allow list", identityMetadata.ProjectID)
 	}
 

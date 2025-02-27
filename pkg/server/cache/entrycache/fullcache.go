@@ -2,6 +2,7 @@ package entrycache
 
 import (
 	"context"
+	"slices"
 	"sync"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -223,7 +224,7 @@ func (c *FullEntryCache) crawl(parentID spiffeID, seen map[spiffeID]struct{}) []
 	seen[parentID] = struct{}{}
 
 	// Make a copy so that the entries aren't aliasing the backing array
-	entries := append([]*types.Entry(nil), c.entries[parentID]...)
+	entries := slices.Clone(c.entries[parentID])
 	for _, entry := range entries {
 		entries = append(entries, c.crawl(spiffeIDFromProto(entry.SpiffeId), seen)...)
 	}

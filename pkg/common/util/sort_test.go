@@ -3,6 +3,7 @@ package util
 import (
 	"math/rand"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -98,7 +99,7 @@ func TestSortRegistrationEntries(t *testing.T) {
 }
 
 func shuffleRegistrationEntries(rs []*common.RegistrationEntry) []*common.RegistrationEntry {
-	shuffled := append([]*common.RegistrationEntry{}, rs...)
+	shuffled := slices.Clone(rs)
 	rand.Shuffle(len(shuffled), func(i, j int) {
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 	})
@@ -194,7 +195,7 @@ func TestSortTypesEntries(t *testing.T) {
 }
 
 func shuffleTypesEntries(rs []*types.Entry) []*types.Entry {
-	shuffled := append([]*types.Entry{}, rs...)
+	shuffled := slices.Clone(rs)
 	rand.Shuffle(len(rs), func(i, j int) {
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 	})

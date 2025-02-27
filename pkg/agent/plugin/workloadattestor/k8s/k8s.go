@@ -651,7 +651,7 @@ func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient, cacheFor
 		return result, nil
 	}
 
-	podList, err, _ := p.singleflight.Do("podList", func() (interface{}, error) {
+	podList, err, _ := p.singleflight.Do("podList", func() (any, error) {
 		result := p.getPodListCache()
 		if result != nil {
 			return result, nil

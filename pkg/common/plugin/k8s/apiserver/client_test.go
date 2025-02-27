@@ -374,7 +374,7 @@ func (s *ClientSuite) createSampleKubeConfigFile(kubeConfigPath string) {
 	err = os.WriteFile(clientKeyPath, kubeConfigClientKey, 0600)
 	s.Require().NoError(err)
 
-	kubeConfigContent := []byte(fmt.Sprintf(kubeConfig, caPath, clientCrtPath, clientKeyPath))
+	kubeConfigContent := fmt.Appendf(nil, kubeConfig, caPath, clientCrtPath, clientKeyPath)
 	err = os.WriteFile(kubeConfigPath, kubeConfigContent, 0600)
 	s.Require().NoError(err)
 }

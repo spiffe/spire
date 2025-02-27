@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 )
 
 var (
@@ -70,14 +71,7 @@ func parseBlocks(pemBytes []byte, expectedCount int, expectedTypes ...string) (b
 		}
 
 		if len(expectedTypes) > 0 {
-			found := false
-			for _, expectedType := range expectedTypes {
-				if expectedType == pemBlock.Type {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if !slices.Contains(expectedTypes, pemBlock.Type) {
 				var expectedTypeList any = expectedTypes
 				if len(expectedTypes) == 1 {
 					expectedTypeList = expectedTypes[0]

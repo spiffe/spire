@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"sort"
 	"strconv"
 
@@ -356,9 +357,7 @@ type validationContextBuilder interface {
 
 func (h *Handler) getValidationContextBuilder(req *discovery_v3.DiscoveryRequest, upd *cache.WorkloadUpdate) (validationContextBuilder, error) {
 	federatedBundles := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
-	for td, federatedBundle := range upd.FederatedBundles {
-		federatedBundles[td] = federatedBundle
-	}
+	maps.Copy(federatedBundles, upd.FederatedBundles)
 	if !h.isSPIFFECertValidationDisabled(req) && supportsSPIFFEAuthExtension(req) {
 		return newSpiffeBuilder(upd.Bundle, federatedBundles)
 	}
@@ -423,9 +422,7 @@ func newSpiffeBuilder(tdBundle *spiffebundle.Bundle, federatedBundles map[spiffe
 	}
 
 	// Add all federated bundles
-	for td, bundle := range federatedBundles {
-		bundles[td] = bundle
-	}
+	maps.Copy(bundles, federatedBundles)
 
 	return &spiffeBuilder{
 		bundles: bundles,

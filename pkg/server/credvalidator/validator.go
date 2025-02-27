@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -166,20 +167,10 @@ func checkX509CertificateExpiration(cert *x509.Certificate, now time.Time) error
 }
 
 func hasExtKeyUsage(extKeyUsage []x509.ExtKeyUsage, want x509.ExtKeyUsage) bool {
-	for _, candidate := range extKeyUsage {
-		if candidate == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(extKeyUsage, want)
 }
 
 func hasEmptyAudienceValue(audience jwt.Audience) bool {
 	// shift audience
-	for _, value := range audience {
-		if value == "" {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(audience, "")
 }
