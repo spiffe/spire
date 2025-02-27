@@ -121,7 +121,7 @@ type experimentalConfig struct {
 	SyncInterval             string `hcl:"sync_interval"`
 	NamedPipeName            string `hcl:"named_pipe_name"`
 	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
-	UseSyncAuthorizedEntries bool   `hcl:"use_sync_authorized_entries"`
+	UseSyncAuthorizedEntries *bool  `hcl:"use_sync_authorized_entries"`
 	RequirePQKEM             bool   `hcl:"require_pq_kem"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
@@ -468,8 +468,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 	}
 
-	ac.UseSyncAuthorizedEntries = c.Agent.Experimental.UseSyncAuthorizedEntries
-
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
 
@@ -497,6 +495,12 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.Log = logger
 	if reopenableFile != nil {
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
+	}
+
+	ac.UseSyncAuthorizedEntries = true
+	if c.Agent.Experimental.UseSyncAuthorizedEntries != nil {
+		ac.Log.Warn("The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.")
+		ac.UseSyncAuthorizedEntries = *c.Agent.Experimental.UseSyncAuthorizedEntries
 	}
 
 	if c.Agent.X509SVIDCacheMaxSize < 0 {
