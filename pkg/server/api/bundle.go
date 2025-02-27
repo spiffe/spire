@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -160,15 +161,11 @@ func FieldsFromBundleProto(proto *types.Bundle, inputMask *types.BundleMask) log
 	}
 
 	if inputMask == nil || inputMask.JwtAuthorities {
-		for k, v := range FieldsFromJwtAuthoritiesProto(proto.JwtAuthorities) {
-			fields[k] = v
-		}
+		maps.Copy(fields, FieldsFromJwtAuthoritiesProto(proto.JwtAuthorities))
 	}
 
 	if inputMask == nil || inputMask.X509Authorities {
-		for k, v := range FieldsFromX509AuthoritiesProto(proto.X509Authorities) {
-			fields[k] = v
-		}
+		maps.Copy(fields, FieldsFromX509AuthoritiesProto(proto.X509Authorities))
 	}
 	return fields
 }

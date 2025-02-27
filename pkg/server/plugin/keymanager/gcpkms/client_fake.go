@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"maps"
 	"path"
 	"reflect"
 	"regexp"
@@ -102,9 +103,7 @@ func (fck *fakeCryptoKey) fetchFakeCryptoKeyVersions() map[string]*fakeCryptoKey
 	}
 
 	fakeCryptoKeyVersions := make(map[string]*fakeCryptoKeyVersion, len(fck.fakeCryptoKeyVersions))
-	for key, fakeCryptoKeyVersion := range fck.fakeCryptoKeyVersions {
-		fakeCryptoKeyVersions[key] = fakeCryptoKeyVersion
-	}
+	maps.Copy(fakeCryptoKeyVersions, fck.fakeCryptoKeyVersions)
 	return fakeCryptoKeyVersions
 }
 
@@ -160,9 +159,7 @@ func (fs *fakeStore) fetchFakeCryptoKeys() map[string]*fakeCryptoKey {
 	}
 
 	fakeCryptoKeys := make(map[string]*fakeCryptoKey, len(fs.fakeCryptoKeys))
-	for key, fakeCryptoKey := range fs.fakeCryptoKeys {
-		fakeCryptoKeys[key] = fakeCryptoKey
-	}
+	maps.Copy(fakeCryptoKeys, fs.fakeCryptoKeys)
 	return fakeCryptoKeys
 }
 

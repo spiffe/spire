@@ -518,19 +518,13 @@ func otherSlotID(id string) string {
 
 func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	threshold := lifetime / preparationThresholdDivisor
-	if threshold > preparationThresholdCap {
-		threshold = preparationThresholdCap
-	}
+	threshold := min(lifetime/preparationThresholdDivisor, preparationThresholdCap)
 	return notAfter.Add(-threshold)
 }
 
 func keyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	threshold := lifetime / activationThresholdDivisor
-	if threshold > activationThresholdCap {
-		threshold = activationThresholdCap
-	}
+	threshold := min(lifetime/activationThresholdDivisor, activationThresholdCap)
 	return notAfter.Add(-threshold)
 }
 

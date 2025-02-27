@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"maps"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -55,9 +56,7 @@ func (s *TrustDomainConfigSet) GetTrustDomainConfigs(context.Context) (map[spiff
 
 func duplicateTrustDomainConfigMap(in TrustDomainConfigMap) TrustDomainConfigMap {
 	out := make(TrustDomainConfigMap, len(in))
-	for td, config := range in {
-		out[td] = config
-	}
+	maps.Copy(out, in)
 	return out
 }
 
@@ -70,9 +69,7 @@ func MergeTrustDomainConfigSources(sources ...TrustDomainConfigSource) TrustDoma
 			if err != nil {
 				return nil, err
 			}
-			for td, config := range configs {
-				merged[td] = config
-			}
+			maps.Copy(merged, configs)
 		}
 		return merged, nil
 	})

@@ -2,6 +2,7 @@ package authorizedentries
 
 import (
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -285,7 +286,7 @@ func (a *cacheTest) withAgent(node spiffeid.ID, selectors ...*types.Selector) *c
 	expiresAt := now.Add(time.Hour * time.Duration(1+len(a.agents)))
 	a.agents[node] = agentInfo{
 		ExpiresAt: expiresAt,
-		Selectors: append([]*types.Selector(nil), selectors...),
+		Selectors: slices.Clone(selectors),
 	}
 	return a
 }
@@ -294,7 +295,7 @@ func (a *cacheTest) withExpiredAgent(node spiffeid.ID, expiredBy time.Duration, 
 	expiresAt := now.Add(-expiredBy)
 	a.agents[node] = agentInfo{
 		ExpiresAt: expiresAt,
-		Selectors: append([]*types.Selector(nil), selectors...),
+		Selectors: slices.Clone(selectors),
 	}
 	return a
 }

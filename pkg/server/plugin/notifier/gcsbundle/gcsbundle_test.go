@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sync"
 	"testing"
 
@@ -292,7 +293,7 @@ func (c *fakeBucketClient) PutObject(_ context.Context, bucket, object string, d
 		return err
 	}
 
-	c.data = append([]byte(nil), data...)
+	c.data = slices.Clone(data)
 	return nil
 }
 
@@ -310,7 +311,7 @@ func (c *fakeBucketClient) AppendPutObjectError(err error) {
 
 func (c *fakeBucketClient) GetBundleData() []byte {
 	c.mu.Lock()
-	data := append([]byte(nil), c.data...)
+	data := slices.Clone(c.data)
 	c.mu.Unlock()
 	return data
 }

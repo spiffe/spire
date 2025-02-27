@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"google.golang.org/grpc/codes"
@@ -82,7 +83,7 @@ func (b *ServerStreamBuilder) FailAndBuild(err error) nodeattestor.ServerStream 
 }
 
 func (b *ServerStreamBuilder) addHandler(handler ServerStreamHandler) *ServerStreamBuilder {
-	handlers := append([]ServerStreamHandler(nil), b.handlers...)
+	handlers := slices.Clone(b.handlers)
 	handlers = append(handlers, handler)
 	return &ServerStreamBuilder{
 		pluginName: b.pluginName,

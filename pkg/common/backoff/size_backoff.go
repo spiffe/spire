@@ -31,19 +31,11 @@ func (r *sizeLimitedBackOff) NextBackOff() int {
 }
 
 func (r *sizeLimitedBackOff) Success() {
-	newSize := r.currentSize * 2
-	if newSize > r.maxSize {
-		newSize = r.maxSize
-	}
-	r.currentSize = newSize
+	r.currentSize = min(r.currentSize*2, r.maxSize)
 }
 
 func (r *sizeLimitedBackOff) Failure() {
-	newSize := r.currentSize / 2
-	if newSize < 1 {
-		newSize = 1
-	}
-	r.currentSize = newSize
+	r.currentSize = max(r.currentSize/2, 1)
 }
 
 func (r *sizeLimitedBackOff) Reset() {

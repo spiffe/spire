@@ -710,7 +710,7 @@ func createTestCert() *x509.Certificate {
 
 func createFakePayload() []byte {
 	signaturePayload := payload.SimpleContainerImage{
-		Optional: map[string]interface{}{
+		Optional: map[string]any{
 			"subject": "test-subject",
 		},
 	}

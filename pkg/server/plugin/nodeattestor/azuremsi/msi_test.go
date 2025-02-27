@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -243,7 +244,7 @@ func (s *MSIAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
 
 	payload := s.signAttestPayload("KEYID", resourceID, "TENANTID", "PRINCIPALID")
 
-	selectorValues := append([]string{}, vmSelectors...)
+	selectorValues := slices.Clone(vmSelectors)
 	sort.Strings(selectorValues)
 
 	var expected []*common.Selector
@@ -778,7 +779,7 @@ func (f *fakeAzureCredential) GetToken(context.Context, policy.TokenRequestOptio
 }
 
 func makeAttestPayload(token string) []byte {
-	return []byte(fmt.Sprintf(`{"token": %q}`, token))
+	return fmt.Appendf(nil, `{"token": %q}`, token)
 }
 
 func expectNoChallenge(context.Context, []byte) ([]byte, error) {
