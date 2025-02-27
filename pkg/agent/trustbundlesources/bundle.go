@@ -55,11 +55,6 @@ func (b *Bundle) SetUse(use int) error {
 		if err != nil {
 			return err
 		}
-		/*
-			only when after timeout....
-			err := b.storage.StoreBundle(nil)
-			//FIXME if svid is set, clear that too
-		*/
 		return err
 	}
 	return nil
@@ -80,7 +75,7 @@ func (b *Bundle) SetSuccess() error {
 	b.startTime = time.Time{}
 	b.log.Info("Setting use.")
 	if b.storage != nil {
-		err := b.storage.StoreBootstrapState(b.use, b.startTime)
+		err = b.storage.StoreBootstrapState(b.use, b.startTime)
 		if err != nil {
 			return err
 		}
@@ -90,7 +85,7 @@ func (b *Bundle) SetSuccess() error {
 }
 
 func (b *Bundle) SetForceRebootstrap() error {
-	//FIXME KMF add retry counter to StoreBootstrapState too?
+	// FIXME KMF add retry counter to StoreBootstrapState too?
 	b.use = UseRebootstrap
 	err := b.storage.StoreBootstrapState(b.use, b.startTime)
 	if err != nil {

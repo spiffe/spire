@@ -126,7 +126,6 @@ func (a *Agent) Run(ctx context.Context) error {
 			InsecureBootstrap := false
 			BootstrapTrustBundle, err := sto.LoadBundle()
 			if errors.Is(err, storage.ErrNotCached) {
-				err = nil
 				BootstrapTrustBundle, InsecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
 			}
 			if err == nil {
@@ -153,6 +152,9 @@ func (a *Agent) Run(ctx context.Context) error {
 						} else {
 							fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping\n")
 							err = sto.StoreBundle(nil)
+							if err != nil {
+								return err
+							}
 						}
 					}
 				}
@@ -183,7 +185,6 @@ func (a *Agent) Run(ctx context.Context) error {
 		InsecureBootstrap := false
 		BootstrapTrustBundle, err := sto.LoadBundle()
 		if errors.Is(err, storage.ErrNotCached) {
-			err = nil
 			BootstrapTrustBundle, InsecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
 		}
 		if err != nil {
