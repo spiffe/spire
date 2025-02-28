@@ -218,12 +218,13 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 
 // updateCacheEntry update/deletes/creates an individual registration entry in the cache.
 func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
-	for entryId := range a.fetchEntries {
-		commonEntry, err := a.ds.FetchRegistrationEntry(ctx, entryId)
-		if err != nil {
-			continue
-		}
+	commonEntries, err := a.ds.FetchRegistrationEntries(ctx, mapKeysToSlice(a.fetchEntries))
+	if err != nil {
+		return err
+	}
 
+	for entryId := range a.fetchEntries {
+		commonEntry := commonEntries[entryId]
 		if commonEntry == nil {
 			a.cache.RemoveEntry(entryId)
 			delete(a.fetchEntries, entryId)
@@ -241,6 +242,7 @@ func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 		a.cache.UpdateEntry(entry)
 		delete(a.fetchEntries, entryId)
 	}
+
 	return nil
 }
 
