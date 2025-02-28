@@ -2086,6 +2086,66 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 	}
 }
 
+func (s *PluginSuite) TestFetchRegistrationEntries() {
+	entry1 := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+		},
+		SpiffeId: "SpiffeId1",
+		ParentId: "ParentId1",
+	}
+	entry2 := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type2", Value: "Value2"},
+		},
+		SpiffeId: "SpiffeId2",
+		ParentId: "ParentId2",
+	}
+	entry3 := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId: "SpiffeId3",
+		ParentId: "ParentId3",
+	}
+	createdEntry1, err := s.ds.CreateRegistrationEntry(ctx, entry1)
+	s.Require().NoError(err)
+	s.Require().NotNil(createdEntry1)
+	createdEntry2, err := s.ds.CreateRegistrationEntry(ctx, entry2)
+	s.Require().NoError(err)
+	s.Require().NotNil(createdEntry2)
+	createdEntry3, err := s.ds.CreateRegistrationEntry(ctx, entry3)
+	s.Require().NoError(err)
+	s.Require().NotNil(createdEntry3)
+
+	for _, tt := range []struct {
+		name     string
+		entryIDs []string
+	}{
+		{
+			name:     "Entries 1 and 2",
+			entryIDs: []string{createdEntry1.EntryId, createdEntry2.EntryId},
+		},
+		{
+			name:     "Entries 1 and 3",
+			entryIDs: []string{createdEntry1.EntryId, createdEntry3.EntryId},
+		},
+		{
+			name:     "Entries 1, 2, and 3",
+			entryIDs: []string{createdEntry1.EntryId, createdEntry2.EntryId, createdEntry3.EntryId},
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, tt.entryIDs)
+			s.Require().NoError(err)
+			s.Require().Equal(len(tt.entryIDs), len(fetchedRegistrationEntries))
+			for _, fetchedRegistrationEntry := range fetchedRegistrationEntries {
+				s.Require().Contains(tt.entryIDs, fetchedRegistrationEntry.EntryId)
+			}
+		})
+	}
+}
+
 func (s *PluginSuite) TestPruneRegistrationEntries() {
 	now := time.Now()
 	entry := &common.RegistrationEntry{
