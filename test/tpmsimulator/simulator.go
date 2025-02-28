@@ -21,9 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 )
 
-var (
-	ErrUsingClosedSimulator = simulator.ErrUsingClosedSimulator
-)
+var ErrUsingClosedSimulator = simulator.ErrUsingClosedSimulator
 
 type TPMSimulator struct {
 	*simulator.Simulator
@@ -300,12 +298,11 @@ func (s *TPMSimulator) createEndorsementCertificate() (*x509.Certificate, error)
 		return nil, fmt.Errorf("cannot generate root certificate: %w", err)
 	}
 
-	ekHandle, ekPublicBlob, _, _, _, _, err :=
-		tpm2.CreatePrimaryEx(s, tpm2.HandleEndorsement,
-			tpm2.PCRSelection{},
-			s.endorsementHierarchyPassword,
-			"",
-			client.DefaultEKTemplateRSA())
+	ekHandle, ekPublicBlob, _, _, _, _, err := tpm2.CreatePrimaryEx(s, tpm2.HandleEndorsement,
+		tpm2.PCRSelection{},
+		s.endorsementHierarchyPassword,
+		"",
+		client.DefaultEKTemplateRSA())
 	if err != nil {
 		return nil, fmt.Errorf("cannot generate endorsement key pair: %w", err)
 	}
@@ -352,8 +349,7 @@ func (s *TPMSimulator) createOrdinaryKey(keyType KeyType, parentKeyPassword, key
 		return nil, nil, fmt.Errorf("unknown key type: %v", keyType)
 	}
 
-	srkHandle, _, _, _, _, _, err :=
-		tpm2.CreatePrimaryEx(s, tpm2.HandleOwner, tpm2.PCRSelection{}, s.ownerHierarchyPassword, parentKeyPassword, srkTemplate)
+	srkHandle, _, _, _, _, _, err := tpm2.CreatePrimaryEx(s, tpm2.HandleOwner, tpm2.PCRSelection{}, s.ownerHierarchyPassword, parentKeyPassword, srkTemplate)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot create new storage root key: %w", err)
 	}
@@ -418,7 +414,7 @@ func createCertificate(key any, tmpl *x509.Certificate, parentKey *rsa.PrivateKe
 }
 
 func generateRSAKey() (*rsa.PrivateKey, error) {
-	return rsa.GenerateKey(rand.Reader, 768) //nolint: gosec // small key is to keep test fast... not a security feature
+	return rsa.GenerateKey(rand.Reader, 2048)
 }
 
 func defaultDevIDTemplateRSA() tpm2.Public {

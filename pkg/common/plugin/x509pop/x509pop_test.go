@@ -1,50 +1,28 @@
 package x509pop
 
 import (
-	"crypto/ecdsa"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"math/big"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	testRSAKey = `-----BEGIN PRIVATE KEY-----
-MIIB5QIBADANBgkqhkiG9w0BAQEFAASCAc8wggHLAgEAAmEAszTMHP/M0ETR5FjO
-cUpKtxMc62olnUG2F4iSiNQ2n0YuFPRId+tDsiooNze3/WxJe5U4Ljbnw+LxYIAa
-hrSbWWLbpE8ZofHmb+hNAmiXQcv40VMNtJlWHUm2O5DSsOzxAgMBAAECYCqaNpv+
-Q9aPRcafRhSwsKptJMbiaSbFZGCb2xokOQgMSxA4MrIvf9xvIThfSqI4h6mNuL0g
-F4+7QbSCM9oMi4lVxqtu9ThBeUmvCuuolOdvpSjDV8Y8yRrm9d9rti1g8QIxAMlz
-jmSLj5kjJfSVVEMXsLZkoESvymtI44+wBwRdIbKI3Jn2cDJ2VYPNsTEVXaZLRwIx
-AOO7Ob6+ya1uNLeiVtsJmaHarKn/IExvzgvr9NfNAs2PifiFKLBERSf5zh8HOocy
-BwIxAMDC9/+xo0hPX6Q3t5czdf4xL0JKS5B5AHafYzeDvhjN6PjR3O4MWStziReE
-cEYNRQIxAMiaajmOUpWFWMbSJ/R2tnCO8j4lUMxESJrT1TArlWaCJKVYlwj+enTG
-Zj2K3pGtDQIwcHg1MNxehdkTQ7qOPHce09enVjaM0+uXPKAOfSyM7jPMBn4cm/1K
-qCrBUhzFaWeg
------END PRIVATE KEY-----`
-	testECDSAKey = `-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgMmjo28H7LEOxWD2t
-74mWp5XPrZwzb/VyukdPxHGOoOOhRANCAARhpK2KSCTiyeNZzrB8c2eZ4K+yZGrp
-4MpWREMXQMIwbP/QWGYXQ8GWhp16J6IYXkywB/SJnKPY+iV6Mnbxp31K
------END PRIVATE KEY-----`
+var (
+	testRSAKey   = testkey.MustRSA2048()
+	testECDSAKey = testkey.MustEC256()
 )
 
 func TestChallengeResponse(t *testing.T) {
 	require := require.New(t)
 
 	// load up RSA key and create a self-signed certificate over the public key
-	pemBlock, _ := pem.Decode([]byte(testRSAKey))
-	require.NotNil(pemBlock)
-	privateKey, err := x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
-	require.NoError(err)
-	rsaPrivateKey := privateKey.(*rsa.PrivateKey)
+	rsaPrivateKey := testRSAKey
 	rsaPublicKey := &rsaPrivateKey.PublicKey
 	rsaCert, err := createCertificate(rsaPrivateKey, rsaPublicKey)
 	require.NoError(err)
@@ -58,11 +36,7 @@ func TestChallengeResponse(t *testing.T) {
 	require.NoError(err)
 
 	// load up ECDSA key and create a self-signed certificate over the public key
-	pemBlock, _ = pem.Decode([]byte(testECDSAKey))
-	require.NotNil(pemBlock)
-	privateKey, err = x509.ParsePKCS8PrivateKey(pemBlock.Bytes)
-	require.NoError(err)
-	ecdsaPrivateKey := privateKey.(*ecdsa.PrivateKey)
+	ecdsaPrivateKey := testECDSAKey
 	ecdsaPublicKey := &ecdsaPrivateKey.PublicKey
 	ecdsaCert, err := createCertificate(ecdsaPrivateKey, ecdsaPublicKey)
 	require.NoError(err)
