@@ -29,6 +29,7 @@ const (
 	spiffeScheme     = "spiffe"
 	trustDomain      = "example.org"
 	testNodeAttestor = "test-nodeattestor"
+	serverID         = "spiffe://example.org/spire/server"
 )
 
 var (
@@ -50,7 +51,6 @@ func TestCache(t *testing.T) {
 
 	rootID := spiffeid.RequireFromString("spiffe://example.org/root")
 
-	const serverID = "spiffe://example.org/spire/server"
 	const numEntries = 5
 	entryIDs := make([]string, numEntries)
 	for i := range numEntries {
@@ -128,7 +128,7 @@ func TestCache(t *testing.T) {
 
 	expected := entries[:3]
 	expected = append(expected, entries[4])
-	assertAuthorizedEntries(t, cache, rootID, expected...)
+	assertAuthorizedEntries(t, cache, rootID, entries, expected...)
 }
 
 func TestCacheReturnsClonedEntries(t *testing.T) {
@@ -232,9 +232,9 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 	cache, err := BuildFromDataStore(context.Background(), ds)
 	assert.NoError(t, err)
 
-	assertAuthorizedEntries(t, cache, agentIDs[0], workloadEntries[:2]...)
-	assertAuthorizedEntries(t, cache, agentIDs[1], workloadEntries[1])
-	assertAuthorizedEntries(t, cache, agentIDs[2], workloadEntries[2])
+	assertAuthorizedEntries(t, cache, agentIDs[0], workloadEntries, workloadEntries[:2]...)
+	assertAuthorizedEntries(t, cache, agentIDs[1], workloadEntries, workloadEntries[1])
+	assertAuthorizedEntries(t, cache, agentIDs[2], workloadEntries, workloadEntries[2])
 }
 
 func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T) {
@@ -795,7 +795,7 @@ func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.DataStore {
 	return p
 }
 
-func assertAuthorizedEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, entries ...*common.RegistrationEntry) {
+func assertAuthorizedEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, allEntries []*common.RegistrationEntry, entries ...*common.RegistrationEntry) {
 	tb.Helper()
 	expected, err := api.RegistrationEntriesToProto(entries)
 	require.NoError(tb, err)
@@ -806,10 +806,134 @@ func assertAuthorizedEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, en
 	sortEntries(authorizedEntries)
 
 	spiretest.AssertProtoListEqual(tb, expected, authorizedEntries)
+
+	assertLookupEntries(tb, cache, agentID, allEntries, entries...)
+}
+
+func assertLookupEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, lookup []*common.RegistrationEntry, entries ...*common.RegistrationEntry) {
+	tb.Helper()
+	expected, err := api.RegistrationEntriesToProto(entries)
+	require.NoError(tb, err)
+	sortEntries(expected)
+
+	lookupEntries := make(map[string]struct{})
+	for _, entry := range lookup {
+		lookupEntries[entry.EntryId] = struct{}{}
+	}
+	foundEntries := cache.LookupAuthorizedEntries(agentID, lookupEntries)
+	require.Len(tb, foundEntries, len(entries))
 }
 
 func sortEntries(es []*types.Entry) {
 	sort.Slice(es, func(a, b int) bool {
 		return es[a].Id < es[b].Id
 	})
+}
+
+func setupLookupTest(tb testing.TB, count int) (*FullEntryCache, []string) {
+	ds := fakedatastore.New(tb)
+	ctx := context.Background()
+
+	// Create an attested agent
+	agentID := spiffeid.RequireFromString("spiffe://example.org/spire/agent/1")
+	node := &common.AttestedNode{
+		SpiffeId:            agentID.String(),
+		AttestationDataType: testNodeAttestor,
+		CertSerialNumber:    "1",
+		CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
+	}
+	createAttestedNode(tb, ds, node)
+	setNodeSelectors(ctx, tb, ds, agentID.String(), &common.Selector{
+		Type:  "alias",
+		Value: "root",
+	})
+
+	// Create root alias
+	createRegistrationEntry(ctx, tb, ds, &common.RegistrationEntry{
+		ParentId: serverID,
+		SpiffeId: "spiffe://example.org/root",
+		Selectors: []*common.Selector{
+			{
+				Type:  "alias",
+				Value: "root",
+			},
+		},
+	})
+
+	entries := []string{}
+	for id := range count {
+		idStr := strconv.Itoa(id)
+		// Create one entry parented to the alias
+		entry := createRegistrationEntry(ctx, tb, ds, &common.RegistrationEntry{
+			ParentId: "spiffe://example.org/root",
+			SpiffeId: "spiffe://example.org/workload/" + idStr,
+			Selectors: []*common.Selector{
+				{
+					Type:  "workload",
+					Value: "id:" + strconv.Itoa(id),
+				},
+			},
+		})
+		entries = append(entries, entry.EntryId)
+
+		// And another one to parented to the workload to verify
+		// the lookup recurses.
+		entry = createRegistrationEntry(ctx, tb, ds, &common.RegistrationEntry{
+			ParentId: "spiffe://example.org/workload/" + idStr,
+			SpiffeId: "spiffe://example.org/workload/" + idStr + "/child",
+			Selectors: []*common.Selector{
+				{
+					Type:  "workload",
+					Value: "id:" + strconv.Itoa(id),
+				},
+			},
+		})
+		entries = append(entries, entry.EntryId)
+	}
+
+	cache, err := BuildFromDataStore(ctx, ds)
+	assert.NoError(tb, err)
+
+	return cache, entries
+}
+
+func TestLookupEntries(t *testing.T) {
+	agentID := spiffeid.RequireFromString("spiffe://example.org/spire/agent/1")
+	cache, entries := setupLookupTest(t, 8)
+
+	found := cache.LookupAuthorizedEntries(agentID, make(map[string]struct{}))
+	require.Len(t, found, 0)
+
+	found = cache.LookupAuthorizedEntries(agentID, map[string]struct{}{
+		"does-not-exist": {},
+	})
+	require.Len(t, found, 0)
+
+	found = cache.LookupAuthorizedEntries(agentID, map[string]struct{}{
+		"does-not-exist": {},
+		entries[1]:       {},
+		entries[7]:       {},
+		entries[15]:      {},
+	})
+	require.Contains(t, found, entries[1])
+	require.Contains(t, found, entries[7])
+	require.Contains(t, found, entries[15])
+}
+
+func BenchmarkEntryLookup(b *testing.B) {
+	agentID := spiffeid.RequireFromString("spiffe://example.org/spire/agent/1")
+	cache, entries := setupLookupTest(b, 256)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for range b.N {
+		for _, id := range entries {
+			entries := cache.LookupAuthorizedEntries(agentID, map[string]struct{}{
+				id:            {},
+				id + "/child": {},
+			})
+			require.Len(b, entries, 1)
+		}
+	}
 }
