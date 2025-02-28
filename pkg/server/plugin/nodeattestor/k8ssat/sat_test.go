@@ -23,40 +23,15 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	sat_common "github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
 	authv1 "k8s.io/api/authentication/v1"
-)
-
-var (
-	fooKeyPEM = []byte(`-----BEGIN RSA PRIVATE KEY-----
-MIIBywIBAAJhAMB4gbT09H2RKXaxbu6IV9C3WY+pvkGAbrlQRIHLHwV3Xt1HchjX
-c08v1VEoTBN2YTjhZJlDb/VUsNMJsmBFBBted5geRcbrDtXFlUJ8tQoQx1dWM4Aa
-xcdULJ83A9ICKwIDAQABAmBR1asInrIphYQEtHJ/NzdnRd3tqHV9cjch0dAfA5dA
-Ar4yBYOsrkaX37WqWSDnkYgN4FWYBWn7WxeotCtA5UQ3SM5hLld67rUqAm2dLrs1
-z8va6SwLzrPTu2+rmRgovFECMQDpbfPBRex7FY/xWu1pYv6X9XZ26SrC2Wc6RIpO
-38AhKGjTFEMAPJQlud4e2+4I3KkCMQDTFLUvBSXokw2NvcNiM9Kqo5zCnCIkgc+C
-hM3EzSh2jh4gZvRzPOhXYvNKgLx8+LMCMQDL4meXlpV45Fp3eu4GsJqi65jvP7VD
-v1P0hs0vGyvbSkpUo0vqNv9G/FNQLNR6FRECMFXEMz5wxA91OOuf8HTFg9Lr+fUl
-RcY5rJxm48kUZ12Mr3cQ/kCYvftL7HkYR/4rewIxANdritlIPu4VziaEhYZg7dvz
-pG3eEhiqPxE++QHpwU78O+F1GznOPBvpZOB3GfyjNQ==
------END RSA PRIVATE KEY-----`)
-	barKeyPEM = []byte(`-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgOIAksqKX+ByhLcme
-T7MXn5Qz58BJCSvvAyRoz7+7jXGhRANCAATUWB+7Xo/JyFuh1KQ6umUbihP+AGzy
-da0ItHUJ/C5HElB5cSuyOAXDQbM5fuxJIefEVpodjqsQP6D0D8CPLJ5H
------END PRIVATE KEY-----`)
-	bazKeyPEM = []byte(`-----BEGIN PRIVATE KEY-----
-MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgpHVYFq6Z/LgGIG/X
-+i+PWZEFjGVEUpjrMzlz95tDl4yhRANCAAQAc/I3bBO9XhgTTbLBuNA6XJBSvds9
-c4gThKYxugN3V398Eieoo2HTO2L7BBjTp5yh+EUtHQD52bFseBCnZT3d
------END PRIVATE KEY-----`)
 )
 
 func TestAttestorPlugin(t *testing.T) {
@@ -80,24 +55,21 @@ type AttestorSuite struct {
 
 func (s *AttestorSuite) SetupSuite() {
 	var err error
-	s.fooKey, err = pemutil.ParseRSAPrivateKey(fooKeyPEM)
-	s.Require().NoError(err)
+	s.fooKey = testkey.MustRSA2048()
 	s.fooSigner, err = jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.RS256,
 		Key:       s.fooKey,
 	}, nil)
 	s.Require().NoError(err)
 
-	s.barKey, err = pemutil.ParseECPrivateKey(barKeyPEM)
-	s.Require().NoError(err)
+	s.barKey = testkey.MustEC256()
 	s.barSigner, err = jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.ES256,
 		Key:       s.barKey,
 	}, nil)
 	s.Require().NoError(err)
 
-	bazKey, err := pemutil.ParseECPrivateKey(bazKeyPEM)
-	s.Require().NoError(err)
+	bazKey := testkey.MustEC256()
 	s.bazSigner, err = jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.ES256,
 		Key:       bazKey,
