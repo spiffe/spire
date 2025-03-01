@@ -1,6 +1,6 @@
 module github.com/spiffe/spire
 
-go 1.23.6
+go 1.24.0
 
 require (
 	cloud.google.com/go/iam v1.4.0
@@ -56,7 +56,7 @@ require (
 	github.com/hashicorp/go-plugin v1.6.3
 	github.com/hashicorp/hcl v1.0.1-vault-7
 	github.com/hashicorp/vault/api v1.16.0
-	github.com/hashicorp/vault/sdk v0.15.0
+	github.com/hashicorp/vault/sdk v0.15.2
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
 	github.com/jackc/pgx/v5 v5.7.2

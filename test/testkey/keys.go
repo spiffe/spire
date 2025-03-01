@@ -5,6 +5,8 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"sync"
 	"testing"
 
@@ -23,32 +25,188 @@ func NewRSA2048(tb testing.TB) *rsa.PrivateKey {
 	return keys.NewRSA2048(tb)
 }
 
+func NewRSA2048PKCS1PEM(tb testing.TB) []byte {
+	key := NewRSA2048(tb)
+	keyDER := x509.MarshalPKCS1PrivateKey(key)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
+func NewRSA2048PKCS8PEM(tb testing.TB) []byte {
+	key := NewRSA2048(tb)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(tb, err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
 func MustRSA2048() *rsa.PrivateKey {
 	return keys.MustRSA2048()
+}
+
+func MustRSA2048PKCS1PEM() []byte {
+	key := keys.MustRSA2048()
+	keyDER := x509.MarshalPKCS1PrivateKey(key)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
+func MustRSA2048PKCS8PEM() []byte {
+	key := keys.MustRSA2048()
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	check(err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
 }
 
 func NewRSA4096(tb testing.TB) *rsa.PrivateKey {
 	return keys.NewRSA4096(tb)
 }
 
+func NewRSA4096PKCS1PEM(tb testing.TB) []byte {
+	key := NewRSA4096(tb)
+	keyDER := x509.MarshalPKCS1PrivateKey(key)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
+func NewRSA4096PKCS8PEM(tb testing.TB) []byte {
+	key := NewRSA4096(tb)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(tb, err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
 func MustRSA4096() *rsa.PrivateKey {
 	return keys.MustRSA4096()
+}
+
+func MustRSA4096PKCS1PEM() []byte {
+	key := keys.MustRSA4096()
+	keyDER := x509.MarshalPKCS1PrivateKey(key)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
+func MustRSA4096PKCS8PEM() []byte {
+	key := keys.MustRSA4096()
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	check(err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
 }
 
 func NewEC256(tb testing.TB) *ecdsa.PrivateKey {
 	return keys.NewEC256(tb)
 }
 
+func NewEC256PKCS1PEM(tb testing.TB) []byte {
+	key := NewEC256(tb)
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	require.NoError(tb, err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
+func NewEC256PKCS8PEM(tb testing.TB) []byte {
+	key := NewEC256(tb)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(tb, err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
 func MustEC256() *ecdsa.PrivateKey {
 	return keys.MustEC256()
+}
+
+func MustEC256PKCS1PEM() []byte {
+	key := keys.MustEC256()
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	check(err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
+func MustEC256PKCS8PEM() []byte {
+	key := keys.MustEC256()
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	check(err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
 }
 
 func NewEC384(tb testing.TB) *ecdsa.PrivateKey {
 	return keys.NewEC384(tb)
 }
 
+func NewEC384PKCS1PEM(tb testing.TB) []byte {
+	key := NewEC384(tb)
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	require.NoError(tb, err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
+func NewEC384PKCS8PEM(tb testing.TB) []byte {
+	key := NewEC384(tb)
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	require.NoError(tb, err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
 func MustEC384() *ecdsa.PrivateKey {
 	return keys.MustEC384()
+}
+
+func MustEC384PKCS1PEM() []byte {
+	key := keys.MustEC384()
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	check(err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "EC PRIVATE KEY",
+		Bytes: keyDER,
+	})
+}
+
+func MustEC384PKCS8PEM() []byte {
+	key := keys.MustEC384()
+	keyDER, err := x509.MarshalPKCS8PrivateKey(key)
+	check(err)
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: keyDER,
+	})
 }
 
 type Keys struct {
