@@ -401,7 +401,7 @@ endif
 
 lint: lint-code lint-md
 
-lint-code:
+lint-code: | go-check
 	$(E)mkdir -p $(golangci_lint_cache)
 	$(E)$(go_path) GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" go tool github.com/golangci/golangci-lint/cmd/golangci-lint run --max-issues-per-linter=0 --max-same-issues=0 ./...
 
