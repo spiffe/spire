@@ -403,7 +403,7 @@ lint: lint-code lint-md
 
 lint-code:
 	$(E)mkdir -p $(golangci_lint_cache)
-	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" go tool github.com/golangci/golangci-lint/cmd/golangci-lint run --max-issues-per-linter=0 --max-same-issues=0 ./...
+	$(E)$(go_path) GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" go tool github.com/golangci/golangci-lint/cmd/golangci-lint run --max-issues-per-linter=0 --max-same-issues=0 ./...
 
 lint-md:
 	$(E)docker run --rm -v "$(DIR):/workdir" $(markdown_lint_image) "**/*.md"
