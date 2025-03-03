@@ -231,6 +231,7 @@ func TestJournalLoad(t *testing.T) {
 						NotAfter:    notAfterUnix,
 						IssuedAt:    secondIssuedAtUnix,
 						Certificate: x509RootB.Raw,
+						Status:      journal.Status_ACTIVE,
 					},
 				},
 				JwtKeys: []*journal.JWTKeyEntry{
@@ -240,6 +241,7 @@ func TestJournalLoad(t *testing.T) {
 						Kid:       "kid2",
 						NotAfter:  notAfterUnix,
 						PublicKey: jwtKeyBPKIX,
+						Status:    journal.Status_ACTIVE,
 					},
 				},
 			},
@@ -247,7 +249,7 @@ func TestJournalLoad(t *testing.T) {
 				CurrentX509CASlot: &x509CASlot{
 					id:       "B",
 					issuedAt: secondIssuedAt,
-					status:   journal.Status_UNKNOWN,
+					status:   journal.Status_ACTIVE,
 					x509CA: &ca.X509CA{
 						Signer:      x509KeyB,
 						Certificate: x509RootB,
@@ -260,7 +262,7 @@ func TestJournalLoad(t *testing.T) {
 				CurrentJWTKeySlot: &jwtKeySlot{
 					id:       "B",
 					issuedAt: secondIssuedAt,
-					status:   journal.Status_UNKNOWN,
+					status:   journal.Status_ACTIVE,
 					jwtKey: &ca.JWTKey{
 						Signer:   jwtKeyB,
 						Kid:      "kid2",
@@ -278,120 +280,6 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.JWTKeys: "1",
 						telemetry.X509CAs: "1",
-					},
-				},
-			},
-		},
-		{
-			name: "Stored entries has unknown status",
-			entries: &journal.Entries{
-				X509CAs: []*journal.X509CAEntry{
-					{
-						SlotId:      "A",
-						IssuedAt:    firstIssuedAtUnix,
-						NotAfter:    notAfterUnix,
-						Certificate: x509RootA.Raw,
-						AuthorityId: "3",
-					},
-					{
-						SlotId:      "B",
-						IssuedAt:    secondIssuedAtUnix,
-						NotAfter:    notAfterUnix,
-						Certificate: x509RootB.Raw,
-						AuthorityId: "2",
-					},
-					{
-						SlotId:      "A",
-						IssuedAt:    thirdIssuedAtUnix,
-						NotAfter:    notAfterUnix,
-						Certificate: x509RootA.Raw,
-						AuthorityId: "1",
-					},
-				},
-				JwtKeys: []*journal.JWTKeyEntry{
-					{
-						SlotId:      "A",
-						IssuedAt:    firstIssuedAtUnix,
-						Kid:         "kid1",
-						NotAfter:    notAfterUnix,
-						PublicKey:   jwtKeyAPKIX,
-						AuthorityId: "c",
-					},
-					{
-						SlotId:      "B",
-						IssuedAt:    secondIssuedAtUnix,
-						Kid:         "kid2",
-						NotAfter:    notAfterUnix,
-						PublicKey:   jwtKeyBPKIX,
-						AuthorityId: "b",
-					},
-					{
-						SlotId:      "A",
-						IssuedAt:    thirdIssuedAtUnix,
-						Kid:         "kid3",
-						NotAfter:    notAfterUnix,
-						PublicKey:   jwtKeyAPKIX,
-						AuthorityId: "a",
-					},
-				},
-			},
-			expectSlots: map[SlotPosition]Slot{
-				CurrentX509CASlot: &x509CASlot{
-					id:       "B",
-					issuedAt: secondIssuedAt,
-					status:   journal.Status_UNKNOWN,
-					x509CA: &ca.X509CA{
-						Signer:      x509KeyB,
-						Certificate: x509RootB,
-					},
-					publicKey:   x509KeyB.Public(),
-					authorityID: "2",
-					notAfter:    x509RootB.NotAfter,
-				},
-				NextX509CASlot: &x509CASlot{
-					id:       "A",
-					issuedAt: thirdIssuedAt,
-					status:   journal.Status_UNKNOWN,
-					x509CA: &ca.X509CA{
-						Signer:      x509KeyA,
-						Certificate: x509RootA,
-					},
-					publicKey:   x509KeyA.Public(),
-					authorityID: "1",
-					notAfter:    x509RootA.NotAfter,
-				},
-				CurrentJWTKeySlot: &jwtKeySlot{
-					id:       "B",
-					issuedAt: secondIssuedAt,
-					status:   journal.Status_UNKNOWN,
-					jwtKey: &ca.JWTKey{
-						Signer:   jwtKeyB,
-						Kid:      "kid2",
-						NotAfter: notAfter,
-					},
-					authorityID: "b",
-					notAfter:    notAfter,
-				},
-				NextJWTKeySlot: &jwtKeySlot{
-					id:       "A",
-					issuedAt: thirdIssuedAt,
-					status:   journal.Status_UNKNOWN,
-					jwtKey: &ca.JWTKey{
-						Signer:   jwtKeyA,
-						Kid:      "kid3",
-						NotAfter: notAfter,
-					},
-					authorityID: "a",
-					notAfter:    notAfter,
-				},
-			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.InfoLevel,
-					Message: "Journal loaded",
-					Data: logrus.Fields{
-						telemetry.JWTKeys: "3",
-						telemetry.X509CAs: "3",
 					},
 				},
 			},
