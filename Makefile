@@ -136,9 +136,8 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version := $(shell awk '/golangci_lint/{print $$2}' .spire-tool-versions)
+golangci_lint_version := $(shell grep "github.com/golangci/golangci-lint v" go.mod | awk '{print $$2}')
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
-golangci_lint_bin = $(golangci_lint_dir)/golangci-lint
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
 markdown_lint_version := $(shell awk '/markdown_lint/{print $$2}' .spire-tool-versions)
@@ -402,8 +401,9 @@ endif
 
 lint: lint-code lint-md
 
-lint-code: $(golangci_lint_bin)
-	$(E)PATH="$(go_bin_dir):$(PATH)" GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" $(golangci_lint_bin) run --max-issues-per-linter=0 --max-same-issues=0 ./...
+lint-code: | go-check
+	$(E)mkdir -p $(golangci_lint_cache)
+	$(E)$(go_path) GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" go tool github.com/golangci/golangci-lint/cmd/golangci-lint run --max-issues-per-linter=0 --max-same-issues=0 ./...
 
 lint-md:
 	$(E)docker run --rm -v "$(DIR):/workdir" $(markdown_lint_image) "**/*.md"
@@ -507,7 +507,7 @@ endif
 go-bin-path: go-check
 	@echo "$(go_bin_dir):${PATH}"
 
-install-toolchain: install-protoc install-golangci-lint install-protoc-gen-go install-protoc-gen-doc | go-check
+install-toolchain: install-protoc install-protoc-gen-go install-protoc-gen-doc | go-check
 
 install-protoc: $(protoc_bin)
 
@@ -516,15 +516,6 @@ $(protoc_bin):
 	$(E)rm -rf $(dir $(protoc_dir))
 	$(E)mkdir -p $(protoc_dir)
 	$(E)curl -sSfL $(protoc_url) -o $(build_dir)/tmp.zip; unzip -q -d $(protoc_dir) $(build_dir)/tmp.zip; rm $(build_dir)/tmp.zip
-
-install-golangci-lint: $(golangci_lint_bin)
-
-$(golangci_lint_bin): | go-check
-	@echo "Installing golangci-lint $(golangci_lint_version)..."
-	$(E)rm -rf $(dir $(golangci_lint_dir))
-	$(E)mkdir -p $(golangci_lint_dir)
-	$(E)mkdir -p $(golangci_lint_cache)
-	$(E)GOBIN=$(golangci_lint_dir) $(go_path) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(golangci_lint_version)
 
 install-protoc-gen-go: $(protoc_gen_go_bin)
 
