@@ -389,7 +389,7 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 	return nil, fmt.Errorf("unknown trust bundle format: %s", trustBundleContentType)
 }
 
-func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
+func downloadTrustBundle(trustBundleURL string, serverAddress string, serverPort int, trustDomain string) ([]byte, error) {
 	var req *http.Request
 	u, err := url.Parse(trustBundleURL)
 	if err != nil {
@@ -397,14 +397,24 @@ func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
 	}
 	client := &http.Client{}
 	if u.Scheme == "unix" {
+		socketPath := u.Path
 		client = &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-					return net.Dial("unix", u.Path)
+					return net.Dial("unix", socketPath)
 				},
 			},
 		}
-		req, err = http.NewRequest("GET", "http://unix", nil)
+		params := u.Query()
+		params.Set("trust-domain", trustDomain)
+		params.Set("server-address", serverAddress)
+		params.Set("server-port", strconv.Itoa(serverPort))
+		params.Set("mode", "bootstrap")
+		u.RawQuery = params.Encode()
+		u.Scheme = "http"
+		u.Host = "localhost"
+		u.Path = "/"
+		req, err = http.NewRequest("GET", u.String(), nil)
 	} else {
 		req, err = http.NewRequest("GET", trustBundleURL, nil)
 	}
@@ -443,7 +453,7 @@ func setupTrustBundle(ac *agent.Config, c *Config) error {
 
 	switch {
 	case c.Agent.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL)
+		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL, c.Agent.ServerAddress, c.Agent.ServerPort,  c.Agent.TrustDomain)
 		if err != nil {
 			return err
 		}
