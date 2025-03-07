@@ -271,8 +271,8 @@ func (c *agentConfig) validate() error {
 		if err != nil {
 			return fmt.Errorf("unable to parse trust bundle URL: %w", err)
 		}
-		if u.Scheme != "https" {
-			return errors.New("trust bundle URL must start with https://")
+		if u.Scheme != "https" && u.Scheme != "unix" {
+			return errors.New("trust bundle URL must start with https:// or unix://")
 		}
 	}
 
@@ -390,10 +390,32 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 }
 
 func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
+	var req *http.Request
+	u, err := url.Parse(trustBundleURL)
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{}
+	if u.Scheme == "unix" {
+		client = &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial("unix", u.Path)
+				},
+			},
+		}
+		req, err = http.NewRequest("GET", "http://unix", nil)
+	} else {
+		req, err = http.NewRequest("GET", trustBundleURL, nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	// Download the trust bundle URL from the user specified URL
 	// We use gosec -- the annotation below will disable a security check that URLs are not tainted
 	/* #nosec G107 */
-	resp, err := http.Get(trustBundleURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %w", trustBundleURL, err)
 	}
