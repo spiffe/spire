@@ -453,7 +453,7 @@ func setupTrustBundle(ac *agent.Config, c *Config) error {
 
 	switch {
 	case c.Agent.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL, c.Agent.ServerAddress, c.Agent.ServerPort,  c.Agent.TrustDomain)
+		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL, c.Agent.ServerAddress, c.Agent.ServerPort, c.Agent.TrustDomain)
 		if err != nil {
 			return err
 		}
