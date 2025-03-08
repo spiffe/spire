@@ -44,6 +44,18 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
+			name: "success with custom endpoint",
+			config: &Config{
+				AccessKeyID:     "access-key-id",
+				SecretAccessKey: "secret-access-key",
+				Region:          "region",
+				Bucket:          "bucket",
+				ObjectKey:       "object-key",
+				Format:          "spiffe",
+				Endpoint:        "http://example.com",
+			},
+		},
+		{
 			name: "no region",
 			config: &Config{
 				Bucket:    "bucket",
@@ -97,6 +109,20 @@ func TestConfigure(t *testing.T) {
 			expectCode:   codes.Internal,
 			expectMsg:    "failed to create client: client creation error",
 			newClientErr: errors.New("client creation error"),
+		},
+		{
+			name: "invalid endpoint url",
+			config: &Config{
+				AccessKeyID:     "access-key-id",
+				SecretAccessKey: "secret-access-key",
+				Region:          "region",
+				Bucket:          "bucket",
+				ObjectKey:       "object-key",
+				Format:          "spiffe",
+				Endpoint:        "endpoint",
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "could not parse endpoint url",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
