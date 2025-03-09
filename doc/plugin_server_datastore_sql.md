@@ -3,7 +3,7 @@
 The `sql` plugin implements SQL based data storage for the SPIRE server using SQLite, PostgreSQL or MySQL databases.
 
 | Configuration        | Description                                                                                                                                                                                                                                                                        |
-|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | database_type        | database type                                                                                                                                                                                                                                                                      |
 | connection_string    | connection string                                                                                                                                                                                                                                                                  |
 | ro_connection_string | [Read Only connection](#read-only-connection)                                                                                                                                                                                                                                      |
@@ -11,8 +11,8 @@ The `sql` plugin implements SQL based data storage for the SPIRE server using SQ
 | client_cert_path     | Path to client certificate (MySQL only)                                                                                                                                                                                                                                            |
 | client_key_path      | Path to private key for client certificate (MySQL only)                                                                                                                                                                                                                            |
 | max_open_conns       | The maximum number of open db connections (default: 100)                                                                                                                                                                                                                           |
-| max_idle_conns       | The maximum number of idle connections in the pool (default: 2)                                                                                                                                                                                                                    |
-| conn_max_lifetime    | The maximum amount of time a connection may be reused (default: unlimited)                                                                                                                                                                                                         |
+| max_idle_conns       | The maximum number of idle connections in the pool (default: 100)                                                                                                                                                                                                                  |
+| conn_max_lifetime    | The maximum amount of time a connection may be reused (default: 30s)                                                                                                                                                                                                               |
 | disable_migration    | True to disable auto-migration functionality. Use of this flag allows finer control over when datastore migrations occur and coordination of the migration of a datastore shared with a SPIRE Server cluster. Only available for databases from SPIRE Code version 0.9.0 or later. |
 
 For more information on the `max_open_conns`, `max_idle_conns`, and `conn_max_lifetime`, refer to the
@@ -61,29 +61,29 @@ Consult the [lib/pq driver documentation](https://pkg.go.dev/github.com/lib/pq#h
 
 #### Configuration Options
 
-* dbname - The name of the database to connect to
-* user - The user to sign in as
-* password - The user's password
-* host - The host to connect to. Values that start with / are for unix
+- dbname - The name of the database to connect to
+- user - The user to sign in as
+- password - The user's password
+- host - The host to connect to. Values that start with / are for unix
   domain sockets. (default is localhost)
-* port - The port to bind to. (default is 5432)
-* sslmode - whether to use SSL (default is require, this is not
+- port - The port to bind to. (default is 5432)
+- sslmode - whether to use SSL (default is require, this is not
   the default for libpq)
-* fallback_application_name - An application_name to fall back to if one isn't provided.
-* connect_timeout - Maximum wait for connection, in seconds. Zero or
+- fallback_application_name - An application_name to fall back to if one isn't provided.
+- connect_timeout - Maximum wait for connection, in seconds. Zero or
   not specified means wait indefinitely.
-* sslcert - Cert file location. The file must contain PEM encoded data.
-* sslkey - Key file location. The file must contain PEM encoded data.
-* sslrootcert - The location of the root certificate file. The file
+- sslcert - Cert file location. The file must contain PEM encoded data.
+- sslkey - Key file location. The file must contain PEM encoded data.
+- sslrootcert - The location of the root certificate file. The file
   must contain PEM encoded data.
 
 #### Valid sslmode configurations
 
-* disable - No SSL
-* require - Always SSL (skip verification)
-* verify-ca - Always SSL (verify that the certificate presented by the
+- disable - No SSL
+- require - Always SSL (skip verification)
+- verify-ca - Always SSL (verify that the certificate presented by the
   server was signed by a trusted CA)
-* verify-full - Always SSL (verify that the certification presented by
+- verify-full - Always SSL (verify that the certification presented by
   the server was signed by a trusted CA and the server host name
   matches the one in the certificate)
 
@@ -116,10 +116,10 @@ Consult the [MySQL driver repository](https://github.com/go-sql-driver/mysql#usa
 
 #### Configuration Options
 
-* dbname - The name of the database to connect to
-* username - The user to sign in as
-* password - The user's password
-* address - The host to connect to. Values that start with / are for unix
+- dbname - The name of the database to connect to
+- username - The user to sign in as
+- password - The user's password
+- address - The host to connect to. Values that start with / are for unix
   domain sockets. (default is localhost)
 
 If you need to use custom Root CA, just specify `root_ca_path` in the plugin config. Similarly, if you need to use client certificates, specify `client_key_path` and `client_cert_path`. Other options can be configured via [tls](https://github.com/go-sql-driver/mysql#tls) params in the `connection_string` options.
@@ -159,11 +159,11 @@ For PostgreSQL databases on AWS RDS using IAM authentication. The `region` setti
 
 This is the complete list of configuration options under the `database_type` setting when `aws_postgres` is set:
 
-| Configuration     | Description                           | Required                                                               | Default                                             |
-|-------------------|---------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------|
-| access_key_id     | AWS access key id.                    | Required only if AWS_ACCESS_KEY_ID environment variable is not set.    | Value of AWS_ACCESS_KEY_ID environment variable.    |
-| secret_access_key | AWS secret access key.                | Required only if AWS_SECRET_ACCESSKEY environment variable is not set. | Value of AWS_SECRET_ACCESSKEY environment variable. |
-| region            | AWS region of the database.           | Yes.                                                                   |                                                     |
+| Configuration     | Description                 | Required                                                               | Default                                             |
+| ----------------- | --------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
+| access_key_id     | AWS access key id.          | Required only if AWS_ACCESS_KEY_ID environment variable is not set.    | Value of AWS_ACCESS_KEY_ID environment variable.    |
+| secret_access_key | AWS secret access key.      | Required only if AWS_SECRET_ACCESSKEY environment variable is not set. | Value of AWS_SECRET_ACCESSKEY environment variable. |
+| region            | AWS region of the database. | Yes.                                                                   |                                                     |
 
 Settings of the [`postgres`](#database_type--postgres) database type also apply here.
 
@@ -186,11 +186,11 @@ For MySQL databases on AWS RDS using IAM authentication. The `region` setting is
 
 This is the complete list of configuration options under the `database_type` setting when `aws_mysql` is set:
 
-| Configuration     | Description                           | Required                                                               | Default                                             |
-|-------------------|---------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------|
-| access_key_id     | AWS access key id.                    | Required only if AWS_ACCESS_KEY_ID environment variable is not set.    | Value of AWS_ACCESS_KEY_ID environment variable.    |
-| secret_access_key | AWS secret access key.                | Required only if AWS_SECRET_ACCESSKEY environment variable is not set. | Value of AWS_SECRET_ACCESSKEY environment variable. |
-| region            | AWS region of the database.           | Yes.                                                                   |                                                     |
+| Configuration     | Description                 | Required                                                               | Default                                             |
+| ----------------- | --------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
+| access_key_id     | AWS access key id.          | Required only if AWS_ACCESS_KEY_ID environment variable is not set.    | Value of AWS_ACCESS_KEY_ID environment variable.    |
+| secret_access_key | AWS secret access key.      | Required only if AWS_SECRET_ACCESSKEY environment variable is not set. | Value of AWS_SECRET_ACCESSKEY environment variable. |
+| region            | AWS region of the database. | Yes.                                                                   |                                                     |
 
 Settings of the [`mysql`](#database_type--mysql) database type also apply here.
 
