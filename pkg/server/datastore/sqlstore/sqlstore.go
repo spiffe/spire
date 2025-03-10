@@ -2595,7 +2595,7 @@ FROM
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
 ORDER BY selector_id, dns_name_id
-;`, buildQuestions(len(entryIDs)))
+;`, buildQuestions(entryIDs))
 
 	return query, buildArgs(entryIDs), nil
 }
@@ -2659,7 +2659,7 @@ FROM
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
 ORDER BY selector_id, dns_name_id
-;`, buildPlaceholders(len(entryIDs)))
+;`, buildPlaceholders(entryIDs))
 	return query, buildArgs(entryIDs), nil
 }
 
@@ -2697,7 +2697,7 @@ LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.entry_id IN (%s)
 ORDER BY selector_id, dns_name_id
-;`, buildQuestions(len(entryIDs)))
+;`, buildQuestions(entryIDs))
 
 	return query, buildArgs(entryIDs), nil
 }
@@ -2761,7 +2761,7 @@ FROM
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
 ORDER BY selector_id, dns_name_id
-;`, buildQuestions(len(entryIDs)))
+;`, buildQuestions(entryIDs))
 
 	return query, buildArgs(entryIDs), nil
 }
@@ -4902,18 +4902,26 @@ func calculateResultPreallocation(pagination *datastore.Pagination) int32 {
 	}
 }
 
-// buildQuestions build list of question marks, one for each entryID
-// Used to build a list of args to match for in a sql IN clause
-func buildQuestions(num int) string {
-	questions := strings.Repeat("?,", num)
-	questions = questions[:len(questions)-1] // Remove trailing comma
+// buildQuestions build list of question marks, one for each arg
+// Used to build a list of args to match for in a sql IN clause in MySQl and sqlite
+func buildQuestions(args []string) string {
+	num := len(args)
+	if num == 0 {
+		return ""
+	}
+	questions := strings.Repeat("?,", num-1)
+	questions += "?" // Add last question mark without trailing comma
 
 	return questions
 }
 
 // buildPlaceholders builds a list like $1, $2, $3...
 // For use in parameterized postgres queries
-func buildPlaceholders(num int) string {
+func buildPlaceholders(args []string) string {
+	num := len(args)
+	if num == 0 {
+		return ""
+	}
 	placeholders := make([]string, num)
 	for i := range num {
 		placeholders[i] = fmt.Sprintf("$%d", i+1)

@@ -5231,6 +5231,41 @@ func (s *PluginSuite) TestPruneCAJournal() {
 	s.Require().Nil(caj)
 }
 
+func (s *PluginSuite) TestBuildQuestionsAndPlaceholders() {
+	for _, tt := range []struct {
+		name string
+		entries []string
+		expectedQuestions string
+		expectedPlaceholders string
+	}{
+		{
+			name: "No args",
+			expectedQuestions: "",
+			expectedPlaceholders: "",
+		},
+		{
+			name: "One arg",
+			entries: []string{"a"},
+			expectedQuestions: "?",
+			expectedPlaceholders: "$1",
+		},
+		{
+			name: "Five args",
+			entries: []string{"a", "b", "c", "e", "e"},
+			expectedQuestions: "?,?,?,?,?",
+			expectedPlaceholders: "$1,$2,$3,$4,$5",
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			questions := buildQuestions(tt.entries)
+			s.Require().Equal(tt.expectedQuestions, questions)
+			placeholders := buildPlaceholders(tt.entries)
+			s.Require().Equal(tt.expectedPlaceholders, placeholders)
+		})
+	}
+
+}
+
 func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue any) {
 	entriesJSON, err := os.ReadFile(filePath)
 	s.Require().NoError(err)
