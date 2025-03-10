@@ -44,15 +44,16 @@ If you don't already have Docker installed, please follow these [installation in
    $ make dev-shell
    ```
 
-3. Create a user with uid 1000. The uid will be registered as a selector of the workload's SPIFFE ID. During kernel based attestation the workload process will be interrogated for the registered uid.
+3. Create a user with uid 1001. The uid will be registered as a selector of the workload's SPIFFE ID. During kernel based attestation the workload process will be interrogated for the registered uid.
 
    ```shell
-   (in dev shell) # useradd -u 1000 workload
+   (in dev shell) # useradd -u 1001 workload
    ```
 
-4. Build SPIRE by running the **build** target. The build target builds all the SPIRE binaries.
+4. Build SPIRE by running the **build** target. The build target builds all the SPIRE binaries. This requires configuring `git` to know that the temporary docker container is safe.
 
    ```shell
+   (in dev shell) # git config --global --add safe.directory /spire
    (in dev shell) # make build
    ```
 
@@ -169,12 +170,12 @@ If you don't already have Docker installed, please follow these [installation in
     (in dev shell) # ./bin/spire-server entry create \
         -parentID spiffe://example.org/host \
         -spiffeID spiffe://example.org/workload \
-        -selector unix:uid:1000
+        -selector unix:uid:1001
     ```
 
     At this point, the target workload has been registered with the SPIRE Server. We can now call the Workload API using a command line program to request the workload SVID from the SPIRE Agent.
 
-12. Simulate the Workload API interaction and retrieve the workload SVID bundle by running the `api` subcommand in the agent. Run the command as user **_workload_** created in step #3 with uid 1000
+12. Simulate the Workload API interaction and retrieve the workload SVID bundle by running the `api` subcommand in the agent. Run the command as user **_workload_** created in step #3 with uid 1001
 
     ```shell
     (in dev shell) # su -c "./bin/spire-agent api fetch x509 " workload
@@ -183,6 +184,6 @@ If you don't already have Docker installed, please follow these [installation in
 13. Examine the output. Optionally, you may write the SVID and key to disk with `-write` in order to examine them in detail.
 
     ```shell
-    (in dev shell) # su -c "./bin/spire-agent api fetch x509 -write ./" workload
-    (in dev shell) # openssl x509 -in ./svid.0.pem -text -noout
+    (in dev shell) # su -c "./bin/spire-agent api fetch x509 -write /tmp" workload
+    (in dev shell) # openssl x509 -in /tmp/svid.0.pem -text -noout
     ```
