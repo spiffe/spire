@@ -85,8 +85,8 @@ func (v *Validator) ValidateX509SVID(svid *x509.Certificate, id spiffeid.ID) err
 	}
 
 	if len(svid.ExtKeyUsage) > 0 {
-		hasServerAuth := hasExtKeyUsage(svid.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
-		hasClientAuth := hasExtKeyUsage(svid.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
+		hasServerAuth := slices.Contains(svid.ExtKeyUsage, x509.ExtKeyUsageServerAuth)
+		hasClientAuth := slices.Contains(svid.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
 		switch {
 		case !hasServerAuth && hasClientAuth:
 			return errors.New("invalid X509-SVID: missing serverAuth extended key usage")
@@ -129,7 +129,7 @@ func (v *Validator) ValidateWorkloadJWTSVID(rawToken string, id spiffeid.ID) err
 		return fmt.Errorf(`invalid JWT-SVID "nbf" claim: not yet valid until %s`, claims.NotBefore.Time().Format(time.RFC3339))
 	case len(claims.Audience) == 0:
 		return errors.New(`invalid JWT-SVID "aud" claim: required but missing`)
-	case hasEmptyAudienceValue(claims.Audience):
+	case slices.Contains(claims.Audience, ""):
 		return errors.New(`invalid JWT-SVID "aud" claim: contains empty value`)
 	}
 	return nil
@@ -164,13 +164,4 @@ func checkX509CertificateExpiration(cert *x509.Certificate, now time.Time) error
 		return fmt.Errorf("already expired as of %s", cert.NotAfter.Format(time.RFC3339))
 	}
 	return nil
-}
-
-func hasExtKeyUsage(extKeyUsage []x509.ExtKeyUsage, want x509.ExtKeyUsage) bool {
-	return slices.Contains(extKeyUsage, want)
-}
-
-func hasEmptyAudienceValue(audience jwt.Audience) bool {
-	// shift audience
-	return slices.Contains(audience, "")
 }
