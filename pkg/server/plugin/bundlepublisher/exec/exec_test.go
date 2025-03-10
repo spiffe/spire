@@ -41,7 +41,7 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "no cmd",
 			config: &Config{
-				Format:    "spiffe",
+				Format: "spiffe",
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "unable to decode configuration: At -",

@@ -3,8 +3,8 @@ package exec
 import (
 	"bytes"
 	"context"
-	"sync"
 	"os/exec"
+	"sync"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -34,7 +34,7 @@ func New() *Plugin {
 // Config holds the configuration of the plugin.
 type Config struct {
 	Cmd    []string `hcl:"cmd" json:"cmd"`
-	Format string `hcl:"format" json:"format"`
+	Format string   `hcl:"format" json:"format"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.
@@ -85,7 +85,7 @@ type Plugin struct {
 	bundle    *types.Bundle
 	bundleMtx sync.RWMutex
 
-	log      hclog.Logger
+	log hclog.Logger
 }
 
 // SetLogger sets a logger in the plugin.
@@ -138,17 +138,16 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
 	}
 
+	// Push trust bundle to user configured process
+	// We use gosec -- the annotation below will disable a security check that users didnt specify the command
+	// Its their command.
+	/* #nosec G204 */
 	cmd := exec.Command(config.Cmd[0], config.Cmd[1:]...)
 	cmd.Stdin = bytes.NewBuffer(bundleBytes)
 
 	if err := cmd.Run(); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to run: %v", err)
 	}
-/*
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to put object: %v", err)
-	}
-*/
 
 	p.setBundle(req.Bundle)
 	p.log.Debug("Bundle published")
