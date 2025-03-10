@@ -5251,7 +5251,7 @@ func (s *PluginSuite) TestBuildQuestionsAndPlaceholders() {
 		},
 		{
 			name: "Five args",
-			entries: []string{"a", "b", "c", "e", "e"},
+			entries: []string{"a", "b", "c", "e", "f"},
 			expectedQuestions: "?,?,?,?,?",
 			expectedPlaceholders: "$1,$2,$3,$4,$5",
 		},
