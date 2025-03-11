@@ -77,7 +77,7 @@ This may be useful for templating configuration files, for example across differ
 |:------------------------------|--------------------------------------------------------------------------------------|-------------------------|
 | `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                      | \spire-agent\public\api |
 | `sync_interval`               | Sync interval with SPIRE server with exponential backoff                             | 5 sec                   |
-| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries | false                   |
+| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries | true                    |
 | `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes            | false                   |
 
 ### Initial trust bundle configuration

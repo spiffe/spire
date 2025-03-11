@@ -1,6 +1,6 @@
 module github.com/spiffe/spire
 
-go 1.24.0
+go 1.24.1
 
 require (
 	cloud.google.com/go/iam v1.4.0
@@ -25,7 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.28
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.1
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.39.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.207.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.208.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.40.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.38.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.38.0
@@ -92,7 +92,7 @@ require (
 	k8s.io/client-go v0.32.2
 	k8s.io/kube-aggregator v0.32.2
 	k8s.io/mount-utils v0.32.2
-	sigs.k8s.io/controller-runtime v0.20.2
+	sigs.k8s.io/controller-runtime v0.20.3
 )
 
 require (
