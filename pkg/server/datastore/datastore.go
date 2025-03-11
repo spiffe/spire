@@ -171,6 +171,7 @@ type ListAttestedNodesResponse struct {
 }
 
 type ListAttestedNodeEventsRequest struct {
+	DataConsistency    DataConsistency
 	GreaterThanEventID uint
 	LessThanEventID    uint
 }
@@ -225,6 +226,7 @@ type ListRegistrationEntriesResponse struct {
 }
 
 type ListRegistrationEntryEventsRequest struct {
+	DataConsistency    DataConsistency
 	GreaterThanEventID uint
 	LessThanEventID    uint
 }
