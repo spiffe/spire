@@ -5233,26 +5233,26 @@ func (s *PluginSuite) TestPruneCAJournal() {
 
 func (s *PluginSuite) TestBuildQuestionsAndPlaceholders() {
 	for _, tt := range []struct {
-		name string
-		entries []string
-		expectedQuestions string
+		name                 string
+		entries              []string
+		expectedQuestions    string
 		expectedPlaceholders string
 	}{
 		{
-			name: "No args",
-			expectedQuestions: "",
+			name:                 "No args",
+			expectedQuestions:    "",
 			expectedPlaceholders: "",
 		},
 		{
-			name: "One arg",
-			entries: []string{"a"},
-			expectedQuestions: "?",
+			name:                 "One arg",
+			entries:              []string{"a"},
+			expectedQuestions:    "?",
 			expectedPlaceholders: "$1",
 		},
 		{
-			name: "Five args",
-			entries: []string{"a", "b", "c", "e", "f"},
-			expectedQuestions: "?,?,?,?,?",
+			name:                 "Five args",
+			entries:              []string{"a", "b", "c", "e", "f"},
+			expectedQuestions:    "?,?,?,?,?",
 			expectedPlaceholders: "$1,$2,$3,$4,$5",
 		},
 	} {
@@ -5263,7 +5263,6 @@ func (s *PluginSuite) TestBuildQuestionsAndPlaceholders() {
 			s.Require().Equal(tt.expectedPlaceholders, placeholders)
 		})
 	}
-
 }
 
 func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue any) {
