@@ -1158,7 +1158,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadGrpcPlugin(t)}
 			},
 			overrideExpected: func(expected map[string]any) {
-				expected["aud"] = []interface{}{"AUDIENCE"}
+				expected["aud"] = []any{"AUDIENCE"}
 				expected["iat"] = now.Unix()
 				expected["exp"] = jwtSVIDNotAfter.Unix()
 			},
@@ -1169,7 +1169,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1, onlyFoo: true, addInt64: true}, loadGrpcPlugin(t)}
 			},
 			overrideExpected: func(expected map[string]any) {
-				expected["aud"] = []interface{}{"AUDIENCE"}
+				expected["aud"] = []any{"AUDIENCE"}
 				expected["iat"] = now.Unix()
 				expected["exp"] = jwtSVIDNotAfter.Unix()
 				expected["foo"] = "VALUE-1"
@@ -1182,7 +1182,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadGrpcPlugin(t), fakeCC{id: 1, onlyFoo: true, addInt64: true}}
 			},
 			overrideExpected: func(expected map[string]any) {
-				expected["aud"] = []interface{}{"AUDIENCE"}
+				expected["aud"] = []any{"AUDIENCE"}
 				expected["iat"] = now.Unix()
 				expected["exp"] = jwtSVIDNotAfter.Unix()
 				expected["foo"] = "VALUE-1"

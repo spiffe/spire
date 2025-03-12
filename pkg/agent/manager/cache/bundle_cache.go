@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"maps"
+
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -98,8 +100,6 @@ func copyBundleMap(bundles map[spiffeid.TrustDomain]*Bundle) map[spiffeid.TrustD
 	}
 
 	out := make(map[spiffeid.TrustDomain]*Bundle, len(bundles))
-	for key, bundle := range bundles {
-		out[key] = bundle
-	}
+	maps.Copy(out, bundles)
 	return out
 }
