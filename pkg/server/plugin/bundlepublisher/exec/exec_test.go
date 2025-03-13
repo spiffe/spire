@@ -33,7 +33,7 @@ func TestConfigure(t *testing.T) {
 			name: "success",
 			config: &Config{
 				Cmd:    "cat",
-				Args: &[]string{},
+				Args:   &[]string{},
 				Format: "spiffe",
 			},
 		},
@@ -92,7 +92,7 @@ func TestPublishBundle(t *testing.T) {
 			bundle: testBundle,
 			config: &Config{
 				Cmd:    "cat",
-				Args: &[]string{},
+				Args:   &[]string{},
 				Format: "spiffe",
 			},
 		},
@@ -101,7 +101,7 @@ func TestPublishBundle(t *testing.T) {
 			bundle: testBundle,
 			config: &Config{
 				Cmd:    "cat",
-				Args: &[]string{},
+				Args:   &[]string{},
 				Format: "spiffe",
 			},
 		},
@@ -110,7 +110,7 @@ func TestPublishBundle(t *testing.T) {
 			bundle: testBundle,
 			config: &Config{
 				Cmd:    "false",
-				Args: &[]string{},
+				Args:   &[]string{},
 				Format: "spiffe",
 			},
 			putObjectErr: errors.New("some error"),
@@ -126,7 +126,7 @@ func TestPublishBundle(t *testing.T) {
 			name: "missing bundle",
 			config: &Config{
 				Cmd:    "cat",
-				Args: &[]string{},
+				Args:   &[]string{},
 				Format: "spiffe",
 			},
 			expectCode: codes.InvalidArgument,
