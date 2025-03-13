@@ -34,7 +34,7 @@ func New() *Plugin {
 // Config holds the configuration of the plugin.
 type Config struct {
 	Cmd    string    `hcl:"cmd" json:"cmd"`
-	Args   *[]string `hcl:"args" json:"args`
+	Args   []string `hcl:"args" json:"args`
 	Format string    `hcl:"format" json:"format"`
 
 	// bundleFormat is used to store the content of Format, parsed
@@ -53,9 +53,6 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	if newConfig.Cmd == "" {
 		status.ReportError("configuration is missing cmd")
 		return nil
-	}
-	if newConfig.Args == nil {
-		newConfig.Args = &[]string{}
 	}
 	if newConfig.Format == "" {
 		newConfig.Format = "spiffe"
@@ -146,7 +143,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 	// We use gosec -- the annotation below will disable a security check that users didn't specify the command
 	// Its their command.
 	/* #nosec G204 */
-	cmd := exec.Command(config.Cmd, *config.Args...)
+	cmd := exec.Command(config.Cmd, config.Args...)
 	cmd.Stdin = bytes.NewBuffer(bundleBytes)
 
 	if err := cmd.Run(); err != nil {
