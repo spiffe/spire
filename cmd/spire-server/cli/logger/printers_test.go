@@ -14,7 +14,7 @@ import (
 func TestPrettyPrintLogger(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
-		logger         interface{}
+		logger         any
 		outWriter      errorWriter
 		errWriter      errorWriter
 		env            *commoncli.Env

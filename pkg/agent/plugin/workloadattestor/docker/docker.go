@@ -74,7 +74,7 @@ type dockerPluginConfig struct {
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 
-	Experimental experimentalConfig `hcl:"experimental,omitempty" json:"experimental,omitempty"`
+	Experimental experimentalConfig `hcl:"experimental,omitempty" json:"experimental"`
 
 	containerHelper *containerHelper
 	dockerOpts      []dockerclient.Opt

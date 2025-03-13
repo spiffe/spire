@@ -873,12 +873,7 @@ func MaxSVIDTTL() time.Duration {
 // TTL that is guaranteed to not be cut artificially short by a scheduled
 // rotation?
 func MaxSVIDTTLForCATTL(caTTL time.Duration) time.Duration {
-	maxTTL := caTTL / activationThresholdDivisor
-	if maxTTL > activationThresholdCap {
-		maxTTL = activationThresholdCap
-	}
-
-	return maxTTL
+	return min(caTTL/activationThresholdDivisor, activationThresholdCap)
 }
 
 // MinCATTLForSVIDTTL returns the minimum CA TTL necessary to guarantee an SVID

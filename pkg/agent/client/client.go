@@ -571,10 +571,7 @@ func (c *client) streamAndSyncEntries(ctx context.Context, entryClient entryv1.E
 	// time using the assumed page size.
 	for len(needFull) > 0 {
 		// Request up to a page full of full entries
-		n := len(needFull)
-		if n > pageSize {
-			n = pageSize
-		}
+		n := min(len(needFull), pageSize)
 		if err := stream.Send(&entryv1.SyncAuthorizedEntriesRequest{Ids: needFull[:n]}); err != nil {
 			return SyncEntriesStats{}, err
 		}
