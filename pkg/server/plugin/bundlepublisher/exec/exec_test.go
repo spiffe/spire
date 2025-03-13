@@ -19,8 +19,6 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-var cat = []string{"cat"}
-
 func TestConfigure(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -34,7 +32,8 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "success",
 			config: &Config{
-				Cmd:    cat,
+				Cmd:    "cat",
+				Args: &[]string{},
 				Format: "spiffe",
 			},
 		},
@@ -45,7 +44,7 @@ func TestConfigure(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "unable to decode configuration: At -",
-		}
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
@@ -92,7 +91,8 @@ func TestPublishBundle(t *testing.T) {
 			name:   "success",
 			bundle: testBundle,
 			config: &Config{
-				Cmd:    cat,
+				Cmd:    "cat",
+				Args: &[]string{},
 				Format: "spiffe",
 			},
 		},
@@ -100,7 +100,8 @@ func TestPublishBundle(t *testing.T) {
 			name:   "multiple times",
 			bundle: testBundle,
 			config: &Config{
-				Cmd:    cat,
+				Cmd:    "cat",
+				Args: &[]string{},
 				Format: "spiffe",
 			},
 		},
@@ -108,7 +109,8 @@ func TestPublishBundle(t *testing.T) {
 			name:   "fail",
 			bundle: testBundle,
 			config: &Config{
-				Cmd:    []string{"false"},
+				Cmd:    "false",
+				Args: &[]string{},
 				Format: "spiffe",
 			},
 			putObjectErr: errors.New("some error"),
@@ -123,7 +125,8 @@ func TestPublishBundle(t *testing.T) {
 		{
 			name: "missing bundle",
 			config: &Config{
-				Cmd:    cat,
+				Cmd:    "cat",
+				Args: &[]string{},
 				Format: "spiffe",
 			},
 			expectCode: codes.InvalidArgument,
