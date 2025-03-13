@@ -51,9 +51,10 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 	if len(newConfig.Cmd) < 1 {
 		status.ReportError("configuration is missing cmd")
+		return nil
 	}
 	if newConfig.Format == "" {
-		status.ReportError("configuration is missing the bundle format")
+		newConfig.Format = "spiffe"
 	}
 
 	bundleFormat, err := bundleformat.FromString(newConfig.Format)

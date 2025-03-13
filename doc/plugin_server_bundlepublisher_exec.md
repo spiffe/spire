@@ -8,7 +8,7 @@ The plugin accepts the following configuration options:
 | Configuration     | Description                                                                                                                                                    | Required                                                               | Default                                             |
 |-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------|
 | cmd               | Command to run                                                                                                                                                 | Yes.                                                                   |                                                     |
-| format            | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details. | Yes.                                                                   |                                                     |
+| format            | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details. | No.                                                                    | spiffe                                              |
 
 ## Supported bundle formats
 
@@ -32,7 +32,6 @@ The trust bundle is formatted using PEM encoding. Only the X.509 authorities are
     BundlePublisher "exec" {
         plugin_data {
             cmd = ["/bin/bash", "-c", "cat > /tmp/wark; scp /tmp/wark foohost:/usr/share/nginx/html/bundle.spiffe"]
-            format = "spiffe"
         }
     }
 ```

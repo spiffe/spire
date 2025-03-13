@@ -45,15 +45,7 @@ func TestConfigure(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "unable to decode configuration: At -",
-		},
-		{
-			name: "no bundle format",
-			config: &Config{
-				Cmd: cat,
-			},
-			expectCode: codes.InvalidArgument,
-			expectMsg:  "configuration is missing the bundle format",
-		},
+		}
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
