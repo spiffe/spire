@@ -18,8 +18,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
@@ -760,6 +762,18 @@ func (c *fakeClient) ListAccounts(_ context.Context, input *organizations.ListAc
 		return nil, fmt.Errorf("failing request for pagination")
 	}
 	return c.ListAccountOutput, c.ListAccountError
+}
+
+func (c *fakeClient) DescribeAutoScalingGroups(context.Context, *autoscaling.DescribeAutoScalingGroupsInput, ...func(*autoscaling.Options)) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (c *fakeClient) ListNodegroups(context.Context, *eks.ListNodegroupsInput, ...func(*eks.Options)) (*eks.ListNodegroupsOutput, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (c *fakeClient) DescribeNodegroup(context.Context, *eks.DescribeNodegroupInput, ...func(*eks.Options)) (*eks.DescribeNodegroupOutput, error) {
+	return nil, errors.New("not implemented")
 }
 
 func buildAttestationDataRSA2048Signature(t *testing.T) caws.IIDAttestationData {
