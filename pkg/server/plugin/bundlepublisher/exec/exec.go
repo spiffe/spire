@@ -115,8 +115,7 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 	}, err
 }
 
-// PublishBundle puts the bundle in the configured S3 bucket name and
-// object key.
+// PublishBundle runs the specified command and passes the bundle through stdin
 func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.PublishBundleRequest) (*bundlepublisherv1.PublishBundleResponse, error) {
 	config, err := p.getConfig()
 	if err != nil {
@@ -140,7 +139,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 	}
 
 	// Push trust bundle to user configured process
-	// We use gosec -- the annotation below will disable a security check that users didnt specify the command
+	// We use gosec -- the annotation below will disable a security check that users didn't specify the command
 	// Its their command.
 	/* #nosec G204 */
 	cmd := exec.Command(config.Cmd[0], config.Cmd[1:]...)

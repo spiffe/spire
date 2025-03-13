@@ -1,6 +1,6 @@
 # Server plugin: BundlePublisher "exec"
 
-The `exec` plugin executes the specified command giving it the current trust bundle of the server
+The `exec` plugin executes the specified command and passes the current trust bundle of the server
 on its stdin
 
 The plugin accepts the following configuration options:
