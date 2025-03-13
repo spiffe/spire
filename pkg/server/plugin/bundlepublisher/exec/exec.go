@@ -33,9 +33,9 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	Cmd    string    `hcl:"cmd" json:"cmd"`
-	Args   []string `hcl:"args" json:"args`
-	Format string    `hcl:"format" json:"format"`
+	Cmd    string   `hcl:"cmd" json:"cmd"`
+	Args   []string `hcl:"args" json:"args"`
+	Format string   `hcl:"format" json:"format"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.
