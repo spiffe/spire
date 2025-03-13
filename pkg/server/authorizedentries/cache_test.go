@@ -2,6 +2,7 @@ package authorizedentries
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -287,7 +288,7 @@ func (a *cacheTest) withAgent(node spiffeid.ID, selectors ...*types.Selector) *c
 	expiresAt := now.Add(time.Hour * time.Duration(1+len(a.agents)))
 	a.agents[node] = agentInfo{
 		ExpiresAt: expiresAt,
-		Selectors: append([]*types.Selector(nil), selectors...),
+		Selectors: slices.Clone(selectors),
 	}
 	return a
 }
@@ -296,7 +297,7 @@ func (a *cacheTest) withExpiredAgent(node spiffeid.ID, expiredBy time.Duration, 
 	expiresAt := now.Add(-expiredBy)
 	a.agents[node] = agentInfo{
 		ExpiresAt: expiresAt,
-		Selectors: append([]*types.Selector(nil), selectors...),
+		Selectors: slices.Clone(selectors),
 	}
 	return a
 }
@@ -414,8 +415,8 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	}
 
 	_, cache := test.hydrate(b)
-	b.ResetTimer()
-	for range b.N {
+
+	for b.Loop() {
 		cache.GetAuthorizedEntries(test.pickAgent())
 	}
 }
@@ -530,8 +531,8 @@ func BenchmarkEntryLookup(b *testing.B) {
 	cache := setupLookupTest(b, numEntries)
 
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
+
+	for b.Loop() {
 		for id := range numEntries {
 			entryID := "workload-" + strconv.Itoa(id)
 			entries := cache.LookupAuthorizedEntries(agent1, map[string]struct{}{

@@ -430,7 +430,7 @@ func (s *AttestorSuite) requireAttestError(payload []byte, expectCode codes.Code
 }
 
 func makePayload(cluster, token string) []byte {
-	return []byte(fmt.Sprintf(`{"cluster": %q, "token": %q}`, cluster, token))
+	return fmt.Appendf(nil, `{"cluster": %q, "token": %q}`, cluster, token)
 }
 
 func createAndWriteSelfSignedCert(cn string, signer crypto.Signer, path string) error {

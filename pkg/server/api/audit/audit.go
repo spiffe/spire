@@ -1,6 +1,8 @@
 package audit
 
 import (
+	"maps"
+
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -38,9 +40,7 @@ func New(l logrus.FieldLogger) Logger {
 }
 
 func (l *logger) AddFields(fields logrus.Fields) {
-	for key, value := range fields {
-		l.fields[key] = value
-	}
+	maps.Copy(l.fields, fields)
 }
 
 func (l *logger) Audit() {
