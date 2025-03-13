@@ -13,6 +13,7 @@ The plugin accepts the following configuration options:
 | bucket            | The Amazon S3 bucket name to which the trust bundle is uploaded.                                                                                               | Yes.                                                                   |                                                     |
 | object_key        | The object key inside the bucket.                                                                                                                              | Yes.                                                                   |                                                     |
 | format            | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details. | Yes.                                                                   |                                                     |
+| endpoint          | A custom S3 endpoint should be set when using third-party object storage providers, such as Minio.                                                             | No.                                                                    |                                                     |
 
 ## Supported bundle formats
 
@@ -42,6 +43,22 @@ The following configuration uploads the local trust bundle contents to the `exam
     BundlePublisher "aws_s3" {
         plugin_data {
             region = "us-east-1"
+            bucket = "spire-trust-bundle"
+            object_key = "example.org"
+            format = "spiffe"
+        }
+    }
+```
+
+The following configuration uploads the local trust bundle contents to the `example.org` object in the `spire-trust-bundle` bucket on Minio server.
+
+```hcl
+    BundlePublisher "aws_s3" {
+        plugin_data {
+            endpoint = "https://my-org-minio.example.org"
+            region = "minio-sample-region"
+            access_key_id  = "minio-key-id"
+            secret_access_key = "minio-access-key"
             bucket = "spire-trust-bundle"
             object_key = "example.org"
             format = "spiffe"
