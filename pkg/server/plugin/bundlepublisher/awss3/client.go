@@ -17,6 +17,7 @@ func newAWSConfig(ctx context.Context, c *Config) (aws.Config, error) {
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(c.Region),
 	)
+
 	if err != nil {
 		return aws.Config{}, err
 	}
@@ -25,9 +26,20 @@ func newAWSConfig(ctx context.Context, c *Config) (aws.Config, error) {
 		cfg.Credentials = credentials.NewStaticCredentialsProvider(c.AccessKeyID, c.SecretAccessKey, "")
 	}
 
+	if c.Endpoint != "" {
+		cfg.BaseEndpoint = aws.String(c.Endpoint)
+	}
+
 	return cfg, nil
 }
 
 func newS3Client(c aws.Config) (simpleStorageService, error) {
-	return s3.NewFromConfig(c), nil
+	options := func(options *s3.Options) {}
+	if c.BaseEndpoint != nil && *c.BaseEndpoint != "" {
+		options = func(options *s3.Options) {
+			options.UsePathStyle = true
+			options.BaseEndpoint = c.BaseEndpoint
+		}
+	}
+	return s3.NewFromConfig(c, options), nil
 }
