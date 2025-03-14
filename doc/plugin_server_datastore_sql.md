@@ -18,6 +18,8 @@ The `sql` plugin implements SQL based data storage for the SPIRE server using SQ
 For more information on the `max_open_conns`, `max_idle_conns`, and `conn_max_lifetime`, refer to the
 documentation for the Go [`database/sql`](https://golang.org/pkg/database/sql/#DB) package.
 
+> **Note:** The SQL plugin uses an internal default setting of 30 seconds for the maximum idle time per connection (ConnMaxIdleTime). This setting is not configurable through the plugin configuration.
+
 ## Database configurations
 
 ### `database_type = "sqlite3"`
