@@ -1052,13 +1052,19 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	db.SetLogger(gormLogger{
 		log: ds.log.WithField(telemetry.SubsystemName, "gorm"),
 	})
-	db.DB().SetMaxOpenConns(100) // default value
+
+	const maxOpenConns = 100
+	db.DB().SetMaxOpenConns(maxOpenConns)
 	if cfg.MaxOpenConns != nil {
 		db.DB().SetMaxOpenConns(*cfg.MaxOpenConns)
 	}
+	const maxIdleConns = 100
+	db.DB().SetMaxIdleConns(maxIdleConns)
 	if cfg.MaxIdleConns != nil {
 		db.DB().SetMaxIdleConns(*cfg.MaxIdleConns)
 	}
+	const ConnMaxIdleTime = time.Second * 30
+	db.DB().SetConnMaxIdleTime(ConnMaxIdleTime)
 	if cfg.ConnMaxLifetime != nil {
 		connMaxLifetime, err := time.ParseDuration(*cfg.ConnMaxLifetime)
 		if err != nil {
