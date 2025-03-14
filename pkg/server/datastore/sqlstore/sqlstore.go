@@ -1063,8 +1063,8 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 	if cfg.MaxIdleConns != nil {
 		db.DB().SetMaxIdleConns(*cfg.MaxIdleConns)
 	}
-	const connMaxLifetime = time.Second * 30
-	db.DB().SetConnMaxLifetime(connMaxLifetime)
+	const ConnMaxIdleTime = time.Second * 30
+	db.DB().SetConnMaxIdleTime(ConnMaxIdleTime)
 	if cfg.ConnMaxLifetime != nil {
 		connMaxLifetime, err := time.ParseDuration(*cfg.ConnMaxLifetime)
 		if err != nil {
