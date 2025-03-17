@@ -2516,7 +2516,7 @@ func fetchRegistrationEntries(ctx context.Context, db *sqlDB, entryIDs []string)
 	return entries, err
 }
 
-func buildFetchRegistrationEntryQuery(dbType string, supportsCTE bool, entryIDs []string) (string, []any, error) {
+func buildFetchRegistrationEntriesQuery(dbType string, supportsCTE bool, entryIDs []string) (string, []any, error) {
 	switch {
 	case isSQLiteDbType(dbType):
 		// The SQLite3 queries unconditionally leverage CTE since the
