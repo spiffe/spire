@@ -504,13 +504,13 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 	}
 
 	// Return the last element in the list
-	return entries[len(entries)-1], nil
+	return entries[entryID], nil
 }
 
 // FetchRegistrationEntries fetches existing registrations by entry IDs
 func (ds *Plugin) FetchRegistrationEntries(ctx context.Context,
 	entryIDs []string,
-) ([]*common.RegistrationEntry, error) {
+) (map[string]*common.RegistrationEntry, error) {
 	return fetchRegistrationEntries(ctx, ds.db, entryIDs)
 }
 
@@ -2499,8 +2499,8 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 	return registrationEntry, nil
 }
 
-func fetchRegistrationEntries(ctx context.Context, db *sqlDB, entryIDs []string) ([]*common.RegistrationEntry, error) {
-	query, args, err := buildFetchRegistrationEntryQuery(db.databaseType, db.supportsCTE, entryIDs)
+func fetchRegistrationEntries(ctx context.Context, db *sqlDB, entryIDs []string) (map[string]*common.RegistrationEntry, error) {
+	query, args, err := buildFetchRegistrationEntriesQuery(db.databaseType, db.supportsCTE, entryIDs)
 	if err != nil {
 		return nil, newWrappedSQLError(err)
 	}
@@ -2511,8 +2511,7 @@ func fetchRegistrationEntries(ctx context.Context, db *sqlDB, entryIDs []string)
 	}
 	defer rows.Close()
 
-	var entries []*common.RegistrationEntry
-	entries, _, err = rowsToCommonRegistrationEntries(rows, entries)
+	entries, _, err := rowsToCommonRegistrationEntries(rows)
 	return entries, err
 }
 
@@ -2860,10 +2859,14 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		return nil, newWrappedSQLError(err)
 	}
 	defer rows.Close()
-	entries := make([]*common.RegistrationEntry, 0, calculateResultPreallocation(req.Pagination))
-	entries, lastEID, err := rowsToCommonRegistrationEntries(rows, entries)
+	entriesMap, lastEID, err := rowsToCommonRegistrationEntries(rows)
 	if err != nil {
 		return nil, err
+	}
+
+	entries := make([]*common.RegistrationEntry, 0, calculateResultPreallocation(req.Pagination))
+	for _, entry := range entriesMap {
+		entries = append(entries, entry)
 	}
 
 	resp := &datastore.ListRegistrationEntriesResponse{
@@ -4719,7 +4722,8 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *comm
 	return nil, nil
 }
 
-func rowsToCommonRegistrationEntries(rows *sql.Rows, entries []*common.RegistrationEntry) ([]*common.RegistrationEntry, uint64, error) {
+func rowsToCommonRegistrationEntries(rows *sql.Rows) (map[string]*common.RegistrationEntry, uint64, error) {
+	entries := make(map[string]*common.RegistrationEntry)
 	pushEntry := func(entry *common.RegistrationEntry) {
 		// Due to previous bugs (i.e. #1191), there can be cruft rows related
 		// to a deleted registration entries that are fetched with the list
@@ -4727,7 +4731,7 @@ func rowsToCommonRegistrationEntries(rows *sql.Rows, entries []*common.Registrat
 		// have data from the registered_entries table (i.e. those with an
 		// entry id).
 		if entry != nil && entry.EntryId != "" {
-			entries = append(entries, entry)
+			entries[entry.EntryId] = entry
 		}
 	}
 

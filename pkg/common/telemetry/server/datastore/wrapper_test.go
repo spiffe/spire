@@ -436,8 +436,8 @@ func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, string) (*commo
 	return &common.RegistrationEntry{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchRegistrationEntries(context.Context, []string) ([]*common.RegistrationEntry, error) {
-	return []*common.RegistrationEntry{}, ds.err
+func (ds *fakeDataStore) FetchRegistrationEntries(context.Context, []string) (map[string]*common.RegistrationEntry, error) {
+	return map[string]*common.RegistrationEntry{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchRegistrationEntryEvent(context.Context, uint) (*datastore.RegistrationEntryEvent, error) {
