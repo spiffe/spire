@@ -101,16 +101,10 @@ func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 }
 
 func (a *registrationEntries) scanForNewEvents(ctx context.Context) error {
-	// If we haven't seen an event, scan for all events; otherwise, scan from the last event.
-	var resp *datastore.ListRegistrationEntryEventsResponse
-	var err error
-	if a.firstEventTime.IsZero() {
-		resp, err = a.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-	} else {
-		resp, err = a.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-			GreaterThanEventID: a.lastEvent,
-		})
-	}
+	resp, err := a.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+		DataConsistency:    datastore.TolerateStale,
+		GreaterThanEventID: a.lastEvent,
+	})
 	if err != nil {
 		return err
 	}

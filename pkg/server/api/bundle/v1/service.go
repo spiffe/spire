@@ -3,6 +3,7 @@ package bundle
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -102,13 +103,9 @@ func (s *Service) GetBundle(ctx context.Context, req *bundlev1.GetBundleRequest)
 func (s *Service) AppendBundle(ctx context.Context, req *bundlev1.AppendBundleRequest) (*types.Bundle, error) {
 	parseRequest := func() logrus.Fields {
 		fields := logrus.Fields{}
-		for k, v := range api.FieldsFromJwtAuthoritiesProto(req.JwtAuthorities) {
-			fields[k] = v
-		}
+		maps.Copy(fields, api.FieldsFromJwtAuthoritiesProto(req.JwtAuthorities))
 
-		for k, v := range api.FieldsFromX509AuthoritiesProto(req.X509Authorities) {
-			fields[k] = v
-		}
+		maps.Copy(fields, api.FieldsFromX509AuthoritiesProto(req.X509Authorities))
 
 		return fields
 	}

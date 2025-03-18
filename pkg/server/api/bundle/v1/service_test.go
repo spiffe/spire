@@ -1719,12 +1719,12 @@ func createBundle(t *testing.T, test *serviceTest, td string) *common.Bundle {
 		TrustDomainId:  td,
 		RefreshHint:    60,
 		SequenceNumber: 42,
-		RootCas:        []*common.Certificate{{DerBytes: []byte(fmt.Sprintf("cert-bytes-%s", td))}},
+		RootCas:        []*common.Certificate{{DerBytes: fmt.Appendf(nil, "cert-bytes-%s", td)}},
 		JwtSigningKeys: []*common.PublicKey{
 			{
 				Kid:       fmt.Sprintf("key-id-%s", td),
 				NotAfter:  time.Now().Add(time.Minute).Unix(),
-				PkixBytes: []byte(fmt.Sprintf("key-bytes-%s", td)),
+				PkixBytes: fmt.Appendf(nil, "key-bytes-%s", td),
 			},
 		},
 	}

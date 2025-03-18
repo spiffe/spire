@@ -3,11 +3,11 @@ module github.com/spiffe/spire
 go 1.24.1
 
 require (
-	cloud.google.com/go/iam v1.4.0
+	cloud.google.com/go/iam v1.4.1
 	cloud.google.com/go/kms v1.21.0
-	cloud.google.com/go/secretmanager v1.14.3
+	cloud.google.com/go/secretmanager v1.14.5
 	cloud.google.com/go/security v1.18.3
-	cloud.google.com/go/storage v1.50.0
+	cloud.google.com/go/storage v1.51.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.17.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.8.2
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys v0.10.0
@@ -25,7 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.28
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.1
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.39.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.207.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.209.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.40.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.38.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.38.0
@@ -69,7 +69,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.2
 	github.com/sigstore/cosign/v2 v2.4.3
 	github.com/sigstore/rekor v1.3.9
-	github.com/sigstore/sigstore v1.9.0
+	github.com/sigstore/sigstore v1.9.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spiffe/go-spiffe/v2 v2.5.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20250109200630-101d5e7de758
@@ -83,28 +83,28 @@ require (
 	golang.org/x/sync v0.12.0
 	golang.org/x/sys v0.31.0
 	golang.org/x/time v0.11.0
-	google.golang.org/api v0.224.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250227231956-55c901821b1e
+	google.golang.org/api v0.225.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250303144028-a0af3efb3deb
 	google.golang.org/grpc v1.71.0
 	google.golang.org/protobuf v1.36.5
-	k8s.io/api v0.32.2
-	k8s.io/apimachinery v0.32.2
-	k8s.io/client-go v0.32.2
-	k8s.io/kube-aggregator v0.32.2
-	k8s.io/mount-utils v0.32.2
-	sigs.k8s.io/controller-runtime v0.20.2
+	k8s.io/api v0.32.3
+	k8s.io/apimachinery v0.32.3
+	k8s.io/client-go v0.32.3
+	k8s.io/kube-aggregator v0.32.3
+	k8s.io/mount-utils v0.32.3
+	sigs.k8s.io/controller-runtime v0.20.3
 )
 
 require (
 	4d63.com/gocheckcompilerdirectives v1.2.1 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
-	cel.dev/expr v0.19.1 // indirect
-	cloud.google.com/go v0.118.2 // indirect
+	cel.dev/expr v0.19.2 // indirect
+	cloud.google.com/go v0.118.3 // indirect
 	cloud.google.com/go/auth v0.15.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.7 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
-	cloud.google.com/go/longrunning v0.6.4 // indirect
-	cloud.google.com/go/monitoring v1.23.0 // indirect
+	cloud.google.com/go/longrunning v0.6.5 // indirect
+	cloud.google.com/go/monitoring v1.24.0 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/4meepo/tagalign v1.4.1 // indirect
@@ -121,8 +121,8 @@ require (
 	github.com/Djarvur/go-err113 v0.0.0-20210108212216-aea10b59be24 // indirect
 	github.com/GaijinEntertainment/go-exhaustruct/v3 v3.3.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.25.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.49.0 // indirect
-	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.49.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.51.0 // indirect
+	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.51.0 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/OpenPeeDeeP/depguard/v2 v2.2.0 // indirect
@@ -163,7 +163,7 @@ require (
 	github.com/charithe/durationcheck v0.0.10 // indirect
 	github.com/chavacava/garif v0.1.0 // indirect
 	github.com/ckaznocha/intrange v0.3.0 // indirect
-	github.com/cncf/xds/go v0.0.0-20241223141626-cff3c89139a3 // indirect
+	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.16.3 // indirect
 	github.com/curioswitch/go-reassign v0.3.0 // indirect
 	github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46 // indirect
@@ -427,12 +427,12 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20250210185358-939b2ce775ac // indirect
 	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/oauth2 v0.27.0 // indirect
+	golang.org/x/oauth2 v0.28.0 // indirect
 	golang.org/x/term v0.30.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
-	google.golang.org/genproto v0.0.0-20250122153221-138b5a5a4fd4 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250219182151-9fdb1cabc7b2 // indirect
+	google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

@@ -102,16 +102,10 @@ func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
 }
 
 func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {
-	// If we haven't seen an event, scan for all events; otherwise, scan from the last event.
-	var resp *datastore.ListAttestedNodeEventsResponse
-	var err error
-	if a.firstEventTime.IsZero() {
-		resp, err = a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-	} else {
-		resp, err = a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
-			GreaterThanEventID: a.lastEvent,
-		})
-	}
+	resp, err := a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
+		DataConsistency:    datastore.TolerateStale,
+		GreaterThanEventID: a.lastEvent,
+	})
 	if err != nil {
 		return err
 	}
