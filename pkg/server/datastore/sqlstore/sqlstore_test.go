@@ -2120,27 +2120,29 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 
 	for _, tt := range []struct {
 		name     string
-		entryIDs []string
+		entryIds []string
 	}{
 		{
 			name:     "Entries 1 and 2",
-			entryIDs: []string{createdEntry1.EntryId, createdEntry2.EntryId},
+			entryIds: []string{createdEntry1.EntryId, createdEntry2.EntryId},
 		},
 		{
 			name:     "Entries 1 and 3",
-			entryIDs: []string{createdEntry1.EntryId, createdEntry3.EntryId},
+			entryIds: []string{createdEntry1.EntryId, createdEntry3.EntryId},
 		},
 		{
 			name:     "Entries 1, 2, and 3",
-			entryIDs: []string{createdEntry1.EntryId, createdEntry2.EntryId, createdEntry3.EntryId},
+			entryIds: []string{createdEntry1.EntryId, createdEntry2.EntryId, createdEntry3.EntryId},
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
-			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, tt.entryIDs)
+			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, tt.entryIds)
 			s.Require().NoError(err)
-			s.Require().Equal(len(tt.entryIDs), len(fetchedRegistrationEntries))
-			for _, fetchedRegistrationEntry := range fetchedRegistrationEntries {
-				s.Require().Contains(tt.entryIDs, fetchedRegistrationEntry.EntryId)
+			s.Require().Equal(len(tt.entryIds), len(fetchedRegistrationEntries))
+			for _, entryId := range tt.entryIds {
+				fetchedRegistrationEntry, ok := fetchedRegistrationEntries[entryId]
+				s.Require().True(ok)
+				s.Require().Equal(entryId, fetchedRegistrationEntry.EntryId)
 			}
 		})
 	}
