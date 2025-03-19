@@ -2108,6 +2108,13 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		SpiffeId: "SpiffeId3",
 		ParentId: "ParentId3",
 	}
+	entry4 := &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type4", Value: "Value4"},
+		},
+		SpiffeId: "SpiffeId4",
+		ParentId: "ParentId4",
+	}
 	createdEntry1, err := s.ds.CreateRegistrationEntry(ctx, entry1)
 	s.Require().NoError(err)
 	s.Require().NotNil(createdEntry1)
@@ -2118,9 +2125,17 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 	s.Require().NoError(err)
 	s.Require().NotNil(createdEntry3)
 
+	// Create an entry and then delete it so we can test it doesnt get returned with the fetch
+	createdEntry4, err := s.ds.CreateRegistrationEntry(ctx, entry4)
+	s.Require().NoError(err)
+	s.Require().NotNil(createdEntry3)
+	deletedEntry, err := s.ds.DeleteRegistrationEntry(ctx, createdEntry4.EntryId)
+	s.Require().NoError(err)
+
 	for _, tt := range []struct {
-		name     string
-		entryIds []string
+		name           string
+		entryIds       []string
+		deletedEntryId string
 	}{
 		{
 			name:     "Entries 1 and 2",
@@ -2134,16 +2149,27 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 			name:     "Entries 1, 2, and 3",
 			entryIds: []string{createdEntry1.EntryId, createdEntry2.EntryId, createdEntry3.EntryId},
 		},
+		{
+			name:           "Deleted entry",
+			entryIds:       []string{createdEntry2.EntryId, createdEntry3.EntryId},
+			deletedEntryId: deletedEntry.EntryId,
+		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
-			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, tt.entryIds)
+			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, append(tt.entryIds, tt.deletedEntryId))
 			s.Require().NoError(err)
+
+			// Make sure all entries we want to fetch are present
 			s.Require().Equal(len(tt.entryIds), len(fetchedRegistrationEntries))
 			for _, entryId := range tt.entryIds {
 				fetchedRegistrationEntry, ok := fetchedRegistrationEntries[entryId]
 				s.Require().True(ok)
 				s.Require().Equal(entryId, fetchedRegistrationEntry.EntryId)
 			}
+
+			// Make sure any deleted entries are not present.
+			_, ok := fetchedRegistrationEntries[tt.deletedEntryId]
+			s.Require().False(ok)
 		})
 	}
 }
