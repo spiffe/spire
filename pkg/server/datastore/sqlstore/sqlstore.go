@@ -2511,7 +2511,7 @@ func fetchRegistrationEntries(ctx context.Context, db *sqlDB, entryIDs []string)
 	}
 	defer rows.Close()
 
-	var entries []*common.RegistrationEntry
+	entries := make([]*common.RegistrationEntry, 0, len(entryIDs))
 	entries, _, err = rowsToCommonRegistrationEntries(rows, entries)
 
 	// Convert array to map
