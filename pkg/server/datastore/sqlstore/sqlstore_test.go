@@ -2093,49 +2093,46 @@ func (s *PluginSuite) TestFetchRegistrationEntryDoesNotExist() {
 }
 
 func (s *PluginSuite) TestFetchRegistrationEntries() {
-	entry1 := &common.RegistrationEntry{
+	entry1, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type1", Value: "Value1"},
 		},
 		SpiffeId: "SpiffeId1",
 		ParentId: "ParentId1",
-	}
-	entry2 := &common.RegistrationEntry{
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(entry1)
+	entry2, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type2", Value: "Value2"},
 		},
 		SpiffeId: "SpiffeId2",
 		ParentId: "ParentId2",
-	}
-	entry3 := &common.RegistrationEntry{
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(entry2)
+	entry3, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type3", Value: "Value3"},
 		},
 		SpiffeId: "SpiffeId3",
 		ParentId: "ParentId3",
-	}
-	entry4 := &common.RegistrationEntry{
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(entry3)
+
+	// Create an entry and then delete it so we can test it doesn't get returned with the fetch
+	entry4, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		Selectors: []*common.Selector{
 			{Type: "Type4", Value: "Value4"},
 		},
 		SpiffeId: "SpiffeId4",
 		ParentId: "ParentId4",
-	}
-	createdEntry1, err := s.ds.CreateRegistrationEntry(ctx, entry1)
+	})
 	s.Require().NoError(err)
-	s.Require().NotNil(createdEntry1)
-	createdEntry2, err := s.ds.CreateRegistrationEntry(ctx, entry2)
-	s.Require().NoError(err)
-	s.Require().NotNil(createdEntry2)
-	createdEntry3, err := s.ds.CreateRegistrationEntry(ctx, entry3)
-	s.Require().NoError(err)
-	s.Require().NotNil(createdEntry3)
-
-	// Create an entry and then delete it so we can test it doesnt get returned with the fetch
-	createdEntry4, err := s.ds.CreateRegistrationEntry(ctx, entry4)
-	s.Require().NoError(err)
-	s.Require().NotNil(createdEntry3)
-	deletedEntry, err := s.ds.DeleteRegistrationEntry(ctx, createdEntry4.EntryId)
+	s.Require().NotNil(entry4)
+	deletedEntry, err := s.ds.DeleteRegistrationEntry(ctx, entry4.EntryId)
+	s.Require().NotNil(deletedEntry)
 	s.Require().NoError(err)
 
 	for _, tt := range []struct {
@@ -2148,19 +2145,19 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		},
 		{
 			name:     "Entries 1 and 2",
-			entryIds: []string{createdEntry1.EntryId, createdEntry2.EntryId},
+			entryIds: []string{entry1.EntryId, entry2.EntryId},
 		},
 		{
 			name:     "Entries 1 and 3",
-			entryIds: []string{createdEntry1.EntryId, createdEntry3.EntryId},
+			entryIds: []string{entry1.EntryId, entry3.EntryId},
 		},
 		{
 			name:     "Entries 1, 2, and 3",
-			entryIds: []string{createdEntry1.EntryId, createdEntry2.EntryId, createdEntry3.EntryId},
+			entryIds: []string{entry1.EntryId, entry2.EntryId, entry3.EntryId},
 		},
 		{
 			name:           "Deleted entry",
-			entryIds:       []string{createdEntry2.EntryId, createdEntry3.EntryId},
+			entryIds:       []string{entry2.EntryId, entry3.EntryId},
 			deletedEntryId: deletedEntry.EntryId,
 		},
 	} {
