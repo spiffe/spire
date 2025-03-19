@@ -3,6 +3,7 @@ package awss3
 import (
 	"bytes"
 	"context"
+	"net/url"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -44,6 +45,7 @@ type Config struct {
 	Bucket          string `hcl:"bucket" json:"bucket"`
 	ObjectKey       string `hcl:"object_key" json:"object_key"`
 	Format          string `hcl:"format" json:"format"`
+	Endpoint        string `hcl:"endpoint" json:"endpoint"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.
@@ -69,6 +71,11 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 	if newConfig.Format == "" {
 		status.ReportError("configuration is missing the bundle format")
+	}
+	if newConfig.Endpoint != "" {
+		if _, err := url.ParseRequestURI(newConfig.Endpoint); err != nil {
+			status.ReportErrorf("could not parse endpoint url: %v", err)
+		}
 	}
 
 	bundleFormat, err := bundleformat.FromString(newConfig.Format)

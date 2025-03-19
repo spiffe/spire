@@ -61,6 +61,7 @@ import (
 	"net"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -376,13 +377,7 @@ func supportsECDSA(hello *tls.ClientHelloInfo) bool {
 		}
 	}
 	if hello.SupportedCurves != nil {
-		ecdsaOK := false
-		for _, curve := range hello.SupportedCurves {
-			if curve == tls.CurveP256 {
-				ecdsaOK = true
-				break
-			}
-		}
+		ecdsaOK := slices.Contains(hello.SupportedCurves, tls.CurveP256)
 		if !ecdsaOK {
 			return false
 		}

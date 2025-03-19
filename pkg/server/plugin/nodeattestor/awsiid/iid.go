@@ -227,13 +227,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		}
 	}
 
-	inTrustAcctList := false
-	for _, id := range c.LocalValidAcctIDs {
-		if attestationData.AccountID == id {
-			inTrustAcctList = true
-			break
-		}
-	}
+	inTrustAcctList := slices.Contains(c.LocalValidAcctIDs, attestationData.AccountID)
 
 	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
 	defer cancel()
@@ -612,12 +606,7 @@ func instanceProfileNameFromArn(profileArn string) (string, error) {
 }
 
 func isValidAWSPartition(partition string) bool {
-	for _, p := range partitions {
-		if p == partition {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(partitions, partition)
 }
 
 func validateOrganizationConfig(config *IIDAttestorConfig) error {

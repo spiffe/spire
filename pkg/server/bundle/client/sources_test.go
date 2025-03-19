@@ -32,8 +32,7 @@ func TestMergedTrustDomainConfigSource(t *testing.T) {
 	})
 
 	t.Run("context is passed through and error returned", func(t *testing.T) {
-		expectedCtx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		expectedCtx := t.Context()
 
 		var actualCtx context.Context
 		source := client.MergeTrustDomainConfigSources(client.TrustDomainConfigSourceFunc(

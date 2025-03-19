@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"sync"
 
@@ -166,7 +167,7 @@ func jwtSVIDKey(spiffeID spiffeid.ID, audience []string) string {
 	// item.
 
 	// duplicate and sort the audience slice
-	audience = append([]string(nil), audience...)
+	audience = slices.Clone(audience)
 	sort.Strings(audience)
 
 	_, _ = io.WriteString(h, spiffeID.String())

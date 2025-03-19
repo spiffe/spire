@@ -64,7 +64,7 @@ func (s *MSIAttestorSuite) TestAidAttestationFailedToObtainToken() {
 func (s *MSIAttestorSuite) TestAidAttestationSuccess() {
 	s.token = s.makeAccessToken("PRINCIPALID", "TENANTID")
 
-	expectPayload := []byte(fmt.Sprintf(`{"token":%q}`, s.token))
+	expectPayload := fmt.Appendf(nil, `{"token":%q}`, s.token)
 
 	attestor := s.loadAttestor(
 		plugintest.CoreConfig(catalog.CoreConfig{

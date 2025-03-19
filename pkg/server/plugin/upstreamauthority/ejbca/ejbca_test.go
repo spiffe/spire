@@ -737,9 +737,9 @@ func generateCSR(subject string, dnsNames []string, uris []string, ipAddresses [
 
 	if subject != "" {
 		// Split the subject into its individual parts
-		parts := strings.Split(subject, ",")
+		parts := strings.SplitSeq(subject, ",")
 
-		for _, part := range parts {
+		for part := range parts {
 			// Split the part into key and value
 			keyValue := strings.SplitN(part, "=", 2)
 

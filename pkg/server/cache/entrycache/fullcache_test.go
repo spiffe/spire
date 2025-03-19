@@ -469,8 +469,8 @@ func TestBuildIteratorError(t *testing.T) {
 
 func BenchmarkBuildInMemory(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
-	b.ResetTimer()
-	for range b.N {
+
+	for b.Loop() {
 		_, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
 		if err != nil {
 			b.Fatal(err)
@@ -517,8 +517,7 @@ func BenchmarkBuildSQL(b *testing.B) {
 		setNodeSelectors(ctx, b, ds, agentIDStr, ss...)
 	}
 
-	b.ResetTimer()
-	for range b.N {
+	for b.Loop() {
 		_, err := BuildFromDataStore(ctx, ds)
 		if err != nil {
 			b.Fatal(err)
@@ -925,9 +924,8 @@ func BenchmarkEntryLookup(b *testing.B) {
 	cache, entries := setupLookupTest(b, 256)
 
 	b.ReportAllocs()
-	b.ResetTimer()
 
-	for range b.N {
+	for b.Loop() {
 		for _, id := range entries {
 			entries := cache.LookupAuthorizedEntries(agentID, map[string]struct{}{
 				id:            {},

@@ -3148,8 +3148,7 @@ func TestAttestAgent(t *testing.T) {
 				spiretest.AssertLogsAnyOrder(t, test.logHook.AllEntries(), tt.expectLogs)
 			}()
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			test.setupAttestor(t)
 			test.setupJoinTokens(ctx, t)

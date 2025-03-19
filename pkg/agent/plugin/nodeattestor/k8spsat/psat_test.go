@@ -64,7 +64,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 
 	na := s.loadPluginWithTokenPath(s.writeValue("token", token))
 
-	err = na.Attest(context.Background(), streamBuilder.ExpectAndBuild([]byte(fmt.Sprintf(`{"cluster":"production","token":"%s"}`, token))))
+	err = na.Attest(context.Background(), streamBuilder.ExpectAndBuild(fmt.Appendf(nil, `{"cluster":"production","token":"%s"}`, token)))
 	s.Require().NoError(err)
 }
 

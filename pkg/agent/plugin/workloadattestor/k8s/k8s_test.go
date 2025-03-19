@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -951,8 +952,8 @@ func (s *Suite) requireAttestFailure(p workloadattestor.WorkloadAttestor, code c
 
 func (s *Suite) requireSelectorsEqual(expected, actual []*common.Selector) {
 	// assert the selectors (non-destructively sorting for consistency)
-	actual = append([]*common.Selector(nil), actual...)
-	expected = append([]*common.Selector(nil), expected...)
+	actual = slices.Clone(actual)
+	expected = slices.Clone(expected)
 	util.SortSelectors(actual)
 	util.SortSelectors(expected)
 	s.RequireProtoListEqual(expected, actual)

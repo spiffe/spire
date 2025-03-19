@@ -124,6 +124,7 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestMintX509CA(t *testing.T) {
+	mockClock := clock.NewMock(t)
 	ca := testca.New(t, trustDomain)
 
 	// Create SVID returned when fetching
@@ -261,8 +262,6 @@ func TestMintX509CA(t *testing.T) {
 	cases = append(cases, mintX509CACasesOS(t)...)
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			mockClock := clock.NewMock(t)
-
 			// Setup servers
 			server := testHandler{}
 			server.startTestServers(t, mockClock, ca, serverCert, serverKey, svidCert, svidKey)

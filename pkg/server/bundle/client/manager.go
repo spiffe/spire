@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
@@ -350,8 +351,6 @@ func calculateNextUpdate(b *spiffebundle.Bundle) time.Duration {
 
 func cloneTrustDomainConfigs(configs map[spiffeid.TrustDomain]TrustDomainConfig) map[spiffeid.TrustDomain]TrustDomainConfig {
 	clone := make(map[spiffeid.TrustDomain]TrustDomainConfig, len(configs))
-	for k, v := range configs {
-		clone[k] = v
-	}
+	maps.Copy(clone, configs)
 	return clone
 }

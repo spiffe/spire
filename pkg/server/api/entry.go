@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -70,7 +71,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		Admin:          e.Admin,
 		Downstream:     e.Downstream,
 		ExpiresAt:      e.EntryExpiry,
-		DnsNames:       append([]string(nil), e.DnsNames...),
+		DnsNames:       slices.Clone(e.DnsNames),
 		RevisionNumber: e.RevisionNumber,
 		StoreSvid:      e.StoreSvid,
 		JwtSvidTtl:     e.JwtSvidTtl,

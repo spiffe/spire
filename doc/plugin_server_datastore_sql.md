@@ -11,12 +11,14 @@ The `sql` plugin implements SQL based data storage for the SPIRE server using SQ
 | client_cert_path     | Path to client certificate (MySQL only)                                                                                                                                                                                                                                            |
 | client_key_path      | Path to private key for client certificate (MySQL only)                                                                                                                                                                                                                            |
 | max_open_conns       | The maximum number of open db connections (default: 100)                                                                                                                                                                                                                           |
-| max_idle_conns       | The maximum number of idle connections in the pool (default: 2)                                                                                                                                                                                                                    |
+| max_idle_conns       | The maximum number of idle connections in the pool (default: 100)                                                                                                                                                                                                                    |
 | conn_max_lifetime    | The maximum amount of time a connection may be reused (default: unlimited)                                                                                                                                                                                                         |
 | disable_migration    | True to disable auto-migration functionality. Use of this flag allows finer control over when datastore migrations occur and coordination of the migration of a datastore shared with a SPIRE Server cluster. Only available for databases from SPIRE Code version 0.9.0 or later. |
 
 For more information on the `max_open_conns`, `max_idle_conns`, and `conn_max_lifetime`, refer to the
 documentation for the Go [`database/sql`](https://golang.org/pkg/database/sql/#DB) package.
+
+> **Note:** The SQL plugin uses an internal default setting of 30 seconds for the maximum idle time per connection (ConnMaxIdleTime). This setting is not configurable through the plugin configuration.
 
 ## Database configurations
 
