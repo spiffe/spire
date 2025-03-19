@@ -499,7 +499,7 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 	entryID string,
 ) (*common.RegistrationEntry, error) {
 	entries, err := fetchRegistrationEntries(ctx, ds.db, []string{entryID})
-	if err != nil || len(entries) == 0 {
+	if err != nil {
 		return nil, err
 	}
 

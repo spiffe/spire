@@ -2086,6 +2086,12 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 	}
 }
 
+func (s *PluginSuite) TestFetchRegistrationEntryDoesNotExist() {
+	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "does-not-exist")
+	s.Require().NoError(err)
+	s.Require().Nil(fetchRegistrationEntry)
+}
+
 func (s *PluginSuite) TestFetchRegistrationEntries() {
 	entry1 := &common.RegistrationEntry{
 		Selectors: []*common.Selector{
@@ -2137,6 +2143,9 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		entryIds       []string
 		deletedEntryId string
 	}{
+		{
+			name: "No entries",
+		},
 		{
 			name:     "Entries 1 and 2",
 			entryIds: []string{createdEntry1.EntryId, createdEntry2.EntryId},
