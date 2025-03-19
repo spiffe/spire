@@ -143,7 +143,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 	// We use gosec -- the annotation below will disable a security check that users didn't specify the command
 	// Its their command.
 	/* #nosec G204 */
-	cmd := exec.Command(config.Cmd, config.Args...)
+	cmd := exec.CommandContext(ctx, config.Cmd, config.Args...)
 	cmd.Stdin = bytes.NewBuffer(bundleBytes)
 
 	if err := cmd.Run(); err != nil {
