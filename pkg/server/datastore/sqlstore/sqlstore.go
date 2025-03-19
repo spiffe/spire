@@ -2528,22 +2528,22 @@ func buildFetchRegistrationEntriesQuery(dbType string, supportsCTE bool, entryID
 	case isSQLiteDbType(dbType):
 		// The SQLite3 queries unconditionally leverage CTE since the
 		// embedded version of SQLite3 supports CTE.
-		return buildFetchRegistrationEntryQuerySQLite3(entryIDs)
+		return buildFetchRegistrationEntriesQuerySQLite3(entryIDs)
 	case isPostgresDbType(dbType):
 		// The PostgreSQL queries unconditionally leverage CTE since all versions
 		// of PostgreSQL supported by the plugin support CTE.
-		return buildFetchRegistrationEntryQueryPostgreSQL(entryIDs)
+		return buildFetchRegistrationEntriesQueryPostgreSQL(entryIDs)
 	case isMySQLDbType(dbType):
 		if supportsCTE {
-			return buildFetchRegistrationEntryQueryMySQLCTE(entryIDs)
+			return buildFetchRegistrationEntriesQueryMySQLCTE(entryIDs)
 		}
-		return buildFetchRegistrationEntryQueryMySQL(entryIDs)
+		return buildFetchRegistrationEntriesQueryMySQL(entryIDs)
 	default:
 		return "", nil, newSQLError("unsupported db type: %q", dbType)
 	}
 }
 
-func buildFetchRegistrationEntryQuerySQLite3(entryIDs []string) (string, []any, error) {
+func buildFetchRegistrationEntriesQuerySQLite3(entryIDs []string) (string, []any, error) {
 	query := fmt.Sprintf(`
 WITH listing AS (
 	SELECT id FROM registered_entries WHERE entry_id IN (%s)
@@ -2607,7 +2607,7 @@ ORDER BY selector_id, dns_name_id
 	return query, buildArgs(entryIDs), nil
 }
 
-func buildFetchRegistrationEntryQueryPostgreSQL(entryIDs []string) (string, []any, error) {
+func buildFetchRegistrationEntriesQueryPostgreSQL(entryIDs []string) (string, []any, error) {
 	query := fmt.Sprintf(`
 WITH listing AS (
 	SELECT id FROM registered_entries WHERE entry_id IN (%s)
@@ -2670,7 +2670,7 @@ ORDER BY selector_id, dns_name_id
 	return query, buildArgs(entryIDs), nil
 }
 
-func buildFetchRegistrationEntryQueryMySQL(entryIDs []string) (string, []any, error) {
+func buildFetchRegistrationEntriesQueryMySQL(entryIDs []string) (string, []any, error) {
 	query := fmt.Sprintf(`
 SELECT
 	E.id AS e_id,
@@ -2709,7 +2709,7 @@ ORDER BY selector_id, dns_name_id
 	return query, buildArgs(entryIDs), nil
 }
 
-func buildFetchRegistrationEntryQueryMySQLCTE(entryIDs []string) (string, []any, error) {
+func buildFetchRegistrationEntriesQueryMySQLCTE(entryIDs []string) (string, []any, error) {
 	query := fmt.Sprintf(`
 WITH listing AS (
 	SELECT id FROM registered_entries WHERE entry_id IN (%s)
