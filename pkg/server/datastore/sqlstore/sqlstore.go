@@ -2511,8 +2511,16 @@ func fetchRegistrationEntries(ctx context.Context, db *sqlDB, entryIDs []string)
 	}
 	defer rows.Close()
 
-	entries, _, err := rowsToCommonRegistrationEntries(rows)
-	return entries, err
+	var entries []*common.RegistrationEntry
+	entries, _, err = rowsToCommonRegistrationEntries(rows, entries)
+
+	// Convert array to map
+	entriesMap := make(map[string]*common.RegistrationEntry)
+	for _, entry := range entries {
+		entriesMap[entry.EntryId] = entry
+	}
+
+	return entriesMap, err
 }
 
 func buildFetchRegistrationEntriesQuery(dbType string, supportsCTE bool, entryIDs []string) (string, []any, error) {
@@ -2859,14 +2867,10 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 		return nil, newWrappedSQLError(err)
 	}
 	defer rows.Close()
-	entriesMap, lastEID, err := rowsToCommonRegistrationEntries(rows)
+	entries := make([]*common.RegistrationEntry, 0, calculateResultPreallocation(req.Pagination))
+	entries, lastEID, err := rowsToCommonRegistrationEntries(rows, entries)
 	if err != nil {
 		return nil, err
-	}
-
-	entries := make([]*common.RegistrationEntry, 0, calculateResultPreallocation(req.Pagination))
-	for _, entry := range entriesMap {
-		entries = append(entries, entry)
 	}
 
 	resp := &datastore.ListRegistrationEntriesResponse{
@@ -4722,8 +4726,7 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *comm
 	return nil, nil
 }
 
-func rowsToCommonRegistrationEntries(rows *sql.Rows) (map[string]*common.RegistrationEntry, uint64, error) {
-	entries := make(map[string]*common.RegistrationEntry)
+func rowsToCommonRegistrationEntries(rows *sql.Rows, entries []*common.RegistrationEntry) ([]*common.RegistrationEntry, uint64, error) {
 	pushEntry := func(entry *common.RegistrationEntry) {
 		// Due to previous bugs (i.e. #1191), there can be cruft rows related
 		// to a deleted registration entries that are fetched with the list
@@ -4731,7 +4734,7 @@ func rowsToCommonRegistrationEntries(rows *sql.Rows) (map[string]*common.Registr
 		// have data from the registered_entries table (i.e. those with an
 		// entry id).
 		if entry != nil && entry.EntryId != "" {
-			entries[entry.EntryId] = entry
+			entries = append(entries, entry)
 		}
 	}
 
