@@ -7,9 +7,9 @@ The plugin accepts the following configuration options:
 
 | Configuration     | Description                                                                                                                                                    | Required                                                               | Default                                             |
 |-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------|
-| cmd               | Command to run                                                                                                                                                 | Yes.                                                                   |                                                     |
-| args              | Arguments to the command to run                                                                                                                                | No.                                                                    |                                                     |
-| format            | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details. | No.                                                                    | spiffe                                              |
+| cmd               | Command to run                                                                                                                                                 | Yes                                                                    |                                                     |
+| args              | Arguments to the command to run                                                                                                                                | No                                                                     |                                                     |
+| format            | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details. | No                                                                     | spiffe                                              |
 
 ## Supported bundle formats
 
