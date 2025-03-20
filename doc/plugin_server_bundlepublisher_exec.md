@@ -29,11 +29,22 @@ The trust bundle is formatted using PEM encoding. Only the X.509 authorities are
 
 ## Sample configuration
 
+### Unixish
 ```hcl
     BundlePublisher "exec" {
         plugin_data {
             cmd = "/bin/bash"
             args = ["-c", "cat > /tmp/wark; scp /tmp/wark foohost:/usr/share/nginx/html/bundle.spiffe"]
+        }
+    }
+```
+
+### Windows
+```hcl
+    BundlePublisher "exec" {
+        plugin_data {
+            cmd = ""powershell"
+            args = ["-Command", "Out-File -FilePath c:\temp\somefile.spiffe; scp c:\temp\somefile.spiffe foohost:/usr/share/nginx/html/bundle.spiffe"]
         }
     }
 ```

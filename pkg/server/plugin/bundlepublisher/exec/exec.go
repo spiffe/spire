@@ -52,7 +52,6 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 	if newConfig.Cmd == "" {
 		status.ReportError("configuration is missing cmd")
-		return nil
 	}
 	if newConfig.Format == "" {
 		newConfig.Format = "spiffe"
