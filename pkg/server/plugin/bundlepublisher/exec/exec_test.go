@@ -4,6 +4,10 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"io"
+	"io/ioutil"
+	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -18,6 +22,45 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
+
+
+var tmpFile *os.File
+
+func stubCommand(ctx context.Context, command string, args...string) *exec.Cmd {
+	cs := []string{"-test.run=TestHelperProcess", "--"}
+	tmpFile, err := os.CreateTemp("", "bundle-*.spiffe")
+	if err != nil {
+		return nil
+	}
+	tmpFile.Close()
+	cs = append(cs, tmpFile.Name())
+	if command == "false" {
+		cs = append(cs, "fail")
+	} else {
+		cs = append(cs, "succeed")
+	}
+	cmd := exec.Command(os.Args[0], cs...)
+	cmd.Env = []string{"HELPER_PROCESS=1"}
+	return cmd
+}
+
+func TestHelperProcess(t *testing.T){
+	if os.Getenv("HELPER_PROCESS") != "1" {
+		os.Exit(1)
+	}
+	if os.Args[4] == "fail" {
+		os.Exit(1)
+	}
+	file, err := os.Create(os.Args[3])
+	if err != nil {
+		os.Exit(1)
+	}
+	_, err = io.Copy(file, os.Stdin)
+	if err != nil {
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
 
 func TestConfigure(t *testing.T) {
 	for _, tt := range []struct {
@@ -75,6 +118,7 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestPublishBundle(t *testing.T) {
+	execCommandContext = stubCommand
 	testBundle := getTestBundle(t)
 
 	for _, tt := range []struct {
@@ -148,6 +192,7 @@ func TestPublishBundle(t *testing.T) {
 				plugintest.Load(t, builtin(p), nil, options...)
 				require.NoError(t, err)
 			}
+			tmpFile = nil
 
 			resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
 				Bundle: tt.bundle,
@@ -156,6 +201,13 @@ func TestPublishBundle(t *testing.T) {
 			if tt.expectMsg != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 				return
+			}
+			if tmpFile != nil {
+				data, err := ioutil.ReadFile(tmpFile.Name())
+				require.NoError(t, err)
+				require.True(t, len(data) > 0, "The exec failed to get data")
+				os.Remove(tmpFile.Name())
+				tmpFile = nil
 			}
 			require.NoError(t, err)
 			require.NotNil(t, resp)
