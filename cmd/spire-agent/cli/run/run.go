@@ -271,8 +271,8 @@ func (c *agentConfig) validate() error {
 		if err != nil {
 			return fmt.Errorf("unable to parse trust bundle URL: %w", err)
 		}
-		if u.Scheme != "https" {
-			return errors.New("trust bundle URL must start with https://")
+		if u.Scheme != "https" && u.Scheme != "unix" {
+			return errors.New("trust bundle URL must start with https:// or unix://")
 		}
 	}
 
@@ -389,11 +389,43 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 	return nil, fmt.Errorf("unknown trust bundle format: %s", trustBundleContentType)
 }
 
-func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
+func downloadTrustBundle(trustBundleURL string, serverAddress string, serverPort int, trustDomain string) ([]byte, error) {
+	var req *http.Request
+	u, err := url.Parse(trustBundleURL)
+	if err != nil {
+		return nil, err
+	}
+	client := &http.Client{}
+	if u.Scheme == "unix" {
+		socketPath := u.Path
+		client = &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial("unix", socketPath)
+				},
+			},
+		}
+		params := u.Query()
+		params.Set("trust-domain", trustDomain)
+		params.Set("server-address", serverAddress)
+		params.Set("server-port", strconv.Itoa(serverPort))
+		params.Set("mode", "bootstrap")
+		u.RawQuery = params.Encode()
+		u.Scheme = "http"
+		u.Host = "localhost"
+		u.Path = "/"
+		req, err = http.NewRequest("GET", u.String(), nil)
+	} else {
+		req, err = http.NewRequest("GET", trustBundleURL, nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+
 	// Download the trust bundle URL from the user specified URL
 	// We use gosec -- the annotation below will disable a security check that URLs are not tainted
 	/* #nosec G107 */
-	resp, err := http.Get(trustBundleURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %w", trustBundleURL, err)
 	}
@@ -421,7 +453,7 @@ func setupTrustBundle(ac *agent.Config, c *Config) error {
 
 	switch {
 	case c.Agent.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL)
+		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL, c.Agent.ServerAddress, c.Agent.ServerPort, c.Agent.TrustDomain)
 		if err != nil {
 			return err
 		}

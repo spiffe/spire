@@ -133,7 +133,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 					// }
 				}))
 			defer testServer.Close()
-			bundleBytes, err := downloadTrustBundle(testServer.URL)
+			bundleBytes, err := downloadTrustBundle(testServer.URL, "", 0, "")
 			if testCase.expectDownloadError {
 				require.Error(t, err)
 			} else {
