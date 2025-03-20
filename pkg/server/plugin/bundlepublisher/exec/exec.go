@@ -63,9 +63,8 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	} else {
 		// This plugin only supports some bundleformats.
 		switch bundleFormat {
-		case bundleformat.JWKS:
-		case bundleformat.SPIFFE:
-		case bundleformat.PEM:
+		case bundleformat.JWKS, bundleformat.SPIFFE, bundleformat.PEM:
+		    	newConfig.bundleFormat = bundleFormat
 		default:
 			status.ReportErrorf("bundle format %q is not supported", newConfig.Format)
 		}
