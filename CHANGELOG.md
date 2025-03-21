@@ -10,14 +10,13 @@
 
 ### Changed
 
+- Agents now use the SyncAuthorizedEntries API for periodically synchronization of authorized entries by default (#5906)
 - Timestamps in logs are now formatted to include nanoseconds (#5798)
 - Improved entry lookup performance in NewJWTSVID and BatchNewX509SVID server RPCs (#5819)
-- Internal `Generator` interface in the `keymanagerbase` package was changed to return the more general `crypto.Signer` type (#5843)
 - Increased the maximum number of idle database connections to 100 (#5853)
 - The maximum idle time per database connection is now set to 30 seconds (#5853)
 - Small documentation improvements (#5873, #5876)
-- Agents now use the SyncAuthorizedEntries API for periodically synchronization of authorized entries by default (#5906)
-- The experimental events-based cache now allows reading events from read-only replicas when data staleness is tolerated (#5911)
+- The experimental events-based cache now supports reading events from read-only replicas when data staleness is tolerated, enhancing read performance (#5911)
 - The `use_legacy_downstream_x509_ca_ttl` server setting is now set to false by default (#5917)
 
 ### Deprecated
