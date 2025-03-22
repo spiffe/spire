@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.12.0] - 2025-03-21
+
+### Added
+
+- Support for any S3 compatible object storage such as MinIO in the `aws_s3` BundlePublisher plugin (#5757)
+- Support for Rego V1 in the authorization policy engine (#5769)
+- Support for SAN-based selectors in the `x509pop` NodeAttestor plugin (#5775)
+
+### Changed
+
+- Agents now use the SyncAuthorizedEntries API for periodically synchronization of authorized entries by default (#5906)
+- Timestamps in logs are now formatted to include nanoseconds (#5798)
+- Improved entry lookup performance in NewJWTSVID and BatchNewX509SVID server RPCs (#5819)
+- Increased the maximum number of idle database connections to 100 (#5853)
+- The maximum idle time per database connection is now set to 30 seconds (#5853)
+- Small documentation improvements (#5873, #5876)
+- The experimental events-based cache now supports reading events from read-only replicas when data staleness is tolerated, enhancing read performance (#5911)
+- The `use_legacy_downstream_x509_ca_ttl` server setting is now set to false by default (#5917)
+
+### Deprecated
+
+- `use_sync_authorized_entries` experimental agent setting (#5906)
+- `use_legacy_downstream_x509_ca_ttl` server setting (#5917)
+
+### Removed
+
+- The deprecated `k8s_sat` NodeAttestor plugin (#5703)
+
+### Fixed
+
+- Issue where agents did not receive entry updates when new entries with the same entry ID were created while `use_sync_authorized_entries` was enabled (#5764)
+
 ## [1.11.2] - 2025-02-13
 
 ### Added
