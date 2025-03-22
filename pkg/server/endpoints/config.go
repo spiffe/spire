@@ -91,8 +91,8 @@ type Config struct {
 	// PruneEventsOlderThan controls how long events can live before they are pruned
 	PruneEventsOlderThan time.Duration
 
-	// SQLTransactionTimeout controls how long to wait for an event before giving up
-	SQLTransactionTimeout time.Duration
+	// EventTimeout controls how long to wait for an event before giving up
+	EventTimeout time.Duration
 
 	AuditLogEnabled bool
 
