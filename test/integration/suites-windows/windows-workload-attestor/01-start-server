@@ -1,4 +1,4 @@
 #!/bin/bash
 
-docker-up spire-server
+docker-spire-server-up spire-server
 

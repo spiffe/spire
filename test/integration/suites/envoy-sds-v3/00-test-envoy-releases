@@ -2,7 +2,7 @@
 
 setup-tests() {
     # Bring up the server
-    docker-up spire-server
+    docker-spire-server-up spire-server
 
     # Bootstrap the agent
     log-debug "bootstrapping downstream agent..."
