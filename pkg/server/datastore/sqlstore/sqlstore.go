@@ -2601,7 +2601,7 @@ FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
-ORDER BY selector_id, dns_name_id
+ORDER BY e_id, selector_id, dns_name_id
 ;`, buildQuestions(entryIDs))
 
 	return query, buildArgs(entryIDs), nil
