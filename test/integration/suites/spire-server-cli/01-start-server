@@ -1,5 +1,5 @@
 #!/bin/bash
 
 docker build --target spire-server-alpine -t spire-server-alpine .
-docker-up spire-server
+docker-spire-server-up spire-server
 
