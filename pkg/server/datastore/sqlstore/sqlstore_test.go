@@ -2086,6 +2086,104 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 	}
 }
 
+func (s *PluginSuite) TestFetchRegistrationEntryDoesNotExist() {
+	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "does-not-exist")
+	s.Require().NoError(err)
+	s.Require().Nil(fetchRegistrationEntry)
+}
+
+func (s *PluginSuite) TestFetchRegistrationEntries() {
+	entry1, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type1", Value: "Value1"},
+		},
+		SpiffeId: "SpiffeId1",
+		ParentId: "ParentId1",
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(entry1)
+	entry2, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type2", Value: "Value2"},
+		},
+		SpiffeId: "SpiffeId2",
+		ParentId: "ParentId2",
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(entry2)
+	entry3, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type3", Value: "Value3"},
+		},
+		SpiffeId: "SpiffeId3",
+		ParentId: "ParentId3",
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(entry3)
+
+	// Create an entry and then delete it so we can test it doesn't get returned with the fetch
+	entry4, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		Selectors: []*common.Selector{
+			{Type: "Type4", Value: "Value4"},
+		},
+		SpiffeId: "SpiffeId4",
+		ParentId: "ParentId4",
+	})
+	s.Require().NoError(err)
+	s.Require().NotNil(entry4)
+	deletedEntry, err := s.ds.DeleteRegistrationEntry(ctx, entry4.EntryId)
+	s.Require().NotNil(deletedEntry)
+	s.Require().NoError(err)
+
+	for _, tt := range []struct {
+		name           string
+		entries        []*common.RegistrationEntry
+		deletedEntryId string
+	}{
+		{
+			name: "No entries",
+		},
+		{
+			name:    "Entries 1 and 2",
+			entries: []*common.RegistrationEntry{entry1, entry2},
+		},
+		{
+			name:    "Entries 1 and 3",
+			entries: []*common.RegistrationEntry{entry1, entry3},
+		},
+		{
+			name:    "Entries 1, 2, and 3",
+			entries: []*common.RegistrationEntry{entry1, entry2, entry3},
+		},
+		{
+			name:           "Deleted entry",
+			entries:        []*common.RegistrationEntry{entry2, entry3},
+			deletedEntryId: deletedEntry.EntryId,
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			entryIds := make([]string, 0, len(tt.entries))
+			for _, entry := range tt.entries {
+				entryIds = append(entryIds, entry.EntryId)
+			}
+			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, append(entryIds, tt.deletedEntryId))
+			s.Require().NoError(err)
+
+			// Make sure all entries we want to fetch are present
+			s.Require().Equal(len(tt.entries), len(fetchedRegistrationEntries))
+			for _, entry := range tt.entries {
+				fetchedRegistrationEntry, ok := fetchedRegistrationEntries[entry.EntryId]
+				s.Require().True(ok)
+				s.RequireProtoEqual(entry, fetchedRegistrationEntry)
+			}
+
+			// Make sure any deleted entries are not present.
+			_, ok := fetchedRegistrationEntries[tt.deletedEntryId]
+			s.Require().False(ok)
+		})
+	}
+}
+
 func (s *PluginSuite) TestPruneRegistrationEntries() {
 	now := time.Now()
 	entry := &common.RegistrationEntry{
@@ -5169,6 +5267,40 @@ func (s *PluginSuite) TestPruneCAJournal() {
 	caj, err = s.ds.FetchCAJournal(ctx, "x509-authority-1")
 	s.Require().NoError(err)
 	s.Require().Nil(caj)
+}
+
+func (s *PluginSuite) TestBuildQuestionsAndPlaceholders() {
+	for _, tt := range []struct {
+		name                 string
+		entries              []string
+		expectedQuestions    string
+		expectedPlaceholders string
+	}{
+		{
+			name:                 "No args",
+			expectedQuestions:    "",
+			expectedPlaceholders: "",
+		},
+		{
+			name:                 "One arg",
+			entries:              []string{"a"},
+			expectedQuestions:    "?",
+			expectedPlaceholders: "$1",
+		},
+		{
+			name:                 "Five args",
+			entries:              []string{"a", "b", "c", "e", "f"},
+			expectedQuestions:    "?,?,?,?,?",
+			expectedPlaceholders: "$1,$2,$3,$4,$5",
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			questions := buildQuestions(tt.entries)
+			s.Require().Equal(tt.expectedQuestions, questions)
+			placeholders := buildPlaceholders(tt.entries)
+			s.Require().Equal(tt.expectedPlaceholders, placeholders)
+		})
+	}
 }
 
 func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue any) {
