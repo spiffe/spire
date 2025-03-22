@@ -2137,7 +2137,7 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 
 	for _, tt := range []struct {
 		name           string
-		entryIds       []string
+		entries       []*common.RegistrationEntry
 		deletedEntryId string
 	}{
 		{
@@ -2145,32 +2145,36 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 		},
 		{
 			name:     "Entries 1 and 2",
-			entryIds: []string{entry1.EntryId, entry2.EntryId},
+			entries: []*common.RegistrationEntry{entry1, entry2},
 		},
 		{
 			name:     "Entries 1 and 3",
-			entryIds: []string{entry1.EntryId, entry3.EntryId},
+			entries: []*common.RegistrationEntry{entry1, entry3},
 		},
 		{
 			name:     "Entries 1, 2, and 3",
-			entryIds: []string{entry1.EntryId, entry2.EntryId, entry3.EntryId},
+			entries: []*common.RegistrationEntry{entry1, entry2, entry3},
 		},
 		{
 			name:           "Deleted entry",
-			entryIds:       []string{entry2.EntryId, entry3.EntryId},
+			entries:       []*common.RegistrationEntry{entry2, entry3},
 			deletedEntryId: deletedEntry.EntryId,
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
-			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, append(tt.entryIds, tt.deletedEntryId))
+			entryIds := make([]string, 0, len(tt.entries))
+			for _, entry := range tt.entries {
+				entryIds = append(entryIds, entry.EntryId)
+			}
+			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, append(entryIds, tt.deletedEntryId))
 			s.Require().NoError(err)
 
 			// Make sure all entries we want to fetch are present
-			s.Require().Equal(len(tt.entryIds), len(fetchedRegistrationEntries))
-			for _, entryId := range tt.entryIds {
-				fetchedRegistrationEntry, ok := fetchedRegistrationEntries[entryId]
+			s.Require().Equal(len(tt.entries), len(fetchedRegistrationEntries))
+			for _, entry := range tt.entries {
+				fetchedRegistrationEntry, ok := fetchedRegistrationEntries[entry.EntryId]
 				s.Require().True(ok)
-				s.Require().Equal(entryId, fetchedRegistrationEntry.EntryId)
+				s.RequireProtoEqual(entry, fetchedRegistrationEntry)
 			}
 
 			// Make sure any deleted entries are not present.
