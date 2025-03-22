@@ -2137,27 +2137,27 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 
 	for _, tt := range []struct {
 		name           string
-		entries       []*common.RegistrationEntry
+		entries        []*common.RegistrationEntry
 		deletedEntryId string
 	}{
 		{
 			name: "No entries",
 		},
 		{
-			name:     "Entries 1 and 2",
+			name:    "Entries 1 and 2",
 			entries: []*common.RegistrationEntry{entry1, entry2},
 		},
 		{
-			name:     "Entries 1 and 3",
+			name:    "Entries 1 and 3",
 			entries: []*common.RegistrationEntry{entry1, entry3},
 		},
 		{
-			name:     "Entries 1, 2, and 3",
+			name:    "Entries 1, 2, and 3",
 			entries: []*common.RegistrationEntry{entry1, entry2, entry3},
 		},
 		{
 			name:           "Deleted entry",
-			entries:       []*common.RegistrationEntry{entry2, entry3},
+			entries:        []*common.RegistrationEntry{entry2, entry3},
 			deletedEntryId: deletedEntry.EntryId,
 		},
 	} {
