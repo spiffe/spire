@@ -2665,7 +2665,7 @@ FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
-ORDER BY selector_id, dns_name_id
+ORDER BY e_id, selector_id, dns_name_id
 ;`, buildPlaceholders(entryIDs))
 	return query, buildArgs(entryIDs), nil
 }
@@ -2703,7 +2703,7 @@ LEFT JOIN
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
 WHERE E.entry_id IN (%s)
-ORDER BY selector_id, dns_name_id
+ORDER BY e_id, selector_id, dns_name_id
 ;`, buildQuestions(entryIDs))
 
 	return query, buildArgs(entryIDs), nil
@@ -2767,7 +2767,7 @@ FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
-ORDER BY selector_id, dns_name_id
+ORDER BY e_id, selector_id, dns_name_id
 ;`, buildQuestions(entryIDs))
 
 	return query, buildArgs(entryIDs), nil
