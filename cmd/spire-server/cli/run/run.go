@@ -106,12 +106,12 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	AuthOpaPolicyEngine   *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
-	CacheReloadInterval   string                      `hcl:"cache_reload_interval"`
-	EventsBasedCache      bool                        `hcl:"events_based_cache"`
-	PruneEventsOlderThan  string                      `hcl:"prune_events_older_than"`
-	SQLTransactionTimeout string                      `hcl:"sql_transaction_timeout"`
-	RequirePQKEM          bool                        `hcl:"require_pq_kem"`
+	AuthOpaPolicyEngine  *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
+	CacheReloadInterval  string                      `hcl:"cache_reload_interval"`
+	EventsBasedCache     bool                        `hcl:"events_based_cache"`
+	PruneEventsOlderThan string                      `hcl:"prune_events_older_than"`
+	EventTimeout         string                      `hcl:"event_timeout"`
+	RequirePQKEM         bool                        `hcl:"require_pq_kem"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -706,12 +706,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.PruneEventsOlderThan = interval
 	}
 
-	if c.Server.Experimental.SQLTransactionTimeout != "" {
-		interval, err := time.ParseDuration(c.Server.Experimental.SQLTransactionTimeout)
+	if c.Server.Experimental.EventTimeout != "" {
+		interval, err := time.ParseDuration(c.Server.Experimental.EventTimeout)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse SQL transaction timeout interval: %w", err)
+			return nil, fmt.Errorf("could not parse event timeout interval: %w", err)
 		}
-		sc.SQLTransactionTimeout = interval
+		sc.EventTimeout = interval
 	}
 
 	if c.Server.Experimental.EventsBasedCache {
