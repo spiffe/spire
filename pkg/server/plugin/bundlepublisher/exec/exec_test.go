@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"testing"
@@ -23,10 +22,9 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-
 var tmpFile *os.File
 
-func stubCommand(ctx context.Context, command string, args...string) *exec.Cmd {
+func stubCommand(ctx context.Context, command string, args ...string) *exec.Cmd {
 	cs := []string{"-test.run=TestHelperProcess", "--"}
 	tmpFile, err := os.CreateTemp("", "bundle-*.spiffe")
 	if err != nil {
@@ -39,14 +37,18 @@ func stubCommand(ctx context.Context, command string, args...string) *exec.Cmd {
 	} else {
 		cs = append(cs, "succeed")
 	}
+	// Push trust bundle to user configured process
+	// We use gosec -- the annotation below will disable a security check that users didn't specify the command
+	// Its their command.
+	/* #nosec G204 */
 	cmd := exec.Command(os.Args[0], cs...)
 	cmd.Env = []string{"HELPER_PROCESS=1"}
 	return cmd
 }
 
-func TestHelperProcess(t *testing.T){
+func TestHelperProcess(t *testing.T) {
 	if os.Getenv("HELPER_PROCESS") != "1" {
-		os.Exit(1)
+		return
 	}
 	if os.Args[4] == "fail" {
 		os.Exit(1)
@@ -203,7 +205,7 @@ func TestPublishBundle(t *testing.T) {
 				return
 			}
 			if tmpFile != nil {
-				data, err := ioutil.ReadFile(tmpFile.Name())
+				data, err := os.ReadFile(tmpFile.Name())
 				require.NoError(t, err)
 				require.True(t, len(data) > 0, "The exec failed to get data")
 				os.Remove(tmpFile.Name())
