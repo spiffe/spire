@@ -30,6 +30,7 @@ The trust bundle is formatted using PEM encoding. Only the X.509 authorities are
 ## Sample configuration
 
 ### Unixish
+
 ```hcl
     BundlePublisher "exec" {
         plugin_data {
@@ -40,6 +41,7 @@ The trust bundle is formatted using PEM encoding. Only the X.509 authorities are
 ```
 
 ### Windows
+
 ```hcl
     BundlePublisher "exec" {
         plugin_data {
