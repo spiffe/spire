@@ -286,6 +286,13 @@ func (s *DataStore) FetchRegistrationEntry(ctx context.Context, entryID string) 
 	return s.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
+func (s *DataStore) FetchRegistrationEntries(ctx context.Context, entryIDs []string) (map[string]*common.RegistrationEntry, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.FetchRegistrationEntries(ctx, entryIDs)
+}
+
 func (s *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
