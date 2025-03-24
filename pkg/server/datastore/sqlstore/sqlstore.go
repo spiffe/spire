@@ -498,7 +498,20 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 	entryID string,
 ) (*common.RegistrationEntry, error) {
-	return fetchRegistrationEntry(ctx, ds.db, entryID)
+	entries, err := fetchRegistrationEntries(ctx, ds.db, []string{entryID})
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the last element in the list
+	return entries[entryID], nil
+}
+
+// FetchRegistrationEntries fetches existing registrations by entry IDs
+func (ds *Plugin) FetchRegistrationEntries(ctx context.Context,
+	entryIDs []string,
+) (map[string]*common.RegistrationEntry, error) {
+	return fetchRegistrationEntries(ctx, ds.db, entryIDs)
 }
 
 // CountRegistrationEntries counts all registrations (pagination available)
@@ -2486,8 +2499,8 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 	return registrationEntry, nil
 }
 
-func fetchRegistrationEntry(ctx context.Context, db *sqlDB, entryID string) (*common.RegistrationEntry, error) {
-	query, args, err := buildFetchRegistrationEntryQuery(db.databaseType, db.supportsCTE, entryID)
+func fetchRegistrationEntries(ctx context.Context, db *sqlDB, entryIDs []string) (map[string]*common.RegistrationEntry, error) {
+	query, args, err := buildFetchRegistrationEntriesQuery(db.databaseType, db.supportsCTE, entryIDs)
 	if err != nil {
 		return nil, newWrappedSQLError(err)
 	}
@@ -2498,52 +2511,42 @@ func fetchRegistrationEntry(ctx context.Context, db *sqlDB, entryID string) (*co
 	}
 	defer rows.Close()
 
-	var entry *common.RegistrationEntry
-	for rows.Next() {
-		var r entryRow
-		if err := scanEntryRow(rows, &r); err != nil {
-			return nil, err
-		}
+	entries := make([]*common.RegistrationEntry, 0, len(entryIDs))
+	entries, _, err = rowsToCommonRegistrationEntries(rows, entries)
 
-		if entry == nil {
-			entry = new(common.RegistrationEntry)
-		}
-		if err := fillEntryFromRow(entry, &r); err != nil {
-			return nil, err
-		}
+	// Convert array to map
+	entriesMap := make(map[string]*common.RegistrationEntry)
+	for _, entry := range entries {
+		entriesMap[entry.EntryId] = entry
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, newWrappedSQLError(err)
-	}
-
-	return entry, nil
+	return entriesMap, err
 }
 
-func buildFetchRegistrationEntryQuery(dbType string, supportsCTE bool, entryID string) (string, []any, error) {
+func buildFetchRegistrationEntriesQuery(dbType string, supportsCTE bool, entryIDs []string) (string, []any, error) {
 	switch {
 	case isSQLiteDbType(dbType):
 		// The SQLite3 queries unconditionally leverage CTE since the
 		// embedded version of SQLite3 supports CTE.
-		return buildFetchRegistrationEntryQuerySQLite3(entryID)
+		return buildFetchRegistrationEntriesQuerySQLite3(entryIDs)
 	case isPostgresDbType(dbType):
 		// The PostgreSQL queries unconditionally leverage CTE since all versions
 		// of PostgreSQL supported by the plugin support CTE.
-		return buildFetchRegistrationEntryQueryPostgreSQL(entryID)
+		return buildFetchRegistrationEntriesQueryPostgreSQL(entryIDs)
 	case isMySQLDbType(dbType):
 		if supportsCTE {
-			return buildFetchRegistrationEntryQueryMySQLCTE(entryID)
+			return buildFetchRegistrationEntriesQueryMySQLCTE(entryIDs)
 		}
-		return buildFetchRegistrationEntryQueryMySQL(entryID)
+		return buildFetchRegistrationEntriesQueryMySQL(entryIDs)
 	default:
 		return "", nil, newSQLError("unsupported db type: %q", dbType)
 	}
 }
 
-func buildFetchRegistrationEntryQuerySQLite3(entryID string) (string, []any, error) {
-	const query = `
+func buildFetchRegistrationEntriesQuerySQLite3(entryIDs []string) (string, []any, error) {
+	query := fmt.Sprintf(`
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE entry_id = ?
+	SELECT id FROM registered_entries WHERE entry_id IN (%s)
 )
 SELECT
 	id AS e_id,
@@ -2598,15 +2601,16 @@ FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
-ORDER BY selector_id, dns_name_id
-;`
-	return query, []any{entryID}, nil
+ORDER BY e_id, selector_id, dns_name_id
+;`, buildQuestions(entryIDs))
+
+	return query, buildArgs(entryIDs), nil
 }
 
-func buildFetchRegistrationEntryQueryPostgreSQL(entryID string) (string, []any, error) {
-	const query = `
+func buildFetchRegistrationEntriesQueryPostgreSQL(entryIDs []string) (string, []any, error) {
+	query := fmt.Sprintf(`
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE entry_id = $1
+	SELECT id FROM registered_entries WHERE entry_id IN (%s)
 )
 SELECT
 	id AS e_id,
@@ -2661,13 +2665,13 @@ FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
-ORDER BY selector_id, dns_name_id
-;`
-	return query, []any{entryID}, nil
+ORDER BY e_id, selector_id, dns_name_id
+;`, buildPlaceholders(entryIDs))
+	return query, buildArgs(entryIDs), nil
 }
 
-func buildFetchRegistrationEntryQueryMySQL(entryID string) (string, []any, error) {
-	const query = `
+func buildFetchRegistrationEntriesQueryMySQL(entryIDs []string) (string, []any, error) {
+	query := fmt.Sprintf(`
 SELECT
 	E.id AS e_id,
 	E.entry_id AS entry_id,
@@ -2698,16 +2702,17 @@ LEFT JOIN
 	dns_names D ON joinItem=2 AND E.id=D.registered_entry_id
 LEFT JOIN
 	(federated_registration_entries F INNER JOIN bundles B ON F.bundle_id=B.id) ON joinItem=3 AND E.id=F.registered_entry_id
-WHERE E.entry_id = ?
-ORDER BY selector_id, dns_name_id
-;`
-	return query, []any{entryID}, nil
+WHERE E.entry_id IN (%s)
+ORDER BY e_id, selector_id, dns_name_id
+;`, buildQuestions(entryIDs))
+
+	return query, buildArgs(entryIDs), nil
 }
 
-func buildFetchRegistrationEntryQueryMySQLCTE(entryID string) (string, []any, error) {
-	const query = `
+func buildFetchRegistrationEntriesQueryMySQLCTE(entryIDs []string) (string, []any, error) {
+	query := fmt.Sprintf(`
 WITH listing AS (
-	SELECT id FROM registered_entries WHERE entry_id = ?
+	SELECT id FROM registered_entries WHERE entry_id IN (%s)
 )
 SELECT
 	id AS e_id,
@@ -2762,9 +2767,10 @@ FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
-ORDER BY selector_id, dns_name_id
-;`
-	return query, []any{entryID}, nil
+ORDER BY e_id, selector_id, dns_name_id
+;`, buildQuestions(entryIDs))
+
+	return query, buildArgs(entryIDs), nil
 }
 
 func listRegistrationEntries(ctx context.Context, db *sqlDB, log logrus.FieldLogger, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {
@@ -2862,39 +2868,9 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 	}
 	defer rows.Close()
 	entries := make([]*common.RegistrationEntry, 0, calculateResultPreallocation(req.Pagination))
-	pushEntry := func(entry *common.RegistrationEntry) {
-		// Due to previous bugs (i.e. #1191), there can be cruft rows related
-		// to a deleted registration entries that are fetched with the list
-		// query. To avoid hydrating partial entries, append only entries that
-		// have data from the registered_entries table (i.e. those with an
-		// entry id).
-		if entry != nil && entry.EntryId != "" {
-			entries = append(entries, entry)
-		}
-	}
-
-	var lastEID uint64
-	var entry *common.RegistrationEntry
-	for rows.Next() {
-		var r entryRow
-		if err := scanEntryRow(rows, &r); err != nil {
-			return nil, err
-		}
-
-		if entry == nil || lastEID != r.EId {
-			lastEID = r.EId
-			pushEntry(entry)
-			entry = new(common.RegistrationEntry)
-		}
-
-		if err := fillEntryFromRow(entry, &r); err != nil {
-			return nil, err
-		}
-	}
-	pushEntry(entry)
-
-	if err := rows.Err(); err != nil {
-		return nil, newWrappedSQLError(err)
+	entries, lastEID, err := rowsToCommonRegistrationEntries(rows, entries)
+	if err != nil {
+		return nil, err
 	}
 
 	resp := &datastore.ListRegistrationEntriesResponse{
@@ -4750,6 +4726,45 @@ func lookupSimilarEntry(ctx context.Context, db *sqlDB, tx *gorm.DB, entry *comm
 	return nil, nil
 }
 
+func rowsToCommonRegistrationEntries(rows *sql.Rows, entries []*common.RegistrationEntry) ([]*common.RegistrationEntry, uint64, error) {
+	pushEntry := func(entry *common.RegistrationEntry) {
+		// Due to previous bugs (i.e. #1191), there can be cruft rows related
+		// to a deleted registration entries that are fetched with the list
+		// query. To avoid hydrating partial entries, append only entries that
+		// have data from the registered_entries table (i.e. those with an
+		// entry id).
+		if entry != nil && entry.EntryId != "" {
+			entries = append(entries, entry)
+		}
+	}
+
+	var lastEID uint64
+	var entry *common.RegistrationEntry
+	for rows.Next() {
+		var r entryRow
+		if err := scanEntryRow(rows, &r); err != nil {
+			return nil, lastEID, err
+		}
+
+		if entry == nil || lastEID != r.EId {
+			lastEID = r.EId
+			pushEntry(entry)
+			entry = new(common.RegistrationEntry)
+		}
+
+		if err := fillEntryFromRow(entry, &r); err != nil {
+			return nil, lastEID, err
+		}
+	}
+	pushEntry(entry)
+
+	if err := rows.Err(); err != nil {
+		return nil, lastEID, newWrappedSQLError(err)
+	}
+
+	return entries, lastEID, nil
+}
+
 // roundedInSecondsUnix rounds the time to the nearest second, and return the time in seconds since the
 // unix epoch. This function is used to avoid issues with databases versions that do not support sub-second precision.
 func roundedInSecondsUnix(t time.Time) int64 {
@@ -4892,4 +4907,42 @@ func calculateResultPreallocation(pagination *datastore.Pagination) int32 {
 	default:
 		return maxResultPreallocation
 	}
+}
+
+// buildQuestions build list of question marks, one for each arg
+// Used to build a list of args to match for in a sql IN clause in MySQl and sqlite
+func buildQuestions(args []string) string {
+	num := len(args)
+	if num == 0 {
+		return ""
+	}
+	questions := strings.Repeat("?,", num-1)
+	questions += "?" // Add last question mark without trailing comma
+
+	return questions
+}
+
+// buildPlaceholders builds a list like $1, $2, $3...
+// For use in parameterized postgres queries
+func buildPlaceholders(args []string) string {
+	num := len(args)
+	if num == 0 {
+		return ""
+	}
+	placeholders := make([]string, num)
+	for i := range num {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+	}
+
+	return strings.Join(placeholders, ",")
+}
+
+// buildArgs convert as slice of strings to a slice of any
+func buildArgs(args []string) []any {
+	anyArgs := make([]any, 0, len(args))
+	for _, arg := range args {
+		anyArgs = append(anyArgs, arg)
+	}
+
+	return anyArgs
 }
