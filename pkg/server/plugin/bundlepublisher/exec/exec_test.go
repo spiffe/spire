@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
@@ -205,9 +206,11 @@ func TestPublishBundle(t *testing.T) {
 				return
 			}
 			if tmpFile != nil {
-				data, err := os.ReadFile(tmpFile.Name())
+				trustDomain, err := spiffeid.TrustDomainFromString("example.org")
 				require.NoError(t, err)
-				require.True(t, len(data) > 0, "The exec failed to get data")
+				bundle, err := spiffebundle.Load(trustDomain, tmpFile.Name())
+				require.NoError(t, err)
+				require.True(t, len(bundle.X509Authorities()) > 0, "The exec failed to get data")
 				os.Remove(tmpFile.Name())
 				tmpFile = nil
 			}
