@@ -127,12 +127,3 @@ func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.M
 
 	return cache, registrationEntries, attestedNodes, nil
 }
-
-func mapKeysToSlice(m map[string]struct{}) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
-
-	return keys
-}
