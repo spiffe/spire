@@ -218,7 +218,7 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 
 // updateCacheEntry update/deletes/creates an individual registration entry in the cache.
 func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
-	commonEntries, err := a.ds.FetchRegistrationEntries(ctx, mapKeysToSlice(a.fetchEntries))
+	commonEntries, err := a.ds.FetchRegistrationEntries(ctx, slices.Collect(maps.Keys(a.fetchEntries)))
 	if err != nil {
 		return err
 	}
