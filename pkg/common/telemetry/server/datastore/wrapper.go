@@ -155,6 +155,12 @@ func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID stri
 	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
+func (w metricsWrapper) FetchRegistrationEntries(ctx context.Context, entryIDs []string) (_ map[string]*common.RegistrationEntry, err error) {
+	callCounter := StartFetchRegistrationCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.FetchRegistrationEntries(ctx, entryIDs)
+}
+
 func (w metricsWrapper) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (_ *datastore.RegistrationEntryEvent, err error) {
 	callCounter := StartFetchRegistrationEntryEventCall(w.m)
 	defer callCounter.Done(&err)
