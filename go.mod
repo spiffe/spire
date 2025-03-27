@@ -1,6 +1,7 @@
 module github.com/spiffe/spire
 
 go 1.24.1
+
 require (
 	cloud.google.com/go/iam v1.4.1
 	cloud.google.com/go/kms v1.21.0
