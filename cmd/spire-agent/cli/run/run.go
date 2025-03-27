@@ -2,13 +2,11 @@ package run
 
 import (
 	"context"
-	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -26,10 +24,9 @@ import (
 	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
-	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/config"
@@ -37,7 +34,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
@@ -75,6 +71,8 @@ type agentConfig struct {
 	AdminSocketPath               string    `hcl:"admin_socket_path"`
 	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
 	RetryBootstrap                bool      `hcl:"retry_bootstrap"`
+	Rebootstrap                   bool      `hcl:"rebootstrap"`
+	RebootstrapDelay              string    `hcl:"rebootstrap_delay"`
 	JoinToken                     string    `hcl:"join_token"`
 	LogFile                       string    `hcl:"log_file"`
 	LogFormat                     string    `hcl:"log_format"`
@@ -336,6 +334,8 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.BoolVar(&c.AllowUnauthenticatedVerifiers, "allowUnauthenticatedVerifiers", false, "If true, the agent permits the retrieval of X509 certificate bundles by unregistered clients")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&c.RetryBootstrap, "retryBootstrap", false, "If true, the agent retries bootstrap with backoff")
+	flags.BoolVar(&c.Rebootstrap, "rebootstrap", false, "If true, the agent will retry bootstrapping after seeing an x509 cert mismatch from the server")
+	flags.StringVar(&c.RebootstrapDelay, "rebootstrapDelay", "10m", "The time to delay after seeing a x509 cert mismatch from the server before rebootstrapping")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
 	c.addOSFlags(flags)
@@ -370,87 +370,6 @@ func mergeInput(fileInput *Config, cliInput *agentConfig) (*Config, error) {
 	return c, nil
 }
 
-func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x509.Certificate, error) {
-	switch trustBundleContentType {
-	case bundleFormatPEM:
-		bundle, err := pemutil.ParseCertificates(bundleBytes)
-		if err != nil {
-			return nil, err
-		}
-		return bundle, nil
-	case bundleFormatSPIFFE:
-		bundle, err := bundleutil.Unmarshal(spiffeid.TrustDomain{}, bundleBytes)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse SPIFFE trust bundle: %w", err)
-		}
-		return bundle.X509Authorities(), nil
-	}
-
-	return nil, fmt.Errorf("unknown trust bundle format: %s", trustBundleContentType)
-}
-
-func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
-	// Download the trust bundle URL from the user specified URL
-	// We use gosec -- the annotation below will disable a security check that URLs are not tainted
-	/* #nosec G107 */
-	resp, err := http.Get(trustBundleURL)
-	if err != nil {
-		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %w", trustBundleURL, err)
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error downloading trust bundle: %s", resp.Status)
-	}
-	pemBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read from trust bundle URL %s: %w", trustBundleURL, err)
-	}
-
-	return pemBytes, nil
-}
-
-func setupTrustBundle(ac *agent.Config, c *Config) error {
-	// Either download the trust bundle if TrustBundleURL is set, or read it
-	// from disk if TrustBundlePath is set
-	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
-
-	var bundleBytes []byte
-	var err error
-
-	switch {
-	case c.Agent.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL)
-		if err != nil {
-			return err
-		}
-	case c.Agent.TrustBundlePath != "":
-		bundleBytes, err = loadTrustBundle(c.Agent.TrustBundlePath)
-		if err != nil {
-			return fmt.Errorf("could not parse trust bundle: %w", err)
-		}
-	default:
-		// If InsecureBootstrap is configured, the bundle is not required
-		if ac.InsecureBootstrap {
-			return nil
-		}
-	}
-
-	bundle, err := parseTrustBundle(bundleBytes, c.Agent.TrustBundleFormat)
-	if err != nil {
-		return err
-	}
-
-	if len(bundle) == 0 {
-		return errors.New("no certificates found in trust bundle")
-	}
-
-	ac.TrustBundle = bundle
-
-	return nil
-}
-
 func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*agent.Config, error) {
 	ac := &agent.Config{}
 
@@ -459,6 +378,16 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.RetryBootstrap = c.Agent.RetryBootstrap
+	if c.Agent.Rebootstrap {
+		delay, err := time.ParseDuration(c.Agent.RebootstrapDelay)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing duration:", err)
+		}
+		ac.RebootstrapDelay = &delay
+		if !ac.RetryBootstrap {
+			return nil, fmt.Errorf("RetryBootstrap needs to be true to support rebootstrapping")
+		}
+	}
 
 	if c.Agent.Experimental.SyncInterval != "" {
 		var err error
@@ -542,10 +471,17 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.DisableSPIFFECertValidation = c.Agent.SDS.DisableSPIFFECertValidation
 
-	err = setupTrustBundle(ac, c)
-	if err != nil {
-		return nil, err
+	ts := &trustbundlesources.Config{
+		InsecureBootstrap: c.Agent.InsecureBootstrap,
+		TrustBundleFormat: c.Agent.TrustBundleFormat,
+		TrustBundlePath:   c.Agent.TrustBundlePath,
+		TrustBundleURL:    c.Agent.TrustBundleURL,
+		TrustDomain:       c.Agent.TrustDomain,
+		ServerAddress:     c.Agent.ServerAddress,
+		ServerPort:        c.Agent.ServerPort,
 	}
+
+	ac.TrustBundleSources = trustbundlesources.New(ts, ac.Log.WithField("Logger", "TrustBundleSources"))
 
 	ac.WorkloadKeyType = workloadkey.ECP256
 	if c.Agent.WorkloadX509SVIDKeyType != "" {
@@ -703,13 +639,4 @@ func defaultConfig() *Config {
 	c.Agent.setPlatformDefaults()
 
 	return c
-}
-
-func loadTrustBundle(path string) ([]byte, error) {
-	bundleBytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	return bundleBytes, nil
 }
