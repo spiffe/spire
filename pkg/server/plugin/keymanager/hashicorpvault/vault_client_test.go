@@ -842,7 +842,7 @@ func TestGetKey(t *testing.T) {
 	resp, err := client.getKey(context.Background(), "x509-CA-A")
 	require.NoError(t, err)
 
-	require.Equal(t, map[string]interface{}{
+	require.Equal(t, map[string]any{
 		"name":          "P-256",
 		"creation_time": "2024-09-16T18:18:54.284635756Z",
 		"public_key":    "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEV57LFbIQZzyZ2YcKZfB9mGWkUhJv\niRzIZOqV4wRHoUOZjMuhBMR2WviEsy65TYpcBjreAc6pbneiyhlTwPvgmw==\n-----END PUBLIC KEY-----\n",

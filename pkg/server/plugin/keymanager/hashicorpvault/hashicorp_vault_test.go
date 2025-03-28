@@ -250,21 +250,21 @@ func TestValidate(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tt := range []struct {
-		name             string
-		hclConfiguration string
-		expectResp       *configv1.ValidateResponse
+		name       string
+		configTmpl string
+		expectResp *configv1.ValidateResponse
 	}{
 		{
-			name:             "Valid configuration",
-			hclConfiguration: testTokenAuthConfigTpl,
+			name:       "Valid configuration",
+			configTmpl: testTokenAuthConfigTpl,
 			expectResp: &configv1.ValidateResponse{
 				Valid: true,
 				Notes: nil,
 			},
 		},
 		{
-			name:             "Unable to parse configuration",
-			hclConfiguration: "invalid!",
+			name:       "Unable to parse configuration",
+			configTmpl: "invalid!",
 			expectResp: &configv1.ValidateResponse{
 				Valid: false,
 				Notes: []string{
@@ -274,10 +274,10 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name: "Unable to persist Server ID",
-			hclConfiguration: `
-vault_addr  = "{{ .Addr }}"
-ca_cert_path = "testdata/root-cert.pem"
-`, // #nosec G101
+			configTmpl: `
+		vault_addr  = "{{ .Addr }}"
+		ca_cert_path = "testdata/root-cert.pem"
+		`, // #nosec G101
 			expectResp: &configv1.ValidateResponse{
 				Valid: false,
 				Notes: []string{
@@ -287,11 +287,13 @@ ca_cert_path = "testdata/root-cert.pem"
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			plainConfig := getTestConfigureRequest(t, "https://localhost", createKeyIdentifierFile(t), tt.configTmpl)
+
 			req := &configv1.ValidateRequest{
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost").Name(),
 				},
-				HclConfiguration: tt.hclConfiguration,
+				HclConfiguration: plainConfig,
 			}
 
 			p := new(Plugin)
