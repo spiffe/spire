@@ -274,6 +274,17 @@ func (c *agentConfig) validate() error {
 		if u.Scheme != "https" && u.Scheme != "unix" {
 			return errors.New("trust bundle URL must start with https:// or unix://")
 		}
+		if u.Scheme == "unix" {
+			params := u.Query()
+			for key := range params {
+				if strings.HasPrefix(key, "spiffe-") {
+					return errors.New("trust_bundle_url query params can not start with spiffe-")
+				}
+				if strings.HasPrefix(key, "spire-") {
+					return errors.New("trust_bundle_url query params can not start with spire-")
+				}
+			}
+		}
 	}
 
 	return c.validateOS()
