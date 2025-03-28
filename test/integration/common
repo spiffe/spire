@@ -83,6 +83,14 @@ docker-cleanup() {
     docker compose down -v --remove-orphans
 }
 
+docker-spire-server-up() {
+    docker-up "$@"
+
+    for container in "$@"; do
+        check-server-started ${container}
+    done
+}
+
 fingerprint() {
 	# calculate the SHA1 digest of the DER bytes of the certificate using the
 	# "coreutils" output format (`-r`) to provide uniform output from

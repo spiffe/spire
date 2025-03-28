@@ -7,8 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -110,10 +108,6 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		slots[NextJWTKeySlot] = nextJWTKey
 	}
 
-	// TODO: Remove after 1.11.0 release.
-	// No point in checking for errors here, we're just trying to clean up the
-	// CA journal file that was used before 1.9.0.
-	os.Remove(s.journalPath())
 	return loadedJournal, slots, nil
 }
 
@@ -146,17 +140,6 @@ func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*journal.X509
 		// ACTIVE entry must go into current slot
 		case journal.Status_ACTIVE:
 			current = slot
-
-		// Status can be UNKNOWN only after an upgrade when this happens,
-		// we must first set next position, and then current is the next one
-		// TODO: status in journal has been introduced in v1.7.
-		// Keep this validation in v1.7.x and v1.8.x. Remove this in v1.9.
-		case journal.Status_UNKNOWN:
-			if next == nil {
-				next = slot
-			} else if current == nil {
-				current = slot
-			}
 
 		// Set OLD or PREPARED as next slot
 		// Get the newest, since Prepared entry must always be located before an Old entry
@@ -219,17 +202,6 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 		// ACTIVE entry must go into current slot
 		case journal.Status_ACTIVE:
 			current = slot
-
-		// Status can be UNKNOWN only after an upgrade when this happens,
-		// we must first set next position, and then current is the next one
-		// TODO: status in journal has been introduced in v1.7.
-		// Keep this validation in v1.7.x and v1.8.x. Remove this in v1.9.
-		case journal.Status_UNKNOWN:
-			if next == nil {
-				next = slot
-			} else if current == nil {
-				current = slot
-			}
 
 		// Set OLD or PREPARED as next slot
 		// Get the newest, since Prepared entry must always be located before an Old entry
@@ -468,10 +440,6 @@ func (s *SlotLoader) makeSigner(ctx context.Context, keyID string) (crypto.Signe
 	default:
 		return nil, err
 	}
-}
-
-func (s *SlotLoader) journalPath() string {
-	return filepath.Join(s.Dir, "journal.pem")
 }
 
 func x509CAKmKeyID(id string) string {
