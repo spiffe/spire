@@ -1,7 +1,6 @@
 module github.com/spiffe/spire
 
 go 1.24.1
-
 require (
 	cloud.google.com/go/iam v1.4.1
 	cloud.google.com/go/kms v1.21.0
@@ -42,7 +41,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.0.5
 	github.com/go-sql-driver/mysql v1.9.1
 	github.com/godbus/dbus/v5 v5.1.0
-	github.com/gofrs/uuid/v5 v5.3.1
+	github.com/gofrs/uuid/v5 v5.3.2
 	github.com/gogo/status v1.1.1
 	github.com/google/btree v1.1.3
 	github.com/google/go-cmp v0.7.0
