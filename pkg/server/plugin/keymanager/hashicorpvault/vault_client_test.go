@@ -7,12 +7,13 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
-	vapi "github.com/hashicorp/vault/api"
-	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	"net/http"
 	"os"
 	"testing"
 	"time"
+
+	vapi "github.com/hashicorp/vault/api"
+	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/sdk/helper/consts"
@@ -118,7 +119,6 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 			expectMsgPrefix: "token is empty",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer.LookupSelfResponse = tt.response
 
@@ -186,7 +186,6 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 			namespace: "test-ns",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer.AppRoleAuthResponse = tt.response
 
@@ -276,7 +275,6 @@ func TestNewAuthenticatedClientCertAuth(t *testing.T) {
 			namespace: "test-ns",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer.CertAuthResponse = tt.response
 
@@ -367,7 +365,6 @@ func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
 			namespace: "test-ns",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer.K8sAuthResponse = tt.response
 

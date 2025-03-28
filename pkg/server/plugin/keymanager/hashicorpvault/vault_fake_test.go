@@ -30,13 +30,13 @@ vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
 token_auth {
    token  = "test-token"
-}`
+}` // #nosec G101
 
 	testTokenAuthConfigWithEnvTpl = `
 key_identifier_file = "{{ .KeyIdentifierFile }}"
 vault_addr  = "{{ .Addr }}"
 ca_cert_path = "testdata/root-cert.pem"
-token_auth {}`
+token_auth {}` // #nosec G101
 
 	testCertAuthConfigTpl = `
 key_identifier_file = "{{ .KeyIdentifierFile }}"
@@ -147,7 +147,7 @@ ca_cert_path = "testdata/root-cert.pem"
 k8s_auth {
    k8s_auth_mount_point = "test-k8s-auth"
    k8s_auth_role_name = "my-role"
-}`
+}` // #nosec G101
 
 	testCertAuthResponse = `{
   "auth": {
