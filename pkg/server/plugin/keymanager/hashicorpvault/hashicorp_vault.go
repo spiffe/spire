@@ -6,6 +6,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
+	"sync"
+	"time"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid/v5"
@@ -15,11 +19,9 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"os"
-	"sync"
-	"time"
 )
 
 const (
@@ -167,21 +169,12 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	config := new(Config)
-
-	if err := hcl.Decode(&config, req.HclConfiguration); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
+	config, _, err := pluginconf.Build(req, buildConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	serverID := config.KeyIdentifierValue
-	if serverID == "" {
-		var err error
-
-		if serverID, err = getOrCreateServerID(config.KeyIdentifierFile); err != nil {
-			return nil, err
-		}
-	}
-
 	p.logger.Debug("Loaded server id", "server_id", serverID)
 
 	if config.InsecureSkipVerify {
@@ -199,6 +192,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if err != nil {
 		return nil, err
 	}
+
 	vcConfig, err := NewClientConfig(cp, p.logger)
 	if err != nil {
 		return nil, err
@@ -233,6 +227,34 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	go p.scheduleDeleteTask(ctx)
 
 	return &configv1.ConfigureResponse{}, nil
+}
+
+func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	_, notes, err := pluginconf.Build(req, buildConfig)
+
+	return &configv1.ValidateResponse{
+		Valid: err == nil,
+		Notes: notes,
+	}, nil
+}
+
+func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+	newConfig := new(Config)
+
+	if err := hcl.Decode(&newConfig, hclText); err != nil {
+		status.ReportErrorf("unable to decode configuration: %v", err)
+		return nil
+	}
+
+	if newConfig.KeyIdentifierValue == "" {
+		if serverID, err := getOrCreateServerID(newConfig.KeyIdentifierFile); err != nil {
+			status.ReportErrorf("unable to decode configuration: %v", err)
+		} else {
+			newConfig.KeyIdentifierValue = serverID
+		}
+	}
+
+	return newConfig
 }
 
 func parseAuthMethod(config *Config) (AuthMethod, error) {

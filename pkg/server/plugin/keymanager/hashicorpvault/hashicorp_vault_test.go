@@ -4,14 +4,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/hashicorp/vault/sdk/helper/consts"
-	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
 	"os"
 	"path/filepath"
 	"testing"
 	"text/template"
+
+	"github.com/hashicorp/vault/sdk/helper/consts"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -183,7 +185,6 @@ func TestPluginConfigure(t *testing.T) {
 			expectTransitEnginePath: "transit",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer := setupSuccessFakeVaultServer(tt.expectTransitEnginePath)
 			s, addr, err := fakeVaultServer.NewTLSServer()
@@ -201,10 +202,8 @@ func TestPluginConfigure(t *testing.T) {
 				return v, ok
 			}
 
-			plainConfig := ""
-			if tt.plainConfig != "" {
-				plainConfig = tt.plainConfig
-			} else {
+			plainConfig := tt.plainConfig
+			if tt.plainConfig == "" {
 				plainConfig = getTestConfigureRequest(t, fmt.Sprintf("https://%v/", addr), createKeyIdentifierFile(t), tt.configTmpl)
 			}
 
@@ -243,6 +242,62 @@ func TestPluginConfigure(t *testing.T) {
 
 			require.Equal(t, tt.expectTransitEnginePath, p.cc.clientParams.TransitEnginePath)
 			require.Equal(t, tt.expectNamespace, p.cc.clientParams.Namespace)
+		})
+	}
+}
+
+func TestValidate(t *testing.T) {
+	ctx := context.Background()
+
+	for _, tt := range []struct {
+		name             string
+		hclConfiguration string
+		expectResp       *configv1.ValidateResponse
+	}{
+		{
+			name:             "Valid configuration",
+			hclConfiguration: testTokenAuthConfigTpl,
+			expectResp: &configv1.ValidateResponse{
+				Valid: true,
+				Notes: nil,
+			},
+		},
+		{
+			name:             "Unable to parse configuration",
+			hclConfiguration: "invalid!",
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{
+					"unable to decode configuration: At 1:8: illegal char",
+				},
+			},
+		},
+		{
+			name: "Unable to persist Server ID",
+			hclConfiguration: `
+vault_addr  = "{{ .Addr }}"
+ca_cert_path = "testdata/root-cert.pem"
+`, // #nosec G101
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{
+					"unable to decode configuration: rpc error: code = Internal desc = failed to persist server ID on path: open : no such file or directory",
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &configv1.ValidateRequest{
+				CoreConfiguration: &configv1.CoreConfiguration{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost").Name(),
+				},
+				HclConfiguration: tt.hclConfiguration,
+			}
+
+			p := new(Plugin)
+			resp, err := p.Validate(ctx, req)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectResp, resp)
 		})
 	}
 }
@@ -489,7 +544,6 @@ func TestPluginGenerateKey(t *testing.T) {
 			},
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer := tt.fakeServer()
 
@@ -681,7 +735,6 @@ func TestPluginGetKey(t *testing.T) {
 			expectMsgPrefix: "unable to decode PEM key",
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			fakeVaultServer := tt.fakeServer()
 
