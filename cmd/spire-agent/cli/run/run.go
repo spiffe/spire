@@ -389,7 +389,7 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 	return nil, fmt.Errorf("unknown trust bundle format: %s", trustBundleContentType)
 }
 
-func downloadTrustBundle(trustBundleURL string, serverAddress string, serverPort int, trustDomain string) ([]byte, error) {
+func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
 	var req *http.Request
 	u, err := url.Parse(trustBundleURL)
 	if err != nil {
@@ -405,12 +405,6 @@ func downloadTrustBundle(trustBundleURL string, serverAddress string, serverPort
 				},
 			},
 		}
-		params := u.Query()
-		params.Set("trust-domain", trustDomain)
-		params.Set("server-address", serverAddress)
-		params.Set("server-port", strconv.Itoa(serverPort))
-		params.Set("mode", "bootstrap")
-		u.RawQuery = params.Encode()
 		u.Scheme = "http"
 		u.Host = "localhost"
 		u.Path = "/"
@@ -453,7 +447,7 @@ func setupTrustBundle(ac *agent.Config, c *Config) error {
 
 	switch {
 	case c.Agent.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL, c.Agent.ServerAddress, c.Agent.ServerPort, c.Agent.TrustDomain)
+		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL)
 		if err != nil {
 			return err
 		}
