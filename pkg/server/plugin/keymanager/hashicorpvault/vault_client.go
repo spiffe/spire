@@ -377,7 +377,7 @@ const (
 // CreateKey creates a new key in the specified transit secret engine
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#create-key
 func (c *Client) CreateKey(ctx context.Context, keyName string, keyType TransitKeyType) error {
-	arguments := map[string]interface{}{
+	arguments := map[string]any{
 		"type":       keyType,
 		"exportable": "false", // SPIRE keys are never exportable
 	}
@@ -393,7 +393,7 @@ func (c *Client) CreateKey(ctx context.Context, keyName string, keyType TransitK
 // DeleteKey deletes a key in the specified transit secret engine
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#update-key-configuration and https://developer.hashicorp.com/vault/api-docs/secret/transit#delete-key
 func (c *Client) DeleteKey(ctx context.Context, keyName string) error {
-	arguments := map[string]interface{}{
+	arguments := map[string]any{
 		"deletion_allowed": "true",
 	}
 
@@ -416,7 +416,7 @@ func (c *Client) DeleteKey(ctx context.Context, keyName string) error {
 func (c *Client) SignData(ctx context.Context, keyName string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
 	encodedData := base64.StdEncoding.EncodeToString(data)
 
-	body := map[string]interface{}{
+	body := map[string]any{
 		"input":                 encodedData,
 		"signature_algorithm":   signatureAlgo,
 		"marshalling_algorithm": "asn1",
@@ -471,7 +471,7 @@ func (c *Client) GetKeys(ctx context.Context) ([]*keyEntry, error) {
 		return nil, status.Errorf(codes.Internal, "transit engine list keys call was successful but keys are missing")
 	}
 
-	keyNames, ok := keys.([]interface{})
+	keyNames, ok := keys.([]any)
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "expected keys data type %T but got %T", keyNames, keys)
 	}
@@ -558,7 +558,7 @@ func (c *Client) getKeyEntry(ctx context.Context, keyName string) (*keyEntry, er
 
 // getKey returns a specific key from the transit engine.
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#read-key
-func (c *Client) getKey(ctx context.Context, keyName string) (map[string]interface{}, error) {
+func (c *Client) getKey(ctx context.Context, keyName string) (map[string]any, error) {
 	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.clientParams.TransitEnginePath, keyName))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get transit engine key: %v", err)
@@ -569,7 +569,7 @@ func (c *Client) getKey(ctx context.Context, keyName string) (map[string]interfa
 		return nil, status.Errorf(codes.Internal, "transit engine get key call was successful but keys are missing")
 	}
 
-	keyMap, ok := keys.(map[string]interface{})
+	keyMap, ok := keys.(map[string]any)
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "expected key map data type %T but got %T", keyMap, keys)
 	}
@@ -579,7 +579,7 @@ func (c *Client) getKey(ctx context.Context, keyName string) (map[string]interfa
 		return nil, status.Errorf(codes.Internal, "unable to find key with version 1 in %v", keyMap)
 	}
 
-	currentKeyMap, ok := currentKey.(map[string]interface{})
+	currentKeyMap, ok := currentKey.(map[string]any)
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "expected key data type %T but got %T", currentKeyMap, currentKey)
 	}
