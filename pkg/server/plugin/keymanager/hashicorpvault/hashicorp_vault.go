@@ -246,12 +246,20 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
-	if newConfig.KeyIdentifierValue == "" {
-		if serverID, err := getOrCreateServerID(newConfig.KeyIdentifierFile); err != nil {
-			status.ReportErrorf("unable to decode configuration: %v", err)
-		} else {
-			newConfig.KeyIdentifierValue = serverID
+	switch {
+	case newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "":
+		status.ReportErrorf("only one of 'key_identifier_file' or 'key_identifier_value' should be provided")
+
+	case newConfig.KeyIdentifierFile == "" && newConfig.KeyIdentifierValue == "":
+		status.ReportErrorf("one of 'key_identifier_file' or 'key_identifier_value' must be provided")
+
+	case newConfig.KeyIdentifierValue == "":
+		// Generate or retrieve the Server ID if KeyIdentifierValue is not provided
+		serverID, err := getOrCreateServerID(newConfig.KeyIdentifierFile)
+		if err != nil {
+			status.ReportErrorf("failed to generate or retrieve server ID: %v", err)
 		}
+		newConfig.KeyIdentifierValue = serverID
 	}
 
 	return newConfig

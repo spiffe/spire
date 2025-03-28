@@ -273,15 +273,30 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "Unable to persist Server ID",
+			name: "Only one key identifier is required",
 			configTmpl: `
-		vault_addr  = "{{ .Addr }}"
-		ca_cert_path = "testdata/root-cert.pem"
-		`, // #nosec G101
+                key_identifier_value = "value"
+                key_identifier_file = "{{ .KeyIdentifierFile }}"
+                vault_addr  = "{{ .Addr }}"
+                ca_cert_path = "testdata/root-cert.pem"
+		`,
 			expectResp: &configv1.ValidateResponse{
 				Valid: false,
 				Notes: []string{
-					"unable to decode configuration: rpc error: code = Internal desc = failed to persist server ID on path: open : no such file or directory",
+					"only one of 'key_identifier_file' or 'key_identifier_value' should be provided",
+				},
+			},
+		},
+		{
+			name: "At least one key identifier is required",
+			configTmpl: `
+		vault_addr  = "{{ .Addr }}"
+		ca_cert_path = "testdata/root-cert.pem"
+		`,
+			expectResp: &configv1.ValidateResponse{
+				Valid: false,
+				Notes: []string{
+					"one of 'key_identifier_file' or 'key_identifier_value' must be provided",
 				},
 			},
 		},
