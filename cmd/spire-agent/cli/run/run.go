@@ -418,7 +418,7 @@ func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
 		}
 		u.Scheme = "http"
 		u.Host = "localhost"
-		u.Path = "/"
+		u.Path = "/trustbundle"
 		req, err = http.NewRequest("GET", u.String(), nil)
 	} else {
 		req, err = http.NewRequest("GET", trustBundleURL, nil)
