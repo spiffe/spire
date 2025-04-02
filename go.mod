@@ -1,7 +1,6 @@
 module github.com/spiffe/spire
 
 go 1.24.1
-
 require (
 	cloud.google.com/go/iam v1.4.1
 	cloud.google.com/go/kms v1.21.0
@@ -62,7 +61,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.10.9
-	github.com/mattn/go-sqlite3 v1.14.24
+	github.com/mattn/go-sqlite3 v1.14.27
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v1.3.0
 	github.com/prometheus/client_golang v1.21.1
