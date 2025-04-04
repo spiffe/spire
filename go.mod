@@ -75,7 +75,7 @@ require (
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20250109200630-101d5e7de758
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20240701180828-594312f4444d
 	github.com/stretchr/testify v1.10.0
-	github.com/uber-go/tally/v4 v4.1.16
+	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.4
 	golang.org/x/crypto v0.36.0
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
