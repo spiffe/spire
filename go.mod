@@ -3,7 +3,7 @@ module github.com/spiffe/spire
 go 1.24.1
 
 require (
-	cloud.google.com/go/iam v1.4.1
+	cloud.google.com/go/iam v1.5.0
 	cloud.google.com/go/kms v1.21.0
 	cloud.google.com/go/secretmanager v1.14.5
 	cloud.google.com/go/security v1.18.3
@@ -99,11 +99,11 @@ require (
 	4d63.com/gocheckcompilerdirectives v1.2.1 // indirect
 	4d63.com/gochecknoglobals v0.2.2 // indirect
 	cel.dev/expr v0.19.2 // indirect
-	cloud.google.com/go v0.118.3 // indirect
+	cloud.google.com/go v0.120.0 // indirect
 	cloud.google.com/go/auth v0.15.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
-	cloud.google.com/go/longrunning v0.6.5 // indirect
+	cloud.google.com/go/longrunning v0.6.6 // indirect
 	cloud.google.com/go/monitoring v1.24.0 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
@@ -432,7 +432,7 @@ require (
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 	google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20250313205543-e70fdf4c4cb4 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
