@@ -30,8 +30,8 @@ type attestedNodes struct {
 	firstEventTime time.Time
 	lastEvent      uint
 
-	eventTracker          *eventTracker
-	sqlTransactionTimeout time.Duration
+	eventTracker *eventTracker
+	eventTimeout time.Duration
 
 	fetchNodes map[string]struct{}
 
@@ -54,7 +54,7 @@ func (a *attestedNodes) captureChangedNodes(ctx context.Context) error {
 
 func (a *attestedNodes) searchBeforeFirstEvent(ctx context.Context) error {
 	// First event detected, and startup was less than a transaction timout away.
-	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.sqlTransactionTimeout {
+	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.eventTimeout {
 		resp, err := a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
 			LessThanEventID: a.firstEvent,
 		})
@@ -154,16 +154,16 @@ func (a *attestedNodes) loadCache(ctx context.Context) error {
 
 // buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
 // It runs once at startup.
-func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, cacheReloadInterval, sqlTransactionTimeout time.Duration) (*attestedNodes, error) {
-	pollPeriods := PollPeriods(cacheReloadInterval, sqlTransactionTimeout)
+func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, cacheReloadInterval, eventTimeout time.Duration) (*attestedNodes, error) {
+	pollPeriods := PollPeriods(cacheReloadInterval, eventTimeout)
 
 	attestedNodes := &attestedNodes{
-		cache:                 cache,
-		clk:                   clk,
-		ds:                    ds,
-		log:                   log,
-		metrics:               metrics,
-		sqlTransactionTimeout: sqlTransactionTimeout,
+		cache:        cache,
+		clk:          clk,
+		ds:           ds,
+		log:          log,
+		metrics:      metrics,
+		eventTimeout: eventTimeout,
 
 		eventsBeforeFirst: make(map[uint]struct{}),
 		fetchNodes:        make(map[string]struct{}),
