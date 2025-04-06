@@ -153,7 +153,12 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 			params.Set("spiffe-trust-domain", b.config.TrustDomain)
 			u.RawQuery = params.Encode()
 		}
-		b.log.Info("Getting trust bundle %s", u.String())
+		if b.use == UseRebootstrap {
+			b.log.Info(fmt.Sprintf("Server reattestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+		} else {
+			b.log.Info(fmt.Sprintf("Server attestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+		}
+		b.log.Debug(fmt.Sprintf("Server attestation url: %s", u.String()))
 		bundleBytes, err = downloadTrustBundle(u.String(), b.config.TrustBundleUnixSocket)
 		if err != nil {
 			return nil, false, err
