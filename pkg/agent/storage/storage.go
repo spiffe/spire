@@ -38,10 +38,10 @@ type Storage interface {
 	StoreBundle(certs []*x509.Certificate) error
 
 	// LoadBootstrapState returns the Bootstrap state items
-	LoadBootstrapState() (use int, start_time time.Time, err error)
+	LoadBootstrapState() (use int, start_time time.Time, connectionAttempts int, err error)
 
 	// StoreBootstrapState stores the use and start_time bootstrap states for future use
-	StoreBootstrapState(use int, start_time time.Time) error
+	StoreBootstrapState(use int, start_time time.Time, connectionAttempts int) error
 
 	// DeleteBootstrapState removes the bootstrap state
 	DeleteBootstrapState() error
@@ -132,20 +132,20 @@ func (s *storage) DeleteSVID() error {
 	return nil
 }
 
-func (s *storage) LoadBootstrapState() (use int, start_time time.Time, err error) {
+func (s *storage) LoadBootstrapState() (use int, start_time time.Time, connectionAttempts int, err error) {
 	s.mtx.RLock()
 	defer s.mtx.RUnlock()
 
-	return s.data.BootstrapUse, s.data.BootstrapStartTime, nil
+	return s.data.BootstrapUse, s.data.BootstrapStartTime, s.data.ConnectionAttempts, nil
 }
-func (s *storage) StoreBootstrapState(use int, start_time time.Time) error {
+func (s *storage) StoreBootstrapState(use int, start_time time.Time, connectionAttempts int) error {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
 
 	data := s.data
 	data.BootstrapUse = use
 	data.BootstrapStartTime = start_time
-
+	data.ConnectionAttempts = connectionAttempts
 	if err := storeData(s.dir, data); err != nil {
 		return err
 	}
@@ -161,6 +161,7 @@ func (s *storage) DeleteBootstrapState() error {
 	data := s.data
 	data.BootstrapUse = 0
 	data.BootstrapStartTime = time.Time{}
+	data.ConnectionAttempts = 0
 	if err := storeData(s.dir, data); err != nil {
 		return err
 	}
@@ -175,6 +176,7 @@ type storageJSON struct {
 	Reattestable       bool      `json:"reattestable"`
 	BootstrapUse       int       `json:"bootstrap_use"`
 	BootstrapStartTime time.Time `json:"bootstrap_start_time"`
+	ConnectionAttempts int       `json:"connection_attempts"`
 }
 
 type storageData struct {
@@ -183,6 +185,7 @@ type storageData struct {
 	Reattestable       bool
 	BootstrapUse       int
 	BootstrapStartTime time.Time
+	ConnectionAttempts int
 }
 
 func (d storageData) MarshalJSON() ([]byte, error) {
@@ -200,6 +203,7 @@ func (d storageData) MarshalJSON() ([]byte, error) {
 		Reattestable:       d.Reattestable,
 		BootstrapUse:       d.BootstrapUse,
 		BootstrapStartTime: d.BootstrapStartTime,
+		ConnectionAttempts: d.ConnectionAttempts,
 	})
 }
 
@@ -222,6 +226,7 @@ func (d *storageData) UnmarshalJSON(b []byte) error {
 	d.Reattestable = j.Reattestable
 	d.BootstrapUse = j.BootstrapUse
 	d.BootstrapStartTime = j.BootstrapStartTime
+	d.ConnectionAttempts = j.ConnectionAttempts
 	return nil
 }
 

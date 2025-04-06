@@ -40,9 +40,10 @@ func New(config *Config, log logrus.FieldLogger) *Bundle {
 
 func (b *Bundle) SetStorage(storage storage.Storage) error {
 	b.storage = storage
-	use, startTime, err := b.storage.LoadBootstrapState()
+	use, startTime, connectionAttempts, err := b.storage.LoadBootstrapState()
 	b.use = use
 	b.startTime = startTime
+	b.connectionAttempts = connectionAttempts
 	if use == UseUnspecified {
 		b.use = UseBootstrap
 	}
@@ -55,7 +56,7 @@ func (b *Bundle) SetUse(use int) error {
 		b.connectionAttempts = 0
 		b.startTime = time.Now()
 		b.log.Info("Setting use.")
-		err := b.storage.StoreBootstrapState(use, b.startTime)
+		err := b.storage.StoreBootstrapState(use, b.startTime, b.connectionAttempts)
 		if err != nil {
 			return err
 		}
@@ -73,13 +74,13 @@ func (b *Bundle) SetSuccessIfRunning() error {
 
 func (b *Bundle) SetSuccess() error {
 	var err error
-	b.log.Info("Success, attempts=", b.connectionAttempts)
+	b.log.Info(fmt.Sprintf("Success after %s attempts=%d", time.Now().Sub(b.startTime), b.connectionAttempts))
 	b.use = UseRebootstrap
 	b.connectionAttempts = 0
 	b.startTime = time.Time{}
 	b.log.Info("Setting use.")
 	if b.storage != nil {
-		err = b.storage.StoreBootstrapState(b.use, b.startTime)
+		err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
 		if err != nil {
 			return err
 		}
@@ -89,9 +90,10 @@ func (b *Bundle) SetSuccess() error {
 }
 
 func (b *Bundle) SetForceRebootstrap() error {
-	// FIXME KMF add retry counter to StoreBootstrapState too?
 	b.use = UseRebootstrap
-	err := b.storage.StoreBootstrapState(b.use, b.startTime)
+	b.startTime = time.Now()
+	b.connectionAttempts = 0
+	err := b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
 	if err != nil {
 		return err
 	}
@@ -107,7 +109,7 @@ func (b *Bundle) GetStartTime() (time.Time, error) {
 	var err error
 	if b.startTime.IsZero() {
 		b.startTime = time.Now()
-		err = b.storage.StoreBootstrapState(b.use, b.startTime)
+		err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
 	}
 	return b.startTime, err
 }
@@ -127,10 +129,10 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 	b.connectionAttempts++
 	if b.startTime.IsZero() {
 		b.startTime = time.Now()
-		err = b.storage.StoreBootstrapState(b.use, b.startTime)
-		if err == nil {
-			return nil, false, err
-		}
+	}
+	err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
+	if err != nil {
+		return nil, false, err
 	}
 
 	switch {
