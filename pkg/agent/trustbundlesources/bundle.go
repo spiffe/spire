@@ -8,7 +8,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -133,7 +135,26 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 
 	switch {
 	case b.config.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(b.config.TrustBundleURL, b.config.TrustBundleUnixSocket)
+		u, err := url.Parse(b.config.TrustBundleURL)
+		if err != nil {
+			return nil, false, fmt.Errorf("unable to parse trust bundle URL: %w", err)
+		}
+		if b.config.TrustBundleUnixSocket != "" {
+			params := u.Query()
+			if b.use == UseRebootstrap {
+				params.Set("spire-attest-mode", "rebootstrap")
+			} else {
+				params.Set("spire-attest-mode", "bootstrap")
+			}
+			params.Set("spire-connection-attempts", strconv.Itoa(b.connectionAttempts))
+			params.Set("spire-attest-start-time", b.startTime.Format(time.RFC3339))
+			params.Set("spire-server-address", b.config.ServerAddress)
+			params.Set("spire-server-port", strconv.Itoa(b.config.ServerPort))
+			params.Set("spiffe-trust-domain", b.config.TrustDomain)
+			u.RawQuery = params.Encode()
+		}
+		b.log.Info("Getting trust bundle %s", u.String())
+		bundleBytes, err = downloadTrustBundle(u.String(), b.config.TrustBundleUnixSocket)
 		if err != nil {
 			return nil, false, err
 		}
