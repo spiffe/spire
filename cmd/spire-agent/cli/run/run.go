@@ -493,7 +493,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		TrustBundleFormat:     c.Agent.TrustBundleFormat,
 		TrustBundlePath:       c.Agent.TrustBundlePath,
 		TrustBundleURL:        c.Agent.TrustBundleURL,
-		TrustBundleUnixSocket: c.Agent.TrustBundleURL,
+		TrustBundleUnixSocket: c.Agent.TrustBundleUnixSocket,
 		TrustDomain:           c.Agent.TrustDomain,
 		ServerAddress:         c.Agent.ServerAddress,
 		ServerPort:            c.Agent.ServerPort,

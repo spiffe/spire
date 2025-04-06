@@ -160,7 +160,7 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 		} else {
 			b.log.Info(fmt.Sprintf("Server attestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
 		}
-		b.log.Debug(fmt.Sprintf("Server attestation url: %s", u.String()))
+		b.log.Debug(fmt.Sprintf("Server attestation url: %s from: ", u.String()), b.config.TrustBundleUnixSocket)
 		bundleBytes, err = downloadTrustBundle(u.String(), b.config.TrustBundleUnixSocket)
 		if err != nil {
 			return nil, false, err
