@@ -1145,6 +1145,24 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "sql_transaction_timeout is correctly parsed",
+			input: func(c *Config) {
+				c.Server.Experimental.SQLTransactionTimeout = "1m"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, time.Minute, c.EventTimeout)
+			},
+		},
+		{
+			msg: "event_timeout is correctly parsed",
+			input: func(c *Config) {
+				c.Server.Experimental.EventTimeout = "1m"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, time.Minute, c.EventTimeout)
+			},
+		},
+		{
 			msg: "audit_log_enabled is enabled",
 			input: func(c *Config) {
 				c.Server.AuditLogEnabled = true
@@ -1329,6 +1347,14 @@ func TestValidateConfig(t *testing.T) {
 				}
 			},
 			expectedErr: `federation.federates_with["domain.test"].bundle_endpoint_url must use the HTTPS protocol; URL found: "http://example.org/test"`,
+		},
+		{
+			name: "can't set both sql_transaction_timeout and event_timeout",
+			applyConf: func(c *Config) {
+				c.Server.Experimental.EventTimeout = "1h"
+				c.Server.Experimental.SQLTransactionTimeout = "1h"
+			},
+			expectedErr: "both experimental sql_transaction_timeout and event_timeout set, only set event_timeout",
 		},
 	}
 
