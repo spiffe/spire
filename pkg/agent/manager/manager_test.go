@@ -90,7 +90,7 @@ func TestInitializationFailure(t *testing.T) {
 	}
 
 	tbs := trustbundlesources.New(ts, nil)
-	err = tbs.SetStorage(sto)
+	err := tbs.SetStorage(sto)
 	require.NoError(t, err)
 
 	c := &Config{
@@ -1223,7 +1223,7 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 	}
 
 	tbs := trustbundlesources.New(ts, nil)
-	err = tbs.SetStorage(sto)
+	err := tbs.SetStorage(sto)
 	require.NoError(t, err)
 
 	c := &Config{
@@ -1328,7 +1328,7 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 	}
 
 	tbs := trustbundlesources.New(ts, nil)
-	err = tbs.SetStorage(sto)
+	err := tbs.SetStorage(sto)
 	require.NoError(t, err)
 
 	c := &Config{
@@ -1360,7 +1360,7 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 	}
 
 	/// Sync to get expected error
-	err := m.runSynchronizer(ctx)
+	err = m.runSynchronizer(ctx)
 	spiretest.RequireErrorPrefix(t, err, "failed to sync with SPIRE Server:")
 }
 
