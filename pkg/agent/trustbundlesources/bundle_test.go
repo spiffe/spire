@@ -2,10 +2,10 @@ package trustbundlesources
 
 import (
 	"io"
-	"os"
-	"path"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path"
 	"testing"
 
 	"github.com/spiffe/spire/test/util"
@@ -122,4 +122,3 @@ func TestDownloadTrustBundle(t *testing.T) {
 		})
 	}
 }
-
