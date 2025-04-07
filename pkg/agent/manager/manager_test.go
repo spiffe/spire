@@ -79,19 +79,19 @@ func TestInitializationFailure(t *testing.T) {
 
 	sto := openStorage(t, dir)
 	ts := &trustbundlesources.Config{
-                InsecureBootstrap:     false,
-                TrustBundleFormat:     "pem",
-                TrustBundlePath:       "",
-                TrustBundleURL:        "",
-                TrustBundleUnixSocket: "",
-                TrustDomain:           "example.org",
-                ServerAddress:         "localhost",
-                ServerPort:            1234,
-        }
+		InsecureBootstrap:     false,
+		TrustBundleFormat:     "pem",
+		TrustBundlePath:       "",
+		TrustBundleURL:        "",
+		TrustBundleUnixSocket: "",
+		TrustDomain:           "example.org",
+		ServerAddress:         "localhost",
+		ServerPort:            1234,
+	}
 
-	tbs := trustbundlesources.New(ts, nil) //ac.Log.WithField("Logger", "TrustBundleSources"))
-
-	tbs.SetStorage(sto)
+	tbs := trustbundlesources.New(ts, nil)
+	err = tbs.SetStorage(sto)
+	require.NoError(t, err)
 
 	c := &Config{
 		SVID:               baseSVID,
@@ -1212,19 +1212,19 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 
 	sto := openStorage(t, dir)
 	ts := &trustbundlesources.Config{
-                InsecureBootstrap:     false,
-                TrustBundleFormat:     "pem",
-                TrustBundlePath:       "",
-                TrustBundleURL:        "",
-                TrustBundleUnixSocket: "",
-                TrustDomain:           "example.org",
-                ServerAddress:         "localhost",
-                ServerPort:            1234,
-        }
+		InsecureBootstrap:     false,
+		TrustBundleFormat:     "pem",
+		TrustBundlePath:       "",
+		TrustBundleURL:        "",
+		TrustBundleUnixSocket: "",
+		TrustDomain:           "example.org",
+		ServerAddress:         "localhost",
+		ServerPort:            1234,
+	}
 
-	tbs := trustbundlesources.New(ts, nil) //ac.Log.WithField("Logger", "TrustBundleSources"))
-
-	tbs.SetStorage(sto)
+	tbs := trustbundlesources.New(ts, nil)
+	err = tbs.SetStorage(sto)
+	require.NoError(t, err)
 
 	c := &Config{
 		ServerAddr:         api.addr,
@@ -1239,12 +1239,12 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 		RotationInterval:   time.Hour,
 		// set sync interval to a high value to proof that synchronizer retries sync
 		// with the lower default interval in case 0 entries are returned
-		SyncInterval:       time.Hour,
-		Clk:                clk,
-		Catalog:            cat,
-		WorkloadKeyType:    workloadkey.ECP256,
-		SVIDStoreCache:     storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy:   rotationutil.NewRotationStrategy(0),
+		SyncInterval:     time.Hour,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)
@@ -1317,19 +1317,19 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 
 	sto := openStorage(t, dir)
 	ts := &trustbundlesources.Config{
-                InsecureBootstrap:     false,
-                TrustBundleFormat:     "pem",
-                TrustBundlePath:       "",
-                TrustBundleURL:        "",
-                TrustBundleUnixSocket: "",
-                TrustDomain:           "example.org",
-                ServerAddress:         "localhost",
-                ServerPort:            1234,
-        }
+		InsecureBootstrap:     false,
+		TrustBundleFormat:     "pem",
+		TrustBundlePath:       "",
+		TrustBundleURL:        "",
+		TrustBundleUnixSocket: "",
+		TrustDomain:           "example.org",
+		ServerAddress:         "localhost",
+		ServerPort:            1234,
+	}
 
-	tbs := trustbundlesources.New(ts, nil) //ac.Log.WithField("Logger", "TrustBundleSources"))
-
-	tbs.SetStorage(sto)
+	tbs := trustbundlesources.New(ts, nil)
+	err = tbs.SetStorage(sto)
+	require.NoError(t, err)
 
 	c := &Config{
 		ServerAddr:         api.addr,
@@ -1344,12 +1344,12 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 		RotationInterval:   time.Hour,
 		// set sync interval to a high value to proof that synchronizer retries sync
 		// with the lower default interval in case 0 entries are returned
-		SyncInterval:       time.Hour,
-		Clk:                clk,
-		Catalog:            cat,
-		WorkloadKeyType:    workloadkey.ECP256,
-		SVIDStoreCache:     storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy:   rotationutil.NewRotationStrategy(0),
+		SyncInterval:     time.Hour,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
 	}
 
 	m := newManager(c)

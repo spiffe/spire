@@ -398,7 +398,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if c.Agent.Rebootstrap {
 		delay, err := time.ParseDuration(c.Agent.RebootstrapDelay)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing duration: %v", err)
+			return nil, fmt.Errorf("error parsing duration: %w", err)
 		}
 		ac.RebootstrapDelay = &delay
 		if !ac.RetryBootstrap {
