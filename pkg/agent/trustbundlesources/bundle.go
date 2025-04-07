@@ -74,7 +74,7 @@ func (b *Bundle) SetSuccessIfRunning() error {
 
 func (b *Bundle) SetSuccess() error {
 	var err error
-	b.log.Info(fmt.Sprintf("Success after %s attempts=%d", time.Now().Sub(b.startTime), b.connectionAttempts))
+	b.log.Info(fmt.Sprintf("Success after %s attempts=%d", time.Since(b.startTime), b.connectionAttempts))
 	b.use = UseRebootstrap
 	b.connectionAttempts = 0
 	b.startTime = time.Time{}

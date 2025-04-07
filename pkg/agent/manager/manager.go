@@ -331,7 +331,11 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			}
 		}
 		switch {
-		case x509util.IsUnknownAuthorityError(err) && m.c.RebootstrapDelay != nil:
+		case x509util.IsUnknownAuthorityError(err):
+			if m.c.RebootstrapDelay == nil {
+				m.c.Log.WithError(err).Info("Synchronize failed, non-recoverable error")
+				return fmt.Errorf("failed to sync with SPIRE Server: %w", err)
+			}
 			startTime, err := m.c.TrustBundleSources.GetStartTime()
 			if err != nil {
 				return err
