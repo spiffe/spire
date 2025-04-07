@@ -33,6 +33,7 @@ type registrationEntries struct {
 
 	eventTracker          *eventTracker
 	sqlTransactionTimeout time.Duration
+	pageSize              int32
 
 	fetchEntries map[string]struct{}
 
@@ -133,7 +134,7 @@ func (a *registrationEntries) scanForNewEvents(ctx context.Context) error {
 	return nil
 }
 
-func (a *registrationEntries) loadCache(ctx context.Context, pageSize int32) error {
+func (a *registrationEntries) loadCache(ctx context.Context) error {
 	// Build the cache
 	var token string
 	for {
@@ -141,7 +142,7 @@ func (a *registrationEntries) loadCache(ctx context.Context, pageSize int32) err
 			DataConsistency: datastore.RequireCurrent, // preliminary loading should not be done via read-replicas
 			Pagination: &datastore.Pagination{
 				Token:    token,
-				PageSize: pageSize,
+				PageSize: a.pageSize,
 			},
 		})
 		if err != nil {
@@ -176,6 +177,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 		log:                   log,
 		metrics:               metrics,
 		sqlTransactionTimeout: sqlTransactionTimeout,
+		pageSize:              pageSize,
 
 		eventsBeforeFirst: make(map[uint]struct{}),
 		fetchEntries:      make(map[string]struct{}),
@@ -195,7 +197,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 		return nil, err
 	}
 
-	if err := registrationEntries.loadCache(ctx, pageSize); err != nil {
+	if err := registrationEntries.loadCache(ctx); err != nil {
 		return nil, err
 	}
 
@@ -220,32 +222,42 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 
 // updateCacheEntry update/deletes/creates an individual registration entry in the cache.
 func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
-	commonEntries, err := a.ds.FetchRegistrationEntries(ctx, slices.Collect(maps.Keys(a.fetchEntries)))
-	if err != nil {
-		return err
-	}
-
-	for entryId := range a.fetchEntries {
-		commonEntry := commonEntries[entryId]
-		if commonEntry == nil {
-			a.cache.RemoveEntry(entryId)
-			delete(a.fetchEntries, entryId)
-			continue
-		}
-
-		entry, err := api.RegistrationEntryToProto(commonEntry)
+	entryIds := slices.Collect(maps.Keys(a.fetchEntries))
+	for pageStart := 0; pageStart < len(entryIds); pageStart += int(a.pageSize) {
+		fetchEntries := a.fetchEntriesPage(entryIds, pageStart)
+		commonEntries, err := a.ds.FetchRegistrationEntries(ctx, fetchEntries)
 		if err != nil {
-			a.cache.RemoveEntry(entryId)
-			delete(a.fetchEntries, entryId)
-			a.log.WithField(telemetry.RegistrationID, entryId).Warn("Removed malformed registration entry from cache")
-			continue
+			return err
 		}
 
-		a.cache.UpdateEntry(entry)
-		delete(a.fetchEntries, entryId)
+		for _, entryId := range fetchEntries {
+			commonEntry := commonEntries[entryId]
+			if commonEntry == nil {
+				a.cache.RemoveEntry(entryId)
+				delete(a.fetchEntries, entryId)
+				continue
+			}
+
+			entry, err := api.RegistrationEntryToProto(commonEntry)
+			if err != nil {
+				a.cache.RemoveEntry(entryId)
+				delete(a.fetchEntries, entryId)
+				a.log.WithField(telemetry.RegistrationID, entryId).Warn("Removed malformed registration entry from cache")
+				continue
+			}
+
+			a.cache.UpdateEntry(entry)
+			delete(a.fetchEntries, entryId)
+		}
 	}
 
 	return nil
+}
+
+// fetchEntriesPage gets the range for the page starting at pageStart
+func (a *registrationEntries) fetchEntriesPage(entryIds []string, pageStart int) []string {
+	pageEnd := min(len(entryIds), pageStart+int(a.pageSize))
+	return entryIds[pageStart:pageEnd]
 }
 
 func (a *registrationEntries) emitMetrics() {
