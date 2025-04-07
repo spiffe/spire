@@ -1854,6 +1854,16 @@ func TestUpdateRegistrationEntriesCache(t *testing.T) {
 			name: "three new entries, two deletes in three pages",
 			setup: &entryScenarioSetup{
 				pageSize: 2,
+				registrationEntries: []*common.RegistrationEntry{
+					{
+						EntryId:  "8cbf7d48-9d43-41ae-ab63-77d66891f948",
+						ParentId: "spiffe://example.org/test_node_2",
+						SpiffeId: "spiffe://example.org/test_job_4",
+						Selectors: []*common.Selector{
+							{Type: "testjob", Value: "4"},
+						},
+					},
+				},
 			},
 			createRegistrationEntries: []*common.RegistrationEntry{
 				{
@@ -1880,6 +1890,9 @@ func TestUpdateRegistrationEntriesCache(t *testing.T) {
 						{Type: "testjob", Value: "3"},
 					},
 				},
+			},
+			deleteRegistrationEntries: []string{
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
 			},
 			fetchEntries: []string{
 				"6837984a-bc44-462b-9ca6-5cd59be35066",
