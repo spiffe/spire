@@ -191,6 +191,10 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 	return bundle, false, nil
 }
 
+func (b *Bundle) GetInsecureBootstrap() (bool) {
+	return b.config.InsecureBootstrap
+}
+
 func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x509.Certificate, error) {
 	switch trustBundleContentType {
 	case bundleFormatPEM:
