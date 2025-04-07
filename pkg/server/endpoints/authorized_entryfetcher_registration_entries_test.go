@@ -1850,6 +1850,51 @@ func TestUpdateRegistrationEntriesCache(t *testing.T) {
 				"354c16f4-4e61-4c17-8596-7baa7744d504",
 			},
 		},
+		{
+			name: "three new entries, two deletes in three pages",
+			setup: &entryScenarioSetup{
+				pageSize: 2,
+			},
+			createRegistrationEntries: []*common.RegistrationEntry{
+				{
+					EntryId:  "6837984a-bc44-462b-9ca6-5cd59be35066",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_1",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "1"},
+					},
+				},
+				{
+					EntryId:  "47c96201-a4b1-4116-97fe-8aa9c2440aad",
+					ParentId: "spiffe://example.org/test_node_1",
+					SpiffeId: "spiffe://example.org/test_job_2",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "2"},
+					},
+				},
+				{
+					EntryId:  "1d78521b-cc92-47c1-85a5-28ce47f121f2",
+					ParentId: "spiffe://example.org/test_node_2",
+					SpiffeId: "spiffe://example.org/test_job_3",
+					Selectors: []*common.Selector{
+						{Type: "testjob", Value: "3"},
+					},
+				},
+			},
+			fetchEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+				"8cbf7d48-9d43-41ae-ab63-77d66891f948",
+				"354c16f4-4e61-4c17-8596-7baa7744d504",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"6837984a-bc44-462b-9ca6-5cd59be35066",
+				"47c96201-a4b1-4116-97fe-8aa9c2440aad",
+				"1d78521b-cc92-47c1-85a5-28ce47f121f2",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewEntryScenario(t, tt.setup)
