@@ -168,6 +168,7 @@ func (a *attestor) loadBundle() (*spiffebundle.Bundle, error) {
 	}
 
 	if len(bundle) < 1 {
+		panic()
 		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
