@@ -59,8 +59,14 @@ stop-service() {
       sc stop "$1" || fail-now "failed to stop $1 service"
 }
 
+fail-now-with-log() {
+	docker compose logs "$1"
+	shift
+	fail-now "$@"
+}
+
 start-service(){
   log-info "starting $1 service..."
   docker compose exec -T -u ContainerAdministrator "$1" \
-      sc start "$@" | grep -wq  "START_PENDING\|RUNNING" || fail-now "failed to start $2 service"
+      sc start "$@" | grep -wq  "START_PENDING\|RUNNING" || fail-now-with-log "$1" "failed to start $2 service"
 }
