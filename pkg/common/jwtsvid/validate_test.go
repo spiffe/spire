@@ -101,7 +101,7 @@ func (s *TokenSuite) TestValidateBadAlgorithm() {
 	token := s.signToken(jose.HS256, key, jwt.Claims{})
 
 	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0:1])
-	s.Require().EqualError(err, `unable to parse JWT token: go-jose/go-jose: unexpected signature algorithm "HS256"; expected ["ES256" "ES384" "ES512" "RS256" "RS384" "RS512" "PS256" "PS384" "PS512"]`)
+	s.Require().EqualError(err, `unable to parse JWT token: unexpected signature algorithm "HS256"; expected ["ES256" "ES384" "ES512" "RS256" "RS384" "RS512" "PS256" "PS384" "PS512"]`)
 	s.Require().Empty(spiffeID)
 	s.Require().Nil(claims)
 }
