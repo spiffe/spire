@@ -168,8 +168,7 @@ func (a *attestor) loadBundle() (*spiffebundle.Bundle, error) {
 	}
 
 	if len(bundle) < 1 {
-		panic("no certs in bundle")
-		// return nil, errors.New("load bundle: no certs in bundle")
+		return nil, errors.New("load bundle: no certs in bundle")
 	}
 
 	return spiffebundle.FromX509Authorities(a.c.TrustDomain, bundle), nil
