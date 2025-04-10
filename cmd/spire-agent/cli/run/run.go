@@ -276,8 +276,8 @@ func (c *agentConfig) validate() error {
 			return fmt.Errorf("unable to parse trust bundle URL: %w", err)
 		}
 		if c.TrustBundleUnixSocket != "" {
-			if u.Scheme != "https" && u.Scheme != "http" {
-				return errors.New("trust bundle URL must start with https:// or http:// when used with trust bundle unix socket")
+			if u.Scheme != "http" {
+				return errors.New("trust bundle URL must start with http:// when used with trust bundle unix socket")
 			}
 			params := u.Query()
 			for key := range params {
