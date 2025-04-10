@@ -29,8 +29,8 @@ type registrationEntries struct {
 	firstEventTime time.Time
 	lastEvent      uint
 
-	eventTracker          *eventTracker
-	sqlTransactionTimeout time.Duration
+	eventTracker *eventTracker
+	eventTimeout time.Duration
 
 	fetchEntries map[string]struct{}
 
@@ -53,7 +53,7 @@ func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
 
 func (a *registrationEntries) searchBeforeFirstEvent(ctx context.Context) error {
 	// First event detected, and startup was less than a transaction timout away.
-	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.sqlTransactionTimeout {
+	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.eventTimeout {
 		resp, err := a.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
 			LessThanEventID: a.firstEvent,
 		})
@@ -164,16 +164,16 @@ func (a *registrationEntries) loadCache(ctx context.Context, pageSize int32) err
 }
 
 // buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
-func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, cacheReloadInterval, sqlTransactionTimeout time.Duration) (*registrationEntries, error) {
-	pollPeriods := PollPeriods(cacheReloadInterval, sqlTransactionTimeout)
+func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, cacheReloadInterval, eventTimeout time.Duration) (*registrationEntries, error) {
+	pollPeriods := PollPeriods(cacheReloadInterval, eventTimeout)
 
 	registrationEntries := &registrationEntries{
-		cache:                 cache,
-		clk:                   clk,
-		ds:                    ds,
-		log:                   log,
-		metrics:               metrics,
-		sqlTransactionTimeout: sqlTransactionTimeout,
+		cache:        cache,
+		clk:          clk,
+		ds:           ds,
+		log:          log,
+		metrics:      metrics,
+		eventTimeout: eventTimeout,
 
 		eventsBeforeFirst: make(map[uint]struct{}),
 		fetchEntries:      make(map[string]struct{}),
