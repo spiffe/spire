@@ -231,8 +231,8 @@ func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 		}
 
 		for _, entryId := range fetchEntries {
-			commonEntry := commonEntries[entryId]
-			if commonEntry == nil {
+			commonEntry, ok := commonEntries[entryId]
+			if !ok {
 				a.cache.RemoveEntry(entryId)
 				delete(a.fetchEntries, entryId)
 				continue
