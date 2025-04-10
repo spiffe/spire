@@ -408,7 +408,7 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 
 func downloadTrustBundle(trustBundleURL string, trustBundleUnixSocket string) ([]byte, error) {
 	var req *http.Request
-	client := &http.Client{}
+	client := http.DefaultClient
 	if trustBundleUnixSocket != "" {
 		client = &http.Client{
 			Transport: &http.Transport{
