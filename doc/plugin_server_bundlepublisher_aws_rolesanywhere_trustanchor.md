@@ -1,7 +1,10 @@
 # Server plugin: BundlePublisher "aws_rolesanywhere_trustanchor"
 
 > [!WARNING]
-> This plugin is only supported when an UpstreamAuthority plugin is used.
+> AWS Roles Anywhere only allows configuring up to two CAs per trust anchor. If you are using this plugin, you will
+> need to make sure there are at most 2 CAs in the trust bundle for the trust domain, otherwise publishing the bundle
+> will fail. This can be achieved by configuring the spire-server with an `UpstreamAuthority` plugin.
+> Also, keep in mind that expired CAs are only removed from the bundle 24 hours after their expiration.
 
 The `aws_rolesanywhere_trustanchor` plugin puts the current trust bundle of the server
 in a trust anchor, keeping it updated.
