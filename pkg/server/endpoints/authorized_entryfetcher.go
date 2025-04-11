@@ -17,7 +17,7 @@ import (
 
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithEventsBasedCache)(nil)
 
-const buildCachePageSize = 10000
+const pageSize = 10000
 
 type AuthorizedEntryFetcherWithEventsBasedCache struct {
 	cache *authorizedentries.Cache
@@ -115,7 +115,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Con
 func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cacheReloadInterval, sqlTransactionTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
 	cache := authorizedentries.NewCache(clk)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, buildCachePageSize, cacheReloadInterval, sqlTransactionTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, pageSize, cacheReloadInterval, sqlTransactionTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}
