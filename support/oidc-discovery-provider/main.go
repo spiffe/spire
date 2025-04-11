@@ -15,12 +15,13 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
+
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/version"
-	"golang.org/x/crypto/acme"
-	"golang.org/x/crypto/acme/autocert"
 )
 
 var (
@@ -249,7 +250,7 @@ func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {
 			"remote-addr": r.RemoteAddr,
 			"method":      r.Method,
 			"url":         r.URL,
-			"user-agent":  r.UserAgent,
+			"user-agent":  r.UserAgent(),
 		}).Debug("Incoming request")
 		handler.ServeHTTP(w, r)
 	})
