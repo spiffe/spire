@@ -872,6 +872,51 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:                "trust_bundle_url must start with http:// when unix socket",
+			expectError:        true,
+			requireErrorPrefix: "trust bundle URL must start with http://",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "foo.bar"
+				c.Agent.TrustBundleUnixSocket = "foo.bar"
+				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_url query params can not start with spiffe- when unix socket",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_url query params can not start with spiffe-",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "http://localhost/trustbundle?spiffe-test=foo"
+				c.Agent.TrustBundleUnixSocket = "foo.bar"
+				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_url query params can not start with spire- when unix socket",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_url query params can not start with spire-",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "http://localhost/trustbundle?spire-test=foo"
+				c.Agent.TrustBundleUnixSocket = "foo.bar"
+				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "workload_key_type is not set",
 			input: func(c *Config) {
 			},
