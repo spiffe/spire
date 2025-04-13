@@ -507,7 +507,7 @@ endif
 go-bin-path: go-check
 	@echo "$(go_bin_dir):${PATH}"
 
-install-toolchain: install-protoc install-protoc-gen-go install-protoc-gen-doc | go-check
+install-toolchain: install-protoc install-protoc-gen-go | go-check
 
 install-protoc: $(protoc_bin)
 
