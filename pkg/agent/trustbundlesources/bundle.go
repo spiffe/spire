@@ -38,14 +38,25 @@ func New(config *Config, log logrus.FieldLogger) *Bundle {
 	}
 }
 
-func (b *Bundle) SetStorage(storage storage.Storage) error {
-	b.storage = storage
+func (b *Bundle) SetStorage(sto storage.Storage) error {
+	b.storage = sto
 	use, startTime, connectionAttempts, err := b.storage.LoadBootstrapState()
 	b.use = use
 	b.startTime = startTime
 	b.connectionAttempts = connectionAttempts
 	if use == UseUnspecified {
 		b.use = UseBootstrap
+		BootstrapTrustBundle, err := b.storage.LoadBundle()
+		if err != nil {
+			if !errors.Is(err, storage.ErrNotCached) {
+				return err
+			}
+			b.use = UseRebootstrap
+		} else {
+			if len(BootstrapTrustBundle) > 0 {
+				b.use = UseRebootstrap
+			}
+		}
 	}
 	return err
 }
