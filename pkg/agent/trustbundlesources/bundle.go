@@ -52,10 +52,8 @@ func (b *Bundle) SetStorage(sto storage.Storage) error {
 				return err
 			}
 			b.use = UseRebootstrap
-		} else {
-			if len(BootstrapTrustBundle) > 0 {
-				b.use = UseRebootstrap
-			}
+		} else if len(BootstrapTrustBundle) > 0 {
+			b.use = UseRebootstrap
 		}
 	}
 	return err
