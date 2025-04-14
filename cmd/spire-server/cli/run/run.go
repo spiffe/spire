@@ -110,6 +110,7 @@ type experimentalConfig struct {
 	CacheReloadInterval   string                      `hcl:"cache_reload_interval"`
 	EventsBasedCache      bool                        `hcl:"events_based_cache"`
 	PruneEventsOlderThan  string                      `hcl:"prune_events_older_than"`
+	EventTimeout          string                      `hcl:"event_timeout"`
 	SQLTransactionTimeout string                      `hcl:"sql_transaction_timeout"`
 	RequirePQKEM          bool                        `hcl:"require_pq_kem"`
 
@@ -707,11 +708,20 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.Experimental.SQLTransactionTimeout != "" {
+		sc.Log.Warn("experimental.sql_transaction_timeout is deprecated, use experimental.event_timeout instead")
 		interval, err := time.ParseDuration(c.Server.Experimental.SQLTransactionTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse SQL transaction timeout interval: %w", err)
 		}
-		sc.SQLTransactionTimeout = interval
+		sc.EventTimeout = interval
+	}
+
+	if c.Server.Experimental.EventTimeout != "" {
+		interval, err := time.ParseDuration(c.Server.Experimental.EventTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse event timeout interval: %w", err)
+		}
+		sc.EventTimeout = interval
 	}
 
 	if c.Server.Experimental.EventsBasedCache {
@@ -902,6 +912,10 @@ func validateConfig(c *Config) error {
 				return fmt.Errorf("federation.federates_with[\"%s\"].bundle_endpoint_url must use the HTTPS protocol; URL found: %q", td, tdConfig.BundleEndpointURL)
 			}
 		}
+	}
+
+	if c.Server.Experimental.EventTimeout != "" && c.Server.Experimental.SQLTransactionTimeout != "" {
+		return errors.New("both experimental sql_transaction_timeout and event_timeout set, only set event_timeout")
 	}
 
 	return c.validateOS()

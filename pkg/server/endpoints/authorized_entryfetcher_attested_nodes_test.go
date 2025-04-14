@@ -262,7 +262,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 				attestedNodeEvents: defaultNodeEventsStartingAt60,
 			},
 
-			waitToPoll: time.Duration(2) * defaultSQLTransactionTimeout,
+			waitToPoll: time.Duration(2) * defaultEventTimeout,
 			// even with new before first events, they shouldn't load
 			polledEvents: []*datastore.AttestedNodeEvent{
 				{
@@ -1532,7 +1532,7 @@ func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
 }
 
 func (s *scenario) buildAttestedNodesCache() (*attestedNodes, error) {
-	attestedNodes, err := buildAttestedNodesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, defaultCacheReloadInterval, defaultSQLTransactionTimeout)
+	attestedNodes, err := buildAttestedNodesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, defaultCacheReloadInterval, defaultEventTimeout)
 	if attestedNodes != nil {
 		// clear out the fetches
 		for node := range attestedNodes.fetchNodes {
