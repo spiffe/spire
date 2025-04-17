@@ -65,6 +65,7 @@ This may be useful for templating configuration files, for example across differ
 | `sds`                             | Optional SDS configuration section                                                                                                                                                                                                                |                                  |
 | `trust_bundle_path`               | Path to the SPIRE server CA bundle                                                                                                                                                                                                                |                                  |
 | `trust_bundle_url`                | URL to download the initial SPIRE server trust bundle                                                                                                                                                                                             |                                  |
+| `trust_bundle_unix_socket`        | Make the request specified via trust_bundle_url happen against the specified unix socket.                                                                                                                                                         |                                  |
 | `trust_bundle_format`             | Format of the initial trust bundle, pem or spiffe                                                                                                                                                                                                 | pem                              |
 | `trust_domain`                    | The trust domain that this agent belongs to (should be no more than 255 characters)                                                                                                                                                               |                                  |
 | `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&gt;                                                                                                                                                                                     | ec-p256                          |
@@ -81,10 +82,12 @@ This may be useful for templating configuration files, for example across differ
 
 ### Initial trust bundle configuration
 
-The agent needs an initial trust bundle in order to connect securely to the SPIRE server. There are three options:
+The agent needs an initial trust bundle in order to connect securely to the SPIRE server. There are four options:
 
 1. If the `trust_bundle_path` option is used, the agent will read the initial trust bundle from the file at that path. You need to copy or share the file before starting the SPIRE agent.
-2. If the `trust_bundle_url` option is used, the agent will read the initial trust bundle from the specified URL. **The URL must start with `https://` for security, and the server must have a valid certificate (verified with the system trust store).** This can be used to rapidly deploy SPIRE agents without having to manually share a file. Keep in mind the contents of the URL need to be kept up to date.
+2. If the `trust_bundle_url` option is used, the agent will read the initial trust bundle from the specified URL.
+    1. If trust_bundle_unix_socket is unset, **The URL must start with `https://` for security, and the server must have a valid certificate (verified with the system trust store).** This can be used to rapidly deploy SPIRE agents without having to manually share a file. Keep in mind the contents of the URL need to be kept up to date.
+    2. If trust_bundle_unix_socket is set, **The URL must start with `http://`.** This can be used along with a local service running on the socket to fetch up to date trust bundles via some site specific, secure meachanism.
 3. If the `insecure_bootstrap` option is set to `true`, then the agent will not use an initial trust bundle. It will connect to the SPIRE server without authenticating it. This is not a secure configuration, because a man-in-the-middle attacker could control the SPIRE infrastructure. It is included because it is a useful option for testing and development.
 
 Only one of these three options may be set at a time.

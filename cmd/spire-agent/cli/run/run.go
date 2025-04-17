@@ -87,6 +87,7 @@ type agentConfig struct {
 	WorkloadX509SVIDKeyType       string    `hcl:"workload_x509_svid_key_type"`
 	TrustBundleFormat             string    `hcl:"trust_bundle_format"`
 	TrustBundlePath               string    `hcl:"trust_bundle_path"`
+	TrustBundleUnixSocket         string    `hcl:"trust_bundle_unix_socket"`
 	TrustBundleURL                string    `hcl:"trust_bundle_url"`
 	TrustDomain                   string    `hcl:"trust_domain"`
 	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
@@ -266,12 +267,28 @@ func (c *agentConfig) validate() error {
 		return fmt.Errorf("invalid value for trust_bundle_format, expected %q or %q", bundleFormatPEM, bundleFormatSPIFFE)
 	}
 
+	if c.TrustBundleUnixSocket != "" && c.TrustBundleURL == "" {
+		return fmt.Errorf("if trust_bundle_unix_socket is specified, so must be trust_bundle_url")
+	}
 	if c.TrustBundleURL != "" {
 		u, err := url.Parse(c.TrustBundleURL)
 		if err != nil {
 			return fmt.Errorf("unable to parse trust bundle URL: %w", err)
 		}
-		if u.Scheme != "https" {
+		if c.TrustBundleUnixSocket != "" {
+			if u.Scheme != "http" {
+				return errors.New("trust bundle URL must start with http:// when used with trust bundle unix socket")
+			}
+			params := u.Query()
+			for key := range params {
+				if strings.HasPrefix(key, "spiffe-") {
+					return errors.New("trust_bundle_url query params can not start with spiffe-")
+				}
+				if strings.HasPrefix(key, "spire-") {
+					return errors.New("trust_bundle_url query params can not start with spire-")
+				}
+			}
+		} else if u.Scheme != "https" {
 			return errors.New("trust bundle URL must start with https://")
 		}
 	}
@@ -389,11 +406,27 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 	return nil, fmt.Errorf("unknown trust bundle format: %s", trustBundleContentType)
 }
 
-func downloadTrustBundle(trustBundleURL string) ([]byte, error) {
+func downloadTrustBundle(trustBundleURL string, trustBundleUnixSocket string) ([]byte, error) {
+	var req *http.Request
+	client := http.DefaultClient
+	if trustBundleUnixSocket != "" {
+		client = &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+					return net.Dial("unix", trustBundleUnixSocket)
+				},
+			},
+		}
+	}
+	req, err := http.NewRequest("GET", trustBundleURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	// Download the trust bundle URL from the user specified URL
 	// We use gosec -- the annotation below will disable a security check that URLs are not tainted
 	/* #nosec G107 */
-	resp, err := http.Get(trustBundleURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch trust bundle URL %s: %w", trustBundleURL, err)
 	}
@@ -421,7 +454,7 @@ func setupTrustBundle(ac *agent.Config, c *Config) error {
 
 	switch {
 	case c.Agent.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL)
+		bundleBytes, err = downloadTrustBundle(c.Agent.TrustBundleURL, c.Agent.TrustBundleUnixSocket)
 		if err != nil {
 			return err
 		}

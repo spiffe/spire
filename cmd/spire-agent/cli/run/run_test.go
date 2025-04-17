@@ -2,6 +2,7 @@ package run
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -63,6 +64,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 		format              string
 		expectDownloadError bool
 		expectParseError    bool
+		unixSocket          bool
 	}{
 		{
 			msg:                 "if URL is not found, should be an error",
@@ -71,6 +73,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			format:              bundleFormatPEM,
 			expectDownloadError: true,
 			expectParseError:    false,
+			unixSocket:          false,
 		},
 		{
 			msg:                 "if URL returns error 500, should be an error",
@@ -79,6 +82,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			format:              bundleFormatPEM,
 			expectDownloadError: true,
 			expectParseError:    false,
+			unixSocket:          false,
 		},
 		{
 			msg:                 "if file is not parseable, should be an error",
@@ -87,6 +91,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			format:              bundleFormatPEM,
 			expectDownloadError: false,
 			expectParseError:    true,
+			unixSocket:          false,
 		},
 		{
 			msg:                 "if file is empty, should be an error",
@@ -95,6 +100,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			format:              bundleFormatPEM,
 			expectDownloadError: false,
 			expectParseError:    true,
+			unixSocket:          false,
 		},
 		{
 			msg:                 "if file is valid, should not be an error",
@@ -103,6 +109,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			format:              bundleFormatPEM,
 			expectDownloadError: false,
 			expectParseError:    false,
+			unixSocket:          false,
 		},
 		{
 			msg:                 "if file is not parseable, format is SPIFFE, should not be an error",
@@ -111,6 +118,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			format:              bundleFormatSPIFFE,
 			expectDownloadError: false,
 			expectParseError:    true,
+			unixSocket:          false,
 		},
 		{
 			msg:                 "if file is valid, format is SPIFFE, should not be an error",
@@ -119,12 +127,31 @@ func TestDownloadTrustBundle(t *testing.T) {
 			format:              bundleFormatSPIFFE,
 			expectDownloadError: false,
 			expectParseError:    false,
+			unixSocket:          false,
+		},
+		{
+			msg:                 "if file is valid, format is SPIFFE, unix socket true, should not be an error",
+			status:              http.StatusOK,
+			fileContents:        testTBSPIFFE,
+			format:              bundleFormatSPIFFE,
+			expectDownloadError: false,
+			expectParseError:    false,
+			unixSocket:          true,
 		},
 	}
 
 	for _, testCase := range cases {
 		t.Run(testCase.msg, func(t *testing.T) {
-			testServer := httptest.NewServer(http.HandlerFunc(
+			var unixSocket string
+			var err error
+			var bundleBytes []byte
+			if testCase.unixSocket {
+				tempDir, err := os.MkdirTemp("", "my-temp-dir-*")
+				require.NoError(t, err)
+				defer os.RemoveAll(tempDir)
+				unixSocket = filepath.Join(tempDir, "socket")
+			}
+			testServer := httptest.NewUnstartedServer(http.HandlerFunc(
 				func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(testCase.status)
 					_, _ = io.WriteString(w, testCase.fileContents)
@@ -132,8 +159,15 @@ func TestDownloadTrustBundle(t *testing.T) {
 					// 	return
 					// }
 				}))
-			defer testServer.Close()
-			bundleBytes, err := downloadTrustBundle(testServer.URL)
+			if testCase.unixSocket {
+				testServer.Listener, err = net.Listen("unix", unixSocket)
+				require.NoError(t, err)
+				testServer.Start()
+				bundleBytes, err = downloadTrustBundle("http://localhost/trustbundle", unixSocket)
+			} else {
+				testServer.Start()
+				bundleBytes, err = downloadTrustBundle(testServer.URL, "")
+			}
 			if testCase.expectDownloadError {
 				require.Error(t, err)
 			} else {
@@ -831,6 +865,51 @@ func TestNewAgentConfig(t *testing.T) {
 				// remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
 				c.Agent.TrustBundleURL = "foo.bar"
+				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_url must start with http:// when unix socket",
+			expectError:        true,
+			requireErrorPrefix: "trust bundle URL must start with http://",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "foo.bar"
+				c.Agent.TrustBundleUnixSocket = "foo.bar"
+				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_url query params can not start with spiffe- when unix socket",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_url query params can not start with spiffe-",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "http://localhost/trustbundle?spiffe-test=foo"
+				c.Agent.TrustBundleUnixSocket = "foo.bar"
+				c.Agent.InsecureBootstrap = false
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_url query params can not start with spire- when unix socket",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_url query params can not start with spire-",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "http://localhost/trustbundle?spire-test=foo"
+				c.Agent.TrustBundleUnixSocket = "foo.bar"
 				c.Agent.InsecureBootstrap = false
 			},
 			test: func(t *testing.T, c *agent.Config) {
