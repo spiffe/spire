@@ -225,7 +225,7 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 
 func downloadTrustBundle(trustBundleURL string, trustBundleUnixSocket string) ([]byte, error) {
 	var req *http.Request
-	client := &http.Client{}
+	client := http.DefaultClient
 	if trustBundleUnixSocket != "" {
 		client = &http.Client{
 			Transport: &http.Transport{
@@ -239,6 +239,7 @@ func downloadTrustBundle(trustBundleURL string, trustBundleUnixSocket string) ([
 	if err != nil {
 		return nil, err
 	}
+
 	// Download the trust bundle URL from the user specified URL
 	// We use gosec -- the annotation below will disable a security check that URLs are not tainted
 	/* #nosec G107 */
