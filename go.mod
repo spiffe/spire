@@ -62,7 +62,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.10.9
-	github.com/mattn/go-sqlite3 v1.14.27
+	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v1.3.0
 	github.com/prometheus/client_golang v1.22.0
