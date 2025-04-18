@@ -6,6 +6,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/server/api"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -28,7 +29,7 @@ var _ Cache = (*FullEntryCache)(nil)
 // Cache contains a snapshot of all registration entries and Agent selectors from the data source
 // at a particular moment in time.
 type Cache interface {
-	LookupAuthorizedEntries(agentID spiffeid.ID, entries map[string]struct{}) map[string]*types.Entry
+	LookupAuthorizedEntries(agentID spiffeid.ID, entries map[string]struct{}) map[string]api.ReadOnlyEntry
 	GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry
 }
 
@@ -174,14 +175,14 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	}, nil
 }
 
-func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries map[string]struct{}) map[string]*types.Entry {
+func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries map[string]struct{}) map[string]api.ReadOnlyEntry {
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
-	foundEntries := make(map[string]*types.Entry)
+	foundEntries := make(map[string]api.ReadOnlyEntry)
 	c.crawl(spiffeIDFromID(agentID), seen, func(entry *types.Entry) {
 		if _, ok := requestedEntries[entry.Id]; ok {
-			foundEntries[entry.Id] = proto.Clone(entry).(*types.Entry)
+			foundEntries[entry.Id] = api.NewReadOnlyEntry(entry)
 		}
 	})
 

@@ -2178,15 +2178,15 @@ type entryFetcher struct {
 	entries []*types.Entry
 }
 
-func (f *entryFetcher) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, _ map[string]struct{}) (map[string]*types.Entry, error) {
+func (f *entryFetcher) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, _ map[string]struct{}) (map[string]api.ReadOnlyEntry, error) {
 	entries, err := f.FetchAuthorizedEntries(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
 
-	entriesMap := make(map[string]*types.Entry)
+	entriesMap := make(map[string]api.ReadOnlyEntry)
 	for _, entry := range entries {
-		entriesMap[entry.GetId()] = entry
+		entriesMap[entry.GetId()] = api.NewReadOnlyEntry(entry)
 	}
 
 	return entriesMap, nil

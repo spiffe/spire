@@ -390,6 +390,7 @@ func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entryv1.GetAuth
 	if err != nil {
 		return nil, err
 	}
+
 	for i, entry := range entries {
 		applyMask(entry, req.OutputMask)
 		entries[i] = entry
