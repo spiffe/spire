@@ -28,12 +28,12 @@ type staticEntryCache struct {
 	entries map[spiffeid.ID][]*types.Entry
 }
 
-func (f *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[string]struct{}) map[string]*types.Entry {
+func (f *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[string]struct{}) map[string]api.ReadOnlyEntry {
 	entries := f.entries[agentID]
 
-	entriesMap := make(map[string]*types.Entry)
+	entriesMap := make(map[string]api.ReadOnlyEntry)
 	for _, entry := range entries {
-		entriesMap[entry.GetId()] = entry
+		entriesMap[entry.GetId()] = api.NewReadOnlyEntry(entry)
 	}
 
 	return entriesMap

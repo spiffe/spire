@@ -56,7 +56,7 @@ func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logr
 	}, nil
 }
 
-func (a *AuthorizedEntryFetcherWithEventsBasedCache) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, entryIDs map[string]struct{}) (map[string]*types.Entry, error) {
+func (a *AuthorizedEntryFetcherWithEventsBasedCache) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, entryIDs map[string]struct{}) (map[string]api.ReadOnlyEntry, error) {
 	return a.cache.LookupAuthorizedEntries(agentID, entryIDs), nil
 }
 
