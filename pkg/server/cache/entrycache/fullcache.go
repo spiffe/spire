@@ -2,7 +2,6 @@ package entrycache
 
 import (
 	"context"
-	"slices"
 	"sync"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -180,7 +179,12 @@ func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedE
 	defer freeSeenSet(seen)
 
 	foundEntries := make(map[string]*types.Entry)
-	c.lookupAuthorizedEntries(spiffeIDFromID(agentID), foundEntries, requestedEntries, seen)
+	c.crawl(spiffeIDFromID(agentID), seen, func(entry *types.Entry) {
+		if _, ok := requestedEntries[entry.Id]; ok {
+			foundEntries[entry.Id] = proto.Clone(entry).(*types.Entry)
+		}
+	})
+
 	return foundEntries
 }
 
@@ -189,46 +193,28 @@ func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entr
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
-	return cloneEntries(c.getAuthorizedEntries(spiffeIDFromID(agentID), seen))
+	foundEntries := []*types.Entry{}
+	c.crawl(spiffeIDFromID(agentID), seen, func(entry *types.Entry) {
+		foundEntries = append(foundEntries, proto.Clone(entry).(*types.Entry))
+	})
+
+	return foundEntries
 }
 
-func (c *FullEntryCache) lookupAuthorizedEntries(id spiffeID, foundEntries map[string]*types.Entry, requestedEntries map[string]struct{}, seen map[spiffeID]struct{}) {
-	for _, descendant := range c.crawl(id, seen) {
-		if _, ok := requestedEntries[descendant.Id]; ok {
-			foundEntries[descendant.Id] = proto.Clone(descendant).(*types.Entry)
-		}
-		c.lookupAuthorizedEntries(spiffeIDFromProto(descendant.SpiffeId), foundEntries, requestedEntries, seen)
-	}
-
-	for _, alias := range c.aliases[id] {
-		c.lookupAuthorizedEntries(alias.id, foundEntries, requestedEntries, seen)
-	}
-}
-
-func (c *FullEntryCache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
-	entries := c.crawl(id, seen)
-	for _, descendant := range entries {
-		entries = append(entries, c.getAuthorizedEntries(spiffeIDFromProto(descendant.SpiffeId), seen)...)
-	}
-
-	for _, alias := range c.aliases[id] {
-		entries = append(entries, c.getAuthorizedEntries(alias.id, seen)...)
-	}
-	return entries
-}
-
-func (c *FullEntryCache) crawl(parentID spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
+func (c *FullEntryCache) crawl(parentID spiffeID, seen map[spiffeID]struct{}, visit func(*types.Entry)) {
 	if _, ok := seen[parentID]; ok {
-		return nil
+		return
 	}
 	seen[parentID] = struct{}{}
 
-	// Make a copy so that the entries aren't aliasing the backing array
-	entries := slices.Clone(c.entries[parentID])
-	for _, entry := range entries {
-		entries = append(entries, c.crawl(spiffeIDFromProto(entry.SpiffeId), seen)...)
+	for _, entry := range c.entries[parentID] {
+		visit(entry)
+		c.crawl(spiffeIDFromProto(entry.SpiffeId), seen, visit)
 	}
-	return entries
+
+	for _, alias := range c.aliases[parentID] {
+		c.crawl(alias.id, seen, visit)
+	}
 }
 
 func spiffeIDFromID(id spiffeid.ID) spiffeID {
@@ -293,15 +279,4 @@ func isSubset(sub, whole selectorSet) bool {
 		}
 	}
 	return true
-}
-
-func cloneEntries(entries []*types.Entry) []*types.Entry {
-	if len(entries) == 0 {
-		return entries
-	}
-	cloned := make([]*types.Entry, 0, len(entries))
-	for _, entry := range entries {
-		cloned = append(cloned, proto.Clone(entry).(*types.Entry))
-	}
-	return cloned
 }
