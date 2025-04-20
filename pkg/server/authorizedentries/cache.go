@@ -88,7 +88,7 @@ func (c *Cache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries ma
 	return foundEntries
 }
 
-func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
+func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 

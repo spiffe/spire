@@ -28,6 +28,10 @@ func NewReadOnlyEntry(entry *types.Entry) ReadOnlyEntry {
 	}
 }
 
+func (e ReadOnlyEntry) GetId() string {
+	return e.entry.Id
+}
+
 func (e *ReadOnlyEntry) GetSpiffeId() *types.SPIFFEID {
 	return &types.SPIFFEID{
 		TrustDomain: e.entry.SpiffeId.TrustDomain,
@@ -49,6 +53,10 @@ func (e *ReadOnlyEntry) GetDnsNames() []string {
 
 func (e *ReadOnlyEntry) GetRevisionNumber() int64 {
 	return e.entry.RevisionNumber
+}
+
+func (e *ReadOnlyEntry) GetCreatedAt() int64 {
+	return e.entry.CreatedAt
 }
 
 // Manually clone the entry instead of using the protobuf helpers
