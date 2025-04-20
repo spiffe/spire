@@ -236,7 +236,7 @@ func TestDockerConfigDefault(t *testing.T) {
 
 	require.NotNil(t, p.docker)
 	require.Equal(t, dockerclient.DefaultDockerHost, p.docker.(*dockerclient.Client).DaemonHost())
-	require.Equal(t, "1.48", p.docker.(*dockerclient.Client).ClientVersion())
+	require.Equal(t, "1.49", p.docker.(*dockerclient.Client).ClientVersion())
 	verifyConfigDefault(t, p.c)
 }
 
