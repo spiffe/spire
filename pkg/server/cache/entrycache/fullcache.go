@@ -7,7 +7,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
-	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -30,7 +29,7 @@ var _ Cache = (*FullEntryCache)(nil)
 // at a particular moment in time.
 type Cache interface {
 	LookupAuthorizedEntries(agentID spiffeid.ID, entries map[string]struct{}) map[string]api.ReadOnlyEntry
-	GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry
+	GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry
 }
 
 // Selector is a key-value attribute of a node or workload.
@@ -190,13 +189,13 @@ func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedE
 }
 
 // GetAuthorizedEntries gets all authorized registration entries for a given Agent SPIFFE ID.
-func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
+func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
-	foundEntries := []*types.Entry{}
+	foundEntries := []api.ReadOnlyEntry{}
 	c.crawl(spiffeIDFromID(agentID), seen, func(entry *types.Entry) {
-		foundEntries = append(foundEntries, proto.Clone(entry).(*types.Entry))
+		foundEntries = append(foundEntries, api.NewReadOnlyEntry(entry))
 	})
 
 	return foundEntries

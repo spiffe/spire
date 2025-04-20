@@ -4849,13 +4849,13 @@ func (f *entryFetcher) LookupAuthorizedEntries(ctx context.Context, agentID spif
 
 	entriesMap := make(map[string]api.ReadOnlyEntry)
 	for _, entry := range entries {
-		entriesMap[entry.GetId()] = api.NewReadOnlyEntry(entry)
+		entriesMap[entry.GetId()] = entry
 	}
 
 	return entriesMap, nil
 }
 
-func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]api.ReadOnlyEntry, error) {
 	if f.err != "" {
 		return nil, status.Error(codes.Internal, f.err)
 	}
@@ -4869,7 +4869,12 @@ func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiff
 		return nil, fmt.Errorf("provided caller id is different to expected")
 	}
 
-	return f.entries, nil
+	entries := []api.ReadOnlyEntry{}
+	for _, entry := range f.entries {
+		entries = append(entries, api.NewReadOnlyEntry(entry))
+	}
+
+	return entries, nil
 }
 
 type HasID interface {
