@@ -68,6 +68,8 @@ type agentConfig struct {
 	AdminSocketPath               string    `hcl:"admin_socket_path"`
 	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
 	RetryBootstrap                bool      `hcl:"retry_bootstrap"`
+	Rebootstrap                   bool      `hcl:"rebootstrap"`
+	RebootstrapDelay              string    `hcl:"rebootstrap_delay"`
 	JoinToken                     string    `hcl:"join_token"`
 	LogFile                       string    `hcl:"log_file"`
 	LogFormat                     string    `hcl:"log_format"`
@@ -346,6 +348,8 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.BoolVar(&c.AllowUnauthenticatedVerifiers, "allowUnauthenticatedVerifiers", false, "If true, the agent permits the retrieval of X509 certificate bundles by unregistered clients")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&c.RetryBootstrap, "retryBootstrap", false, "If true, the agent retries bootstrap with backoff")
+	flags.BoolVar(&c.Rebootstrap, "rebootstrap", false, "If true, the agent will retry bootstrapping after seeing an x509 cert mismatch from the server")
+	flags.StringVar(&c.RebootstrapDelay, "rebootstrapDelay", "10m", "The time to delay after seeing a x509 cert mismatch from the server before rebootstrapping")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
 	c.addOSFlags(flags)
@@ -388,6 +392,19 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.RetryBootstrap = c.Agent.RetryBootstrap
+	if c.Agent.Rebootstrap {
+		delay, err := time.ParseDuration(c.Agent.RebootstrapDelay)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing duration: %w", err)
+		}
+		ac.RebootstrapDelay = &delay
+		if !ac.RetryBootstrap {
+			return nil, fmt.Errorf("RetryBootstrap needs to be true to support rebootstrapping")
+		}
+		if c.Agent.InsecureBootstrap {
+			return nil, fmt.Errorf("InsecureBootstrap can not be used with rebootstrapping")
+		}
+	}
 
 	if c.Agent.Experimental.SyncInterval != "" {
 		var err error
@@ -471,18 +488,18 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.DisableSPIFFECertValidation = c.Agent.SDS.DisableSPIFFECertValidation
 
-	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
 	ts := &trustbundlesources.Config{
 		InsecureBootstrap:     c.Agent.InsecureBootstrap,
 		TrustBundleFormat:     c.Agent.TrustBundleFormat,
 		TrustBundlePath:       c.Agent.TrustBundlePath,
 		TrustBundleURL:        c.Agent.TrustBundleURL,
 		TrustBundleUnixSocket: c.Agent.TrustBundleUnixSocket,
+		TrustDomain:           c.Agent.TrustDomain,
+		ServerAddress:         c.Agent.ServerAddress,
+		ServerPort:            c.Agent.ServerPort,
 	}
-	err = trustbundlesources.SetupTrustBundle(ac, ts)
-	if err != nil {
-		return nil, err
-	}
+
+	ac.TrustBundleSources = trustbundlesources.New(ts, ac.Log.WithField("Logger", "TrustBundleSources"))
 
 	ac.WorkloadKeyType = workloadkey.ECP256
 	if c.Agent.WorkloadX509SVIDKeyType != "" {

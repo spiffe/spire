@@ -566,7 +566,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.InsecureBootstrap = false
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.False(t, c.InsecureBootstrap)
+				require.False(t, c.TrustBundleSources.GetInsecureBootstrap())
 			},
 		},
 		{
@@ -578,7 +578,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.InsecureBootstrap = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.True(t, c.InsecureBootstrap)
+				require.True(t, c.TrustBundleSources.GetInsecureBootstrap())
 			},
 		},
 		{

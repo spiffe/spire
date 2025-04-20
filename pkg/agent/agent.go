@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,6 +34,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/version"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -40,8 +42,9 @@ import (
 )
 
 const (
-	bootstrapBackoffInterval       = 5 * time.Second
-	bootstrapBackoffMaxElapsedTime = 1 * time.Minute
+	bootstrapBackoffInterval = 5 * time.Second
+	// FIXME KMF what to do...
+	bootstrapBackoffMaxElapsedTime = 24 * time.Hour // 1 *time.Minute
 )
 
 type Agent struct {
@@ -105,22 +108,73 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
+	err = a.c.TrustBundleSources.SetStorage(sto)
+	if err != nil {
+		return err
+	}
+
+	if a.c.RebootstrapDelay != nil {
+		_, reattestable, err := sto.LoadSVID()
+		if err == nil && !reattestable {
+			return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
+		}
+	}
+
 	if a.c.RetryBootstrap {
 		attBackoffClock := clock.New()
 		attBackoff := backoff.NewBackoff(
 			attBackoffClock,
 			bootstrapBackoffInterval,
 			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+			// FIXME KMF how to ignore max time if rebootstrapping
 		)
 
 		for {
-			as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
-			if err == nil {
-				break
+			InsecureBootstrap := false
+			BootstrapTrustBundle, err := sto.LoadBundle()
+			if errors.Is(err, storage.ErrNotCached) {
+				BootstrapTrustBundle, InsecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
 			}
+			if err == nil {
+				as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle, InsecureBootstrap)
+				if err == nil {
+					err = a.c.TrustBundleSources.SetSuccess()
+					if err != nil {
+						return err
+					}
+					if a.c.RebootstrapDelay != nil {
+						_, reattestable, err := sto.LoadSVID()
+						if err == nil && !reattestable {
+							return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
+						}
+					}
+					break
+				}
 
-			if status.Code(err) == codes.PermissionDenied {
-				return err
+				if x509util.IsUnknownAuthorityError(err) {
+					if a.c.TrustBundleSources.IsBootstrap() {
+						fmt.Printf("Trust Bandle and Server dont agree.... bootstrapping again")
+					} else if a.c.RebootstrapDelay != nil {
+						startTime, err := a.c.TrustBundleSources.GetStartTime()
+						if err != nil {
+							return nil
+						}
+						seconds := time.Since(startTime)
+						if seconds < *a.c.RebootstrapDelay {
+							fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *a.c.RebootstrapDelay-seconds)
+						} else {
+							fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping\n")
+							err = sto.StoreBundle(nil)
+							if err != nil {
+								return err
+							}
+						}
+					}
+				}
+
+				if status.Code(err) == codes.PermissionDenied {
+					return err
+				}
 			}
 
 			nextDuration := attBackoff.NextBackOff()
@@ -141,7 +195,15 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 		}
 	} else {
-		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
+		InsecureBootstrap := false
+		BootstrapTrustBundle, err := sto.LoadBundle()
+		if errors.Is(err, storage.ErrNotCached) {
+			BootstrapTrustBundle, InsecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
+		}
+		if err != nil {
+			return err
+		}
+		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle, InsecureBootstrap)
 		if err != nil {
 			return err
 		}
@@ -249,19 +311,19 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor) (*node_attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor, bootstrapTrustBundle []*x509.Certificate, insecureBootstrap bool) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
-		Catalog:           cat,
-		Metrics:           metrics,
-		JoinToken:         a.c.JoinToken,
-		TrustDomain:       a.c.TrustDomain,
-		TrustBundle:       a.c.TrustBundle,
-		InsecureBootstrap: a.c.InsecureBootstrap,
-		Storage:           sto,
-		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
-		ServerAddress:     a.c.ServerAddress,
-		NodeAttestor:      na,
-		TLSPolicy:         a.c.TLSPolicy,
+		Catalog:              cat,
+		Metrics:              metrics,
+		JoinToken:            a.c.JoinToken,
+		TrustDomain:          a.c.TrustDomain,
+		BootstrapTrustBundle: bootstrapTrustBundle,
+		InsecureBootstrap:    insecureBootstrap,
+		Storage:              sto,
+		Log:                  a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
+		ServerAddress:        a.c.ServerAddress,
+		NodeAttestor:         na,
+		TLSPolicy:            a.c.TLSPolicy,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
@@ -279,6 +341,8 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		Metrics:                  metrics,
 		WorkloadKeyType:          a.c.WorkloadKeyType,
 		Storage:                  sto,
+		TrustBundleSources:       a.c.TrustBundleSources,
+		RebootstrapDelay:         a.c.RebootstrapDelay,
 		SyncInterval:             a.c.SyncInterval,
 		UseSyncAuthorizedEntries: a.c.UseSyncAuthorizedEntries,
 		X509SVIDCacheMaxSize:     a.c.X509SVIDCacheMaxSize,
@@ -296,12 +360,34 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 			initBackoffClock,
 			bootstrapBackoffInterval,
 			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+			// FIXME KMF how to ignore max time if rebootstrapping
 		)
 
 		for {
 			err := mgr.Initialize(ctx)
 			if err == nil {
+				err = a.c.TrustBundleSources.SetSuccessIfRunning()
+				if err != nil {
+					return nil, err
+				}
 				return mgr, nil
+			}
+			if x509util.IsUnknownAuthorityError(err) && a.c.RebootstrapDelay != nil {
+				startTime, err := a.c.TrustBundleSources.GetStartTime()
+				if err != nil {
+					return nil, err
+				}
+				seconds := time.Since(startTime)
+				if seconds < *a.c.RebootstrapDelay {
+					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *a.c.RebootstrapDelay-seconds)
+				} else {
+					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+					err = a.c.TrustBundleSources.SetForceRebootstrap()
+					if err != nil {
+						return nil, err
+					}
+					return nil, errors.New("Agent needs to rebootstrap. shutting down")
+				}
 			}
 
 			if nodeutil.ShouldAgentReattest(err) || nodeutil.ShouldAgentShutdown(err) {

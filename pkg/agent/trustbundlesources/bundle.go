@@ -8,52 +8,200 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
+	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 )
 
-func SetupTrustBundle(ac *agent.Config, bconfig *Config) error {
-	// Either download the trust bundle if TrustBundleURL is set, or read it
-	// from disk if TrustBundlePath is set
-	ac.InsecureBootstrap = bconfig.InsecureBootstrap
+type Bundle struct {
+	config             *Config
+	use                int
+	connectionAttempts int
+	startTime          time.Time
+	log                logrus.FieldLogger
+	storage            storage.Storage
+	lastBundle         []*x509.Certificate
+}
 
-	var bundleBytes []byte
-	var err error
+// FIXME KMF take in state interface...
+func New(config *Config, log logrus.FieldLogger) *Bundle {
+	return &Bundle{
+		config: config,
+		log:    log,
+	}
+}
 
-	switch {
-	case bconfig.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(bconfig.TrustBundleURL, bconfig.TrustBundleUnixSocket)
+func (b *Bundle) SetStorage(sto storage.Storage) error {
+	b.storage = sto
+	use, startTime, connectionAttempts, err := b.storage.LoadBootstrapState()
+	b.use = use
+	b.startTime = startTime
+	b.connectionAttempts = connectionAttempts
+	if use == UseUnspecified {
+		b.use = UseBootstrap
+		BootstrapTrustBundle, err := b.storage.LoadBundle()
+		if err != nil {
+			if !errors.Is(err, storage.ErrNotCached) {
+				return err
+			}
+			b.use = UseRebootstrap
+		} else if len(BootstrapTrustBundle) > 0 {
+			b.use = UseRebootstrap
+		}
+	}
+	return err
+}
+
+func (b *Bundle) SetUse(use int) error {
+	if b.use != use {
+		b.use = use
+		b.connectionAttempts = 0
+		b.startTime = time.Now()
+		b.log.Info("Setting use.")
+		err := b.storage.StoreBootstrapState(use, b.startTime, b.connectionAttempts)
 		if err != nil {
 			return err
 		}
-	case bconfig.TrustBundlePath != "":
-		bundleBytes, err = loadTrustBundle(bconfig.TrustBundlePath)
-		if err != nil {
-			return fmt.Errorf("could not parse trust bundle: %w", err)
-		}
-	default:
-		// If InsecureBootstrap is configured, the bundle is not required
-		if bconfig.InsecureBootstrap {
-			return nil
-		}
+		return err
 	}
+	return nil
+}
 
-	bundle, err := parseTrustBundle(bundleBytes, bconfig.TrustBundleFormat)
+func (b *Bundle) SetSuccessIfRunning() error {
+	if !b.startTime.IsZero() {
+		return b.SetSuccess()
+	}
+	return nil
+}
+
+func (b *Bundle) SetSuccess() error {
+	var err error
+	b.log.Info(fmt.Sprintf("Success after %s attempts=%d", time.Since(b.startTime), b.connectionAttempts))
+	b.use = UseRebootstrap
+	b.connectionAttempts = 0
+	b.startTime = time.Time{}
+	b.log.Info("Setting use.")
+	if b.storage != nil {
+		err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
+		if err != nil {
+			return err
+		}
+		err = b.storage.StoreBundle(b.lastBundle)
+	}
+	return err
+}
+
+func (b *Bundle) SetForceRebootstrap() error {
+	b.use = UseRebootstrap
+	b.startTime = time.Now()
+	b.connectionAttempts = 0
+	err := b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
 	if err != nil {
 		return err
 	}
+	err = b.storage.DeleteSVID()
+	if err != nil {
+		return err
+	}
+	err = b.storage.StoreBundle(nil)
+	return err
+}
 
-	if len(bundle) == 0 {
-		return errors.New("no certificates found in trust bundle")
+func (b *Bundle) GetStartTime() (time.Time, error) {
+	var err error
+	if b.startTime.IsZero() {
+		b.startTime = time.Now()
+		err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
+	}
+	return b.startTime, err
+}
+
+func (b *Bundle) IsBootstrap() bool {
+	return b.use != UseRebootstrap
+}
+
+func (b *Bundle) IsRebootstrap() bool {
+	return b.use == UseRebootstrap
+}
+
+func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
+	var bundleBytes []byte
+	var err error
+
+	b.connectionAttempts++
+	if b.startTime.IsZero() {
+		b.startTime = time.Now()
+	}
+	err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
+	if err != nil {
+		return nil, false, err
 	}
 
-	ac.TrustBundle = bundle
+	switch {
+	case b.config.TrustBundleURL != "":
+		u, err := url.Parse(b.config.TrustBundleURL)
+		if err != nil {
+			return nil, false, fmt.Errorf("unable to parse trust bundle URL: %w", err)
+		}
+		if b.config.TrustBundleUnixSocket != "" {
+			params := u.Query()
+			if b.use == UseRebootstrap {
+				params.Set("spire-attest-mode", "rebootstrap")
+			} else {
+				params.Set("spire-attest-mode", "bootstrap")
+			}
+			params.Set("spire-connection-attempts", strconv.Itoa(b.connectionAttempts))
+			params.Set("spire-attest-start-time", b.startTime.Format(time.RFC3339))
+			params.Set("spire-server-address", b.config.ServerAddress)
+			params.Set("spire-server-port", strconv.Itoa(b.config.ServerPort))
+			params.Set("spiffe-trust-domain", b.config.TrustDomain)
+			u.RawQuery = params.Encode()
+		}
+		if b.use == UseRebootstrap {
+			b.log.Info(fmt.Sprintf("Server reattestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+		} else {
+			b.log.Info(fmt.Sprintf("Server attestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+		}
+		b.log.Debug(fmt.Sprintf("Server attestation url: %s from: ", u.String()), b.config.TrustBundleUnixSocket)
+		bundleBytes, err = downloadTrustBundle(u.String(), b.config.TrustBundleUnixSocket)
+		if err != nil {
+			return nil, false, err
+		}
+	case b.config.TrustBundlePath != "":
+		bundleBytes, err = loadTrustBundle(b.config.TrustBundlePath)
+		if err != nil {
+			return nil, false, fmt.Errorf("could not parse trust bundle: %w", err)
+		}
+	default:
+		// If InsecureBootstrap is configured, the bundle is not required
+		if b.config.InsecureBootstrap {
+			return nil, true, nil
+		}
+	}
 
-	return nil
+	bundle, err := parseTrustBundle(bundleBytes, b.config.TrustBundleFormat)
+	if err != nil {
+		return nil, false, err
+	}
+
+	if len(bundle) == 0 {
+		return nil, false, errors.New("no certificates found in trust bundle")
+	}
+
+	b.lastBundle = bundle
+
+	return bundle, false, nil
+}
+
+func (b *Bundle) GetInsecureBootstrap() bool {
+	return b.config.InsecureBootstrap
 }
 
 func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x509.Certificate, error) {
