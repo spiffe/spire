@@ -3,19 +3,14 @@ package main
 import (
 	"os"
 	"path/filepath"
-	//"sync"
 	"testing"
 	"time"
 
-	//"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/test/clock"
-	//"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
-	//"google.golang.org/grpc/codes"
-	//"google.golang.org/grpc/status"
 )
 
 func TestFileSource(t *testing.T) {
@@ -105,53 +100,3 @@ func TestFileSource(t *testing.T) {
 	require.Equal(t, "KID2", keySet3.Keys[0].KeyID)
 	require.Equal(t, ec256Pubkey, keySet3.Keys[0].Key)
 }
-
-/*
-type fakeWorkloadAPIServer struct {
-	workload.SpiffeWorkloadAPIServer
-
-	mu                   sync.Mutex
-	bundles              map[string][]byte
-	fetchJWTBundlesCount int
-}
-
-func (s *fakeWorkloadAPIServer) SetJWTBundles(bundles map[string][]byte) {
-	s.mu.Lock()
-	s.bundles = bundles
-	s.mu.Unlock()
-}
-
-func (s *fakeWorkloadAPIServer) GetFetchJWTBundlesCount() int {
-	s.mu.Lock()
-	count := s.fetchJWTBundlesCount
-	s.mu.Unlock()
-	return count
-}
-
-func (s *fakeWorkloadAPIServer) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.fetchJWTBundlesCount++
-
-	if s.bundles == nil {
-		return status.Error(codes.NotFound, "no bundle")
-	}
-
-	// Send the JWT bundles right away
-	if err := stream.Send(&workload.JWTBundlesResponse{
-		Bundles: s.bundles,
-	}); err != nil {
-		return err
-	}
-
-	// Wait for the stream to close down
-	<-stream.Context().Done()
-	return nil
-}
-
-func makeJWKS(t *testing.T, jwks *jose.JSONWebKeySet) []byte {
-	out, err := json.Marshal(jwks)
-	require.NoError(t, err)
-	return out
-}
-*/
