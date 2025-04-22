@@ -92,7 +92,7 @@ func (s *FileSource) pollEvery(ctx context.Context, path string, interval time.D
 	}
 }
 
-func (s *FileSource) pollOnce(ctx context.Context, path string) {
+func (s *FileSource) pollOnce(_ context.Context, path string) {
 	bundle, err := spiffebundle.Load(spiffeid.TrustDomain{}, path)
 	if err != nil {
 		s.log.WithError(err).Warn("Failed to load SPIFFE trust bundle")

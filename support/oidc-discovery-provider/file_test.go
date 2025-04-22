@@ -43,6 +43,7 @@ func TestFileSource(t *testing.T) {
 	// period, wait for the poll to happen and assert there is no key set
 	// available
 	err = os.WriteFile(path, []byte("{}"), 0600)
+	require.NoError(t, err)
 
 	clock.Add(pollInterval)
 	clock.WaitForAfter(time.Minute, "failed to wait for the poll timer")
