@@ -363,7 +363,7 @@ func parseConfigCasesOS() []parseConfigCase {
 				server_api { address = "unix:///some/socket/path" }
 				workload_api { socket_path = "/some/socket/path" trust_domain="foo.test" }
 			`,
-			err: "the server_api and workload_api sections are mutually exclusive",
+			err: "the server_api, workload_api, and file sections are mutually exclusive",
 		},
 		{
 			name: "minimal server API config",
